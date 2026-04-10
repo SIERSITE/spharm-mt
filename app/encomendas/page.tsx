@@ -505,7 +505,17 @@ function getPriorityClasses(prioridade: Prioridade) {
       return "border-slate-200 bg-slate-50 text-slate-600";
   }
 }
-
+function toggleValue(
+  value: string,
+  selected: string[],
+  setSelected: React.Dispatch<React.SetStateAction<string[]>>
+) {
+  setSelected((prev) =>
+    prev.includes(value)
+      ? prev.filter((item) => item !== value)
+      : [...prev, value]
+  );
+}
 export default function EncomendasPage() {
   const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useState<string[]>([
     "Braga Centro",
