@@ -570,49 +570,51 @@ export default function EncomendasPage() {
       grouped.get(key)!.push(row);
     }
 
-    const result = Array.from(grouped.values()).map((rows) => {
-      const first = rows[0];
-      const stockGrupo = rows.reduce((sum, r) => sum + r.stockAtual, 0);
-      const sugestaoGrupo = rows.reduce((sum, r) => sum + r.sugestao, 0);
-      const valorEstimado = Number(
-        rows.reduce((sum, r) => sum + r.valorEstimado, 0).toFixed(2)
-      );
+    const result: GroupEncomendaRow[] = Array.from(grouped.values()).map(
+  (rows): GroupEncomendaRow => {
+    const first = rows[0]!;
+    const stockGrupo = rows.reduce((sum, r) => sum + r.stockAtual, 0);
+    const sugestaoGrupo = rows.reduce((sum, r) => sum + r.sugestao, 0);
+    const valorEstimado = Number(
+      rows.reduce((sum, r) => sum + r.valorEstimado, 0).toFixed(2)
+    );
 
-      const prioridade: Prioridade =
-        rows.some((r) => r.prioridade === "Crítica")
-          ? "Crítica"
-          : rows.some((r) => r.prioridade === "Elevada")
-            ? "Elevada"
-            : sugestaoGrupo > 0
-              ? "Normal"
-              : "Estável";
+    const prioridade: Prioridade =
+      rows.some((r) => r.prioridade === "Crítica")
+        ? "Crítica"
+        : rows.some((r) => r.prioridade === "Elevada")
+          ? "Elevada"
+          : sugestaoGrupo > 0
+            ? "Normal"
+            : "Estável";
 
-      return {
-        cnp: first.cnp,
-        produto: first.produto,
-        fornecedor: first.fornecedor,
-        fabricante: first.fabricante,
-        categoria: first.categoria,
-        stockGrupo,
-        sugestaoGrupo,
-        encomendarGrupo: sugestaoGrupo,
-        valorEstimado,
-        prioridade,
-        porFarmacia: rows
-          .sort((a, b) => a.farmacia.localeCompare(b.farmacia))
-          .map((r) => ({
-            farmacia: r.farmacia,
-            stockAtual: r.stockAtual,
-            coberturaAtual: r.coberturaAtual,
-            rotacaoMedia: r.rotacaoMedia,
-            sugestao: r.sugestao,
-            prioridade: r.prioridade,
-            movimentos6M: r.movimentos6M,
-            ultimasCompras: r.ultimasCompras,
-          })),
-        condicoesFornecedor: first.condicoesFornecedor,
-      };
-    });
+    return {
+      cnp: first.cnp,
+      produto: first.produto,
+      fornecedor: first.fornecedor,
+      fabricante: first.fabricante,
+      categoria: first.categoria,
+      stockGrupo,
+      sugestaoGrupo,
+      encomendarGrupo: sugestaoGrupo,
+      valorEstimado,
+      prioridade,
+      porFarmacia: rows
+        .sort((a, b) => a.farmacia.localeCompare(b.farmacia))
+        .map((r) => ({
+          farmacia: r.farmacia,
+          stockAtual: r.stockAtual,
+          coberturaAtual: r.coberturaAtual,
+          rotacaoMedia: r.rotacaoMedia,
+          sugestao: r.sugestao,
+          prioridade: r.prioridade,
+          movimentos6M: r.movimentos6M,
+          ultimasCompras: r.ultimasCompras,
+        })),
+      condicoesFornecedor: first.condicoesFornecedor,
+    };
+  }
+);
 
     return result.filter((row) => {
       if (apenasComSugestao && row.sugestaoGrupo <= 0) return false;
