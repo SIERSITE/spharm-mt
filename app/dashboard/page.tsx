@@ -1,5 +1,54 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
+import { getDashboardData } from "@/lib/dashboard";
+
+// ─── Formatters ───────────────────────────────────────────────────────────────
+
+function fmtEur(n: number): string {
+  return Math.round(n).toLocaleString("pt-PT") + " €";
+}
+
+function fmtPct(n: number): string {
+  return (
+    n.toLocaleString("pt-PT", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }) + " %"
+  );
+}
+
+/** "+6,1%" — variação percentual entre dois valores */
+function fmtDelta(current: number, prev: number): string {
+  if (prev === 0) return "—";
+  const delta = ((current - prev) / prev) * 100;
+  const sign = delta >= 0 ? "+" : "";
+  return (
+    sign +
+    delta.toLocaleString("pt-PT", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }) +
+    "%"
+  );
+}
+
+/** "+0,4 p.p." — variação em pontos percentuais */
+function fmtPP(current: number, prev: number): { text: string; color: string } {
+  const pp = current - prev;
+  const sign = pp >= 0 ? "+" : "";
+  return {
+    text:
+      sign +
+      pp.toLocaleString("pt-PT", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }) +
+      " p.p.",
+    color: pp >= 0 ? "text-emerald-600" : "text-rose-500",
+  };
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
 
 function KpiInline({
   label,
@@ -89,7 +138,17 @@ function PharmacyRow({
   );
 }
 
-function ConsolidatedRow() {
+function ConsolidatedRow({
+  sales,
+  margin,
+  stoppedStock,
+  alerts,
+}: {
+  sales: string;
+  margin: string;
+  stoppedStock: string;
+  alerts: string;
+}) {
   return (
     <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-3">
       <div className="text-[12px] font-semibold text-slate-700">
@@ -97,22 +156,22 @@ function ConsolidatedRow() {
       </div>
 
       <div className="grid grid-cols-4 gap-4 flex-1 ml-[180px]">
+        <div className="text-[14px] font-semibold text-slate-900">{sales}</div>
+        <div className="text-[14px] font-semibold text-slate-900">{margin}</div>
         <div className="text-[14px] font-semibold text-slate-900">
-          47.892 €
+          {stoppedStock}
         </div>
-        <div className="text-[14px] font-semibold text-slate-900">
-          23,4 %
-        </div>
-        <div className="text-[14px] font-semibold text-slate-900">
-          38.420 €
-        </div>
-        <div className="text-[14px] font-semibold text-slate-900">5</div>
+        <div className="text-[14px] font-semibold text-slate-900">{alerts}</div>
       </div>
     </div>
   );
 }
 
-export default function DashboardPage() {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default async function DashboardPage() {
+  const { summary, pharmacies } = await getDashboardData();
+
   return (
     <AppShell>
       <div className="space-y-5">
@@ -122,7 +181,8 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="mt-1 text-[12px] text-slate-500">
-            Administrador · 2 farmácias em análise
+            Administrador · {pharmacies.length} farmácia
+            {pharmacies.length !== 1 ? "s" : ""} em análise
           </p>
         </section>
 
@@ -140,35 +200,33 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Linhas */}
-          <PharmacyRow
-            name="Farmácia A"
-            sales="26.340 €"
-            salesHelper="+6,1%"
-            margin="24,1 %"
-            marginHelper="+0,4 p.p."
-            marginHelperColor="text-emerald-600"
-            stoppedStock="17.820 €"
-            stoppedStockHelper="562 itens"
-            alerts="2"
-            alertsHelper="ativos"
-          />
-
-          <PharmacyRow
-            name="Farmácia B"
-            sales="21.552 €"
-            salesHelper="+4,0%"
-            margin="22,7 %"
-            marginHelper="-0,3 p.p."
-            marginHelperColor="text-rose-500"
-            stoppedStock="20.600 €"
-            stoppedStockHelper="685 itens"
-            alerts="3"
-            alertsHelper="ativos"
-          />
+          {/* Linhas — uma por farmácia activa */}
+          {pharmacies.map((p) => {
+            const pp = fmtPP(p.margin, p.marginPrev);
+            return (
+              <PharmacyRow
+                key={p.id}
+                name={p.name}
+                sales={fmtEur(p.sales)}
+                salesHelper={fmtDelta(p.sales, p.salesPrev)}
+                margin={fmtPct(p.margin)}
+                marginHelper={pp.text}
+                marginHelperColor={pp.color}
+                stoppedStock={fmtEur(p.stoppedStockValue)}
+                stoppedStockHelper={`${p.stoppedStockCount.toLocaleString("pt-PT")} itens`}
+                alerts={String(p.alerts)}
+                alertsHelper="ativos"
+              />
+            );
+          })}
 
           {/* Total */}
-          <ConsolidatedRow />
+          <ConsolidatedRow
+            sales={fmtEur(summary.totalSales)}
+            margin={fmtPct(summary.totalMargin)}
+            stoppedStock={fmtEur(summary.totalStoppedStockValue)}
+            alerts={String(summary.totalAlerts)}
+          />
         </section>
 
         {/* RESTO */}
