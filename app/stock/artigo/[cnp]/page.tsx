@@ -257,7 +257,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
         <ProductIdentityCard />
 
-        <section className="grid gap-3 xl:grid-cols-4 md:grid-cols-2">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SmallMetric
             label="Stock total"
             value="50 un."
