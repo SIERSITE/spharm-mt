@@ -578,7 +578,7 @@ export default function EncomendasPage() {
         rows.reduce((sum, r) => sum + r.valorEstimado, 0).toFixed(2)
       );
 
-      const prioridade =
+      const prioridade: Prioridade =
         rows.some((r) => r.prioridade === "Crítica")
           ? "Crítica"
           : rows.some((r) => r.prioridade === "Elevada")
