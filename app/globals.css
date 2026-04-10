@@ -1,0 +1,203 @@
+@import "tailwindcss";
+
+/* ============================================
+   SPharm.MT — Soft Clinical Glass System
+   ============================================ */
+
+:root {
+  /* Base */
+  --background: #eef4f6;
+  --foreground: #18323a;
+
+  /* Surfaces */
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-hover: rgba(255, 255, 255, 0.84);
+  --surface-muted: rgba(244, 249, 248, 0.88);
+  --surface-soft: rgba(248, 251, 252, 0.68);
+
+  /* Borders */
+  --border: rgba(165, 190, 196, 0.34);
+  --border-subtle: rgba(185, 206, 211, 0.22);
+  --border-strong: rgba(138, 170, 178, 0.48);
+
+  /* Text */
+  --text-primary: #18323a;
+  --text-secondary: #55707a;
+  --text-tertiary: #7f99a1;
+  --text-quaternary: #a2b5bb;
+
+  /* Primary */
+  --primary: #56a889;
+  --primary-hover: #46997b;
+  --primary-soft: rgba(86, 168, 137, 0.14);
+
+  /* Success */
+  --success: #4ea97d;
+  --success-soft: rgba(78, 169, 125, 0.12);
+
+  /* Danger */
+  --danger: #d46a6a;
+  --danger-soft: rgba(212, 106, 106, 0.12);
+
+  /* Warning */
+  --warning: #c79a52;
+  --warning-soft: rgba(199, 154, 82, 0.14);
+
+  /* Typography */
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Shadows */
+  --shadow-xs: 0 2px 8px rgba(111, 140, 148, 0.08);
+  --shadow-sm: 0 8px 24px rgba(111, 140, 148, 0.10);
+  --shadow-md: 0 18px 40px rgba(111, 140, 148, 0.12);
+  --shadow-card:
+    0 8px 30px rgba(126, 150, 156, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.55) inset;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-soft: var(--surface-soft);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-quaternary: var(--text-quaternary);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --font-sans: var(--font-sans);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-card: var(--shadow-card);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(126, 206, 182, 0.10), transparent 28%),
+    radial-gradient(circle at top right, rgba(157, 200, 224, 0.12), transparent 32%),
+    linear-gradient(180deg, #eef5f5 0%, #edf4f8 48%, #f4f7fb 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "cv11";
+}
+/* ============================================
+   Ambient premium utilities
+   ============================================ */
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center center;
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.hero-orb--green {
+  background: rgba(96, 196, 154, 0.22);
+}
+
+.hero-orb--blue {
+  background: rgba(155, 208, 229, 0.22);
+}
+
+.hero-orb--white {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow:
+    0 20px 45px rgba(126, 150, 156, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+/* ============================================
+   Tech background accents
+   ============================================ */
+
+.tech-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-repeat: no-repeat;
+  background-position:
+    left -20px top 18px,
+    right -10px top 20px,
+    left 34% bottom -24px;
+  background-size:
+    320px 240px,
+    260px 220px,
+    220px 120px;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 240' fill='none'><path d='M8 210V110C8 95 20 84 36 84H104C118 84 128 74 128 60V20' stroke='%2385A8A0' stroke-width='1.4' stroke-linecap='round'/><path d='M36 210V132C36 118 46 108 60 108H126C140 108 150 98 150 84V40' stroke='%2385A8A0' stroke-width='1.4' stroke-linecap='round'/><path d='M64 210V154C64 140 74 130 88 130H150C166 130 178 118 178 102V56' stroke='%2385A8A0' stroke-width='1.4' stroke-linecap='round'/><circle cx='128' cy='60' r='4' fill='%2385A8A0'/><circle cx='150' cy='84' r='4' fill='%2385A8A0'/><circle cx='178' cy='102' r='4' fill='%2385A8A0'/></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 260 220' fill='none'><path d='M252 28H192C176 28 164 40 164 56V114C164 128 154 138 140 138H84C70 138 58 150 58 164V212' stroke='%2395B4BE' stroke-width='1.4' stroke-linecap='round'/><path d='M252 58H210C194 58 182 70 182 86V126C182 142 170 154 154 154H106C90 154 78 166 78 182V212' stroke='%2395B4BE' stroke-width='1.4' stroke-linecap='round'/><circle cx='164' cy='56' r='4' fill='%2395B4BE'/><circle cx='182' cy='86' r='4' fill='%2395B4BE'/><circle cx='154' cy='154' r='4' fill='%2395B4BE'/></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 120' fill='none'><path d='M8 16H70C84 16 96 28 96 42V72C96 86 108 98 122 98H212' stroke='%2395BFAF' stroke-width='1.4' stroke-linecap='round'/><path d='M8 42H54C68 42 80 54 80 68V74C80 88 92 100 106 100H176' stroke='%2395BFAF' stroke-width='1.4' stroke-linecap='round'/><circle cx='96' cy='42' r='4' fill='%2395BFAF'/><circle cx='122' cy='98' r='4' fill='%2395BFAF'/></svg>");
+}
+
+.tech-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 22%, rgba(96, 196, 154, 0.10), transparent 22%),
+    radial-gradient(circle at 88% 18%, rgba(155, 208, 229, 0.10), transparent 24%),
+    radial-gradient(circle at 52% 100%, rgba(255, 255, 255, 0.18), transparent 20%);
+}

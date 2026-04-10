@@ -1,0 +1,735 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum UtilizadorPerfil {
+  ADMINISTRADOR
+  GESTOR_GRUPO
+  GESTOR_FARMACIA
+}
+
+enum EntidadeEstado {
+  ATIVO
+  INATIVO
+}
+
+enum ProdutoEstado {
+  NOVO
+  PENDENTE
+  PARCIALMENTE_ENRIQUECIDO
+  ENRIQUECIDO_AUTOMATICAMENTE
+  VALIDADO
+  INATIVO
+}
+
+enum ProdutoOrigemDados {
+  EXCEL
+  FARMACIA
+  ENRIQUECIMENTO
+  MANUAL
+}
+
+enum FornecedorTipo {
+  COOPERATIVA
+  LABORATORIO_DIRETO
+  DISTRIBUIDOR
+  OUTRO
+}
+
+enum TipoClassificacao {
+  NIVEL_1
+  NIVEL_2
+}
+
+enum TipoVenda {
+  RECEITA
+  SEM_RECEITA
+  VENDA_LIVRE
+  OUTRO
+}
+
+enum TipoDevolucao {
+  CLIENTE
+  FORNECEDOR
+  OUTRA
+}
+
+enum PrioridadeRevisao {
+  ALTA
+  MEDIA
+  BAIXA
+}
+
+enum EstadoFilaRevisao {
+  PENDENTE
+  RESOLVIDO
+  IGNORADO
+}
+
+enum TipoRevisao {
+  NOVO_PRODUTO
+  ENRIQUECIMENTO_FALHOU
+  CONFLITO
+  CLASSIFICACAO_PENDENTE
+  FABRICANTE_PENDENTE
+  OUTRO
+}
+
+enum EstadoListaEncomenda {
+  RASCUNHO
+  FINALIZADA
+  EXPORTADA
+}
+
+enum TipoLoteIngestao {
+  FICHA
+  STOCK
+  VENDAS
+  VENDAS_MENSAIS
+  COMPRAS
+  DEVOLUCOES
+  AJUSTES_STOCK
+  INVENTARIO
+  PRODUTOS_INTERNOS
+}
+
+enum EstadoLoteIngestao {
+  RECEBIDO
+  EM_PROCESSAMENTO
+  PROCESSADO
+  FALHOU
+}
+
+enum ClassificacaoRotacao {
+  NORMAL
+  ATENCAO
+  SEM_ROTACAO
+}
+
+enum ClassificacaoABC {
+  A
+  B
+  C
+  NAO_CLASSIFICADO
+}
+
+enum EnriquecimentoEstado {
+  PENDENTE
+  EM_PROCESSAMENTO
+  SUCESSO
+  SUCESSO_PARCIAL
+  FALHOU
+}
+
+enum TipoAjusteStock {
+  POSITIVO
+  NEGATIVO
+  CORRECAO
+  QUEBRA
+  PERDA
+  OUTRO
+}
+
+enum EstadoInventario {
+  RASCUNHO
+  FECHADO
+  PROCESSADO
+  CANCELADO
+}
+
+//////////////////////////////////////////////////////
+// CATÁLOGO CENTRAL
+//////////////////////////////////////////////////////
+
+/// Produto global do grupo, identificado por CNP.
+model Produto {
+  id                    String               @id @default(cuid())
+  cnp                   Int                  @unique
+  designacao            String
+  fabricanteId          String?
+  classificacaoNivel1Id String?
+  classificacaoNivel2Id String?
+  tipoArtigo            String?
+  codigoATC             String?
+  dci                   String?
+  imagemUrl             String?
+  flagGenerico          Boolean              @default(false)
+  flagMSRM              Boolean              @default(false)
+  flagMNSRM             Boolean              @default(false)
+  grupoHomogeneo        String?
+  estado                ProdutoEstado        @default(PENDENTE)
+  origemDados           ProdutoOrigemDados   @default(FARMACIA)
+  validadoManualmente   Boolean              @default(false)
+  dataCriacao           DateTime             @default(now())
+  dataAtualizacao       DateTime             @updatedAt
+
+  fabricante            Fabricante?          @relation(fields: [fabricanteId], references: [id])
+  classificacaoNivel1   Classificacao?       @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
+  classificacaoNivel2   Classificacao?       @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
+
+  produtosFarmacia      ProdutoFarmacia[]
+  vendas                Venda[]
+  vendasMensais         VendaMensal[]
+  compras               Compra[]
+  devolucoes            Devolucao[]
+  historicoStocks       HistoricoStock[]
+  ajustesStock          AjusteStock[]
+  linhasInventario      LinhaInventario[]
+  indicadores           IndicadoresProdutoFarmacia[]
+  linhasEncomenda       LinhaEncomenda[]
+  filaRevisao           FilaRevisao[]
+  filaEnriquecimento    EnriquecimentoFila[]
+
+  @@index([fabricanteId])
+  @@index([classificacaoNivel1Id])
+  @@index([classificacaoNivel2Id])
+  @@index([estado])
+}
+
+/// Fabricante normalizado.
+model Fabricante {
+  id              String            @id @default(cuid())
+  nomeNormalizado String            @unique
+  paisOrigem      String?
+  estado          EntidadeEstado    @default(ATIVO)
+  dataCriacao     DateTime          @default(now())
+  dataAtualizacao DateTime          @updatedAt
+
+  aliases         FabricanteAlias[]
+  produtos        Produto[]
+}
+
+/// Variantes de nomes de fabricante encontradas nas origens.
+model FabricanteAlias {
+  id            String      @id @default(cuid())
+  fabricanteId  String
+  aliasNome     String
+
+  fabricante    Fabricante  @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
+
+  @@unique([fabricanteId, aliasNome])
+  @@index([aliasNome])
+}
+
+/// Árvore de classificação central.
+model Classificacao {
+  id                 String               @id @default(cuid())
+  nome               String
+  tipo               TipoClassificacao
+  classificacaoPaiId String?
+  estado             EntidadeEstado       @default(ATIVO)
+  ordem              Int?
+  dataCriacao        DateTime             @default(now())
+  dataAtualizacao    DateTime             @updatedAt
+
+  classificacaoPai   Classificacao?       @relation("ClassificacaoPaiFilho", fields: [classificacaoPaiId], references: [id])
+  subClassificacoes  Classificacao[]      @relation("ClassificacaoPaiFilho")
+
+  produtosNivel1     Produto[]            @relation("ProdutoClassificacaoNivel1")
+  produtosNivel2     Produto[]            @relation("ProdutoClassificacaoNivel2")
+
+  @@unique([nome, tipo, classificacaoPaiId])
+  @@index([tipo])
+  @@index([classificacaoPaiId])
+}
+
+/// Fornecedor normalizado.
+model Fornecedor {
+  id                        String                         @id @default(cuid())
+  nomeNormalizado           String                         @unique
+  tipo                      FornecedorTipo                 @default(OUTRO)
+  estado                    EntidadeEstado                 @default(ATIVO)
+  dataCriacao               DateTime                       @default(now())
+  dataAtualizacao           DateTime                       @updatedAt
+
+  aliases                   FornecedorAlias[]
+  produtosFarmacia          ProdutoFarmacia[]
+  compras                   Compra[]                       @relation("CompraFornecedor")
+  devolucoesDestino         Devolucao[]                    @relation("DevolucaoFornecedorDestino")
+  indicadoresUltimoFornecedor IndicadoresProdutoFarmacia[] @relation("IndicadorUltimoFornecedor")
+  linhasEncomenda           LinhaEncomenda[]               @relation("LinhaEncomendaFornecedorSugerido")
+}
+
+/// Variantes de nomes de fornecedor.
+model FornecedorAlias {
+  id            String      @id @default(cuid())
+  fornecedorId  String
+  aliasNome     String
+
+  fornecedor    Fornecedor  @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+
+  @@unique([fornecedorId, aliasNome])
+  @@index([aliasNome])
+}
+
+//////////////////////////////////////////////////////
+// ESTRUTURA MULTI-FARMÁCIA
+//////////////////////////////////////////////////////
+
+model Farmacia {
+  id               String                     @id @default(cuid())
+  nome             String
+  codigoANF        String?
+  morada           String?
+  contacto         String?
+  estado           EntidadeEstado             @default(ATIVO)
+  dataAdesao       DateTime                   @default(now())
+  dataCriacao      DateTime                   @default(now())
+  dataAtualizacao  DateTime                   @updatedAt
+
+  utilizadores     Utilizador[]
+  produtosFarmacia ProdutoFarmacia[]
+  produtosInternos ProdutoInterno[]
+  vendas           Venda[]
+  vendasMensais    VendaMensal[]
+  compras          Compra[]
+  devolucoes       Devolucao[]
+  historicoStocks  HistoricoStock[]
+  ajustesStock     AjusteStock[]
+  inventarios      Inventario[]
+  indicadores      IndicadoresProdutoFarmacia[]
+  listasEncomenda  ListaEncomenda[]
+  lotesIngestao    LoteIngestao[]
+
+  @@unique([nome])
+  @@index([codigoANF])
+}
+
+model Utilizador {
+  id              String             @id @default(cuid())
+  email           String             @unique
+  nome            String
+  perfil          UtilizadorPerfil
+  farmaciaId      String?
+  estado          EntidadeEstado     @default(ATIVO)
+  passwordHash    String?
+  dataCriacao     DateTime           @default(now())
+  dataAtualizacao DateTime           @updatedAt
+
+  farmacia        Farmacia?          @relation(fields: [farmaciaId], references: [id])
+  listasEncomenda ListaEncomenda[]
+}
+
+//////////////////////////////////////////////////////
+// PRODUTO POR FARMÁCIA
+//////////////////////////////////////////////////////
+
+/// Tudo o que varia entre farmácias vive aqui.
+model ProdutoFarmacia {
+  id                   String        @id @default(cuid())
+  produtoId            String
+  farmaciaId           String
+  designacaoLocal      String?
+  pvp                  Decimal?      @db.Decimal(12, 4)
+  pmc                  Decimal?      @db.Decimal(12, 4)
+  puc                  Decimal?      @db.Decimal(12, 4)
+  stockAtual           Decimal?      @db.Decimal(14, 3)
+  stockRaw             Decimal?      @db.Decimal(14, 3)
+  stockMinimo          Decimal?      @db.Decimal(14, 3)
+  stockMaximo          Decimal?      @db.Decimal(14, 3)
+  fornecedorHabitualId String?
+  dataUltimaVenda      DateTime?
+  dataUltimaCompra     DateTime?
+  validadeMaisAntiga   DateTime?
+  flagRetirado         Boolean       @default(false)
+  modeloGestaoStock    String?
+  familiaOrigem        String?
+  categoriaOrigem      String?
+  subcategoriaOrigem   String?
+  fabricanteOrigem     String?
+  dataAtualizacao      DateTime      @updatedAt
+  dataCriacao          DateTime      @default(now())
+
+  produto              Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  farmacia             Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  fornecedorHabitual   Fornecedor?   @relation(fields: [fornecedorHabitualId], references: [id])
+
+  @@unique([produtoId, farmaciaId])
+  @@index([farmaciaId])
+  @@index([produtoId])
+  @@index([fornecedorHabitualId])
+  @@index([flagRetirado])
+}
+
+//////////////////////////////////////////////////////
+// PRODUTOS INTERNOS
+//////////////////////////////////////////////////////
+
+/// Produtos internos/localizados apenas na farmácia.
+model ProdutoInterno {
+  id              String        @id @default(cuid())
+  farmaciaId      String
+  codigoInterno   Int
+  designacao      String?
+  tipoArtigo      String?
+  pvp             Decimal?      @db.Decimal(12, 4)
+  puc             Decimal?      @db.Decimal(12, 4)
+  stockAtual      Decimal?      @db.Decimal(14, 3)
+  flagRetirado    Boolean       @default(false)
+  dataCriacao     DateTime      @default(now())
+  dataAtualizacao DateTime      @updatedAt
+  loteIngestaoId  String?
+
+  farmacia        Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  loteIngestao    LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+
+  ajustesStock    AjusteStock[]
+  linhasInventario LinhaInventario[]
+
+  @@unique([farmaciaId, codigoInterno])
+  @@index([farmaciaId])
+  @@index([codigoInterno])
+}
+
+//////////////////////////////////////////////////////
+// DADOS TRANSACIONAIS
+//////////////////////////////////////////////////////
+
+/// Vendas diárias agregadas por produto-dia-farmácia.
+model Venda {
+  id                   String        @id @default(cuid())
+  farmaciaId           String
+  produtoId            String
+  data                 DateTime
+  quantidade           Decimal       @db.Decimal(14, 3)
+  valorTotal           Decimal       @db.Decimal(14, 2)
+  valorUnitario        Decimal?      @db.Decimal(12, 4)
+  custoUnitario        Decimal?      @db.Decimal(12, 4)
+  tipoVenda            TipoVenda?
+  valorComparticipacao Decimal?      @db.Decimal(14, 2)
+  valorPagoUtente      Decimal?      @db.Decimal(14, 2)
+  numeroTransacoes     Int?
+  dataIngestao         DateTime      @default(now())
+  loteIngestaoId       String?
+
+  farmacia             Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto              Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao         LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+
+  @@index([farmaciaId, data])
+  @@index([produtoId, data])
+  @@index([farmaciaId, produtoId, data])
+  @@index([loteIngestaoId])
+}
+
+/// Vendas mensais agregadas.
+model VendaMensal {
+  id               String        @id @default(cuid())
+  farmaciaId       String
+  produtoId        String
+  ano              Int
+  mes              Int
+  quantidade       Decimal       @db.Decimal(14, 3)
+  valorTotal       Decimal       @db.Decimal(14, 2)
+  mesCompleto      Boolean       @default(true)
+  origemBootstrap  Boolean       @default(false)
+  dataAtualizacao  DateTime      @updatedAt
+  loteIngestaoId   String?
+
+  farmacia         Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto          Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao     LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+
+  @@unique([farmaciaId, produtoId, ano, mes])
+  @@index([ano, mes])
+  @@index([farmaciaId, ano, mes])
+  @@index([produtoId, ano, mes])
+}
+
+/// Compras diárias agregadas por produto-dia-farmácia-fornecedor.
+model Compra {
+  id                  String        @id @default(cuid())
+  farmaciaId          String
+  produtoId           String
+  fornecedorId        String?
+  data                DateTime
+  quantidade          Decimal       @db.Decimal(14, 3)
+  valorTotal          Decimal       @db.Decimal(14, 2)
+  precoUnitario       Decimal?      @db.Decimal(12, 4)
+  descontoBonificacao Decimal?      @db.Decimal(14, 2)
+  numeroDocumento     String?
+  dataIngestao        DateTime      @default(now())
+  loteIngestaoId      String?
+
+  farmacia            Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto             Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedor          Fornecedor?   @relation("CompraFornecedor", fields: [fornecedorId], references: [id])
+  loteIngestao        LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+
+  @@index([farmaciaId, data])
+  @@index([produtoId, data])
+  @@index([fornecedorId])
+  @@index([farmaciaId, produtoId, data])
+  @@index([loteIngestaoId])
+}
+
+/// Devoluções diárias.
+model Devolucao {
+  id                  String         @id @default(cuid())
+  farmaciaId          String
+  produtoId           String
+  data                DateTime
+  quantidade          Decimal        @db.Decimal(14, 3)
+  valor               Decimal        @db.Decimal(14, 2)
+  tipo                TipoDevolucao
+  motivo              String?
+  fornecedorDestinoId String?
+  dataIngestao        DateTime       @default(now())
+  loteIngestaoId      String?
+
+  farmacia            Farmacia       @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto             Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedorDestino   Fornecedor?    @relation("DevolucaoFornecedorDestino", fields: [fornecedorDestinoId], references: [id])
+  loteIngestao        LoteIngestao?  @relation(fields: [loteIngestaoId], references: [id])
+
+  @@index([farmaciaId, data])
+  @@index([produtoId, data])
+  @@index([tipo])
+  @@index([fornecedorDestinoId])
+  @@index([loteIngestaoId])
+}
+
+/// Histórico periódico de stock por produto-farmácia.
+model HistoricoStock {
+  id              String        @id @default(cuid())
+  farmaciaId      String
+  produtoId       String
+  dataFotografia  DateTime
+  quantidade      Decimal       @db.Decimal(14, 3)
+  valorCusto      Decimal?      @db.Decimal(14, 2)
+  loteIngestaoId  String?
+
+  farmacia        Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto         Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao    LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+
+  @@unique([farmaciaId, produtoId, dataFotografia])
+  @@index([farmaciaId, dataFotografia])
+  @@index([produtoId, dataFotografia])
+}
+
+//////////////////////////////////////////////////////
+// AJUSTES E INVENTÁRIO
+//////////////////////////////////////////////////////
+
+/// Ajustes manuais de stock ou correções operacionais.
+model AjusteStock {
+  id               String         @id @default(cuid())
+  farmaciaId       String
+  produtoId        String?
+  produtoInternoId String?
+  data             DateTime
+  tipo             TipoAjusteStock
+  quantidade       Decimal        @db.Decimal(14, 3)
+  valor            Decimal?       @db.Decimal(14, 2)
+  motivo           String?
+  observacoes      String?
+  dataIngestao     DateTime       @default(now())
+  loteIngestaoId   String?
+
+  farmacia         Farmacia       @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto          Produto?       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produtoInterno   ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
+  loteIngestao     LoteIngestao?  @relation(fields: [loteIngestaoId], references: [id])
+
+  @@index([farmaciaId, data])
+  @@index([produtoId, data])
+  @@index([produtoInternoId, data])
+  @@index([tipo])
+  @@index([loteIngestaoId])
+}
+
+/// Cabeçalho de inventário físico da farmácia.
+model Inventario {
+  id               String           @id @default(cuid())
+  farmaciaId       String
+  nome             String?
+  dataInventario   DateTime
+  estado           EstadoInventario @default(RASCUNHO)
+  observacoes      String?
+  dataCriacao      DateTime         @default(now())
+  dataAtualizacao  DateTime         @updatedAt
+  loteIngestaoId   String?
+
+  farmacia         Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  loteIngestao     LoteIngestao?    @relation(fields: [loteIngestaoId], references: [id])
+  linhas           LinhaInventario[]
+
+  @@index([farmaciaId, dataInventario])
+  @@index([estado])
+}
+
+/// Linhas do inventário por produto.
+model LinhaInventario {
+  id               String         @id @default(cuid())
+  inventarioId     String
+  produtoId        String?
+  produtoInternoId String?
+  stockSistema     Decimal?       @db.Decimal(14, 3)
+  stockContado     Decimal        @db.Decimal(14, 3)
+  diferenca        Decimal?       @db.Decimal(14, 3)
+  valorDiferenca   Decimal?       @db.Decimal(14, 2)
+  observacoes      String?
+
+  inventario       Inventario     @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  produto          Produto?       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produtoInterno   ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
+
+  @@index([inventarioId])
+  @@index([produtoId])
+  @@index([produtoInternoId])
+}
+
+//////////////////////////////////////////////////////
+// DADOS DERIVADOS / OPERACIONAIS
+//////////////////////////////////////////////////////
+
+/// Indicadores pré-calculados por produto-farmácia.
+model IndicadoresProdutoFarmacia {
+  id                    String               @id @default(cuid())
+  produtoId             String
+  farmaciaId            String
+  mediaVendasDiarias30d Decimal?             @db.Decimal(14, 4)
+  mediaVendasDiarias90d Decimal?             @db.Decimal(14, 4)
+  mediaVendasMensais3m  Decimal?             @db.Decimal(14, 4)
+  mediaVendasMensais12m Decimal?             @db.Decimal(14, 4)
+  diasStockRestante     Decimal?             @db.Decimal(14, 2)
+  diasSemVenda          Int?
+  ultimoPrecoCompra     Decimal?             @db.Decimal(12, 4)
+  ultimoFornecedorId    String?
+  classificacaoABC      ClassificacaoABC     @default(NAO_CLASSIFICADO)
+  classificacaoRotacao  ClassificacaoRotacao @default(NORMAL)
+  valorStockParado      Decimal?             @db.Decimal(14, 2)
+  dataCalculo           DateTime             @updatedAt
+
+  produto               Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  farmacia              Farmacia             @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  ultimoFornecedor      Fornecedor?          @relation("IndicadorUltimoFornecedor", fields: [ultimoFornecedorId], references: [id])
+
+  @@unique([produtoId, farmaciaId])
+  @@index([farmaciaId])
+  @@index([classificacaoRotacao])
+  @@index([classificacaoABC])
+  @@index([diasSemVenda])
+}
+
+/// Lista de encomenda guardada pelo utilizador.
+model ListaEncomenda {
+  id              String                @id @default(cuid())
+  farmaciaId      String
+  nome            String
+  estado          EstadoListaEncomenda  @default(RASCUNHO)
+  criadoPorId     String
+  dataCriacao     DateTime              @default(now())
+  dataAtualizacao DateTime              @updatedAt
+
+  farmacia        Farmacia              @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  criadoPor       Utilizador            @relation(fields: [criadoPorId], references: [id])
+  linhas          LinhaEncomenda[]
+
+  @@index([farmaciaId])
+  @@index([criadoPorId])
+  @@index([estado])
+}
+
+/// Linhas da lista de encomenda.
+model LinhaEncomenda {
+  id                   String         @id @default(cuid())
+  listaEncomendaId     String
+  produtoId            String
+  quantidadeSugerida   Decimal?       @db.Decimal(14, 3)
+  quantidadeAjustada   Decimal?       @db.Decimal(14, 3)
+  fornecedorSugeridoId String?
+  notas                String?
+
+  listaEncomenda       ListaEncomenda @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
+  produto              Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedorSugerido   Fornecedor?    @relation("LinhaEncomendaFornecedorSugerido", fields: [fornecedorSugeridoId], references: [id])
+
+  @@unique([listaEncomendaId, produtoId])
+  @@index([produtoId])
+  @@index([fornecedorSugeridoId])
+}
+
+/// Fila de revisão manual do catálogo.
+model FilaRevisao {
+  id             String             @id @default(cuid())
+  produtoId      String
+  tipoRevisao    TipoRevisao
+  prioridade     PrioridadeRevisao  @default(MEDIA)
+  dadosOrigem    Json?
+  estado         EstadoFilaRevisao  @default(PENDENTE)
+  dataCriacao    DateTime           @default(now())
+  dataResolucao  DateTime?
+
+  produto        Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([estado, prioridade])
+  @@index([produtoId])
+  @@index([tipoRevisao])
+}
+
+/// Fila técnica para enriquecimento automático.
+model EnriquecimentoFila {
+  id               String               @id @default(cuid())
+  produtoId        String
+  prioridade       PrioridadeRevisao    @default(MEDIA)
+  ultimaTentativa  DateTime?
+  numeroTentativas Int                  @default(0)
+  estado           EnriquecimentoEstado @default(PENDENTE)
+  ultimaFonte      String?
+  mensagemErro     String?
+  dataCriacao      DateTime             @default(now())
+  dataAtualizacao  DateTime             @updatedAt
+
+  produto          Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([produtoId])
+  @@index([estado, prioridade])
+}
+
+//////////////////////////////////////////////////////
+// INGESTÃO
+//////////////////////////////////////////////////////
+
+/// Registo de cada lote recebido/processado.
+model LoteIngestao {
+  id                String              @id @default(cuid())
+  farmaciaId        String
+  tipo              TipoLoteIngestao
+  dataReferencia    DateTime
+  dataProcessamento DateTime?
+  estado            EstadoLoteIngestao  @default(RECEBIDO)
+  totalRegistos     Int?
+  totalAceites      Int?
+  totalRejeitados   Int?
+  mensagemErro      String?
+  nomeFicheiro      String?
+  blobUrl           String?
+  hashConteudo      String?
+  dataCriacao       DateTime            @default(now())
+  dataAtualizacao   DateTime            @updatedAt
+
+  farmacia          Farmacia            @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  vendas            Venda[]
+  vendasMensais     VendaMensal[]
+  compras           Compra[]
+  devolucoes        Devolucao[]
+  historicoStocks   HistoricoStock[]
+  produtosInternos  ProdutoInterno[]
+  ajustesStock      AjusteStock[]
+  inventarios       Inventario[]
+
+  @@index([farmaciaId, tipo, dataReferencia])
+  @@index([estado])
+}
