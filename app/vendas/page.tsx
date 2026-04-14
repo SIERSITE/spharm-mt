@@ -2,6 +2,11 @@ import { getFarmaciasInfo } from "@/lib/farmacias-info";
 import { getReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { VendasClient } from "@/components/vendas/vendas-client";
 
+// Nunca prerender no build — os dados do relatório são tenant-scoped
+// e o build do Vercel não tem acesso útil à BD de produção durante
+// o trial render estático. Força dynamic rendering em cada request.
+export const dynamic = "force-dynamic";
+
 /**
  * Página Vendas — server component LEVE.
  *

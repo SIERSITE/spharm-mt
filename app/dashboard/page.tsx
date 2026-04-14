@@ -2,6 +2,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { getDashboardData } from "@/lib/dashboard";
 
+export const dynamic = "force-dynamic";
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function fmtEur(n: number): string {
