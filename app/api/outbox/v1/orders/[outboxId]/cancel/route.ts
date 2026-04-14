@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { withIntegrationAuth } from "@/lib/integracao/auth";
+import { withIntegrationAuthParams } from "@/lib/integracao/auth";
 import { cancelOutboxRow } from "@/lib/integracao/outbox-admin";
 
 type RouteCtx = { params: Promise<{ outboxId: string }> };
 
-export const POST = withIntegrationAuth<RouteCtx>(async (ctx, req, routeCtx) => {
+export const POST = withIntegrationAuthParams<RouteCtx>(async (ctx, req, routeCtx) => {
   const { outboxId } = await routeCtx.params;
   const body = (await req.json().catch(() => ({}))) as { reason?: string };
   const result = await cancelOutboxRow(

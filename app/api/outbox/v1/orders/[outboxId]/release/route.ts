@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { withIntegrationAuth } from "@/lib/integracao/auth";
+import { withIntegrationAuthParams } from "@/lib/integracao/auth";
 
 /**
  * POST /api/outbox/v1/orders/{outboxId}/release
@@ -13,7 +13,7 @@ import { withIntegrationAuth } from "@/lib/integracao/auth";
  */
 type RouteCtx = { params: Promise<{ outboxId: string }> };
 
-export const POST = withIntegrationAuth<RouteCtx>(async (ctx, req, routeCtx) => {
+export const POST = withIntegrationAuthParams<RouteCtx>(async (ctx, req, routeCtx) => {
   const { outboxId } = await routeCtx.params;
 
   const result = await ctx.prisma.$transaction(async (tx) => {

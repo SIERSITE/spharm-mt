@@ -129,7 +129,57 @@ export async function authenticateAgent(
  *     return NextResponse.json({ ok: true });
  *   });
  */
-export function withIntegrationAuth<TRouteCtx = undefined>(
+function toErrorResponse(err: unknown): Response {
+  if (err instanceof IntegrationAuthError) {
+    return new Response(
+      JSON.stringify({ error: err.code, message: err.message }),
+      { status: err.status, headers: { "content-type": "application/json" } }
+    );
+  }
+  console.error("[integracao/auth] unexpected error", err);
+  return new Response(
+    JSON.stringify({
+      error: "internal_error",
+      message: err instanceof Error ? err.message : String(err),
+    }),
+    { status: 500, headers: { "content-type": "application/json" } }
+  );
+}
+
+/**
+ * Wrapper para route handlers SEM params dinâmicos.
+ * Produz a assinatura `(req) => Promise<Response>` que o Next 16 exige
+ * para rotas estáticas. Handler recebe `(ctx, req)`.
+ *
+ *   export const POST = withIntegrationAuth(async (ctx, req) => { ... });
+ */
+export function withIntegrationAuth(
+  handler: (ctx: AuthenticatedContext, req: NextRequest) => Promise<Response>
+): (req: NextRequest) => Promise<Response> {
+  return async (req: NextRequest): Promise<Response> => {
+    try {
+      const ctx = await authenticateAgent(req);
+      return await handler(ctx, req);
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  };
+}
+
+/**
+ * Wrapper para route handlers COM params dinâmicos (ex: `[outboxId]`).
+ * Produz a assinatura `(req, { params }) => Promise<Response>` — a
+ * segunda posição é obrigatória e o Next 16 passa sempre `{ params }`.
+ * Handler recebe `(ctx, req, routeCtx)`.
+ *
+ *   type RouteCtx = { params: Promise<{ outboxId: string }> };
+ *   export const POST = withIntegrationAuthParams<RouteCtx>(
+ *     async (ctx, req, routeCtx) => { ... }
+ *   );
+ */
+export function withIntegrationAuthParams<
+  TRouteCtx extends { params: Promise<Record<string, string>> },
+>(
   handler: (
     ctx: AuthenticatedContext,
     req: NextRequest,
@@ -141,20 +191,7 @@ export function withIntegrationAuth<TRouteCtx = undefined>(
       const ctx = await authenticateAgent(req);
       return await handler(ctx, req, routeCtx);
     } catch (err) {
-      if (err instanceof IntegrationAuthError) {
-        return new Response(
-          JSON.stringify({ error: err.code, message: err.message }),
-          { status: err.status, headers: { "content-type": "application/json" } }
-        );
-      }
-      console.error("[integracao/auth] unexpected error", err);
-      return new Response(
-        JSON.stringify({
-          error: "internal_error",
-          message: err instanceof Error ? err.message : String(err),
-        }),
-        { status: 500, headers: { "content-type": "application/json" } }
-      );
+      return toErrorResponse(err);
     }
   };
 }
