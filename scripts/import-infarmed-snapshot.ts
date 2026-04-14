@@ -300,26 +300,32 @@ async function upsertBatch(rows: ParsedRow[], version: string, batchSize: number
     );
 
     // Transacção por batch: tudo ou nada dentro do batch, sem bloquear o import inteiro.
+    // Forma interactiva (callback) em vez de array-form porque precisamos de
+    // timeout/maxWait — esses options só existem na interactive. No array-form
+    // Prisma só aceita `isolationLevel`. Sequencial dentro do callback para
+    // preservar ordenação determinística em caso de conflitos do mesmo cnp.
     await prisma.$transaction(
-      batch.map((r) =>
-        prisma.infarmedSnapshot.upsert({
-          where: { cnp: r.cnp },
-          create: { ...r, snapshotVersion: version },
-          update: {
-            designacaoOficial: r.designacaoOficial,
-            dci: r.dci,
-            codigoATC: r.codigoATC,
-            titularAim: r.titularAim,
-            formaFarmaceutica: r.formaFarmaceutica,
-            dosagem: r.dosagem,
-            embalagem: r.embalagem,
-            grupoTerapeutico: r.grupoTerapeutico,
-            estadoAim: r.estadoAim,
-            snapshotVersion: version,
-            importedAt: new Date(),
-          },
-        })
-      ),
+      async (tx) => {
+        for (const r of batch) {
+          await tx.infarmedSnapshot.upsert({
+            where: { cnp: r.cnp },
+            create: { ...r, snapshotVersion: version },
+            update: {
+              designacaoOficial: r.designacaoOficial,
+              dci: r.dci,
+              codigoATC: r.codigoATC,
+              titularAim: r.titularAim,
+              formaFarmaceutica: r.formaFarmaceutica,
+              dosagem: r.dosagem,
+              embalagem: r.embalagem,
+              grupoTerapeutico: r.grupoTerapeutico,
+              estadoAim: r.estadoAim,
+              snapshotVersion: version,
+              importedAt: new Date(),
+            },
+          });
+        }
+      },
       { timeout: TX_TIMEOUT_MS, maxWait: TX_MAX_WAIT_MS }
     );
 
