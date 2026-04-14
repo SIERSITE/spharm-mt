@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { runVendasReport } from "@/app/vendas/actions";
 import {
-  Download,
   Eye,
   Filter,
-  Mail,
-  Printer,
-  FileText,
   ChevronDown,
   Search,
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { ReportActions } from "@/components/reporting/report-actions";
+import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
+import {
+  formatFarmaciaHeader,
+  type FarmaciaInfo,
+} from "@/lib/farmacias-header";
 
 type Agrupamento =
   | "artigo"
@@ -73,11 +76,45 @@ function toggleValue(
   );
 }
 
-export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] }) {
-  const farmacias = Array.from(new Set(initialRows.map((r) => r.farmacia)));
-  const fornecedores = Array.from(new Set(initialRows.map((r) => r.fornecedor)));
-  const fabricantes = Array.from(new Set(initialRows.map((r) => r.fabricante)));
-  const categorias = Array.from(new Set(initialRows.map((r) => r.categoria)));
+export function VendasClient({
+  farmaciasInfo,
+  filterOptions,
+}: {
+  farmaciasInfo: FarmaciaInfo[];
+  filterOptions: {
+    fornecedores: string[];
+    fabricantes: string[];
+    categorias: string[];
+  };
+}) {
+  // ─────────────────────────────────────────────────────────────────
+  // Estado lazy: nada de Vendas é carregado até clicar em "Gerar".
+  // `rows` começa vazio e só se preenche pelo retorno da server action.
+  // `hasGenerated` controla o gate visual entre estado neutro e
+  // tabela/relatório. `isPending` vem de useTransition para o spinner.
+  // ─────────────────────────────────────────────────────────────────
+  const [rows, setRows] = useState<SalesReportRow[]>([]);
+  const [hasGenerated, setHasGenerated] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
+  // Alias para minimizar diff: o resto do componente continua a ler
+  // de `initialRows`, mas é o array dinâmico do estado.
+  const initialRows = rows;
+
+  // Universo de opções dos filtros — descartar valores vazios.
+  const uniqNonEmpty = (xs: string[]) =>
+    Array.from(new Set(xs.map((x) => x?.trim()).filter((x): x is string => !!x))).sort(
+      (a, b) => a.localeCompare(b, "pt-PT")
+    );
+  // Os 4 universos vêm TODOS do servidor via props leves — DISTINCTs
+  // baratos sobre ProdutoFarmacia/Fabricante/Classificacao. O utilizador
+  // pode parametrizar totalmente o relatório antes de correr a query
+  // pesada de VendaMensal.
+  const farmacias = uniqNonEmpty(farmaciasInfo.map((f) => f.nome));
+  const fornecedores = filterOptions.fornecedores;
+  const fabricantes = filterOptions.fabricantes;
+  const categorias = filterOptions.categorias;
 
   const [ambito, setAmbito] = useState<AmbitoAnalise>("farmacia");
   const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useState<string[]>(farmacias);
@@ -415,6 +452,28 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
   const showFarmaciaColumnInReport =
     ambito === "comparativo" || farmaciasSelecionadas.length !== 1;
 
+  // Trigger explícito: chama a server action e armazena o resultado.
+  // É a ÚNICA porta de entrada para os dados de Vendas — não há eager
+  // load no servidor.
+  const handleGerar = () => {
+    setGenerationError(null);
+    startTransition(async () => {
+      try {
+        const result = await runVendasReport({
+          farmaciaNomes:
+            farmaciasSelecionadas.length > 0 && farmaciasSelecionadas.length < farmacias.length
+              ? farmaciasSelecionadas
+              : undefined,
+        });
+        setRows(result);
+        setHasGenerated(true);
+      } catch (err) {
+        setGenerationError(err instanceof Error ? err.message : String(err));
+        setRows([]);
+      }
+    });
+  };
+
   return (
     <AppShell>
       <div className="space-y-3">
@@ -503,26 +562,44 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
             />
 
             <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={handleGerar}
+                disabled={isPending}
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
+              </button>
               <ActionButton
                 icon={<Eye className="h-3.5 w-3.5" />}
                 label="Ver em ecrã"
               />
-              <ActionButton
-                icon={<Printer className="h-3.5 w-3.5" />}
-                label="Imprimir"
-              />
-              <ActionButton
-                icon={<FileText className="h-3.5 w-3.5" />}
-                label="PDF"
-              />
-              <ActionButton
-                icon={<Download className="h-3.5 w-3.5" />}
-                label="Excel"
-              />
-              <ActionButton
-                icon={<Mail className="h-3.5 w-3.5" />}
-                label="Email"
-                primary
+              <ReportActions
+                hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
+                report={() =>
+                  buildVendasReport({
+                    rows: orderedRows,
+                    filters: {
+                      ambito,
+                      farmaciasSelecionadas,
+                      fornecedoresSelecionados,
+                      fabricantesSelecionados,
+                      categoriasSelecionadas,
+                      artigo,
+                      dataInicio,
+                      dataFim,
+                      agruparPor,
+                      ordenarPor,
+                      apenasComVendas,
+                      apenasComStock,
+                    },
+                    universe: { farmacias, fornecedores, fabricantes, categorias },
+                    organization: formatFarmaciaHeader(
+                      farmaciasSelecionadas,
+                      farmaciasInfo
+                    ),
+                  })
+                }
               />
             </div>
           </div>
@@ -691,6 +768,28 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
           </div>
         </section>
 
+        {generationError && (
+          <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
+            Falha a gerar o relatório: {generationError}
+          </section>
+        )}
+
+        {!hasGenerated ? (
+          <section className="rounded-[20px] border border-white/70 bg-white/84 px-6 py-16 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+            <div className="mx-auto max-w-[460px]">
+              <h2 className="text-[16px] font-semibold text-slate-900">
+                Nenhum relatório gerado ainda
+              </h2>
+              <p className="mt-2 text-[13px] leading-5 text-slate-500">
+                Defina o âmbito, o período e as farmácias a incluir e clique em{" "}
+                <span className="font-semibold text-emerald-700">Gerar</span> para
+                carregar os dados de Vendas. A página não pré-carrega o universo
+                completo — só lê da BD após o trigger explícito.
+              </p>
+            </div>
+          </section>
+        ) : (
+        <>
         <section className="rounded-[20px] border border-white/70 bg-white/92 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <TabButton
@@ -792,9 +891,16 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
                               {row.descricao}
                             </Link>
                             <div className="text-[12px] text-slate-500">
+                              {/* Linha secundária: contexto operacional —
+                                  só farmácia no ambito por farmácia e
+                                  categoria (com subcategoria se existir)
+                                  no ambito grupo. Grossista foi removido
+                                  — não pertence aqui. */}
                               {ambito === "farmacia"
-                                ? `${row.fornecedor} · ${row.farmacia}`
-                                : `${row.fornecedor} · ${row.categoria}`}
+                                ? row.farmacia
+                                : row.grupo && row.grupo !== row.categoria
+                                  ? `${row.categoria} · ${row.grupo}`
+                                  : row.categoria}
                             </div>
                           </div>
                         </td>
@@ -931,7 +1037,7 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="text-[11px] text-slate-500">
-                          Farmácia Silveirense, Lda. (NIF: 507529930)
+                          {formatFarmaciaHeader(farmaciasSelecionadas, farmaciasInfo)}
                         </div>
                         <div className="mt-2 text-[15px] font-semibold text-slate-900">
                           Mapa de Evolução de Vendas -{" "}
@@ -1152,6 +1258,8 @@ export function VendasClient({ initialRows }: { initialRows: SalesReportRow[] })
               </div>
             </div>
           </section>
+        )}
+        </>
         )}
       </div>
     </AppShell>

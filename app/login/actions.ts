@@ -3,8 +3,9 @@
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { createSessionToken } from "@/lib/auth";
+import { getPrisma } from "@/lib/prisma";
+import { createSessionToken, LEGACY_TENANT } from "@/lib/auth";
+import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 
 type LoginState = {
   error: string;
@@ -23,6 +24,7 @@ export async function loginAction(
     return { error: "Preencha o email e a password." };
   }
 
+  const prisma = await getPrisma();
   const utilizador = await prisma.utilizador.findUnique({
     where: { email },
   });
@@ -37,12 +39,18 @@ export async function loginAction(
     return { error: "Credenciais inválidas." };
   }
 
+  // Vincula a sessão ao tenant em que o login foi efectuado. Em cada
+  // request autenticado, getSession() compara este claim com o tenant
+  // resolvido do request — mismatch devolve null e força novo login.
+  const tenant = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+
   const token = await createSessionToken({
     sub: utilizador.id,
     email: utilizador.email,
     nome: utilizador.nome,
     perfil: utilizador.perfil,
     farmaciaId: utilizador.farmaciaId ?? null,
+    tenant,
   });
 
   const cookieStore = await cookies();

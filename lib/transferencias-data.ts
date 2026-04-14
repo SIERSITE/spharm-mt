@@ -8,8 +8,9 @@
  * Excess identification: products with coverage >> threshold in any pharmacy,
  * regardless of whether the other pharmacy needs them.
  */
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { resolveCategoria } from "@/lib/categoria-resolver";
 
 export type Priority = "alta" | "media" | "baixa";
 
@@ -47,14 +48,18 @@ type PfBase = {
   puc: number | null;
   pmc: number | null;
   categoriaOrigem: string | null;
-  fabricanteOrigem: string | null;
-  familiaOrigem: string | null;
+  subcategoriaOrigem: string | null;
+  canonN1: string | null;
+  canonN2: string | null;
+  fornecedorOrigem: string | null;
+  fabricanteCanonico: string | null;
 };
 
 async function loadPfAndSales(farmaciaIds: string[]): Promise<{
   pfRows: PfBase[];
   salesMap: Map<string, number>;
 }> {
+  const prisma = await getPrisma();
   const now = new Date();
   const periodEnd = now.getFullYear() * 12 + now.getMonth() + 1;
   const periodStart = periodEnd - 3; // last 3 months
@@ -70,11 +75,17 @@ async function loadPfAndSales(farmaciaIds: string[]): Promise<{
       pf.puc::float                    AS puc,
       pf.pmc::float                    AS pmc,
       pf."categoriaOrigem",
-      pf."fabricanteOrigem",
-      pf."familiaOrigem"
+      pf."subcategoriaOrigem",
+      c1.nome                          AS "canonN1",
+      c2.nome                          AS "canonN2",
+      pf."fornecedorOrigem",
+      fab."nomeNormalizado"            AS "fabricanteCanonico"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p ON p.id  = pf."produtoId"
     JOIN "Farmacia" f ON f.id  = pf."farmaciaId"
+    LEFT JOIN "Fabricante"    fab ON fab.id = p."fabricanteId"
+    LEFT JOIN "Classificacao" c1  ON c1.id  = p."classificacaoNivel1Id"
+    LEFT JOIN "Classificacao" c2  ON c2.id  = p."classificacaoNivel2Id"
     WHERE
       pf."stockAtual" IS NOT NULL
       AND pf."stockAtual" > 0
@@ -104,6 +115,7 @@ async function loadPfAndSales(farmaciaIds: string[]): Promise<{
 
 /** Transfer suggestions: products with coverage imbalance between the two pharmacies. */
 export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> {
+  const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
     where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
     select: { id: true, nome: true },
@@ -170,9 +182,16 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
           quantidadeSugerida: Math.min(qtyToTransfer, Math.round(toF(origem.stockAtual))),
           excessoOrigem: Math.max(0, excessoOrigem),
           necessidadeDestino: Math.max(0, necessidadeDestino),
-          fabricante: origem.fabricanteOrigem ?? "",
-          categoria: origem.categoriaOrigem ?? "",
-          fornecedor: origem.familiaOrigem ?? "",
+          // Fabricante CANÓNICO via Produto.fabricante; fornecedor é o
+          // grossista habitual (ProdutoFarmacia.fornecedorOrigem).
+          fabricante: origem.fabricanteCanonico ?? "",
+          categoria: resolveCategoria({
+            classificacaoNivel1: origem.canonN1 ? { nome: origem.canonN1 } : null,
+            classificacaoNivel2: origem.canonN2 ? { nome: origem.canonN2 } : null,
+            categoriaOrigem: origem.categoriaOrigem,
+            subcategoriaOrigem: origem.subcategoriaOrigem,
+          }).grupo,
+          fornecedor: origem.fornecedorOrigem ?? "",
           prioridade,
           observacao:
             prioridade === "alta"
@@ -197,6 +216,7 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
  * farmaciaDestino shows the other pharmacy if it could absorb some of the excess.
  */
 export async function getExcessosData(): Promise<TransferSuggestionRow[]> {
+  const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
     where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
     select: { id: true, nome: true },
@@ -253,9 +273,14 @@ export async function getExcessosData(): Promise<TransferSuggestionRow[]> {
         quantidadeSugerida: Math.min(excessQty, Math.round(toF(entry.stockAtual))),
         excessoOrigem: excessQty,
         necessidadeDestino: Math.max(0, destNecessidade),
-        fabricante: entry.fabricanteOrigem ?? "",
-        categoria: entry.categoriaOrigem ?? "",
-        fornecedor: entry.familiaOrigem ?? "",
+        fabricante: entry.fabricanteCanonico ?? "",
+        categoria: resolveCategoria({
+          classificacaoNivel1: entry.canonN1 ? { nome: entry.canonN1 } : null,
+          classificacaoNivel2: entry.canonN2 ? { nome: entry.canonN2 } : null,
+          categoriaOrigem: entry.categoriaOrigem,
+          subcategoriaOrigem: entry.subcategoriaOrigem,
+        }).grupo,
+        fornecedor: entry.fornecedorOrigem ?? "",
         prioridade,
         observacao: `Excesso de ${Math.round(entry.coverage)} dias de cobertura.`,
       });

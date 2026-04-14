@@ -8,6 +8,7 @@ import {
   Package,
   Undo2,
   BookOpen,
+  Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -43,13 +44,20 @@ const sections: NavSection[] = [
       { href: "/catalogo", label: "Catálogo", icon: BookOpen },
     ],
   },
+  {
+    label: "Configurações",
+    items: [
+      { href: "/configuracoes/email", label: "Email", icon: Settings },
+      { href: "/configuracoes/utilizadores", label: "Utilizadores", icon: Settings },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-border bg-surface-soft backdrop-blur-xl xl:flex xl:flex-col">
+    <aside className="hidden w-60 shrink-0 border-r border-border bg-surface-soft backdrop-blur-xl md:flex md:flex-col">
       <div className="flex h-14 items-center border-b border-border-subtle px-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-xs font-semibold text-white shadow-sm">

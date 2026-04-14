@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { prisma } from "../lib/prisma";
+import { legacyPrisma as prisma } from "../lib/prisma";
 async function main() {
   const farmacias = await prisma.farmacia.findMany({ select: { id: true, nome: true, estado: true } });
   console.log("FARMACIAS:" + JSON.stringify(farmacias));

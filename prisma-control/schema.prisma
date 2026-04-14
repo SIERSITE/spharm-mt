@@ -1,0 +1,178 @@
+// ─────────────────────────────────────────────────────────────────
+// Control plane — schema SPharmMT
+//
+// Este schema descreve a BD ÚNICA que regista todos os tenants
+// (grupos de farmácias). Cada tenant tem a sua própria BD aplicacional
+// descrita em ../prisma/schema.prisma. Aqui só vive o registo + os
+// metadados operacionais (credenciais cifradas, estado, lifecycle).
+//
+// Conexão em runtime: via PrismaPg adapter com connectionString
+// construída a partir de process.env.CONTROL_DATABASE_URL. Ver
+// lib/control-plane.ts.
+//
+// CLI (migrate deploy / generate): scripts em scripts/control/*.ts
+// que injectam DATABASE_URL=CONTROL_DATABASE_URL antes de invocar o
+// `prisma` CLI (o prisma.config.ts actual override com DATABASE_URL).
+// ─────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma-control"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum TenantEstado {
+  /// A correr migrations/seed iniciais. Não aceita tráfego.
+  PROVISIONING
+  /// Pronto a aceitar tráfego aplicacional.
+  ACTIVE
+  /// Temporariamente bloqueado (ex: falta de pagamento, breach).
+  /// DB preservada, sessões activas expiradas, logins rejeitados.
+  SUSPENDED
+  /// Arquivado. DB preservada mas não é mais servida pela aplicação.
+  DEACTIVATED
+  /// Erro durante provisionamento. Precisa intervenção manual.
+  FAILED
+}
+
+//////////////////////////////////////////////////////
+// TENANTS
+//////////////////////////////////////////////////////
+
+/// Registo central de grupos de farmácias. Cada linha = 1 DB física.
+model Tenant {
+  id                String         @id @default(cuid())
+
+  /// Slug URL-safe: "farmacias-braga" → usado em subdomain e CLI.
+  /// Tem de corresponder a /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/.
+  slug              String         @unique
+  /// Nome legível: "Grupo Farmácias de Braga"
+  nome              String
+  /// Identificador legal opcional (NIF do grupo).
+  nifGrupo          String?
+
+  /// Estado operacional. ACTIVE é o único que aceita tráfego.
+  estado            TenantEstado   @default(PROVISIONING)
+
+  // ── Connection details ────────────────────────────────────────
+  dbHost            String
+  dbPort            Int            @default(5432)
+  dbName            String
+  dbUser            String
+  /// Password DB cifrada com AES-256-GCM. Chave derivada de
+  /// TENANT_ENCRYPTION_SECRET (ver lib/tenant-crypto.ts).
+  /// NUNCA guardar em claro em lado nenhum.
+  dbPassEncrypted   String
+  /// Região / cluster físico — placeholder para routing futuro.
+  dbRegion          String?
+
+  // ── Lifecycle & observability ────────────────────────────────
+  /// Nome da última migration aplicada (ex: "20260414120000_add_user_management").
+  schemaVersion     String?
+  provisionedAt     DateTime?
+  lastMigratedAt    DateTime?
+  lastHealthCheckAt DateTime?
+  /// "ok" | "error: <msg>"
+  lastHealthStatus  String?
+  lastBackupAt      DateTime?
+
+  // ── Sync agent / ingest API key ──────────────────────────────
+  /// Hash bcrypt da API key do agent de sincronização para este tenant.
+  /// A mesma key autoriza tanto /api/ingest/v1/* (upstream) como
+  /// /api/outbox/v1/* (downstream). A key em claro é mostrada apenas
+  /// uma vez aquando da emissão via scripts/tenancy/issue-ingest-key.ts
+  /// — nunca persistida.
+  ingestApiKeyHash        String?
+  /// Quando a key actual foi emitida (ou rotada). Usado para
+  /// mostrar na UI admin "key rotada há X dias".
+  ingestApiKeyIssuedAt    DateTime?
+
+  /// Último heartbeat recebido do agent via POST /api/outbox/v1/heartbeat.
+  /// Usado pela UI admin para sinal "agent visto há 3 min". Ausência
+  /// prolongada (> 30 min) deve disparar alerta operacional.
+  lastAgentHeartbeatAt    DateTime?
+  /// Último IP observado no heartbeat. Informativo.
+  lastAgentIp             String?
+  /// Versão do agent reportada no último heartbeat (opcional).
+  lastAgentVersion        String?
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  events            TenantEvent[]
+  globalAdmins      GlobalAdminTenant[]
+
+  @@index([estado])
+  @@index([createdAt])
+}
+
+/// Log imutável de acções sobre tenants. Rastreabilidade operacional.
+/// Nunca apagar linhas daqui — só INSERT.
+model TenantEvent {
+  id         String   @id @default(cuid())
+  tenantId   String
+  /// "created", "migrated", "suspended", "reactivated", "backed_up",
+  /// "destroyed", "migration_failed", "health_check_failed", etc.
+  action     String
+  /// ID do GlobalAdmin que executou, se houver. Null para cron jobs.
+  actorId    String?
+  /// JSON serializado com contexto (error message, migration name,
+  /// backup path, duration, …).
+  metaJson   String?
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
+}
+
+//////////////////////////////////////////////////////
+// CROSS-TENANT ADMINS (infraestrutura)
+//
+// Utilizadores da equipa SPharmMT que precisam de acesso cross-tenant
+// para suporte/ops. Distinto dos Utilizadores que vivem DENTRO de
+// cada tenant DB (esses continuam em prisma/schema.prisma).
+//
+// Nesta Fase 1 não há UI nem login dedicado para estes admins — só
+// são referenciados em `TenantEvent.actorId` quando um script é
+// corrido pelo CLI. Ficam aqui preparados para a Fase 2 (portal
+// admin.spharmmt.app).
+//////////////////////////////////////////////////////
+
+model GlobalAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  nome         String
+  passwordHash String
+  /// "ACTIVE" | "INACTIVE"
+  estado       String   @default("ACTIVE")
+  ultimoLogin  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenants      GlobalAdminTenant[]
+}
+
+/// Associação N:N GlobalAdmin → Tenant. Define a que grupos um admin
+/// tem acesso para suporte. Null = todos (ex: role "ops").
+model GlobalAdminTenant {
+  globalAdminId String
+  tenantId      String
+  /// "support" (leitura) | "billing" | "ops" (tudo)
+  role          String   @default("support")
+  createdAt     DateTime @default(now())
+
+  admin         GlobalAdmin @relation(fields: [globalAdminId], references: [id], onDelete: Cascade)
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([globalAdminId, tenantId])
+  @@index([tenantId])
+}

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { runTransferenciasReport } from "@/app/transferencias/actions";
 import {
   Download,
   Eye,
@@ -14,6 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { ReportActions } from "@/components/reporting/report-actions";
+import { buildTransferenciasReport } from "@/lib/reporting/adapters/transferencias";
+import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
+import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 
 type ModoVisualizacao = "tabela" | "relatorio";
 type Ordenacao =
@@ -72,15 +77,40 @@ function toggleValue(
   );
 }
 
-export function TransferenciasClient({ initialRows }: { initialRows: TransferSuggestionRow[] }) {
-  const farmacias = Array.from(
-    new Set(
-      initialRows.flatMap((row) => [row.farmaciaOrigem, row.farmaciaDestino])
-    )
-  );
-  const fornecedores = Array.from(new Set(initialRows.map((r) => r.fornecedor)));
-  const fabricantes = Array.from(new Set(initialRows.map((r) => r.fabricante)));
-  const categorias = Array.from(new Set(initialRows.map((r) => r.categoria)));
+export function TransferenciasClient({
+  farmaciasInfo,
+  filterOptions,
+}: {
+  farmaciasInfo: FarmaciaInfo[];
+  filterOptions: ReportingFilterOptions;
+}) {
+  // Lazy: nada de Transferências é carregado até clicar em "Gerar".
+  const [rows, setRows] = useState<TransferSuggestionRow[]>([]);
+  const [hasGenerated, setHasGenerated] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const initialRows = rows;
+
+  const handleGerar = () => {
+    setGenerationError(null);
+    startTransition(async () => {
+      try {
+        const result = await runTransferenciasReport();
+        setRows(result);
+        setHasGenerated(true);
+      } catch (err) {
+        setGenerationError(err instanceof Error ? err.message : String(err));
+        setRows([]);
+      }
+    });
+  };
+
+  // Universo de filtros — tudo eager, vindo do servidor no page open.
+  const farmacias = Array.from(new Set(farmaciasInfo.map((f) => f.nome)));
+  const fornecedores = filterOptions.fornecedores;
+  const fabricantes = filterOptions.fabricantes;
+  const categorias = filterOptions.categorias;
+  void initialRows;
   const prioridades = ["alta", "media", "baixa"];
 
   const [farmaciasOrigemSelecionadas, setFarmaciasOrigemSelecionadas] =
@@ -344,17 +374,82 @@ export function TransferenciasClient({ initialRows }: { initialRows: TransferSug
   return (
     <AppShell>
       <div className="space-y-3">
-        <section className="space-y-0.5">
-          <div className="text-xs font-medium text-slate-500">
-            Stock / Transferências sugeridas
+        <section className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <div className="text-xs font-medium text-slate-500">
+              Stock / Transferências sugeridas
+            </div>
+            <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
+              Relatório de Transferências
+            </h1>
+            <p className="text-[13px] text-slate-600">
+              Análise consolidada de sugestões de transferência entre farmácias do grupo.
+            </p>
           </div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Relatório de Transferências
-          </h1>
-          <p className="text-[13px] text-slate-600">
-            Análise consolidada de sugestões de transferência entre farmácias do grupo.
-          </p>
+          <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGerar}
+            disabled={isPending}
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
+          </button>
+          <ReportActions
+            hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
+            report={() =>
+              buildTransferenciasReport({
+                rows: rowsForReport,
+                filters: {
+                  farmaciasOrigemSelecionadas,
+                  farmaciasDestinoSelecionadas,
+                  fornecedoresSelecionados,
+                  fabricantesSelecionados,
+                  categoriasSelecionadas,
+                  prioridadesSelecionadas,
+                  artigo,
+                  dataInicio,
+                  dataFim,
+                  ordenarPor,
+                  apenasComNecessidade,
+                  apenasComExcesso,
+                  apenasAltaPrioridade,
+                  quantidadeMinima,
+                },
+                universe: { farmacias, fornecedores, fabricantes, categorias, prioridades },
+                organization: formatFarmaciaHeader(
+                  Array.from(
+                    new Set([
+                      ...farmaciasOrigemSelecionadas,
+                      ...farmaciasDestinoSelecionadas,
+                    ])
+                  ),
+                  farmaciasInfo
+                ),
+              })
+            }
+          />
+          </div>
         </section>
+
+        {generationError && (
+          <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
+            Falha a gerar o relatório: {generationError}
+          </section>
+        )}
+
+        {!hasGenerated && (
+          <section className="rounded-[20px] border border-white/70 bg-white/84 px-6 py-16 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+            <h2 className="text-[16px] font-semibold text-slate-900">
+              Nenhum relatório gerado ainda
+            </h2>
+            <p className="mx-auto mt-2 max-w-[460px] text-[13px] leading-5 text-slate-500">
+              Carregue em <span className="font-semibold text-emerald-700">Gerar</span> para
+              correr o motor de sugestões de transferência. A página não pré-carrega
+              dados — só lê da BD após o trigger explícito.
+            </p>
+          </section>
+        )}
 
         <section className="rounded-[20px] border border-white/70 bg-white/84 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="grid gap-2.5 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_auto]">
@@ -681,6 +776,7 @@ export function TransferenciasClient({ initialRows }: { initialRows: TransferSug
           </div>
         </section>
 
+        {hasGenerated && (<>
         <section className="rounded-[20px] border border-white/70 bg-white/92 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <TabButton
@@ -778,7 +874,10 @@ export function TransferenciasClient({ initialRows }: { initialRows: TransferSug
                             {row.produto}
                           </Link>
                           <div className="text-[12px] text-slate-500">
-                            {row.fornecedor} · {row.fabricante} · {row.categoria}
+                            {/* Contexto: fabricante canónico + categoria.
+                                Removido o grossista (fornecedor habitual)
+                                — não pertence à identidade do artigo. */}
+                            {[row.fabricante, row.categoria].filter(Boolean).join(" · ") || "—"}
                           </div>
                           <div className="mt-1">
                             <PriorityBadge prioridade={row.prioridade} />
@@ -1045,6 +1144,7 @@ export function TransferenciasClient({ initialRows }: { initialRows: TransferSug
             </div>
           </section>
         )}
+        </>)}
       </div>
     </AppShell>
   );

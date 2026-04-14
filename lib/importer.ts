@@ -6,15 +6,16 @@
  * Estrutura dos ficheiros:
  *
  * MapaEvolucaoVendas[_c].xlsx
- *   col 0  Codigo              → Produto.cnp
- *   col 1  Nome Comercial      → Produto.designacao
- *   col 2  Fornecedor Habitual → (ignorado neste import)
- *   col 3  Existencia Actual   → (vem do stock, ignorado aqui)
- *   col 4  PMC                 → ProdutoFarmacia.pmc  (custo médio de compra)
- *   col 5  Preco Venda Publico_Eur → ProdutoFarmacia.pvp
- *   col 6+ [jan 2025 … abr 2026]  → VendaMensal.quantidade
- *   penúltima  Total Vendas    → (ignorado — soma das mensais)
- *   Categoria / SubCategoria   → (ignorado neste import)
+ *   col 0  Codigo                     → Produto.cnp
+ *   col 1  Nome Comercial             → Produto.designacao
+ *   col 2  Fornecedor Habitual        → ProdutoFarmacia.fornecedorOrigem (NÃO é fabricante)
+ *   col 3  Existencia Actual          → (vem do stock, ignorado aqui)
+ *   col 4  PMC                        → ProdutoFarmacia.pmc
+ *   col 5  Preco Venda Publico_Eur    → ProdutoFarmacia.pvp
+ *   col 6+ [jan 2025 … abr 2026]      → VendaMensal.quantidade
+ *   Total Vendas                      → (ignorado — soma das mensais)
+ *   Categoria                         → ProdutoFarmacia.categoriaOrigem
+ *   SubCategoria                      → ProdutoFarmacia.subcategoriaOrigem
  *
  * stock_Atual[_castelo].xlsx
  *   col 0  Texto4        → Produto.cnp
@@ -26,7 +27,7 @@
  */
 
 import * as XLSX from "xlsx";
-import { prisma } from "@/lib/prisma";
+import { legacyPrisma as prisma } from "@/lib/prisma";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,22 @@ function parseMesColuna(col: string): { mes: number; ano: number } | null {
   const mes = MES_NOMES[m[1].toLowerCase()];
   if (!mes) return null;
   return { mes, ano: parseInt(m[2], 10) };
+}
+
+/**
+ * Normaliza um valor de origem do Excel (fornecedor/categoria/subcategoria):
+ *   - converte para string
+ *   - trim
+ *   - colapsa espaços internos múltiplos
+ *   - devolve null se vazio ou apenas whitespace
+ *
+ * Não altera capitalização — a persistência é literal para preservar
+ * o valor original; a normalização para matching é feita no classifier/connector.
+ */
+export function normalizeOrigemValue(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).replace(/\s+/g, " ").trim();
+  return s.length > 0 ? s : null;
 }
 
 /** Divide um array em chunks de `size` elementos */
@@ -139,10 +156,15 @@ export async function importSalesFromExcel(
     throw new Error(`Nenhuma coluna mensal encontrada em ${filePath}`);
   }
 
-  // Índices das colunas de preço (busca flexível por nome)
+  // Índices das colunas de preço e origem (busca flexível por nome)
   const colNomeLower = header.map((h) => String(h ?? "").toLowerCase().trim());
   const idxPmc = colNomeLower.indexOf("pmc");
   const idxPvp = colNomeLower.findIndex((h) => h.startsWith("preco") || h.includes("pvp"));
+  const idxFornecedor = colNomeLower.findIndex((h) => h.includes("fornecedor"));
+  const idxCategoria = colNomeLower.findIndex((h) => h === "categoria");
+  const idxSubcategoria = colNomeLower.findIndex(
+    (h) => h === "subcategoria" || h === "sub categoria" || h === "sub-categoria"
+  );
 
   // ── Parse de todas as linhas ────────────────────────────────────────────────
   type ParsedRow = {
@@ -150,6 +172,10 @@ export async function importSalesFromExcel(
     designacao: string;
     pmc: number | null;
     pvp: number | null;
+    /** Fornecedor/grossista habitual (NÃO é fabricante). Ex: Empifarma, OCP. */
+    fornecedorOrigem: string | null;
+    categoriaOrigem: string | null;
+    subcategoriaOrigem: string | null;
     meses: Array<{ mes: number; ano: number; quantidade: number }>;
   };
 
@@ -168,6 +194,10 @@ export async function importSalesFromExcel(
     const pmc = idxPmc >= 0 && row[idxPmc] != null ? (Number(row[idxPmc]) || null) : null;
     const pvp = idxPvp >= 0 && row[idxPvp] != null ? (Number(row[idxPvp]) || null) : null;
 
+    const fornecedorOrigem   = idxFornecedor   >= 0 ? normalizeOrigemValue(row[idxFornecedor])   : null;
+    const categoriaOrigem    = idxCategoria    >= 0 ? normalizeOrigemValue(row[idxCategoria])    : null;
+    const subcategoriaOrigem = idxSubcategoria >= 0 ? normalizeOrigemValue(row[idxSubcategoria]) : null;
+
     const meses: ParsedRow["meses"] = [];
     for (const { idx, mes, ano } of mesCols) {
       const raw = row[idx];
@@ -178,14 +208,28 @@ export async function importSalesFromExcel(
       meses.push({ mes, ano, quantidade });
     }
 
-    parsed.push({ cnp, designacao, pmc, pvp, meses });
+    parsed.push({
+      cnp,
+      designacao,
+      pmc,
+      pvp,
+      fornecedorOrigem,
+      categoriaOrigem,
+      subcategoriaOrigem,
+      meses,
+    });
   }
 
   // ── Batch upsert Produto ────────────────────────────────────────────────────
   const cnpMap = await batchEnsureProdutos(parsed);
 
-  // ── Batch upsert ProdutoFarmacia (pmc, pvp) ─────────────────────────────────
-  // Deduplicar por cnp, depois agrupar em chunks de 50 upserts concorrentes
+  // ── Batch upsert ProdutoFarmacia (pmc, pvp, origens) ────────────────────────
+  // Deduplicar por cnp, depois agrupar em chunks de 50 upserts concorrentes.
+  // Campos de origem só são escritos quando há valor não-null no Excel —
+  // nunca apagam dados já persistidos.
+  // IMPORTANTE: fornecedorOrigem contém o grossista/distribuidor habitual
+  // (Empifarma, OCP, …), NÃO o fabricante real. É usado apenas como contexto
+  // interno de abastecimento e nunca como Produto.fabricanteId.
   const seenCnps = new Set<number>();
   const pfRows = parsed
     .filter((r) => {
@@ -198,6 +242,9 @@ export async function importSalesFromExcel(
       farmaciaId,
       pmc: r.pmc,
       pvp: r.pvp,
+      fornecedorOrigem: r.fornecedorOrigem,
+      categoriaOrigem: r.categoriaOrigem,
+      subcategoriaOrigem: r.subcategoriaOrigem,
     }));
 
   for (const c of chunk(pfRows, 50)) {
@@ -212,10 +259,16 @@ export async function importSalesFromExcel(
             farmaciaId,
             ...(pf.pmc !== null ? { pmc: pf.pmc } : {}),
             ...(pf.pvp !== null ? { pvp: pf.pvp } : {}),
+            ...(pf.fornecedorOrigem   !== null ? { fornecedorOrigem:   pf.fornecedorOrigem   } : {}),
+            ...(pf.categoriaOrigem    !== null ? { categoriaOrigem:    pf.categoriaOrigem    } : {}),
+            ...(pf.subcategoriaOrigem !== null ? { subcategoriaOrigem: pf.subcategoriaOrigem } : {}),
           },
           update: {
             ...(pf.pmc !== null ? { pmc: pf.pmc } : {}),
             ...(pf.pvp !== null ? { pvp: pf.pvp } : {}),
+            ...(pf.fornecedorOrigem   !== null ? { fornecedorOrigem:   pf.fornecedorOrigem   } : {}),
+            ...(pf.categoriaOrigem    !== null ? { categoriaOrigem:    pf.categoriaOrigem    } : {}),
+            ...(pf.subcategoriaOrigem !== null ? { subcategoriaOrigem: pf.subcategoriaOrigem } : {}),
           },
         })
       )

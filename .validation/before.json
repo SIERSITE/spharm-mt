@@ -1,0 +1,4922 @@
+{
+  "generatedAt": "2026-04-13T10:23:54.937Z",
+  "args": {
+    "limit": 100,
+    "sample": "random",
+    "cnp": null,
+    "type": null,
+    "verbose": false,
+    "json": true
+  },
+  "aggregate": {
+    "total": 100,
+    "byProductType": {
+      "OUTRO": 13,
+      "MEDICAMENTO": 58,
+      "DERMOCOSMETICA": 19,
+      "VETERINARIA": 4,
+      "DISPOSITIVO_MEDICO": 3,
+      "SUPLEMENTO": 2,
+      "PUERICULTURA": 1
+    },
+    "byVerificationStatus": {
+      "FAILED": 100
+    },
+    "fieldCoverage": {},
+    "avgFieldConfidence": {},
+    "totalConflicts": 0,
+    "needsReview": 39,
+    "externallyVerified": 0,
+    "manuallyProtected": 0
+  },
+  "reports": [
+    {
+      "cnp": 7520247,
+      "designacao": "Artelac Toalhitas Limpeza Oftálmica X20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "artelac",
+            "toalhitas",
+            "limpeza",
+            "oftalmica",
+            "x20"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5416714,
+      "designacao": "Atorvastatina Ratiopharm MG, 40 mg x 28 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ratiopharm",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5428677,
+      "designacao": "Anotrit, 20 mg/g x 30 pasta cut",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "anotrit",
+            "pasta",
+            "cut"
+          ],
+          "potentialDCI": "Anotrit"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 2695989,
+      "designacao": "Atacand, 8 mg x 28 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atacand",
+            "comp"
+          ],
+          "potentialDCI": "Atacand"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6594713,
+      "designacao": "Arthrodont Pasta Dent 80 G",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "arthrodont",
+            "pasta",
+            "dent"
+          ],
+          "potentialDCI": "Arthrodont"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7081646,
+      "designacao": "Avene Cicalfate Gel Limpeza 200ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cicalfate",
+            "gel",
+            "limpeza",
+            "200ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5801469,
+      "designacao": "Anastrozol Tolife 1 Mg 30 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "anastrozol",
+            "tolife",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Anastrozol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7086231,
+      "designacao": "Arkosono Forte 8H Comp X 30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "arkosono",
+            "forte",
+            "comp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7292417,
+      "designacao": "Akileine Secura Cr Nutri Repar 75ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "akileine",
+            "secura",
+            "nutri",
+            "repar",
+            "75ml"
+          ],
+          "potentialDCI": "Akileine"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6280180,
+      "designacao": "Avene Cicalfate+ Creme 40ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cicalfate",
+            "creme",
+            "40ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6342808,
+      "designacao": "Aptamil 1 800gr Leite Po",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aptamil",
+            "800gr",
+            "leite"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6892083,
+      "designacao": "Avene Solar Leite 50+ Mineral 100 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "leite",
+            "mineral",
+            "100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7491803,
+      "designacao": "Avene Ag Termal Ag Micelar 400ml -5E",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "termal",
+            "micelar",
+            "400ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7434811,
+      "designacao": "Advantix Cao Sol Uncao 1ml X 4 4-10 Kg, 100/500 mg sol unção",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advantix",
+            "cao",
+            "sol",
+            "uncao",
+            "1ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6838979,
+      "designacao": "Atl Pasta Lassar 50 G",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atl",
+            "pasta",
+            "lassar"
+          ],
+          "potentialDCI": "Atl"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5817960,
+      "designacao": "Aspirina Xpress 1000 Mg 12 Comp. Revest.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aspirina",
+            "xpress",
+            "1000",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Aspirina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6576314,
+      "designacao": "Atl Cr Hidra 100 G",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atl",
+            "hidra",
+            "100"
+          ],
+          "potentialDCI": "Atl"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5015987,
+      "designacao": "Aprovel 150 Mg 28 Comp. Revest.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aprovel",
+            "150",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Aprovel"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7543876,
+      "designacao": "Avene Dermabsolu Cr Dia 50+Ref50+Amost5",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "dermabsolu",
+            "dia",
+            "ref50",
+            "amost5"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7389775,
+      "designacao": "Advancis Easylax Infantil Xarope 150 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:xarope"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "easylax",
+            "infantil",
+            "xarope",
+            "150"
+          ],
+          "potentialDCI": "Advancis"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7093088,
+      "designacao": "Avene Cleanance Gel de limpeza 400 ml com Desconto de 5?",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cleanance",
+            "gel",
+            "limpeza",
+            "400"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5828256,
+      "designacao": "Atorvastatina + Ezetimiba Sandoz 40 Mg + 10 Mg 30 Comp. Reve",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ezetimiba",
+            "sandoz",
+            "comp",
+            "reve"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6200071,
+      "designacao": "B.braun / Actreen Lite Cath / Refª.:  228312l C/ 25 Cm Ponta",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "braun",
+            "actreen",
+            "lite",
+            "cath",
+            "ref"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7478156,
+      "designacao": "A-Derma Exomega Control Ol Duche 500ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "derma",
+            "exomega",
+            "control",
+            "duche",
+            "500ml"
+          ],
+          "potentialDCI": "A-Derma"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5808860,
+      "designacao": "Atorvastatina Pharmakern 20 Mg 56 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "pharmakern",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5679816,
+      "designacao": "Aripiprazol Mylan Pharma 15 Mg 28 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aripiprazol",
+            "mylan",
+            "pharma",
+            "comp"
+          ],
+          "potentialDCI": "Aripiprazol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5712591,
+      "designacao": "Ansilor, 2,5 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "ansilor",
+            "comp"
+          ],
+          "potentialDCI": "Ansilor"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 4182689,
+      "designacao": "Alprazolam Ratiopharm 0,25 Mg Comprimidos 0.25 Mg 20 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:comprimido"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alprazolam",
+            "ratiopharm",
+            "comprimidos",
+            "comp"
+          ],
+          "potentialDCI": "Alprazolam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5721832,
+      "designacao": "Ácido Acetilsalicílico Farmoz 100 Mg 60 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acido",
+            "acetilsalicilico",
+            "farmoz",
+            "100",
+            "comp"
+          ],
+          "potentialDCI": "Ácido"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7127597,
+      "designacao": "Aptamil Profutura 2 Duo 800gr",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aptamil",
+            "profutura",
+            "duo",
+            "800gr"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7135277,
+      "designacao": "A Derma ExomegaControl Creme Emol DUO 400ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "derma",
+            "exomegacontrol",
+            "creme",
+            "emol",
+            "duo"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5678776,
+      "designacao": "Atorvastatina Ciclum 20 Mg 28 Comp. Revest. Por Pel.*",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ciclum",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7373944,
+      "designacao": "Arkocapsulas Konjac Caps X80 cáps",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.78,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_high:capsula"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "arkocapsulas",
+            "konjac",
+            "caps",
+            "x80"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7251322,
+      "designacao": "Artiok Caps X30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "artiok",
+            "caps",
+            "x30"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6559088,
+      "designacao": "Atoderm Bioderma Cr 200 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "atoderm",
+            "bioderma",
+            "200"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6576074,
+      "designacao": "Avene Solar Emulsao Spf50+ 50 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "emulsao",
+            "spf50"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5434923,
+      "designacao": "Atorvastatina Mylan 40 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mylan",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 9767814,
+      "designacao": "Ansiten, 5 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "ansiten",
+            "comp"
+          ],
+          "potentialDCI": "Ansiten"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5446380,
+      "designacao": "Alprazolam Mylan MG, 1 mg x 60 comp lib mod",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alprazolam",
+            "mylan",
+            "comp",
+            "lib",
+            "mod"
+          ],
+          "potentialDCI": "Alprazolam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6832865,
+      "designacao": "Arthrodont Sol Gengival 300 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "arthrodont",
+            "sol",
+            "gengival",
+            "300"
+          ],
+          "potentialDCI": "Arthrodont"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6587485,
+      "designacao": "Avene Solar Spray Spf50+ 200 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "spray",
+            "spf50",
+            "200"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6413476,
+      "designacao": "Aquacel Ag+ Extra Penso Esteril 10x10cm X10",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DISPOSITIVO_MEDICO",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dispositivo_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "eudamed"
+          ],
+          "searchKeywords": [
+            "aquacel",
+            "extra",
+            "penso",
+            "esteril",
+            "10x10cm"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "eudamed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5900113,
+      "designacao": "Atorvastatina Mylan 20 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mylan",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5093323,
+      "designacao": "Ácido Alendrónico Mepha MG, 70 mg x 4 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acido",
+            "alendronico",
+            "mepha",
+            "comp"
+          ],
+          "potentialDCI": "Ácido"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6575100,
+      "designacao": "Avene Solar Cr Spf 50+ 50 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "spf"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6656165,
+      "designacao": "Absorvit Geleia Real Comp X30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "SUPLEMENTO",
+        "confidence": 0.72,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:gel",
+          "suplemento_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_food_facts"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "geleia",
+            "real",
+            "comp",
+            "x30"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_food_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5665468,
+      "designacao": "Abasaglar 100 U/ml 5 Sol. Injetável Em Caneta Pré-cheia*",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.78,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_high:injetavel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "abasaglar",
+            "100",
+            "sol",
+            "injetavel",
+            "caneta"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7529958,
+      "designacao": "Avene Hydrance Aqua-Gel Cr P Sens 50Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "hydrance",
+            "aqua",
+            "gel",
+            "sens"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5026745,
+      "designacao": "Amlodipina Ratiopharm MG, 5 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "amlodipina",
+            "ratiopharm",
+            "comp"
+          ],
+          "potentialDCI": "Amlodipina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6191866,
+      "designacao": "Agulhas Clickfine 4mmx32g  100 N.d.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DISPOSITIVO_MEDICO",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dispositivo_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "eudamed"
+          ],
+          "searchKeywords": [
+            "agulhas",
+            "clickfine",
+            "4mmx32g",
+            "100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "eudamed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7438614,
+      "designacao": "Avene Solar Fl Antimancha CorSPF50+40Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "antimancha",
+            "corspf50",
+            "40ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5423876,
+      "designacao": "Azafalk 75 Mg 60 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "azafalk",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Azafalk"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7081299,
+      "designacao": "Atyflor Hydra+ Saq X10",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "atyflor",
+            "hydra",
+            "saq",
+            "x10"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7742403,
+      "designacao": "Alcool Sanitario Alcool 70º 250 Ml M Vieir",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alcool",
+            "sanitario",
+            "250",
+            "vieir"
+          ],
+          "potentialDCI": "Alcool"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7495226,
+      "designacao": "ArtiActive Comp X60",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "artiactive",
+            "comp",
+            "x60"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6915728,
+      "designacao": "Avene Corpo Xeracalm Ad Ol Frasco 400",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "corpo",
+            "xeracalm",
+            "frasco",
+            "400"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6230193,
+      "designacao": "Amflee Comb 134/ 120,6 Sol Pip Cao 10-20kg",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "amflee",
+            "comb",
+            "134",
+            "120",
+            "sol"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7132399,
+      "designacao": "Advanced Da Pic Solution / Insupen (31g; 5 Mm) / 02022902000",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "advanced",
+            "pic",
+            "solution",
+            "insupen",
+            "31g"
+          ],
+          "potentialDCI": "Advanced"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6394262,
+      "designacao": "Aquilea Respira Spray Nasal Hiperton 20Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aquilea",
+            "respira",
+            "spray",
+            "nasal",
+            "hiperton"
+          ],
+          "potentialDCI": "Aquilea"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6393512,
+      "designacao": "Avene Tol Control Cr 40Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "tol",
+            "control",
+            "40ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7249953,
+      "designacao": "Avene Cicalfate+ Bals Repar Lab 10Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cicalfate",
+            "bals",
+            "repar",
+            "lab"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 9101824,
+      "designacao": "Aero-om 42 Mg 60 Comp. Para Mastigar",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aero",
+            "comp",
+            "mastigar"
+          ],
+          "potentialDCI": "Aero-om"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5657770,
+      "designacao": "Aciclovir Bluepharma 50 Mg/g Creme",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aciclovir",
+            "bluepharma",
+            "creme"
+          ],
+          "potentialDCI": "Aciclovir"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5889373,
+      "designacao": "Atorvastatina Ratiopharm 20 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ratiopharm",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5605712,
+      "designacao": "Anoro 55 µg + 22 µg Pó Para Inalação Em Recipiente Unidose",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:po para inalacao"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "anoro",
+            "inalacao",
+            "recipiente",
+            "unidose"
+          ],
+          "potentialDCI": "Anoro"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7133207,
+      "designacao": "Accu-fine  / 6mm Accu-fine / 7899 6 Mm 100 N.a.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "accu",
+            "fine",
+            "6mm",
+            "7899",
+            "100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7099903,
+      "designacao": "Agua Oxigenada Hidro 10 Vol 250Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "agua",
+            "oxigenada",
+            "hidro",
+            "vol",
+            "250ml"
+          ],
+          "potentialDCI": "Agua"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5394242,
+      "designacao": "Azitromicina Krka MG, 500 mg x 3 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "azitromicina",
+            "krka",
+            "500",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Azitromicina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6115089,
+      "designacao": "Akileine Gel Anti Transpir 75 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "akileine",
+            "gel",
+            "anti",
+            "transpir"
+          ],
+          "potentialDCI": "Akileine"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5404389,
+      "designacao": "Anapen, 0,3 mg/0,3 mL x 1 sol inj seringa pré-cheia",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DISPOSITIVO_MEDICO",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dispositivo_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "eudamed"
+          ],
+          "searchKeywords": [
+            "anapen",
+            "sol",
+            "inj",
+            "seringa",
+            "pre"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "eudamed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6981852,
+      "designacao": "Atoderm Bioderma Oleo Duche 1000ml Promo",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "atoderm",
+            "bioderma",
+            "oleo",
+            "duche",
+            "1000ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5721865,
+      "designacao": "Ácido Acetilsalicílico Pentafarma 100 Mg 60 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acido",
+            "acetilsalicilico",
+            "pentafarma",
+            "100",
+            "comp"
+          ],
+          "potentialDCI": "Ácido"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5745336,
+      "designacao": "Asutam 20 Mg + 10 Mg 28 Cápsula",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:capsula"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "asutam",
+            "capsula"
+          ],
+          "potentialDCI": "Asutam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6127035,
+      "designacao": "Aposan Teste Gravidez",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aposan",
+            "teste",
+            "gravidez"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6586750,
+      "designacao": "Avene Couvrance Base Fluida Mel 30 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "couvrance",
+            "base",
+            "fluida",
+            "mel"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5317508,
+      "designacao": "Azalia 0.075 Mg 84 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "azalia",
+            "075",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Azalia"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7297549,
+      "designacao": "AdTab Comp >22-45Kg 900Mg Cão",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "adtab",
+            "comp",
+            "45kg",
+            "900mg",
+            "cao"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5337951,
+      "designacao": "Ácido Fólico Generis, 5 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "SUPLEMENTO",
+        "confidence": 0.72,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "suplemento_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_food_facts"
+          ],
+          "searchKeywords": [
+            "acido",
+            "folico",
+            "generis",
+            "comp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_food_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5316211,
+      "designacao": "Alorexyl 50 Mg/ml Sol. Cutânea",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alorexyl",
+            "sol",
+            "cutanea"
+          ],
+          "potentialDCI": "Alorexyl"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5889530,
+      "designacao": "Atorvastatina Mepha 40 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mepha",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5168075,
+      "designacao": "Acarbose Mylan MG, 50 mg x 50 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acarbose",
+            "mylan",
+            "comp"
+          ],
+          "potentialDCI": "Acarbose"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7306605,
+      "designacao": "Aptamil Papa Infantil Multiceriais Maça 6m+ 225gr",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "PUERICULTURA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "puericultura_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aptamil",
+            "papa",
+            "infantil",
+            "multiceriais",
+            "maca"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7103572,
+      "designacao": "Avène Solar Ultra-Mat Fluido 50+ 50ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "ultra",
+            "mat",
+            "fluido"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7524017,
+      "designacao": "Advancis Val Kids Gummies Tutti-Fr X60",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "val",
+            "kids",
+            "gummies",
+            "tutti"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7479816,
+      "designacao": "Akileine Bolsa Caminhada 2023",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "akileine",
+            "bolsa",
+            "caminhada",
+            "2023"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5863311,
+      "designacao": "Atorvastatina Tolife 10 Mg 56 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "tolife",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5663281,
+      "designacao": "Adalgur N, 500/2 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "adalgur",
+            "500",
+            "comp"
+          ],
+          "potentialDCI": "Adalgur"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5478490,
+      "designacao": "Alprazolam Pazolam 2 Mg Comprimidos De Libertação Modificada",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:comprimido"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alprazolam",
+            "pazolam",
+            "comprimidos",
+            "libertacao",
+            "modificada"
+          ],
+          "potentialDCI": "Alprazolam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5640347,
+      "designacao": "Aripiprazol Altedron 10 Mg 28 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aripiprazol",
+            "altedron",
+            "comp"
+          ],
+          "potentialDCI": "Aripiprazol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5164066,
+      "designacao": "Aero-OM, 125 mg x 20 cáps mole",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aero",
+            "125",
+            "caps",
+            "mole"
+          ],
+          "potentialDCI": "Aero-OM"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 9076968,
+      "designacao": "ADT, 10 mg x 60 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "adt",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "ADT"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5642863,
+      "designacao": "Atorvastatina Zentiva 10 Mg 56 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "zentiva",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6228395,
+      "designacao": "Amflee Comb 67/ 60,3 Sol Pip Cao 2-10kg",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "amflee",
+            "comb",
+            "sol",
+            "pip",
+            "cao"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6218925,
+      "designacao": "Algodao Hassemed Alg Hidrofilo Zig Zag 70g",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "algodao",
+            "hassemed",
+            "alg",
+            "hidrofilo",
+            "zig"
+          ],
+          "potentialDCI": "Algodao"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6398206,
+      "designacao": "Ascencia/microlet Coloridas/ref.03856893  200 N.d.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "ascencia",
+            "microlet",
+            "coloridas",
+            "ref",
+            "03856893"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5857974,
+      "designacao": "Apixabano Pharmakern 5 Mg 60 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "apixabano",
+            "pharmakern",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Apixabano"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7493940,
+      "designacao": "Antimetil Liquid Sol Bebível 150Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "antimetil",
+            "liquid",
+            "sol",
+            "bebivel",
+            "150ml"
+          ],
+          "potentialDCI": "Antimetil"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5416649,
+      "designacao": "Atorvastatina Ratiopharm MG, 10 mg x 56 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ratiopharm",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7294397,
+      "designacao": "Aloclair Plus Bioadhesive Spray 15Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aloclair",
+            "plus",
+            "bioadhesive",
+            "spray",
+            "15ml"
+          ],
+          "potentialDCI": "Aloclair"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6345918,
+      "designacao": "Avene Cicalfate+ Gel Cicatrizes 30ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cicalfate",
+            "gel",
+            "cicatrizes",
+            "30ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    }
+  ]
+}

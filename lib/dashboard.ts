@@ -15,7 +15,7 @@
  * Alertas     → ProdutoFarmacia onde stockAtual ≤ stockMinimo
  */
 
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -91,6 +91,7 @@ function calcMargem(totalVendas: number, totalCusto: number): number {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function getDashboardData(): Promise<DashboardData> {
+  const prisma = await getPrisma();
   const now = new Date();
   const anoAtual = now.getFullYear();
   const mesAtual = now.getMonth() + 1;

@@ -215,6 +215,7 @@ export type FarmaciaWhereInput = {
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   utilizadores?: Prisma.UtilizadorListRelationFilter
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaListRelationFilter
   produtosFarmacia?: Prisma.ProdutoFarmaciaListRelationFilter
   produtosInternos?: Prisma.ProdutoInternoListRelationFilter
   vendas?: Prisma.VendaListRelationFilter
@@ -227,6 +228,7 @@ export type FarmaciaWhereInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaListRelationFilter
   listasEncomenda?: Prisma.ListaEncomendaListRelationFilter
   lotesIngestao?: Prisma.LoteIngestaoListRelationFilter
+  emailConfig?: Prisma.XOR<Prisma.EmailConfigNullableScalarRelationFilter, Prisma.EmailConfigWhereInput> | null
 }
 
 export type FarmaciaOrderByWithRelationInput = {
@@ -240,6 +242,7 @@ export type FarmaciaOrderByWithRelationInput = {
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   utilizadores?: Prisma.UtilizadorOrderByRelationAggregateInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaOrderByRelationAggregateInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaOrderByRelationAggregateInput
   produtosInternos?: Prisma.ProdutoInternoOrderByRelationAggregateInput
   vendas?: Prisma.VendaOrderByRelationAggregateInput
@@ -252,6 +255,7 @@ export type FarmaciaOrderByWithRelationInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaOrderByRelationAggregateInput
   listasEncomenda?: Prisma.ListaEncomendaOrderByRelationAggregateInput
   lotesIngestao?: Prisma.LoteIngestaoOrderByRelationAggregateInput
+  emailConfig?: Prisma.EmailConfigOrderByWithRelationInput
 }
 
 export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
@@ -268,6 +272,7 @@ export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   utilizadores?: Prisma.UtilizadorListRelationFilter
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaListRelationFilter
   produtosFarmacia?: Prisma.ProdutoFarmaciaListRelationFilter
   produtosInternos?: Prisma.ProdutoInternoListRelationFilter
   vendas?: Prisma.VendaListRelationFilter
@@ -280,6 +285,7 @@ export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
   indicadores?: Prisma.IndicadoresProdutoFarmaciaListRelationFilter
   listasEncomenda?: Prisma.ListaEncomendaListRelationFilter
   lotesIngestao?: Prisma.LoteIngestaoListRelationFilter
+  emailConfig?: Prisma.XOR<Prisma.EmailConfigNullableScalarRelationFilter, Prisma.EmailConfigWhereInput> | null
 }, "id" | "nome">
 
 export type FarmaciaOrderByWithAggregationInput = {
@@ -323,6 +329,7 @@ export type FarmaciaCreateInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -335,6 +342,7 @@ export type FarmaciaCreateInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateInput = {
@@ -348,6 +356,7 @@ export type FarmaciaUncheckedCreateInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -360,6 +369,7 @@ export type FarmaciaUncheckedCreateInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUpdateInput = {
@@ -373,6 +383,7 @@ export type FarmaciaUpdateInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -385,6 +396,7 @@ export type FarmaciaUpdateInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateInput = {
@@ -398,6 +410,7 @@ export type FarmaciaUncheckedUpdateInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -410,6 +423,7 @@ export type FarmaciaUncheckedUpdateInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateManyInput = {
@@ -494,6 +508,22 @@ export type FarmaciaScalarRelationFilter = {
   isNot?: Prisma.FarmaciaWhereInput
 }
 
+export type FarmaciaCreateNestedOneWithoutEmailConfigInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedCreateWithoutEmailConfigInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutEmailConfigInput
+  connect?: Prisma.FarmaciaWhereUniqueInput
+}
+
+export type FarmaciaUpdateOneWithoutEmailConfigNestedInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedCreateWithoutEmailConfigInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutEmailConfigInput
+  upsert?: Prisma.FarmaciaUpsertWithoutEmailConfigInput
+  disconnect?: Prisma.FarmaciaWhereInput | boolean
+  delete?: Prisma.FarmaciaWhereInput | boolean
+  connect?: Prisma.FarmaciaWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutEmailConfigInput, Prisma.FarmaciaUpdateWithoutEmailConfigInput>, Prisma.FarmaciaUncheckedUpdateWithoutEmailConfigInput>
+}
+
 export type FarmaciaCreateNestedOneWithoutUtilizadoresInput = {
   create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutUtilizadoresInput, Prisma.FarmaciaUncheckedCreateWithoutUtilizadoresInput>
   connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutUtilizadoresInput
@@ -508,6 +538,20 @@ export type FarmaciaUpdateOneWithoutUtilizadoresNestedInput = {
   delete?: Prisma.FarmaciaWhereInput | boolean
   connect?: Prisma.FarmaciaWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutUtilizadoresInput, Prisma.FarmaciaUpdateWithoutUtilizadoresInput>, Prisma.FarmaciaUncheckedUpdateWithoutUtilizadoresInput>
+}
+
+export type FarmaciaCreateNestedOneWithoutUtilizadoresExtraInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutUtilizadoresExtraInput
+  connect?: Prisma.FarmaciaWhereUniqueInput
+}
+
+export type FarmaciaUpdateOneRequiredWithoutUtilizadoresExtraNestedInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutUtilizadoresExtraInput
+  upsert?: Prisma.FarmaciaUpsertWithoutUtilizadoresExtraInput
+  connect?: Prisma.FarmaciaWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutUtilizadoresExtraInput, Prisma.FarmaciaUpdateWithoutUtilizadoresExtraInput>, Prisma.FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput>
 }
 
 export type FarmaciaCreateNestedOneWithoutProdutosFarmaciaInput = {
@@ -678,7 +722,7 @@ export type FarmaciaUpdateOneRequiredWithoutLotesIngestaoNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutLotesIngestaoInput, Prisma.FarmaciaUpdateWithoutLotesIngestaoInput>, Prisma.FarmaciaUncheckedUpdateWithoutLotesIngestaoInput>
 }
 
-export type FarmaciaCreateWithoutUtilizadoresInput = {
+export type FarmaciaCreateWithoutEmailConfigInput = {
   id?: string
   nome: string
   codigoANF?: string | null
@@ -688,6 +732,8 @@ export type FarmaciaCreateWithoutUtilizadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -702,7 +748,7 @@ export type FarmaciaCreateWithoutUtilizadoresInput = {
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
 }
 
-export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
+export type FarmaciaUncheckedCreateWithoutEmailConfigInput = {
   id?: string
   nome: string
   codigoANF?: string | null
@@ -712,6 +758,8 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -724,6 +772,126 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+}
+
+export type FarmaciaCreateOrConnectWithoutEmailConfigInput = {
+  where: Prisma.FarmaciaWhereUniqueInput
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedCreateWithoutEmailConfigInput>
+}
+
+export type FarmaciaUpsertWithoutEmailConfigInput = {
+  update: Prisma.XOR<Prisma.FarmaciaUpdateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedUpdateWithoutEmailConfigInput>
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedCreateWithoutEmailConfigInput>
+  where?: Prisma.FarmaciaWhereInput
+}
+
+export type FarmaciaUpdateToOneWithWhereWithoutEmailConfigInput = {
+  where?: Prisma.FarmaciaWhereInput
+  data: Prisma.XOR<Prisma.FarmaciaUpdateWithoutEmailConfigInput, Prisma.FarmaciaUncheckedUpdateWithoutEmailConfigInput>
+}
+
+export type FarmaciaUpdateWithoutEmailConfigInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaUncheckedUpdateWithoutEmailConfigInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaCreateWithoutUtilizadoresInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
+  lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
+}
+
+export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutUtilizadoresInput = {
@@ -752,6 +920,7 @@ export type FarmaciaUpdateWithoutUtilizadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -764,6 +933,7 @@ export type FarmaciaUpdateWithoutUtilizadoresInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
@@ -776,6 +946,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -788,6 +959,127 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaCreateWithoutUtilizadoresExtraInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
+  lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
+}
+
+export type FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
+}
+
+export type FarmaciaCreateOrConnectWithoutUtilizadoresExtraInput = {
+  where: Prisma.FarmaciaWhereUniqueInput
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput>
+}
+
+export type FarmaciaUpsertWithoutUtilizadoresExtraInput = {
+  update: Prisma.XOR<Prisma.FarmaciaUpdateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput>
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput>
+  where?: Prisma.FarmaciaWhereInput
+}
+
+export type FarmaciaUpdateToOneWithWhereWithoutUtilizadoresExtraInput = {
+  where?: Prisma.FarmaciaWhereInput
+  data: Prisma.XOR<Prisma.FarmaciaUpdateWithoutUtilizadoresExtraInput, Prisma.FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput>
+}
+
+export type FarmaciaUpdateWithoutUtilizadoresExtraInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
@@ -801,6 +1093,7 @@ export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
@@ -812,6 +1105,7 @@ export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
@@ -825,6 +1119,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -836,6 +1131,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutProdutosFarmaciaInput = {
@@ -865,6 +1161,7 @@ export type FarmaciaUpdateWithoutProdutosFarmaciaInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
@@ -876,6 +1173,7 @@ export type FarmaciaUpdateWithoutProdutosFarmaciaInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
@@ -889,6 +1187,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -900,6 +1199,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutProdutosInternosInput = {
@@ -913,6 +1213,7 @@ export type FarmaciaCreateWithoutProdutosInternosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
@@ -924,6 +1225,7 @@ export type FarmaciaCreateWithoutProdutosInternosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
@@ -937,6 +1239,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -948,6 +1251,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutProdutosInternosInput = {
@@ -977,6 +1281,7 @@ export type FarmaciaUpdateWithoutProdutosInternosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
@@ -988,6 +1293,7 @@ export type FarmaciaUpdateWithoutProdutosInternosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
@@ -1001,6 +1307,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1012,6 +1319,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutVendasInput = {
@@ -1025,6 +1333,7 @@ export type FarmaciaCreateWithoutVendasInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
@@ -1036,6 +1345,7 @@ export type FarmaciaCreateWithoutVendasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutVendasInput = {
@@ -1049,6 +1359,7 @@ export type FarmaciaUncheckedCreateWithoutVendasInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1060,6 +1371,7 @@ export type FarmaciaUncheckedCreateWithoutVendasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutVendasInput = {
@@ -1089,6 +1401,7 @@ export type FarmaciaUpdateWithoutVendasInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
@@ -1100,6 +1413,7 @@ export type FarmaciaUpdateWithoutVendasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutVendasInput = {
@@ -1113,6 +1427,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1124,6 +1439,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutVendasMensaisInput = {
@@ -1137,6 +1453,7 @@ export type FarmaciaCreateWithoutVendasMensaisInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1148,6 +1465,7 @@ export type FarmaciaCreateWithoutVendasMensaisInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
@@ -1161,6 +1479,7 @@ export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1172,6 +1491,7 @@ export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutVendasMensaisInput = {
@@ -1201,6 +1521,7 @@ export type FarmaciaUpdateWithoutVendasMensaisInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1212,6 +1533,7 @@ export type FarmaciaUpdateWithoutVendasMensaisInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
@@ -1225,6 +1547,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1236,6 +1559,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutComprasInput = {
@@ -1249,6 +1573,7 @@ export type FarmaciaCreateWithoutComprasInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1260,6 +1585,7 @@ export type FarmaciaCreateWithoutComprasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutComprasInput = {
@@ -1273,6 +1599,7 @@ export type FarmaciaUncheckedCreateWithoutComprasInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1284,6 +1611,7 @@ export type FarmaciaUncheckedCreateWithoutComprasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutComprasInput = {
@@ -1313,6 +1641,7 @@ export type FarmaciaUpdateWithoutComprasInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1324,6 +1653,7 @@ export type FarmaciaUpdateWithoutComprasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutComprasInput = {
@@ -1337,6 +1667,7 @@ export type FarmaciaUncheckedUpdateWithoutComprasInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1348,6 +1679,7 @@ export type FarmaciaUncheckedUpdateWithoutComprasInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutDevolucoesInput = {
@@ -1361,6 +1693,7 @@ export type FarmaciaCreateWithoutDevolucoesInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1372,6 +1705,7 @@ export type FarmaciaCreateWithoutDevolucoesInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
@@ -1385,6 +1719,7 @@ export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1396,6 +1731,7 @@ export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutDevolucoesInput = {
@@ -1425,6 +1761,7 @@ export type FarmaciaUpdateWithoutDevolucoesInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1436,6 +1773,7 @@ export type FarmaciaUpdateWithoutDevolucoesInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
@@ -1449,6 +1787,7 @@ export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1460,6 +1799,7 @@ export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutHistoricoStocksInput = {
@@ -1473,6 +1813,7 @@ export type FarmaciaCreateWithoutHistoricoStocksInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1484,6 +1825,7 @@ export type FarmaciaCreateWithoutHistoricoStocksInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
@@ -1497,6 +1839,7 @@ export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1508,6 +1851,7 @@ export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutHistoricoStocksInput = {
@@ -1537,6 +1881,7 @@ export type FarmaciaUpdateWithoutHistoricoStocksInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1548,6 +1893,7 @@ export type FarmaciaUpdateWithoutHistoricoStocksInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
@@ -1561,6 +1907,7 @@ export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1572,6 +1919,7 @@ export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutAjustesStockInput = {
@@ -1585,6 +1933,7 @@ export type FarmaciaCreateWithoutAjustesStockInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1596,6 +1945,7 @@ export type FarmaciaCreateWithoutAjustesStockInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
@@ -1609,6 +1959,7 @@ export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1620,6 +1971,7 @@ export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutAjustesStockInput = {
@@ -1649,6 +2001,7 @@ export type FarmaciaUpdateWithoutAjustesStockInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1660,6 +2013,7 @@ export type FarmaciaUpdateWithoutAjustesStockInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
@@ -1673,6 +2027,7 @@ export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1684,6 +2039,7 @@ export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutInventariosInput = {
@@ -1697,6 +2053,7 @@ export type FarmaciaCreateWithoutInventariosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1708,6 +2065,7 @@ export type FarmaciaCreateWithoutInventariosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutInventariosInput = {
@@ -1721,6 +2079,7 @@ export type FarmaciaUncheckedCreateWithoutInventariosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1732,6 +2091,7 @@ export type FarmaciaUncheckedCreateWithoutInventariosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutInventariosInput = {
@@ -1761,6 +2121,7 @@ export type FarmaciaUpdateWithoutInventariosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1772,6 +2133,7 @@ export type FarmaciaUpdateWithoutInventariosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
@@ -1785,6 +2147,7 @@ export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1796,6 +2159,7 @@ export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutIndicadoresInput = {
@@ -1809,6 +2173,7 @@ export type FarmaciaCreateWithoutIndicadoresInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1820,6 +2185,7 @@ export type FarmaciaCreateWithoutIndicadoresInput = {
   inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
@@ -1833,6 +2199,7 @@ export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1844,6 +2211,7 @@ export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
   inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutIndicadoresInput = {
@@ -1873,6 +2241,7 @@ export type FarmaciaUpdateWithoutIndicadoresInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1884,6 +2253,7 @@ export type FarmaciaUpdateWithoutIndicadoresInput = {
   inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
@@ -1897,6 +2267,7 @@ export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1908,6 +2279,7 @@ export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
   inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutListasEncomendaInput = {
@@ -1921,6 +2293,7 @@ export type FarmaciaCreateWithoutListasEncomendaInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -1932,6 +2305,7 @@ export type FarmaciaCreateWithoutListasEncomendaInput = {
   inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
@@ -1945,6 +2319,7 @@ export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1956,6 +2331,7 @@ export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
   inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutListasEncomendaInput = {
@@ -1985,6 +2361,7 @@ export type FarmaciaUpdateWithoutListasEncomendaInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -1996,6 +2373,7 @@ export type FarmaciaUpdateWithoutListasEncomendaInput = {
   inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
@@ -2009,6 +2387,7 @@ export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2020,6 +2399,7 @@ export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
   inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutLotesIngestaoInput = {
@@ -2033,6 +2413,7 @@ export type FarmaciaCreateWithoutLotesIngestaoInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
@@ -2044,6 +2425,7 @@ export type FarmaciaCreateWithoutLotesIngestaoInput = {
   inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
@@ -2057,6 +2439,7 @@ export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2068,6 +2451,7 @@ export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
   inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutLotesIngestaoInput = {
@@ -2097,6 +2481,7 @@ export type FarmaciaUpdateWithoutLotesIngestaoInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
@@ -2108,6 +2493,7 @@ export type FarmaciaUpdateWithoutLotesIngestaoInput = {
   inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
@@ -2121,6 +2507,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2132,6 +2519,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
   inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
   indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
 }
 
 
@@ -2141,6 +2529,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
 
 export type FarmaciaCountOutputType = {
   utilizadores: number
+  utilizadoresExtra: number
   produtosFarmacia: number
   produtosInternos: number
   vendas: number
@@ -2157,6 +2546,7 @@ export type FarmaciaCountOutputType = {
 
 export type FarmaciaCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizadores?: boolean | FarmaciaCountOutputTypeCountUtilizadoresArgs
+  utilizadoresExtra?: boolean | FarmaciaCountOutputTypeCountUtilizadoresExtraArgs
   produtosFarmacia?: boolean | FarmaciaCountOutputTypeCountProdutosFarmaciaArgs
   produtosInternos?: boolean | FarmaciaCountOutputTypeCountProdutosInternosArgs
   vendas?: boolean | FarmaciaCountOutputTypeCountVendasArgs
@@ -2186,6 +2576,13 @@ export type FarmaciaCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Ext
  */
 export type FarmaciaCountOutputTypeCountUtilizadoresArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.UtilizadorWhereInput
+}
+
+/**
+ * FarmaciaCountOutputType without action
+ */
+export type FarmaciaCountOutputTypeCountUtilizadoresExtraArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.UtilizadorFarmaciaWhereInput
 }
 
 /**
@@ -2284,6 +2681,7 @@ export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   dataCriacao?: boolean
   dataAtualizacao?: boolean
   utilizadores?: boolean | Prisma.Farmacia$utilizadoresArgs<ExtArgs>
+  utilizadoresExtra?: boolean | Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>
   produtosFarmacia?: boolean | Prisma.Farmacia$produtosFarmaciaArgs<ExtArgs>
   produtosInternos?: boolean | Prisma.Farmacia$produtosInternosArgs<ExtArgs>
   vendas?: boolean | Prisma.Farmacia$vendasArgs<ExtArgs>
@@ -2296,6 +2694,7 @@ export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   indicadores?: boolean | Prisma.Farmacia$indicadoresArgs<ExtArgs>
   listasEncomenda?: boolean | Prisma.Farmacia$listasEncomendaArgs<ExtArgs>
   lotesIngestao?: boolean | Prisma.Farmacia$lotesIngestaoArgs<ExtArgs>
+  emailConfig?: boolean | Prisma.Farmacia$emailConfigArgs<ExtArgs>
   _count?: boolean | Prisma.FarmaciaCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["farmacia"]>
 
@@ -2338,6 +2737,7 @@ export type FarmaciaSelectScalar = {
 export type FarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nome" | "codigoANF" | "morada" | "contacto" | "estado" | "dataAdesao" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["farmacia"]>
 export type FarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizadores?: boolean | Prisma.Farmacia$utilizadoresArgs<ExtArgs>
+  utilizadoresExtra?: boolean | Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>
   produtosFarmacia?: boolean | Prisma.Farmacia$produtosFarmaciaArgs<ExtArgs>
   produtosInternos?: boolean | Prisma.Farmacia$produtosInternosArgs<ExtArgs>
   vendas?: boolean | Prisma.Farmacia$vendasArgs<ExtArgs>
@@ -2350,6 +2750,7 @@ export type FarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArg
   indicadores?: boolean | Prisma.Farmacia$indicadoresArgs<ExtArgs>
   listasEncomenda?: boolean | Prisma.Farmacia$listasEncomendaArgs<ExtArgs>
   lotesIngestao?: boolean | Prisma.Farmacia$lotesIngestaoArgs<ExtArgs>
+  emailConfig?: boolean | Prisma.Farmacia$emailConfigArgs<ExtArgs>
   _count?: boolean | Prisma.FarmaciaCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type FarmaciaIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -2359,6 +2760,7 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   name: "Farmacia"
   objects: {
     utilizadores: Prisma.$UtilizadorPayload<ExtArgs>[]
+    utilizadoresExtra: Prisma.$UtilizadorFarmaciaPayload<ExtArgs>[]
     produtosFarmacia: Prisma.$ProdutoFarmaciaPayload<ExtArgs>[]
     produtosInternos: Prisma.$ProdutoInternoPayload<ExtArgs>[]
     vendas: Prisma.$VendaPayload<ExtArgs>[]
@@ -2371,6 +2773,7 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     indicadores: Prisma.$IndicadoresProdutoFarmaciaPayload<ExtArgs>[]
     listasEncomenda: Prisma.$ListaEncomendaPayload<ExtArgs>[]
     lotesIngestao: Prisma.$LoteIngestaoPayload<ExtArgs>[]
+    emailConfig: Prisma.$EmailConfigPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2777,6 +3180,7 @@ readonly fields: FarmaciaFieldRefs;
 export interface Prisma__FarmaciaClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   utilizadores<T extends Prisma.Farmacia$utilizadoresArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$utilizadoresArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UtilizadorPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  utilizadoresExtra<T extends Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UtilizadorFarmaciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   produtosFarmacia<T extends Prisma.Farmacia$produtosFarmaciaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$produtosFarmaciaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoFarmaciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   produtosInternos<T extends Prisma.Farmacia$produtosInternosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$produtosInternosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoInternoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   vendas<T extends Prisma.Farmacia$vendasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$vendasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2789,6 +3193,7 @@ export interface Prisma__FarmaciaClient<T, Null = never, ExtArgs extends runtime
   indicadores<T extends Prisma.Farmacia$indicadoresArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$indicadoresArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$IndicadoresProdutoFarmaciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   listasEncomenda<T extends Prisma.Farmacia$listasEncomendaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$listasEncomendaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ListaEncomendaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   lotesIngestao<T extends Prisma.Farmacia$lotesIngestaoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$lotesIngestaoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$LoteIngestaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  emailConfig<T extends Prisma.Farmacia$emailConfigArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$emailConfigArgs<ExtArgs>>): Prisma.Prisma__EmailConfigClient<runtime.Types.Result.GetResult<Prisma.$EmailConfigPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -3244,6 +3649,30 @@ export type Farmacia$utilizadoresArgs<ExtArgs extends runtime.Types.Extensions.I
 }
 
 /**
+ * Farmacia.utilizadoresExtra
+ */
+export type Farmacia$utilizadoresExtraArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the UtilizadorFarmacia
+   */
+  select?: Prisma.UtilizadorFarmaciaSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the UtilizadorFarmacia
+   */
+  omit?: Prisma.UtilizadorFarmaciaOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.UtilizadorFarmaciaInclude<ExtArgs> | null
+  where?: Prisma.UtilizadorFarmaciaWhereInput
+  orderBy?: Prisma.UtilizadorFarmaciaOrderByWithRelationInput | Prisma.UtilizadorFarmaciaOrderByWithRelationInput[]
+  cursor?: Prisma.UtilizadorFarmaciaWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.UtilizadorFarmaciaScalarFieldEnum | Prisma.UtilizadorFarmaciaScalarFieldEnum[]
+}
+
+/**
  * Farmacia.produtosFarmacia
  */
 export type Farmacia$produtosFarmaciaArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -3529,6 +3958,25 @@ export type Farmacia$lotesIngestaoArgs<ExtArgs extends runtime.Types.Extensions.
   take?: number
   skip?: number
   distinct?: Prisma.LoteIngestaoScalarFieldEnum | Prisma.LoteIngestaoScalarFieldEnum[]
+}
+
+/**
+ * Farmacia.emailConfig
+ */
+export type Farmacia$emailConfigArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EmailConfig
+   */
+  select?: Prisma.EmailConfigSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EmailConfig
+   */
+  omit?: Prisma.EmailConfigOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EmailConfigInclude<ExtArgs> | null
+  where?: Prisma.EmailConfigWhereInput
 }
 
 /**

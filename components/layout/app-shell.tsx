@@ -12,6 +12,8 @@ import {
   RotateCcw,
   ArrowLeftRight,
   PackageX,
+  Mail,
+  Users,
 } from "lucide-react";
 
 type AppShellProps = {
@@ -40,6 +42,13 @@ const navigation = [
     section: "CATÁLOGO",
     items: [{ label: "Catálogo", href: "/catalogo", icon: BookOpen }],
   },
+  {
+    section: "CONFIGURAÇÕES",
+    items: [
+      { label: "Utilizadores", href: "/configuracoes/utilizadores", icon: Users },
+      { label: "Email", href: "/configuracoes/email", icon: Mail },
+    ],
+  },
 ];
 
 export function AppShell({ children }: AppShellProps) {
@@ -55,7 +64,7 @@ export function AppShell({ children }: AppShellProps) {
       </div>
 
       <div className="relative z-10 flex min-h-screen">
-        <aside className="hidden w-[242px] shrink-0 border-r border-[rgba(165,190,196,0.30)] bg-[rgba(255,255,255,0.48)] backdrop-blur-sm lg:flex lg:flex-col">
+        <aside className="hidden w-[242px] shrink-0 border-r border-[rgba(165,190,196,0.30)] bg-[rgba(255,255,255,0.48)] backdrop-blur-sm md:flex md:flex-col">
           <div className="flex h-16 items-center gap-3 border-b border-[rgba(165,190,196,0.25)] px-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#56a889] text-sm font-semibold text-white shadow-sm">
               SP

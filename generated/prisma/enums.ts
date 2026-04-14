@@ -12,7 +12,8 @@
 export const UtilizadorPerfil = {
   ADMINISTRADOR: 'ADMINISTRADOR',
   GESTOR_GRUPO: 'GESTOR_GRUPO',
-  GESTOR_FARMACIA: 'GESTOR_FARMACIA'
+  GESTOR_FARMACIA: 'GESTOR_FARMACIA',
+  OPERADOR: 'OPERADOR'
 } as const
 
 export type UtilizadorPerfil = (typeof UtilizadorPerfil)[keyof typeof UtilizadorPerfil]
@@ -124,6 +125,17 @@ export const EstadoListaEncomenda = {
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]
 
 
+export const OrderExportState = {
+  PENDENTE: 'PENDENTE',
+  EM_EXPORTACAO: 'EM_EXPORTACAO',
+  EXPORTADO: 'EXPORTADO',
+  FALHADO: 'FALHADO',
+  CANCELADO: 'CANCELADO'
+} as const
+
+export type OrderExportState = (typeof OrderExportState)[keyof typeof OrderExportState]
+
+
 export const TipoLoteIngestao = {
   FICHA: 'FICHA',
   STOCK: 'STOCK',
@@ -177,6 +189,18 @@ export const EnriquecimentoEstado = {
 } as const
 
 export type EnriquecimentoEstado = (typeof EnriquecimentoEstado)[keyof typeof EnriquecimentoEstado]
+
+
+export const VerificationStatus = {
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  VERIFIED: 'VERIFIED',
+  PARTIALLY_VERIFIED: 'PARTIALLY_VERIFIED',
+  FAILED: 'FAILED',
+  NEEDS_REVIEW: 'NEEDS_REVIEW'
+} as const
+
+export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus]
 
 
 export const TipoAjusteStock = {

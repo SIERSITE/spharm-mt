@@ -67,7 +67,7 @@ export type ProdutoFarmaciaMinAggregateOutputType = {
   familiaOrigem: string | null
   categoriaOrigem: string | null
   subcategoriaOrigem: string | null
-  fabricanteOrigem: string | null
+  fornecedorOrigem: string | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -93,7 +93,7 @@ export type ProdutoFarmaciaMaxAggregateOutputType = {
   familiaOrigem: string | null
   categoriaOrigem: string | null
   subcategoriaOrigem: string | null
-  fabricanteOrigem: string | null
+  fornecedorOrigem: string | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -119,7 +119,7 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
   familiaOrigem: number
   categoriaOrigem: number
   subcategoriaOrigem: number
-  fabricanteOrigem: number
+  fornecedorOrigem: number
   dataAtualizacao: number
   dataCriacao: number
   _all: number
@@ -167,7 +167,7 @@ export type ProdutoFarmaciaMinAggregateInputType = {
   familiaOrigem?: true
   categoriaOrigem?: true
   subcategoriaOrigem?: true
-  fabricanteOrigem?: true
+  fornecedorOrigem?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -193,7 +193,7 @@ export type ProdutoFarmaciaMaxAggregateInputType = {
   familiaOrigem?: true
   categoriaOrigem?: true
   subcategoriaOrigem?: true
-  fabricanteOrigem?: true
+  fornecedorOrigem?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -219,7 +219,7 @@ export type ProdutoFarmaciaCountAggregateInputType = {
   familiaOrigem?: true
   categoriaOrigem?: true
   subcategoriaOrigem?: true
-  fabricanteOrigem?: true
+  fornecedorOrigem?: true
   dataAtualizacao?: true
   dataCriacao?: true
   _all?: true
@@ -332,7 +332,7 @@ export type ProdutoFarmaciaGroupByOutputType = {
   familiaOrigem: string | null
   categoriaOrigem: string | null
   subcategoriaOrigem: string | null
-  fabricanteOrigem: string | null
+  fornecedorOrigem: string | null
   dataAtualizacao: Date
   dataCriacao: Date
   _count: ProdutoFarmaciaCountAggregateOutputType | null
@@ -381,7 +381,7 @@ export type ProdutoFarmaciaWhereInput = {
   familiaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   categoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   subcategoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
-  fabricanteOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -410,7 +410,7 @@ export type ProdutoFarmaciaOrderByWithRelationInput = {
   familiaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   categoriaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   subcategoriaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
-  fabricanteOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
+  fornecedorOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   produto?: Prisma.ProdutoOrderByWithRelationInput
@@ -443,7 +443,7 @@ export type ProdutoFarmaciaWhereUniqueInput = Prisma.AtLeast<{
   familiaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   categoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   subcategoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
-  fabricanteOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -472,7 +472,7 @@ export type ProdutoFarmaciaOrderByWithAggregationInput = {
   familiaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   categoriaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   subcategoriaOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
-  fabricanteOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
+  fornecedorOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   _count?: Prisma.ProdutoFarmaciaCountOrderByAggregateInput
@@ -506,7 +506,7 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
   familiaOrigem?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
   categoriaOrigem?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
   subcategoriaOrigem?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
-  fabricanteOrigem?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
+  fornecedorOrigem?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -529,7 +529,7 @@ export type ProdutoFarmaciaCreateInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -558,7 +558,7 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -581,7 +581,7 @@ export type ProdutoFarmaciaUpdateInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -610,7 +610,7 @@ export type ProdutoFarmaciaUncheckedUpdateInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -636,7 +636,7 @@ export type ProdutoFarmaciaCreateManyInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -659,7 +659,7 @@ export type ProdutoFarmaciaUpdateManyMutationInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -685,7 +685,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -726,7 +726,7 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
   familiaOrigem?: Prisma.SortOrder
   categoriaOrigem?: Prisma.SortOrder
   subcategoriaOrigem?: Prisma.SortOrder
-  fabricanteOrigem?: Prisma.SortOrder
+  fornecedorOrigem?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -762,7 +762,7 @@ export type ProdutoFarmaciaMaxOrderByAggregateInput = {
   familiaOrigem?: Prisma.SortOrder
   categoriaOrigem?: Prisma.SortOrder
   subcategoriaOrigem?: Prisma.SortOrder
-  fabricanteOrigem?: Prisma.SortOrder
+  fornecedorOrigem?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -788,7 +788,7 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
   familiaOrigem?: Prisma.SortOrder
   categoriaOrigem?: Prisma.SortOrder
   subcategoriaOrigem?: Prisma.SortOrder
-  fabricanteOrigem?: Prisma.SortOrder
+  fornecedorOrigem?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -937,10 +937,6 @@ export type NullableDecimalFieldUpdateOperationsInput = {
   divide?: runtime.Decimal | runtime.DecimalJsLike | number | string
 }
 
-export type NullableDateTimeFieldUpdateOperationsInput = {
-  set?: Date | string | null
-}
-
 export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   id?: string
   designacaoLocal?: string | null
@@ -959,7 +955,7 @@ export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutProdutosFarmaciaInput
@@ -986,7 +982,7 @@ export type ProdutoFarmaciaUncheckedCreateWithoutProdutoInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1041,7 +1037,7 @@ export type ProdutoFarmaciaScalarWhereInput = {
   familiaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   categoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   subcategoriaOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
-  fabricanteOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorOrigem?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -1064,7 +1060,7 @@ export type ProdutoFarmaciaCreateWithoutFornecedorHabitualInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1091,7 +1087,7 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFornecedorHabitualInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1140,7 +1136,7 @@ export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1167,7 +1163,7 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFarmaciaInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1218,7 +1214,7 @@ export type ProdutoFarmaciaCreateManyProdutoInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1241,7 +1237,7 @@ export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1268,7 +1264,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1293,7 +1289,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1318,7 +1314,7 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1341,7 +1337,7 @@ export type ProdutoFarmaciaUpdateWithoutFornecedorHabitualInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1368,7 +1364,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFornecedorHabitualInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1393,7 +1389,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1418,7 +1414,7 @@ export type ProdutoFarmaciaCreateManyFarmaciaInput = {
   familiaOrigem?: string | null
   categoriaOrigem?: string | null
   subcategoriaOrigem?: string | null
-  fabricanteOrigem?: string | null
+  fornecedorOrigem?: string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1441,7 +1437,7 @@ export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1468,7 +1464,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1493,7 +1489,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaInput = {
   familiaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   categoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subcategoriaOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  fabricanteOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1521,7 +1517,7 @@ export type ProdutoFarmaciaSelect<ExtArgs extends runtime.Types.Extensions.Inter
   familiaOrigem?: boolean
   categoriaOrigem?: boolean
   subcategoriaOrigem?: boolean
-  fabricanteOrigem?: boolean
+  fornecedorOrigem?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1550,7 +1546,7 @@ export type ProdutoFarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   familiaOrigem?: boolean
   categoriaOrigem?: boolean
   subcategoriaOrigem?: boolean
-  fabricanteOrigem?: boolean
+  fornecedorOrigem?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1579,7 +1575,7 @@ export type ProdutoFarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   familiaOrigem?: boolean
   categoriaOrigem?: boolean
   subcategoriaOrigem?: boolean
-  fabricanteOrigem?: boolean
+  fornecedorOrigem?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1608,12 +1604,12 @@ export type ProdutoFarmaciaSelectScalar = {
   familiaOrigem?: boolean
   categoriaOrigem?: boolean
   subcategoriaOrigem?: boolean
-  fabricanteOrigem?: boolean
+  fornecedorOrigem?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
 }
 
-export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "fornecedorHabitualId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fabricanteOrigem" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
+export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "fornecedorHabitualId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
 export type ProdutoFarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -1658,7 +1654,13 @@ export type $ProdutoFarmaciaPayload<ExtArgs extends runtime.Types.Extensions.Int
     familiaOrigem: string | null
     categoriaOrigem: string | null
     subcategoriaOrigem: string | null
-    fabricanteOrigem: string | null
+    /**
+     * Fornecedor/distribuidor habitual da farmácia (NÃO é o fabricante real
+     * do produto — é o grossista que vende o produto à farmácia: Empifarma,
+     * OCP, Alliance, etc.). Usado apenas como contexto interno, análise de
+     * abastecimento e hints fracos. NUNCA como fabricante canónico.
+     */
+    fornecedorOrigem: string | null
     dataAtualizacao: Date
     dataCriacao: Date
   }, ExtArgs["result"]["produtoFarmacia"]>
@@ -2107,7 +2109,7 @@ export interface ProdutoFarmaciaFieldRefs {
   readonly familiaOrigem: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly categoriaOrigem: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly subcategoriaOrigem: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
-  readonly fabricanteOrigem: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly fornecedorOrigem: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly dataAtualizacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly dataCriacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
 }

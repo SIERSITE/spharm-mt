@@ -55,10 +55,15 @@ export const ModelName = {
   Fabricante: 'Fabricante',
   FabricanteAlias: 'FabricanteAlias',
   Classificacao: 'Classificacao',
+  InfarmedSnapshot: 'InfarmedSnapshot',
+  ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
   Fornecedor: 'Fornecedor',
   FornecedorAlias: 'FornecedorAlias',
   Farmacia: 'Farmacia',
+  EmailConfig: 'EmailConfig',
   Utilizador: 'Utilizador',
+  UtilizadorFarmacia: 'UtilizadorFarmacia',
+  AuditLog: 'AuditLog',
   ProdutoFarmacia: 'ProdutoFarmacia',
   ProdutoInterno: 'ProdutoInterno',
   Venda: 'Venda',
@@ -74,7 +79,9 @@ export const ModelName = {
   LinhaEncomenda: 'LinhaEncomenda',
   FilaRevisao: 'FilaRevisao',
   EnriquecimentoFila: 'EnriquecimentoFila',
-  LoteIngestao: 'LoteIngestao'
+  LoteIngestao: 'LoteIngestao',
+  OrderOutbox: 'OrderOutbox',
+  OrderExportAudit: 'OrderExportAudit'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -104,6 +111,9 @@ export const ProdutoScalarFieldEnum = {
   codigoATC: 'codigoATC',
   dci: 'dci',
   imagemUrl: 'imagemUrl',
+  formaFarmaceutica: 'formaFarmaceutica',
+  dosagem: 'dosagem',
+  embalagem: 'embalagem',
   flagGenerico: 'flagGenerico',
   flagMSRM: 'flagMSRM',
   flagMNSRM: 'flagMNSRM',
@@ -111,6 +121,16 @@ export const ProdutoScalarFieldEnum = {
   estado: 'estado',
   origemDados: 'origemDados',
   validadoManualmente: 'validadoManualmente',
+  productType: 'productType',
+  productTypeConfidence: 'productTypeConfidence',
+  classificationSource: 'classificationSource',
+  classificationVersion: 'classificationVersion',
+  verificationStatus: 'verificationStatus',
+  lastVerifiedAt: 'lastVerifiedAt',
+  lastVerificationAttemptAt: 'lastVerificationAttemptAt',
+  externallyVerified: 'externallyVerified',
+  needsManualReview: 'needsManualReview',
+  manualReviewReason: 'manualReviewReason',
   dataCriacao: 'dataCriacao',
   dataAtualizacao: 'dataAtualizacao'
 } as const
@@ -153,6 +173,39 @@ export const ClassificacaoScalarFieldEnum = {
 export type ClassificacaoScalarFieldEnum = (typeof ClassificacaoScalarFieldEnum)[keyof typeof ClassificacaoScalarFieldEnum]
 
 
+export const InfarmedSnapshotScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  designacaoOficial: 'designacaoOficial',
+  dci: 'dci',
+  codigoATC: 'codigoATC',
+  titularAim: 'titularAim',
+  formaFarmaceutica: 'formaFarmaceutica',
+  dosagem: 'dosagem',
+  embalagem: 'embalagem',
+  grupoTerapeutico: 'grupoTerapeutico',
+  estadoAim: 'estadoAim',
+  snapshotVersion: 'snapshotVersion',
+  importedAt: 'importedAt'
+} as const
+
+export type InfarmedSnapshotScalarFieldEnum = (typeof InfarmedSnapshotScalarFieldEnum)[keyof typeof InfarmedSnapshotScalarFieldEnum]
+
+
+export const ProdutoVerificacaoHistoricoScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  verificadoEm: 'verificadoEm',
+  productType: 'productType',
+  productTypeConf: 'productTypeConf',
+  verificationStatus: 'verificationStatus',
+  sourceSummary: 'sourceSummary',
+  fieldsUpdated: 'fieldsUpdated'
+} as const
+
+export type ProdutoVerificacaoHistoricoScalarFieldEnum = (typeof ProdutoVerificacaoHistoricoScalarFieldEnum)[keyof typeof ProdutoVerificacaoHistoricoScalarFieldEnum]
+
+
 export const FornecedorScalarFieldEnum = {
   id: 'id',
   nomeNormalizado: 'nomeNormalizado',
@@ -189,6 +242,28 @@ export const FarmaciaScalarFieldEnum = {
 export type FarmaciaScalarFieldEnum = (typeof FarmaciaScalarFieldEnum)[keyof typeof FarmaciaScalarFieldEnum]
 
 
+export const EmailConfigScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  smtpHost: 'smtpHost',
+  smtpPort: 'smtpPort',
+  smtpUser: 'smtpUser',
+  smtpPassEncrypted: 'smtpPassEncrypted',
+  smtpSecure: 'smtpSecure',
+  fromEmail: 'fromEmail',
+  fromName: 'fromName',
+  replyTo: 'replyTo',
+  isActive: 'isActive',
+  lastTestAt: 'lastTestAt',
+  lastTestStatus: 'lastTestStatus',
+  lastTestError: 'lastTestError',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type EmailConfigScalarFieldEnum = (typeof EmailConfigScalarFieldEnum)[keyof typeof EmailConfigScalarFieldEnum]
+
+
 export const UtilizadorScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -197,11 +272,38 @@ export const UtilizadorScalarFieldEnum = {
   farmaciaId: 'farmaciaId',
   estado: 'estado',
   passwordHash: 'passwordHash',
+  mustChangePassword: 'mustChangePassword',
+  ultimoLogin: 'ultimoLogin',
   dataCriacao: 'dataCriacao',
   dataAtualizacao: 'dataAtualizacao'
 } as const
 
 export type UtilizadorScalarFieldEnum = (typeof UtilizadorScalarFieldEnum)[keyof typeof UtilizadorScalarFieldEnum]
+
+
+export const UtilizadorFarmaciaScalarFieldEnum = {
+  id: 'id',
+  utilizadorId: 'utilizadorId',
+  farmaciaId: 'farmaciaId',
+  dataCriacao: 'dataCriacao'
+} as const
+
+export type UtilizadorFarmaciaScalarFieldEnum = (typeof UtilizadorFarmaciaScalarFieldEnum)[keyof typeof UtilizadorFarmaciaScalarFieldEnum]
+
+
+export const AuditLogScalarFieldEnum = {
+  id: 'id',
+  actorId: 'actorId',
+  action: 'action',
+  entity: 'entity',
+  entityId: 'entityId',
+  metaJson: 'metaJson',
+  ip: 'ip',
+  userAgent: 'userAgent',
+  createdAt: 'createdAt'
+} as const
+
+export type AuditLogScalarFieldEnum = (typeof AuditLogScalarFieldEnum)[keyof typeof AuditLogScalarFieldEnum]
 
 
 export const ProdutoFarmaciaScalarFieldEnum = {
@@ -225,7 +327,7 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   familiaOrigem: 'familiaOrigem',
   categoriaOrigem: 'categoriaOrigem',
   subcategoriaOrigem: 'subcategoriaOrigem',
-  fabricanteOrigem: 'fabricanteOrigem',
+  fornecedorOrigem: 'fornecedorOrigem',
   dataAtualizacao: 'dataAtualizacao',
   dataCriacao: 'dataCriacao'
 } as const
@@ -410,6 +512,7 @@ export const ListaEncomendaScalarFieldEnum = {
   farmaciaId: 'farmaciaId',
   nome: 'nome',
   estado: 'estado',
+  estadoExport: 'estadoExport',
   criadoPorId: 'criadoPorId',
   dataCriacao: 'dataCriacao',
   dataAtualizacao: 'dataAtualizacao'
@@ -480,6 +583,44 @@ export const LoteIngestaoScalarFieldEnum = {
 } as const
 
 export type LoteIngestaoScalarFieldEnum = (typeof LoteIngestaoScalarFieldEnum)[keyof typeof LoteIngestaoScalarFieldEnum]
+
+
+export const OrderOutboxScalarFieldEnum = {
+  id: 'id',
+  listaEncomendaId: 'listaEncomendaId',
+  farmaciaId: 'farmaciaId',
+  payloadJson: 'payloadJson',
+  idempotencyKey: 'idempotencyKey',
+  payloadHash: 'payloadHash',
+  state: 'state',
+  attemptCount: 'attemptCount',
+  nextAttemptAt: 'nextAttemptAt',
+  lastError: 'lastError',
+  lastAttemptAt: 'lastAttemptAt',
+  leasedBy: 'leasedBy',
+  leasedUntil: 'leasedUntil',
+  spharmDocumentId: 'spharmDocumentId',
+  exportedAt: 'exportedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrderOutboxScalarFieldEnum = (typeof OrderOutboxScalarFieldEnum)[keyof typeof OrderOutboxScalarFieldEnum]
+
+
+export const OrderExportAuditScalarFieldEnum = {
+  id: 'id',
+  outboxId: 'outboxId',
+  attempt: 'attempt',
+  at: 'at',
+  status: 'status',
+  message: 'message',
+  httpStatus: 'httpStatus',
+  spharmSqlError: 'spharmSqlError',
+  actorId: 'actorId'
+} as const
+
+export type OrderExportAuditScalarFieldEnum = (typeof OrderExportAuditScalarFieldEnum)[keyof typeof OrderExportAuditScalarFieldEnum]
 
 
 export const SortOrder = {

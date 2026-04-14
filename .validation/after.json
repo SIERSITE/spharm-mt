@@ -1,0 +1,6347 @@
+{
+  "generatedAt": "2026-04-13T10:29:02.774Z",
+  "args": {
+    "limit": 100,
+    "sample": "random",
+    "cnp": null,
+    "type": null,
+    "verbose": false,
+    "json": true
+  },
+  "aggregate": {
+    "total": 100,
+    "byProductType": {
+      "MEDICAMENTO": 56,
+      "DERMOCOSMETICA": 12,
+      "VETERINARIA": 2,
+      "OUTRO": 27,
+      "SUPLEMENTO": 1,
+      "DISPOSITIVO_MEDICO": 2
+    },
+    "byVerificationStatus": {
+      "FAILED": 99,
+      "PARTIALLY_VERIFIED": 1
+    },
+    "fieldCoverage": {
+      "fabricante": 99,
+      "categoria": 32,
+      "subcategoria": 15
+    },
+    "avgFieldConfidence": {
+      "fabricante": 0.6171717171717176,
+      "categoria": 0.6531249999999998,
+      "subcategoria": 0.6500000000000002
+    },
+    "totalConflicts": 0,
+    "needsReview": 29,
+    "externallyVerified": 0,
+    "manuallyProtected": 0
+  },
+  "reports": [
+    {
+      "cnp": 5789052,
+      "designacao": "Aklief 50 µg/g Creme",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aklief",
+            "creme"
+          ],
+          "potentialDCI": "Aklief"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5564711,
+      "designacao": "Amlodipina Zentiva 5 Mg 60 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "amlodipina",
+            "zentiva",
+            "comp"
+          ],
+          "potentialDCI": "Amlodipina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5069463,
+      "designacao": "Atorvastatina Farmoz MG, 20 mg x 28 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "farmoz",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7541151,
+      "designacao": "Avene Hyaluron Activ Proc Serum 18+2Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "hyaluron",
+            "activ",
+            "proc",
+            "serum"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Pierre Fabre Dermo - Cosmétique Portugal, L.da",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6108191,
+      "designacao": "Algodao Zigzag Algodao Normal Br 70g",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "algodao",
+            "zigzag",
+            "normal",
+            "70g"
+          ],
+          "potentialDCI": "Algodao"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "MATERIAL DE PENSO",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7130617,
+      "designacao": "B. Braun / Ally Adhesive Remover / Ref.2005-1 50 Ml N.a.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "braun",
+            "ally",
+            "adhesive",
+            "remover",
+            "ref"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7435040,
+      "designacao": "Advantix Cao Sol Uncao 4ml X4 25-40 Kg, 400/2000 mg sol unçã",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advantix",
+            "cao",
+            "sol",
+            "uncao",
+            "4ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.75
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Novavet",
+          "confidence": 0.75,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VETERINARIA",
+          "confidence": 0.75,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "PARTIALLY_VERIFIED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6500280,
+      "designacao": "Anima Strath Elixir 250 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "anima",
+            "strath",
+            "elixir",
+            "250"
+          ],
+          "potentialDCI": "Anima"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VETERINARIA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5889266,
+      "designacao": "Atorvastatina Teva 40 Mg 28 Comp. Revest. Por Pel",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "teva",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5172788,
+      "designacao": "Acalka, 1080 mg x 100 comp lib mod",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acalka",
+            "1080",
+            "100",
+            "comp",
+            "lib"
+          ],
+          "potentialDCI": "Acalka"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6804955,
+      "designacao": "A Derma Dermat Cytelium Spray 100 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "derma",
+            "dermat",
+            "cytelium",
+            "spray",
+            "100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "PIERRE FABRE DERMO-COSM. ,LDA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "COSMETICA / DERMOCOSMETICA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6289413,
+      "designacao": "Akilene Sports NOK 75ML+33%OFERTA",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "akilene",
+            "sports",
+            "nok",
+            "75ml",
+            "oferta"
+          ],
+          "potentialDCI": "Akilene"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 3368289,
+      "designacao": "Aciclovir Generis 200 Mg Comprimidos 200 Mg 25 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:comprimido"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aciclovir",
+            "generis",
+            "200",
+            "comprimidos",
+            "comp"
+          ],
+          "potentialDCI": "Aciclovir"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6305235,
+      "designacao": "Actius Cotovel Elast Ace401 Tm",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "actius",
+            "cotovel",
+            "elast",
+            "ace401"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "INTERORTO",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "ORTOPEDIA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7393074,
+      "designacao": "Absorvit Geleia Real Amp 10 Ml X 20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "SUPLEMENTO",
+        "confidence": 0.72,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel",
+          "suplemento_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_food_facts"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "geleia",
+            "real",
+            "amp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_food_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "FARMODIETICA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TONICOS / SUPLEMENTOS VITAMINICOS E MINERAIS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5863337,
+      "designacao": "Atorvastatina Tolife 40 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "tolife",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5056387,
+      "designacao": "Abilify, 10 mg x 28 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "abilify",
+            "comp"
+          ],
+          "potentialDCI": "Abilify"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6471136,
+      "designacao": "A-Derma Dermalib+ Cr Cica Repar 100Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "derma",
+            "dermalib",
+            "cica",
+            "repar",
+            "100ml"
+          ],
+          "potentialDCI": "A-Derma"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5679816,
+      "designacao": "Aripiprazol Mylan Pharma 15 Mg 28 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aripiprazol",
+            "mylan",
+            "pharma",
+            "comp"
+          ],
+          "potentialDCI": "Aripiprazol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7370312,
+      "designacao": "Artrozen Comp X 60",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "artrozen",
+            "comp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "SISTEMA LOCOMOTOR",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROD ARTICULACOES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7527390,
+      "designacao": "Avene Exfoliante Suave 50ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "exfoliante",
+            "suave",
+            "50ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7488585,
+      "designacao": "A-Derma Exomega Cont Cr Noite Emol200Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "derma",
+            "exomega",
+            "cont",
+            "noite",
+            "emol200ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7009597,
+      "designacao": "Aerochamber Plus Flow Vu/medium Mask/ref.108502 N.d. N.d.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aerochamber",
+            "plus",
+            "flow",
+            "medium",
+            "mask"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VARIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7131730,
+      "designacao": "Accu Chek Solo / Pump Base / 07835639001 Base Da Bomba N.a.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "accu",
+            "chek",
+            "solo",
+            "pump",
+            "base"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7009589,
+      "designacao": "Aerochamber Plus Flow Vu/small Mask/ref.108507 N.d. N.d.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "aerochamber",
+            "plus",
+            "flow",
+            "small",
+            "mask"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VARIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 3949989,
+      "designacao": "Atrovent PA, 0,02 mg/dose x 200 sol press inal",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atrovent",
+            "dose",
+            "200",
+            "sol",
+            "press"
+          ],
+          "potentialDCI": "Atrovent"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7287250,
+      "designacao": "Arthrodont Fr Intense Gel Dent 75ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "arthrodont",
+            "intense",
+            "gel",
+            "dent",
+            "75ml"
+          ],
+          "potentialDCI": "Arthrodont"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7254060,
+      "designacao": "Advancis Bacilpro Total Caps X20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "bacilpro",
+            "total",
+            "caps",
+            "x20"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5900105,
+      "designacao": "Atorvastatina Mylan 10 Mg 56 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mylan",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7251322,
+      "designacao": "Artiok Caps X30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "artiok",
+            "caps",
+            "x30"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 9289231,
+      "designacao": "Ansilor 1 Mg 20 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "ansilor",
+            "comp"
+          ],
+          "potentialDCI": "Ansilor"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7747311,
+      "designacao": "Alcool 70º 250ml Setalcool",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alcool",
+            "250ml",
+            "setalcool"
+          ],
+          "potentialDCI": "Alcool"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "DERMOFARMACIA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "DESINFECTANTES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7131433,
+      "designacao": "Abbott / Freestyle Libre 2 Plus / 78763-01  N.a.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DISPOSITIVO_MEDICO",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dispositivo_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "eudamed"
+          ],
+          "searchKeywords": [
+            "abbott",
+            "freestyle",
+            "libre",
+            "plus",
+            "78763"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "eudamed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Abbott Laboratories Ltd.",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5763867,
+      "designacao": "Altensil 5 Mg + 8 Mg 28 Cápsula",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:capsula"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "altensil",
+            "capsula"
+          ],
+          "potentialDCI": "Altensil"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5663281,
+      "designacao": "Adalgur N, 500/2 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "adalgur",
+            "500",
+            "comp"
+          ],
+          "potentialDCI": "Adalgur"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5867452,
+      "designacao": "Amlodipina + Valsartan Alter 5 Mg + 160 Mg 56 Comp. Revest.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "amlodipina",
+            "valsartan",
+            "alter",
+            "160",
+            "comp"
+          ],
+          "potentialDCI": "Amlodipina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7292367,
+      "designacao": "Advancis TussiPlus Kids Xarope 140Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:xarope"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "tussiplus",
+            "kids",
+            "xarope",
+            "140ml"
+          ],
+          "potentialDCI": "Advancis"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7751792,
+      "designacao": "B.braun /flexima 3s / Refª.:  932465l 65 Mm- Maxi 30 N.a.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "braun",
+            "flexima",
+            "ref",
+            "932465l",
+            "maxi"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VARIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7393082,
+      "designacao": "Absorvit Smart50+ Amp 10 Ml X 30 amp beb",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "smart50",
+            "amp",
+            "beb"
+          ],
+          "potentialDCI": "Absorvit"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "SISTEMA NERVOSO",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "ESTIMULANTES SIST NERVOSO",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7366203,
+      "designacao": "Aptamil Confort 1 Leite Lactente 400g",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aptamil",
+            "confort",
+            "leite",
+            "lactente",
+            "400g"
+          ],
+          "potentialDCI": "Aptamil"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "NUTRICAO INFANTIL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "LEITES INFANTIL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5889233,
+      "designacao": "Atorvastatina Teva 20 Mg 28 Comp. Revest. Por Pel",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "teva",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5657770,
+      "designacao": "Aciclovir Bluepharma 50 Mg/g Creme",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aciclovir",
+            "bluepharma",
+            "creme"
+          ],
+          "potentialDCI": "Aciclovir"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 4281283,
+      "designacao": "Actonel 35 mg, 35 mg x 4 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "actonel",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Actonel"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7762633,
+      "designacao": "Advancis Jointrix Ultra Comp X 30+Caps X 30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "jointrix",
+            "ultra",
+            "comp",
+            "caps"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "SISTEMA LOCOMOTOR",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROD ARTICULACOES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7081299,
+      "designacao": "Atyflor Hydra+ Saq X10",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "atyflor",
+            "hydra",
+            "saq",
+            "x10"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6190942,
+      "designacao": "Accuchek Aviv Pl Tira Sangue Glic X 50",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "accuchek",
+            "aviv",
+            "tira",
+            "sangue",
+            "glic"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TESTES BIOQUIMICOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "TEST GLUCOSE / INSTRUM MED",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6197541,
+      "designacao": "B Braun / Flexima Uro Silk / 044914l Recortável 12-55 Mm 30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "braun",
+            "flexima",
+            "uro",
+            "silk",
+            "044914l"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VARIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5267463,
+      "designacao": "Airtal, 100 mg x 60 comp revest*",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "airtal",
+            "100",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Airtal"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5392519,
+      "designacao": "Ácido Acetilsalicílico Actavis, 100 mg x 30 comp gastrorresi",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acido",
+            "acetilsalicilico",
+            "actavis",
+            "100",
+            "comp"
+          ],
+          "potentialDCI": "Ácido"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7539726,
+      "designacao": "Avene Cleanance Aqua-Gel Cr50+Of Gel100",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cleanance",
+            "aqua",
+            "gel",
+            "cr50"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Pierre Fabre Dermo - Cosmétique Portugal, L.da",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6115089,
+      "designacao": "Akileine Gel Anti Transpir 75 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "akileine",
+            "gel",
+            "anti",
+            "transpir"
+          ],
+          "potentialDCI": "Akileine"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "HIGIENE CORPORAL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7353623,
+      "designacao": "Absorvit Infantil Xar 300 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "infantil",
+            "xar",
+            "300"
+          ],
+          "potentialDCI": "Absorvit"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "FARMODIETICA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TONICOS / SUPLEMENTOS VITAMINICOS E MINERAIS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7522060,
+      "designacao": "Amedial Plus Saq Laranja 5GX20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "amedial",
+            "plus",
+            "saq",
+            "laranja",
+            "5gx20"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5577994,
+      "designacao": "Alprazolam Prazam MG, 1 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alprazolam",
+            "prazam",
+            "comp"
+          ],
+          "potentialDCI": "Alprazolam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6304774,
+      "designacao": "A Cerumen Spray Auricular 40 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "cerumen",
+            "spray",
+            "auricular"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "PRODS OTOLOGICOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5870910,
+      "designacao": "Atorvastatina + Ezetimiba Mylan 20 Mg + 10 Mg 30 Comp. Reves",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "ezetimiba",
+            "mylan",
+            "comp",
+            "reves"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 2801884,
+      "designacao": "Allergodil, 0,5 mg/mL x 6 sol col",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "allergodil",
+            "sol",
+            "col"
+          ],
+          "potentialDCI": "Allergodil"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "PRODS OFTALMICOS / OCULARES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5240858,
+      "designacao": "Atorvastatina Vitoria MG, 20 mg x 28 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "vitoria",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5069422,
+      "designacao": "Atorvastatina Farmoz MG, 10 mg x 56 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "farmoz",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5254370,
+      "designacao": "Amlodipina Krka MG, 5 mg x 60 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "amlodipina",
+            "krka",
+            "comp"
+          ],
+          "potentialDCI": "Amlodipina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 2365781,
+      "designacao": "Alopurinol Ratiopharm MG, 300 mg x 50 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alopurinol",
+            "ratiopharm",
+            "300",
+            "comp"
+          ],
+          "potentialDCI": "Alopurinol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7267989,
+      "designacao": "Avene Xeracalm Ad Ol Limp 750Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "xeracalm",
+            "limp",
+            "750ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5755251,
+      "designacao": "Anette 0.015 Mg/24 H + 0.12 Mg/24 H 6 Sistema De Libertação",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "anette",
+            "015",
+            "sistema",
+            "libertacao"
+          ],
+          "potentialDCI": "Anette"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5434873,
+      "designacao": "Atorvastatina Mylan MG, 20 mg x 28 comp revest",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mylan",
+            "comp",
+            "revest"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7307181,
+      "designacao": "Administração Vacina COVID-19 SNS",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "administracao",
+            "vacina",
+            "covid",
+            "sns"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": []
+      },
+      "resolvedFields": {
+        "fabricante": null,
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6595785,
+      "designacao": "Avene Solar Leite SPF50 100 Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "leite",
+            "spf50",
+            "100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "PROTECAO SOLAR",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROTECAO SOLAR ADUL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7263616,
+      "designacao": "Advancis P-Zero Protect Spray 120ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "zero",
+            "protect",
+            "spray",
+            "120ml"
+          ],
+          "potentialDCI": "Advancis"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5888664,
+      "designacao": "Aero-om Laxante 5 Mg 20 Comp. Gastrorresistente",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aero",
+            "laxante",
+            "comp",
+            "gastrorresistente"
+          ],
+          "potentialDCI": "Aero-om"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "MEDINFAR CONSUMER HEALTH",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7359372,
+      "designacao": "Advancis  Caps Hepa X 60 cáps",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "caps",
+            "hepa"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "SISTEMA GASTROINTESTINAL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROD HEPATICOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7520874,
+      "designacao": "Advancis Hemo Duo Creme Protetor Endorretal",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:creme"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "hemo",
+            "duo",
+            "creme",
+            "protetor"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "FARMODIETICA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7287961,
+      "designacao": "Advancis Agellai Lift Young Pó 300g",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:gel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "agellai",
+            "lift",
+            "young",
+            "300g"
+          ],
+          "potentialDCI": "Advancis"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6355768,
+      "designacao": "Autotest Vih Detecao Vih Mylan",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "autotest",
+            "vih",
+            "detecao",
+            "mylan"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5586771,
+      "designacao": "Abilify Maintena 400 Mg Pó E Veículo Para Susp. Injetável Li",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:injetavel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "abilify",
+            "maintena",
+            "400",
+            "veiculo",
+            "susp"
+          ],
+          "potentialDCI": "Abilify"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5632476,
+      "designacao": "Aripiprazol Farmoz 15 Mg 28 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aripiprazol",
+            "farmoz",
+            "comp"
+          ],
+          "potentialDCI": "Aripiprazol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7475467,
+      "designacao": "Amflee 67mg Sol Pipeta X3 Cao Peq",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "VETERINARIA",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "veterinaria_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "amflee",
+            "67mg",
+            "sol",
+            "pipeta",
+            "cao"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VETERINARIA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7549139,
+      "designacao": "Atoderm Biod Int Baum500+Of Ol200 PrEsp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "atoderm",
+            "biod",
+            "int",
+            "baum500",
+            "ol200"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6280180,
+      "designacao": "Avene Cicalfate+ Creme 40ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_ambiguous:creme",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cicalfate",
+            "creme",
+            "40ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Pierre Fabre Dermo - Cosmétique Portugal, L.da",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 6191684,
+      "designacao": "Accuchek Fastc Pl Lanceta X 204",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DISPOSITIVO_MEDICO",
+        "confidence": 0.8,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dispositivo_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "eudamed"
+          ],
+          "searchKeywords": [
+            "accuchek",
+            "fastc",
+            "lanceta",
+            "204"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "eudamed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TESTES BIOQUIMICOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "TEST GLUCOSE / INSTRUM MED",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5434923,
+      "designacao": "Atorvastatina Mylan 40 Mg 28 Comp. Revest. Por Pel.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "atorvastatina",
+            "mylan",
+            "comp",
+            "revest",
+            "pel"
+          ],
+          "potentialDCI": "Atorvastatina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6089557,
+      "designacao": "Avene Solar Cleanance C/Cor SPF 50+ 50ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "cleanance",
+            "cor",
+            "spf"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7079913,
+      "designacao": "Avene Cleanance Comedom Cr30+Of Gel100",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:gel",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "cleanance",
+            "comedom",
+            "cr30",
+            "gel100"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Pierre Fabre Dermo - Cosmétique Portugal, L.da",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 2583987,
+      "designacao": "Alprazolam Mylan MG, 0,25 mg x 20 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alprazolam",
+            "mylan",
+            "comp"
+          ],
+          "potentialDCI": "Alprazolam"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 2645281,
+      "designacao": "Alphagan, 10 mg/5 mL x 5 sol col",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "alphagan",
+            "sol",
+            "col"
+          ],
+          "potentialDCI": "Alphagan"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 3072089,
+      "designacao": "Acfol, 5 mg x 50 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "acfol",
+            "comp"
+          ],
+          "potentialDCI": "Acfol"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5593124,
+      "designacao": "Actikerall 100 Mg/g + 5 Mg/g Sol. Cutânea",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "actikerall",
+            "100",
+            "sol",
+            "cutanea"
+          ],
+          "potentialDCI": "Actikerall"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6994137,
+      "designacao": "Avene Solar Anti-Idade 50+ S/Perfume 50ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.85,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:2"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "solar",
+            "anti",
+            "idade",
+            "perfume"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "PROTECAO SOLAR",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROTECAO SOLAR ADUL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7287136,
+      "designacao": "Absorvit Mais Alimento Sol Amp X20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "mais",
+            "alimento",
+            "sol",
+            "amp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7383356,
+      "designacao": "Advancis Easylax Comp Easylax Forte X 20",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "easylax",
+            "comp",
+            "forte"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "SISTEMA GASTROINTESTINAL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "LAXANTES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7752022,
+      "designacao": "B.braun /flexima 3s / Refª.:  936615l 65mm Recortavel 15 A 5",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "braun",
+            "flexima",
+            "ref",
+            "936615l",
+            "65mm"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "VARIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7389114,
+      "designacao": "Absorvit Silver Comp X 30 + Caps X 30 cáps + comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "absorvit",
+            "silver",
+            "comp",
+            "caps"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TONICOS / SUPLEMENTOS VITAMINICOS E MINERAIS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "MULTIVIT C/MINER ADULTOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5833652,
+      "designacao": "Azzavix 1000 Mg 30 Supositório",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:supositorio"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "azzavix",
+            "1000",
+            "supositorio"
+          ],
+          "potentialDCI": "Azzavix"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 5718630,
+      "designacao": "Amissulprida Aurovitas 200 Mg 60 Comp.",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.68,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "amissulprida",
+            "aurovitas",
+            "200",
+            "comp"
+          ],
+          "potentialDCI": "Amissulprida"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 5273289,
+      "designacao": "Aspirina 500 mg Granulado, 500 mg x 10 gran carteira",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "MEDICAMENTO",
+        "confidence": 0.9,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "med_form_high:granulado"
+        ],
+        "hints": {
+          "preferredSources": [
+            "infarmed"
+          ],
+          "searchKeywords": [
+            "aspirina",
+            "500",
+            "granulado",
+            "gran",
+            "carteira"
+          ],
+          "potentialDCI": "Aspirina"
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "infarmed"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "ANALGESICOS / ANTI-INFLAMATORIOS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "ANALGESICOS / ANTI-INFLAM ADUL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7239962,
+      "designacao": "Advancis Intimate Sens Gel Hig Ínt200ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:gel"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "intimate",
+            "sens",
+            "gel",
+            "hig"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7539585,
+      "designacao": "Advancis Hemo Duo Comp X60",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "hemo",
+            "duo",
+            "comp",
+            "x60"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "OCP Portugal, S.A. - Sede e Armazém",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7770115,
+      "designacao": "Advancis P Zero Loc Spray Piolh100ml+Pent",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "med_form_ambiguous:spray"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "zero",
+            "loc",
+            "spray",
+            "piolh100ml"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "FARMODIETICA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "CAPILARES",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7469684,
+      "designacao": "Avene Couvrance Cuid Corret Ilumin 4Ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "couvrance",
+            "cuid",
+            "corret",
+            "ilumin"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Pierre Fabre Dermo - Cosmétique Portugal, L.da",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    },
+    {
+      "cnp": 7394239,
+      "designacao": "Armolipid Plus Comp X 30 comp",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "armolipid",
+            "plus",
+            "comp"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "LOGISTA PHARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "TONICOS / SUPLEMENTOS VITAMINICOS E MINERAIS",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "REGUL COLESTEROL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 7497651,
+      "designacao": "Advancis EasyRapid Antidiarr Caps X30",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "OUTRO",
+        "confidence": 0.3,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data"
+          ],
+          "searchKeywords": [
+            "advancis",
+            "easyrapid",
+            "antidiarr",
+            "caps",
+            "x30"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6000000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "Empifarma Produtos Farmaceuticos, SA",
+          "confidence": 0.6000000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": null,
+        "subcategoria": null
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": false,
+      "manualReviewReason": null,
+      "conflicts": []
+    },
+    {
+      "cnp": 6833426,
+      "designacao": "Avene Hydrance  Optima Uv Suav Spf20 40ml",
+      "validadoManualmente": false,
+      "classification": {
+        "productType": "DERMOCOSMETICA",
+        "confidence": 0.75,
+        "source": "TEXT_PATTERN",
+        "version": "1.1",
+        "signals": [
+          "dosage_pattern",
+          "dermocosm_kw:1"
+        ],
+        "hints": {
+          "preferredSources": [
+            "internal_pharmacy_data",
+            "open_beauty_facts"
+          ],
+          "searchKeywords": [
+            "avene",
+            "hydrance",
+            "optima",
+            "suav",
+            "spf20"
+          ],
+          "potentialDCI": null
+        }
+      },
+      "connectors": {
+        "attempted": [
+          "internal_pharmacy_data",
+          "open_beauty_facts"
+        ],
+        "succeeded": [
+          {
+            "source": "internal_pharmacy_data",
+            "tier": "INTERNAL_INFERRED",
+            "confidence": 0.6500000000000001
+          }
+        ]
+      },
+      "resolvedFields": {
+        "fabricante": {
+          "value": "EMPIFARMA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "dci": null,
+        "codigoATC": null,
+        "formaFarmaceutica": null,
+        "dosagem": null,
+        "embalagem": null,
+        "imagemUrl": null,
+        "categoria": {
+          "value": "COSMETICA / DERMOCOSMETICA",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        },
+        "subcategoria": {
+          "value": "PROD HIDRAT FACIAL",
+          "confidence": 0.6500000000000001,
+          "source": "internal_pharmacy_data",
+          "tier": "INTERNAL_INFERRED",
+          "agreementCount": 1
+        }
+      },
+      "verificationStatus": "FAILED",
+      "externallyVerified": false,
+      "needsManualReview": true,
+      "manualReviewReason": "Enriquecimento sem dados após verificação",
+      "conflicts": []
+    }
+  ]
+}

@@ -15,6 +15,7 @@ enum UtilizadorPerfil {
   ADMINISTRADOR
   GESTOR_GRUPO
   GESTOR_FARMACIA
+  OPERADOR
 }
 
 enum EntidadeEstado {
@@ -90,6 +91,27 @@ enum EstadoListaEncomenda {
   EXPORTADA
 }
 
+/// Estado do fluxo outbound de exportação de uma lista de encomenda
+/// para a instância SPharm da farmácia. Distinto de EstadoListaEncomenda:
+/// aquele é a fase de negócio (rascunho → finalizada → exportada); este
+/// é o sub-estado da máquina de outbox dentro da fase "finalizada".
+///
+/// Transições válidas:
+///   PENDENTE      → EM_EXPORTACAO  (agent claimed lease)
+///   EM_EXPORTACAO → EXPORTADO      (agent confirmed write via ack)
+///   EM_EXPORTACAO → PENDENTE       (nack retryable, schedule next attempt)
+///   EM_EXPORTACAO → FALHADO        (nack non-retryable OR max attempts)
+///   FALHADO       → PENDENTE       (manual re-send via /retry endpoint)
+///   PENDENTE      → CANCELADO      (admin cancel antes da exportação)
+///   FALHADO       → CANCELADO      (admin desiste de re-tentar)
+enum OrderExportState {
+  PENDENTE
+  EM_EXPORTACAO
+  EXPORTADO
+  FALHADO
+  CANCELADO
+}
+
 enum TipoLoteIngestao {
   FICHA
   STOCK
@@ -130,6 +152,15 @@ enum EnriquecimentoEstado {
   FALHOU
 }
 
+enum VerificationStatus {
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  PARTIALLY_VERIFIED
+  FAILED
+  NEEDS_REVIEW
+}
+
 enum TipoAjusteStock {
   POSITIVO
   NEGATIVO
@@ -162,37 +193,55 @@ model Produto {
   codigoATC             String?
   dci                   String?
   imagemUrl             String?
+  formaFarmaceutica     String?
+  dosagem               String?
+  embalagem             String?
   flagGenerico          Boolean              @default(false)
   flagMSRM              Boolean              @default(false)
   flagMNSRM             Boolean              @default(false)
   grupoHomogeneo        String?
   estado                ProdutoEstado        @default(PENDENTE)
   origemDados           ProdutoOrigemDados   @default(FARMACIA)
-  validadoManualmente   Boolean              @default(false)
-  dataCriacao           DateTime             @default(now())
-  dataAtualizacao       DateTime             @updatedAt
+  validadoManualmente          Boolean              @default(false)
+  // Classificação e verificação automática
+  productType                  String?
+  productTypeConfidence        Float?
+  classificationSource         String?
+  classificationVersion        String?
+  verificationStatus           VerificationStatus   @default(PENDING)
+  lastVerifiedAt               DateTime?
+  lastVerificationAttemptAt    DateTime?
+  externallyVerified           Boolean              @default(false)
+  needsManualReview            Boolean              @default(false)
+  manualReviewReason           String?
+  dataCriacao                  DateTime             @default(now())
+  dataAtualizacao              DateTime             @updatedAt
 
-  fabricante            Fabricante?          @relation(fields: [fabricanteId], references: [id])
-  classificacaoNivel1   Classificacao?       @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
-  classificacaoNivel2   Classificacao?       @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
+  fabricante                   Fabricante?          @relation(fields: [fabricanteId], references: [id])
+  classificacaoNivel1          Classificacao?       @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
+  classificacaoNivel2          Classificacao?       @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
 
-  produtosFarmacia      ProdutoFarmacia[]
-  vendas                Venda[]
-  vendasMensais         VendaMensal[]
-  compras               Compra[]
-  devolucoes            Devolucao[]
-  historicoStocks       HistoricoStock[]
-  ajustesStock          AjusteStock[]
-  linhasInventario      LinhaInventario[]
-  indicadores           IndicadoresProdutoFarmacia[]
-  linhasEncomenda       LinhaEncomenda[]
-  filaRevisao           FilaRevisao[]
-  filaEnriquecimento    EnriquecimentoFila[]
+  produtosFarmacia             ProdutoFarmacia[]
+  vendas                       Venda[]
+  vendasMensais                VendaMensal[]
+  compras                      Compra[]
+  devolucoes                   Devolucao[]
+  historicoStocks              HistoricoStock[]
+  ajustesStock                 AjusteStock[]
+  linhasInventario             LinhaInventario[]
+  indicadores                  IndicadoresProdutoFarmacia[]
+  linhasEncomenda              LinhaEncomenda[]
+  filaRevisao                  FilaRevisao[]
+  filaEnriquecimento           EnriquecimentoFila[]
+  verificacaoHistorico         ProdutoVerificacaoHistorico[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
   @@index([classificacaoNivel2Id])
   @@index([estado])
+  @@index([verificationStatus])
+  @@index([productType])
+  @@index([lastVerifiedAt])
 }
 
 /// Fabricante normalizado.
@@ -242,6 +291,54 @@ model Classificacao {
   @@index([classificacaoPaiId])
 }
 
+/// Snapshot local do catálogo INFARMED de medicamentos (Portugal).
+///
+/// Origem: ficheiro descarregado do portal INFARMED (INFOMED / Open Data).
+/// Importado por scripts/import-infarmed-snapshot.ts, idempotente por CNP.
+///
+/// Consultado pelo infarmedConnector em lib/catalog-connectors.ts,
+/// que devolve tier=REGULATORY e confidence=0.95 quando há match por CNP.
+/// É a primeira fonte autoritária para escrever Produto.fabricanteId / dci / codigoATC.
+model InfarmedSnapshot {
+  id                String   @id @default(cuid())
+  cnp               Int      @unique
+  designacaoOficial String
+  dci               String?
+  codigoATC         String?
+  /// Titular da Autorização de Introdução no Mercado — fabricante canónico.
+  titularAim        String?
+  formaFarmaceutica String?
+  dosagem           String?
+  embalagem         String?
+  grupoTerapeutico  String?
+  /// Estado regulamentar: "Autorizado", "Suspenso", "Revogado", "Caducado".
+  /// Produtos não-"Autorizado" não são devolvidos pelo conector.
+  estadoAim         String?
+  /// Identificador do ficheiro/data do snapshot (ex: "2026-04"). Permite
+  /// detectar quando uma reimportação trouxe dados mais recentes.
+  snapshotVersion   String
+  importedAt        DateTime @default(now())
+
+  @@index([snapshotVersion])
+  @@index([estadoAim])
+}
+
+/// Histórico de verificações automáticas por produto.
+model ProdutoVerificacaoHistorico {
+  id                 String   @id @default(cuid())
+  produtoId          String
+  verificadoEm       DateTime @default(now())
+  productType        String?
+  productTypeConf    Float?
+  verificationStatus String
+  sourceSummary      Json?
+  fieldsUpdated      String[]
+
+  produto            Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([produtoId, verificadoEm])
+}
+
 /// Fornecedor normalizado.
 model Fornecedor {
   id                        String                         @id @default(cuid())
@@ -287,6 +384,7 @@ model Farmacia {
   dataAtualizacao  DateTime                   @updatedAt
 
   utilizadores     Utilizador[]
+  utilizadoresExtra UtilizadorFarmacia[]
   produtosFarmacia ProdutoFarmacia[]
   produtosInternos ProdutoInterno[]
   vendas           Venda[]
@@ -299,9 +397,33 @@ model Farmacia {
   indicadores      IndicadoresProdutoFarmacia[]
   listasEncomenda  ListaEncomenda[]
   lotesIngestao    LoteIngestao[]
+  emailConfig      EmailConfig?
 
   @@unique([nome])
   @@index([codigoANF])
+}
+
+// Configuração SMTP por farmácia. Quando farmaciaId é null, é a
+// configuração global usada como fallback. A password é guardada
+// cifrada (AES-256-GCM) — ver lib/email-crypto.ts.
+model EmailConfig {
+  id                String    @id @default(cuid())
+  farmaciaId        String?   @unique
+  farmacia          Farmacia? @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  smtpHost          String
+  smtpPort          Int
+  smtpUser          String?
+  smtpPassEncrypted String?
+  smtpSecure        Boolean   @default(false)
+  fromEmail         String
+  fromName          String?
+  replyTo           String?
+  isActive          Boolean   @default(true)
+  lastTestAt        DateTime?
+  lastTestStatus    String?
+  lastTestError     String?
+  dataCriacao       DateTime  @default(now())
+  dataAtualizacao   DateTime  @updatedAt
 }
 
 model Utilizador {
@@ -309,14 +431,62 @@ model Utilizador {
   email           String             @unique
   nome            String
   perfil          UtilizadorPerfil
+  /// Farmácia PRIMÁRIA (contexto por defeito para sessão e filtros).
+  /// Para GESTOR_GRUPO/ADMINISTRADOR é opcional. Para acesso a várias
+  /// farmácias usar a relação `farmacias` (UtilizadorFarmacia).
   farmaciaId      String?
   estado          EntidadeEstado     @default(ATIVO)
   passwordHash    String?
+  /// Marca o próximo login como forçado a alterar a password (ex:
+  /// reset administrativo). A API /login vai validar e redirigir.
+  mustChangePassword Boolean         @default(false)
+  ultimoLogin     DateTime?
   dataCriacao     DateTime           @default(now())
   dataAtualizacao DateTime           @updatedAt
 
   farmacia        Farmacia?          @relation(fields: [farmaciaId], references: [id])
+  farmacias       UtilizadorFarmacia[]
   listasEncomenda ListaEncomenda[]
+  auditoria       AuditLog[]         @relation("AuditLogActor")
+}
+
+/// Associação N:N utilizador → farmácias para perfis com acesso a
+/// múltiplas (ex: GESTOR_GRUPO, GESTOR_FARMACIA com mais do que uma).
+/// Pode ser ignorado quando `Utilizador.perfil = ADMINISTRADOR`, que
+/// por contrato tem acesso a TODAS as farmácias.
+model UtilizadorFarmacia {
+  id            String     @id @default(cuid())
+  utilizadorId  String
+  farmaciaId    String
+  dataCriacao   DateTime   @default(now())
+
+  utilizador    Utilizador @relation(fields: [utilizadorId], references: [id], onDelete: Cascade)
+  farmacia      Farmacia   @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([utilizadorId, farmaciaId])
+  @@index([farmaciaId])
+}
+
+/// Auditoria básica — regista acções relevantes do utilizador.
+/// Fica propositadamente genérico (string action + JSON meta) para
+/// não acoplar a um domínio específico. Chamar `logAudit(...)` do
+/// server-side quando uma acção precisa ser rastreável.
+model AuditLog {
+  id           String     @id @default(cuid())
+  actorId      String?
+  action       String
+  entity       String?
+  entityId     String?
+  metaJson     String?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+
+  actor        Utilizador? @relation("AuditLogActor", fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
 }
 
 //////////////////////////////////////////////////////
@@ -345,7 +515,11 @@ model ProdutoFarmacia {
   familiaOrigem        String?
   categoriaOrigem      String?
   subcategoriaOrigem   String?
-  fabricanteOrigem     String?
+  /// Fornecedor/distribuidor habitual da farmácia (NÃO é o fabricante real
+  /// do produto — é o grossista que vende o produto à farmácia: Empifarma,
+  /// OCP, Alliance, etc.). Usado apenas como contexto interno, análise de
+  /// abastecimento e hints fracos. NUNCA como fabricante canónico.
+  fornecedorOrigem     String?
   dataAtualizacao      DateTime      @updatedAt
   dataCriacao          DateTime      @default(now())
 
@@ -628,6 +802,12 @@ model ListaEncomenda {
   farmaciaId      String
   nome            String
   estado          EstadoListaEncomenda  @default(RASCUNHO)
+  /// Sub-estado do fluxo de exportação para SPharm. Aplica-se apenas
+  /// quando `estado = FINALIZADA`; em RASCUNHO o valor existe mas não
+  /// é consumido pelo agent (o outbox só cria rows para listas
+  /// finalizadas via createEncomendaWithOutbox). Default PENDENTE é
+  /// seguro porque sem OrderOutbox associado nada é exportado.
+  estadoExport    OrderExportState      @default(PENDENTE)
   criadoPorId     String
   dataCriacao     DateTime              @default(now())
   dataAtualizacao DateTime              @updatedAt
@@ -635,10 +815,12 @@ model ListaEncomenda {
   farmacia        Farmacia              @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor       Utilizador            @relation(fields: [criadoPorId], references: [id])
   linhas          LinhaEncomenda[]
+  outbox          OrderOutbox?
 
   @@index([farmaciaId])
   @@index([criadoPorId])
   @@index([estado])
+  @@index([estadoExport])
 }
 
 /// Linhas da lista de encomenda.
@@ -732,4 +914,112 @@ model LoteIngestao {
 
   @@index([farmaciaId, tipo, dataReferencia])
   @@index([estado])
+}
+
+//////////////////////////////////////////////////////
+// OUTBOX DOWNSTREAM (SPharmMT → SPharm)
+//
+// Fluxo outbound para exportar listas de encomenda criadas em
+// SPharmMT para a base de dados SQL Server da farmácia (SPharm).
+// Aplicação do padrão transactional outbox: a linha OrderOutbox é
+// criada na MESMA transacção do ListaEncomenda, garantindo que
+// nenhuma ordem fica órfã.
+//
+// O agent Windows (scheduled task --pull-downstream, 5 em 5 min):
+//   1. GET /api/outbox/v1/orders/pending → recebe rows já leased
+//   2. Escreve cada encomenda no SQL Server SPharm (transacção local)
+//   3. POST /orders/{id}/ack com o spharmDocumentId retornado
+//   4. Em falha → POST /orders/{id}/nack com retryable=true|false
+//
+// Idempotência: cada outbox row tem um idempotencyKey determinístico
+// derivado de tenantSlug + listaEncomendaId. A estratégia exacta de
+// reconhecimento desse key em SPharm fica provisional até recebermos
+// o schema real do SPharm — ver doc §4.2 do plano bidireccional.
+//////////////////////////////////////////////////////
+
+/// Outbox de exportação de encomendas. 1:1 com ListaEncomenda.
+/// Criado na mesma transacção via lib/ingest/orders.ts:createEncomendaWithOutbox.
+model OrderOutbox {
+  id                String           @id @default(cuid())
+  listaEncomendaId  String           @unique
+  /// Denormalizado para permitir index (farmaciaId, state) sem join
+  /// na query hot-path do agent.
+  farmaciaId        String
+
+  /// Snapshot congelado do payload que o agent vai escrever em SPharm.
+  /// JSON serializado. IMUTÁVEL — edições à lista após criação do
+  /// outbox requerem cancelar+recriar (ver lib/ingest/orders.ts).
+  payloadJson       String
+
+  /// Chave determinística: "{tenantSlug}:{listaEncomendaId}". Usada
+  /// pelo agent como stamp para idempotência em SPharm. A ferramenta
+  /// de stamping em SPharm será decidida quando chegar o schema real.
+  idempotencyKey    String           @unique
+
+  /// Hash sha256 do payloadJson. Se o mesmo idempotencyKey alguma vez
+  /// aparecer com hash diferente, o agent deve abortar e marcar
+  /// FALHADO — defesa contra mutação acidental do payload congelado.
+  payloadHash       String
+
+  state             OrderExportState @default(PENDENTE)
+
+  /// Contador de tentativas (incluindo a corrente). Reset a 0 no /retry.
+  attemptCount      Int              @default(0)
+  /// Próxima janela elegível para o agent claim. now() inicial.
+  /// Schedule de retry: 1m · 5m · 30m · 2h · 8h · 24h · então FALHADO.
+  nextAttemptAt     DateTime         @default(now())
+  lastError         String?
+  lastAttemptAt     DateTime?
+
+  // ── Lease ────────────────────────────────────────────────────────
+  /// Identificador da instância do agent que reclamou a row.
+  /// Null quando não há lease activa.
+  leasedBy          String?
+  /// TTL da lease. 5 min por defeito — próximo run reclama após isto.
+  leasedUntil       DateTime?
+
+  // ── Confirmação ──────────────────────────────────────────────────
+  /// Número de documento atribuído por SPharm depois do INSERT.
+  /// Preenchido no endpoint /ack.
+  spharmDocumentId  String?
+  exportedAt        DateTime?
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  listaEncomenda    ListaEncomenda   @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
+  audits            OrderExportAudit[]
+
+  // Hot path: o agent pede pending rows ordenadas por nextAttemptAt.
+  @@index([state, nextAttemptAt])
+  // Hot path: admin UI lista por farmácia + estado.
+  @@index([farmaciaId, state])
+  // Liveness check admin: "qual foi a última tentativa?"
+  @@index([lastAttemptAt])
+}
+
+/// Histórico imutável de tentativas de exportação. NUNCA apagar linhas.
+/// Cada /ack, /nack, /retry e /cancel grava uma row aqui para
+/// rastreabilidade operacional. O OrderOutbox guarda apenas o estado
+/// corrente; a timeline completa vive aqui.
+model OrderExportAudit {
+  id             String      @id @default(cuid())
+  outboxId       String
+  attempt        Int
+  at             DateTime    @default(now())
+  /// "ATTEMPT" | "SUCCESS" | "FAILURE" | "RETRY_SCHEDULED" |
+  /// "GAVE_UP" | "MANUAL_RETRY" | "MANUAL_CANCEL" | "LEASE_CLAIMED" |
+  /// "LEASE_RELEASED" | "LEASE_EXPIRED"
+  status         String
+  message        String?
+  httpStatus     Int?
+  spharmSqlError String?
+  /// ID do utilizador que executou a acção manual, se aplicável.
+  /// Null para acções do agent.
+  actorId        String?
+
+  outbox         OrderOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+
+  @@index([outboxId, at])
+  @@index([status, at])
 }

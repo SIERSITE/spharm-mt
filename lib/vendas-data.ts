@@ -1,11 +1,18 @@
 /**
  * lib/vendas-data.ts
  * Server-side data fetching for the vendas page.
- * Loads top 300 products by total sales in the last 4 available months
- * (jan–abr 2026), one row per product+farmacia.
+ *
+ * Carrega o universo completo de VendaMensal (jan–abr 2026) por
+ * produto+farmacia das farmácias activas, sem limite artificial.
+ * A tabela e o relatório recebem o dataset real — qualquer filtro
+ * e agrupamento é aplicado no cliente em cima do universo completo.
+ *
+ * Se no futuro o volume ficar pesado, o caminho correcto é mover
+ * filtros/paginação para SQL (não reintroduzir um LIMIT arbitrário).
  */
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { resolveCategoria } from "@/lib/categoria-resolver";
 
 /** Matches the SalesReportRow type used by the vendas client component. */
 export type SalesReportRow = {
@@ -35,10 +42,33 @@ function toF(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export async function getVendasData(): Promise<SalesReportRow[]> {
-  // Active pharmacies (excluding test)
+export type VendasFilters = {
+  /**
+   * Lista de NOMES de farmácia a incluir. Se vazia/omitida, usa todas
+   * as farmácias activas (excluindo "Farmácia Teste") — equivale a
+   * "todas seleccionadas". Usar nomes (não ids) porque é o que o
+   * cliente conhece a partir de farmaciasInfo.
+   */
+  farmaciaNomes?: string[];
+};
+
+export async function getVendasData(
+  filters: VendasFilters = {}
+): Promise<SalesReportRow[]> {
+  const prisma = await getPrisma();
+  // Active pharmacies (excluding test). Restringimos cedo aos nomes
+  // pedidos pelo cliente para evitar trazer o universo todo do SQL
+  // quando o utilizador só quer 1-2 farmácias.
   const farmacias = await prisma.farmacia.findMany({
-    where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
+    where: {
+      estado: "ATIVO",
+      nome: {
+        not: "Farmácia Teste",
+        ...(filters.farmaciaNomes && filters.farmaciaNomes.length > 0
+          ? { in: filters.farmaciaNomes }
+          : {}),
+      },
+    },
     select: { id: true, nome: true },
   });
   const farmaciaIds = farmacias.map((f) => f.id);
@@ -81,16 +111,27 @@ export async function getVendasData(): Promise<SalesReportRow[]> {
     GROUP BY vm."produtoId", vm."farmaciaId"
     HAVING SUM(CASE WHEN vm.ano = 2026 AND vm.mes IN (1,2,3,4) THEN vm.quantidade ELSE 0 END) > 0
     ORDER BY total DESC
-    LIMIT 300
   `);
 
   if (pivotRows.length === 0) return [];
 
-  // Fetch product metadata
+  // Fetch product metadata — incluindo o fabricante CANÓNICO via relação
+  // Produto.fabricante (Fabricante.nomeNormalizado). NUNCA usar
+  // ProdutoFarmacia.fornecedorOrigem como fabricante: esse é o grossista
+  // (OCP, Empifarma, Alliance...).
   const produtoIds = [...new Set(pivotRows.map((r) => r.produtoId))];
   const produtos = await prisma.produto.findMany({
     where: { id: { in: produtoIds } },
-    select: { id: true, cnp: true, designacao: true },
+    select: {
+      id: true,
+      cnp: true,
+      designacao: true,
+      fabricante: { select: { nomeNormalizado: true } },
+      // Necessário para o resolver canónico de categoria (lib/categoria-resolver.ts).
+      // Não é opcional — é a fonte de verdade quando preenchida.
+      classificacaoNivel1: { select: { nome: true } },
+      classificacaoNivel2: { select: { nome: true } },
+    },
   });
   const produtoById = new Map(produtos.map((p) => [p.id, p]));
 
@@ -108,8 +149,7 @@ export async function getVendasData(): Promise<SalesReportRow[]> {
       pmc: true,
       categoriaOrigem: true,
       subcategoriaOrigem: true,
-      fabricanteOrigem: true,
-      familiaOrigem: true,
+      fornecedorOrigem: true,
     },
   });
   const pfByKey = new Map(pfRecords.map((r) => [`${r.produtoId}:${r.farmaciaId}`, r]));
@@ -131,12 +171,20 @@ export async function getVendasData(): Promise<SalesReportRow[]> {
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
 
-    // Metadata: use categoriaOrigem from ProdutoFarmacia (populated when importer saves it)
-    const categoria = pf?.categoriaOrigem ?? "";
-    const grupo = pf?.subcategoriaOrigem ?? categoria;
-    // familiaOrigem stores the fornecedor name (set by updated importer)
-    const fornecedor = pf?.familiaOrigem ?? "";
-    const fabricante = pf?.fabricanteOrigem ?? "";
+    // Categoria/grupo via resolver canónico partilhado (lib/categoria-resolver.ts).
+    // Mesma regra em toda a app: canónico > origem do importer.
+    const { categoria, grupo } = resolveCategoria({
+      classificacaoNivel1: produto.classificacaoNivel1,
+      classificacaoNivel2: produto.classificacaoNivel2,
+      categoriaOrigem: pf?.categoriaOrigem,
+      subcategoriaOrigem: pf?.subcategoriaOrigem,
+    });
+    // Fornecedor/grossista (OCP, Empifarma, Alliance...) — fica como
+    // contexto de abastecimento. Vem de ProdutoFarmacia.fornecedorOrigem.
+    const fornecedor = pf?.fornecedorOrigem ?? "";
+    // Fabricante CANÓNICO — vem da relação Produto.fabricante (tabela
+    // Fabricante normalizada). Nunca de ProdutoFarmacia.
+    const fabricante = produto.fabricante?.nomeNormalizado ?? "";
 
     rows.push({
       codigo: String(produto.cnp),

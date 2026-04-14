@@ -62,6 +62,23 @@ export type FabricanteAlias = Prisma.FabricanteAliasModel
  */
 export type Classificacao = Prisma.ClassificacaoModel
 /**
+ * Model InfarmedSnapshot
+ * Snapshot local do catálogo INFARMED de medicamentos (Portugal).
+ * 
+ * Origem: ficheiro descarregado do portal INFARMED (INFOMED / Open Data).
+ * Importado por scripts/import-infarmed-snapshot.ts, idempotente por CNP.
+ * 
+ * Consultado pelo infarmedConnector em lib/catalog-connectors.ts,
+ * que devolve tier=REGULATORY e confidence=0.95 quando há match por CNP.
+ * É a primeira fonte autoritária para escrever Produto.fabricanteId / dci / codigoATC.
+ */
+export type InfarmedSnapshot = Prisma.InfarmedSnapshotModel
+/**
+ * Model ProdutoVerificacaoHistorico
+ * Histórico de verificações automáticas por produto.
+ */
+export type ProdutoVerificacaoHistorico = Prisma.ProdutoVerificacaoHistoricoModel
+/**
  * Model Fornecedor
  * Fornecedor normalizado.
  */
@@ -77,10 +94,31 @@ export type FornecedorAlias = Prisma.FornecedorAliasModel
  */
 export type Farmacia = Prisma.FarmaciaModel
 /**
+ * Model EmailConfig
+ * 
+ */
+export type EmailConfig = Prisma.EmailConfigModel
+/**
  * Model Utilizador
  * 
  */
 export type Utilizador = Prisma.UtilizadorModel
+/**
+ * Model UtilizadorFarmacia
+ * Associação N:N utilizador → farmácias para perfis com acesso a
+ * múltiplas (ex: GESTOR_GRUPO, GESTOR_FARMACIA com mais do que uma).
+ * Pode ser ignorado quando `Utilizador.perfil = ADMINISTRADOR`, que
+ * por contrato tem acesso a TODAS as farmácias.
+ */
+export type UtilizadorFarmacia = Prisma.UtilizadorFarmaciaModel
+/**
+ * Model AuditLog
+ * Auditoria básica — regista acções relevantes do utilizador.
+ * Fica propositadamente genérico (string action + JSON meta) para
+ * não acoplar a um domínio específico. Chamar `logAudit(...)` do
+ * server-side quando uma acção precisa ser rastreável.
+ */
+export type AuditLog = Prisma.AuditLogModel
 /**
  * Model ProdutoFarmacia
  * Tudo o que varia entre farmácias vive aqui.
@@ -161,3 +199,17 @@ export type EnriquecimentoFila = Prisma.EnriquecimentoFilaModel
  * Registo de cada lote recebido/processado.
  */
 export type LoteIngestao = Prisma.LoteIngestaoModel
+/**
+ * Model OrderOutbox
+ * Outbox de exportação de encomendas. 1:1 com ListaEncomenda.
+ * Criado na mesma transacção via lib/ingest/orders.ts:createEncomendaWithOutbox.
+ */
+export type OrderOutbox = Prisma.OrderOutboxModel
+/**
+ * Model OrderExportAudit
+ * Histórico imutável de tentativas de exportação. NUNCA apagar linhas.
+ * Cada /ack, /nack, /retry e /cancel grava uma row aqui para
+ * rastreabilidade operacional. O OrderOutbox guarda apenas o estado
+ * corrente; a timeline completa vive aqui.
+ */
+export type OrderExportAudit = Prisma.OrderExportAuditModel

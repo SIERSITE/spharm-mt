@@ -4,7 +4,7 @@
  * Loads top 300 ProdutoFarmacia rows by stock value, enriched with coverage,
  * rotation and transfer suggestions derived from VendaMensal.
  */
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 
 export type StockRow = {
@@ -36,6 +36,7 @@ export async function getStockData(): Promise<{
   pharmacyNames: string[];
   metrics: StockMetrics;
 }> {
+  const prisma = await getPrisma();
   const now = new Date();
   const ano = now.getFullYear();
   const mes = now.getMonth() + 1;

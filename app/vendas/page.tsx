@@ -1,7 +1,24 @@
-import { getVendasData } from "@/lib/vendas-data";
+import { getFarmaciasInfo } from "@/lib/farmacias-info";
+import { getReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { VendasClient } from "@/components/vendas/vendas-client";
 
+/**
+ * Página Vendas — server component LEVE.
+ *
+ * Não pré-carrega rows de VendaMensal. Carrega apenas:
+ *  · farmácias activas  → filtro de farmácia e cabeçalho do relatório
+ *  · opções dos filtros → fornecedor / fabricante / categoria (DISTINCTs
+ *                         sobre ProdutoFarmacia / Fabricante / Classificacao)
+ *
+ * O fetch real das linhas corre via server action `runVendasReport`
+ * quando o utilizador clica em "Gerar" no client component.
+ */
 export default async function VendasPage() {
-  const rows = await getVendasData();
-  return <VendasClient initialRows={rows} />;
+  const [farmaciasInfo, filterOptions] = await Promise.all([
+    getFarmaciasInfo(),
+    getReportingFilterOptions(),
+  ]);
+  return (
+    <VendasClient farmaciasInfo={farmaciasInfo} filterOptions={filterOptions} />
+  );
 }
