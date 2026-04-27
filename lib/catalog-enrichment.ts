@@ -561,6 +561,8 @@ export async function enrichProduct(
     // verificationStatus reportado é o efectivo (pós-persistência).
     verificationStatus: persisted.verificationStatus,
     fieldsUpdated: persisted.fieldsUpdated,
+    fieldDecisions: persisted.fieldDecisions,
+    canonical: persisted.canonical,
     queued,
     dryRun,
   };

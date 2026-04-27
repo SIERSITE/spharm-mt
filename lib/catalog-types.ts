@@ -273,7 +273,57 @@ export type PersistenceInput = {
   dryRun?: boolean;
 };
 
+/**
+ * Decisão tomada pela persistência para um campo individual. Cada campo
+ * candidato gera uma e só uma decisão, capturada para diagnóstico.
+ *
+ *   updated   campo gravado novo / mudou de valor
+ *   unchanged já tinha o mesmo valor — sem write efectivo
+ *   skipped   não foi gravado (com `reason` explícita)
+ *   blocked   regra de bloqueio absoluta (validadoManualmente, tier não-autoritário)
+ */
+export type FieldDecisionStatus = "updated" | "unchanged" | "skipped" | "blocked";
+
+export type FieldDecision = {
+  field: string;
+  status: FieldDecisionStatus;
+  reason: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  source?: string | null;
+  confidence?: number | null;
+};
+
+/**
+ * Decisão sobre o mapeamento canónico (Classificacao N1/N2) para o
+ * produto. Capturada para diagnóstico — torna explícito porque é que
+ * `classificacaoNivel1Id` foi ou não persistido.
+ */
+export type CanonicalMappingOutcome =
+  | "written"          // IDs canónicos gravados
+  | "n1_only"          // só nivel1 gravado (n2 não encontrado)
+  | "below_threshold"  // mapper devolveu canónica abaixo do limiar
+  | "no_signal"        // mapper devolveu null (sem sinal suficiente)
+  | "row_missing"      // par canónico válido mas Classificacao não tem a linha
+  | "already_set"      // produto já tinha classificacaoNivel1Id antes
+  | "irrelevant"       // categoria irrelevante para este productType
+  | "manually_validated"; // validadoManualmente — não tocar
+
+export type CanonicalDecision = {
+  outcome: CanonicalMappingOutcome;
+  reason: string;
+  /** Par canónico calculado pelo mapper (se chegou a calcular). */
+  nivel1?: string | null;
+  nivel2?: string | null;
+  /** Confiança do par canónico (output do mapper). */
+  confidence?: number | null;
+  /** IDs encontrados em `Classificacao` (se procurados). */
+  nivel1Id?: string | null;
+  nivel2Id?: string | null;
+};
+
 export type PersistenceResult = {
+  /** Lista de campos com status "updated" — compatibilidade com chamadores existentes. */
   fieldsUpdated: string[];
   produtoEstado: string;
   /**
@@ -284,6 +334,14 @@ export type PersistenceResult = {
    * fields persistidos seria enganador.
    */
   verificationStatus: VerificationStatus;
+  /**
+   * Diagnóstico estruturado por campo. Inclui campos de catálogo
+   * (fabricante, DCI, ATC, etc), productType/conf e classificações.
+   * Mapeia para `fieldsUpdated` filtrando `status === "updated"`.
+   */
+  fieldDecisions: FieldDecision[];
+  /** Decisão sobre o mapeamento canónico para Classificacao N1/N2. */
+  canonical: CanonicalDecision;
 };
 
 // ─── Orquestração ─────────────────────────────────────────────────────────────
@@ -298,6 +356,14 @@ export type EnrichmentResult = {
   fieldsUpdated: string[];
   queued: boolean;
   dryRun: boolean;
+  /**
+   * Diagnóstico opcional vindo da camada de persistência. Presente em
+   * todas as corridas que cheguem a executar `persistResolvedProduct`;
+   * undefined quando a corrida abortou cedo (produto não encontrado,
+   * conector erro, etc.).
+   */
+  fieldDecisions?: FieldDecision[];
+  canonical?: CanonicalDecision;
 };
 
 export type EnrichmentSummary = {

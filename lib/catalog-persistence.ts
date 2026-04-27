@@ -35,6 +35,9 @@
 
 import { legacyPrisma as prisma } from "@/lib/prisma";
 import type {
+  CanonicalDecision,
+  FieldDecision,
+  FieldDecisionStatus,
   PersistenceInput,
   PersistenceResult,
   ResolvedField,
@@ -175,123 +178,257 @@ export async function persistResolvedProduct(
   const relevance = getFieldRelevance(resolved.productType);
 
   /**
-   * Um campo de catálogo pode ser actualizado APENAS se:
-   *   a) o campo resolvido existir
-   *   b) o campo for relevante para o productType (double-check)
-   *   c) a confiança for >= THRESHOLD_PARTIAL
-   *   d) o campo estiver null na BD (nunca sobrescrever)
-   *   e) o produto NÃO estiver validado manualmente (regra absoluta)
-   *   f) para campos autoritários (fabricante/dci/atc), a fonte tem de ser
-   *      de tier autoritário (REGULATORY ou MANUFACTURER) — defesa dupla
-   *      sobre o resolver.
+   * Avalia se um campo de catálogo pode ser actualizado e devolve o
+   * status + razão. Nunca tem efeitos colaterais — não escreve em
+   * `updates` nem em `decisions`. O caller faz isso à luz da resposta.
+   *
+   * Regras (em ordem de avaliação — primeira violação ganha):
+   *   1. validadoManualmente=true                    → blocked
+   *   2. campo já preenchido na BD                   → unchanged (cf. regra 1.4)
+   *   3. campo irrelevante para este productType     → skipped
+   *   4. fonte não devolveu valor (resolved.* null)  → skipped
+   *   5. confiança da fonte abaixo do threshold      → skipped
+   *   6. tier não-autoritário em campo autoritário   → blocked
+   *   ok                                            → updateable
    */
-  function canUpdate(
+  function evaluateField(
     fieldName: string,
     currentValue: unknown,
     field: ResolvedField<string> | null,
     isRelevant: boolean
-  ): boolean {
-    if (product!.validadoManualmente) return false;            // regra 1
-    if (currentValue !== null && currentValue !== undefined) return false; // regra 2
-    if (!isRelevant) return false;                              // regra 3
-    if (!field) return false;
-    if (field.confidence < THRESHOLD_PARTIAL) return false;
-    // regra 4: defesa de tier para campos autoritários
+  ): { status: FieldDecisionStatus | "ok"; reason: string } {
+    if (product!.validadoManualmente)
+      return { status: "blocked", reason: "produto validadoManualmente=true" };
+    if (currentValue !== null && currentValue !== undefined)
+      return { status: "unchanged", reason: "campo já preenchido na BD" };
+    if (!isRelevant)
+      return { status: "skipped", reason: `campo irrelevante para ${resolved.productType}` };
+    if (!field)
+      return { status: "skipped", reason: "nenhuma fonte devolveu valor" };
+    if (field.confidence < THRESHOLD_PARTIAL)
+      return {
+        status: "skipped",
+        reason: `confiança ${(field.confidence * 100).toFixed(0)}% < ${(THRESHOLD_PARTIAL * 100).toFixed(0)}%`,
+      };
     if (AUTHORITATIVE_FIELDS.has(fieldName) && !AUTHORITATIVE_TIERS.includes(field.tier)) {
       console.warn(
         `[persistence] BLOQUEADO: ${fieldName} recusado por tier "${field.tier}" ` +
         `(fonte="${field.source}"). Só ${AUTHORITATIVE_TIERS.join("/")} podem escrever este campo.`
       );
-      return false;
+      return {
+        status: "blocked",
+        reason: `tier ${field.tier} não-autoritário (só ${AUTHORITATIVE_TIERS.join("/")})`,
+      };
     }
-    return true;
+    return { status: "ok", reason: "" };
   }
 
   const updates: Record<string, unknown> = {};
   const fieldsUpdated: string[] = [];
+  const decisions: FieldDecision[] = [];
 
-  // productType: contar como campo actualizado sempre que o resolver
-  // produziu um tipo concreto (≠ OUTRO) que difere do que está em BD,
-  // OU quando a confiança subiu materialmente (>= 5 pontos absolutos).
-  // O write em si acontece sempre no UPDATE final; adicionar a
-  // `fieldsUpdated` é a única forma de o orquestrador "saber" que houve
-  // uma decisão útil — caso contrário, um produto OUTRO upgraded para
-  // DERMOCOSMETICA nesta corrida apareceria como `failed` no relatório.
-  const typeChanged =
-    resolved.productType !== "OUTRO" &&
-    !product.validadoManualmente &&
-    product.productType !== resolved.productType;
-  if (typeChanged) {
-    fieldsUpdated.push("productType");
+  function record(decision: FieldDecision): void {
+    decisions.push(decision);
+    if (decision.status === "updated") fieldsUpdated.push(decision.field);
   }
 
-  // Fabricante — campo autoritário, só REGULATORY/MANUFACTURER
-  if (canUpdate("fabricante", product.fabricanteId, resolved.fabricante, relevance.fabricante)) {
-    const raw = resolved.fabricante!.value;
-    const normalized = normalizeManufacturerName(raw);
-    if (normalized) {
-      if (!dryRun) {
-        const id = await getOrCreateFabricante(normalized, raw !== normalized ? raw : null);
-        updates.fabricanteId = id;
+  // ── productType (sempre escrito como metadado; sinalizado como
+  //    "updated" quando o resolver mudou o valor face à BD).
+  if (product.validadoManualmente) {
+    record({
+      field: "productType",
+      status: "blocked",
+      reason: "produto validadoManualmente=true",
+      oldValue: product.productType,
+      newValue: resolved.productType,
+    });
+  } else if (product.productType !== resolved.productType && resolved.productType !== "OUTRO") {
+    record({
+      field: "productType",
+      status: "updated",
+      reason: "resolver decidiu novo tipo",
+      oldValue: product.productType,
+      newValue: resolved.productType,
+      confidence: resolved.productTypeConfidence,
+    });
+  } else if (product.productType === resolved.productType) {
+    record({
+      field: "productType",
+      status: "unchanged",
+      reason: "valor já é o mesmo na BD",
+      oldValue: product.productType,
+      newValue: resolved.productType,
+    });
+  } else {
+    // resolved.productType === "OUTRO" e DB tem outra coisa — não fazemos
+    // downgrade (preservamos decisão prévia melhor).
+    record({
+      field: "productType",
+      status: "skipped",
+      reason: "resolver devolveu OUTRO; não sobrescreve tipo já decidido",
+      oldValue: product.productType,
+      newValue: resolved.productType,
+    });
+  }
+
+  // ── productTypeConfidence — sempre escrito como metadado; só conta
+  //    como mudança se a magnitude diferir significativamente.
+  // Não adicionamos a fieldsUpdated mas registamos para diagnóstico.
+  decisions.push({
+    field: "productTypeConfidence",
+    status: "updated",
+    reason: "metadado — escrito sempre",
+    oldValue: null,
+    newValue: resolved.productTypeConfidence.toFixed(2),
+    confidence: resolved.productTypeConfidence,
+  });
+
+  // ── Fabricante — campo autoritário, só REGULATORY/MANUFACTURER
+  {
+    const ev = evaluateField("fabricante", product.fabricanteId, resolved.fabricante, relevance.fabricante);
+    if (ev.status === "ok") {
+      const raw = resolved.fabricante!.value;
+      const normalized = normalizeManufacturerName(raw);
+      if (!normalized) {
+        record({ field: "fabricanteId", status: "skipped", reason: "valor normalizado vazio", newValue: raw });
+      } else {
+        if (!dryRun) {
+          const id = await getOrCreateFabricante(normalized, raw !== normalized ? raw : null);
+          updates.fabricanteId = id;
+        }
+        record({
+          field: "fabricanteId", status: "updated",
+          reason: `fonte ${resolved.fabricante!.source} (${resolved.fabricante!.tier})`,
+          newValue: normalized, source: resolved.fabricante!.source, confidence: resolved.fabricante!.confidence,
+        });
       }
-      fieldsUpdated.push("fabricanteId");
+    } else {
+      record({ field: "fabricanteId", status: ev.status, reason: ev.reason });
     }
   }
 
-  // DCI — campo autoritário, só REGULATORY/MANUFACTURER
-  if (canUpdate("dci", product.dci, resolved.dci, relevance.dci)) {
-    const normalized = normalizePrincipioAtivo(resolved.dci!.value);
-    if (normalized) {
-      updates.dci = normalized;
-      fieldsUpdated.push("dci");
+  // ── DCI — campo autoritário
+  {
+    const ev = evaluateField("dci", product.dci, resolved.dci, relevance.dci);
+    if (ev.status === "ok") {
+      const normalized = normalizePrincipioAtivo(resolved.dci!.value);
+      if (!normalized) {
+        record({ field: "dci", status: "skipped", reason: "valor normalizado vazio" });
+      } else {
+        updates.dci = normalized;
+        record({
+          field: "dci", status: "updated",
+          reason: `fonte ${resolved.dci!.source}`, newValue: normalized,
+          source: resolved.dci!.source, confidence: resolved.dci!.confidence,
+        });
+      }
+    } else {
+      record({ field: "dci", status: ev.status, reason: ev.reason });
     }
   }
 
-  // ATC — campo autoritário, só REGULATORY/MANUFACTURER
-  if (canUpdate("codigoATC", product.codigoATC, resolved.codigoATC, relevance.atc)) {
-    const normalized = normalizeATC(resolved.codigoATC!.value);
-    if (normalized) {
-      updates.codigoATC = normalized;
-      fieldsUpdated.push("codigoATC");
+  // ── ATC — campo autoritário
+  {
+    const ev = evaluateField("codigoATC", product.codigoATC, resolved.codigoATC, relevance.atc);
+    if (ev.status === "ok") {
+      const normalized = normalizeATC(resolved.codigoATC!.value);
+      if (!normalized) {
+        record({ field: "codigoATC", status: "skipped", reason: "valor normalizado vazio" });
+      } else {
+        updates.codigoATC = normalized;
+        record({
+          field: "codigoATC", status: "updated",
+          reason: `fonte ${resolved.codigoATC!.source}`, newValue: normalized,
+          source: resolved.codigoATC!.source, confidence: resolved.codigoATC!.confidence,
+        });
+      }
+    } else {
+      record({ field: "codigoATC", status: ev.status, reason: ev.reason });
     }
   }
 
-  // Forma farmacêutica / apresentação
-  if (canUpdate("formaFarmaceutica", product.formaFarmaceutica, resolved.formaFarmaceutica, relevance.formaFarmaceutica)) {
-    const normalized = normalizeFormaFarmaceutica(resolved.formaFarmaceutica!.value);
-    if (normalized) {
-      updates.formaFarmaceutica = normalized;
-      fieldsUpdated.push("formaFarmaceutica");
+  // ── Forma farmacêutica / apresentação
+  {
+    const ev = evaluateField("formaFarmaceutica", product.formaFarmaceutica, resolved.formaFarmaceutica, relevance.formaFarmaceutica);
+    if (ev.status === "ok") {
+      const normalized = normalizeFormaFarmaceutica(resolved.formaFarmaceutica!.value);
+      if (!normalized) {
+        record({ field: "formaFarmaceutica", status: "skipped", reason: "valor normalizado vazio" });
+      } else {
+        updates.formaFarmaceutica = normalized;
+        record({
+          field: "formaFarmaceutica", status: "updated",
+          reason: `fonte ${resolved.formaFarmaceutica!.source}`, newValue: normalized,
+          source: resolved.formaFarmaceutica!.source, confidence: resolved.formaFarmaceutica!.confidence,
+        });
+      }
+    } else {
+      record({ field: "formaFarmaceutica", status: ev.status, reason: ev.reason });
     }
   }
 
-  // Dosagem
-  if (canUpdate("dosagem", product.dosagem, resolved.dosagem, relevance.dosagem)) {
-    const normalized = normalizeDosagem(resolved.dosagem!.value);
-    if (normalized) {
-      updates.dosagem = normalized;
-      fieldsUpdated.push("dosagem");
+  // ── Dosagem
+  {
+    const ev = evaluateField("dosagem", product.dosagem, resolved.dosagem, relevance.dosagem);
+    if (ev.status === "ok") {
+      const normalized = normalizeDosagem(resolved.dosagem!.value);
+      if (!normalized) {
+        record({ field: "dosagem", status: "skipped", reason: "valor normalizado vazio" });
+      } else {
+        updates.dosagem = normalized;
+        record({
+          field: "dosagem", status: "updated",
+          reason: `fonte ${resolved.dosagem!.source}`, newValue: normalized,
+          source: resolved.dosagem!.source, confidence: resolved.dosagem!.confidence,
+        });
+      }
+    } else {
+      record({ field: "dosagem", status: ev.status, reason: ev.reason });
     }
   }
 
-  // Embalagem
-  if (canUpdate("embalagem", product.embalagem, resolved.embalagem, relevance.embalagem)) {
-    const normalized = normalizeEmbalagem(resolved.embalagem!.value);
-    if (normalized) {
-      updates.embalagem = normalized;
-      fieldsUpdated.push("embalagem");
+  // ── Embalagem
+  {
+    const ev = evaluateField("embalagem", product.embalagem, resolved.embalagem, relevance.embalagem);
+    if (ev.status === "ok") {
+      const normalized = normalizeEmbalagem(resolved.embalagem!.value);
+      if (!normalized) {
+        record({ field: "embalagem", status: "skipped", reason: "valor normalizado vazio" });
+      } else {
+        updates.embalagem = normalized;
+        record({
+          field: "embalagem", status: "updated",
+          reason: `fonte ${resolved.embalagem!.source}`, newValue: normalized,
+          source: resolved.embalagem!.source, confidence: resolved.embalagem!.confidence,
+        });
+      }
+    } else {
+      record({ field: "embalagem", status: ev.status, reason: ev.reason });
     }
   }
 
-  // Imagem URL — exige confiança alta (risco de imagem errada)
-  if (
-    canUpdate("imagemUrl", product.imagemUrl, resolved.imagemUrl, relevance.imagemUrl) &&
-    (resolved.imagemUrl?.confidence ?? 0) >= THRESHOLD_AUTO
-  ) {
-    const normalized = normalizeImageUrl(resolved.imagemUrl!.value);
-    if (normalized) {
-      updates.imagemUrl = normalized;
-      fieldsUpdated.push("imagemUrl");
+  // ── Imagem URL — exige confiança alta (risco de imagem errada)
+  {
+    const ev = evaluateField("imagemUrl", product.imagemUrl, resolved.imagemUrl, relevance.imagemUrl);
+    if (ev.status !== "ok") {
+      record({ field: "imagemUrl", status: ev.status, reason: ev.reason });
+    } else if ((resolved.imagemUrl?.confidence ?? 0) < THRESHOLD_AUTO) {
+      record({
+        field: "imagemUrl", status: "skipped",
+        reason: `imagemUrl exige conf ≥ ${(THRESHOLD_AUTO * 100).toFixed(0)}% (got ${((resolved.imagemUrl?.confidence ?? 0) * 100).toFixed(0)}%)`,
+      });
+    } else {
+      const normalized = normalizeImageUrl(resolved.imagemUrl!.value);
+      if (!normalized) {
+        record({ field: "imagemUrl", status: "skipped", reason: "URL inválida após normalização" });
+      } else {
+        updates.imagemUrl = normalized;
+        record({
+          field: "imagemUrl", status: "updated",
+          reason: `fonte ${resolved.imagemUrl!.source}`, newValue: normalized,
+          source: resolved.imagemUrl!.source, confidence: resolved.imagemUrl!.confidence,
+        });
+      }
     }
   }
 
@@ -308,12 +445,26 @@ export async function persistResolvedProduct(
   //   · Quando o mapper devolve um par (nivel1, nivel2) com confidence
   //     >= THRESHOLD_PARTIAL, gravamos os IDs canónicos e contamos em
   //     `fieldsUpdated` (promove o produto a enriquecido).
-  if (
-    !product.classificacaoNivel1Id &&
-    !product.validadoManualmente &&
-    relevance.categoria &&
-    !dryRun
-  ) {
+  let canonicalDecision: CanonicalDecision;
+  if (product.validadoManualmente) {
+    canonicalDecision = {
+      outcome: "manually_validated",
+      reason: "produto validadoManualmente=true — classificação não tocada",
+    };
+    record({ field: "classificacaoNivel1Id", status: "blocked", reason: canonicalDecision.reason });
+  } else if (product.classificacaoNivel1Id) {
+    canonicalDecision = {
+      outcome: "already_set",
+      reason: "produto já tinha classificacaoNivel1Id — não sobrescrever",
+    };
+    record({ field: "classificacaoNivel1Id", status: "unchanged", reason: canonicalDecision.reason });
+  } else if (!relevance.categoria) {
+    canonicalDecision = {
+      outcome: "irrelevant",
+      reason: `categoria irrelevante para ${resolved.productType}`,
+    };
+    record({ field: "classificacaoNivel1Id", status: "skipped", reason: canonicalDecision.reason });
+  } else {
     const canonical = mapToCanonical({
       productType: resolved.productType,
       productTypeConfidence: resolved.productTypeConfidence,
@@ -324,43 +475,106 @@ export async function persistResolvedProduct(
     });
 
     if (!canonical) {
-      // Diagnóstico: o mapper não achou (nivel1, nivel2) com confiança
-      // suficiente. Mais comum quando o productType ficou OUTRO ou a
-      // categoria externa não tem keyword conhecida. Não impede o resto
-      // do enriquecimento.
-      console.warn(
-        `[persistence] canonical=null para produto ${productId} ` +
-        `(type=${resolved.productType} conf=${(resolved.productTypeConfidence * 100).toFixed(0)}% ` +
-        `extCat=${JSON.stringify(resolved.categoria?.value ?? null)})`
-      );
+      const reason =
+        `mapper não inferiu canónica (productType=${resolved.productType} ` +
+        `conf=${(resolved.productTypeConfidence * 100).toFixed(0)}%, ` +
+        `extCat=${JSON.stringify(resolved.categoria?.value ?? null)})`;
+      console.warn(`[persistence] canonical=null para produto ${productId} — ${reason}`);
+      canonicalDecision = { outcome: "no_signal", reason };
+      record({ field: "classificacaoNivel1Id", status: "skipped", reason });
     } else if (canonical.confidence < THRESHOLD_PARTIAL) {
-      console.warn(
-        `[persistence] canonical abaixo do limiar para ${productId}: ` +
-        `${canonical.nivel1}/${canonical.nivel2} ` +
-        `conf=${canonical.confidence.toFixed(2)} < ${THRESHOLD_PARTIAL}`
-      );
+      const reason =
+        `${canonical.nivel1}/${canonical.nivel2} conf=${canonical.confidence.toFixed(2)} ` +
+        `< limiar ${THRESHOLD_PARTIAL}`;
+      console.warn(`[persistence] canonical abaixo do limiar — ${reason}`);
+      canonicalDecision = {
+        outcome: "below_threshold",
+        reason,
+        nivel1: canonical.nivel1,
+        nivel2: canonical.nivel2,
+        confidence: canonical.confidence,
+      };
+      record({ field: "classificacaoNivel1Id", status: "skipped", reason });
+    } else if (dryRun) {
+      // Em dry-run não fazemos lookup de IDs — registamos só o par canónico.
+      canonicalDecision = {
+        outcome: "written",
+        reason: `(dry-run) ${canonical.nivel1}/${canonical.nivel2} conf=${canonical.confidence.toFixed(2)}`,
+        nivel1: canonical.nivel1,
+        nivel2: canonical.nivel2,
+        confidence: canonical.confidence,
+      };
     } else {
       const res = await resolveClassificationIdsFromCategory(canonical.nivel1, canonical.nivel2);
       if (!res.nivel1Id) {
-        // Diagnóstico: o mapper deu um par válido mas a tabela
-        // Classificacao não tem essa linha (seed não foi corrido?
-        // estado=INATIVO?). Pode acontecer após cleanup-technical-categories.
-        console.warn(
-          `[persistence] Classificacao "${canonical.nivel1}" não encontrada ` +
-          `(nível 1, ATIVO) — corre 'npx tsx scripts/seed-taxonomy.ts'`
-        );
+        const reason =
+          `Classificacao "${canonical.nivel1}" não encontrada (nível 1, ATIVO) — ` +
+          `corre 'npx tsx scripts/seed-taxonomy.ts'`;
+        console.warn(`[persistence] ${reason}`);
+        canonicalDecision = {
+          outcome: "row_missing",
+          reason,
+          nivel1: canonical.nivel1,
+          nivel2: canonical.nivel2,
+          confidence: canonical.confidence,
+          nivel1Id: null,
+          nivel2Id: null,
+        };
+        record({ field: "classificacaoNivel1Id", status: "skipped", reason });
       } else {
         updates.classificacaoNivel1Id = res.nivel1Id;
-        fieldsUpdated.push("classificacaoNivel1Id");
-      }
-      if (res.nivel2Id && !product.classificacaoNivel2Id) {
-        updates.classificacaoNivel2Id = res.nivel2Id;
-        fieldsUpdated.push("classificacaoNivel2Id");
-      } else if (res.nivel1Id && !res.nivel2Id) {
-        console.warn(
-          `[persistence] Classificacao N2 "${canonical.nivel2}" não encontrada ` +
-          `como filho de "${canonical.nivel1}" — só nivel1 foi gravado`
-        );
+        record({
+          field: "classificacaoNivel1Id",
+          status: "updated",
+          reason: `mapper → ${canonical.nivel1} (conf ${canonical.confidence.toFixed(2)})`,
+          newValue: canonical.nivel1,
+          confidence: canonical.confidence,
+        });
+
+        if (res.nivel2Id && !product.classificacaoNivel2Id) {
+          updates.classificacaoNivel2Id = res.nivel2Id;
+          record({
+            field: "classificacaoNivel2Id",
+            status: "updated",
+            reason: `mapper → ${canonical.nivel2}`,
+            newValue: canonical.nivel2,
+          });
+          canonicalDecision = {
+            outcome: "written",
+            reason: `${canonical.nivel1} / ${canonical.nivel2}`,
+            nivel1: canonical.nivel1,
+            nivel2: canonical.nivel2,
+            confidence: canonical.confidence,
+            nivel1Id: res.nivel1Id,
+            nivel2Id: res.nivel2Id,
+          };
+        } else if (!res.nivel2Id) {
+          const reason =
+            `nivel2 "${canonical.nivel2}" não encontrado como filho de ` +
+            `"${canonical.nivel1}" — só nivel1 gravado`;
+          console.warn(`[persistence] ${reason}`);
+          canonicalDecision = {
+            outcome: "n1_only",
+            reason,
+            nivel1: canonical.nivel1,
+            nivel2: canonical.nivel2,
+            confidence: canonical.confidence,
+            nivel1Id: res.nivel1Id,
+            nivel2Id: null,
+          };
+          record({ field: "classificacaoNivel2Id", status: "skipped", reason });
+        } else {
+          // res.nivel2Id existe mas product.classificacaoNivel2Id já estava set
+          canonicalDecision = {
+            outcome: "written",
+            reason: `nivel1 ${canonical.nivel1} (nivel2 já estava set)`,
+            nivel1: canonical.nivel1,
+            nivel2: canonical.nivel2,
+            confidence: canonical.confidence,
+            nivel1Id: res.nivel1Id,
+            nivel2Id: res.nivel2Id,
+          };
+        }
       }
     }
   }
@@ -418,7 +632,13 @@ export async function persistResolvedProduct(
           : ""
       } | Estado: ${produtoEstado}`
     );
-    return { fieldsUpdated, produtoEstado, verificationStatus: effectiveVerificationStatus };
+    return {
+      fieldsUpdated,
+      produtoEstado,
+      verificationStatus: effectiveVerificationStatus,
+      fieldDecisions: decisions,
+      canonical: canonicalDecision,
+    };
   }
 
   // Gravar campos de catálogo + metadados de verificação numa única operação.
@@ -475,5 +695,7 @@ export async function persistResolvedProduct(
     fieldsUpdated,
     produtoEstado,
     verificationStatus: effectiveVerificationStatus,
+    fieldDecisions: decisions,
+    canonical: canonicalDecision,
   };
 }

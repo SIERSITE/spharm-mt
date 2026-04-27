@@ -170,11 +170,65 @@ async function main(): Promise<void> {
       `  productTypeConf     : ${(result.productTypeConfidence * 100).toFixed(0)}%`
     );
     console.log(`  verificationStatus  : ${result.verificationStatus}`);
-    console.log(`  fieldsUpdated       : ${
-      result.fieldsUpdated.length > 0 ? result.fieldsUpdated.join(", ") : "—"
-    }`);
     console.log(`  status              : ${result.status}`);
     console.log(`  enviado p/ revisão  : ${result.queued}`);
+
+    // Render detalhado por campo: agrupa por status para facilitar leitura.
+    if (result.fieldDecisions && result.fieldDecisions.length > 0) {
+      const groups: Record<string, typeof result.fieldDecisions> = {
+        updated: [],
+        unchanged: [],
+        skipped: [],
+        blocked: [],
+      };
+      for (const d of result.fieldDecisions) {
+        (groups[d.status] ??= []).push(d);
+      }
+      console.log("");
+      console.log("PERSISTÊNCIA POR CAMPO");
+      console.log(SEP);
+      const statusLabel: Record<string, string> = {
+        updated: "fieldsUpdated",
+        unchanged: "fieldsUnchanged",
+        skipped: "fieldsSkipped",
+        blocked: "fieldsBlocked",
+      };
+      for (const status of ["updated", "unchanged", "skipped", "blocked"] as const) {
+        const items = groups[status];
+        if (!items || items.length === 0) continue;
+        console.log(`  ${statusLabel[status]} (${items.length}):`);
+        for (const d of items) {
+          const valueNote =
+            d.newValue != null
+              ? ` = ${JSON.stringify(d.newValue).slice(0, 80)}`
+              : d.oldValue != null
+              ? ` (${JSON.stringify(d.oldValue).slice(0, 60)})`
+              : "";
+          const sourceNote = d.source ? ` [${d.source}]` : "";
+          const confNote =
+            d.confidence != null ? ` conf=${(d.confidence * 100).toFixed(0)}%` : "";
+          console.log(
+            `    · ${d.field}${valueNote}${sourceNote}${confNote}`
+          );
+          console.log(`      reason: ${d.reason}`);
+        }
+      }
+    }
+
+    if (result.canonical) {
+      console.log("");
+      console.log("MAPEAMENTO CANÓNICO (Classificacao N1/N2)");
+      console.log(SEP);
+      console.log(`  outcome     : ${result.canonical.outcome}`);
+      if (result.canonical.nivel1) console.log(`  nivel1      : ${result.canonical.nivel1}`);
+      if (result.canonical.nivel2) console.log(`  nivel2      : ${result.canonical.nivel2}`);
+      if (result.canonical.confidence != null)
+        console.log(
+          `  confidence  : ${(result.canonical.confidence * 100).toFixed(0)}%`
+        );
+      console.log(`  reason      : ${result.canonical.reason}`);
+    }
+
     console.log(SEP);
     await prisma.$disconnect();
     return;
