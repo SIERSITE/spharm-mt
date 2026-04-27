@@ -14,10 +14,21 @@ import {
   PackageX,
   Mail,
   Users,
+  Plug,
+  ShieldCheck,
+  ListOrdered,
+  FilePlus,
 } from "lucide-react";
 
 type AppShellProps = {
   children: React.ReactNode;
+  /**
+   * Quando true, o sidebar mostra o link para /admin (Plataforma).
+   * Verificado server-side via `lib/admin/auth.isPlatformAdmin()` no
+   * wrapper `<MainShell>`. Default false — uma página que use directamente
+   * <AppShell> não expõe o link mesmo que o user seja platform admin.
+   */
+  isPlatformAdmin?: boolean;
 };
 
 const navigation = [
@@ -34,6 +45,8 @@ const navigation = [
     section: "DECISÃO",
     items: [
       { label: "Encomendas", href: "/encomendas", icon: ClipboardList },
+      { label: "Lista encomendas", href: "/encomendas/lista", icon: ListOrdered },
+      { label: "Nova encomenda", href: "/encomendas/nova", icon: FilePlus },
       { label: "Transferências", href: "/transferencias", icon: ArrowLeftRight },
       { label: "Excessos", href: "/excessos", icon: PackageX },
     ],
@@ -47,12 +60,19 @@ const navigation = [
     items: [
       { label: "Utilizadores", href: "/configuracoes/utilizadores", icon: Users },
       { label: "Email", href: "/configuracoes/email", icon: Mail },
+      { label: "Integração", href: "/configuracoes/integracao", icon: Plug },
     ],
   },
 ];
 
-export function AppShell({ children }: AppShellProps) {
+const platformGroup = {
+  section: "PLATAFORMA",
+  items: [{ label: "Admin", href: "/admin", icon: ShieldCheck }],
+};
+
+export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const pathname = usePathname();
+  const groups = isPlatformAdmin ? [...navigation, platformGroup] : navigation;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#eef4f6] text-[#18323a]">
@@ -76,7 +96,7 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className="flex-1 px-4 py-6">
             <nav className="space-y-8">
-              {navigation.map((group) => (
+              {groups.map((group) => (
                 <div key={group.section}>
                   <div className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f99a1]">
                     {group.section}

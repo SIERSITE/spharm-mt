@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/layout/app-shell";
+import { MainShell } from "@/components/layout/main-shell";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { getDashboardData } from "@/lib/dashboard";
 
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
   const { summary, pharmacies } = await getDashboardData();
 
   return (
-    <AppShell>
+    <MainShell>
       <div className="space-y-5">
         {/* HEADER */}
         <section>
@@ -234,6 +234,6 @@ export default async function DashboardPage() {
         {/* RESTO */}
         <DashboardHero />
       </div>
-    </AppShell>
+    </MainShell>
   );
 }

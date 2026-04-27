@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/layout/app-shell";
+import { MainShell } from "@/components/layout/main-shell";
 import { requirePermission } from "@/lib/permissions";
 import { listUtilizadores } from "@/lib/utilizadores-data";
 import { getFarmaciasInfo } from "@/lib/farmacias-info";
@@ -13,7 +13,7 @@ export default async function UtilizadoresPage() {
     getFarmaciasInfo(),
   ]);
   return (
-    <AppShell>
+    <MainShell>
       <div className="mx-auto max-w-6xl px-6 py-8">
         <h1 className="text-2xl font-semibold text-gray-900">Utilizadores</h1>
         <p className="mt-1 text-sm text-gray-600">
@@ -26,6 +26,6 @@ export default async function UtilizadoresPage() {
           />
         </div>
       </div>
-    </AppShell>
+    </MainShell>
   );
 }

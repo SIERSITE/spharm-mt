@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AppShell } from "@/components/layout/app-shell";
+import { MainShell } from "@/components/layout/main-shell";
 
 type ArticlePageProps = {
   params: Promise<{
@@ -194,7 +194,7 @@ export default async function CatalogArticlePage({
     };
 
   return (
-    <AppShell>
+    <MainShell>
       <div className="space-y-4">
         <section className="space-y-2">
           <Link
@@ -301,7 +301,7 @@ export default async function CatalogArticlePage({
           </section>
         </section>
       </div>
-    </AppShell>
+    </MainShell>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
@@ -128,6 +129,7 @@ type Props = {
 };
 
 export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
+  const router = useRouter();
   // Lazy: nada de Encomendas é carregado até clicar em "Gerar".
   const [rows, setRows] = useState<BaseRow[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -439,7 +441,57 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   })
                 }
               />
-              <ActionButton icon={<ShoppingCart className="h-3.5 w-3.5" />} label="Gerar" primary />
+              {(() => {
+                const farmaciaUnica =
+                  farmaciasSelecionadas.length === 1 ? farmaciasSelecionadas[0]! : null;
+                const linhasParaEncomenda = farmaciaUnica
+                  ? groupRows
+                      .map((g) => {
+                        const qty = encomendarGrupoValue(g);
+                        return qty > 0
+                          ? { cnp: Number(g.cnp), quantidade: qty }
+                          : null;
+                      })
+                      .filter((x): x is { cnp: number; quantidade: number } =>
+                        x !== null && Number.isFinite(x.cnp)
+                      )
+                  : [];
+                const podeCriar =
+                  hasGenerated && farmaciaUnica !== null && linhasParaEncomenda.length > 0;
+                const motivoBloqueio = !hasGenerated
+                  ? "Gere o relatório primeiro."
+                  : !farmaciaUnica
+                    ? "Filtre para uma única farmácia para criar uma encomenda."
+                    : linhasParaEncomenda.length === 0
+                      ? "Sem linhas com quantidade a encomendar."
+                      : "";
+                return (
+                  <button
+                    type="button"
+                    disabled={!podeCriar}
+                    title={podeCriar ? "Criar encomenda com as linhas seleccionadas" : motivoBloqueio}
+                    onClick={() => {
+                      if (!podeCriar || !farmaciaUnica) return;
+                      try {
+                        window.sessionStorage.setItem(
+                          "encomenda-prefill",
+                          JSON.stringify({
+                            farmaciaNome: farmaciaUnica,
+                            lines: linhasParaEncomenda,
+                          })
+                        );
+                      } catch {
+                        /* sessionStorage indisponível — segue na mesma; o prefill não vai aparecer */
+                      }
+                      router.push("/encomendas/nova?prefill=1");
+                    }}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-500 bg-cyan-600 px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    Criar encomenda
+                  </button>
+                );
+              })()}
             </div>
           </div>
 

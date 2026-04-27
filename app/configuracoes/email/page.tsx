@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { readEmailConfig } from "@/lib/email-config";
 import { EmailConfigForm } from "@/components/settings/email-config-form";
-import { AppShell } from "@/components/layout/app-shell";
+import { MainShell } from "@/components/layout/main-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export default async function EmailConfigPage({
   const initial = await readEmailConfig(farmaciaId);
 
   return (
-    <AppShell>
+    <MainShell>
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="text-2xl font-semibold text-gray-900">Configuração de Email</h1>
       <p className="mt-1 text-sm text-gray-600">
@@ -60,6 +60,6 @@ export default async function EmailConfigPage({
         <EmailConfigForm scope={useGlobal ? "global" : "farmacia"} initial={initial} />
       </div>
     </div>
-    </AppShell>
+    </MainShell>
   );
 }

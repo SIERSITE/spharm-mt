@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AppShell } from "@/components/layout/app-shell";
+import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
@@ -178,7 +178,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
   return (
-    <AppShell>
+    <MainShell>
       <div className="space-y-5">
         <section className="flex items-center justify-between gap-4">
           <div>
@@ -373,6 +373,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           módulos correspondentes — não voltar a hardcoded.
         */}
       </div>
-    </AppShell>
+    </MainShell>
   );
 }
