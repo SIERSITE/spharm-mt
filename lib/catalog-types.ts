@@ -276,6 +276,14 @@ export type PersistenceInput = {
 export type PersistenceResult = {
   fieldsUpdated: string[];
   produtoEstado: string;
+  /**
+   * verificationStatus efectivamente gravado, possivelmente diferente do
+   * `resolved.verificationStatus` original. A persistência pode rebaixar
+   * VERIFIED → PARTIALLY_VERIFIED quando nenhum campo de catálogo (≠
+   * productType / metadados) chegou a ser persistido — VERIFIED sem
+   * fields persistidos seria enganador.
+   */
+  verificationStatus: VerificationStatus;
 };
 
 // ─── Orquestração ─────────────────────────────────────────────────────────────

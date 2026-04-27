@@ -466,8 +466,13 @@ export async function enrichProduct(
 
   // 6. Revisão manual se necessário.
   // Política Abril 2026: queue só se needsManualReview=true (gated pelo
-  // resolver: conflito OU typeConf < 0.50). Produtos com `validadoManualmente=true`
-  // NUNCA são enfileirados — o admin já decidiu, respeitar.
+  // resolver: conflito OU typeConf < 0.50 OU productType=OUTRO). Produtos
+  // com `validadoManualmente=true` NUNCA são enfileirados — o admin já
+  // decidiu, respeitar. Nota: usamos `resolved.needsManualReview` aqui
+  // porque a persistência não altera a semântica de revisão; só o nível de
+  // verificationStatus pode descer (VERIFIED → PARTIALLY_VERIFIED) quando
+  // não houve campos de catálogo persistidos, mas isso não significa que
+  // precise de revisão manual.
   let queued = false;
   if (!dryRun && resolved.needsManualReview && !product.validadoManualmente) {
     await queueForManualReview(
@@ -482,6 +487,9 @@ export async function enrichProduct(
   // confidence FINAL (após o resolver, não o do classifier). Se o
   // resolver fez upgrade via evidência externa (OUTRO → DERMOCOSMETICA
   // por breadcrumb/nome do produto), é o valor refinado que conta.
+  // Reporta também `verificationStatus` *efectivo* — o que a
+  // persistência acabou por gravar (pode diferir do que o resolver
+  // sugeriu se nenhum campo de catálogo chegou a ser escrito).
   if (!dryRun) {
     const typeConfPct = (resolved.productTypeConfidence * 100).toFixed(0);
     const upgraded = resolved.productType !== classification.productType;
@@ -491,10 +499,14 @@ export async function enrichProduct(
     const fieldsStr = persisted.fieldsUpdated.length > 0
       ? persisted.fieldsUpdated.join(",")
       : "—";
+    const statusNote =
+      persisted.verificationStatus !== resolved.verificationStatus
+        ? `${persisted.verificationStatus} (downgrade de ${resolved.verificationStatus})`
+        : persisted.verificationStatus;
     console.log(
       `[enrich] cnp=${product.cnp ?? "?"} ` +
       `type=${resolved.productType} typeConf=${typeConfPct}%${upgradeNote} ` +
-      `status=${resolved.verificationStatus} ` +
+      `status=${statusNote} ` +
       `needsReview=${resolved.needsManualReview} ` +
       `queued=${queued}` +
       `${product.validadoManualmente ? " (validadoManualmente)" : ""} ` +
@@ -502,11 +514,21 @@ export async function enrichProduct(
     );
   }
 
-  // 7. Actualizar fila de enriquecimento
+  // 7. Actualizar fila de enriquecimento.
+  //
+  // Ordem de mapeamento (só executa se não-dry-run):
+  //   verificationStatus VERIFIED              → SUCESSO
+  //   verificationStatus PARTIALLY_VERIFIED    → SUCESSO_PARCIAL
+  //   verificationStatus NEEDS_REVIEW          → FALHOU (precisa intervenção)
+  //   sem campos persistidos E sem upgrade     → FALHOU
+  //   por defeito (PENDING/IN_PROGRESS/FAILED) → SUCESSO_PARCIAL
   if (!dryRun) {
+    const v = persisted.verificationStatus;
     const estadoFila: EnriquecimentoEstadoValue =
-      persisted.fieldsUpdated.length === 0 ? "FALHOU"
-      : resolved.verificationStatus === "VERIFIED" ? "SUCESSO"
+      v === "VERIFIED" ? "SUCESSO"
+      : v === "PARTIALLY_VERIFIED" ? "SUCESSO_PARCIAL"
+      : v === "NEEDS_REVIEW" ? "FALHOU"
+      : persisted.fieldsUpdated.length === 0 ? "FALHOU"
       : "SUCESSO_PARCIAL";
 
     const primarySource = resolved.sourceSummary.primarySource;
@@ -515,10 +537,16 @@ export async function enrichProduct(
     });
   }
 
+  // Mapeamento final do EnrichmentResult.status — agora derivado do
+  // verificationStatus efectivo, NÃO de fieldsUpdated.length. Razão:
+  // produtos cujo único "field" útil foi a inferência de productType
+  // (e cuja persistência é o próprio update do produtType) ficavam
+  // marcados como `failed` mesmo com classificação correcta — confuso.
   const status: EnrichmentResult["status"] =
-    persisted.fieldsUpdated.length === 0 ? "failed"
-    : resolved.verificationStatus === "VERIFIED" ? "success"
-    : "partial";
+    persisted.verificationStatus === "VERIFIED" ? "success"
+    : persisted.verificationStatus === "PARTIALLY_VERIFIED" ? "partial"
+    : persisted.fieldsUpdated.length > 0 ? "partial"
+    : "failed";
 
   return {
     productId,
@@ -530,7 +558,8 @@ export async function enrichProduct(
     // foi persistido — e é DERMOCOSMETICA 0.65 que reportamos.
     productType: resolved.productType,
     productTypeConfidence: resolved.productTypeConfidence,
-    verificationStatus: resolved.verificationStatus,
+    // verificationStatus reportado é o efectivo (pós-persistência).
+    verificationStatus: persisted.verificationStatus,
     fieldsUpdated: persisted.fieldsUpdated,
     queued,
     dryRun,

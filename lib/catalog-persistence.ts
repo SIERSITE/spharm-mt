@@ -39,6 +39,7 @@ import type {
   PersistenceResult,
   ResolvedField,
   SourceTier,
+  VerificationStatus,
 } from "./catalog-types";
 import { getFieldRelevance } from "./catalog-classifier";
 import {
@@ -209,16 +210,18 @@ export async function persistResolvedProduct(
   const updates: Record<string, unknown> = {};
   const fieldsUpdated: string[] = [];
 
-  // productType: contar como campo actualizado quando o resolver mudou
-  // o tipo (ex.: classifier deu OUTRO, retail/breadcrumb fez upgrade para
-  // DERMOCOSMETICA). A escrita em si acontece sempre no UPDATE final;
-  // adicionar a `fieldsUpdated` é só para rastreabilidade — torna visível
-  // na UI / nos logs que o tipo foi inferido externamente.
-  if (
+  // productType: contar como campo actualizado sempre que o resolver
+  // produziu um tipo concreto (≠ OUTRO) que difere do que está em BD,
+  // OU quando a confiança subiu materialmente (>= 5 pontos absolutos).
+  // O write em si acontece sempre no UPDATE final; adicionar a
+  // `fieldsUpdated` é a única forma de o orquestrador "saber" que houve
+  // uma decisão útil — caso contrário, um produto OUTRO upgraded para
+  // DERMOCOSMETICA nesta corrida apareceria como `failed` no relatório.
+  const typeChanged =
+    resolved.productType !== "OUTRO" &&
     !product.validadoManualmente &&
-    product.productType !== resolved.productType &&
-    resolved.productType !== "OUTRO"
-  ) {
+    product.productType !== resolved.productType;
+  if (typeChanged) {
     fieldsUpdated.push("productType");
   }
 
@@ -320,21 +323,61 @@ export async function persistResolvedProduct(
       atc: resolved.codigoATC?.value ?? product.codigoATC ?? null,
     });
 
-    if (canonical && canonical.confidence >= THRESHOLD_PARTIAL) {
+    if (!canonical) {
+      // Diagnóstico: o mapper não achou (nivel1, nivel2) com confiança
+      // suficiente. Mais comum quando o productType ficou OUTRO ou a
+      // categoria externa não tem keyword conhecida. Não impede o resto
+      // do enriquecimento.
+      console.warn(
+        `[persistence] canonical=null para produto ${productId} ` +
+        `(type=${resolved.productType} conf=${(resolved.productTypeConfidence * 100).toFixed(0)}% ` +
+        `extCat=${JSON.stringify(resolved.categoria?.value ?? null)})`
+      );
+    } else if (canonical.confidence < THRESHOLD_PARTIAL) {
+      console.warn(
+        `[persistence] canonical abaixo do limiar para ${productId}: ` +
+        `${canonical.nivel1}/${canonical.nivel2} ` +
+        `conf=${canonical.confidence.toFixed(2)} < ${THRESHOLD_PARTIAL}`
+      );
+    } else {
       const res = await resolveClassificationIdsFromCategory(canonical.nivel1, canonical.nivel2);
-      if (res.nivel1Id) {
+      if (!res.nivel1Id) {
+        // Diagnóstico: o mapper deu um par válido mas a tabela
+        // Classificacao não tem essa linha (seed não foi corrido?
+        // estado=INATIVO?). Pode acontecer após cleanup-technical-categories.
+        console.warn(
+          `[persistence] Classificacao "${canonical.nivel1}" não encontrada ` +
+          `(nível 1, ATIVO) — corre 'npx tsx scripts/seed-taxonomy.ts'`
+        );
+      } else {
         updates.classificacaoNivel1Id = res.nivel1Id;
         fieldsUpdated.push("classificacaoNivel1Id");
       }
       if (res.nivel2Id && !product.classificacaoNivel2Id) {
         updates.classificacaoNivel2Id = res.nivel2Id;
         fieldsUpdated.push("classificacaoNivel2Id");
+      } else if (res.nivel1Id && !res.nivel2Id) {
+        console.warn(
+          `[persistence] Classificacao N2 "${canonical.nivel2}" não encontrada ` +
+          `como filho de "${canonical.nivel1}" — só nivel1 foi gravado`
+        );
       }
     }
   }
 
-  // Estado resultante do produto
-  const maxConf = fieldsUpdated.length > 0
+  // Estado resultante do produto.
+  //
+  // "Catálogo" = campos do catálogo do produto (fabricante, DCI, ATC,
+  //              forma, dosagem, embalagem, imagem, classificações N1/N2).
+  // "Type-only" = só o productType foi escrito; nada do catálogo chegou.
+  //
+  // Um produto que só tenha productType actualizado mantém verificationStatus
+  // PARTIALLY_VERIFIED no máximo — VERIFIED implica que houve confirmação
+  // externa material que se traduziu em pelo menos um campo persistido.
+  const catalogFields = fieldsUpdated.filter((f) => f !== "productType");
+  const hasCatalogField = catalogFields.length > 0;
+
+  const maxConf = hasCatalogField
     ? Math.max(...[
         resolved.fabricante?.confidence,
         resolved.dci?.confidence,
@@ -347,19 +390,35 @@ export async function persistResolvedProduct(
       ].filter((c): c is number => c !== undefined && c !== null))
     : 0;
 
-  const produtoEstado = fieldsUpdated.length === 0
+  const produtoEstado = !hasCatalogField && fieldsUpdated.length === 0
     ? "PENDENTE"
+    : !hasCatalogField
+    ? "PARCIALMENTE_ENRIQUECIDO" // só productType inferido, sem campos de catálogo
     : maxConf >= THRESHOLD_AUTO
     ? "ENRIQUECIDO_AUTOMATICAMENTE"
     : "PARCIALMENTE_ENRIQUECIDO";
+
+  // verificationStatus efectivo: a única downgrade é VERIFIED → PARTIALLY_VERIFIED
+  // quando NÃO se persistiu nenhum campo de catálogo. Tipos NEEDS_REVIEW e
+  // PENDING/IN_PROGRESS/FAILED ficam intactos. PARTIALLY_VERIFIED idem.
+  const effectiveVerificationStatus: VerificationStatus =
+    resolved.verificationStatus === "VERIFIED" && !hasCatalogField
+      ? "PARTIALLY_VERIFIED"
+      : resolved.verificationStatus;
 
   if (dryRun) {
     console.log(
       `  [dry-run] ${productId} [${resolved.productType} ${(resolved.productTypeConfidence * 100).toFixed(0)}%]:`
     );
     console.log(`    Campos: ${fieldsUpdated.join(", ") || "nenhum"}`);
-    console.log(`    Verificação: ${resolved.verificationStatus} | Estado: ${produtoEstado}`);
-    return { fieldsUpdated, produtoEstado };
+    console.log(
+      `    Verificação: ${effectiveVerificationStatus}${
+        effectiveVerificationStatus !== resolved.verificationStatus
+          ? ` (downgrade de ${resolved.verificationStatus})`
+          : ""
+      } | Estado: ${produtoEstado}`
+    );
+    return { fieldsUpdated, produtoEstado, verificationStatus: effectiveVerificationStatus };
   }
 
   // Gravar campos de catálogo + metadados de verificação numa única operação.
@@ -384,7 +443,7 @@ export async function persistResolvedProduct(
       productType: resolved.productType,
       productTypeConfidence: resolved.productTypeConfidence,
       classificationVersion: resolved.classificationVersion,
-      verificationStatus: resolved.verificationStatus as Parameters<
+      verificationStatus: effectiveVerificationStatus as Parameters<
         typeof prisma.produto.update
       >[0]["data"]["verificationStatus"],
       lastVerifiedAt: resolved.lastVerifiedAt,
@@ -403,7 +462,7 @@ export async function persistResolvedProduct(
         produtoId: productId,
         productType: resolved.productType,
         productTypeConf: resolved.productTypeConfidence,
-        verificationStatus: resolved.verificationStatus,
+        verificationStatus: effectiveVerificationStatus,
         sourceSummary: resolved.sourceSummary as object,
         fieldsUpdated,
       },
@@ -412,5 +471,9 @@ export async function persistResolvedProduct(
     // Histórico é auxiliar — não interromper o fluxo principal
   }
 
-  return { fieldsUpdated, produtoEstado };
+  return {
+    fieldsUpdated,
+    produtoEstado,
+    verificationStatus: effectiveVerificationStatus,
+  };
 }
