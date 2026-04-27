@@ -87,7 +87,7 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /\b(ibuprofeno|paracetamol|aspirina|diclofenac|naproxeno|nimesulida|ketoprofeno|\bdor\b|analges|anti-?inflamat)/i, nivel2: "Analgésicos e Anti-inflamatórios" },
     { pattern: /\b(constipa|tosse|gripe|expectorante|xarope|mucolit|descongestion)/i, nivel2: "Constipação, Tosse e Gripe" },
     { pattern: /\b(alergia|anti-?histam|loratadina|cetiriz|desloratadina|bilastina|fexofenadina)/i, nivel2: "Alergias" },
-    { pattern: /\b(digest|est[oô]mago|azia|laxante|obstipa|diarre|naus|omeprazol|pantoprazol|esomeprazol|ranitid|domperid|metoclop|loperam)/i, nivel2: "Sistema Digestivo" },
+    { pattern: /\b(digest|est[oô]mago|azia|laxant|laxoberal|agiolax|psyllium|plantago|sennosid|sen[oa]si|obstipa|diarre|naus|omeprazol|pantoprazol|esomeprazol|ranitid|domperid|metoclop|loperam)/i, nivel2: "Sistema Digestivo" },
     { pattern: /\b(ansied|sedat|antidepress|diazepam|alprazolam|lorazepam|sertralina|fluoxetina|escitalopram|zolpidem|amitriptil)/i, nivel2: "Sistema Nervoso" },
     { pattern: /\b(hipertens|colesterol|cardiaco|enalapril|losartan|amlodipina|atorvastatina|sinvastatina|valsartan|bisoprolol|carvedilol|ramipril|perindopril|nebivolol|furosemid)/i, nivel2: "Cardiovascular" },
     { pattern: /\b(diabet|metformina|insulina|glicemia|gliclazida|sitagliptina|empagliflozina|dapagliflozina)/i, nivel2: "Diabetes" },
@@ -104,7 +104,7 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     // tem prioridade sobre o pattern de Vitaminas (que apanharia "Vitacell"
     // via /vit ?[abcde]/). Hepa/fígado idem antes de "Vitaminas".
     { pattern: /\b(estimulantes?\s+e?\s+energizantes?|energ[ií]z|energ[ií]tic|\benerg|vitali|fadiga|cansa[cç]o|ginseng|cafe[ií]na|guaran[aá]|maca)/i, nivel2: "Energia e Vitalidade" },
-    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid|h?epat(?:o|ic)|f[ií]gado|digest|sa[uú]de\s+e\s+bem.?estar)/i, nivel2: "Digestão e Probióticos" },
+    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid|h?epat(?:o|ic)|f[ií]gado|digest|easylax|laxat[a-z]*|tr[aâ]nsit\w*\s+intest|sa[uú]de\s+e\s+bem.?estar)/i, nivel2: "Digestão e Probióticos" },
     { pattern: /\b(imun|defesa|resist[eê]ncia|equin[aá]cea|pr[oó]polis)/i, nivel2: "Imunidade" },
     { pattern: /\b(vitamin|multivit|vit ?[abcde]|\bb\d{1,2}\b|complexo b|magn[eé]sio|c[aá]lcio|zinco|ferro|mineral|pot[aá]ssio|i[oó]do|sel[eé]nio)/i, nivel2: "Vitaminas e Minerais" },
     { pattern: /\b(mem[oó]ria|concentra|cogni|ginkgo|bacopa)/i, nivel2: "Memória e Concentração" },
@@ -224,7 +224,13 @@ const EXTERNAL_CATEGORY_HINTS: Array<{ pattern: RegExp; nivel1: string }> = [
   // ── Específicos antes de gerais
   { pattern: /sa[uú]de\s+oral|oral ?care|dental|toothpaste|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, nivel1: "HIGIENE ORAL" },
   { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  // Circulação / pernas cansadas / hemorroidas → suplementos venotónicos
+  { pattern: /circula(?:c|ç)[aã]o|pernas\s+cansadas|venoton[ií]c|hemorr[oó]id|h?emo\s+duo/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
   { pattern: /sa[uú]de\s+e\s+bem.?estar|bem.?estar\s+(?:geral|f[ií]sico)|h?epat(?:o|ic)|fígado|figado|articula(?:c|ç)[oõ]es|imunidade|defesas?/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  // Breadcrumb "Medicamentos" — explícito numa árvore tipo "INDICE.eu >
+  // Medicamentos > <produto>". Captura tanto MNSRM/MSRM cuja flag não
+  // chegou ao classifier quanto entradas indexadas ainda sem ATC.
+  { pattern: /(?:^|>|\/)\s*medicamentos?\s*(?:>|\/|$)/i, nivel1: "MEDICAMENTOS" },
   { pattern: /m[aã]m[aã]|crian[cç]a|infantil|puericultura/i, nivel1: "PUERICULTURA E BEBÉ" },
   { pattern: /hidratantes?\s+corpor|cuidados?\s+(?:de\s+)?corpo|dermocosm[eé]tica|dermis|corpo\s+e\s+rosto/i, nivel1: "DERMOCOSMÉTICA" },
   { pattern: /protec(?:c|ç)[aã]o\s+solar|sunscreen|sun ?care|solar(?:\b|es)|fotoprotec/i, nivel1: "PROTEÇÃO SOLAR" },

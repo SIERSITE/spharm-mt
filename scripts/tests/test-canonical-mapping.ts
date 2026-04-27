@@ -155,6 +155,51 @@ const CASES: Case[] = [
       nivel2Matches: /Energia\s+e\s+Vitalidade|Outros/i,
     },
   },
+  {
+    label: "6. MEDICAMENTO + 'INDICE.eu > Medicamentos > AGIOLAX'",
+    productType: "MEDICAMENTO",
+    productTypeConfidence: 0.95,
+    rawCategory: "INDICE.eu > Medicamentos > AGIOLAX",
+    rawProductName: "AGIOLAX",
+    designacao: "AGIOLAX GRANULADO",
+    expect: {
+      mapperNonNull: true,
+      nivel1Matches: /^MEDICAMENTOS$/,
+      // Sistema Digestivo via /agiolax|laxant/, ou Outros Medicamentos por
+      // fallback (ambos aceites — user explícito).
+      nivel2Matches: /Sistema\s+Digestivo|Outros\s+Medicamentos/i,
+    },
+  },
+  {
+    label: "7. OUTRO + 'Saúde > Advancis Easylax Forte Comprimidos'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Saúde > Advancis Easylax Forte Comprimidos",
+    rawProductName: "Advancis Easylax Forte Comprimidos",
+    designacao: "ADVANCIS EASYLAX FORTE COMP",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      nivel2Matches: /Digest[aãAÃ]o\s+e\s+Probi[oó]ticos|Outros/i,
+    },
+  },
+  {
+    label: "8. OUTRO + 'Circulação e Pernas Cansadas > Advancis Hemo Duo'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Circulação e Pernas Cansadas > Advancis Hemo Duo",
+    rawProductName: "Advancis Hemo Duo",
+    designacao: "ADVANCIS HEMO DUO",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      // Sem nivel2 "Circulação" na taxonomia — aceita Outros Suplementos
+      // (others_fallback) ou Energia e Vitalidade.
+      nivel2Matches: /Outros|Energia\s+e\s+Vitalidade/i,
+    },
+  },
 ];
 
 function runCase(c: Case): void {
@@ -224,7 +269,7 @@ function runCase(c: Case): void {
 
 async function main(): Promise<void> {
   console.log("─".repeat(70));
-  console.log("Regressão canonical mapping — 5 cenários");
+  console.log(`Regressão canonical mapping — ${CASES.length} cenários`);
   console.log("─".repeat(70));
 
   for (const c of CASES) runCase(c);

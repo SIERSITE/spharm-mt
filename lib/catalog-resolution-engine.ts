@@ -89,11 +89,15 @@ import { getFieldRelevance } from "./catalog-classifier";
  */
 const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = [
   // Específicos primeiro: saúde oral, estimulantes, suplementos via
-  // "saúde e bem-estar" / hepa / fígado. Estes têm de vencer "dermis"
-  // (que aparece em algumas árvores de farmácia mas não significa
+  // "saúde e bem-estar" / hepa / fígado / circulação. Estes têm de vencer
+  // "dermis" (que aparece em algumas árvores de farmácia mas não significa
   // dermocosmética por si só).
   { pattern: /sa[uú]de\s+oral|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, type: "HIGIENE_CUIDADO" },
   { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, type: "SUPLEMENTO" },
+  // Circulação / pernas cansadas / hemorroidas (suplementos venotónicos)
+  { pattern: /circula(?:c|ç)[aã]o|pernas\s+cansadas|venoton[ií]c|hemorr[oó]id|h?emo\s+duo/i, type: "SUPLEMENTO" },
+  // Laxantes não-medicamento (Easylax, Movicol-suplementar, etc.)
+  { pattern: /easylax|laxat[ivo]+(?!\s*med)|tr[aâ]nsit[oa]\s+intest|obstipa[cç][aã]o\s+suplement/i, type: "SUPLEMENTO" },
   { pattern: /sa[uú]de\s+e\s+bem.?estar|h?epat(?:o|ic)|f[ií]gado|articula(?:c|ç)[oõ]es|defesas?|imunidade|suplement|multivit|prob[ií]o|prebi[oó]|colag[eé]nio/i, type: "SUPLEMENTO" },
   // Dermocosmética DEPOIS dos suplemento-hints — "dermis" aparece em
   // breadcrumbs de farmácia que misturam saúde corporal e suplementos.
