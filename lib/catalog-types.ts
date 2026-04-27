@@ -162,6 +162,12 @@ export type ExternalLookupRequest = {
   hints: ExternalVerificationHints;
   /** Tracer opcional para modo verbose. */
   trace?: EnrichmentTracer;
+  /**
+   * URL fixa para o conector retail saltar a pesquisa e avaliar directamente.
+   * Usado por `daily-enrich.ts --cnp=<n> --url=<u>` para diagnosticar /
+   * regredir uma página específica sem depender de DDG/site search.
+   */
+  url?: string | null;
 };
 
 /**

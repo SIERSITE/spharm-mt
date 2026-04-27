@@ -38,6 +38,7 @@ type Args = {
   hours: number;
   dryRun: boolean;
   cnp: number | null;
+  url: string | null;
   verbose: boolean;
 };
 
@@ -47,6 +48,7 @@ function parseArgs(): Args {
   let hours = 24;
   let dryRun = false;
   let cnp: number | null = null;
+  let url: string | null = null;
   let verbose = false;
 
   for (const arg of args) {
@@ -60,6 +62,10 @@ function parseArgs(): Args {
       const n = parseInt(arg.split("=")[1], 10);
       if (!isNaN(n) && n > 0) cnp = n;
       else console.warn(`[aviso] CNP inválido: ${arg}`);
+    } else if (arg.startsWith("--url=")) {
+      const u = arg.slice("--url=".length);
+      if (/^https?:\/\//i.test(u)) url = u;
+      else console.warn(`[aviso] URL inválida (precisa http/https): ${arg}`);
     } else if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "--verbose" || arg === "-v") {
@@ -69,7 +75,7 @@ function parseArgs(): Args {
     }
   }
 
-  return { limit, hours, dryRun, cnp, verbose };
+  return { limit, hours, dryRun, cnp, url, verbose };
 }
 
 // ─── Tracer verboso (stdout) ─────────────────────────────────────────────────
@@ -131,7 +137,7 @@ function printSummary(summary: EnrichmentSummary, dryRun: boolean): void {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { limit, hours, dryRun, cnp, verbose } = parseArgs();
+  const { limit, hours, dryRun, cnp, url, verbose } = parseArgs();
 
   console.log(SEP);
   console.log("SPharm.MT — Enriquecimento de catálogo");
@@ -142,10 +148,12 @@ async function main(): Promise<void> {
   // ─── Modo single-CNP ────────────────────────────────────────────────────
   if (cnp != null) {
     console.log(`Alvo: CNP ${cnp}`);
+    if (url) console.log(`URL fixa (override): ${url}`);
     console.log();
     const result = await enrichProductByCnp(cnp, {
       dryRun,
       trace: verbose ? verboseTracer : undefined,
+      url,
     });
     if (!result) {
       console.error(`[erro] Nenhum Produto encontrado com cnp=${cnp}.`);

@@ -476,27 +476,41 @@ const RETAIL_MIN_SIMILARITY = 0.35;
 const RETAIL_STRONG_SIMILARITY = 0.70;
 
 /**
- * Sites de farmácia online portugueses conhecidos. Usados em duas estratégias:
- *  1. Site search directo  — visitar a URL de pesquisa do próprio site com o
- *     CNP / designação e seguir as URLs candidatas devolvidas. Funciona
- *     mesmo quando DDG não indexa a página.
- *  2. DuckDuckGo `site:`   — fallback que cobre pesquisa cross-site num só
- *     query.
+ * Estratégia por site de farmácia portuguesa.
  *
- * Para cada domínio listamos um conjunto de templates de URL de pesquisa
- * (WooCommerce `?s=`, Shopify `/search?q=`, etc.). O conector tenta-os em
- * ordem e usa o que devolve resultados.
+ * Cada site tem três pontos de entrada possíveis, tentados nesta ordem:
+ *
+ *   1. `search(query)`     URLs de pesquisa interna do site (?s= / ?q= / etc.).
+ *                           A página de resultados é parseada por
+ *                           `parseSiteSearchResults` para encontrar links
+ *                           para páginas de produto.
+ *
+ *   2. `slugCandidates(designacao)`  URLs de produto adivinhadas a partir da
+ *                           designação (ex: lojadafarmacia.com usa
+ *                           `/pt/artigo/<slug>` — gerar slugs plausíveis e
+ *                           tentar visitá-los directamente). Útil quando a
+ *                           pesquisa interna não indexa pelo CNP.
+ *
+ *   3. (DDG cross-site no caller, fora deste objecto)
+ *
+ * `productUrl` é opcional: regex para reconhecer páginas de produto entre
+ *  os links da página de resultados, filtrando ruído.
  */
-type PharmacySite = {
+type PharmacyStrategy = {
   domain: string;
   search: (query: string) => string[];
+  slugCandidates?: (designacao: string) => string[];
+  productUrl?: RegExp;
 };
 
-function woo(domain: string): (q: string) => string[] {
-  return (q) => [`https://${domain}/?s=${encodeURIComponent(q)}&post_type=product`];
-}
-function shop(domain: string): (q: string) => string[] {
+function shopify(domain: string): (q: string) => string[] {
   return (q) => [`https://${domain}/search?q=${encodeURIComponent(q)}`];
+}
+function woo(domain: string): (q: string) => string[] {
+  return (q) => [
+    `https://${domain}/?s=${encodeURIComponent(q)}&post_type=product`,
+    `https://${domain}/?s=${encodeURIComponent(q)}`,
+  ];
 }
 function generic(domain: string): (q: string) => string[] {
   return (q) => [
@@ -506,23 +520,119 @@ function generic(domain: string): (q: string) => string[] {
   ];
 }
 
-const PT_PHARMACY_SITES: PharmacySite[] = [
-  // Lojadafarmacia.com — site explicitamente referenciado pelo utilizador.
-  // Usa SearchSpring/typedown — mas a pesquisa tradicional `?q=` redirecciona
-  // para a página de resultados.
-  { domain: "lojadafarmacia.com", search: generic("lojadafarmacia.com") },
-  { domain: "asuafarmaciaonline.pt", search: shop("asuafarmaciaonline.pt") },
-  { domain: "wells.pt", search: shop("wells.pt") },
-  { domain: "cf.pt", search: shop("cf.pt") },
+/**
+ * Normaliza uma designação para um slug URL-safe (acentos removidos,
+ * minúsculas, separadores `-`). Usado como base para gerar variantes.
+ */
+function baseSlug(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Abreviações habituais nos exports do ERP SoftReis / SPharm que aparecem
+ * directamente nos slugs de várias farmácias online (lojadafarmacia.com em
+ * particular). Aplicar designação → forma abreviada para gerar candidatos.
+ */
+const ERP_ABBREVIATIONS: Array<[RegExp, string]> = [
+  [/\bcomprimidos?\b/gi, "comp"],
+  [/\bc[aá]psulas?\b/gi, "caps"],
+  [/\bcremes?\b/gi, "cr"],
+  [/\bxaropes?\b/gi, "xpe"],
+  [/\bemolientes?\b/gi, "emol"],
+  [/\bcontrol\b/gi, "cont"],
+  [/\bpomadas?\b/gi, "pom"],
+  [/\bsprays?\b/gi, "spy"],
+  [/\bampolas?\b/gi, "amp"],
+  [/\bsolu[cç][aã]o\b/gi, "sol"],
+  [/\bsuspens[aã]o\b/gi, "susp"],
+  [/\bgranulados?\b/gi, "gran"],
+  [/\bdisolu[cç][aã]o\b/gi, "dis"],
+];
+
+/**
+ * Gera múltiplos candidatos de slug a partir de uma designação:
+ *   1. slug puro                    a-derma-exomega-control-creme-noite-emoliente-200ml
+ *   2. slug com abreviações ERP     a-derma-exomega-cont-cr-noite-emol-200ml
+ *   3. slug com tamanho colado      a-derma-exomega-cont-cr-noite-emol200ml
+ *   4. slug truncado (sem tamanho)  a-derma-exomega-cont-cr-noite-emol
+ *
+ * O caller tenta cada candidato sequencialmente e usa o primeiro que devolva
+ * uma página real (HTTP 200 + HTML).
+ */
+function generateSlugCandidates(designacao: string): string[] {
+  if (!designacao || !designacao.trim()) return [];
+
+  const cleaned = designacao.trim();
+
+  let abbreviated = cleaned;
+  for (const [re, repl] of ERP_ABBREVIATIONS) abbreviated = abbreviated.replace(re, repl);
+
+  const sizeRe = /(\d+\s*(?:ml|g|mg|cps|comp|amp|un|x))\b/i;
+
+  const variants = new Set<string>();
+  variants.add(baseSlug(cleaned));
+  variants.add(baseSlug(abbreviated));
+
+  // Tamanho colado: "emol-200ml" → "emol200ml"
+  for (const v of [baseSlug(cleaned), baseSlug(abbreviated)]) {
+    const merged = v.replace(/-(\d+(?:ml|g|mg|cps|comp|amp|un|x))\b/i, "$1");
+    variants.add(merged);
+  }
+
+  // Sem tamanho final
+  for (const v of [baseSlug(cleaned), baseSlug(abbreviated)]) {
+    const noSize = v.replace(/-?\d+(?:ml|g|mg|cps|comp|amp|un|x)\b/i, "");
+    variants.add(noSize.replace(/-+$/g, ""));
+  }
+  // Variante adicional: aplica abbrev e remove tamanho com sizeRe
+  variants.add(baseSlug(abbreviated.replace(sizeRe, "")));
+
+  return Array.from(variants).filter((v) => v.length >= 5);
+}
+
+/**
+ * Slug builder específico para lojadafarmacia.com — `/pt/artigo/<slug>`.
+ */
+function lojadafarmaciaSlugUrls(designacao: string): string[] {
+  const slugs = generateSlugCandidates(designacao);
+  return slugs.map((s) => `https://lojadafarmacia.com/pt/artigo/${s}`);
+}
+
+const PT_PHARMACY_STRATEGIES: PharmacyStrategy[] = [
+  // Lojadafarmacia.com — site explicitamente validado pelo utilizador.
+  // Estrutura `/pt/artigo/<slug>` torna o slug-fallback altamente eficaz
+  // mesmo quando a pesquisa interna do site não indexa pelo CNP.
+  {
+    domain: "lojadafarmacia.com",
+    search: generic("lojadafarmacia.com"),
+    slugCandidates: lojadafarmaciaSlugUrls,
+    productUrl: /\/pt\/artigo\//i,
+  },
+  { domain: "asuafarmaciaonline.pt", search: shopify("asuafarmaciaonline.pt") },
+  { domain: "wells.pt", search: shopify("wells.pt") },
+  { domain: "cf.pt", search: shopify("cf.pt") },
   { domain: "farmaciascarvalho.pt", search: woo("farmaciascarvalho.pt") },
-  { domain: "farmaciaramos.com", search: shop("farmaciaramos.com") },
+  { domain: "farmaciaramos.com", search: shopify("farmaciaramos.com") },
   { domain: "farmacia24.pt", search: woo("farmacia24.pt") },
   { domain: "farmaciapinheiro.pt", search: woo("farmaciapinheiro.pt") },
-  { domain: "bemestaratual.pt", search: shop("bemestaratual.pt") },
-  { domain: "powerhealth.pt", search: shop("powerhealth.pt") },
+  { domain: "bemestaratual.pt", search: shopify("bemestaratual.pt") },
+  { domain: "powerhealth.pt", search: shopify("powerhealth.pt") },
   { domain: "farmaciagama.pt", search: generic("farmaciagama.pt") },
   { domain: "farmaciaalvim.pt", search: generic("farmaciaalvim.pt") },
 ];
+
+/**
+ * Helpers internos exportados para testes (regressão de slug + cleaning).
+ */
+export const __retailInternals = {
+  generateSlugCandidates,
+  baseSlug,
+};
 
 // UA de browser: DDG HTML é menos amigável a clients não-browser.
 const RETAIL_UA =
@@ -799,11 +909,24 @@ function extractRawCategory(html: string): string | null {
   return null;
 }
 
+/**
+ * Extrai o conteúdo do primeiro `<h1>` da página, sem tags. Usado como
+ * fallback de nome do produto quando og:title não está presente (alguns
+ * sites pequenos não emitem OG meta tags).
+ */
+function extractH1(html: string): string | null {
+  const m = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html);
+  if (!m) return null;
+  const text = m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return text.length >= 3 && text.length <= 200 ? decodeHtmlEntities(text) : null;
+}
+
 function extractRetailMetadata(html: string): RetailExtracted {
   return {
     nome:
       extractMetaContent(html, "og:title") ??
-      extractMetaContent(html, "twitter:title"),
+      extractMetaContent(html, "twitter:title") ??
+      extractH1(html),
     imagem:
       extractMetaContent(html, "og:image") ??
       extractMetaContent(html, "twitter:image"),
@@ -823,12 +946,19 @@ function urlMatchesCnp(url: string, cnp: number): boolean {
 /**
  * True se o CNP aparece literalmente no body da página HTML — exclui blocos
  * de script/style para evitar falsos positivos de código JS.
+ *
+ * Também devolve `explicit=true` quando o CNP aparece num token explícito
+ * `[COD <cnp>]` / `COD: <cnp>` / `Cód.: <cnp>` — sinal mais forte que um
+ * número solto, usado por lojadafarmacia.com e várias farmácias PT.
  */
-function pageMatchesCnp(html: string, cnp: number): boolean {
+function pageMatchesCnp(html: string, cnp: number): { match: boolean; explicit: boolean } {
   const cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "");
-  return new RegExp(`(^|[^0-9])${cnp}([^0-9]|$)`).test(cleaned);
+  const match = new RegExp(`(^|[^0-9])${cnp}([^0-9]|$)`).test(cleaned);
+  const explicit = new RegExp(`\\b(?:COD|C[oó]d(?:igo)?)\\s*[.:]?\\s*\\[?${cnp}\\b`, "i").test(cleaned)
+    || new RegExp(`\\[\\s*COD\\s*${cnp}\\s*\\]`, "i").test(cleaned);
+  return { match, explicit };
 }
 
 type RetailCandidate = {
@@ -865,21 +995,27 @@ async function evaluateRetailCandidate(
   const meta = extractRetailMetadata(html);
   const sim = meta.nome ? jaccard(meta.nome, designacao) : 0;
   const cnpInUrl = cnp != null && urlMatchesCnp(url, cnp);
-  const cnpInPage = cnp != null && pageMatchesCnp(html, cnp);
+  const cnpPage = cnp != null ? pageMatchesCnp(html, cnp) : { match: false, explicit: false };
+  const cnpInPage = cnpPage.match;
+  const cnpExplicit = cnpPage.explicit;
 
   let matchedBy: RetailCandidate["matchedBy"];
   let confidence: number;
   let partial = false;
 
-  // Política Abril 2026 (revisão #2):
-  //   CNP no URL                       → matchedBy=sku,        confidence 0.85
-  //   CNP no body + (marca OU categoria) → matchedBy=cnp,      confidence 0.82
-  //   CNP no body                      → matchedBy=cnp,        confidence 0.78
-  //   Jaccard ≥ 0.70                   → matchedBy=designacao, confidence ~0.70
-  //   Jaccard ≥ 0.35                   → matchedBy=fuzzy_name, confidence ~0.55, partial
-  //   Brand+breadcrumb                 → matchedBy=fuzzy_name, confidence 0.55, partial
+  // Política Abril 2026 (revisão #3):
+  //   CNP no URL                              → sku,         0.85
+  //   [COD <cnp>] explícito no body           → cnp,         0.85  (igual a sku)
+  //   CNP no body + (marca OU categoria)      → cnp,         0.82
+  //   CNP no body                              → cnp,         0.78
+  //   Jaccard ≥ 0.70                          → designacao,  ~0.70
+  //   Jaccard ≥ 0.35                          → fuzzy_name,  ~0.55, partial
+  //   Brand+breadcrumb (sem mais sinal)       → fuzzy_name,  0.55, partial
   if (cnpInUrl) {
     matchedBy = "sku";
+    confidence = 0.85;
+  } else if (cnpExplicit) {
+    matchedBy = "cnp";
     confidence = 0.85;
   } else if (cnpInPage && (meta.brand || meta.categoria)) {
     matchedBy = "cnp";
@@ -948,7 +1084,7 @@ const retailPharmacyConnector: ExternalConnector = {
   name: "retail_pharmacy",
 
   async lookup(req): Promise<ExternalSourceData | null> {
-    if (!req.designacao && !req.cnp) return null;
+    if (!req.designacao && !req.cnp && !req.url) return null;
 
     const trace = req.trace;
     const cnp = req.cnp ?? null;
@@ -957,6 +1093,29 @@ const retailPharmacyConnector: ExternalConnector = {
     let best: RetailCandidate | null = null;
     let candidatesEvaluated = 0;
 
+    // ─── Estratégia 0: URL fixa (override de teste) ────────────────────────
+    //
+    // Quando o caller passa `req.url`, salta toda a pesquisa e avalia
+    // directamente essa página. Útil para reproduzir um caso visto pelo
+    // admin sem depender de DDG/site search.
+    if (req.url) {
+      trace?.({
+        kind: "stage",
+        connector: "retail_pharmacy",
+        stage: "url_override",
+        query: req.url,
+      });
+      const cand = await evaluateRetailCandidate(
+        req.url,
+        cnp,
+        req.designacao,
+        `url_override`,
+        trace
+      );
+      candidatesEvaluated++;
+      if (cand) best = cand;
+    }
+
     // ─── Estratégia 1: site search directo por CNP em farmácias PT ─────────
     //
     // Para cada farmácia conhecida, lança a pesquisa interna do site com o
@@ -964,8 +1123,8 @@ const retailPharmacyConnector: ExternalConnector = {
     // DDG não indexou ou indexou mal. É a estratégia mais fiável para CNPs.
     //
     // Curto-circuita assim que apanha um match com CNP forte (sku ou cnp).
-    if (cnpStr) {
-      for (const site of PT_PHARMACY_SITES) {
+    if (cnpStr && (!best || (best.matchedBy !== "sku" && best.matchedBy !== "cnp"))) {
+      for (const site of PT_PHARMACY_STRATEGIES) {
         if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
 
         for (const searchUrl of site.search(cnpStr)) {
@@ -978,10 +1137,10 @@ const retailPharmacyConnector: ExternalConnector = {
           const searchHtml = await throttledFetchText(searchUrl);
           if (!searchHtml) continue;
 
-          const urls = parseSiteSearchResults(searchHtml, site.domain).slice(
-            0,
-            RETAIL_MAX_CANDIDATES
-          );
+          let urls = parseSiteSearchResults(searchHtml, site.domain);
+          if (site.productUrl) urls = urls.filter((u) => site.productUrl!.test(u));
+          urls = urls.slice(0, RETAIL_MAX_CANDIDATES);
+
           trace?.({
             kind: "search_results",
             connector: "retail_pharmacy",
@@ -1005,6 +1164,53 @@ const retailPharmacyConnector: ExternalConnector = {
             if (cand.matchedBy === "sku" || cand.matchedBy === "cnp") break;
           }
           if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
+        }
+      }
+    }
+
+    // ─── Estratégia 1b: slug fallback determinístico por site ──────────────
+    //
+    // Para sites cuja URL de produto segue um padrão previsível (lojadafarmacia
+    // usa `/pt/artigo/<slug>`), gerar candidatos directamente da designação e
+    // visitá-los. Apanha produtos cuja pesquisa interna não indexa pelo CNP
+    // mas cuja página existe quando se sabe o slug.
+    if (
+      req.designacao &&
+      (!best || (best.matchedBy !== "sku" && best.matchedBy !== "cnp"))
+    ) {
+      for (const site of PT_PHARMACY_STRATEGIES) {
+        if (!site.slugCandidates) continue;
+        if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
+
+        const slugUrls = site.slugCandidates(req.designacao);
+        if (slugUrls.length === 0) continue;
+
+        trace?.({
+          kind: "stage",
+          connector: "retail_pharmacy",
+          stage: `slug:${site.domain}`,
+          query: `${slugUrls.length} candidato(s) gerado(s) a partir da designação`,
+        });
+        trace?.({
+          kind: "search_results",
+          connector: "retail_pharmacy",
+          query: `slug:${site.domain}`,
+          urls: slugUrls,
+          via: "slug_guess",
+        });
+
+        for (const url of slugUrls) {
+          const cand = await evaluateRetailCandidate(
+            url,
+            cnp,
+            req.designacao,
+            `slug:${site.domain}`,
+            trace
+          );
+          candidatesEvaluated++;
+          if (!cand) continue;
+          if (!best || cand.score > best.score) best = cand;
+          if (cand.matchedBy === "sku" || cand.matchedBy === "cnp") break;
         }
       }
     }

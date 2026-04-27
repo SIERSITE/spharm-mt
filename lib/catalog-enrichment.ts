@@ -375,10 +375,11 @@ async function queueForManualReview(
  */
 export async function enrichProduct(
   productId: string,
-  options?: { dryRun?: boolean; trace?: EnrichmentTracer }
+  options?: { dryRun?: boolean; trace?: EnrichmentTracer; url?: string | null }
 ): Promise<EnrichmentResult> {
   const dryRun = options?.dryRun ?? false;
   const trace = options?.trace;
+  const overrideUrl = options?.url ?? null;
 
   const product = await prisma.produto.findUnique({
     where: { id: productId },
@@ -427,6 +428,7 @@ export async function enrichProduct(
     productType: classification.productType,
     hints: classification.hints,
     trace,
+    url: overrideUrl,
   };
 
   let sources;
@@ -534,7 +536,7 @@ export async function enrichProduct(
  */
 export async function enrichProductByCnp(
   cnp: number,
-  options?: { dryRun?: boolean; trace?: EnrichmentTracer }
+  options?: { dryRun?: boolean; trace?: EnrichmentTracer; url?: string | null }
 ): Promise<EnrichmentResult | null> {
   const p = await prisma.produto.findUnique({
     where: { cnp },
