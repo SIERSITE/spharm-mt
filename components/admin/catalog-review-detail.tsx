@@ -8,6 +8,7 @@ import type {
   ReviewDetail,
   FabricanteOption,
   ClassificacaoOption,
+  ProductEvidenceEntry,
 } from "@/lib/admin/catalog-review-data";
 import {
   applyReviewAction,
@@ -54,6 +55,7 @@ type Props = {
   detail: ReviewDetail;
   fabricantes: FabricanteOption[];
   classificacoes: { nivel1: ClassificacaoOption[]; nivel2: ClassificacaoOption[] };
+  evidence: ProductEvidenceEntry[];
 };
 
 function fmtDate(d: Date | string | null): string {
@@ -72,7 +74,7 @@ function fmtPct(v: number | null): string {
   return `${Math.round(v * 100)}%`;
 }
 
-export function CatalogReviewDetail({ detail, fabricantes, classificacoes }: Props) {
+export function CatalogReviewDetail({ detail, fabricantes, classificacoes, evidence }: Props) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err" | "info"; msg: string } | null>(
@@ -515,8 +517,217 @@ export function CatalogReviewDetail({ detail, fabricantes, classificacoes }: Pro
           </div>
         </section>
       </div>
+
+      {/* Evidência por fonte */}
+      <EvidenceSection evidence={evidence} produto={detail.produto} />
     </div>
   );
+}
+
+// ─── Evidência por fonte ─────────────────────────────────────────────────────
+
+const STATUS_BADGE: Record<string, string> = {
+  SUCCESS: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  PARTIAL_HIT: "border-amber-200 bg-amber-50 text-amber-700",
+  NO_MATCH: "border-slate-200 bg-slate-50 text-slate-500",
+  ERROR: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+function EvidenceSection({
+  evidence,
+  produto,
+}: {
+  evidence: ProductEvidenceEntry[];
+  produto: ReviewDetail["produto"];
+}) {
+  // Resumo: a partir das entries SUCCESS/PARTIAL, indica que fonte alimentou
+  // cada campo final (heurística — comparamos rawBrand com fabricanteNome
+  // actual e rawCategory com classificacaoNivel1/Nivel2). Não é fonte de
+  // verdade — é só uma pista para o admin perceber a proveniência.
+  const finalProvenance = computeFinalProvenance(evidence, produto);
+
+  const grouped = new Map<string, ProductEvidenceEntry[]>();
+  for (const e of evidence) {
+    const list = grouped.get(e.source) ?? [];
+    list.push(e);
+    grouped.set(e.source, list);
+  }
+  const sources = Array.from(grouped.keys()).sort();
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <h2 className="text-[14px] font-semibold text-slate-900">Evidência por fonte</h2>
+        <p className="mt-0.5 text-[12px] text-slate-500">
+          Histórico de chamadas a conectores externos para este produto. Mostra o
+          que cada fonte devolveu cru (antes de normalização) — útil para
+          decidir manualmente.
+        </p>
+      </div>
+
+      {/* Proveniência heurística do estado actual */}
+      <div className="grid gap-2 border-b border-slate-100 px-4 py-3 text-[12px] md:grid-cols-3">
+        <ProvField label="Tipo de produto" value={produto.productType ?? "—"} prov={finalProvenance.productType} />
+        <ProvField label="Fabricante" value={produto.fabricanteNome ?? "—"} prov={finalProvenance.fabricante} />
+        <ProvField
+          label="Categoria"
+          value={
+            produto.classificacaoNivel1Nome
+              ? `${produto.classificacaoNivel1Nome}${produto.classificacaoNivel2Nome ? " · " + produto.classificacaoNivel2Nome : ""}`
+              : "—"
+          }
+          prov={finalProvenance.categoria}
+        />
+      </div>
+
+      {evidence.length === 0 ? (
+        <div className="px-4 py-8 text-center text-[12px] text-slate-400">
+          Sem chamadas registadas. Corre o enrichment para popular evidência.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-50">
+          {sources.flatMap((source) =>
+            grouped.get(source)!.map((e) => (
+              <li key={e.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[12px] font-medium text-slate-800">
+                    {e.source}
+                  </span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                      STATUS_BADGE[e.status] ?? STATUS_BADGE.ERROR
+                    }`}
+                  >
+                    {e.status.toLowerCase().replace("_", " ")}
+                  </span>
+                  {e.matchedBy && (
+                    <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
+                      via {e.matchedBy}
+                    </span>
+                  )}
+                  {e.confidence != null && (
+                    <span className="text-[11px] text-slate-500">
+                      conf {Math.round(e.confidence * 100)}%
+                    </span>
+                  )}
+                  {e.durationMs != null && (
+                    <span className="text-[11px] text-slate-400">{e.durationMs}ms</span>
+                  )}
+                  <span className="ml-auto text-[11px] text-slate-400">
+                    {new Date(e.createdAt).toLocaleString("pt-PT", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+
+                {(e.url || e.query || e.rawProductName || e.rawBrand || e.rawCategory) && (
+                  <dl className="mt-2 grid gap-1 text-[11px] md:grid-cols-2">
+                    {e.url && (
+                      <RawField label="URL">
+                        <a
+                          href={e.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="break-all text-cyan-700 hover:underline"
+                        >
+                          {e.url}
+                        </a>
+                      </RawField>
+                    )}
+                    {e.query && <RawField label="Query"><code className="break-all">{e.query}</code></RawField>}
+                    {e.rawProductName && <RawField label="Nome cru">{e.rawProductName}</RawField>}
+                    {e.rawBrand && <RawField label="Marca crua"><strong>{e.rawBrand}</strong></RawField>}
+                    {e.rawCategory && <RawField label="Categoria crua">{e.rawCategory}</RawField>}
+                  </dl>
+                )}
+
+                {e.fieldsReturned.length > 0 && (
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Campos: {e.fieldsReturned.map((f) => (
+                      <code key={f} className="ml-1 rounded bg-slate-50 px-1 text-[10px]">{f}</code>
+                    ))}
+                  </div>
+                )}
+
+                {e.errorMessage && (
+                  <div className="mt-1 rounded-md border border-rose-100 bg-rose-50 px-2 py-1 font-mono text-[11px] text-rose-700">
+                    {e.errorMessage}
+                  </div>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ProvField({ label, value, prov }: { label: string; value: string; prov: string | null }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+      <div className="mt-0.5 text-[13px] font-medium text-slate-800">{value}</div>
+      <div className="mt-0.5 text-[10px] text-slate-500">
+        {prov ? <>via <span className="font-mono">{prov}</span></> : "origem indeterminada"}
+      </div>
+    </div>
+  );
+}
+
+function RawField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[80px_1fr] gap-2">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-slate-700">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Heurística de proveniência: para cada campo final (productType, fabricante,
+ * categoria) procura na evidência uma fonte SUCCESS/PARTIAL_HIT cujo raw
+ * corresponda ao valor actual no Produto. Não é fonte de verdade; serve só
+ * para o admin perceber rapidamente "isto veio donde?".
+ */
+function computeFinalProvenance(
+  evidence: ProductEvidenceEntry[],
+  produto: ReviewDetail["produto"]
+): { productType: string | null; fabricante: string | null; categoria: string | null } {
+  // Validação manual sobrepõe-se à evidência.
+  if (produto.validadoManualmente) {
+    return { productType: "manual", fabricante: "manual", categoria: "manual" };
+  }
+
+  const successes = evidence.filter((e) => e.status === "SUCCESS" || e.status === "PARTIAL_HIT");
+
+  // Helper case-insensitive comparison.
+  const eq = (a: string | null, b: string | null): boolean => {
+    if (!a || !b) return false;
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+  };
+
+  const productTypeSrc =
+    successes.find((e) => e.fieldsReturned.includes("fabricante") || e.fieldsReturned.includes("atc"))
+      ?.source ?? (produto.productType ? "classifier" : null);
+
+  const fabricanteSrc = produto.fabricanteNome
+    ? successes.find((e) => eq(e.rawBrand, produto.fabricanteNome))?.source ?? null
+    : null;
+
+  // Categoria pode vir do mapeamento canónico; tentar match por raw.
+  const categoriaSrc = produto.classificacaoNivel1Nome
+    ? successes.find(
+        (e) =>
+          eq(e.rawCategory, produto.classificacaoNivel1Nome) ||
+          (e.rawCategory ?? "").toLowerCase().includes((produto.classificacaoNivel1Nome ?? "").toLowerCase())
+      )?.source ?? "taxonomy_map"
+    : null;
+
+  return { productType: productTypeSrc, fabricante: fabricanteSrc, categoria: categoriaSrc };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

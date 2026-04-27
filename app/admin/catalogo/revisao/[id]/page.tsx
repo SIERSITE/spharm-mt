@@ -3,6 +3,7 @@ import {
   loadReviewDetail,
   loadFabricantes,
   loadClassificacoes,
+  loadProductSourceEvidence,
 } from "@/lib/admin/catalog-review-data";
 import { CatalogReviewDetail } from "@/components/admin/catalog-review-detail";
 
@@ -22,9 +23,10 @@ export default async function CatalogReviewDetailPage({ params }: Props) {
   if (!detail) detail = await loadReviewDetail(id, "produto");
   if (!detail) notFound();
 
-  const [fabricantes, classificacoes] = await Promise.all([
+  const [fabricantes, classificacoes, evidence] = await Promise.all([
     loadFabricantes(),
     loadClassificacoes(),
+    loadProductSourceEvidence(detail.produto.id),
   ]);
 
   return (
@@ -32,6 +34,7 @@ export default async function CatalogReviewDetailPage({ params }: Props) {
       detail={detail}
       fabricantes={fabricantes}
       classificacoes={classificacoes}
+      evidence={evidence}
     />
   );
 }

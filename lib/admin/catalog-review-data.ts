@@ -1,6 +1,14 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
-import { Prisma, type EstadoFilaRevisao, type PrioridadeRevisao, type TipoRevisao, type ProdutoEstado, type VerificationStatus } from "@/generated/prisma/client";
+import {
+  Prisma,
+  type EnrichmentSourceStatus,
+  type EstadoFilaRevisao,
+  type PrioridadeRevisao,
+  type TipoRevisao,
+  type ProdutoEstado,
+  type VerificationStatus,
+} from "@/generated/prisma/client";
 
 /**
  * lib/admin/catalog-review-data.ts
@@ -334,6 +342,64 @@ export async function loadFabricantes(limit = 500): Promise<FabricanteOption[]> 
     take: limit,
   });
   return rows.map((r) => ({ id: r.id, nome: r.nomeNormalizado }));
+}
+
+// ─── Evidência por produto ───────────────────────────────────────────────────
+
+export type ProductEvidenceEntry = {
+  id: string;
+  source: string;
+  status: EnrichmentSourceStatus;
+  confidence: number | null;
+  matchedBy: string | null;
+  durationMs: number | null;
+  fieldsReturned: string[];
+  errorMessage: string | null;
+  url: string | null;
+  query: string | null;
+  rawBrand: string | null;
+  rawCategory: string | null;
+  rawProductName: string | null;
+  createdAt: Date;
+};
+
+/**
+ * Histórico de chamadas a conectores externos para um produto, mais recente
+ * primeiro. Mostrado no detalhe da revisão para o admin perceber:
+ *   · que fontes foram consultadas
+ *   · que URLs foram encontradas
+ *   · que valores crus (marca, categoria, nome) cada fonte devolveu
+ *   · onde a classificação actual veio
+ *
+ * Limitado a 50 entradas — chega para diagnóstico; as métricas agregadas
+ * vivem em /admin/catalogo.
+ */
+export async function loadProductSourceEvidence(
+  produtoId: string,
+  limit = 50
+): Promise<ProductEvidenceEntry[]> {
+  const prisma = await getPrisma();
+  const rows = await prisma.enrichmentSourceLog.findMany({
+    where: { produtoId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    source: r.source,
+    status: r.status,
+    confidence: r.confidence,
+    matchedBy: r.matchedBy,
+    durationMs: r.durationMs,
+    fieldsReturned: r.fieldsReturned,
+    errorMessage: r.errorMessage,
+    url: r.url,
+    query: r.query,
+    rawBrand: r.rawBrand,
+    rawCategory: r.rawCategory,
+    rawProductName: r.rawProductName,
+    createdAt: r.createdAt,
+  }));
 }
 
 export async function loadClassificacoes(): Promise<{
