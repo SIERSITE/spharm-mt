@@ -49,6 +49,7 @@ import { persistResolvedProduct } from "./catalog-persistence";
 import type {
   EnrichmentResult,
   EnrichmentSummary,
+  EnrichmentTracer,
   ExternalLookupRequest,
   ProductType,
 } from "./catalog-types";
@@ -374,9 +375,10 @@ async function queueForManualReview(
  */
 export async function enrichProduct(
   productId: string,
-  options?: { dryRun?: boolean }
+  options?: { dryRun?: boolean; trace?: EnrichmentTracer }
 ): Promise<EnrichmentResult> {
   const dryRun = options?.dryRun ?? false;
+  const trace = options?.trace;
 
   const product = await prisma.produto.findUnique({
     where: { id: productId },
@@ -424,6 +426,7 @@ export async function enrichProduct(
     designacao: product.designacao,
     productType: classification.productType,
     hints: classification.hints,
+    trace,
   };
 
   let sources;
@@ -520,6 +523,25 @@ export async function enrichProduct(
     queued,
     dryRun,
   };
+}
+
+/**
+ * Enriquece um único produto identificado por CNP. Helper usado pelo
+ * comando `daily-enrich.ts --cnp=<cnp>` para diagnosticar produtos
+ * específicos sem ter de descobrir o `produtoId` interno primeiro.
+ *
+ * Devolve null se nenhum Produto tiver esse CNP.
+ */
+export async function enrichProductByCnp(
+  cnp: number,
+  options?: { dryRun?: boolean; trace?: EnrichmentTracer }
+): Promise<EnrichmentResult | null> {
+  const p = await prisma.produto.findUnique({
+    where: { cnp },
+    select: { id: true },
+  });
+  if (!p) return null;
+  return enrichProduct(p.id, options);
 }
 
 // ─── Enriquecimento em lote ───────────────────────────────────────────────────

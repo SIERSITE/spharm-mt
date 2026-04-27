@@ -19,6 +19,7 @@
 
 import { legacyPrisma as prisma } from "@/lib/prisma";
 import type {
+  EnrichmentTracer,
   ExternalLookupRequest,
   ExternalSourceData,
   ProductType,
@@ -475,20 +476,52 @@ const RETAIL_MIN_SIMILARITY = 0.35;
 const RETAIL_STRONG_SIMILARITY = 0.70;
 
 /**
- * Sites de farmácia online portugueses conhecidos. Usados na stage 1 do
- * search com `site:` para focar a busca em domínios onde os CNPs aparecem
- * geralmente como SKU/código de produto. Lista pode ser expandida.
+ * Sites de farmácia online portugueses conhecidos. Usados em duas estratégias:
+ *  1. Site search directo  — visitar a URL de pesquisa do próprio site com o
+ *     CNP / designação e seguir as URLs candidatas devolvidas. Funciona
+ *     mesmo quando DDG não indexa a página.
+ *  2. DuckDuckGo `site:`   — fallback que cobre pesquisa cross-site num só
+ *     query.
+ *
+ * Para cada domínio listamos um conjunto de templates de URL de pesquisa
+ * (WooCommerce `?s=`, Shopify `/search?q=`, etc.). O conector tenta-os em
+ * ordem e usa o que devolve resultados.
  */
-const PT_PHARMACY_SITES = [
-  "asuafarmaciaonline.pt",
-  "wells.pt",
-  "cf.pt",
-  "farmaciascarvalho.pt",
-  "farmaciaramos.com",
-  "farmacia24.pt",
-  "farmaciapinheiro.pt",
-  "bemestaratual.pt",
-  "powerhealth.pt",
+type PharmacySite = {
+  domain: string;
+  search: (query: string) => string[];
+};
+
+function woo(domain: string): (q: string) => string[] {
+  return (q) => [`https://${domain}/?s=${encodeURIComponent(q)}&post_type=product`];
+}
+function shop(domain: string): (q: string) => string[] {
+  return (q) => [`https://${domain}/search?q=${encodeURIComponent(q)}`];
+}
+function generic(domain: string): (q: string) => string[] {
+  return (q) => [
+    `https://${domain}/?s=${encodeURIComponent(q)}`,
+    `https://${domain}/search?q=${encodeURIComponent(q)}`,
+    `https://${domain}/pesquisa?q=${encodeURIComponent(q)}`,
+  ];
+}
+
+const PT_PHARMACY_SITES: PharmacySite[] = [
+  // Lojadafarmacia.com — site explicitamente referenciado pelo utilizador.
+  // Usa SearchSpring/typedown — mas a pesquisa tradicional `?q=` redirecciona
+  // para a página de resultados.
+  { domain: "lojadafarmacia.com", search: generic("lojadafarmacia.com") },
+  { domain: "asuafarmaciaonline.pt", search: shop("asuafarmaciaonline.pt") },
+  { domain: "wells.pt", search: shop("wells.pt") },
+  { domain: "cf.pt", search: shop("cf.pt") },
+  { domain: "farmaciascarvalho.pt", search: woo("farmaciascarvalho.pt") },
+  { domain: "farmaciaramos.com", search: shop("farmaciaramos.com") },
+  { domain: "farmacia24.pt", search: woo("farmacia24.pt") },
+  { domain: "farmaciapinheiro.pt", search: woo("farmaciapinheiro.pt") },
+  { domain: "bemestaratual.pt", search: shop("bemestaratual.pt") },
+  { domain: "powerhealth.pt", search: shop("powerhealth.pt") },
+  { domain: "farmaciagama.pt", search: generic("farmaciagama.pt") },
+  { domain: "farmaciaalvim.pt", search: generic("farmaciaalvim.pt") },
 ];
 
 // UA de browser: DDG HTML é menos amigável a clients não-browser.
@@ -560,6 +593,45 @@ function parseDdgResults(html: string): string[] {
     if (urls.length >= 10) break;
   }
   return urls;
+}
+
+/**
+ * Extrai URLs candidatas de uma página de resultados de pesquisa interna
+ * de um site de farmácia. Heurística: todos os <a href> que apontam para o
+ * mesmo domínio e cujo path tem ar de página de produto (não-vazio, não-só
+ * a homepage, não páginas de carrinho/conta/categoria genéricas).
+ *
+ * Filtra ruído conhecido (cart, checkout, account, login, my-account, etc.)
+ * para evitar fetch desnecessário.
+ */
+function parseSiteSearchResults(html: string, domain: string): string[] {
+  const urls = new Set<string>();
+  const re = /<a[^>]*href="([^"]+)"/gi;
+  const noise =
+    /\/(?:carrinho|cart|checkout|conta|account|login|my-account|wishlist|favoritos|contactos?|sobre|about|politicas?|terms?)(?:[/?#]|$)/i;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    let url = m[1];
+    if (url.startsWith("//")) url = "https:" + url;
+    else if (url.startsWith("/")) url = `https://${domain}${url}`;
+    if (!/^https?:\/\//i.test(url)) continue;
+
+    let host: string;
+    try {
+      host = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    const target = domain.replace(/^www\./, "");
+    if (host !== target) continue;
+    if (noise.test(url)) continue;
+
+    // Esquece âncoras dentro da mesma página
+    const noFrag = url.split("#")[0];
+    urls.add(noFrag);
+    if (urls.size >= 12) break;
+  }
+  return Array.from(urls);
 }
 
 /** Lê o conteúdo de uma meta tag OG / name por nome. */
@@ -768,7 +840,109 @@ type RetailCandidate = {
   similarity: number;
   query: string;
   score: number;
+  cnpInUrl: boolean;
+  cnpInPage: boolean;
 };
+
+/**
+ * Avalia uma URL candidata: faz fetch, extrai metadados, decide se é match.
+ * Devolve um RetailCandidate ou null se não for utilizável.
+ */
+async function evaluateRetailCandidate(
+  url: string,
+  cnp: number | null,
+  designacao: string,
+  query: string,
+  trace: EnrichmentTracer | undefined
+): Promise<RetailCandidate | null> {
+  const html = await throttledFetchText(url);
+  if (!html) {
+    trace?.({ kind: "candidate", connector: "retail_pharmacy", url, httpOk: false, reason: "fetch failed" });
+    return null;
+  }
+  trace?.({ kind: "candidate", connector: "retail_pharmacy", url, httpOk: true });
+
+  const meta = extractRetailMetadata(html);
+  const sim = meta.nome ? jaccard(meta.nome, designacao) : 0;
+  const cnpInUrl = cnp != null && urlMatchesCnp(url, cnp);
+  const cnpInPage = cnp != null && pageMatchesCnp(html, cnp);
+
+  let matchedBy: RetailCandidate["matchedBy"];
+  let confidence: number;
+  let partial = false;
+
+  // Política Abril 2026 (revisão #2):
+  //   CNP no URL                       → matchedBy=sku,        confidence 0.85
+  //   CNP no body + (marca OU categoria) → matchedBy=cnp,      confidence 0.82
+  //   CNP no body                      → matchedBy=cnp,        confidence 0.78
+  //   Jaccard ≥ 0.70                   → matchedBy=designacao, confidence ~0.70
+  //   Jaccard ≥ 0.35                   → matchedBy=fuzzy_name, confidence ~0.55, partial
+  //   Brand+breadcrumb                 → matchedBy=fuzzy_name, confidence 0.55, partial
+  if (cnpInUrl) {
+    matchedBy = "sku";
+    confidence = 0.85;
+  } else if (cnpInPage && (meta.brand || meta.categoria)) {
+    matchedBy = "cnp";
+    confidence = 0.82;
+  } else if (cnpInPage) {
+    matchedBy = "cnp";
+    confidence = 0.78;
+  } else if (sim >= RETAIL_STRONG_SIMILARITY) {
+    matchedBy = "designacao";
+    confidence = Math.min(0.65 * (0.85 + sim * 0.4), 0.78);
+  } else if (sim >= RETAIL_MIN_SIMILARITY) {
+    matchedBy = "fuzzy_name";
+    confidence = Math.min(0.55 * (0.85 + sim * 0.4), 0.65);
+    partial = true;
+  } else if (meta.brand && meta.categoria) {
+    matchedBy = "fuzzy_name";
+    confidence = 0.55;
+    partial = true;
+  } else {
+    trace?.({
+      kind: "skipped",
+      connector: "retail_pharmacy",
+      url,
+      reason: `no usable signal (cnpInUrl=${cnpInUrl} cnpInPage=${cnpInPage} sim=${sim.toFixed(2)} brand=${!!meta.brand} category=${!!meta.categoria})`,
+    });
+    return null;
+  }
+
+  trace?.({
+    kind: "match",
+    connector: "retail_pharmacy",
+    url,
+    cnpInUrl,
+    cnpInPage,
+    similarity: sim,
+    rawBrand: meta.brand,
+    rawCategory: meta.categoria,
+    rawProductName: meta.nome,
+    matchedBy,
+    confidence,
+    partial,
+  });
+
+  const score =
+    confidence +
+    (cnpInUrl ? 0.10 : cnpInPage ? 0.08 : 0) +
+    sim * 0.05 +
+    (meta.brand ? 0.02 : 0) +
+    (meta.categoria ? 0.02 : 0);
+
+  return {
+    url,
+    meta,
+    matchedBy,
+    confidence,
+    partial,
+    similarity: sim,
+    query,
+    score,
+    cnpInUrl,
+    cnpInPage,
+  };
+}
 
 const retailPharmacyConnector: ExternalConnector = {
   name: "retail_pharmacy",
@@ -776,108 +950,141 @@ const retailPharmacyConnector: ExternalConnector = {
   async lookup(req): Promise<ExternalSourceData | null> {
     if (!req.designacao && !req.cnp) return null;
 
+    const trace = req.trace;
     const cnp = req.cnp ?? null;
     const cnpStr = cnp != null ? String(cnp) : null;
 
-    // Construir queries por estágio. Stage 1 e 2 só fazem sentido com CNP.
-    const stages: Array<{ q: string; label: string }> = [];
-    if (cnpStr) {
-      const sites = PT_PHARMACY_SITES.map((s) => `site:${s}`).join(" OR ");
-      stages.push({
-        q: `"${cnpStr}" (${sites})`,
-        label: "site_cnp",
-      });
-      // Acrescenta primeiras 3 palavras da designação para reforçar relevância.
-      const namePart = req.designacao
-        .split(/\s+/)
-        .filter((w) => w.length >= 3)
-        .slice(0, 3)
-        .join(" ");
-      stages.push({
-        q: namePart ? `"${cnpStr}" ${namePart}` : `"${cnpStr}"`,
-        label: "cnp_text",
-      });
-    }
-    stages.push({
-      q: `${req.designacao} farmácia`,
-      label: "name",
-    });
-
     let best: RetailCandidate | null = null;
+    let candidatesEvaluated = 0;
 
-    for (const stage of stages) {
-      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(stage.q)}`;
-      const searchHtml = await throttledFetchText(searchUrl);
-      if (!searchHtml) continue;
-      const urls = parseDdgResults(searchHtml).slice(0, RETAIL_MAX_CANDIDATES);
-      if (urls.length === 0) continue;
+    // ─── Estratégia 1: site search directo por CNP em farmácias PT ─────────
+    //
+    // Para cada farmácia conhecida, lança a pesquisa interna do site com o
+    // CNP (e fallback com o nome). Esta abordagem encontra páginas que o
+    // DDG não indexou ou indexou mal. É a estratégia mais fiável para CNPs.
+    //
+    // Curto-circuita assim que apanha um match com CNP forte (sku ou cnp).
+    if (cnpStr) {
+      for (const site of PT_PHARMACY_SITES) {
+        if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
 
-      for (const url of urls) {
-        const html = await throttledFetchText(url);
-        if (!html) continue;
-        const meta = extractRetailMetadata(html);
-        const sim = meta.nome ? jaccard(meta.nome, req.designacao) : 0;
+        for (const searchUrl of site.search(cnpStr)) {
+          trace?.({
+            kind: "stage",
+            connector: "retail_pharmacy",
+            stage: `site:${site.domain}`,
+            query: searchUrl,
+          });
+          const searchHtml = await throttledFetchText(searchUrl);
+          if (!searchHtml) continue;
 
-        // Determinar força do match.
-        const cnpInUrl = cnp != null && urlMatchesCnp(url, cnp);
-        const cnpInPage = cnp != null && pageMatchesCnp(html, cnp);
+          const urls = parseSiteSearchResults(searchHtml, site.domain).slice(
+            0,
+            RETAIL_MAX_CANDIDATES
+          );
+          trace?.({
+            kind: "search_results",
+            connector: "retail_pharmacy",
+            query: searchUrl,
+            urls,
+            via: "site_search",
+          });
+          if (urls.length === 0) continue;
 
-        let matchedBy: RetailCandidate["matchedBy"];
-        let confidence: number;
-        let partial = false;
-
-        if (cnpInUrl) {
-          matchedBy = "sku";
-          confidence = 0.80;
-        } else if (cnpInPage) {
-          matchedBy = "cnp";
-          confidence = 0.78;
-        } else if (sim >= RETAIL_STRONG_SIMILARITY) {
-          matchedBy = "designacao";
-          confidence = Math.min(0.65 * (0.85 + sim * 0.4), 0.78);
-        } else if (sim >= RETAIL_MIN_SIMILARITY) {
-          matchedBy = "fuzzy_name";
-          confidence = Math.min(0.55 * (0.85 + sim * 0.4), 0.65);
-          partial = true;
-        } else if (meta.brand || meta.categoria) {
-          // Página com pouca evidência mas alguma extracção — parcial.
-          matchedBy = "fuzzy_name";
-          confidence = 0.50;
-          partial = true;
-        } else {
-          continue; // sem evidência útil, ignora
+          for (const url of urls) {
+            const cand = await evaluateRetailCandidate(
+              url,
+              cnp,
+              req.designacao,
+              `site:${site.domain} cnp=${cnpStr}`,
+              trace
+            );
+            candidatesEvaluated++;
+            if (!cand) continue;
+            if (!best || cand.score > best.score) best = cand;
+            if (cand.matchedBy === "sku" || cand.matchedBy === "cnp") break;
+          }
+          if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
         }
-
-        // Score combinado para escolher entre candidatos.
-        const score =
-          confidence +
-          (cnpInUrl ? 0.10 : cnpInPage ? 0.08 : 0) +
-          sim * 0.05 +
-          (meta.brand ? 0.02 : 0) +
-          (meta.categoria ? 0.02 : 0);
-
-        if (!best || score > best.score) {
-          best = {
-            url,
-            meta,
-            matchedBy,
-            confidence,
-            partial,
-            similarity: sim,
-            query: stage.q,
-            score,
-          };
-        }
-
-        // Short-circuit em CNP match forte.
-        if ((cnpInUrl || cnpInPage) && sim >= RETAIL_MIN_SIMILARITY) break;
       }
-
-      // Se já temos um match com CNP, não precisa fazer estágios mais soltos.
-      if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
     }
 
-    if (!best) return null;
+    // ─── Estratégia 2: DDG cross-site com CNP ──────────────────────────────
+    //
+    // Caso a estratégia 1 não tenha encontrado um match forte, tenta DDG
+    // com o CNP entre aspas (sem restrição de site) — apanha lojas fora
+    // da nossa lista que indexam o CNP.
+    if (!best || (best.matchedBy !== "sku" && best.matchedBy !== "cnp")) {
+      const ddgStages: Array<{ q: string; label: string }> = [];
+      if (cnpStr) {
+        const namePart = req.designacao
+          .split(/\s+/)
+          .filter((w) => w.length >= 3)
+          .slice(0, 3)
+          .join(" ");
+        ddgStages.push({
+          q: namePart ? `"${cnpStr}" ${namePart}` : `"${cnpStr}"`,
+          label: "ddg_cnp",
+        });
+      }
+      ddgStages.push({ q: `${req.designacao} farmácia`, label: "ddg_name" });
+
+      for (const stage of ddgStages) {
+        trace?.({
+          kind: "stage",
+          connector: "retail_pharmacy",
+          stage: stage.label,
+          query: stage.q,
+        });
+        const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(stage.q)}`;
+        const html = await throttledFetchText(ddgUrl);
+        if (!html) continue;
+        const urls = parseDdgResults(html).slice(0, RETAIL_MAX_CANDIDATES);
+        trace?.({
+          kind: "search_results",
+          connector: "retail_pharmacy",
+          query: stage.q,
+          urls,
+          via: "ddg",
+        });
+        if (urls.length === 0) continue;
+
+        for (const url of urls) {
+          const cand = await evaluateRetailCandidate(
+            url,
+            cnp,
+            req.designacao,
+            stage.q,
+            trace
+          );
+          candidatesEvaluated++;
+          if (!cand) continue;
+          if (!best || cand.score > best.score) best = cand;
+          if (cand.matchedBy === "sku" || cand.matchedBy === "cnp") break;
+        }
+        if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
+      }
+    }
+
+    if (!best) {
+      trace?.({
+        kind: "result",
+        connector: "retail_pharmacy",
+        status: "NO_MATCH",
+        reason:
+          candidatesEvaluated === 0
+            ? "Nenhuma URL candidata devolvida pelas pesquisas (site search + DDG)"
+            : `Avaliadas ${candidatesEvaluated} URL(s); nenhuma com sinal suficiente (CNP, similaridade, marca+breadcrumb)`,
+      });
+      return null;
+    }
+
+    trace?.({
+      kind: "result",
+      connector: "retail_pharmacy",
+      status: best.partial ? "PARTIAL_HIT" : "SUCCESS",
+      reason: `match ${best.matchedBy} conf=${best.confidence.toFixed(2)} ${best.url}`,
+    });
 
     const descSnippet = best.meta.descricao
       ? " · " + best.meta.descricao.slice(0, 120).replace(/\s+/g, " ")
@@ -1022,6 +1229,17 @@ export async function runConnectors(
       const durationMs = Date.now() - t0;
       if (result !== null) {
         results.push(result);
+        // Conectores que não emitem trace próprio (INFARMED / OFF / OBF):
+        // o retail emite o seu, este não duplica porque enviar "result"
+        // duas vezes é só ruído visual.
+        if (connector.name !== "retail_pharmacy") {
+          req.trace?.({
+            kind: "result",
+            connector: connector.name,
+            status: result.partial ? "PARTIAL_HIT" : "SUCCESS",
+            reason: `match ${result.matchedBy} conf=${result.confidence.toFixed(2)}`,
+          });
+        }
         entry = {
           source: connector.name,
           productId: req.productId,
@@ -1038,6 +1256,14 @@ export async function runConnectors(
           rawProductName: result.rawProductName ?? null,
         };
       } else {
+        if (connector.name !== "retail_pharmacy") {
+          req.trace?.({
+            kind: "result",
+            connector: connector.name,
+            status: "NO_MATCH",
+            reason: "Conector devolveu null — sem dados para este CNP/designação",
+          });
+        }
         entry = {
           source: connector.name,
           productId: req.productId,
@@ -1060,6 +1286,12 @@ export async function runConnectors(
       console.warn(
         `[connector:${connector.name}] Erro para produto ${req.cnp ?? req.designacao}: ${msg}`
       );
+      req.trace?.({
+        kind: "result",
+        connector: connector.name,
+        status: "ERROR",
+        reason: msg.slice(0, 200),
+      });
       entry = {
         source: connector.name,
         productId: req.productId,

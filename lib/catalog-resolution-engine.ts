@@ -62,9 +62,11 @@
 
 import type {
   ClassificationResult,
+  ClassificationSource,
   ExternalSourceData,
   FieldConflict,
   ProductFieldRelevance,
+  ProductType,
   ResolvedField,
   ResolvedProduct,
   SourceSummary,
@@ -73,6 +75,44 @@ import type {
 } from "./catalog-types";
 import { SOURCE_TIER_RANK } from "./catalog-types";
 import { getFieldRelevance } from "./catalog-classifier";
+
+/**
+ * Mapa de palavras-chave em texto bruto de breadcrumb / categoria externa →
+ * ProductType canónico. Usado para upgrade de productType quando o classifier
+ * deu OUTRO mas o retail/breadcrumb diz claramente o tipo.
+ *
+ * Ordem importa: o primeiro match vence.
+ */
+const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = [
+  { pattern: /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor/i, type: "DERMOCOSMETICA" },
+  { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar/i, type: "DERMOCOSMETICA" },
+  { pattern: /maquilhag|makeup|cosm[eé]tic|perfume|fragranc/i, type: "DERMOCOSMETICA" },
+  { pattern: /suplement|vitamin|multivit|nutri[cç][aã]o|food\s+supplement/i, type: "SUPLEMENTO" },
+  { pattern: /beb[eé]|baby|infant|puericultura|fralda|chupeta|bibera/i, type: "PUERICULTURA" },
+  { pattern: /veterin|pet|c[aã]o|gato|animal/i, type: "VETERINARIA" },
+  { pattern: /ortop[eé]d|joelheira|tornozeleira|cinta\s+lombar|palmilha|meias?\s+de\s+compress/i, type: "ORTOPEDIA" },
+  { pattern: /dispositivo\s+m[eé]dic|medical\s+device|term[oó]metro|tens[iaã]o\s+arterial|nebuliza/i, type: "DISPOSITIVO_MEDICO" },
+  { pattern: /higiene|champ[oô]|shampoo|sabonet|gel\s+de\s+banho|pasta\s+dent|escova\s+dent/i, type: "HIGIENE_CUIDADO" },
+];
+
+/**
+ * Olha para `rawCategory` / `categoria` das fontes externas e devolve um
+ * ProductType canónico se houver match claro. Devolve null caso contrário.
+ */
+function inferProductTypeFromExternal(
+  sources: ExternalSourceData[]
+): { type: ProductType; evidence: string } | null {
+  for (const s of sources) {
+    const blob = [s.rawCategory ?? "", s.categoria ?? ""].join(" ");
+    if (!blob.trim()) continue;
+    for (const rule of CATEGORY_TO_PRODUCT_TYPE) {
+      if (rule.pattern.test(blob)) {
+        return { type: rule.type, evidence: blob.trim().slice(0, 120) };
+      }
+    }
+  }
+  return null;
+}
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
@@ -248,7 +288,30 @@ export function resolveProduct(
   classification: ClassificationResult,
   sources: ExternalSourceData[]
 ): ResolvedProduct {
-  const { productType, confidence: typeConf, classificationSource, classificationVersion, hints } = classification;
+  let { productType, confidence: typeConf } = classification;
+  const { classificationVersion, hints } = classification;
+  let classificationSource: ClassificationSource = classification.classificationSource;
+
+  // ─── Refinamento de productType a partir de evidência externa ───────────
+  //
+  // Se o classifier interno deu OUTRO (ou um tipo com confiança baixa) e o
+  // retail / breadcrumb diz claramente outra coisa, faz upgrade. Justifica:
+  // produtos sem flagMSRM/ATC/tipoArtigo caem em OUTRO por defeito mesmo
+  // quando o nome ou o site indica claramente DERMOCOSMETICA, SUPLEMENTO,
+  // etc. — a evidência externa é precisamente o que falta.
+  //
+  // A confiança pós-refinamento é capada em 0.65 — suficiente para passar
+  // o gate de revisão (0.50) e para o mapper escolher uma categoria
+  // canónica, mas abaixo do tier "VERIFIED" (0.75) que exige fonte forte.
+  if (productType === "OUTRO" || typeConf < MIN_USEFUL_CONFIDENCE) {
+    const inferred = inferProductTypeFromExternal(sources);
+    if (inferred) {
+      productType = inferred.type;
+      typeConf = Math.max(typeConf, 0.65);
+      classificationSource = "EXTERNAL";
+    }
+  }
+
   const relevance: ProductFieldRelevance = getFieldRelevance(productType);
 
   /**
@@ -336,13 +399,36 @@ export function resolveProduct(
   // needsManualReview ⇔ NEEDS_REVIEW. Sem excepções legacy.
   const needsManualReview = verificationStatus === "NEEDS_REVIEW";
 
+  // Razão explícita para revisão manual. Cada caso é distinto porque o
+  // admin precisa de saber *o quê* arranjar (procurar fabricante, validar
+  // categoria, escolher entre conflito, etc.) — "Sem motivo" ou "Revisão
+  // automática" não são úteis.
   let manualReviewReason: string | null = null;
   if (needsManualReview) {
     if (hasAnyConflict) {
       const fields = conflicts.map((c) => c.field).join(", ");
       manualReviewReason = `Conflito entre fontes em: ${fields}`;
+    } else if (sources.length === 0) {
+      manualReviewReason =
+        `Sem dados de fontes externas — nenhum conector encontrou ` +
+        `informação para este CNP/designação (tipo=${productType}, ` +
+        `conf=${(typeConf * 100).toFixed(0)}%)`;
+    } else if (typeConf < MIN_USEFUL_CONFIDENCE) {
+      const cats = sources
+        .map((s) => s.rawCategory ?? s.categoria)
+        .filter((c): c is string => !!c && c.trim().length > 0);
+      const fontes = sources.map((s) => s.source).join(", ");
+      manualReviewReason =
+        `Tipo de produto não determinado (conf ${(typeConf * 100).toFixed(0)}%). ` +
+        `Fontes consultadas: ${fontes}` +
+        (cats.length > 0
+          ? `. Categorias devolvidas: ${cats.slice(0, 3).join(" | ")}`
+          : ". Sem categorias devolvidas.");
     } else {
-      manualReviewReason = `Tipo de produto não determinado (confiança ${(typeConf * 100).toFixed(0)}%)`;
+      manualReviewReason =
+        `Revisão necessária. tipo=${productType} ` +
+        `conf=${(typeConf * 100).toFixed(0)}% ` +
+        `maxFieldConf=${(maxFieldConf * 100).toFixed(0)}%`;
     }
   }
 

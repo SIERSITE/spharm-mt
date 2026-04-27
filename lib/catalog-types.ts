@@ -119,6 +119,38 @@ export type ClassificationResult = {
 
 // ─── Conectores externos ──────────────────────────────────────────────────────
 
+/**
+ * Tracer opcional para diagnóstico verboso de uma corrida de enriquecimento.
+ *
+ * Os conectores chamam `trace?.(...)` em pontos-chave (queries lançadas, URLs
+ * candidatas, extracção de evidência, decisão de match). Em produção fica
+ * desactivado; em CLI o `--verbose` injecta um tracer que escreve em stdout.
+ *
+ * O tracer é STRICTAMENTE diagnóstico: nunca afecta o comportamento.
+ */
+export type EnrichmentTracer = (event: TraceEvent) => void;
+
+export type TraceEvent =
+  | { kind: "stage"; connector: string; stage: string; query: string }
+  | { kind: "search_results"; connector: string; query: string; urls: string[]; via: string }
+  | { kind: "candidate"; connector: string; url: string; httpOk: boolean; reason?: string }
+  | {
+      kind: "match";
+      connector: string;
+      url: string;
+      cnpInUrl: boolean;
+      cnpInPage: boolean;
+      similarity: number;
+      rawBrand: string | null;
+      rawCategory: string | null;
+      rawProductName: string | null;
+      matchedBy: string;
+      confidence: number;
+      partial: boolean;
+    }
+  | { kind: "skipped"; connector: string; url: string; reason: string }
+  | { kind: "result"; connector: string; status: "SUCCESS" | "PARTIAL_HIT" | "NO_MATCH" | "ERROR"; reason: string | null };
+
 /** Pedido enviado a cada conector externo */
 export type ExternalLookupRequest = {
   /** ID interno do produto (para lookups na BD interna) */
@@ -128,6 +160,8 @@ export type ExternalLookupRequest = {
   designacao: string;
   productType: ProductType;
   hints: ExternalVerificationHints;
+  /** Tracer opcional para modo verbose. */
+  trace?: EnrichmentTracer;
 };
 
 /**
