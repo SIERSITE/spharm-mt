@@ -70,6 +70,11 @@ async function persistSourceCall(entry: SourceCallEntry): Promise<void> {
         durationMs: entry.durationMs,
         fieldsReturned: entry.fieldsReturned,
         errorMessage: entry.errorMessage,
+        url: entry.url,
+        query: entry.query,
+        rawBrand: entry.rawBrand,
+        rawCategory: entry.rawCategory,
+        rawProductName: entry.rawProductName,
       },
     });
   } catch (err) {

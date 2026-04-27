@@ -343,14 +343,16 @@ model ProdutoVerificacaoHistorico {
 /// Resultado de cada chamada a um conector externo.
 ///
 /// Granularidade: uma row por (produto × conector × tentativa) — alimenta
-/// as métricas de qualidade de fonte em /admin/catalogo. Nunca lido pelo
-/// pipeline em runtime; é só observabilidade.
+/// as métricas de qualidade de fonte em /admin/catalogo E a evidência
+/// detalhada em /admin/catalogo/revisao/[id].
 ///
 /// Status:
-///   SUCCESS   — o conector devolveu ExternalSourceData não-null.
-///   NO_MATCH  — o conector devolveu null (sem dados para este CNP/designação).
-///   ERROR     — o conector lançou (timeout, HTTP error, parse fail). A mensagem
-///               é capturada em errorMessage truncada a 500 chars.
+///   SUCCESS     — match forte; dados extraídos com confiança suficiente.
+///   PARTIAL_HIT — página/registo encontrado mas com dados incompletos
+///                 ou similaridade média. Útil mostrar ao admin.
+///   NO_MATCH    — sem candidato. Conector tentou mas não achou nada.
+///   ERROR       — exceção (timeout, HTTP, parse). errorMessage truncada
+///                 a 500 chars.
 ///
 /// Append-only. Não há UPDATE; reverify gera nova row.
 model EnrichmentSourceLog {
@@ -358,15 +360,28 @@ model EnrichmentSourceLog {
   produtoId       String
   source          String
   status          EnrichmentSourceStatus
-  /// Confiança devolvida pela fonte para este produto. Só preenchido em SUCCESS.
+  /// Confiança devolvida pela fonte para este produto. Preenchido em SUCCESS e PARTIAL_HIT.
   confidence      Float?
-  /// "cnp" | "designacao" | "ean" | "unknown" — como o conector encontrou o produto.
+  /// "cnp" | "sku" | "designacao" | "fuzzy_name" | "ean" | "unknown".
   matchedBy       String?
   durationMs      Int?
   /// Lista de campos não-null devolvidos pela fonte (fabricante, atc, categoria, …).
-  /// Só preenchido em SUCCESS. Permite contar coverage por campo por fonte.
+  /// Permite contar coverage por campo por fonte.
   fieldsReturned  String[]
   errorMessage    String?
+  /// URL da página/registo de onde os dados vieram, quando aplicável.
+  /// Crucial para conectores web (retail_pharmacy) — admin pode abrir a página.
+  url             String?
+  /// Query exacta enviada à fonte (DDG, OFF/OBF, etc.). Permite reproduzir a busca.
+  query           String?
+  /// Marca / fabricante exactamente como aparece na fonte, antes de qualquer
+  /// normalização. Mostrado ao admin como sinal cru.
+  rawBrand        String?
+  /// Categoria/breadcrumb cru, antes do mapeamento canónico.
+  rawCategory     String?
+  /// Nome do produto na fonte (og:title, h1, designacaoOficial, etc.).
+  /// Permite ao admin ver se o conector apanhou o produto certo.
+  rawProductName  String?
   createdAt       DateTime                @default(now())
 
   produto         Produto                 @relation(fields: [produtoId], references: [id], onDelete: Cascade)
@@ -380,6 +395,7 @@ enum EnrichmentSourceStatus {
   SUCCESS
   NO_MATCH
   ERROR
+  PARTIAL_HIT
 }
 
 /// Fornecedor normalizado.

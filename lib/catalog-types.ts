@@ -139,8 +139,8 @@ export type ExternalSourceData = {
   source: string;
   /** Nível de autoridade desta fonte — usado para desempate e bloqueio de sobrescritas */
   tier: SourceTier;
-  /** Como foi feita a correspondência */
-  matchedBy: "cnp" | "designacao" | "ean" | "unknown";
+  /** Como foi feita a correspondência (string aberto para permitir novas estratégias). */
+  matchedBy: string;
   /** Confiança global desta fonte para este produto (0..1) */
   confidence: number;
   fabricante: string | null;
@@ -154,6 +154,23 @@ export type ExternalSourceData = {
   imagemUrl: string | null;
   /** Notas de diagnóstico opcionais */
   notes: string | null;
+  // ─── Evidência (Abril 2026) ────────────────────────────────────────────────
+  /**
+   * Quando true, o conector encontrou um candidato mas com dados incompletos
+   * ou similaridade média — log como PARTIAL_HIT em vez de SUCCESS. Os campos
+   * são na mesma resolvidos pelo motor; este flag é só para telemetria.
+   */
+  partial?: boolean;
+  /** URL da página/registo onde os dados foram extraídos. */
+  url?: string | null;
+  /** Query exacta usada para encontrar este registo (para reprodução manual). */
+  query?: string | null;
+  /** Marca crua extraída antes de normalizar — só evidência, nunca persistido em fabricante. */
+  rawBrand?: string | null;
+  /** Categoria crua antes do mapeamento canónico. */
+  rawCategory?: string | null;
+  /** Nome do produto como aparece na fonte. */
+  rawProductName?: string | null;
 };
 
 // ─── Motor de resolução ───────────────────────────────────────────────────────

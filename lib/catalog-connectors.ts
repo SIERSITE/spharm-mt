@@ -184,6 +184,7 @@ const infarmedConnector: ExternalConnector = {
         grupoTerapeutico: true,
         estadoAim: true,
         snapshotVersion: true,
+        designacaoOficial: true,
       },
     });
 
@@ -212,6 +213,12 @@ const infarmedConnector: ExternalConnector = {
       subcategoria: null,
       imagemUrl: null,
       notes: `INFARMED snapshot ${row.snapshotVersion}${row.estadoAim ? ` · ${row.estadoAim}` : ""}`,
+      // Evidência crua para o admin
+      url: null,
+      query: `InfarmedSnapshot WHERE cnp=${req.cnp}`,
+      rawBrand: row.titularAim,
+      rawCategory: row.grupoTerapeutico,
+      rawProductName: row.designacaoOficial,
     };
   },
 };
@@ -318,21 +325,24 @@ function toExternalSource(
   p: OpenFactsProduct,
   source: string,
   similarity: number,
-  baseConfidence: number
+  baseConfidence: number,
+  query: string,
+  designacaoQuery: string
 ): ExternalSourceData {
   // Confiança base * (1 + bónus por similaridade acima do mínimo)
   const confidence = Math.min(baseConfidence * (0.85 + similarity * 0.4), 0.85);
   const firstCategory = p.categories
     ? p.categories.split(",").pop()?.trim() ?? null
     : null;
+  const productName = p.product_name_pt || p.product_name || null;
+  const partial = similarity < RETAIL_STRONG_SIMILARITY;
   return {
     source,
     tier: "RETAIL",
-    matchedBy: "designacao",
+    matchedBy: similarity >= RETAIL_STRONG_SIMILARITY ? "designacao" : "fuzzy_name",
     confidence,
     // tier=RETAIL não é autoritário — fabricante nunca é aceite pela persistência
-    // (AUTHORITATIVE_FIELDS em catalog-persistence.ts). Deixamos null para evitar
-    // warnings desnecessários no log.
+    // (AUTHORITATIVE_FIELDS em catalog-persistence.ts). Brand vai como rawBrand.
     fabricante: null,
     principioAtivo: null,
     atc: null,
@@ -342,7 +352,13 @@ function toExternalSource(
     categoria: firstCategory,
     subcategoria: null,
     imagemUrl: p.image_front_url ?? p.image_url ?? null,
-    notes: `${source} match "${p.product_name_pt || p.product_name}" sim=${similarity.toFixed(2)}`,
+    notes: `${source} match "${productName ?? "?"}" sim=${similarity.toFixed(2)} q="${designacaoQuery}"`,
+    partial,
+    url: null, // OFF/OBF retornam payload directo, sem URL de página
+    query,
+    rawBrand: p.brands ?? null,
+    rawCategory: p.categories ?? null,
+    rawProductName: productName,
   };
 }
 
@@ -359,7 +375,14 @@ const openBeautyFactsConnector: ExternalConnector = {
     );
     const best = pickBestMatch(products, req.designacao);
     if (!best) return null;
-    return toExternalSource(best.product, "open_beauty_facts", best.similarity, 0.70);
+    return toExternalSource(
+      best.product,
+      "open_beauty_facts",
+      best.similarity,
+      0.70,
+      `OBF search_terms="${req.designacao}"`,
+      req.designacao
+    );
   },
 };
 
@@ -376,7 +399,14 @@ const openFoodFactsConnector: ExternalConnector = {
     );
     const best = pickBestMatch(products, req.designacao);
     if (!best) return null;
-    return toExternalSource(best.product, "open_food_facts", best.similarity, 0.65);
+    return toExternalSource(
+      best.product,
+      "open_food_facts",
+      best.similarity,
+      0.65,
+      `OFF search_terms="${req.designacao}"`,
+      req.designacao
+    );
   },
 };
 
@@ -400,27 +430,66 @@ const eudamedConnector: ExternalConnector = {
 
 // ─── Retail Pharmacy (web search + OG / JSON-LD parsing) ─────────────────────
 //
-// Connector RETAIL genérico para produtos não-medicamento.
+// Connector RETAIL para produtos não-medicamento. Estratégia de busca
+// (Abril 2026 — re-escrita após audit que mostrou que a versão anterior
+// não encontrava produtos com CNP único e identificável):
 //
-// Fluxo:
-//   1. Pesquisa a designação do produto no DuckDuckGo HTML
-//      (https://html.duckduckgo.com/html/?q=...) — sem JS, devolve HTML
-//      simples com os resultados.
-//   2. Para cada um dos primeiros N resultados, faz fetch da página e
-//      extrai meta-dados standard Open Graph (og:title, og:image,
-//      og:description) e, quando disponível, JSON-LD BreadcrumbList
-//      para obter o caminho de categoria.
-//   3. Escolhe a página cujo `og:title` tem maior similaridade Jaccard
-//      com a designação. Rate-limited, timeout, never throws.
+//   Stage 1: site-restricted CNP search
+//     query: "<cnp>" (site:asuafarmaciaonline.pt OR site:wells.pt OR …)
+//     Encontra páginas onde o CNP aparece literalmente no SKU ou texto
+//     em sites de farmácia online portugueses conhecidos.
 //
-// Rate limit: 1 request / 1.5s (inclui a pesquisa + cada candidato).
-// Timeout por request: 12s. Qualquer erro → null (não crasha o pipeline).
+//   Stage 2: CNP + nome
+//     query: "<cnp>" <primeiras palavras da designacao>
+//     Sem restrição de site — procura o CNP em qualquer fonte que o use.
+//
+//   Stage 3: fallback por nome
+//     query: <designacao> farmácia
+//     Comportamento legacy.
+//
+// Critério de match (em ordem decrescente de força):
+//   1. CNP aparece no URL → matchedBy=sku, confidence=0.80
+//   2. CNP aparece no body da página → matchedBy=cnp, confidence=0.78
+//   3. og:title com Jaccard ≥ 0.70 vs designacao → matchedBy=designacao, conf=0.70
+//   4. og:title com Jaccard ≥ 0.35 vs designacao → matchedBy=fuzzy_name, conf=0.55
+//      e o resultado é marcado partial=true (PARTIAL_HIT na telemetria).
+//   5. Tudo abaixo → ignorado.
+//
+// Extracção de evidência:
+//   - rawProductName: og:title ou h1
+//   - rawBrand: JSON-LD Product.brand → microdata itemprop=brand → texto "Marca:"
+//   - rawCategory: BreadcrumbList JSON-LD → microdata category → texto "Categoria:"
+//   - imagemUrl: og:image
+//
+// O fabricante NUNCA é devolvido em ExternalSourceData.fabricante porque
+// tier=RETAIL não pode escrever esse campo (defesa de tier no resolver).
+// O rawBrand fica como evidência para o admin validar manualmente.
+//
+// Rate limit: 1 request / 1.5s (inclui pesquisa + cada candidato).
+// Timeout por request: 12s. Qualquer erro → null (degrada graciosamente).
 
 const RETAIL_MIN_INTERVAL_MS = 1_500;
 const RETAIL_TIMEOUT_MS = 12_000;
-const RETAIL_MAX_CANDIDATES = 3;
+const RETAIL_MAX_CANDIDATES = 4;
 const RETAIL_MIN_SIMILARITY = 0.35;
 const RETAIL_STRONG_SIMILARITY = 0.70;
+
+/**
+ * Sites de farmácia online portugueses conhecidos. Usados na stage 1 do
+ * search com `site:` para focar a busca em domínios onde os CNPs aparecem
+ * geralmente como SKU/código de produto. Lista pode ser expandida.
+ */
+const PT_PHARMACY_SITES = [
+  "asuafarmaciaonline.pt",
+  "wells.pt",
+  "cf.pt",
+  "farmaciascarvalho.pt",
+  "farmaciaramos.com",
+  "farmacia24.pt",
+  "farmaciapinheiro.pt",
+  "bemestaratual.pt",
+  "powerhealth.pt",
+];
 
 // UA de browser: DDG HTML é menos amigável a clients não-browser.
 const RETAIL_UA =
@@ -559,7 +628,104 @@ type RetailExtracted = {
   imagem: string | null;
   categoria: string | null;
   descricao: string | null;
+  brand: string | null;
 };
+
+/**
+ * Extrai marca/laboratório do HTML, em ordem decrescente de fiabilidade:
+ *   1. JSON-LD Product.brand.name
+ *   2. itemprop="brand" content / texto interno
+ *   3. Texto "Marca:" ou "Brand:" próximo do produto
+ */
+function extractBrand(html: string): string | null {
+  // 1. JSON-LD Product.brand
+  const blocks = html.match(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  );
+  if (blocks) {
+    for (const block of blocks) {
+      const m = /<script[^>]*>([\s\S]*?)<\/script>/i.exec(block);
+      if (!m) continue;
+      try {
+        const data: unknown = JSON.parse(m[1]);
+        const candidates = Array.isArray(data) ? data : [data];
+        for (const raw of candidates) {
+          if (!raw || typeof raw !== "object") continue;
+          const node = raw as Record<string, unknown>;
+          const t = node["@type"];
+          if (t === "Product" || (Array.isArray(t) && t.includes("Product"))) {
+            const brand = node["brand"];
+            if (typeof brand === "string" && brand.trim()) return brand.trim();
+            if (brand && typeof brand === "object") {
+              const b = brand as Record<string, unknown>;
+              if (typeof b.name === "string" && b.name.trim()) return b.name.trim();
+            }
+          }
+        }
+      } catch {
+        /* JSON-LD inválido */
+      }
+    }
+  }
+
+  // 2. itemprop="brand" — content de meta ou texto de span/a
+  const itempropMeta = /<meta[^>]*itemprop=["']brand["'][^>]*content=["']([^"']+)["']/i.exec(html);
+  if (itempropMeta) return decodeHtmlEntities(itempropMeta[1]).trim();
+
+  const itempropTag = /<[^>]*itemprop=["']brand["'][^>]*>([^<]+)</i.exec(html);
+  if (itempropTag) {
+    const v = decodeHtmlEntities(itempropTag[1]).trim();
+    if (v.length > 0 && v.length < 80) return v;
+  }
+
+  // Aninhado: <span itemprop="brand"><span itemprop="name">X</span></span>
+  const itempropNested = /<[^>]*itemprop=["']brand["'][^>]*>[\s\S]*?<[^>]*itemprop=["']name["'][^>]*>([^<]+)</i.exec(html);
+  if (itempropNested) {
+    const v = decodeHtmlEntities(itempropNested[1]).trim();
+    if (v.length > 0 && v.length < 80) return v;
+  }
+
+  // 3. Texto "Marca:" / "Brand:" — capturar próxima palavra(s) razoável
+  // Procura no HTML completo mas limita o resultado a algo plausível.
+  const textPatterns = [
+    /Marca\s*:\s*<[^>]+>\s*([A-Z][^<\n]{1,60})\s*</i,        // <strong>Marca:</strong> <a>X</a>
+    />\s*Marca\s*:?\s*<\/[^>]+>\s*<[^>]+>\s*([A-Z][^<\n]{1,60})\s*</i, // similar nested
+    /Marca\s*:\s*([A-Z][\w\s&.\-']{2,60})(?=[<\n,])/,        // "Marca: ADVANCIS\n"
+    /Brand\s*:\s*([A-Z][\w\s&.\-']{2,60})(?=[<\n,])/,
+  ];
+  for (const re of textPatterns) {
+    const m = re.exec(html);
+    if (m) {
+      const v = decodeHtmlEntities(m[1]).trim();
+      // Sanity: brand é tipicamente 2-50 chars, sem demasiados espaços (não captura frases)
+      if (v.length >= 2 && v.length <= 50 && (v.match(/\s/g) ?? []).length <= 5) {
+        return v;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extrai categoria crua do HTML — breadcrumb completo, depois fallbacks meta,
+ * depois texto "Categoria:".
+ */
+function extractRawCategory(html: string): string | null {
+  const breadcrumb = extractJsonLdBreadcrumb(html);
+  if (breadcrumb) return breadcrumb;
+  const product = extractMetaContent(html, "product:category");
+  if (product) return product;
+  const article = extractMetaContent(html, "article:section");
+  if (article) return article;
+  // Texto explícito
+  const m = /Categoria\s*:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇa-zàáâãäçéèêíîïóôõöúûü\s,&.\-/]{2,80})(?=[<\n])/.exec(html);
+  if (m) {
+    const v = decodeHtmlEntities(m[1]).trim().replace(/\s+/g, " ");
+    if (v.length >= 2 && v.length <= 80) return v;
+  }
+  return null;
+}
 
 function extractRetailMetadata(html: string): RetailExtracted {
   return {
@@ -569,77 +735,178 @@ function extractRetailMetadata(html: string): RetailExtracted {
     imagem:
       extractMetaContent(html, "og:image") ??
       extractMetaContent(html, "twitter:image"),
-    categoria:
-      extractJsonLdBreadcrumb(html) ??
-      extractMetaContent(html, "product:category") ??
-      extractMetaContent(html, "article:section"),
+    categoria: extractRawCategory(html),
     descricao:
       extractMetaContent(html, "og:description") ??
       extractMetaContent(html, "description"),
+    brand: extractBrand(html),
   };
 }
+
+/** True se o CNP aparece literalmente no path do URL (com word-boundary). */
+function urlMatchesCnp(url: string, cnp: number): boolean {
+  return new RegExp(`(^|[^0-9])${cnp}([^0-9]|$)`).test(url);
+}
+
+/**
+ * True se o CNP aparece literalmente no body da página HTML — exclui blocos
+ * de script/style para evitar falsos positivos de código JS.
+ */
+function pageMatchesCnp(html: string, cnp: number): boolean {
+  const cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "");
+  return new RegExp(`(^|[^0-9])${cnp}([^0-9]|$)`).test(cleaned);
+}
+
+type RetailCandidate = {
+  url: string;
+  meta: RetailExtracted;
+  matchedBy: "sku" | "cnp" | "designacao" | "fuzzy_name";
+  confidence: number;
+  partial: boolean;
+  similarity: number;
+  query: string;
+  score: number;
+};
 
 const retailPharmacyConnector: ExternalConnector = {
   name: "retail_pharmacy",
 
   async lookup(req): Promise<ExternalSourceData | null> {
-    if (!req.designacao) return null;
+    if (!req.designacao && !req.cnp) return null;
 
-    // 1. Pesquisa no DuckDuckGo HTML
-    const query = `${req.designacao} farmácia`;
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const searchHtml = await throttledFetchText(searchUrl);
-    if (!searchHtml) return null;
+    const cnp = req.cnp ?? null;
+    const cnpStr = cnp != null ? String(cnp) : null;
 
-    const candidates = parseDdgResults(searchHtml).slice(0, RETAIL_MAX_CANDIDATES);
-    if (candidates.length === 0) return null;
+    // Construir queries por estágio. Stage 1 e 2 só fazem sentido com CNP.
+    const stages: Array<{ q: string; label: string }> = [];
+    if (cnpStr) {
+      const sites = PT_PHARMACY_SITES.map((s) => `site:${s}`).join(" OR ");
+      stages.push({
+        q: `"${cnpStr}" (${sites})`,
+        label: "site_cnp",
+      });
+      // Acrescenta primeiras 3 palavras da designação para reforçar relevância.
+      const namePart = req.designacao
+        .split(/\s+/)
+        .filter((w) => w.length >= 3)
+        .slice(0, 3)
+        .join(" ");
+      stages.push({
+        q: namePart ? `"${cnpStr}" ${namePart}` : `"${cnpStr}"`,
+        label: "cnp_text",
+      });
+    }
+    stages.push({
+      q: `${req.designacao} farmácia`,
+      label: "name",
+    });
 
-    // 2. Para cada candidato, fetch + extract + score
-    let best: { url: string; data: RetailExtracted; similarity: number } | null = null;
+    let best: RetailCandidate | null = null;
 
-    for (const url of candidates) {
-      const html = await throttledFetchText(url);
-      if (!html) continue;
-      const data = extractRetailMetadata(html);
-      if (!data.nome) continue;
+    for (const stage of stages) {
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(stage.q)}`;
+      const searchHtml = await throttledFetchText(searchUrl);
+      if (!searchHtml) continue;
+      const urls = parseDdgResults(searchHtml).slice(0, RETAIL_MAX_CANDIDATES);
+      if (urls.length === 0) continue;
 
-      const sim = jaccard(data.nome, req.designacao);
-      if (sim < RETAIL_MIN_SIMILARITY) continue;
+      for (const url of urls) {
+        const html = await throttledFetchText(url);
+        if (!html) continue;
+        const meta = extractRetailMetadata(html);
+        const sim = meta.nome ? jaccard(meta.nome, req.designacao) : 0;
 
-      if (!best || sim > best.similarity) {
-        best = { url, data, similarity: sim };
+        // Determinar força do match.
+        const cnpInUrl = cnp != null && urlMatchesCnp(url, cnp);
+        const cnpInPage = cnp != null && pageMatchesCnp(html, cnp);
+
+        let matchedBy: RetailCandidate["matchedBy"];
+        let confidence: number;
+        let partial = false;
+
+        if (cnpInUrl) {
+          matchedBy = "sku";
+          confidence = 0.80;
+        } else if (cnpInPage) {
+          matchedBy = "cnp";
+          confidence = 0.78;
+        } else if (sim >= RETAIL_STRONG_SIMILARITY) {
+          matchedBy = "designacao";
+          confidence = Math.min(0.65 * (0.85 + sim * 0.4), 0.78);
+        } else if (sim >= RETAIL_MIN_SIMILARITY) {
+          matchedBy = "fuzzy_name";
+          confidence = Math.min(0.55 * (0.85 + sim * 0.4), 0.65);
+          partial = true;
+        } else if (meta.brand || meta.categoria) {
+          // Página com pouca evidência mas alguma extracção — parcial.
+          matchedBy = "fuzzy_name";
+          confidence = 0.50;
+          partial = true;
+        } else {
+          continue; // sem evidência útil, ignora
+        }
+
+        // Score combinado para escolher entre candidatos.
+        const score =
+          confidence +
+          (cnpInUrl ? 0.10 : cnpInPage ? 0.08 : 0) +
+          sim * 0.05 +
+          (meta.brand ? 0.02 : 0) +
+          (meta.categoria ? 0.02 : 0);
+
+        if (!best || score > best.score) {
+          best = {
+            url,
+            meta,
+            matchedBy,
+            confidence,
+            partial,
+            similarity: sim,
+            query: stage.q,
+            score,
+          };
+        }
+
+        // Short-circuit em CNP match forte.
+        if ((cnpInUrl || cnpInPage) && sim >= RETAIL_MIN_SIMILARITY) break;
       }
-      // short-circuit se já temos match forte
-      if (sim >= RETAIL_STRONG_SIMILARITY) break;
+
+      // Se já temos um match com CNP, não precisa fazer estágios mais soltos.
+      if (best && (best.matchedBy === "sku" || best.matchedBy === "cnp")) break;
     }
 
     if (!best) return null;
 
-    // Confiança base do tier RETAIL, escalada pela similaridade do match
-    const baseConfidence = 0.65;
-    const confidence = Math.min(baseConfidence * (0.85 + best.similarity * 0.4), 0.80);
-
-    const descSnippet = best.data.descricao
-      ? " · " + best.data.descricao.slice(0, 140).replace(/\s+/g, " ")
+    const descSnippet = best.meta.descricao
+      ? " · " + best.meta.descricao.slice(0, 120).replace(/\s+/g, " ")
       : "";
 
     return {
       source: "retail_pharmacy",
       tier: "RETAIL",
-      matchedBy: "designacao",
-      confidence,
-      fabricante: null,         // tier RETAIL não é autoritário
+      matchedBy: best.matchedBy,
+      confidence: best.confidence,
+      fabricante: null, // tier RETAIL — fabricante não é autoritário; brand vai como rawBrand
       principioAtivo: null,
       atc: null,
       dosagem: null,
       embalagem: null,
       formaFarmaceutica: null,
-      categoria: best.data.categoria,
+      categoria: best.meta.categoria,
       subcategoria: null,
-      imagemUrl: best.data.imagem,
+      imagemUrl: best.meta.imagem,
       notes:
-        `retail_pharmacy match "${best.data.nome}" sim=${best.similarity.toFixed(2)} ` +
-        `url=${best.url}${descSnippet}`,
+        `${best.matchedBy} match "${best.meta.nome ?? "(sem og:title)"}" ` +
+        `sim=${best.similarity.toFixed(2)} via=${best.query}${descSnippet}`,
+      // Evidência crua para o admin
+      partial: best.partial,
+      url: best.url,
+      query: best.query,
+      rawBrand: best.meta.brand,
+      rawCategory: best.meta.categoria,
+      rawProductName: best.meta.nome,
     };
   },
 };
@@ -687,7 +954,7 @@ export function getConnectorsForProductType(type: ProductType): ExternalConnecto
 export type SourceCallEntry = {
   source: string;
   productId: string;
-  status: "SUCCESS" | "NO_MATCH" | "ERROR";
+  status: "SUCCESS" | "NO_MATCH" | "ERROR" | "PARTIAL_HIT";
   confidence: number | null;
   matchedBy: string | null;
   durationMs: number;
@@ -697,6 +964,12 @@ export type SourceCallEntry = {
    */
   fieldsReturned: string[];
   errorMessage: string | null;
+  /** Evidência (Abril 2026) — propagada do ExternalSourceData. */
+  url: string | null;
+  query: string | null;
+  rawBrand: string | null;
+  rawCategory: string | null;
+  rawProductName: string | null;
 };
 
 export type SourceCallLogger = (entry: SourceCallEntry) => Promise<void> | void;
@@ -752,12 +1025,17 @@ export async function runConnectors(
         entry = {
           source: connector.name,
           productId: req.productId,
-          status: "SUCCESS",
+          status: result.partial ? "PARTIAL_HIT" : "SUCCESS",
           confidence: result.confidence,
           matchedBy: result.matchedBy,
           durationMs,
           fieldsReturned: fieldsReturnedFrom(result),
           errorMessage: null,
+          url: result.url ?? null,
+          query: result.query ?? null,
+          rawBrand: result.rawBrand ?? null,
+          rawCategory: result.rawCategory ?? null,
+          rawProductName: result.rawProductName ?? null,
         };
       } else {
         entry = {
@@ -769,6 +1047,11 @@ export async function runConnectors(
           durationMs,
           fieldsReturned: [],
           errorMessage: null,
+          url: null,
+          query: null,
+          rawBrand: null,
+          rawCategory: null,
+          rawProductName: null,
         };
       }
     } catch (err) {
@@ -786,6 +1069,11 @@ export async function runConnectors(
         durationMs,
         fieldsReturned: [],
         errorMessage: msg.slice(0, 500),
+        url: null,
+        query: null,
+        rawBrand: null,
+        rawCategory: null,
+        rawProductName: null,
       };
     }
 

@@ -217,6 +217,11 @@ export const EnrichmentSourceLogScalarFieldEnum = {
   durationMs: 'durationMs',
   fieldsReturned: 'fieldsReturned',
   errorMessage: 'errorMessage',
+  url: 'url',
+  query: 'query',
+  rawBrand: 'rawBrand',
+  rawCategory: 'rawCategory',
+  rawProductName: 'rawProductName',
   createdAt: 'createdAt'
 } as const
 

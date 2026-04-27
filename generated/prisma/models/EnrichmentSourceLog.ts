@@ -17,14 +17,16 @@ import type * as Prisma from "../internal/prismaNamespace"
  * Resultado de cada chamada a um conector externo.
  * 
  * Granularidade: uma row por (produto × conector × tentativa) — alimenta
- * as métricas de qualidade de fonte em /admin/catalogo. Nunca lido pelo
- * pipeline em runtime; é só observabilidade.
+ * as métricas de qualidade de fonte em /admin/catalogo E a evidência
+ * detalhada em /admin/catalogo/revisao/[id].
  * 
  * Status:
- * SUCCESS   — o conector devolveu ExternalSourceData não-null.
- * NO_MATCH  — o conector devolveu null (sem dados para este CNP/designação).
- * ERROR     — o conector lançou (timeout, HTTP error, parse fail). A mensagem
- * é capturada em errorMessage truncada a 500 chars.
+ * SUCCESS     — match forte; dados extraídos com confiança suficiente.
+ * PARTIAL_HIT — página/registo encontrado mas com dados incompletos
+ * ou similaridade média. Útil mostrar ao admin.
+ * NO_MATCH    — sem candidato. Conector tentou mas não achou nada.
+ * ERROR       — exceção (timeout, HTTP, parse). errorMessage truncada
+ * a 500 chars.
  * 
  * Append-only. Não há UPDATE; reverify gera nova row.
  */
@@ -57,6 +59,11 @@ export type EnrichmentSourceLogMinAggregateOutputType = {
   matchedBy: string | null
   durationMs: number | null
   errorMessage: string | null
+  url: string | null
+  query: string | null
+  rawBrand: string | null
+  rawCategory: string | null
+  rawProductName: string | null
   createdAt: Date | null
 }
 
@@ -69,6 +76,11 @@ export type EnrichmentSourceLogMaxAggregateOutputType = {
   matchedBy: string | null
   durationMs: number | null
   errorMessage: string | null
+  url: string | null
+  query: string | null
+  rawBrand: string | null
+  rawCategory: string | null
+  rawProductName: string | null
   createdAt: Date | null
 }
 
@@ -82,6 +94,11 @@ export type EnrichmentSourceLogCountAggregateOutputType = {
   durationMs: number
   fieldsReturned: number
   errorMessage: number
+  url: number
+  query: number
+  rawBrand: number
+  rawCategory: number
+  rawProductName: number
   createdAt: number
   _all: number
 }
@@ -106,6 +123,11 @@ export type EnrichmentSourceLogMinAggregateInputType = {
   matchedBy?: true
   durationMs?: true
   errorMessage?: true
+  url?: true
+  query?: true
+  rawBrand?: true
+  rawCategory?: true
+  rawProductName?: true
   createdAt?: true
 }
 
@@ -118,6 +140,11 @@ export type EnrichmentSourceLogMaxAggregateInputType = {
   matchedBy?: true
   durationMs?: true
   errorMessage?: true
+  url?: true
+  query?: true
+  rawBrand?: true
+  rawCategory?: true
+  rawProductName?: true
   createdAt?: true
 }
 
@@ -131,6 +158,11 @@ export type EnrichmentSourceLogCountAggregateInputType = {
   durationMs?: true
   fieldsReturned?: true
   errorMessage?: true
+  url?: true
+  query?: true
+  rawBrand?: true
+  rawCategory?: true
+  rawProductName?: true
   createdAt?: true
   _all?: true
 }
@@ -231,6 +263,11 @@ export type EnrichmentSourceLogGroupByOutputType = {
   durationMs: number | null
   fieldsReturned: string[]
   errorMessage: string | null
+  url: string | null
+  query: string | null
+  rawBrand: string | null
+  rawCategory: string | null
+  rawProductName: string | null
   createdAt: Date
   _count: EnrichmentSourceLogCountAggregateOutputType | null
   _avg: EnrichmentSourceLogAvgAggregateOutputType | null
@@ -267,6 +304,11 @@ export type EnrichmentSourceLogWhereInput = {
   durationMs?: Prisma.IntNullableFilter<"EnrichmentSourceLog"> | number | null
   fieldsReturned?: Prisma.StringNullableListFilter<"EnrichmentSourceLog">
   errorMessage?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  url?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  query?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawBrand?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawCategory?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawProductName?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
   createdAt?: Prisma.DateTimeFilter<"EnrichmentSourceLog"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
 }
@@ -281,6 +323,11 @@ export type EnrichmentSourceLogOrderByWithRelationInput = {
   durationMs?: Prisma.SortOrderInput | Prisma.SortOrder
   fieldsReturned?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
+  url?: Prisma.SortOrderInput | Prisma.SortOrder
+  query?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawBrand?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawCategory?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawProductName?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   produto?: Prisma.ProdutoOrderByWithRelationInput
 }
@@ -298,6 +345,11 @@ export type EnrichmentSourceLogWhereUniqueInput = Prisma.AtLeast<{
   durationMs?: Prisma.IntNullableFilter<"EnrichmentSourceLog"> | number | null
   fieldsReturned?: Prisma.StringNullableListFilter<"EnrichmentSourceLog">
   errorMessage?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  url?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  query?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawBrand?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawCategory?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawProductName?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
   createdAt?: Prisma.DateTimeFilter<"EnrichmentSourceLog"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
 }, "id">
@@ -312,6 +364,11 @@ export type EnrichmentSourceLogOrderByWithAggregationInput = {
   durationMs?: Prisma.SortOrderInput | Prisma.SortOrder
   fieldsReturned?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
+  url?: Prisma.SortOrderInput | Prisma.SortOrder
+  query?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawBrand?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawCategory?: Prisma.SortOrderInput | Prisma.SortOrder
+  rawProductName?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.EnrichmentSourceLogCountOrderByAggregateInput
   _avg?: Prisma.EnrichmentSourceLogAvgOrderByAggregateInput
@@ -333,6 +390,11 @@ export type EnrichmentSourceLogScalarWhereWithAggregatesInput = {
   durationMs?: Prisma.IntNullableWithAggregatesFilter<"EnrichmentSourceLog"> | number | null
   fieldsReturned?: Prisma.StringNullableListFilter<"EnrichmentSourceLog">
   errorMessage?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
+  url?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
+  query?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
+  rawBrand?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
+  rawCategory?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
+  rawProductName?: Prisma.StringNullableWithAggregatesFilter<"EnrichmentSourceLog"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"EnrichmentSourceLog"> | Date | string
 }
 
@@ -345,6 +407,11 @@ export type EnrichmentSourceLogCreateInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutEnrichmentSourceLogsInput
 }
@@ -359,6 +426,11 @@ export type EnrichmentSourceLogUncheckedCreateInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
 }
 
@@ -371,6 +443,11 @@ export type EnrichmentSourceLogUpdateInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutEnrichmentSourceLogsNestedInput
 }
@@ -385,6 +462,11 @@ export type EnrichmentSourceLogUncheckedUpdateInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -398,6 +480,11 @@ export type EnrichmentSourceLogCreateManyInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
 }
 
@@ -410,6 +497,11 @@ export type EnrichmentSourceLogUpdateManyMutationInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -423,6 +515,11 @@ export type EnrichmentSourceLogUncheckedUpdateManyInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -446,6 +543,11 @@ export type EnrichmentSourceLogCountOrderByAggregateInput = {
   durationMs?: Prisma.SortOrder
   fieldsReturned?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
+  url?: Prisma.SortOrder
+  query?: Prisma.SortOrder
+  rawBrand?: Prisma.SortOrder
+  rawCategory?: Prisma.SortOrder
+  rawProductName?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -463,6 +565,11 @@ export type EnrichmentSourceLogMaxOrderByAggregateInput = {
   matchedBy?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
+  url?: Prisma.SortOrder
+  query?: Prisma.SortOrder
+  rawBrand?: Prisma.SortOrder
+  rawCategory?: Prisma.SortOrder
+  rawProductName?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -475,6 +582,11 @@ export type EnrichmentSourceLogMinOrderByAggregateInput = {
   matchedBy?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
+  url?: Prisma.SortOrder
+  query?: Prisma.SortOrder
+  rawBrand?: Prisma.SortOrder
+  rawCategory?: Prisma.SortOrder
+  rawProductName?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
 
@@ -547,6 +659,11 @@ export type EnrichmentSourceLogCreateWithoutProdutoInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
 }
 
@@ -559,6 +676,11 @@ export type EnrichmentSourceLogUncheckedCreateWithoutProdutoInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
 }
 
@@ -601,6 +723,11 @@ export type EnrichmentSourceLogScalarWhereInput = {
   durationMs?: Prisma.IntNullableFilter<"EnrichmentSourceLog"> | number | null
   fieldsReturned?: Prisma.StringNullableListFilter<"EnrichmentSourceLog">
   errorMessage?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  url?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  query?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawBrand?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawCategory?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
+  rawProductName?: Prisma.StringNullableFilter<"EnrichmentSourceLog"> | string | null
   createdAt?: Prisma.DateTimeFilter<"EnrichmentSourceLog"> | Date | string
 }
 
@@ -613,6 +740,11 @@ export type EnrichmentSourceLogCreateManyProdutoInput = {
   durationMs?: number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogCreatefieldsReturnedInput | string[]
   errorMessage?: string | null
+  url?: string | null
+  query?: string | null
+  rawBrand?: string | null
+  rawCategory?: string | null
+  rawProductName?: string | null
   createdAt?: Date | string
 }
 
@@ -625,6 +757,11 @@ export type EnrichmentSourceLogUpdateWithoutProdutoInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -637,6 +774,11 @@ export type EnrichmentSourceLogUncheckedUpdateWithoutProdutoInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -649,6 +791,11 @@ export type EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoInput = {
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   fieldsReturned?: Prisma.EnrichmentSourceLogUpdatefieldsReturnedInput | string[]
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  url?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  query?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawBrand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawCategory?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rawProductName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -664,6 +811,11 @@ export type EnrichmentSourceLogSelect<ExtArgs extends runtime.Types.Extensions.I
   durationMs?: boolean
   fieldsReturned?: boolean
   errorMessage?: boolean
+  url?: boolean
+  query?: boolean
+  rawBrand?: boolean
+  rawCategory?: boolean
+  rawProductName?: boolean
   createdAt?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["enrichmentSourceLog"]>
@@ -678,6 +830,11 @@ export type EnrichmentSourceLogSelectCreateManyAndReturn<ExtArgs extends runtime
   durationMs?: boolean
   fieldsReturned?: boolean
   errorMessage?: boolean
+  url?: boolean
+  query?: boolean
+  rawBrand?: boolean
+  rawCategory?: boolean
+  rawProductName?: boolean
   createdAt?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["enrichmentSourceLog"]>
@@ -692,6 +849,11 @@ export type EnrichmentSourceLogSelectUpdateManyAndReturn<ExtArgs extends runtime
   durationMs?: boolean
   fieldsReturned?: boolean
   errorMessage?: boolean
+  url?: boolean
+  query?: boolean
+  rawBrand?: boolean
+  rawCategory?: boolean
+  rawProductName?: boolean
   createdAt?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["enrichmentSourceLog"]>
@@ -706,10 +868,15 @@ export type EnrichmentSourceLogSelectScalar = {
   durationMs?: boolean
   fieldsReturned?: boolean
   errorMessage?: boolean
+  url?: boolean
+  query?: boolean
+  rawBrand?: boolean
+  rawCategory?: boolean
+  rawProductName?: boolean
   createdAt?: boolean
 }
 
-export type EnrichmentSourceLogOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "source" | "status" | "confidence" | "matchedBy" | "durationMs" | "fieldsReturned" | "errorMessage" | "createdAt", ExtArgs["result"]["enrichmentSourceLog"]>
+export type EnrichmentSourceLogOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "source" | "status" | "confidence" | "matchedBy" | "durationMs" | "fieldsReturned" | "errorMessage" | "url" | "query" | "rawBrand" | "rawCategory" | "rawProductName" | "createdAt", ExtArgs["result"]["enrichmentSourceLog"]>
 export type EnrichmentSourceLogInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }
@@ -731,20 +898,43 @@ export type $EnrichmentSourceLogPayload<ExtArgs extends runtime.Types.Extensions
     source: string
     status: $Enums.EnrichmentSourceStatus
     /**
-     * Confiança devolvida pela fonte para este produto. Só preenchido em SUCCESS.
+     * Confiança devolvida pela fonte para este produto. Preenchido em SUCCESS e PARTIAL_HIT.
      */
     confidence: number | null
     /**
-     * "cnp" | "designacao" | "ean" | "unknown" — como o conector encontrou o produto.
+     * "cnp" | "sku" | "designacao" | "fuzzy_name" | "ean" | "unknown".
      */
     matchedBy: string | null
     durationMs: number | null
     /**
      * Lista de campos não-null devolvidos pela fonte (fabricante, atc, categoria, …).
-     * Só preenchido em SUCCESS. Permite contar coverage por campo por fonte.
+     * Permite contar coverage por campo por fonte.
      */
     fieldsReturned: string[]
     errorMessage: string | null
+    /**
+     * URL da página/registo de onde os dados vieram, quando aplicável.
+     * Crucial para conectores web (retail_pharmacy) — admin pode abrir a página.
+     */
+    url: string | null
+    /**
+     * Query exacta enviada à fonte (DDG, OFF/OBF, etc.). Permite reproduzir a busca.
+     */
+    query: string | null
+    /**
+     * Marca / fabricante exactamente como aparece na fonte, antes de qualquer
+     * normalização. Mostrado ao admin como sinal cru.
+     */
+    rawBrand: string | null
+    /**
+     * Categoria/breadcrumb cru, antes do mapeamento canónico.
+     */
+    rawCategory: string | null
+    /**
+     * Nome do produto na fonte (og:title, h1, designacaoOficial, etc.).
+     * Permite ao admin ver se o conector apanhou o produto certo.
+     */
+    rawProductName: string | null
     createdAt: Date
   }, ExtArgs["result"]["enrichmentSourceLog"]>
   composites: {}
@@ -1179,6 +1369,11 @@ export interface EnrichmentSourceLogFieldRefs {
   readonly durationMs: Prisma.FieldRef<"EnrichmentSourceLog", 'Int'>
   readonly fieldsReturned: Prisma.FieldRef<"EnrichmentSourceLog", 'String[]'>
   readonly errorMessage: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
+  readonly url: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
+  readonly query: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
+  readonly rawBrand: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
+  readonly rawCategory: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
+  readonly rawProductName: Prisma.FieldRef<"EnrichmentSourceLog", 'String'>
   readonly createdAt: Prisma.FieldRef<"EnrichmentSourceLog", 'DateTime'>
 }
     

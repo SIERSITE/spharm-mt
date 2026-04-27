@@ -228,7 +228,8 @@ export type EstadoInventario = (typeof EstadoInventario)[keyof typeof EstadoInve
 export const EnrichmentSourceStatus = {
   SUCCESS: 'SUCCESS',
   NO_MATCH: 'NO_MATCH',
-  ERROR: 'ERROR'
+  ERROR: 'ERROR',
+  PARTIAL_HIT: 'PARTIAL_HIT'
 } as const
 
 export type EnrichmentSourceStatus = (typeof EnrichmentSourceStatus)[keyof typeof EnrichmentSourceStatus]
