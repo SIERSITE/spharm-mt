@@ -1,4 +1,7 @@
-import "server-only";
+// Sem `import "server-only"` — `lib/prisma.ts` puxa este módulo e é
+// consumido por scripts CLI (worker, jobs, seeds) corridos via `tsx`,
+// fora do bundler Next que resolveria o marker. Ver nota equivalente em
+// `lib/tenant-context.ts`.
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
