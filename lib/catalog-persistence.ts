@@ -357,17 +357,27 @@ export async function persistResolvedProduct(
     return { fieldsUpdated, produtoEstado };
   }
 
-  // Gravar campos de catálogo + metadados de verificação numa única operação
+  // Gravar campos de catálogo + metadados de verificação numa única operação.
+  // Para produtos validados manualmente, NUNCA reverter os flags de revisão
+  // — o admin já decidiu, e produtos validados não devem voltar à fila.
+  // O resto dos metadados (lastVerifiedAt, productType, conf) é descritivo
+  // do último attempt e é seguro escrever.
+  const isValidated = product.validadoManualmente;
   await prisma.produto.update({
     where: { id: productId },
     data: {
       ...(updates as object),
-      estado: produtoEstado as Parameters<typeof prisma.produto.update>[0]["data"]["estado"],
-      origemDados: "ENRIQUECIMENTO",
-      // Metadados de verificação (sempre gravados)
+      // estado / origemDados não tocam em produtos validados (admin pôs VALIDADO/MANUAL)
+      ...(isValidated
+        ? {}
+        : {
+            estado: produtoEstado as Parameters<typeof prisma.produto.update>[0]["data"]["estado"],
+            origemDados: "ENRIQUECIMENTO" as const,
+            classificationSource: resolved.classificationSource,
+          }),
+      // Metadados descritivos sempre escritos.
       productType: resolved.productType,
       productTypeConfidence: resolved.productTypeConfidence,
-      classificationSource: resolved.classificationSource,
       classificationVersion: resolved.classificationVersion,
       verificationStatus: resolved.verificationStatus as Parameters<
         typeof prisma.produto.update
@@ -375,8 +385,9 @@ export async function persistResolvedProduct(
       lastVerifiedAt: resolved.lastVerifiedAt,
       lastVerificationAttemptAt: resolved.lastVerifiedAt,
       externallyVerified: resolved.externallyVerified,
-      needsManualReview: resolved.needsManualReview,
-      manualReviewReason: resolved.manualReviewReason,
+      // Em produtos validados manualmente, força sempre needsManualReview=false.
+      needsManualReview: isValidated ? false : resolved.needsManualReview,
+      manualReviewReason: isValidated ? null : resolved.manualReviewReason,
     },
   });
 

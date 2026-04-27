@@ -378,6 +378,7 @@ export async function enrichProduct(
     select: {
       id: true, cnp: true, designacao: true, tipoArtigo: true,
       flagMSRM: true, flagMNSRM: true, codigoATC: true,
+      validadoManualmente: true,
     },
   });
 
@@ -453,15 +454,36 @@ export async function enrichProduct(
   // 5. Persistência
   const persisted = await persistResolvedProduct({ productId, resolved, dryRun });
 
-  // 6. Revisão manual se necessário
+  // 6. Revisão manual se necessário.
+  // Política Abril 2026: queue só se needsManualReview=true (gated pelo
+  // resolver: conflito OU typeConf < 0.50). Produtos com `validadoManualmente=true`
+  // NUNCA são enfileirados — o admin já decidiu, respeitar.
   let queued = false;
-  if (!dryRun && resolved.needsManualReview) {
+  if (!dryRun && resolved.needsManualReview && !product.validadoManualmente) {
     await queueForManualReview(
       productId,
       resolved.manualReviewReason ?? "Revisão automática",
       { classification, sourceSummary: resolved.sourceSummary, fieldsUpdated: persisted.fieldsUpdated }
     );
     queued = true;
+  }
+
+  // Debug — uma linha estruturada por produto. Critério para diagnóstico
+  // do gate da política nova: typeConf vs needsReview vs queued.
+  if (!dryRun) {
+    const typeConfPct = (classification.confidence * 100).toFixed(0);
+    const fieldsStr = persisted.fieldsUpdated.length > 0
+      ? persisted.fieldsUpdated.join(",")
+      : "—";
+    console.log(
+      `[enrich] cnp=${product.cnp ?? "?"} ` +
+      `type=${classification.productType} typeConf=${typeConfPct}% ` +
+      `status=${resolved.verificationStatus} ` +
+      `needsReview=${resolved.needsManualReview} ` +
+      `queued=${queued}` +
+      `${product.validadoManualmente ? " (validadoManualmente)" : ""} ` +
+      `fields=[${fieldsStr}]`
+    );
   }
 
   // 7. Actualizar fila de enriquecimento

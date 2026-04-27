@@ -28,26 +28,31 @@
  *     Campos irrelevantes (ex: DCI em dermocosmética) NUNCA são resolvidos,
  *     mesmo que alguma fonte tenha devolvido valor.
  * ─────────────────────────────────────────────────────────────────────────────
- * SEMÂNTICA DE verificationStatus (política Abril 2026)
+ * SEMÂNTICA DE verificationStatus (política Abril 2026 — corrigida)
  *
  * Política: aceitar mais classificações automáticas para reduzir backlog
- * de revisão manual. Limiares baixos; correcção via /admin/catalogo/revisao
- * apenas para casos genuinamente ambíguos (conflitos ou confiança baixa).
+ * de revisão manual. O GATE para revisão manual é a confiança do TIPO
+ * (`productTypeConfidence`, vinda do classifier), NÃO a confiança máxima
+ * dos campos externos. Justificação: um MEDICAMENTO com flagMSRM dá
+ * typeConf=0.99 e devia ser auto-classificado mesmo sem match em INFARMED;
+ * a falta de campos externos não devia mandá-lo para revisão.
  *
  *   NEEDS_REVIEW       → (a) conflito entre fontes em campos críticos, OU
- *                         (b) maxFieldConf < 0.50 (inclui 0 campos resolvidos).
+ *                         (b) typeConf < 0.50 (classifier não conseguiu
+ *                             identificar tipo de produto com confiança).
  *                         É a única origem de needsManualReview=true.
  *
- *   PARTIALLY_VERIFIED → 0.50 ≤ maxFieldConf < 0.75. "Auto-classified" —
- *                         os campos foram persistidos automaticamente mas
- *                         o produto não está validado manualmente. Reverify
- *                         semanal pode melhorar.
+ *   VERIFIED           → typeConf ≥ 0.50 E maxFieldConf ≥ 0.75 — temos
+ *                         tipo com confiança suficiente E confirmação
+ *                         externa forte (INFARMED ou múltiplas fontes).
  *
- *   VERIFIED           → maxFieldConf ≥ 0.75. Confiança suficiente para
- *                         considerar a classificação fiável.
+ *   PARTIALLY_VERIFIED → typeConf ≥ 0.50, sem confirmação externa forte.
+ *                         "Auto-classified" — os campos resolvidos foram
+ *                         persistidos automaticamente; weekly reverify
+ *                         pode melhorar quando aparecerem mais fontes.
  *
  *   FAILED             → mantido no enum por compatibilidade; já não é
- *                         emitido pelo resolver (ausência de dados → NEEDS_REVIEW).
+ *                         emitido pelo resolver.
  *
  * Persistência (catalog-persistence.ts) escreve campos com confidence ≥ 0.50
  * — alinhado com este policy. O bloqueio de tier para campos autoritários
@@ -310,23 +315,25 @@ export function resolveProduct(
     totalFieldsResolved,
   };
 
-  // verificationStatus — política Abril 2026 (ver doc no topo do ficheiro).
-  // Apenas dois caminhos para NEEDS_REVIEW: conflito OU evidência abaixo de 0.50
-  // (inclui o caso de zero campos resolvidos, em que maxFieldConf=0).
+  // verificationStatus — política Abril 2026 corrigida (ver doc no topo).
+  // GATE para NEEDS_REVIEW: typeConf (productTypeConfidence), NÃO maxFieldConf.
+  // Razão: queremos auto-classificar produtos cujo tipo é claro mesmo sem
+  // confirmação externa (ex: medicamento com flagMSRM mas CNP ausente do
+  // snapshot INFARMED).
   let verificationStatus: VerificationStatus;
   if (hasAnyConflict) {
     verificationStatus = "NEEDS_REVIEW";
-  } else if (maxFieldConf < MIN_USEFUL_CONFIDENCE) {
+  } else if (typeConf < MIN_USEFUL_CONFIDENCE) {
     verificationStatus = "NEEDS_REVIEW";
   } else if (maxFieldConf >= VERIFIED_THRESHOLD) {
+    // Tipo claro + confirmação externa forte.
     verificationStatus = "VERIFIED";
   } else {
+    // Tipo claro mas sem confirmação externa forte — auto-classified.
     verificationStatus = "PARTIALLY_VERIFIED";
   }
 
-  // needsManualReview ⇔ NEEDS_REVIEW. Sem mais excepções (productType=OUTRO
-  // ou FAILED+typeConf alto deixaram de mandar para revisão por design —
-  // o utilizador prefere reduzir backlog manual).
+  // needsManualReview ⇔ NEEDS_REVIEW. Sem excepções legacy.
   const needsManualReview = verificationStatus === "NEEDS_REVIEW";
 
   let manualReviewReason: string | null = null;
@@ -334,10 +341,8 @@ export function resolveProduct(
     if (hasAnyConflict) {
       const fields = conflicts.map((c) => c.field).join(", ");
       manualReviewReason = `Conflito entre fontes em: ${fields}`;
-    } else if (totalFieldsResolved === 0) {
-      manualReviewReason = "Sem dados externos — requer classificação manual";
     } else {
-      manualReviewReason = `Confiança ${(maxFieldConf * 100).toFixed(0)}% < 50% — requer revisão`;
+      manualReviewReason = `Tipo de produto não determinado (confiança ${(typeConf * 100).toFixed(0)}%)`;
     }
   }
 
