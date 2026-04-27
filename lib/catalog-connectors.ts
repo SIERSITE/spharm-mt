@@ -627,11 +627,26 @@ const PT_PHARMACY_STRATEGIES: PharmacyStrategy[] = [
 ];
 
 /**
- * Helpers internos exportados para testes (regressão de slug + cleaning).
+ * Helpers internos exportados para testes (regressão de slug, extracção
+ * brand/categoria, inferência por nome conhecido).
  */
 export const __retailInternals = {
   generateSlugCandidates,
   baseSlug,
+  // Estes são definidos mais abaixo no ficheiro — referenciados aqui
+  // através de getters lazy para evitar TDZ na ordem de inicialização.
+  get extractRetailMetadata() {
+    return extractRetailMetadata;
+  },
+  get inferBrandFromName() {
+    return inferBrandFromName;
+  },
+  get extractBrand() {
+    return extractBrand;
+  },
+  get extractRawCategory() {
+    return extractRawCategory;
+  },
 };
 
 // UA de browser: DDG HTML é menos amigável a clients não-browser.
@@ -814,10 +829,54 @@ type RetailExtracted = {
 };
 
 /**
+ * Lista de marcas comuns em farmácia portuguesa. Usada como fallback
+ * quando os parsers estruturados falham mas o nome do produto começa por
+ * uma marca conhecida (ex: "A-Derma Exomega ..." → "A-Derma").
+ *
+ * Mantida deliberadamente curta — só marcas com presença massiva em
+ * farmácias PT. Adicionar mais à medida que aparecem em produção.
+ */
+const KNOWN_BRANDS_PT: string[] = [
+  "A-Derma", "Aderma", "Avène", "Avene",
+  "La Roche-Posay", "La Roche Posay", "Bioderma", "Vichy", "ISDIN", "Cerave", "CeraVe",
+  "Eucerin", "Mustela", "Ducray", "Klorane", "Caudalie", "Uriage",
+  "Roger & Gallet", "Roger&Gallet", "Lierac", "Sebamed", "Phyto",
+  "René Furterer", "Rene Furterer", "Nuxe", "Filorga", "SVR", "Topicrem",
+  "Galenic", "Sanex", "Galénic",
+  "Nutribén", "Nutriben", "Aptamil", "NAN", "Hipp", "Holle",
+  "Bial", "Pfizer", "Bayer", "Sanofi", "Novartis", "GSK", "Roche",
+  "Advancis", "ADVANCIS", "Solgar", "Centrum", "Sustenium",
+  "Compeed", "Hansaplast", "Niquitin", "Nicorette",
+  "Esthederm", "Skinceuticals", "SkinCeuticals", "Phyto Phytocyane",
+  "Heliocare", "Pharmaceris", "Sesderma",
+];
+
+/**
+ * Tenta inferir a marca a partir do nome do produto: aceita um match no
+ * início (prefix) contra a lista de marcas conhecidas. Devolve a forma
+ * canónica com a capitalização original do KNOWN_BRANDS_PT (primeira
+ * variante listada para esa marca).
+ */
+function inferBrandFromName(name: string | null): string | null {
+  if (!name) return null;
+  const cleaned = name.trim();
+  if (!cleaned) return null;
+  // Comparação case-insensitive contra a lista; preferir matches mais
+  // longos (evita "Avene" sobrepor-se a "Avène" quando ambas existem).
+  const sorted = [...KNOWN_BRANDS_PT].sort((a, b) => b.length - a.length);
+  for (const brand of sorted) {
+    const re = new RegExp(`^\\s*${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (re.test(cleaned)) return brand;
+  }
+  return null;
+}
+
+/**
  * Extrai marca/laboratório do HTML, em ordem decrescente de fiabilidade:
  *   1. JSON-LD Product.brand.name
  *   2. itemprop="brand" content / texto interno
- *   3. Texto "Marca:" ou "Brand:" próximo do produto
+ *   3. Anchor com href contendo /marca/<slug>/ ou /brand/<slug>/
+ *   4. Texto "Marca:" ou "Brand:" próximo do produto
  */
 function extractBrand(html: string): string | null {
   // 1. JSON-LD Product.brand
@@ -867,7 +926,30 @@ function extractBrand(html: string): string | null {
     if (v.length > 0 && v.length < 80) return v;
   }
 
-  // 3. Texto "Marca:" / "Brand:" — capturar próxima palavra(s) razoável
+  // 3. Anchor com href /marca/<slug>/ ou /marcas/<slug>/ ou /brand/<slug>/.
+  //    Padrão muito comum em farmácias online portuguesas (lojadafarmacia,
+  //    farmaciaramos, farmacia24…). O texto interno do anchor costuma ser
+  //    o nome legível da marca; o slug é fallback para quando o link tem
+  //    só uma imagem.
+  const brandAnchor = /<a[^>]*href=["'][^"']*\/(?:marca|marcas|brand|brands)\/([^"'/?#]+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i.exec(
+    html
+  );
+  if (brandAnchor) {
+    const inner = brandAnchor[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const txt = decodeHtmlEntities(inner);
+    if (txt.length >= 2 && txt.length <= 60) return txt;
+    // Fallback: derivar do slug ("a-derma" → "A-Derma")
+    const slug = decodeURIComponent(brandAnchor[1]).replace(/-+/g, " ");
+    if (slug.length >= 2 && slug.length <= 60) {
+      return slug
+        .split(" ")
+        .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+        .join(" ")
+        .replace(/\s/g, "-");
+    }
+  }
+
+  // 4. Texto "Marca:" / "Brand:" — capturar próxima palavra(s) razoável
   // Procura no HTML completo mas limita o resultado a algo plausível.
   const textPatterns = [
     /Marca\s*:\s*<[^>]+>\s*([A-Z][^<\n]{1,60})\s*</i,        // <strong>Marca:</strong> <a>X</a>
@@ -890,17 +972,52 @@ function extractBrand(html: string): string | null {
 }
 
 /**
+ * Extrai todo o texto dos `<a>` dentro de um elemento HTML (string que
+ * representa o conteúdo do elemento). Usado para apanhar breadcrumbs como
+ * `<nav class="breadcrumb"><a>Home</a><a>Categoria</a><a>Produto</a></nav>`.
+ */
+function anchorTextsIn(html: string): string[] {
+  const out: string[] = [];
+  const re = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const txt = m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (txt.length >= 1 && txt.length <= 80) out.push(decodeHtmlEntities(txt));
+  }
+  return out;
+}
+
+/**
+ * Detecta um bloco breadcrumb HTML (nav/ol/ul/div com classe ou id contendo
+ * "breadcrumb") e devolve "A > B > C" — texto dos seus anchors. Filtra
+ * "Home" / "Início" / "Página inicial" / vazios.
+ */
+function extractHtmlBreadcrumb(html: string): string | null {
+  const re =
+    /<(?:nav|ol|ul|div)[^>]*(?:class|id)=["'][^"']*breadcrumb[^"']*["'][^>]*>([\s\S]*?)<\/(?:nav|ol|ul|div)>/i;
+  const m = re.exec(html);
+  if (!m) return null;
+  const texts = anchorTextsIn(m[1])
+    .filter((t) => !/^(?:home|in[ií]cio|p[aá]gina inicial)$/i.test(t.trim()))
+    .filter((t) => t.trim().length > 0);
+  if (texts.length === 0) return null;
+  return texts.join(" > ");
+}
+
+/**
  * Extrai categoria crua do HTML — breadcrumb completo, depois fallbacks meta,
  * depois texto "Categoria:".
  */
 function extractRawCategory(html: string): string | null {
-  const breadcrumb = extractJsonLdBreadcrumb(html);
-  if (breadcrumb) return breadcrumb;
+  const jsonLd = extractJsonLdBreadcrumb(html);
+  if (jsonLd) return jsonLd;
+  const htmlBreadcrumb = extractHtmlBreadcrumb(html);
+  if (htmlBreadcrumb) return htmlBreadcrumb;
   const product = extractMetaContent(html, "product:category");
   if (product) return product;
   const article = extractMetaContent(html, "article:section");
   if (article) return article;
-  // Texto explícito
+  // Texto explícito "Categoria: X"
   const m = /Categoria\s*:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇa-zàáâãäçéèêíîïóôõöúûü\s,&.\-/]{2,80})(?=[<\n])/.exec(html);
   if (m) {
     const v = decodeHtmlEntities(m[1]).trim().replace(/\s+/g, " ");
@@ -922,11 +1039,16 @@ function extractH1(html: string): string | null {
 }
 
 function extractRetailMetadata(html: string): RetailExtracted {
+  const nome =
+    extractMetaContent(html, "og:title") ??
+    extractMetaContent(html, "twitter:title") ??
+    extractH1(html);
+  // Brand: tenta parsers estruturados primeiro; se nada bater, infere do
+  // prefixo do nome do produto contra a lista de marcas conhecidas
+  // (cobre páginas que não emitem JSON-LD/itemprop nem têm /marca/<slug>/).
+  const brand = extractBrand(html) ?? inferBrandFromName(nome);
   return {
-    nome:
-      extractMetaContent(html, "og:title") ??
-      extractMetaContent(html, "twitter:title") ??
-      extractH1(html),
+    nome,
     imagem:
       extractMetaContent(html, "og:image") ??
       extractMetaContent(html, "twitter:image"),
@@ -934,7 +1056,7 @@ function extractRetailMetadata(html: string): RetailExtracted {
     descricao:
       extractMetaContent(html, "og:description") ??
       extractMetaContent(html, "description"),
-    brand: extractBrand(html),
+    brand,
   };
 }
 

@@ -77,33 +77,50 @@ import { SOURCE_TIER_RANK } from "./catalog-types";
 import { getFieldRelevance } from "./catalog-classifier";
 
 /**
- * Mapa de palavras-chave em texto bruto de breadcrumb / categoria externa →
- * ProductType canónico. Usado para upgrade de productType quando o classifier
- * deu OUTRO mas o retail/breadcrumb diz claramente o tipo.
+ * Mapa de palavras-chave em texto bruto de breadcrumb / categoria externa /
+ * nome do produto → ProductType canónico. Usado para upgrade de productType
+ * quando o classifier deu OUTRO mas a evidência externa diz claramente o tipo.
  *
  * Ordem importa: o primeiro match vence.
+ *
+ * Categorias reforçadas com keywords presentes em nomes de produto comuns
+ * (creme, emoliente, gel hidratante, suplemento, etc.) — para que mesmo
+ * uma página sem breadcrumb consiga classificar via rawProductName.
  */
 const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = [
-  { pattern: /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor/i, type: "DERMOCOSMETICA" },
-  { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar/i, type: "DERMOCOSMETICA" },
-  { pattern: /maquilhag|makeup|cosm[eé]tic|perfume|fragranc/i, type: "DERMOCOSMETICA" },
-  { pattern: /suplement|vitamin|multivit|nutri[cç][aã]o|food\s+supplement/i, type: "SUPLEMENTO" },
-  { pattern: /beb[eé]|baby|infant|puericultura|fralda|chupeta|bibera/i, type: "PUERICULTURA" },
-  { pattern: /veterin|pet|c[aã]o|gato|animal/i, type: "VETERINARIA" },
+  {
+    pattern:
+      /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor|emoliente|creme\s+(?:de\s+)?noite|s[eé]rum|tonico|tónico|micelar|despigment|cica|atopic|at[oó]pic|psor[ií]ase\s+creme|exomega|trixera|toleriane|cicalfate/i,
+    type: "DERMOCOSMETICA",
+  },
+  { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar|after[\s-]?sun|autobronz/i, type: "DERMOCOSMETICA" },
+  { pattern: /maquilhag|makeup|cosm[eé]tic|perfume|fragranc|batom|rimmel/i, type: "DERMOCOSMETICA" },
+  { pattern: /suplement|vitamin|multivit|nutri[cç][aã]o|food\s+supplement|colag[eé]nio|magn[eé]sio|c[aá]lcio|prob[ií]o|prebi[oó]/i, type: "SUPLEMENTO" },
+  { pattern: /beb[eé]|baby|infant|puericultura|fralda|chupeta|bibera|tetina|chuch/i, type: "PUERICULTURA" },
+  { pattern: /veterin|\bpet\b|c[aã]o|gato|felino|canino|frontline|bravecto/i, type: "VETERINARIA" },
   { pattern: /ortop[eé]d|joelheira|tornozeleira|cinta\s+lombar|palmilha|meias?\s+de\s+compress/i, type: "ORTOPEDIA" },
-  { pattern: /dispositivo\s+m[eé]dic|medical\s+device|term[oó]metro|tens[iaã]o\s+arterial|nebuliza/i, type: "DISPOSITIVO_MEDICO" },
-  { pattern: /higiene|champ[oô]|shampoo|sabonet|gel\s+de\s+banho|pasta\s+dent|escova\s+dent/i, type: "HIGIENE_CUIDADO" },
+  { pattern: /dispositivo\s+m[eé]dic|medical\s+device|term[oó]metro|tens[iaã]o\s+arterial|nebuliza|glic[eé]m/i, type: "DISPOSITIVO_MEDICO" },
+  { pattern: /higiene|champ[oô]|shampoo|sabonet|gel\s+de\s+banho|pasta\s+dent|escova\s+dent|desodor|antitranspir/i, type: "HIGIENE_CUIDADO" },
 ];
 
 /**
- * Olha para `rawCategory` / `categoria` das fontes externas e devolve um
- * ProductType canónico se houver match claro. Devolve null caso contrário.
+ * Olha para `rawCategory` / `categoria` / `rawProductName` das fontes
+ * externas e devolve um ProductType canónico se houver match claro.
+ * Devolve null caso contrário.
+ *
+ * Inclui o nome do produto na evidência: páginas sem breadcrumb mas com
+ * nome explícito ("A-Derma Exomega Creme Emoliente") são suficientes para
+ * inferir DERMOCOSMETICA.
  */
 function inferProductTypeFromExternal(
   sources: ExternalSourceData[]
 ): { type: ProductType; evidence: string } | null {
   for (const s of sources) {
-    const blob = [s.rawCategory ?? "", s.categoria ?? ""].join(" ");
+    const blob = [
+      s.rawCategory ?? "",
+      s.categoria ?? "",
+      s.rawProductName ?? "",
+    ].join(" ");
     if (!blob.trim()) continue;
     for (const rule of CATEGORY_TO_PRODUCT_TYPE) {
       if (rule.pattern.test(blob)) {
@@ -113,6 +130,11 @@ function inferProductTypeFromExternal(
   }
   return null;
 }
+
+/** Internals exportados para testes de regressão. */
+export const __resolverInternals = {
+  inferProductTypeFromExternal,
+};
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
