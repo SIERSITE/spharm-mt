@@ -478,16 +478,22 @@ export async function enrichProduct(
     queued = true;
   }
 
-  // Debug — uma linha estruturada por produto. Critério para diagnóstico
-  // do gate da política nova: typeConf vs needsReview vs queued.
+  // Debug — uma linha estruturada por produto. Reporta o productType e
+  // confidence FINAL (após o resolver, não o do classifier). Se o
+  // resolver fez upgrade via evidência externa (OUTRO → DERMOCOSMETICA
+  // por breadcrumb/nome do produto), é o valor refinado que conta.
   if (!dryRun) {
-    const typeConfPct = (classification.confidence * 100).toFixed(0);
+    const typeConfPct = (resolved.productTypeConfidence * 100).toFixed(0);
+    const upgraded = resolved.productType !== classification.productType;
+    const upgradeNote = upgraded
+      ? ` (refined from ${classification.productType} ${(classification.confidence * 100).toFixed(0)}%)`
+      : "";
     const fieldsStr = persisted.fieldsUpdated.length > 0
       ? persisted.fieldsUpdated.join(",")
       : "—";
     console.log(
       `[enrich] cnp=${product.cnp ?? "?"} ` +
-      `type=${classification.productType} typeConf=${typeConfPct}% ` +
+      `type=${resolved.productType} typeConf=${typeConfPct}%${upgradeNote} ` +
       `status=${resolved.verificationStatus} ` +
       `needsReview=${resolved.needsManualReview} ` +
       `queued=${queued}` +
@@ -518,8 +524,12 @@ export async function enrichProduct(
     productId,
     cnp: product.cnp,
     status,
-    productType: classification.productType,
-    productTypeConfidence: classification.confidence,
+    // O productType/confidence reportado é sempre o pós-resolver (autoridade
+    // final). Se o classifier deu OUTRO 0.30 e o resolver upgradeu para
+    // DERMOCOSMETICA 0.65 por evidência externa, é DERMOCOSMETICA 0.65 que
+    // foi persistido — e é DERMOCOSMETICA 0.65 que reportamos.
+    productType: resolved.productType,
+    productTypeConfidence: resolved.productTypeConfidence,
     verificationStatus: resolved.verificationStatus,
     fieldsUpdated: persisted.fieldsUpdated,
     queued,

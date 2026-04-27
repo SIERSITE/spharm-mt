@@ -163,6 +163,7 @@ export async function persistResolvedProduct(
       embalagem: true,
       classificacaoNivel1Id: true,
       classificacaoNivel2Id: true,
+      productType: true,
     },
   });
 
@@ -207,6 +208,19 @@ export async function persistResolvedProduct(
 
   const updates: Record<string, unknown> = {};
   const fieldsUpdated: string[] = [];
+
+  // productType: contar como campo actualizado quando o resolver mudou
+  // o tipo (ex.: classifier deu OUTRO, retail/breadcrumb fez upgrade para
+  // DERMOCOSMETICA). A escrita em si acontece sempre no UPDATE final;
+  // adicionar a `fieldsUpdated` é só para rastreabilidade — torna visível
+  // na UI / nos logs que o tipo foi inferido externamente.
+  if (
+    !product.validadoManualmente &&
+    product.productType !== resolved.productType &&
+    resolved.productType !== "OUTRO"
+  ) {
+    fieldsUpdated.push("productType");
+  }
 
   // Fabricante — campo autoritário, só REGULATORY/MANUFACTURER
   if (canUpdate("fabricante", product.fabricanteId, resolved.fabricante, relevance.fabricante)) {

@@ -401,20 +401,27 @@ export function resolveProduct(
   };
 
   // verificationStatus — política Abril 2026 corrigida (ver doc no topo).
-  // GATE para NEEDS_REVIEW: typeConf (productTypeConfidence), NÃO maxFieldConf.
-  // Razão: queremos auto-classificar produtos cujo tipo é claro mesmo sem
-  // confirmação externa (ex: medicamento com flagMSRM mas CNP ausente do
-  // snapshot INFARMED).
+  //
+  // Gates para NEEDS_REVIEW (em ordem de prioridade):
+  //   (1) conflito entre fontes em campos críticos
+  //   (2) productType ainda OUTRO depois da tentativa de upgrade externo —
+  //       não faz sentido VERIFIED para um produto sem categoria comercial
+  //       atribuída
+  //   (3) typeConf < 0.50 (classifier nem o resolver conseguiram tipo claro)
+  //
+  // VERIFIED exige tipo claro (≠ OUTRO) E confirmação externa forte
+  // (maxFieldConf ≥ 0.75). PARTIALLY_VERIFIED quando o tipo está claro
+  // mas a evidência externa não atinge o tier alto.
   let verificationStatus: VerificationStatus;
   if (hasAnyConflict) {
+    verificationStatus = "NEEDS_REVIEW";
+  } else if (productType === "OUTRO") {
     verificationStatus = "NEEDS_REVIEW";
   } else if (typeConf < MIN_USEFUL_CONFIDENCE) {
     verificationStatus = "NEEDS_REVIEW";
   } else if (maxFieldConf >= VERIFIED_THRESHOLD) {
-    // Tipo claro + confirmação externa forte.
     verificationStatus = "VERIFIED";
   } else {
-    // Tipo claro mas sem confirmação externa forte — auto-classified.
     verificationStatus = "PARTIALLY_VERIFIED";
   }
 
@@ -430,6 +437,21 @@ export function resolveProduct(
     if (hasAnyConflict) {
       const fields = conflicts.map((c) => c.field).join(", ");
       manualReviewReason = `Conflito entre fontes em: ${fields}`;
+    } else if (productType === "OUTRO" && sources.length === 0) {
+      manualReviewReason =
+        `Tipo OUTRO sem evidência externa — nenhum conector encontrou ` +
+        `informação para este CNP/designação`;
+    } else if (productType === "OUTRO") {
+      const cats = sources
+        .map((s) => s.rawCategory ?? s.categoria)
+        .filter((c): c is string => !!c && c.trim().length > 0);
+      const fontes = sources.map((s) => s.source).join(", ");
+      manualReviewReason =
+        `Tipo OUTRO mesmo após evidência externa — keywords das fontes ` +
+        `não mapearam a uma categoria conhecida. Fontes: ${fontes}` +
+        (cats.length > 0
+          ? `. Categorias devolvidas: ${cats.slice(0, 3).join(" | ")}`
+          : ". Sem categorias devolvidas.");
     } else if (sources.length === 0) {
       manualReviewReason =
         `Sem dados de fontes externas — nenhum conector encontrou ` +

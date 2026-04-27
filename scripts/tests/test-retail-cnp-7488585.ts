@@ -23,9 +23,15 @@
 
 import "dotenv/config";
 import { __retailInternals } from "../../lib/catalog-connectors";
-import { __resolverInternals } from "../../lib/catalog-resolution-engine";
+import {
+  __resolverInternals,
+  resolveProduct,
+} from "../../lib/catalog-resolution-engine";
 import { legacyPrisma as prisma } from "../../lib/prisma";
-import type { ExternalSourceData } from "../../lib/catalog-types";
+import type {
+  ClassificationResult,
+  ExternalSourceData,
+} from "../../lib/catalog-types";
 
 const EXPECTED_SLUG = "a-derma-exomega-cont-cr-noite-emol200ml";
 const KNOWN_URL = `https://lojadafarmacia.com/pt/artigo/${EXPECTED_SLUG}`;
@@ -157,6 +163,92 @@ function offlineProductTypeInferenceTest(): void {
   assert(r3 == null, `sem evidência → null (got "${r3?.type}")`);
 }
 
+function offlineResolverEndToEndTest(): void {
+  console.log("\n[4b] resolveProduct end-to-end (offline)");
+
+  // Classifier deu OUTRO 0.30 (sem flagMSRM/ATC/tipoArtigo claro) — caso
+  // típico para produtos não-medicamento sem sinais internos.
+  const classification: ClassificationResult = {
+    productType: "OUTRO",
+    confidence: 0.30,
+    classificationSource: "TEXT_PATTERN",
+    classificationVersion: "1.4",
+    signals: [],
+    hints: { preferredSources: [], searchKeywords: [], potentialDCI: null },
+  };
+
+  // Source retail tal como a connector real produz para CNP 7488585.
+  const retailSource: ExternalSourceData = {
+    source: "retail_pharmacy",
+    tier: "RETAIL",
+    matchedBy: "cnp",
+    confidence: 0.85,
+    fabricante: null,
+    principioAtivo: null,
+    atc: null,
+    dosagem: null,
+    embalagem: null,
+    formaFarmaceutica: null,
+    categoria:
+      "Hidratantes Corporais > A-Derma Exomega Control Creme Noite Emoliente - 200ml",
+    subcategoria: null,
+    imagemUrl: "https://static.lojadafarmacia.com/.../a-derma.jpeg",
+    notes: null,
+    rawBrand: "A-Derma",
+    rawCategory:
+      "Hidratantes Corporais > A-Derma Exomega Control Creme Noite Emoliente - 200ml",
+    rawProductName:
+      "A-Derma Exomega Control Creme Noite Emoliente - 200ml - 7488585",
+  };
+
+  const resolved = resolveProduct(classification, [retailSource]);
+  console.log(`    productType         = ${resolved.productType}`);
+  console.log(
+    `    productTypeConf     = ${(resolved.productTypeConfidence * 100).toFixed(0)}%`
+  );
+  console.log(`    classificationSource= ${resolved.classificationSource}`);
+  console.log(`    verificationStatus  = ${resolved.verificationStatus}`);
+  console.log(`    needsManualReview   = ${resolved.needsManualReview}`);
+
+  assert(
+    resolved.productType === "DERMOCOSMETICA",
+    `productType=DERMOCOSMETICA (got "${resolved.productType}")`
+  );
+  assert(
+    resolved.productTypeConfidence >= 0.65,
+    `productTypeConf >= 0.65 (got ${resolved.productTypeConfidence})`
+  );
+  assert(
+    resolved.classificationSource === "EXTERNAL",
+    `classificationSource=EXTERNAL (got "${resolved.classificationSource}")`
+  );
+  assert(
+    resolved.verificationStatus === "VERIFIED" ||
+      resolved.verificationStatus === "PARTIALLY_VERIFIED",
+    `verificationStatus VERIFIED|PARTIALLY_VERIFIED (got "${resolved.verificationStatus}")`
+  );
+  assert(
+    resolved.needsManualReview === false,
+    `needsManualReview === false (got ${resolved.needsManualReview})`
+  );
+
+  // Caso patológico: source sem qualquer evidência aproveitável → produtType
+  // deve ficar OUTRO E ir para revisão (verificationStatus=NEEDS_REVIEW).
+  // Confirma o gate "OUTRO sem upgrade → NEEDS_REVIEW".
+  const noEvidence: ExternalSourceData = {
+    ...retailSource,
+    rawCategory: null,
+    rawBrand: null,
+    rawProductName: null,
+    categoria: null,
+  };
+  const stuck = resolveProduct(classification, [noEvidence]);
+  assert(
+    stuck.productType === "OUTRO" && stuck.verificationStatus === "NEEDS_REVIEW",
+    `OUTRO sem evidência → NEEDS_REVIEW (got ${stuck.productType}/${stuck.verificationStatus})`
+  );
+}
+
 async function onlineExtractionTest(): Promise<void> {
   console.log("\n[5] Extracção end-to-end (online)");
   console.log(`    URL: ${KNOWN_URL}`);
@@ -230,6 +322,7 @@ async function main(): Promise<void> {
   offlineBrandInferenceTest();
   offlineExtractorMockTest();
   offlineProductTypeInferenceTest();
+  offlineResolverEndToEndTest();
 
   if (online) {
     try {
