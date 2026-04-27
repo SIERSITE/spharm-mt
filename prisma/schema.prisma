@@ -234,6 +234,7 @@ model Produto {
   filaRevisao                  FilaRevisao[]
   filaEnriquecimento           EnriquecimentoFila[]
   verificacaoHistorico         ProdutoVerificacaoHistorico[]
+  enrichmentSourceLogs         EnrichmentSourceLog[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -337,6 +338,48 @@ model ProdutoVerificacaoHistorico {
   produto            Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@index([produtoId, verificadoEm])
+}
+
+/// Resultado de cada chamada a um conector externo.
+///
+/// Granularidade: uma row por (produto × conector × tentativa) — alimenta
+/// as métricas de qualidade de fonte em /admin/catalogo. Nunca lido pelo
+/// pipeline em runtime; é só observabilidade.
+///
+/// Status:
+///   SUCCESS   — o conector devolveu ExternalSourceData não-null.
+///   NO_MATCH  — o conector devolveu null (sem dados para este CNP/designação).
+///   ERROR     — o conector lançou (timeout, HTTP error, parse fail). A mensagem
+///               é capturada em errorMessage truncada a 500 chars.
+///
+/// Append-only. Não há UPDATE; reverify gera nova row.
+model EnrichmentSourceLog {
+  id              String                  @id @default(cuid())
+  produtoId       String
+  source          String
+  status          EnrichmentSourceStatus
+  /// Confiança devolvida pela fonte para este produto. Só preenchido em SUCCESS.
+  confidence      Float?
+  /// "cnp" | "designacao" | "ean" | "unknown" — como o conector encontrou o produto.
+  matchedBy       String?
+  durationMs      Int?
+  /// Lista de campos não-null devolvidos pela fonte (fabricante, atc, categoria, …).
+  /// Só preenchido em SUCCESS. Permite contar coverage por campo por fonte.
+  fieldsReturned  String[]
+  errorMessage    String?
+  createdAt       DateTime                @default(now())
+
+  produto         Produto                 @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([source, createdAt])
+  @@index([produtoId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum EnrichmentSourceStatus {
+  SUCCESS
+  NO_MATCH
+  ERROR
 }
 
 /// Fornecedor normalizado.

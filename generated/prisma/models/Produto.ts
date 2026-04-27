@@ -452,6 +452,7 @@ export type ProdutoWhereInput = {
   filaRevisao?: Prisma.FilaRevisaoListRelationFilter
   filaEnriquecimento?: Prisma.EnriquecimentoFilaListRelationFilter
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoListRelationFilter
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogListRelationFilter
 }
 
 export type ProdutoOrderByWithRelationInput = {
@@ -503,6 +504,7 @@ export type ProdutoOrderByWithRelationInput = {
   filaRevisao?: Prisma.FilaRevisaoOrderByRelationAggregateInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaOrderByRelationAggregateInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoOrderByRelationAggregateInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogOrderByRelationAggregateInput
 }
 
 export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
@@ -557,6 +559,7 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   filaRevisao?: Prisma.FilaRevisaoListRelationFilter
   filaEnriquecimento?: Prisma.EnriquecimentoFilaListRelationFilter
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoListRelationFilter
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogListRelationFilter
 }, "id" | "cnp">
 
 export type ProdutoOrderByWithAggregationInput = {
@@ -683,6 +686,7 @@ export type ProdutoCreateInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateInput = {
@@ -731,6 +735,7 @@ export type ProdutoUncheckedCreateInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUpdateInput = {
@@ -779,6 +784,7 @@ export type ProdutoUpdateInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateInput = {
@@ -827,6 +833,7 @@ export type ProdutoUncheckedUpdateInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateManyInput = {
@@ -1254,6 +1261,20 @@ export type ProdutoUpdateOneRequiredWithoutVerificacaoHistoricoNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutVerificacaoHistoricoInput, Prisma.ProdutoUpdateWithoutVerificacaoHistoricoInput>, Prisma.ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput>
 }
 
+export type ProdutoCreateNestedOneWithoutEnrichmentSourceLogsInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutEnrichmentSourceLogsInput
+  connect?: Prisma.ProdutoWhereUniqueInput
+}
+
+export type ProdutoUpdateOneRequiredWithoutEnrichmentSourceLogsNestedInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutEnrichmentSourceLogsInput
+  upsert?: Prisma.ProdutoUpsertWithoutEnrichmentSourceLogsInput
+  connect?: Prisma.ProdutoWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUpdateWithoutEnrichmentSourceLogsInput>, Prisma.ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput>
+}
+
 export type ProdutoCreateNestedOneWithoutProdutosFarmaciaInput = {
   create?: Prisma.XOR<Prisma.ProdutoCreateWithoutProdutosFarmaciaInput, Prisma.ProdutoUncheckedCreateWithoutProdutosFarmaciaInput>
   connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutProdutosFarmaciaInput
@@ -1471,6 +1492,7 @@ export type ProdutoCreateWithoutFabricanteInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFabricanteInput = {
@@ -1518,6 +1540,7 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFabricanteInput = {
@@ -1629,6 +1652,7 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
@@ -1676,6 +1700,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutClassificacaoNivel1Input = {
@@ -1733,6 +1758,7 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
@@ -1780,6 +1806,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutClassificacaoNivel2Input = {
@@ -1869,6 +1896,7 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
@@ -1916,6 +1944,7 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVerificacaoHistoricoInput = {
@@ -1979,6 +2008,7 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
@@ -2026,6 +2056,215 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+}
+
+export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
+  id?: string
+  cnp: number
+  designacao: string
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
+  classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
+  classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+}
+
+export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
+  id?: string
+  cnp: number
+  designacao: string
+  fabricanteId?: string | null
+  classificacaoNivel1Id?: string | null
+  classificacaoNivel2Id?: string | null
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+}
+
+export type ProdutoCreateOrConnectWithoutEnrichmentSourceLogsInput = {
+  where: Prisma.ProdutoWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput>
+}
+
+export type ProdutoUpsertWithoutEnrichmentSourceLogsInput = {
+  update: Prisma.XOR<Prisma.ProdutoUpdateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput>
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput>
+  where?: Prisma.ProdutoWhereInput
+}
+
+export type ProdutoUpdateToOneWithWhereWithoutEnrichmentSourceLogsInput = {
+  where?: Prisma.ProdutoWhereInput
+  data: Prisma.XOR<Prisma.ProdutoUpdateWithoutEnrichmentSourceLogsInput, Prisma.ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput>
+}
+
+export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
+  classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
+  classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+}
+
+export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutProdutosFarmaciaInput = {
@@ -2073,6 +2312,7 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
@@ -2120,6 +2360,7 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutProdutosFarmaciaInput = {
@@ -2183,6 +2424,7 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
@@ -2230,6 +2472,7 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutVendasInput = {
@@ -2277,6 +2520,7 @@ export type ProdutoCreateWithoutVendasInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVendasInput = {
@@ -2324,6 +2568,7 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVendasInput = {
@@ -2387,6 +2632,7 @@ export type ProdutoUpdateWithoutVendasInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVendasInput = {
@@ -2434,6 +2680,7 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutVendasMensaisInput = {
@@ -2481,6 +2728,7 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
@@ -2528,6 +2776,7 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVendasMensaisInput = {
@@ -2591,6 +2840,7 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
@@ -2638,6 +2888,7 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutComprasInput = {
@@ -2685,6 +2936,7 @@ export type ProdutoCreateWithoutComprasInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutComprasInput = {
@@ -2732,6 +2984,7 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutComprasInput = {
@@ -2795,6 +3048,7 @@ export type ProdutoUpdateWithoutComprasInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutComprasInput = {
@@ -2842,6 +3096,7 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutDevolucoesInput = {
@@ -2889,6 +3144,7 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
@@ -2936,6 +3192,7 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutDevolucoesInput = {
@@ -2999,6 +3256,7 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
@@ -3046,6 +3304,7 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutHistoricoStocksInput = {
@@ -3093,6 +3352,7 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
@@ -3140,6 +3400,7 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutHistoricoStocksInput = {
@@ -3203,6 +3464,7 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
@@ -3250,6 +3512,7 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutAjustesStockInput = {
@@ -3297,6 +3560,7 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
@@ -3344,6 +3608,7 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutAjustesStockInput = {
@@ -3407,6 +3672,7 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
@@ -3454,6 +3720,7 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutLinhasInventarioInput = {
@@ -3501,6 +3768,7 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
@@ -3548,6 +3816,7 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutLinhasInventarioInput = {
@@ -3611,6 +3880,7 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
@@ -3658,6 +3928,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutIndicadoresInput = {
@@ -3705,6 +3976,7 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
@@ -3752,6 +4024,7 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutIndicadoresInput = {
@@ -3815,6 +4088,7 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
@@ -3862,6 +4136,7 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutLinhasEncomendaInput = {
@@ -3909,6 +4184,7 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
@@ -3956,6 +4232,7 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutLinhasEncomendaInput = {
@@ -4019,6 +4296,7 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
@@ -4066,6 +4344,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutFilaRevisaoInput = {
@@ -4113,6 +4392,7 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
@@ -4160,6 +4440,7 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFilaRevisaoInput = {
@@ -4223,6 +4504,7 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
@@ -4270,6 +4552,7 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
@@ -4317,6 +4600,7 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
@@ -4364,6 +4648,7 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFilaEnriquecimentoInput = {
@@ -4427,6 +4712,7 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
@@ -4474,6 +4760,7 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateManyFabricanteInput = {
@@ -4555,6 +4842,7 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
@@ -4602,6 +4890,7 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
@@ -4751,6 +5040,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
@@ -4798,6 +5088,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
@@ -4879,6 +5170,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
@@ -4926,6 +5218,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
@@ -4981,6 +5274,7 @@ export type ProdutoCountOutputType = {
   filaRevisao: number
   filaEnriquecimento: number
   verificacaoHistorico: number
+  enrichmentSourceLogs: number
 }
 
 export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -4997,6 +5291,7 @@ export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extension
   filaRevisao?: boolean | ProdutoCountOutputTypeCountFilaRevisaoArgs
   filaEnriquecimento?: boolean | ProdutoCountOutputTypeCountFilaEnriquecimentoArgs
   verificacaoHistorico?: boolean | ProdutoCountOutputTypeCountVerificacaoHistoricoArgs
+  enrichmentSourceLogs?: boolean | ProdutoCountOutputTypeCountEnrichmentSourceLogsArgs
 }
 
 /**
@@ -5100,6 +5395,13 @@ export type ProdutoCountOutputTypeCountVerificacaoHistoricoArgs<ExtArgs extends 
   where?: Prisma.ProdutoVerificacaoHistoricoWhereInput
 }
 
+/**
+ * ProdutoCountOutputType without action
+ */
+export type ProdutoCountOutputTypeCountEnrichmentSourceLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EnrichmentSourceLogWhereInput
+}
+
 
 export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -5150,6 +5452,7 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   filaRevisao?: boolean | Prisma.Produto$filaRevisaoArgs<ExtArgs>
   filaEnriquecimento?: boolean | Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>
   verificacaoHistorico?: boolean | Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>
+  enrichmentSourceLogs?: boolean | Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["produto"]>
 
@@ -5282,6 +5585,7 @@ export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs
   filaRevisao?: boolean | Prisma.Produto$filaRevisaoArgs<ExtArgs>
   filaEnriquecimento?: boolean | Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>
   verificacaoHistorico?: boolean | Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>
+  enrichmentSourceLogs?: boolean | Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProdutoIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -5314,6 +5618,7 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     filaRevisao: Prisma.$FilaRevisaoPayload<ExtArgs>[]
     filaEnriquecimento: Prisma.$EnriquecimentoFilaPayload<ExtArgs>[]
     verificacaoHistorico: Prisma.$ProdutoVerificacaoHistoricoPayload<ExtArgs>[]
+    enrichmentSourceLogs: Prisma.$EnrichmentSourceLogPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -5758,6 +6063,7 @@ export interface Prisma__ProdutoClient<T, Null = never, ExtArgs extends runtime.
   filaRevisao<T extends Prisma.Produto$filaRevisaoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$filaRevisaoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FilaRevisaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   filaEnriquecimento<T extends Prisma.Produto$filaEnriquecimentoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EnriquecimentoFilaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificacaoHistorico<T extends Prisma.Produto$verificacaoHistoricoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoVerificacaoHistoricoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  enrichmentSourceLogs<T extends Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EnrichmentSourceLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -6586,6 +6892,30 @@ export type Produto$verificacaoHistoricoArgs<ExtArgs extends runtime.Types.Exten
   take?: number
   skip?: number
   distinct?: Prisma.ProdutoVerificacaoHistoricoScalarFieldEnum | Prisma.ProdutoVerificacaoHistoricoScalarFieldEnum[]
+}
+
+/**
+ * Produto.enrichmentSourceLogs
+ */
+export type Produto$enrichmentSourceLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EnrichmentSourceLog
+   */
+  select?: Prisma.EnrichmentSourceLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EnrichmentSourceLog
+   */
+  omit?: Prisma.EnrichmentSourceLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EnrichmentSourceLogInclude<ExtArgs> | null
+  where?: Prisma.EnrichmentSourceLogWhereInput
+  orderBy?: Prisma.EnrichmentSourceLogOrderByWithRelationInput | Prisma.EnrichmentSourceLogOrderByWithRelationInput[]
+  cursor?: Prisma.EnrichmentSourceLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EnrichmentSourceLogScalarFieldEnum | Prisma.EnrichmentSourceLogScalarFieldEnum[]
 }
 
 /**

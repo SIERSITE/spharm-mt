@@ -43,7 +43,7 @@
 import { legacyPrisma as prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { classifyProductType, CLASSIFICATION_VERSION } from "./catalog-classifier";
-import { runConnectors } from "./catalog-connectors";
+import { runConnectors, type SourceCallEntry } from "./catalog-connectors";
 import { resolveProduct } from "./catalog-resolution-engine";
 import { persistResolvedProduct } from "./catalog-persistence";
 import type {
@@ -52,6 +52,35 @@ import type {
   ExternalLookupRequest,
   ProductType,
 } from "./catalog-types";
+
+/**
+ * Logger que persiste cada chamada de conector em `EnrichmentSourceLog`.
+ * Falhas de escrita são silenciadas — instrumentação nunca pode partir
+ * o pipeline. O caller espera uma Promise<void>.
+ */
+async function persistSourceCall(entry: SourceCallEntry): Promise<void> {
+  try {
+    await prisma.enrichmentSourceLog.create({
+      data: {
+        produtoId: entry.productId,
+        source: entry.source,
+        status: entry.status,
+        confidence: entry.confidence,
+        matchedBy: entry.matchedBy,
+        durationMs: entry.durationMs,
+        fieldsReturned: entry.fieldsReturned,
+        errorMessage: entry.errorMessage,
+      },
+    });
+  } catch (err) {
+    // Best-effort — não interromper enrichProduct por causa de telemetria.
+    console.warn(
+      `[enrichment] falhou a gravar EnrichmentSourceLog para ${entry.source}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+}
 
 // ─── Agregação de sinais de origem (ProdutoFarmacia.*Origem) ─────────────────
 
@@ -393,7 +422,12 @@ export async function enrichProduct(
 
   let sources;
   try {
-    sources = await runConnectors(lookupReq);
+    sources = await runConnectors(
+      lookupReq,
+      // Em dry-run não polui a tabela de métricas — os logs só fazem
+      // sentido quando estamos a fazer enriquecimento real.
+      dryRun ? undefined : persistSourceCall
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!dryRun) {

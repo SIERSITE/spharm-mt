@@ -681,29 +681,125 @@ export function getConnectorsForProductType(type: ProductType): ExternalConnecto
 }
 
 /**
+ * Resultado de uma única invocação de conector — payload para
+ * instrumentação. O caller decide se persiste (em SPharmMT) ou descarta.
+ */
+export type SourceCallEntry = {
+  source: string;
+  productId: string;
+  status: "SUCCESS" | "NO_MATCH" | "ERROR";
+  confidence: number | null;
+  matchedBy: string | null;
+  durationMs: number;
+  /**
+   * Lista de campos não-null devolvidos pela fonte. Vazia em NO_MATCH/ERROR.
+   * Permite contar coverage por campo por fonte sem reler o ResolvedProduct.
+   */
+  fieldsReturned: string[];
+  errorMessage: string | null;
+};
+
+export type SourceCallLogger = (entry: SourceCallEntry) => Promise<void> | void;
+
+/** Lista de campos do `ExternalSourceData` que contam para `fieldsReturned`. */
+const TRACKED_FIELDS: Array<keyof ExternalSourceData> = [
+  "fabricante",
+  "principioAtivo",
+  "atc",
+  "dosagem",
+  "embalagem",
+  "formaFarmaceutica",
+  "categoria",
+  "subcategoria",
+  "imagemUrl",
+];
+
+function fieldsReturnedFrom(data: ExternalSourceData): string[] {
+  const out: string[] = [];
+  for (const f of TRACKED_FIELDS) {
+    const v = data[f];
+    if (typeof v === "string" && v.trim().length > 0) out.push(f);
+  }
+  return out;
+}
+
+/**
  * Executa todos os conectores relevantes para o pedido.
  *
  * Cada conector é executado de forma independente: um erro num conector
- * não interrompe os restantes. Erros são registados como aviso.
+ * não interrompe os restantes. Erros são registados como aviso E, se
+ * `logger` for passado, persistidos para métricas.
  *
- * Devolve todos os resultados não-nulos, na ordem dos conectores.
+ * Devolve todos os resultados não-nulos, na ordem dos conectores. Loga
+ * (via `logger`) uma entrada por chamada — incluindo NO_MATCH e ERROR —
+ * para que o painel de saúde possa medir taxa de erro / no-match.
  */
 export async function runConnectors(
-  req: ExternalLookupRequest
+  req: ExternalLookupRequest,
+  logger?: SourceCallLogger
 ): Promise<ExternalSourceData[]> {
   const connectors = getConnectorsForProductType(req.productType);
   const results: ExternalSourceData[] = [];
 
   for (const connector of connectors) {
+    const t0 = Date.now();
+    let entry: SourceCallEntry;
     try {
       const result = await connector.lookup(req);
-      if (result !== null) results.push(result);
+      const durationMs = Date.now() - t0;
+      if (result !== null) {
+        results.push(result);
+        entry = {
+          source: connector.name,
+          productId: req.productId,
+          status: "SUCCESS",
+          confidence: result.confidence,
+          matchedBy: result.matchedBy,
+          durationMs,
+          fieldsReturned: fieldsReturnedFrom(result),
+          errorMessage: null,
+        };
+      } else {
+        entry = {
+          source: connector.name,
+          productId: req.productId,
+          status: "NO_MATCH",
+          confidence: null,
+          matchedBy: null,
+          durationMs,
+          fieldsReturned: [],
+          errorMessage: null,
+        };
+      }
     } catch (err) {
+      const durationMs = Date.now() - t0;
+      const msg = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[connector:${connector.name}] Erro para produto ${req.cnp ?? req.designacao}: ${
-          err instanceof Error ? err.message : String(err)
-        }`
+        `[connector:${connector.name}] Erro para produto ${req.cnp ?? req.designacao}: ${msg}`
       );
+      entry = {
+        source: connector.name,
+        productId: req.productId,
+        status: "ERROR",
+        confidence: null,
+        matchedBy: null,
+        durationMs,
+        fieldsReturned: [],
+        errorMessage: msg.slice(0, 500),
+      };
+    }
+
+    if (logger) {
+      try {
+        await logger(entry);
+      } catch (logErr) {
+        // Falha na instrumentação NUNCA interrompe o pipeline real.
+        console.warn(
+          `[connector:logger] falhou ao registar ${entry.source}: ${
+            logErr instanceof Error ? logErr.message : String(logErr)
+          }`
+        );
+      }
     }
   }
 

@@ -57,6 +57,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
   ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
+  EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
   FornecedorAlias: 'FornecedorAlias',
   Farmacia: 'Farmacia',
@@ -204,6 +205,22 @@ export const ProdutoVerificacaoHistoricoScalarFieldEnum = {
 } as const
 
 export type ProdutoVerificacaoHistoricoScalarFieldEnum = (typeof ProdutoVerificacaoHistoricoScalarFieldEnum)[keyof typeof ProdutoVerificacaoHistoricoScalarFieldEnum]
+
+
+export const EnrichmentSourceLogScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  source: 'source',
+  status: 'status',
+  confidence: 'confidence',
+  matchedBy: 'matchedBy',
+  durationMs: 'durationMs',
+  fieldsReturned: 'fieldsReturned',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt'
+} as const
+
+export type EnrichmentSourceLogScalarFieldEnum = (typeof EnrichmentSourceLogScalarFieldEnum)[keyof typeof EnrichmentSourceLogScalarFieldEnum]
 
 
 export const FornecedorScalarFieldEnum = {

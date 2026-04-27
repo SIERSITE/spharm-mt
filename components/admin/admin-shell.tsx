@@ -7,6 +7,7 @@ import {
   Building2,
   ArrowLeft,
   ListChecks,
+  Activity,
 } from "lucide-react";
 
 type Props = {
@@ -18,7 +19,8 @@ type Props = {
 const NAV = [
   { label: "Visão geral", href: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Tenants", href: "/admin/tenants", icon: Building2, exact: false },
-  { label: "Revisão de catálogo", href: "/admin/catalogo/revisao", icon: ListChecks, exact: false },
+  { label: "Catálogo · Saúde", href: "/admin/catalogo", icon: Activity, exact: true },
+  { label: "Catálogo · Revisão", href: "/admin/catalogo/revisao", icon: ListChecks, exact: false },
 ];
 
 export function AdminShell({ children, adminEmail }: Props) {

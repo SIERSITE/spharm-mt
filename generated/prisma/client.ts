@@ -79,6 +79,23 @@ export type InfarmedSnapshot = Prisma.InfarmedSnapshotModel
  */
 export type ProdutoVerificacaoHistorico = Prisma.ProdutoVerificacaoHistoricoModel
 /**
+ * Model EnrichmentSourceLog
+ * Resultado de cada chamada a um conector externo.
+ * 
+ * Granularidade: uma row por (produto × conector × tentativa) — alimenta
+ * as métricas de qualidade de fonte em /admin/catalogo. Nunca lido pelo
+ * pipeline em runtime; é só observabilidade.
+ * 
+ * Status:
+ * SUCCESS   — o conector devolveu ExternalSourceData não-null.
+ * NO_MATCH  — o conector devolveu null (sem dados para este CNP/designação).
+ * ERROR     — o conector lançou (timeout, HTTP error, parse fail). A mensagem
+ * é capturada em errorMessage truncada a 500 chars.
+ * 
+ * Append-only. Não há UPDATE; reverify gera nova row.
+ */
+export type EnrichmentSourceLog = Prisma.EnrichmentSourceLogModel
+/**
  * Model Fornecedor
  * Fornecedor normalizado.
  */

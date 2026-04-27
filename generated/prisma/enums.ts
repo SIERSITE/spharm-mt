@@ -223,3 +223,12 @@ export const EstadoInventario = {
 } as const
 
 export type EstadoInventario = (typeof EstadoInventario)[keyof typeof EstadoInventario]
+
+
+export const EnrichmentSourceStatus = {
+  SUCCESS: 'SUCCESS',
+  NO_MATCH: 'NO_MATCH',
+  ERROR: 'ERROR'
+} as const
+
+export type EnrichmentSourceStatus = (typeof EnrichmentSourceStatus)[keyof typeof EnrichmentSourceStatus]

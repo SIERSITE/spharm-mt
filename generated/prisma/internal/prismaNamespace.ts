@@ -390,6 +390,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
   ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
+  EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
   FornecedorAlias: 'FornecedorAlias',
   Farmacia: 'Farmacia',
@@ -430,7 +431,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "produtoVerificacaoHistorico" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -875,6 +876,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProdutoVerificacaoHistoricoCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProdutoVerificacaoHistoricoCountAggregateOutputType> | number
+        }
+      }
+    }
+    EnrichmentSourceLog: {
+      payload: Prisma.$EnrichmentSourceLogPayload<ExtArgs>
+      fields: Prisma.EnrichmentSourceLogFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.EnrichmentSourceLogFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.EnrichmentSourceLogFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        findFirst: {
+          args: Prisma.EnrichmentSourceLogFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.EnrichmentSourceLogFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        findMany: {
+          args: Prisma.EnrichmentSourceLogFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>[]
+        }
+        create: {
+          args: Prisma.EnrichmentSourceLogCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        createMany: {
+          args: Prisma.EnrichmentSourceLogCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.EnrichmentSourceLogCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>[]
+        }
+        delete: {
+          args: Prisma.EnrichmentSourceLogDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        update: {
+          args: Prisma.EnrichmentSourceLogUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        deleteMany: {
+          args: Prisma.EnrichmentSourceLogDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.EnrichmentSourceLogUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.EnrichmentSourceLogUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>[]
+        }
+        upsert: {
+          args: Prisma.EnrichmentSourceLogUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EnrichmentSourceLogPayload>
+        }
+        aggregate: {
+          args: Prisma.EnrichmentSourceLogAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateEnrichmentSourceLog>
+        }
+        groupBy: {
+          args: Prisma.EnrichmentSourceLogGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EnrichmentSourceLogGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.EnrichmentSourceLogCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EnrichmentSourceLogCountAggregateOutputType> | number
         }
       }
     }
@@ -2873,6 +2948,22 @@ export const ProdutoVerificacaoHistoricoScalarFieldEnum = {
 export type ProdutoVerificacaoHistoricoScalarFieldEnum = (typeof ProdutoVerificacaoHistoricoScalarFieldEnum)[keyof typeof ProdutoVerificacaoHistoricoScalarFieldEnum]
 
 
+export const EnrichmentSourceLogScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  source: 'source',
+  status: 'status',
+  confidence: 'confidence',
+  matchedBy: 'matchedBy',
+  durationMs: 'durationMs',
+  fieldsReturned: 'fieldsReturned',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt'
+} as const
+
+export type EnrichmentSourceLogScalarFieldEnum = (typeof EnrichmentSourceLogScalarFieldEnum)[keyof typeof EnrichmentSourceLogScalarFieldEnum]
+
+
 export const FornecedorScalarFieldEnum = {
   id: 'id',
   nomeNormalizado: 'nomeNormalizado',
@@ -3485,6 +3576,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'EnrichmentSourceStatus'
+ */
+export type EnumEnrichmentSourceStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EnrichmentSourceStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'EnrichmentSourceStatus[]'
+ */
+export type ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EnrichmentSourceStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'FornecedorTipo'
  */
 export type EnumFornecedorTipoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'FornecedorTipo'>
@@ -3822,6 +3927,7 @@ export type GlobalOmitConfig = {
   classificacao?: Prisma.ClassificacaoOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   produtoVerificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoOmit
+  enrichmentSourceLog?: Prisma.EnrichmentSourceLogOmit
   fornecedor?: Prisma.FornecedorOmit
   fornecedorAlias?: Prisma.FornecedorAliasOmit
   farmacia?: Prisma.FarmaciaOmit

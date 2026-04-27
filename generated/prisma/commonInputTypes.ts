@@ -365,6 +365,23 @@ export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
   _max?: Prisma.NestedJsonNullableFilter<$PrismaModel>
 }
 
+export type EnumEnrichmentSourceStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.EnrichmentSourceStatus | Prisma.EnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel> | $Enums.EnrichmentSourceStatus
+}
+
+export type EnumEnrichmentSourceStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.EnrichmentSourceStatus | Prisma.EnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEnrichmentSourceStatusWithAggregatesFilter<$PrismaModel> | $Enums.EnrichmentSourceStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel>
+}
+
 export type EnumFornecedorTipoFilter<$PrismaModel = never> = {
   equals?: $Enums.FornecedorTipo | Prisma.EnumFornecedorTipoFieldRefInput<$PrismaModel>
   in?: $Enums.FornecedorTipo[] | Prisma.ListEnumFornecedorTipoFieldRefInput<$PrismaModel>
@@ -1015,6 +1032,23 @@ export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
   gt?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel>
   gte?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel>
   not?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel> | Prisma.JsonNullValueFilter
+}
+
+export type NestedEnumEnrichmentSourceStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.EnrichmentSourceStatus | Prisma.EnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel> | $Enums.EnrichmentSourceStatus
+}
+
+export type NestedEnumEnrichmentSourceStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.EnrichmentSourceStatus | Prisma.EnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EnrichmentSourceStatus[] | Prisma.ListEnumEnrichmentSourceStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEnrichmentSourceStatusWithAggregatesFilter<$PrismaModel> | $Enums.EnrichmentSourceStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumEnrichmentSourceStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumFornecedorTipoFilter<$PrismaModel = never> = {
