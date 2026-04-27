@@ -369,7 +369,7 @@ export function ExcessosClient({
                 <SearchableMultiSelect label="Farmácia origem" options={farmacias} selected={farmaciasOrigemSelecionadas} onToggle={(value) => toggleValue(value, farmaciasOrigemSelecionadas, setFarmaciasOrigemSelecionadas)} />
                 <SearchableMultiSelect label="Farmácia destino" options={farmacias} selected={farmaciasDestinoSelecionadas} onToggle={(value) => toggleValue(value, farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas)} />
                 <SearchableMultiSelect label="Prioridade" options={prioridades} selected={prioridadesSelecionadas} onToggle={(value) => toggleValue(value, prioridadesSelecionadas, setPrioridadesSelecionadas)} />
-                <SearchableMultiSelect label="Fornecedor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
+                <SearchableMultiSelect label="Distribuidor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
                 <SearchableMultiSelect label="Fabricante" options={fabricantes} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
                 <SearchableMultiSelect label="Categoria" options={categorias} selected={categoriasSelecionadas} onToggle={(value) => toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)} />
               </div>

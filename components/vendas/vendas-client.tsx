@@ -616,7 +616,7 @@ export function VendasClient({
                   }
                 />
                 <SearchableMultiSelect
-                  label="Fornecedor"
+                  label="Distribuidor"
                   options={fornecedores}
                   selected={fornecedoresSelecionados}
                   onToggle={(value) =>
@@ -1548,7 +1548,7 @@ function humanizeOption(option: string) {
     existencia: "Existência",
     artigo: "Artigo",
     grupo: "Grupo",
-    fornecedor: "Fornecedor",
+    fornecedor: "Distribuidor",
     fabricante: "Fabricante",
     categoria: "Categoria",
     farmacia: "Farmácia",

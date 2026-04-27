@@ -543,8 +543,8 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes }: Pr
               disabled={busy || generating}
             />
             <FilterMulti
-              label="Fornecedores"
-              options={filterOptions.fornecedores}
+              label="Distribuidores"
+              options={filterOptions.distribuidores}
               selected={selFornecedores}
               onChange={setSelFornecedores}
               disabled={busy || generating}

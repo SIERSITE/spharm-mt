@@ -593,7 +593,7 @@ export function TransferenciasClient({
                 />
 
                 <SearchableMultiSelect
-                  label="Fornecedor"
+                  label="Distribuidor"
                   options={fornecedores}
                   selected={fornecedoresSelecionados}
                   onToggle={(value) =>

@@ -507,7 +507,7 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   }
                 />
                 <SearchableMultiSelect
-                  label="Fornecedores"
+                  label="Distribuidores"
                   options={fornecedores}
                   selected={fornecedoresSelecionados}
                   onToggle={(value) =>

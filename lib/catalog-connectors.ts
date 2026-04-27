@@ -646,23 +646,38 @@ const retailPharmacyConnector: ExternalConnector = {
 
 // ─── Routing por tipo ─────────────────────────────────────────────────────────
 
+/**
+ * Decisão pós-auditoria (abril 2026): `internalPharmacyConnector` foi REMOVIDO
+ * deste routing. O conector estava a propagar `categoriaOrigem`/`familiaOrigem`
+ * — texto bruto do ERP da farmácia — como `ExternalSourceData.categoria` que
+ * depois alimentava o `taxonomy-map` para escolher classificação canónica.
+ * Isto contradizia a regra "SPharmMT é a fonte de verdade da classificação;
+ * SPharm/ERP só fornece CNP/designação/movimentos".
+ *
+ * O sinal interno continua a influenciar o classificador via
+ * `fetchOrigemSignals` em catalog-enrichment.ts → `applyOrigemSignals` em
+ * catalog-classifier.ts (reforço fraco ao pontuar `productType`), o que é
+ * legítimo porque NÃO escreve texto livre como categoria persistida.
+ *
+ * O conector interno fica em código como referência, mas não é chamado.
+ */
 const CONNECTORS_BY_TYPE: Record<ProductType, ExternalConnector[]> = {
-  MEDICAMENTO:        [infarmedConnector, internalPharmacyConnector],
-  SUPLEMENTO:         [internalPharmacyConnector, openFoodFactsConnector, retailPharmacyConnector],
-  DERMOCOSMETICA:     [internalPharmacyConnector, openBeautyFactsConnector, retailPharmacyConnector],
-  DISPOSITIVO_MEDICO: [internalPharmacyConnector, eudamedConnector, retailPharmacyConnector],
-  HIGIENE_CUIDADO:    [internalPharmacyConnector, retailPharmacyConnector],
-  ORTOPEDIA:          [internalPharmacyConnector, retailPharmacyConnector],
-  PUERICULTURA:       [internalPharmacyConnector, retailPharmacyConnector],
-  VETERINARIA:        [internalPharmacyConnector, retailPharmacyConnector],
-  OUTRO:              [internalPharmacyConnector, retailPharmacyConnector],
+  MEDICAMENTO:        [infarmedConnector],
+  SUPLEMENTO:         [openFoodFactsConnector, retailPharmacyConnector],
+  DERMOCOSMETICA:     [openBeautyFactsConnector, retailPharmacyConnector],
+  DISPOSITIVO_MEDICO: [eudamedConnector, retailPharmacyConnector],
+  HIGIENE_CUIDADO:    [retailPharmacyConnector],
+  ORTOPEDIA:          [retailPharmacyConnector],
+  PUERICULTURA:       [retailPharmacyConnector],
+  VETERINARIA:        [retailPharmacyConnector],
+  OUTRO:              [retailPharmacyConnector],
 };
 
 /**
  * Devolve os conectores a usar para o tipo de produto, em ordem de prioridade.
  */
 export function getConnectorsForProductType(type: ProductType): ExternalConnector[] {
-  return CONNECTORS_BY_TYPE[type] ?? [internalPharmacyConnector];
+  return CONNECTORS_BY_TYPE[type] ?? [];
 }
 
 /**
