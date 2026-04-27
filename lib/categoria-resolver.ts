@@ -4,7 +4,7 @@
  * Fonte ÚNICA de verdade para resolver a categoria/subcategoria de um
  * produto em toda a aplicação.
  *
- * REGRA ACTUALIZADA (post-audit, abril 2026):
+ * REGRA (post-cleanup, abril 2026):
  *
  *   SPharmMT é a fonte de verdade da classificação. SPharm/ERP fornece
  *   apenas CNP/designação/movimentos — os campos `ProdutoFarmacia.categoriaOrigem`
@@ -14,13 +14,15 @@
  * Resolução:
  *   1. `Produto.classificacaoNivel2.nome` → grupo (subcategoria canónica)
  *   2. `Produto.classificacaoNivel1.nome` → categoria (canónica)
- *   3. Sem canónico → categoria/grupo = "Por Classificar"
- *      e `needsClassification = true` para a UI sinalizar revisão.
+ *   3. Sem canónico → categoria/grupo = `SEM_CLASSIFICACAO_LABEL`
+ *      ("Por Classificar") usado APENAS como rótulo de UI.
+ *      Não é uma categoria — é um indicador visual de produto sem
+ *      classificação. O estado real está em
+ *      `Produto.verificationStatus` / `Produto.needsManualReview`.
+ *      Este rótulo NÃO deve aparecer em filtros nem ser persistido.
  *
  * Os campos `categoriaOrigem` / `subcategoriaOrigem` continuam aceites
- * no input por compatibilidade — mas são IGNORADOS. Manter os campos
- * no `CategoriaSources` evita refactor em cascata em todos os call-sites
- * que ainda passam estes valores. O classifier interno
+ * no input por compatibilidade — mas são IGNORADOS. O classifier interno
  * (lib/catalog-classifier.ts) continua a usar estes sinais como reforço
  * fraco para escolher `productType`, mas NUNCA como categoria persistida.
  */
@@ -37,15 +39,24 @@ export type CategoriaSources = {
 };
 
 export type ResolvedCategoria = {
-  /** Nível pai canónico ou `POR_CLASSIFICAR` quando ausente. */
+  /** Nível pai canónico ou `SEM_CLASSIFICACAO_LABEL` quando ausente. */
   categoria: string;
-  /** Nível específico canónico ou `POR_CLASSIFICAR` quando ausente. */
+  /** Nível específico canónico ou `SEM_CLASSIFICACAO_LABEL` quando ausente. */
   grupo: string;
   /** True quando não há classificação canónica — a UI deve sugerir revisão. */
   needsClassification: boolean;
 };
 
-export const POR_CLASSIFICAR = "Por Classificar";
+/**
+ * Rótulo de UI para produtos sem classificação canónica. NÃO é uma
+ * categoria — é apenas o texto a apresentar quando os campos
+ * `classificacaoNivel*Id` estão `null`. Não deve ser persistido em
+ * `Classificacao.nome` nem incluído em filtros de categoria.
+ */
+export const SEM_CLASSIFICACAO_LABEL = "Por Classificar";
+
+/** @deprecated Use `SEM_CLASSIFICACAO_LABEL`. Mantido só por compatibilidade. */
+export const POR_CLASSIFICAR = SEM_CLASSIFICACAO_LABEL;
 
 function clean(v: string | null | undefined): string {
   return (v ?? "").trim();
@@ -57,8 +68,8 @@ export function resolveCategoria(src: CategoriaSources): ResolvedCategoria {
 
   if (!canonN1 && !canonN2) {
     return {
-      categoria: POR_CLASSIFICAR,
-      grupo: POR_CLASSIFICAR,
+      categoria: SEM_CLASSIFICACAO_LABEL,
+      grupo: SEM_CLASSIFICACAO_LABEL,
       needsClassification: true,
     };
   }

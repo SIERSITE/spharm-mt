@@ -236,14 +236,16 @@ export function CatalogReviewDetail({ detail, fabricantes, classificacoes, evide
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        {/* Proposta automática */}
+        {/* Classificação actual */}
         <section className="rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-[14px] font-semibold text-slate-900">
-              Proposta automática
+              Classificação actual
             </h2>
             <p className="mt-0.5 text-[12px] text-slate-500">
-              Resultado do pipeline de classificação. Use como ponto de partida.
+              Estado actual do produto, resultado do último pipeline de
+              classificação. A proposta automática só é gravada se mapear para
+              uma categoria comercial real.
             </p>
           </div>
           <dl className="grid gap-2 px-4 py-3 text-[13px]">
@@ -252,6 +254,43 @@ export function CatalogReviewDetail({ detail, fabricantes, classificacoes, evide
               <span className="ml-2 text-[11px] text-slate-500">
                 conf {fmtPct(detail.produto.productTypeConfidence)}
               </span>
+            </Field>
+            <Field label="Fabricante / laboratório">
+              {detail.produto.fabricanteNome ?? (
+                <span className="text-slate-400">— (sem fabricante)</span>
+              )}
+            </Field>
+            <Field label="Categoria N1 / N2">
+              {detail.produto.classificacaoNivel1Nome ? (
+                <>
+                  <span className="font-medium text-slate-900">
+                    {detail.produto.classificacaoNivel1Nome}
+                  </span>
+                  {detail.produto.classificacaoNivel2Nome && (
+                    <span className="text-slate-500">
+                      {" · "}
+                      {detail.produto.classificacaoNivel2Nome}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                  Sem classificação · precisa revisão
+                </span>
+              )}
+            </Field>
+            <Field label="Verificação">
+              <span className="font-medium">{detail.produto.verificationStatus}</span>
+              {detail.produto.needsManualReview && (
+                <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                  needsManualReview
+                </span>
+              )}
+              {detail.produto.validadoManualmente && (
+                <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+                  validado manualmente
+                </span>
+              )}
             </Field>
             <Field label="Origem da classificação">
               {detail.produto.classificationSource ?? "—"}
@@ -268,17 +307,6 @@ export function CatalogReviewDetail({ detail, fabricantes, classificacoes, evide
                   externa
                 </span>
               )}
-            </Field>
-            <Field label="Categoria actual">
-              {detail.produto.classificacaoNivel1Nome ?? (
-                <span className="text-slate-400">— (Por Classificar)</span>
-              )}
-              {detail.produto.classificacaoNivel2Nome && (
-                <span className="text-slate-500"> · {detail.produto.classificacaoNivel2Nome}</span>
-              )}
-            </Field>
-            <Field label="Fabricante actual">
-              {detail.produto.fabricanteNome ?? <span className="text-slate-400">—</span>}
             </Field>
             {detail.produto.manualReviewReason && (
               <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">

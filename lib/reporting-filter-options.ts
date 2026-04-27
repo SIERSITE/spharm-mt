@@ -8,14 +8,16 @@
  *  · `categorias` passa a ser ESTRITAMENTE canónico — deriva de `Classificacao`
  *    (NIVEL_1) e nunca mais faz UNION com `ProdutoFarmacia.categoriaOrigem`
  *    (texto bruto do ERP, não-fiável).
- *  · "Por Classificar" é injectado quando há produtos sem classificação canónica,
- *    permitindo ao utilizador filtrar precisamente os que precisam de revisão.
  *  · `distribuidores` é o nome correcto para o universo de grossistas
  *    (OCP, Alliance, Empifarma, Plural, …) — vem de `ProdutoFarmacia.fornecedorOrigem`.
  *    `fornecedores` é mantido como alias deprecated para não quebrar consumidores
  *    pré-existentes; novos consumidores usam `distribuidores`.
  *  · `fabricantes` continua como fabricantes/laboratórios canónicos
  *    (Bayer, Bial, Pfizer, …) via `Fabricante.nomeNormalizado`.
+ *  · `semClassificacao` indica se há produtos sem classificação — a UI deve
+ *    expor isto como FILTRO BOOLEANO ("apenas sem classificação") e nunca
+ *    como uma categoria entre as outras. "Por Classificar" / "Em Revisão" /
+ *    "Sem Match" são estados de workflow, não categorias.
  *
  * Separação explícita vs getXxxData:
  *   · getXxxData                  → linhas do relatório (pesado, lazy)
@@ -24,7 +26,6 @@
 
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { POR_CLASSIFICAR } from "@/lib/categoria-resolver";
 
 export type ReportingFilterOptions = {
   /**
@@ -41,12 +42,18 @@ export type ReportingFilterOptions = {
    */
   fabricantes: string[];
   /**
-   * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). Inclui
-   * "Por Classificar" quando há produtos sem `classificacaoNivel1Id`,
-   * para permitir filtragem dos não classificados. NUNCA inclui texto
-   * bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
+   * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). NUNCA
+   * inclui texto bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
+   * NUNCA inclui rótulos técnicos/transitórios — esses são estados de
+   * workflow expostos por `semClassificacao` (boolean).
    */
   categorias: string[];
+  /**
+   * Sinalização de que existem produtos sem classificação canónica.
+   * A UI deve oferecer um filtro booleano dedicado ("apenas sem
+   * classificação") em vez de injectar uma categoria fictícia.
+   */
+  semClassificacao: boolean;
 };
 
 function cleanSortUnique(values: Array<string | null | undefined>): string[] {
@@ -72,6 +79,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
       fornecedores: [],
       fabricantes: [],
       categorias: [],
+      semClassificacao: false,
     };
   }
 
@@ -106,24 +114,22 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     orderBy: { nome: "asc" },
   });
 
-  // Inclui "Por Classificar" se houver produtos sem classificação canónica
-  // — permite ao utilizador filtrar precisamente os que precisam revisão.
-  // Query barato: existência via take=1.
+  // Sinaliza, de forma BOOLEANA, se há produtos sem classificação canónica.
+  // A UI passa a oferecer um filtro dedicado em vez de uma "categoria"
+  // fictícia. Query barata: existência via take=1.
   const naoClassificado = await prisma.produto.findFirst({
     where: { classificacaoNivel1Id: null, estado: { not: "INATIVO" } },
     select: { id: true },
   });
 
   const distribuidores = cleanSortUnique(distribuidorRows.map((r) => r.nome));
-  const categoriasCanon = cleanSortUnique(categoriaRows.map((r) => r.nome));
-  const categorias = naoClassificado
-    ? [...categoriasCanon, POR_CLASSIFICAR]
-    : categoriasCanon;
+  const categorias = cleanSortUnique(categoriaRows.map((r) => r.nome));
 
   return {
     distribuidores,
     fornecedores: distribuidores, // alias deprecated — mesma lista
     fabricantes: cleanSortUnique(fabricanteRows.map((r) => r.nome)),
     categorias,
+    semClassificacao: !!naoClassificado,
   };
 }

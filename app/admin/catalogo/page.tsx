@@ -9,6 +9,7 @@ import {
   loadConflictsSummary,
   computeWarnings,
 } from "@/lib/admin/enrichment-metrics";
+import { CatalogProductJump } from "@/components/admin/catalog-product-jump";
 
 export const dynamic = "force-dynamic";
 
@@ -91,21 +92,24 @@ export default async function CatalogOverviewPage({ searchParams }: Props) {
             Telemetria do pipeline de enriquecimento. Tudo read-only — só medição.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[12px] text-slate-600">
-          <span>Janela:</span>
-          {[1, 7, 30, 90].map((n) => (
-            <Link
-              key={n}
-              href={`/admin/catalogo?range=${n}`}
-              className={`rounded-lg border px-2.5 py-1 font-medium ${
-                daysBack === n
-                  ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {n === 1 ? "24h" : `${n}d`}
-            </Link>
-          ))}
+        <div className="flex flex-wrap items-center gap-3 text-[12px] text-slate-600">
+          <CatalogProductJump />
+          <div className="flex items-center gap-2">
+            <span>Janela:</span>
+            {[1, 7, 30, 90].map((n) => (
+              <Link
+                key={n}
+                href={`/admin/catalogo?range=${n}`}
+                className={`rounded-lg border px-2.5 py-1 font-medium ${
+                  daysBack === n
+                    ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {n === 1 ? "24h" : `${n}d`}
+              </Link>
+            ))}
+          </div>
         </div>
       </header>
 

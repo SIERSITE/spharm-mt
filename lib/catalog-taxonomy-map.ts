@@ -9,23 +9,20 @@
  *   1. Nunca devolve categorias fora da taxonomia canónica.
  *   2. Determinístico: os mesmos inputs → o mesmo output.
  *   3. "Outros <X>" só se o nivel1 for forte e nenhum match específico
- *      for possível. Mesmo assim, preferir "Em Revisão".
- *   4. Se não há sinal suficiente para determinar nivel1, cai em
- *      CATEGORIAS TÉCNICAS / (Em Revisão | Por Classificar).
+ *      for possível.
+ *   4. Se não há sinal suficiente para determinar (nivel1, nivel2) com
+ *      categoria comercial REAL, devolve `null`. O persistence deixa
+ *      `classificacao*Id` a `null` e o produto aparece como "sem
+ *      classificação" — o estado vive em `verificationStatus` /
+ *      `needsManualReview`, NÃO em categorias técnicas/transitórias.
  *
  * Usado por lib/catalog-persistence.ts antes de
  * resolveClassificationIdsFromCategory(), de forma a nunca gravar
- * categorias livres vindas das fontes.
+ * categorias livres vindas das fontes nem categorias técnicas.
  */
 
 import type { ProductType } from "./catalog-types";
-import {
-  getNivel2For,
-  isValidNivel2,
-  TRANSITORIA_NIVEL1,
-  TRANSITORIA_POR_CLASSIFICAR,
-  TRANSITORIA_EM_REVISAO,
-} from "./catalog-taxonomy";
+import { getNivel2For, isValidNivel2 } from "./catalog-taxonomy";
 
 export type TaxonomyMapInput = {
   productType: ProductType;
@@ -44,11 +41,7 @@ export type TaxonomyMapOutput = {
     | "keyword"
     | "atc"
     | "external_category_hint"
-    | "product_type_only"
-    | "em_revisao"
-    | "por_classificar";
-  /** true = fallback transitório (Em Revisão / Por Classificar / Outros) */
-  isFallback: boolean;
+    | "product_type_only";
 };
 
 // ─── ProductType → Nivel1 canónico ────────────────────────────────────────────
@@ -293,47 +286,41 @@ function resolveNivel2(nivel1: string, input: TaxonomyMapInput): { nivel2: strin
  * Mapeia signals para uma categoria canónica (nivel1, nivel2).
  *
  * Nunca inventa nomes. Nunca devolve fora da taxonomia canónica.
- * Fallbacks preferenciais: "Em Revisão" > "Por Classificar" > "Outros <X>".
+ *
+ * Devolve `null` quando não há sinal suficiente para escolher um par
+ * (nivel1, nivel2) com categoria comercial REAL — nesse caso, o
+ * persistence deixa `classificacao*Id` a `null` e o estado fica
+ * representado por `verificationStatus` / `needsManualReview`.
  */
-export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput {
+export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput | null {
   // Resolução de nivel1 — prioridade: hint de categoria externa > productType
   const fromExternal = resolveNivel1FromExternal(input);
   const fromType = resolveNivel1FromProductType(input);
 
   const n1 = fromExternal ?? fromType;
-  const n1Method: TaxonomyMapOutput["method"] = fromExternal
-    ? "external_category_hint"
-    : "product_type_only";
 
-  if (n1 && n1.confidence >= 0.60) {
-    const n2 = resolveNivel2(n1.nivel1, input);
-    if (n2) {
-      return {
-        nivel1: n1.nivel1,
-        nivel2: n2.nivel2,
-        confidence: Math.min(n1.confidence, n2.confidence),
-        method: n2.confidence >= 0.88 ? "atc" : "keyword",
-        isFallback: false,
-      };
-    }
-    // Nivel1 claro, nivel2 não identificável → Em Revisão (não caímos em "Outros")
-    return {
-      nivel1: TRANSITORIA_NIVEL1,
-      nivel2: TRANSITORIA_EM_REVISAO,
-      confidence: 0.55,
-      method: "em_revisao",
-      isFallback: true,
-    };
+  if (!n1 || n1.confidence < 0.60) {
+    // Sem nivel1 fiável → não persiste classificação. Estado vai por
+    // verificationStatus/needsManualReview.
+    return null;
   }
 
-  // Sem nivel1 determinável
-  const hadAnySignal =
-    !!input.externalCategory || !!input.externalSubcategory || !!input.atc;
+  const n2 = resolveNivel2(n1.nivel1, input);
+  if (!n2) {
+    // Nivel1 claro mas nivel2 não identificável: NÃO escolher "Outros <X>"
+    // automaticamente (o admin valida manualmente). Devolve null para que
+    // a classificação fique por preencher.
+    return null;
+  }
+
   return {
-    nivel1: TRANSITORIA_NIVEL1,
-    nivel2: hadAnySignal ? TRANSITORIA_EM_REVISAO : TRANSITORIA_POR_CLASSIFICAR,
-    confidence: 0.50,
-    method: hadAnySignal ? "em_revisao" : "por_classificar",
-    isFallback: true,
+    nivel1: n1.nivel1,
+    nivel2: n2.nivel2,
+    confidence: Math.min(n1.confidence, n2.confidence),
+    method: n2.confidence >= 0.88
+      ? "atc"
+      : fromExternal
+      ? "external_category_hint"
+      : "keyword",
   };
 }

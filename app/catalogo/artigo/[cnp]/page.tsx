@@ -196,13 +196,21 @@ export default async function CatalogArticlePage({
   return (
     <MainShell>
       <div className="space-y-4">
-        <section className="space-y-2">
+        <section className="flex flex-wrap items-center justify-between gap-2">
           <Link
             href="/catalogo"
             className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
           >
             Voltar ao catálogo
           </Link>
+          <Link
+            href={`/admin/catalogo/revisao/${cnp}`}
+            className="inline-flex items-center rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 transition hover:border-cyan-400"
+          >
+            Verificar classificação
+          </Link>
+        </section>
+        <section className="space-y-2">
 
           <div className="rounded-[24px] border border-white/70 bg-white/84 px-5 py-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)] backdrop-blur-xl">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

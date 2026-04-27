@@ -220,12 +220,13 @@ export type ReviewDetail = {
 
 /**
  * Carrega o detalhe de uma revisão. `id` pode ser:
- *   - id de FilaRevisao (preferido, vindo da lista)
- *   - id de Produto (fallback para abrir produto sem entrada na fila)
+ *   - id de FilaRevisao (mode="revisao", preferido, vindo da lista)
+ *   - id de Produto (mode="produto", para abrir produto sem entrada na fila)
+ *   - CNP numérico (mode="cnp", para entrar a partir de /catalogo)
  */
 export async function loadReviewDetail(
   id: string,
-  mode: "revisao" | "produto" = "revisao"
+  mode: "revisao" | "produto" | "cnp" = "revisao"
 ): Promise<ReviewDetail | null> {
   const prisma = await getPrisma();
 
@@ -257,6 +258,15 @@ export async function loadReviewDetail(
       dataResolucao: r.dataResolucao,
       dadosOrigem: r.dadosOrigem,
     };
+  } else if (mode === "cnp") {
+    const cnp = Number(id);
+    if (!Number.isFinite(cnp) || cnp <= 0) return null;
+    const p = await prisma.produto.findUnique({
+      where: { cnp },
+      select: { id: true },
+    });
+    if (!p) return null;
+    produtoId = p.id;
   } else {
     produtoId = id;
   }

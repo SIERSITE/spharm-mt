@@ -8,12 +8,16 @@
  * categorias fora desta lista. O seed da tabela `Classificacao` é feito
  * a partir daqui (ver scripts/seed-taxonomy.ts).
  *
- * Regras operacionais:
+ * Regras operacionais (post-cleanup, abril 2026):
+ *   - Apenas categorias comerciais/operacionais reais.
  *   - "Outros <X>" é um nível 2 legítimo mas usado apenas como último recurso
  *     dentro de um nível 1 onde há sinal forte.
- *   - "Em Revisão" e "Por Classificar" (CATEGORIAS TÉCNICAS / TRANSITÓRIAS)
- *     são preferidas a "Outros" quando o nível 1 não é determinável com
- *     segurança.
+ *   - Categorias técnicas/transitórias ("Em Revisão", "Por Classificar",
+ *     "Sem Match de Fonte") FORAM REMOVIDAS desta taxonomia. São estados de
+ *     workflow representados por `verificationStatus` e `needsManualReview`
+ *     no `Produto`, não classificações. Quando não há categoria real
+ *     atribuível, `classificacaoNivel1Id` e `classificacaoNivel2Id` ficam
+ *     `null`.
  */
 
 export type CanonicalCategory = {
@@ -310,24 +314,16 @@ export const CANONICAL_TAXONOMY: CanonicalCategory[] = [
       "Outros Serviços",
     ],
   },
-  {
-    nivel1: "CATEGORIAS TÉCNICAS / TRANSITÓRIAS",
-    nivel2: [
-      "Por Classificar",
-      "Em Revisão",
-      "Inconsistente",
-      "Sem Match de Fonte",
-      "Outros Técnicos",
-    ],
-  },
 ];
 
-// Nomes canónicos das categorias técnicas (transitórias) — exportadas para
-// permitir fallbacks programáticos sem string literals espalhados.
-export const TRANSITORIA_NIVEL1 = "CATEGORIAS TÉCNICAS / TRANSITÓRIAS";
-export const TRANSITORIA_POR_CLASSIFICAR = "Por Classificar";
-export const TRANSITORIA_EM_REVISAO = "Em Revisão";
-export const TRANSITORIA_SEM_MATCH = "Sem Match de Fonte";
+/**
+ * Nomes das antigas categorias técnicas, mantidos só para a query do
+ * script de cleanup que põe `classificacao*Id` a `null` em produtos que
+ * ainda os tenham em BD. Não usar fora do cleanup.
+ */
+export const LEGACY_TECHNICAL_NIVEL1_NAMES = [
+  "CATEGORIAS TÉCNICAS / TRANSITÓRIAS",
+];
 
 export const CANONICAL_NIVEL1_NAMES: string[] = CANONICAL_TAXONOMY.map((c) => c.nivel1);
 
@@ -346,7 +342,8 @@ export function isValidNivel2(nivel1: string, nivel2: string): boolean {
 /**
  * Devolve o nome do nivel2 "Outros <X>" para um nivel1, se existir.
  * Usar APENAS como último recurso de fallback dentro de um nivel1 com
- * sinal forte. Preferir sempre "Em Revisão" se o nivel1 não é seguro.
+ * sinal forte. Caso contrário, deixar `classificacao*Id` a `null` e
+ * sinalizar via `needsManualReview`.
  */
 export function othersNameFor(nivel1: string): string | null {
   return getNivel2For(nivel1).find((n) => /^outros\b/i.test(n)) ?? null;

@@ -17,10 +17,12 @@ export default async function CatalogReviewDetailPage({ params }: Props) {
   // requirePlatformAdmin é aplicado pelo /admin layout.
   const { id } = await params;
 
-  // Tenta primeiro como FilaRevisao.id; se não encontrar, tenta como Produto.id
-  // — útil para abrir a UI directamente para um produto sem entrada na fila.
+  // Tenta primeiro como FilaRevisao.id; depois como Produto.id; e finalmente,
+  // se for puramente numérico, como CNP — útil para entrar a partir de
+  // /catalogo/artigo/<cnp> ou de uma pesquisa por CNP.
   let detail = await loadReviewDetail(id, "revisao");
   if (!detail) detail = await loadReviewDetail(id, "produto");
+  if (!detail && /^\d+$/.test(id)) detail = await loadReviewDetail(id, "cnp");
   if (!detail) notFound();
 
   const [fabricantes, classificacoes, evidence] = await Promise.all([

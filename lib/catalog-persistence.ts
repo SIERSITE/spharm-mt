@@ -278,18 +278,19 @@ export async function persistResolvedProduct(
     }
   }
 
-  // Classificação — passa SEMPRE pelo mapper canónico
+  // Classificação — passa SEMPRE pelo mapper canónico.
   //
-  // Regra: nenhuma categoria livre vinda de fontes externas pode ser gravada.
-  // O mapper (lib/catalog-taxonomy-map.ts) recebe todos os sinais disponíveis
-  // (productType, designação, ATC, categoria externa) e devolve uma combinação
-  // (nivel1, nivel2) dentro da taxonomia canónica de lib/catalog-taxonomy.ts.
-  //
-  // - Mapping real (não-fallback) com confidence >= THRESHOLD_PARTIAL
-  //   → grava normalmente e conta em fieldsUpdated (afecta o estado do produto).
-  // - Mapping em fallback (Em Revisão / Por Classificar)
-  //   → grava também, para rastreabilidade e métrica de "não classificado",
-  //     mas NÃO conta em fieldsUpdated (não promove o produto a enriquecido).
+  // Regras:
+  //   · Nenhuma categoria livre vinda de fontes externas pode ser gravada.
+  //   · Nenhuma categoria técnica/transitória (Em Revisão, Por Classificar,
+  //     Sem Match de Fonte) é persistida — esses estados são representados
+  //     por `verificationStatus` / `needsManualReview`, não por categorias.
+  //   · O mapper devolve `null` quando não há sinal suficiente. Nesse caso,
+  //     `classificacaoNivel1Id` / `classificacaoNivel2Id` ficam `null` e o
+  //     produto aparece como "sem classificação" na UI.
+  //   · Quando o mapper devolve um par (nivel1, nivel2) com confidence
+  //     >= THRESHOLD_PARTIAL, gravamos os IDs canónicos e contamos em
+  //     `fieldsUpdated` (promove o produto a enriquecido).
   if (
     !product.classificacaoNivel1Id &&
     !product.validadoManualmente &&
@@ -305,25 +306,15 @@ export async function persistResolvedProduct(
       atc: resolved.codigoATC?.value ?? product.codigoATC ?? null,
     });
 
-    const shouldWrite =
-      !canonical.isFallback && canonical.confidence >= THRESHOLD_PARTIAL;
-    const shouldWriteAsFallback = canonical.isFallback;
-
-    if (shouldWrite || shouldWriteAsFallback) {
+    if (canonical && canonical.confidence >= THRESHOLD_PARTIAL) {
       const res = await resolveClassificationIdsFromCategory(canonical.nivel1, canonical.nivel2);
       if (res.nivel1Id) {
         updates.classificacaoNivel1Id = res.nivel1Id;
-        if (shouldWrite) fieldsUpdated.push("classificacaoNivel1Id");
+        fieldsUpdated.push("classificacaoNivel1Id");
       }
       if (res.nivel2Id && !product.classificacaoNivel2Id) {
         updates.classificacaoNivel2Id = res.nivel2Id;
-        if (shouldWrite) fieldsUpdated.push("classificacaoNivel2Id");
-      }
-      if (shouldWriteAsFallback) {
-        console.log(
-          `[persistence] classificação canónica: ${canonical.nivel1} / ${canonical.nivel2} ` +
-          `(fallback=${canonical.method}, conf=${canonical.confidence.toFixed(2)})`
-        );
+        fieldsUpdated.push("classificacaoNivel2Id");
       }
     }
   }
