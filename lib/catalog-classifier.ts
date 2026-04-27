@@ -31,7 +31,10 @@ import type {
 
 // ─── Versão das regras ────────────────────────────────────────────────────────
 
-export const CLASSIFICATION_VERSION = "1.3";
+// 1.4 (Abril 2026): policy de limiares relaxada — persistência grava com
+// confidence ≥ 0.50 e marca VERIFIED a partir de 0.75. Bump força weekly
+// reverify a re-avaliar produtos classificados antes desta política.
+export const CLASSIFICATION_VERSION = "1.4";
 
 // ─── Tipos de entrada ─────────────────────────────────────────────────────────
 

@@ -28,27 +28,30 @@
  *     Campos irrelevantes (ex: DCI em dermocosmética) NUNCA são resolvidos,
  *     mesmo que alguma fonte tenha devolvido valor.
  * ─────────────────────────────────────────────────────────────────────────────
- * SEMÂNTICA DE verificationStatus
+ * SEMÂNTICA DE verificationStatus (política Abril 2026)
  *
- *   FAILED             → nenhum campo resolvido, OU evidência abaixo de
- *                         MIN_USEFUL_CONFIDENCE (ruído — indistinguível
- *                         de ausência de sinal).
+ * Política: aceitar mais classificações automáticas para reduzir backlog
+ * de revisão manual. Limiares baixos; correcção via /admin/catalogo/revisao
+ * apenas para casos genuinamente ambíguos (conflitos ou confiança baixa).
  *
- *   PARTIALLY_VERIFIED → pelo menos um campo resolvido com confiança
- *                         ≥ MIN_USEFUL_CONFIDENCE mas < VERIFIED_THRESHOLD.
- *                         Representa "temos evidência útil, mas não
- *                         suficiente para persistir em modo automático".
+ *   NEEDS_REVIEW       → (a) conflito entre fontes em campos críticos, OU
+ *                         (b) maxFieldConf < 0.50 (inclui 0 campos resolvidos).
+ *                         É a única origem de needsManualReview=true.
  *
- *   VERIFIED           → pelo menos um campo com confiança ≥ 0.90
- *                         (ex: fonte REGULATORY com lookup exacto por CNP).
+ *   PARTIALLY_VERIFIED → 0.50 ≤ maxFieldConf < 0.75. "Auto-classified" —
+ *                         os campos foram persistidos automaticamente mas
+ *                         o produto não está validado manualmente. Reverify
+ *                         semanal pode melhorar.
  *
- *   NEEDS_REVIEW       → conflito detectado entre fontes, OU tipo
- *                         classificado como OUTRO com confiança razoável.
+ *   VERIFIED           → maxFieldConf ≥ 0.75. Confiança suficiente para
+ *                         considerar a classificação fiável.
  *
- * Nota: o status é um *label* da evidência observada. A persistência
- * continua a usar THRESHOLD_PARTIAL=0.75 (mais restritivo) para decidir
- * o que é gravado — portanto é válido ter PARTIALLY_VERIFIED com
- * fieldsUpdated=[] quando a evidência é útil mas insuficiente para escrita.
+ *   FAILED             → mantido no enum por compatibilidade; já não é
+ *                         emitido pelo resolver (ausência de dados → NEEDS_REVIEW).
+ *
+ * Persistência (catalog-persistence.ts) escreve campos com confidence ≥ 0.50
+ * — alinhado com este policy. O bloqueio de tier para campos autoritários
+ * (fabricante/dci/atc) continua a só aceitar REGULATORY/MANUFACTURER.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -97,14 +100,17 @@ type Candidate = {
 const CONFLICT_THRESHOLD = 0.60;
 
 /**
- * Confiança mínima para considerar um campo "útil" no label verificationStatus.
- * Abaixo disto, o campo conta como ruído e o produto é marcado FAILED.
- *
- * NÃO é usado pela persistência — a persistência mantém THRESHOLD_PARTIAL=0.75.
- * Este valor afecta apenas o label de status.
+ * Banda baixa: abaixo disto a evidência não é suficientemente fiável para
+ * persistir automaticamente — o produto vai para a fila de revisão manual.
+ * Alinhado com `THRESHOLD_PARTIAL` em catalog-persistence.ts.
  */
-const MIN_USEFUL_CONFIDENCE = 0.60;
-const VERIFIED_THRESHOLD    = 0.90;
+const MIN_USEFUL_CONFIDENCE = 0.50;
+/**
+ * Banda alta: confiança suficiente para `verificationStatus = VERIFIED`.
+ * Não confundir com persistência — produtos com 0.50 ≤ conf < 0.75 também
+ * têm campos persistidos, mas mantêm `verificationStatus = PARTIALLY_VERIFIED`.
+ */
+const VERIFIED_THRESHOLD    = 0.75;
 
 function collectCandidates(
   getter: StringGetter,
@@ -304,36 +310,34 @@ export function resolveProduct(
     totalFieldsResolved,
   };
 
-  // verificationStatus — label da evidência observada (ver doc no topo do ficheiro)
+  // verificationStatus — política Abril 2026 (ver doc no topo do ficheiro).
+  // Apenas dois caminhos para NEEDS_REVIEW: conflito OU evidência abaixo de 0.50
+  // (inclui o caso de zero campos resolvidos, em que maxFieldConf=0).
   let verificationStatus: VerificationStatus;
   if (hasAnyConflict) {
     verificationStatus = "NEEDS_REVIEW";
-  } else if (totalFieldsResolved === 0) {
-    verificationStatus = "FAILED";
+  } else if (maxFieldConf < MIN_USEFUL_CONFIDENCE) {
+    verificationStatus = "NEEDS_REVIEW";
   } else if (maxFieldConf >= VERIFIED_THRESHOLD) {
     verificationStatus = "VERIFIED";
-  } else if (maxFieldConf >= MIN_USEFUL_CONFIDENCE) {
-    verificationStatus = "PARTIALLY_VERIFIED";
   } else {
-    // evidência demasiado fraca para ser útil — indistinguível de ausência
-    verificationStatus = "FAILED";
+    verificationStatus = "PARTIALLY_VERIFIED";
   }
 
-  // needsManualReview
-  const needsManualReview =
-    verificationStatus === "NEEDS_REVIEW" ||
-    (productType === "OUTRO" && typeConf >= 0.50) ||
-    (verificationStatus === "FAILED" && typeConf >= 0.75);
+  // needsManualReview ⇔ NEEDS_REVIEW. Sem mais excepções (productType=OUTRO
+  // ou FAILED+typeConf alto deixaram de mandar para revisão por design —
+  // o utilizador prefere reduzir backlog manual).
+  const needsManualReview = verificationStatus === "NEEDS_REVIEW";
 
   let manualReviewReason: string | null = null;
   if (needsManualReview) {
     if (hasAnyConflict) {
-      const fields = conflicts.map(c => c.field).join(", ");
+      const fields = conflicts.map((c) => c.field).join(", ");
       manualReviewReason = `Conflito entre fontes em: ${fields}`;
-    } else if (productType === "OUTRO") {
-      manualReviewReason = "Tipo de produto não determinado";
-    } else if (verificationStatus === "FAILED") {
-      manualReviewReason = "Enriquecimento sem dados após verificação";
+    } else if (totalFieldsResolved === 0) {
+      manualReviewReason = "Sem dados externos — requer classificação manual";
+    } else {
+      manualReviewReason = `Confiança ${(maxFieldConf * 100).toFixed(0)}% < 50% — requer revisão`;
     }
   }
 

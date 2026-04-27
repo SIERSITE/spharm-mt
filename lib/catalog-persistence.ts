@@ -12,10 +12,12 @@
  *   - Gravar metadados de verificação no Produto
  *   - Registar histórico de verificação (ProdutoVerificacaoHistorico)
  *
- * Limiares:
- *   confidence >= 0.90  → ENRIQUECIDO_AUTOMATICAMENTE
- *   confidence >= 0.75  → PARCIALMENTE_ENRIQUECIDO
- *   confidence <  0.75  → sem persistência de campos de catálogo
+ * Limiares (política Abril 2026 — accept some imperfection):
+ *   confidence >= 0.75  → ENRIQUECIDO_AUTOMATICAMENTE
+ *   confidence >= 0.50  → PARCIALMENTE_ENRIQUECIDO (campos persistidos)
+ *   confidence <  0.50  → sem persistência de campos; produto vai para
+ *                          revisão manual (verificationStatus=NEEDS_REVIEW
+ *                          definido pelo resolver).
  *   (metadados de verificação são sempre gravados, independentemente)
  *
  * REGRAS DE BLOQUEIO (inviolav.)
@@ -51,8 +53,15 @@ import {
 import { resolveClassificationIdsFromCategory } from "./catalog-classification";
 import { mapToCanonical } from "./catalog-taxonomy-map";
 
-const THRESHOLD_AUTO    = 0.90;
-const THRESHOLD_PARTIAL = 0.75;
+// Política Abril 2026:
+//   write threshold (PARTIAL) baixa a 0.50 — campos com confiança ≥ 0.50
+//     são gravados automaticamente.
+//   verified threshold (AUTO) baixa a 0.75 — produtos com algum campo
+//     ≥ 0.75 ficam ENRIQUECIDO_AUTOMATICAMENTE (estado VERIFIED no resolver).
+//   imagemUrl continua a ter checagem extra contra THRESHOLD_AUTO (0.75) —
+//     era 0.90 e nunca passava; agora RETAIL/Open*Facts podem alimentar imagem.
+const THRESHOLD_AUTO    = 0.75;
+const THRESHOLD_PARTIAL = 0.50;
 
 /**
  * Tiers que podem legitimamente escrever campos autoritários do catálogo.
