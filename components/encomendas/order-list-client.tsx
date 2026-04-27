@@ -128,7 +128,14 @@ export function OrderListClient({ data }: Props) {
               <tbody>
                 {data.orders.map((o) => (
                   <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-25">
-                    <td className="px-4 py-3 font-medium text-slate-800">{o.nome}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link
+                        href={`/encomendas/${o.id}`}
+                        className="text-cyan-700 hover:text-cyan-900 hover:underline"
+                      >
+                        {o.nome}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-slate-600">{o.farmaciaNome}</td>
                     <td className="px-4 py-3">
                       <span

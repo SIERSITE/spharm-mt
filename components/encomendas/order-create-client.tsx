@@ -349,14 +349,14 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes }: Pr
         setFlash({
           type: "ok",
           msg: finalize
-            ? `Encomenda criada e finalizada. Outbox ID: ${result.outboxId}`
-            : `Rascunho guardado (${result.listaEncomendaId}).`,
+            ? `Encomenda criada e finalizada. A abrir o detalhe…`
+            : `Rascunho guardado. A abrir o detalhe…`,
         });
         setNome("");
         setLinhas([]);
         setHasProposal(false);
         setProposalMeta(null);
-        setTimeout(() => router.push("/encomendas/lista"), 1200);
+        setTimeout(() => router.push(`/encomendas/${result.listaEncomendaId}`), 800);
       } else {
         setFlash({ type: "err", msg: result.error });
       }
