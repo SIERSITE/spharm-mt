@@ -779,13 +779,64 @@ function extractMetaContent(html: string, property: string): string | null {
   return null;
 }
 
-/** Procura um BreadcrumbList em blocos JSON-LD e devolve "A > B > C". */
-function extractJsonLdBreadcrumb(html: string): string | null {
+/**
+ * Achata um documento JSON-LD numa lista de nós, expandindo qualquer
+ * `@graph` que envolva múltiplos `@type`. Páginas modernas (Nuxt/
+ * Ycommerce — caso de lojadafarmacia.com — usam esta estrutura para
+ * empacotar Product + BreadcrumbList + Organization no mesmo `<script>`.
+ *
+ * Devolve sempre um array de objectos para iteração, mesmo que o input
+ * seja um único nó.
+ */
+function flattenJsonLdNodes(data: unknown): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  const stack: unknown[] = Array.isArray(data) ? [...data] : [data];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    if (!cur || typeof cur !== "object") continue;
+    const n = cur as Record<string, unknown>;
+    if (Array.isArray(n["@graph"])) {
+      stack.push(...(n["@graph"] as unknown[]));
+    }
+    if (typeof n["@type"] === "string" || Array.isArray(n["@type"])) {
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+/**
+ * Itera sobre todos os blocos JSON-LD da página e chama `visit` em cada
+ * nó, achatando `@graph`. `visit` devolve um valor não-null para
+ * curto-circuitar a busca.
+ */
+function forEachJsonLdNode<T>(
+  html: string,
+  visit: (node: Record<string, unknown>) => T | null
+): T | null {
   const blocks = html.match(
     /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   );
   if (!blocks) return null;
+  for (const block of blocks) {
+    const m = /<script[^>]*>([\s\S]*?)<\/script>/i.exec(block);
+    if (!m) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(m[1]);
+    } catch {
+      continue;
+    }
+    for (const node of flattenJsonLdNodes(parsed)) {
+      const r = visit(node);
+      if (r !== null && r !== undefined) return r;
+    }
+  }
+  return null;
+}
 
+/** Procura um BreadcrumbList em blocos JSON-LD e devolve "A > B > C". */
+function extractJsonLdBreadcrumb(html: string): string | null {
   const extractName = (item: unknown): string | null => {
     if (!item || typeof item !== "object") return null;
     const obj = item as Record<string, unknown>;
@@ -797,27 +848,24 @@ function extractJsonLdBreadcrumb(html: string): string | null {
     return null;
   };
 
-  for (const block of blocks) {
-    const m = /<script[^>]*>([\s\S]*?)<\/script>/i.exec(block);
-    if (!m) continue;
-    try {
-      const data: unknown = JSON.parse(m[1]);
-      const nodes = Array.isArray(data) ? data : [data];
-      for (const raw of nodes) {
-        if (!raw || typeof raw !== "object") continue;
-        const n = raw as Record<string, unknown>;
-        if (n["@type"] === "BreadcrumbList" && Array.isArray(n.itemListElement)) {
-          const names = (n.itemListElement as unknown[])
-            .map(extractName)
-            .filter((x): x is string => typeof x === "string" && x.length > 0);
-          if (names.length > 0) return names.join(" > ");
-        }
-      }
-    } catch {
-      /* JSON-LD inválido, ignora */
-    }
-  }
-  return null;
+  return forEachJsonLdNode<string>(html, (n) => {
+    const t = n["@type"];
+    const isBreadcrumb =
+      t === "BreadcrumbList" || (Array.isArray(t) && t.includes("BreadcrumbList"));
+    if (!isBreadcrumb || !Array.isArray(n.itemListElement)) return null;
+    const names = (n.itemListElement as unknown[])
+      .map(extractName)
+      .filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+    if (names.length === 0) return null;
+    // Filtrar site name no início (Loja da Farmácia / Home / Início) e o
+    // último item que é tipicamente o próprio produto.
+    const filtered = names.filter(
+      (n2) =>
+        !/^(?:home|in[ií]cio|p[aá]gina inicial|loja\s+da\s+farm[aá]cia)$/i.test(n2.trim())
+    );
+    const final = filtered.length >= 1 ? filtered : names;
+    return final.join(" > ");
+  });
 }
 
 type RetailExtracted = {
@@ -879,35 +927,20 @@ function inferBrandFromName(name: string | null): string | null {
  *   4. Texto "Marca:" ou "Brand:" próximo do produto
  */
 function extractBrand(html: string): string | null {
-  // 1. JSON-LD Product.brand
-  const blocks = html.match(
-    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
-  );
-  if (blocks) {
-    for (const block of blocks) {
-      const m = /<script[^>]*>([\s\S]*?)<\/script>/i.exec(block);
-      if (!m) continue;
-      try {
-        const data: unknown = JSON.parse(m[1]);
-        const candidates = Array.isArray(data) ? data : [data];
-        for (const raw of candidates) {
-          if (!raw || typeof raw !== "object") continue;
-          const node = raw as Record<string, unknown>;
-          const t = node["@type"];
-          if (t === "Product" || (Array.isArray(t) && t.includes("Product"))) {
-            const brand = node["brand"];
-            if (typeof brand === "string" && brand.trim()) return brand.trim();
-            if (brand && typeof brand === "object") {
-              const b = brand as Record<string, unknown>;
-              if (typeof b.name === "string" && b.name.trim()) return b.name.trim();
-            }
-          }
-        }
-      } catch {
-        /* JSON-LD inválido */
-      }
+  // 1. JSON-LD Product.brand (achatando `@graph`)
+  const fromJsonLd = forEachJsonLdNode<string>(html, (node) => {
+    const t = node["@type"];
+    const isProduct = t === "Product" || (Array.isArray(t) && t.includes("Product"));
+    if (!isProduct) return null;
+    const brand = node["brand"];
+    if (typeof brand === "string" && brand.trim()) return brand.trim();
+    if (brand && typeof brand === "object") {
+      const b = brand as Record<string, unknown>;
+      if (typeof b.name === "string" && b.name.trim()) return b.name.trim();
     }
-  }
+    return null;
+  });
+  if (fromJsonLd) return fromJsonLd;
 
   // 2. itemprop="brand" — content de meta ou texto de span/a
   const itempropMeta = /<meta[^>]*itemprop=["']brand["'][^>]*content=["']([^"']+)["']/i.exec(html);

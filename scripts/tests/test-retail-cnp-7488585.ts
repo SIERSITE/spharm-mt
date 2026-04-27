@@ -24,6 +24,7 @@
 import "dotenv/config";
 import { __retailInternals } from "../../lib/catalog-connectors";
 import { __resolverInternals } from "../../lib/catalog-resolution-engine";
+import { legacyPrisma as prisma } from "../../lib/prisma";
 import type { ExternalSourceData } from "../../lib/catalog-types";
 
 const EXPECTED_SLUG = "a-derma-exomega-cont-cr-noite-emol200ml";
@@ -182,9 +183,15 @@ async function onlineExtractionTest(): Promise<void> {
     meta.brand != null && /a-?derma/i.test(meta.brand),
     `rawBrand contém A-Derma (got "${meta.brand}")`
   );
+  // O JSON-LD oficial da página devolve "Hidratantes Corporais" (a categoria
+  // pai "Dermocosmética" só aparece no menu global do site, não no
+  // breadcrumb estruturado deste produto). "Hidratantes Corporais" é
+  // suficiente: o resolver mapeia esta keyword para DERMOCOSMETICA via
+  // CATEGORY_TO_PRODUCT_TYPE.
   assert(
-    meta.categoria != null && /dermocosm[eé]tica/i.test(meta.categoria),
-    `rawCategory contém Dermocosmética (got "${meta.categoria}")`
+    meta.categoria != null &&
+      /(?:dermocosm[eé]tica|hidratantes?\s+corpor)/i.test(meta.categoria),
+    `rawCategory contém Dermocosmética OU Hidratantes Corporais (got "${meta.categoria}")`
   );
   assert(
     meta.nome != null && /a-?derma.*exomega/i.test(meta.nome),
@@ -239,15 +246,31 @@ async function main(): Promise<void> {
   console.log("\n" + "─".repeat(70));
   if (errors.length === 0) {
     console.log("OK — todos os asserts passaram.");
-    process.exit(0);
   } else {
     console.error(`FAIL — ${errors.length} assert(s) falharam:`);
     for (const e of errors) console.error(`  · ${e}`);
-    process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("[erro fatal]", err);
-  process.exit(1);
-});
+// Encerramento limpo:
+//  · prisma.$disconnect() — `lib/catalog-connectors.ts` importa
+//    `legacyPrisma` ao top-level e abre um pool Postgres mesmo no
+//    modo offline-only.
+//  · Usar `process.exitCode` em vez de `process.exit()` deixa o Node
+//    drenar handles naturalmente (incluindo o pool keep-alive do undici
+//    do fetch nativo); o exit acontece quando o event loop fica vazio.
+//    Evita a assertion libuv (UV_HANDLE_CLOSING) em Windows que dispara
+//    quando `process.exit()` é chamado com um handle ainda em CLOSING.
+main()
+  .catch((err) => {
+    console.error("[erro fatal]", err);
+    errors.push(`erro fatal: ${err instanceof Error ? err.message : String(err)}`);
+  })
+  .finally(async () => {
+    try {
+      await prisma.$disconnect();
+    } catch {
+      /* ignore */
+    }
+    process.exitCode = errors.length === 0 ? 0 : 1;
+  });
