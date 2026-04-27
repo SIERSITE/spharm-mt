@@ -88,19 +88,28 @@ import { getFieldRelevance } from "./catalog-classifier";
  * uma página sem breadcrumb consiga classificar via rawProductName.
  */
 const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = [
+  // Específicos primeiro: saúde oral, estimulantes, suplementos via
+  // "saúde e bem-estar" / hepa / fígado. Estes têm de vencer "dermis"
+  // (que aparece em algumas árvores de farmácia mas não significa
+  // dermocosmética por si só).
+  { pattern: /sa[uú]de\s+oral|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, type: "HIGIENE_CUIDADO" },
+  { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, type: "SUPLEMENTO" },
+  { pattern: /sa[uú]de\s+e\s+bem.?estar|h?epat(?:o|ic)|f[ií]gado|articula(?:c|ç)[oõ]es|defesas?|imunidade|suplement|multivit|prob[ií]o|prebi[oó]|colag[eé]nio/i, type: "SUPLEMENTO" },
+  // Dermocosmética DEPOIS dos suplemento-hints — "dermis" aparece em
+  // breadcrumbs de farmácia que misturam saúde corporal e suplementos.
   {
     pattern:
-      /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor|emoliente|creme\s+(?:de\s+)?noite|s[eé]rum|tonico|tónico|micelar|despigment|cica|atopic|at[oó]pic|psor[ií]ase\s+creme|exomega|trixera|toleriane|cicalfate/i,
+      /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor|emoliente|creme\s+(?:de\s+)?noite|s[eé]rum|tonico|tónico|micelar|despigment|cica|atopic|at[oó]pic|psor[ií]ase\s+creme|exomega|trixera|toleriane|cicalfate|dermis/i,
     type: "DERMOCOSMETICA",
   },
-  { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar|after[\s-]?sun|autobronz/i, type: "DERMOCOSMETICA" },
+  { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar|after[\s-]?sun|autobronz|fotoprotec/i, type: "DERMOCOSMETICA" },
   { pattern: /maquilhag|makeup|cosm[eé]tic|perfume|fragranc|batom|rimmel/i, type: "DERMOCOSMETICA" },
-  { pattern: /suplement|vitamin|multivit|nutri[cç][aã]o|food\s+supplement|colag[eé]nio|magn[eé]sio|c[aá]lcio|prob[ií]o|prebi[oó]/i, type: "SUPLEMENTO" },
-  { pattern: /beb[eé]|baby|infant|puericultura|fralda|chupeta|bibera|tetina|chuch/i, type: "PUERICULTURA" },
+  { pattern: /vitamin|nutri[cç][aã]o|food\s+supplement|magn[eé]sio|c[aá]lcio/i, type: "SUPLEMENTO" },
+  { pattern: /m[aã]m[aã]|beb[eé]|baby|infant|puericultura|crian[cç]a|fralda|chupeta|bibera|tetina|chuch/i, type: "PUERICULTURA" },
   { pattern: /veterin|\bpet\b|c[aã]o|gato|felino|canino|frontline|bravecto/i, type: "VETERINARIA" },
   { pattern: /ortop[eé]d|joelheira|tornozeleira|cinta\s+lombar|palmilha|meias?\s+de\s+compress/i, type: "ORTOPEDIA" },
   { pattern: /dispositivo\s+m[eé]dic|medical\s+device|term[oó]metro|tens[iaã]o\s+arterial|nebuliza|glic[eé]m/i, type: "DISPOSITIVO_MEDICO" },
-  { pattern: /higiene|champ[oô]|shampoo|sabonet|gel\s+de\s+banho|pasta\s+dent|escova\s+dent|desodor|antitranspir/i, type: "HIGIENE_CUIDADO" },
+  { pattern: /higiene|champ[oô]|shampoo|sabonet|gel\s+de\s+banho|gel\s+de\s+duche|desodor|antitranspir/i, type: "HIGIENE_CUIDADO" },
 ];
 
 /**

@@ -22,7 +22,7 @@
  */
 
 import type { ProductType } from "./catalog-types";
-import { getNivel2For, isValidNivel2 } from "./catalog-taxonomy";
+import { getNivel2For, isValidNivel2, othersNameFor } from "./catalog-taxonomy";
 
 export type TaxonomyMapInput = {
   productType: ProductType;
@@ -41,7 +41,8 @@ export type TaxonomyMapOutput = {
     | "keyword"
     | "atc"
     | "external_category_hint"
-    | "product_type_only";
+    | "product_type_only"
+    | "others_fallback";
 };
 
 // ─── ProductType → Nivel1 canónico ────────────────────────────────────────────
@@ -99,12 +100,15 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /\b(antiss?[eé]tico|desinfet|clorhex|betadine|iodopovid|[áa]lcool et[ií]lico)/i, nivel2: "Antisséticos e Desinfetantes" },
   ],
   "SUPLEMENTOS ALIMENTARES": [
-    { pattern: /\b(vitamin|multivit|vit ?[abcde]|\bb\d{1,2}\b|complexo b|magn[eé]sio|c[aá]lcio|zinco|ferro|mineral|pot[aá]ssio|i[oó]do|sel[eé]nio)/i, nivel2: "Vitaminas e Minerais" },
+    // Específicos antes dos genéricos: a frase "Estimulantes e Energizantes"
+    // tem prioridade sobre o pattern de Vitaminas (que apanharia "Vitacell"
+    // via /vit ?[abcde]/). Hepa/fígado idem antes de "Vitaminas".
+    { pattern: /\b(estimulantes?\s+e?\s+energizantes?|energ[ií]z|energ[ií]tic|\benerg|vitali|fadiga|cansa[cç]o|ginseng|cafe[ií]na|guaran[aá]|maca)/i, nivel2: "Energia e Vitalidade" },
+    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid|h?epat(?:o|ic)|f[ií]gado|digest|sa[uú]de\s+e\s+bem.?estar)/i, nivel2: "Digestão e Probióticos" },
     { pattern: /\b(imun|defesa|resist[eê]ncia|equin[aá]cea|pr[oó]polis)/i, nivel2: "Imunidade" },
-    { pattern: /\b(energ|vitali|fadiga|cansa[cç]o|ginseng|cafe[ií]na|guaran[aá]|maca)/i, nivel2: "Energia e Vitalidade" },
+    { pattern: /\b(vitamin|multivit|vit ?[abcde]|\bb\d{1,2}\b|complexo b|magn[eé]sio|c[aá]lcio|zinco|ferro|mineral|pot[aá]ssio|i[oó]do|sel[eé]nio)/i, nivel2: "Vitaminas e Minerais" },
     { pattern: /\b(mem[oó]ria|concentra|cogni|ginkgo|bacopa)/i, nivel2: "Memória e Concentração" },
     { pattern: /\b(sono|dormir|relax|melaton|valer[ií]ana|passiflora|tilia)/i, nivel2: "Sono e Relaxamento" },
-    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid)/i, nivel2: "Digestão e Probióticos" },
     { pattern: /\b(articul|osso|col[aá]geno|glucosam|condroit|msm|cartilag)/i, nivel2: "Articulações e Ossos" },
     { pattern: /\b(cabelo|pele|unhas|biotina|queda|queratina)/i, nivel2: "Cabelo, Pele e Unhas" },
     { pattern: /\b(peso|emagrec|queimador|saciant|drenant)/i, nivel2: "Controlo de Peso" },
@@ -146,8 +150,8 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /\b(fralda|diaper|toalhit)/i, nivel2: "Fraldas e Toalhitas" },
     { pattern: /\b(leite.*beb|leite.*infant|f[oó]rmula infant|papa)/i, nivel2: "Alimentação do Bebé" },
     { pattern: /\b(chupeta|bibera|biber[aã]o|tetina)/i, nivel2: "Chupetas e Biberões" },
-    { pattern: /\b(at[oó]pic.*beb|beb.*at[oó]pic)/i, nivel2: "Pele Atópica do Bebé" },
-    { pattern: /\b(higiene.*beb|beb.*higiene)/i, nivel2: "Higiene do Bebé" },
+    { pattern: /\b(at[oó]pic.*beb|beb.*at[oó]pic|exomega|trixera)/i, nivel2: "Pele Atópica do Bebé" },
+    { pattern: /\b(higiene.*beb|beb.*higiene|gel\s+(?:de\s+)?banho|banho\s+calmant|champ[oô].*beb)/i, nivel2: "Higiene do Bebé" },
   ],
   "MÃE E GRAVIDEZ": [
     { pattern: /\b(gravid|gestant|pr[eé]-?natal)/i, nivel2: "Gravidez" },
@@ -211,21 +215,32 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
 };
 
 // ─── Hints de categoria externa (fontes OFF/OBF/etc) → Nivel1 ─────────────────
-
+//
+// Ordem importa: o primeiro match vence. Padrões mais ESPECÍFICOS ficam em
+// cima (ex.: "saúde oral" antes de "saúde", "estimulantes/energizantes"
+// antes de "energ" puro). Cobre vocabulário comum em farmácia portuguesa
+// (Mamã/Bebé/Criança, Dermis, Saúde e Bem-estar, Estimulantes, etc.).
 const EXTERNAL_CATEGORY_HINTS: Array<{ pattern: RegExp; nivel1: string }> = [
-  { pattern: /vitamin|supplement|nutri[ct]ion|food supplement/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
-  { pattern: /sunscreen|sun ?care|solar/i,                        nivel1: "PROTEÇÃO SOLAR" },
-  { pattern: /beaut|cosmet|skincare|skin ?care/i,                  nivel1: "DERMOCOSMÉTICA" },
-  { pattern: /makeup|make.?up|lipstick|fragrance/i,                nivel1: "COSMÉTICA" },
-  { pattern: /oral ?care|dental|toothpaste/i,                      nivel1: "HIGIENE ORAL" },
-  { pattern: /hair ?care|shampoo/i,                                nivel1: "CAPILAR" },
-  { pattern: /baby|infant|beb[eé]/i,                                nivel1: "PUERICULTURA E BEBÉ" },
-  { pattern: /pregnan|maternity|m[aã]e/i,                           nivel1: "MÃE E GRAVIDEZ" },
-  { pattern: /pet|veterinar|animal/i,                              nivel1: "VETERINÁRIA" },
-  { pattern: /medical ?device|dispositivo/i,                       nivel1: "DISPOSITIVOS MÉDICOS" },
-  { pattern: /orthoped|ortop[eé]d/i,                                nivel1: "ORTOPEDIA" },
-  { pattern: /homeopath|fitoter|herbal|natural/i,                   nivel1: "SAÚDE NATURAL" },
-  { pattern: /hygien|banho|body ?wash|soap/i,                       nivel1: "HIGIENE CORPORAL" },
+  // ── Específicos antes de gerais
+  { pattern: /sa[uú]de\s+oral|oral ?care|dental|toothpaste|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, nivel1: "HIGIENE ORAL" },
+  { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /sa[uú]de\s+e\s+bem.?estar|bem.?estar\s+(?:geral|f[ií]sico)|h?epat(?:o|ic)|fígado|figado|articula(?:c|ç)[oõ]es|imunidade|defesas?/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /m[aã]m[aã]|crian[cç]a|infantil|puericultura/i, nivel1: "PUERICULTURA E BEBÉ" },
+  { pattern: /hidratantes?\s+corpor|cuidados?\s+(?:de\s+)?corpo|dermocosm[eé]tica|dermis|corpo\s+e\s+rosto/i, nivel1: "DERMOCOSMÉTICA" },
+  { pattern: /protec(?:c|ç)[aã]o\s+solar|sunscreen|sun ?care|solar(?:\b|es)|fotoprotec/i, nivel1: "PROTEÇÃO SOLAR" },
+
+  // ── Originais
+  { pattern: /vitamin|supplement|nutri[ct]ion|food supplement|prob[ií]o|prebi[oó]|colag[eé]nio|magn[eé]sio|c[aá]lcio/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /beaut|cosmet|skincare|skin ?care|cuidados?\s+(?:de\s+)?(?:rosto|pele)|s[eé]rum|toleriane|cicalfate/i, nivel1: "DERMOCOSMÉTICA" },
+  { pattern: /makeup|make.?up|lipstick|fragrance|maquilhag|perfumes?/i, nivel1: "COSMÉTICA" },
+  { pattern: /hair ?care|shampoo|champ[oô]|capilar/i, nivel1: "CAPILAR" },
+  { pattern: /baby|infant|beb[eé]/i, nivel1: "PUERICULTURA E BEBÉ" },
+  { pattern: /pregnan|maternity|m[aã]e\s+e\s+grav|gestant/i, nivel1: "MÃE E GRAVIDEZ" },
+  { pattern: /pet\s|veterinar|cães|gatos|c[aã]es|frontline|bravecto|antiparasit[aá]rio/i, nivel1: "VETERINÁRIA" },
+  { pattern: /medical ?device|dispositivo\s+m[eé]dic|term[oó]metro|nebuliza|tens[iaã]o\s+arterial|glic[eé]m/i, nivel1: "DISPOSITIVOS MÉDICOS" },
+  { pattern: /orthoped|ortop[eé]d|joelheira|tornozeleira|cinta\s+lombar|palmilha/i, nivel1: "ORTOPEDIA" },
+  { pattern: /homeopath|fitoter|herbal|natural/i, nivel1: "SAÚDE NATURAL" },
+  { pattern: /hygien|gel\s+(?:de\s+)?banho|gel\s+(?:de\s+)?duche|body ?wash|soap|sabonet|desodor|antitranspir/i, nivel1: "HIGIENE CORPORAL" },
 ];
 
 // ─── Resolução ────────────────────────────────────────────────────────────────
@@ -287,40 +302,57 @@ function resolveNivel2(nivel1: string, input: TaxonomyMapInput): { nivel2: strin
  *
  * Nunca inventa nomes. Nunca devolve fora da taxonomia canónica.
  *
- * Devolve `null` quando não há sinal suficiente para escolher um par
- * (nivel1, nivel2) com categoria comercial REAL — nesse caso, o
- * persistence deixa `classificacao*Id` a `null` e o estado fica
- * representado por `verificationStatus` / `needsManualReview`.
+ * Política (revisão Abril 2026):
+ *   · Sem nivel1 fiável (sem hint externo nem productType ≠ OUTRO com
+ *     conf ≥ 0.60) → devolve `null`. O persistence deixa
+ *     `classificacao*Id` a null e o estado fica em `verificationStatus`.
+ *   · Nivel1 fiável mas nivel2 não identificável → cai em "Outros <nivel1>"
+ *     (real, não técnico). Razão: forçar um produto a ficar sem
+ *     classificação só porque não há keyword específica é pior do que
+ *     atribuir-lhe a subcategoria "catch-all" do nivel1 correcto. O
+ *     admin sempre pode reclassificar. `confidence` da fallback fica
+ *     em 0.55 — abaixo do limiar de auto-VERIFIED, mas acima do
+ *     `THRESHOLD_PARTIAL` (0.50) para que a persistência grave.
  */
 export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput | null {
-  // Resolução de nivel1 — prioridade: hint de categoria externa > productType
   const fromExternal = resolveNivel1FromExternal(input);
   const fromType = resolveNivel1FromProductType(input);
 
   const n1 = fromExternal ?? fromType;
 
   if (!n1 || n1.confidence < 0.60) {
-    // Sem nivel1 fiável → não persiste classificação. Estado vai por
-    // verificationStatus/needsManualReview.
     return null;
   }
 
   const n2 = resolveNivel2(n1.nivel1, input);
-  if (!n2) {
-    // Nivel1 claro mas nivel2 não identificável: NÃO escolher "Outros <X>"
-    // automaticamente (o admin valida manualmente). Devolve null para que
-    // a classificação fique por preencher.
-    return null;
+  if (n2) {
+    return {
+      nivel1: n1.nivel1,
+      nivel2: n2.nivel2,
+      confidence: Math.min(n1.confidence, n2.confidence),
+      method: n2.confidence >= 0.88
+        ? "atc"
+        : fromExternal
+        ? "external_category_hint"
+        : "keyword",
+    };
   }
 
-  return {
-    nivel1: n1.nivel1,
-    nivel2: n2.nivel2,
-    confidence: Math.min(n1.confidence, n2.confidence),
-    method: n2.confidence >= 0.88
-      ? "atc"
-      : fromExternal
-      ? "external_category_hint"
-      : "keyword",
-  };
+  // Nivel1 claro mas nivel2 sem keyword. Em vez de devolver null, usa
+  // "Outros <X>" como fallback REAL. Sempre acima do limiar de gravação
+  // (0.55 ≥ THRESHOLD_PARTIAL=0.50) mas abaixo de VERIFIED (0.75) para
+  // sinalizar à UI que o nivel2 foi inferido por fallback, não por keyword.
+  const others = othersNameFor(n1.nivel1);
+  if (others) {
+    return {
+      nivel1: n1.nivel1,
+      nivel2: others,
+      confidence: Math.min(n1.confidence, 0.55),
+      method: "others_fallback",
+    };
+  }
+
+  // Sem fallback "Outros" disponível (improvável — todos os nivel1 da
+  // taxonomia têm um) — devolve só nivel1, sem nivel2.
+  return null;
 }
