@@ -346,15 +346,39 @@ async function queueForManualReview(
   else if (m.includes("fabricante")) tipo = "FABRICANTE_PENDENTE";
   else if (m.includes("enriquecimento")) tipo = "ENRIQUECIMENTO_FALHOU";
 
+  // Dedup: cada produto deve ter no máximo UMA entrada PENDENTE em
+  // FilaRevisao. Se já existir, actualiza-a com a razão/tipo mais recentes
+  // em vez de criar uma duplicada. Sem este check, cada corrida do
+  // enriquecimento que veja `needsManualReview=true` insere uma nova
+  // linha e a fila enche-se de duplicados do mesmo produto.
+  const existing = await prisma.filaRevisao.findFirst({
+    where: { produtoId: productId, estado: "PENDENTE" },
+    select: { id: true },
+  });
+
+  const dadosOrigem =
+    dados !== undefined
+      ? (dados as Parameters<typeof prisma.filaRevisao.update>[0]["data"]["dadosOrigem"])
+      : undefined;
+
+  if (existing) {
+    await prisma.filaRevisao.update({
+      where: { id: existing.id },
+      data: {
+        tipoRevisao: tipo,
+        ...(dadosOrigem !== undefined ? { dadosOrigem } : {}),
+      },
+    });
+    return;
+  }
+
   await prisma.filaRevisao.create({
     data: {
       produtoId: productId,
       tipoRevisao: tipo,
       prioridade: "MEDIA",
       estado: "PENDENTE",
-      dadosOrigem: dados !== undefined
-        ? (dados as Parameters<typeof prisma.filaRevisao.create>[0]["data"]["dadosOrigem"])
-        : undefined,
+      dadosOrigem: dadosOrigem as Parameters<typeof prisma.filaRevisao.create>[0]["data"]["dadosOrigem"],
     },
   });
 }

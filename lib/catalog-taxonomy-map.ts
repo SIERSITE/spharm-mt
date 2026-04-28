@@ -103,16 +103,18 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     // Específicos antes dos genéricos: a frase "Estimulantes e Energizantes"
     // tem prioridade sobre o pattern de Vitaminas (que apanharia "Vitacell"
     // via /vit ?[abcde]/). Hepa/fígado idem antes de "Vitaminas".
+    // Sono/Ansiedade tem que vencer "vitamin" também (gomas relax podem
+    // mencionar vitaminas).
+    { pattern: /\b(ansiedade,?\s+stress|dist[uú]rbios?\s+(?:do|de)\s+sono|sono\s+kids|relax(?:ant)?\s+gomas|sono|dormir|relax|melaton|valer[ií]ana|passiflora|tilia)/i, nivel2: "Sono e Relaxamento" },
     { pattern: /\b(estimulantes?\s+e?\s+energizantes?|energ[ií]z|energ[ií]tic|\benerg|vitali|fadiga|cansa[cç]o|ginseng|cafe[ií]na|guaran[aá]|maca)/i, nivel2: "Energia e Vitalidade" },
-    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid|h?epat(?:o|ic)|f[ií]gado|digest|easylax|laxat[a-z]*|tr[aâ]nsit\w*\s+intest|sa[uú]de\s+e\s+bem.?estar)/i, nivel2: "Digestão e Probióticos" },
+    { pattern: /\b(probi[oó]t|pr[eé]bi[oó]t|transito|intest|lactobac|bifid|h?epat(?:o|ic)|f[ií]gado|digest|easylax|laxat[a-z]*|tr[aâ]nsit\w*\s+intest|trato\s+(?:digestivo|intestinal)|sa[uú]de\s+e\s+bem.?estar)/i, nivel2: "Digestão e Probióticos" },
     { pattern: /\b(imun|defesa|resist[eê]ncia|equin[aá]cea|pr[oó]polis)/i, nivel2: "Imunidade" },
+    { pattern: /\b([ií]ntima|vaginal|cranberry|ar[aâ]ndano|menopausa|climat[eé]rio|sa[uú]de\s+feminina|genipausa|afax)/i, nivel2: "Saúde Íntima" },
     { pattern: /\b(vitamin|multivit|vit ?[abcde]|\bb\d{1,2}\b|complexo b|magn[eé]sio|c[aá]lcio|zinco|ferro|mineral|pot[aá]ssio|i[oó]do|sel[eé]nio)/i, nivel2: "Vitaminas e Minerais" },
     { pattern: /\b(mem[oó]ria|concentra|cogni|ginkgo|bacopa)/i, nivel2: "Memória e Concentração" },
-    { pattern: /\b(sono|dormir|relax|melaton|valer[ií]ana|passiflora|tilia)/i, nivel2: "Sono e Relaxamento" },
     { pattern: /\b(articul|osso|col[aá]geno|glucosam|condroit|msm|cartilag)/i, nivel2: "Articulações e Ossos" },
     { pattern: /\b(cabelo|pele|unhas|biotina|queda|queratina)/i, nivel2: "Cabelo, Pele e Unhas" },
     { pattern: /\b(peso|emagrec|queimador|saciant|drenant)/i, nivel2: "Controlo de Peso" },
-    { pattern: /\b([ií]ntima|vaginal|cranberry|ar[aâ]ndano)/i, nivel2: "Saúde Íntima" },
   ],
   "DERMOCOSMÉTICA": [
     { pattern: /\b(anti-?enve|anti-?idade|anti-?rugas?|lifting|firmeza)/i, nivel2: "Anti-envelhecimento" },
@@ -148,10 +150,13 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
   ],
   "PUERICULTURA E BEBÉ": [
     { pattern: /\b(fralda|diaper|toalhit)/i, nivel2: "Fraldas e Toalhitas" },
-    { pattern: /\b(leite.*beb|leite.*infant|f[oó]rmula infant|papa)/i, nivel2: "Alimentação do Bebé" },
+    { pattern: /\b(aptamil|leite.*beb|leite.*(?:lactente|cresciment|infant)|f[oó]rmula\s+infant|papa|nan\s+(?:hm|optipro|sensit)|hipp\b|holle\b)/i, nivel2: "Alimentação do Bebé" },
     { pattern: /\b(chupeta|bibera|biber[aã]o|tetina)/i, nivel2: "Chupetas e Biberões" },
     { pattern: /\b(at[oó]pic.*beb|beb.*at[oó]pic|exomega|trixera)/i, nivel2: "Pele Atópica do Bebé" },
     { pattern: /\b(higiene.*beb|beb.*higiene|gel\s+(?:de\s+)?banho|banho\s+calmant|champ[oô].*beb)/i, nivel2: "Higiene do Bebé" },
+    // Brinquedos / acessórios não-alimentares de puericultura. Catch-all
+    // para Chicco, brinquedos cavalgáveis, peluches, etc.
+    { pattern: /\b(chicco|brinquedos?|cavalg[aá]vel|peluche|cavalinho\s+saltit|carrinho\s+(?:de\s+)?(?:gelados?|brinquedo))/i, nivel2: "Acessórios de Bebé" },
   ],
   "MÃE E GRAVIDEZ": [
     { pattern: /\b(gravid|gestant|pr[eé]-?natal)/i, nivel2: "Gravidez" },
@@ -165,13 +170,13 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /\b(solar|spf|fps|protetor.*solar|sunscreen)/i, nivel2: "Solar Adulto" },
   ],
   "DISPOSITIVOS MÉDICOS": [
-    { pattern: /\b(glic[eé]m|glucometro|teste.*diabet|glucose)/i, nivel2: "Glicemia e Diabetes" },
+    { pattern: /\b(glic[eé]m|glucometro|teste.*diabet|glucose|tiras?\s+glicemi|contour\s+next|ascencia)/i, nivel2: "Glicemia e Diabetes" },
     { pattern: /\b(tens[aã]o|tensi[oó]metro|blood pressure|esfigmoman[oó])/i, nivel2: "Tensão Arterial" },
     { pattern: /\b(term[oó]metro|thermometer)/i, nivel2: "Termómetros" },
     { pattern: /\b(nebuliz|aeross?ol)/i, nivel2: "Nebulizadores" },
     { pattern: /\b(curativo|compressa|penso|gaze)/i, nivel2: "Material de Curativo" },
     { pattern: /\b(imobiliz|tala)/i, nivel2: "Material de Imobilização" },
-    { pattern: /\b(teste|monitoriz)/i, nivel2: "Testes e Monitorização" },
+    { pattern: /\b(teste\s+(?:gravidez|fertili|ovula)|teste|monitoriz)/i, nivel2: "Testes e Monitorização" },
   ],
   ORTOPEDIA: [
     { pattern: /\b(joelheira|knee)/i, nivel2: "Joelheiras" },
@@ -196,6 +201,7 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /\b(seringa|agulha|syringe|needle)/i, nivel2: "Seringas e Agulhas" },
     { pattern: /\b(luva|glove)/i, nivel2: "Luvas" },
     { pattern: /\b(m[aá]scara cir[uú]rg|m[aá]scara ffp|surgical mask)/i, nivel2: "Máscaras" },
+    { pattern: /\b([aá]gua\s+destilada|[aá]lcool\s+(?:isopr[oó]p|et[ií]lico)|antiss?[eé]ptic|desinfetant|consum[ií]vel)/i, nivel2: "Consumíveis Clínicos" },
   ],
   COSMÉTICA: [
     { pattern: /\b(maquilh|makeup|batom|rimmel|base|corretor|sombra)/i, nivel2: "Maquilhagem" },
@@ -204,13 +210,23 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
   ],
   "SAÚDE NATURAL": [
     { pattern: /\b(fitoter|ervan[aá]rio|planta medicinal)/i, nivel2: "Fitoterapia" },
-    { pattern: /\b(homeo|homeopatia)/i, nivel2: "Homeopatia" },
+    { pattern: /\b(homeo|homeopatia|boiron|apis\s+mellif|nux\s+vomic|arnica\s+\d+ch|gr[aâ]nul[oa]s?\s+\d+ch|\d+\s*ch\s+(?:gran|comp|dilui))/i, nivel2: "Homeopatia" },
     { pattern: /\b(floral|flores de bach)/i, nivel2: "Florais" },
   ],
   VETERINÁRIA: [
     { pattern: /\b(c[aã]o|dog|canino)/i, nivel2: "Cães" },
     { pattern: /\b(gato|cat|felino)/i, nivel2: "Gatos" },
     { pattern: /\b(desparas|antiparas.*animal|frontline|bravecto)/i, nivel2: "Desparasitação" },
+  ],
+  "SERVIÇOS E ARTIGOS NÃO COMERCIALIZÁVEIS": [
+    // Vacinas, consultas, atos clínicos (incluindo administrações SNS).
+    { pattern: /\b(administra[cç][aã]o\s+vacina|vacina\s+(?:covid|gripe|sns|tetan|pneumoc|hpv)|consult[aá]\s+(?:enfermag|farmac[eê]ut)|servi[cç]o\s+cl[ií]nic)/i, nivel2: "Serviço Clínico" },
+    // Taxas SNS / atos administrativos
+    { pattern: /\b(taxa\s+(?:moderadora|sns)|tax|servi[cç]o\s+sns|reembolso)/i, nivel2: "Taxas e Atos" },
+    // Operações administrativas
+    { pattern: /\b(administra[cç][aã]o\b(?!.*vacina)|expedient|acto\s+administra)/i, nivel2: "Administração" },
+    // Artigos internos / não-vendáveis (sacos, etiquetas, papelaria farmácia)
+    { pattern: /\b(saco\s+(?:plast|farm)|etiquet|papel(?:aria)?\s+farma|artig[oa]s?\s+intern|n[aã]o[\s-]?vend[aá]vel)/i, nivel2: "Artigos Internos" },
   ],
 };
 
@@ -221,17 +237,41 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
 // antes de "energ" puro). Cobre vocabulário comum em farmácia portuguesa
 // (Mamã/Bebé/Criança, Dermis, Saúde e Bem-estar, Estimulantes, etc.).
 const EXTERNAL_CATEGORY_HINTS: Array<{ pattern: RegExp; nivel1: string }> = [
+  // ── Pattern G — Serviços / vacinas SNS / taxas (intencionalmente OUTRO no
+  //    productType, mas com canonical real em SERVIÇOS E ARTIGOS NÃO
+  //    COMERCIALIZÁVEIS).
+  { pattern: /administra[cç][aã]o\s+vacina|servi[cç]o\s+(?:sns|cl[ií]nic|farma)|consult[aá]\s+enfermag|vacina\s+(?:covid|gripe|sns)|taxa\s+(?:moderadora|sns)/i, nivel1: "SERVIÇOS E ARTIGOS NÃO COMERCIALIZÁVEIS" },
+
   // ── Específicos antes de gerais
   { pattern: /sa[uú]de\s+oral|oral ?care|dental|toothpaste|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, nivel1: "HIGIENE ORAL" },
   { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
-  // Circulação / pernas cansadas / hemorroidas → suplementos venotónicos
   { pattern: /circula(?:c|ç)[aã]o|pernas\s+cansadas|venoton[ií]c|hemorr[oó]id|h?emo\s+duo/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
   { pattern: /sa[uú]de\s+e\s+bem.?estar|bem.?estar\s+(?:geral|f[ií]sico)|h?epat(?:o|ic)|fígado|figado|articula(?:c|ç)[oõ]es|imunidade|defesas?/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+
+  // ── Pattern A — Suplementos por breadcrumb categórico
+  { pattern: /ansiedade,?\s+stress|dist[uú]rbios?\s+(?:do|de)\s+sono|relax(?:ant)?\s+gomas/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /trato\s+(?:digestivo|intestinal)/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /sistema\s+cardiovascular|colesterol/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+  { pattern: /sa[uú]de\s+feminina|menopausa|climat[eé]rio|genipausa/i, nivel1: "SUPLEMENTOS ALIMENTARES" },
+
+  // ── Pattern F — Homeopatia (Boiron, dilution \dch)
+  { pattern: /\bboiron\b|apis\s+mellif|nux\s+vomic|\barnica\b\s+\d+ch|gr[aâ]nul[oa]s?\s+\d+ch|\d+\s*ch\s+(?:gran|comp|dilui)/i, nivel1: "SAÚDE NATURAL" },
+
   // Breadcrumb "Medicamentos" — explícito numa árvore tipo "INDICE.eu >
-  // Medicamentos > <produto>". Captura tanto MNSRM/MSRM cuja flag não
-  // chegou ao classifier quanto entradas indexadas ainda sem ATC.
+  // Medicamentos > <produto>".
   { pattern: /(?:^|>|\/)\s*medicamentos?\s*(?:>|\/|$)/i, nivel1: "MEDICAMENTOS" },
+
+  // ── Pattern E — Puericultura: Aptamil/leite infantil + brinquedos Chicco
+  { pattern: /aptamil|leite\s+(?:lactente|cresciment|infant)|f[oó]rmula\s+infant|nan\s+(?:hm|optipro|sensit)|hipp\b|holle\b/i, nivel1: "PUERICULTURA E BEBÉ" },
+  { pattern: /chicco|brinquedos?|cavalg[aá]vel|peluche|cavalinho\s+saltit/i, nivel1: "PUERICULTURA E BEBÉ" },
   { pattern: /m[aã]m[aã]|crian[cç]a|infantil|puericultura/i, nivel1: "PUERICULTURA E BEBÉ" },
+
+  // ── Pattern D — Material clínico / Dispositivos médicos
+  { pattern: /tiras?\s+glicemi|contour\s+next|ascencia|glucometro/i, nivel1: "DISPOSITIVOS MÉDICOS" },
+  { pattern: /teste\s+(?:gravidez|fertili|ovula)/i, nivel1: "DISPOSITIVOS MÉDICOS" },
+  { pattern: /pensos?\s+e?\s+material\s+de\s+desinfe|material\s+cl[ií]nic/i, nivel1: "MATERIAL CLÍNICO E CONSUMÍVEIS" },
+  { pattern: /[aá]gua\s+destilada|[aá]lcool\s+(?:isopr[oó]p|et[ií]lico)/i, nivel1: "MATERIAL CLÍNICO E CONSUMÍVEIS" },
+
   { pattern: /hidratantes?\s+corpor|cuidados?\s+(?:de\s+)?corpo|dermocosm[eé]tica|dermis|corpo\s+e\s+rosto/i, nivel1: "DERMOCOSMÉTICA" },
   { pattern: /protec(?:c|ç)[aã]o\s+solar|sunscreen|sun ?care|solar(?:\b|es)|fotoprotec/i, nivel1: "PROTEÇÃO SOLAR" },
 
@@ -252,10 +292,23 @@ const EXTERNAL_CATEGORY_HINTS: Array<{ pattern: RegExp; nivel1: string }> = [
 // ─── Resolução ────────────────────────────────────────────────────────────────
 
 function resolveNivel1FromExternal(input: TaxonomyMapInput): { nivel1: string; confidence: number } | null {
-  const blob = [input.externalCategory ?? "", input.externalSubcategory ?? ""].join(" ");
-  if (!blob.trim()) return null;
-  for (const h of EXTERNAL_CATEGORY_HINTS) {
-    if (h.pattern.test(blob)) return { nivel1: h.nivel1, confidence: 0.85 };
+  // Preferência: breadcrumb (autoridade alta, conf 0.85). Fallback:
+  // designação do produto (conf 0.70 — evidência mais fraca que categoria
+  // explícita mas suficiente para casos como serviços SNS, Aptamil sem
+  // breadcrumb, "Aposan Teste Gravidez" como nome cru, etc.). Só fica em
+  // null quando NEM breadcrumb NEM nome têm sinal — aí o productType
+  // assume o lead.
+  const breadcrumb = [input.externalCategory ?? "", input.externalSubcategory ?? ""].join(" ");
+  if (breadcrumb.trim()) {
+    for (const h of EXTERNAL_CATEGORY_HINTS) {
+      if (h.pattern.test(breadcrumb)) return { nivel1: h.nivel1, confidence: 0.85 };
+    }
+  }
+  const designacao = input.designacao ?? "";
+  if (designacao.trim()) {
+    for (const h of EXTERNAL_CATEGORY_HINTS) {
+      if (h.pattern.test(designacao)) return { nivel1: h.nivel1, confidence: 0.70 };
+    }
   }
   return null;
 }

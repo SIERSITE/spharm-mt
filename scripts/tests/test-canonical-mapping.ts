@@ -195,9 +195,174 @@ const CASES: Case[] = [
       inferredType: "SUPLEMENTO",
       mapperNonNull: true,
       nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
-      // Sem nivel2 "Circulação" na taxonomia — aceita Outros Suplementos
-      // (others_fallback) ou Energia e Vitalidade.
       nivel2Matches: /Outros|Energia\s+e\s+Vitalidade/i,
+    },
+  },
+
+  // ── Pattern A: Suplementos por breadcrumb categórico
+  {
+    label: "9. (A) OUTRO + 'Ansiedade, Stress e Distúrbios Sono > Aquilea OnBalance Relax'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Ansiedade, Stress e Distúrbios Sono > Aquilea OnBalance Relax Gomas Frutos Bosque (x60 gomas)",
+    rawProductName: "Aquilea OnBalance Relax Gomas Frutos Bosque (x60 gomas)",
+    designacao: "AQUILEA ONBALANCE RELAX GOMAS FB X60",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      nivel2Matches: /Sono\s+e\s+Relaxamento/i,
+    },
+  },
+  {
+    label: "10. (A) OUTRO + 'Trato Digestivo e/ou Trato Intestinal > Aquilea Digest'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Trato Digestivo e/ou Trato Intestinal > Aquilea Digest Total Camomila (x24 sticks)",
+    rawProductName: "Aquilea Digest Total Camomila (x24 sticks)",
+    designacao: "AQUILEA DIGEST TOTAL STICKS X24",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      nivel2Matches: /Digest[aãAÃ]o\s+e\s+Probi[oó]ticos/i,
+    },
+  },
+  {
+    label: "11. (A) OUTRO + 'Sistema Cardiovascular e Colesterol > Arterin'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Sistema Cardiovascular e Colesterol > Arterin Levedura Arroz Vermelho (x180 comprimidos)",
+    rawProductName: "Arterin Levedura Arroz Vermelho",
+    designacao: "ARTERIN LEVEDURA ARROZ X180",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      nivel2Matches: /Outros|Energia/i, // sem "Cardiovascular" N2 na taxonomia
+    },
+  },
+  {
+    label: "12. (A) OUTRO + 'Saúde Feminina e Menopausa > Afax (x30 capsulas)'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Saúde Feminina e Menopausa > Afax (x30 capsulas)",
+    rawProductName: "Afax (x30 capsulas)",
+    designacao: "AFAX CAPS X30",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      nivel1Matches: /SUPLEMENTOS\s+ALIMENTARES/,
+      nivel2Matches: /Sa[uú]de\s+[ÍI]ntima/i,
+    },
+  },
+
+  // ── Pattern D: Material clínico / Dispositivos médicos
+  {
+    label: "13. (D) OUTRO + 'Pensos e Material de Desinfeção > Água Destilada'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Pensos e Material de Desinfeção > Ecotainer Agua Destilada - 1L",
+    rawProductName: "Ecotainer Agua Destilada - 1L",
+    designacao: "AGUA DESTILADA AG DEST 1 L",
+    expect: {
+      inferredType: "DISPOSITIVO_MEDICO",
+      mapperNonNull: true,
+      nivel1Matches: /MATERIAL\s+CL[ÍI]NICO|DISPOSITIVOS\s+M[ÉE]DICOS/i,
+      nivel2Matches: /Consum[ií]veis\s+Cl[ií]nicos|Outros/i,
+    },
+  },
+  {
+    label: "14. (D) OUTRO + 'Ascencia Contour Next' (tiras glicemia)",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: null,
+    rawProductName: "ASCENCIA/CONTOUR NEXT/REF.84191389 50 N.D.",
+    designacao: "ASCENCIA CONTOUR NEXT 50",
+    expect: {
+      inferredType: "DISPOSITIVO_MEDICO",
+      mapperNonNull: true,
+      nivel1Matches: /DISPOSITIVOS\s+M[ÉE]DICOS/,
+      nivel2Matches: /Glicemia\s+e\s+Diabetes/i,
+    },
+  },
+  {
+    label: "15. (D) OUTRO + 'Aposan Teste Gravidez'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Sexualidade > Testes de Ovulação e Gravidez",
+    rawProductName: "Aposan Teste Gravidez",
+    designacao: "APOSAN TESTE GRAVIDEZ",
+    expect: {
+      inferredType: "DISPOSITIVO_MEDICO",
+      mapperNonNull: true,
+      nivel1Matches: /DISPOSITIVOS\s+M[ÉE]DICOS/,
+      nivel2Matches: /Testes\s+e\s+Monitoriza|Outros/i,
+    },
+  },
+
+  // ── Pattern E: Puericultura (Aptamil + brinquedos Chicco)
+  {
+    label: "16. (E) OUTRO + 'Aptamil Pronutra Leite Lactente Sem Lactose 400g'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: null,
+    rawProductName: "Aptamil Pronutra Leite Lactente Sem Lactose 400g",
+    designacao: "APTAMIL PRONUTR LEITE LACTEN S/LACT 400",
+    expect: {
+      inferredType: "PUERICULTURA",
+      mapperNonNull: true,
+      nivel1Matches: /PUERICULTURA\s+E\s+BEB[ÉE]/,
+      nivel2Matches: /Alimenta[cç][aã]o\s+do\s+Beb[éE]/i,
+    },
+  },
+  {
+    label: "17. (E) OUTRO + 'Brinquedos Chicco Cavalinho Saltitão'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Produtos > Brinquedos > Em Movimento > Cavalgáveis > Cavalinho Saltitão",
+    rawProductName: "Cavalinho Saltitão | Chicco.pt",
+    designacao: "CH.BRI1185200 CAVALINHO SALTITAO",
+    expect: {
+      inferredType: "PUERICULTURA",
+      mapperNonNull: true,
+      nivel1Matches: /PUERICULTURA\s+E\s+BEB[ÉE]/,
+      nivel2Matches: /Acess[oó]rios\s+de\s+Beb[éE]|Outros/i,
+    },
+  },
+
+  // ── Pattern F: Homeopatia (Boiron)
+  {
+    label: "18. (F) OUTRO + 'Boiron > Apis Mellifica Granulo 15ch'",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: "Loja > Marca > Boiron > Apis Mellifica Granulo 15ch Boiron",
+    rawProductName: "Apis Mellifica Granulo 15ch Boiron",
+    designacao: "APIS MELLIFICA GRANULO 15CH BOIRON",
+    expect: {
+      inferredType: "SUPLEMENTO",
+      mapperNonNull: true,
+      // fromExternal hint Boiron → SAÚDE NATURAL deve vencer fromType.
+      nivel1Matches: /SA[ÚU]DE\s+NATURAL/,
+      nivel2Matches: /Homeopat/i,
+    },
+  },
+
+  // ── Pattern G: Serviços / vacinas SNS (productType=OUTRO intencional)
+  {
+    label: "19. (G) OUTRO + 'Administração Vacina COVID-19 SNS' (intentional OUTRO)",
+    productType: "OUTRO",
+    productTypeConfidence: 0.30,
+    rawCategory: null,
+    rawProductName: "Administração Vacina COVID-19 SNS",
+    designacao: "ADMINISTRACAO VACINA COVID-19 SNS",
+    expect: {
+      // NÃO esperamos upgrade para tipo concreto — productType continua
+      // OUTRO mas com classificação canónica em SERVIÇOS.
+      inferredType: "OUTRO",
+      mapperNonNull: true,
+      nivel1Matches: /SERVI[ÇC]OS\s+E\s+ARTIGOS\s+N[ÃA]O/,
+      nivel2Matches: /Servi[çc]o\s+Cl[ií]nico/i,
     },
   },
 ];

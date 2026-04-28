@@ -87,20 +87,56 @@ import { getFieldRelevance } from "./catalog-classifier";
  * (creme, emoliente, gel hidratante, suplemento, etc.) — para que mesmo
  * uma página sem breadcrumb consiga classificar via rawProductName.
  */
-const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = [
-  // Específicos primeiro: saúde oral, estimulantes, suplementos via
-  // "saúde e bem-estar" / hepa / fígado / circulação. Estes têm de vencer
-  // "dermis" (que aparece em algumas árvores de farmácia mas não significa
-  // dermocosmética por si só).
+/**
+ * Cada regra mapeia evidência externa para um ProductType. `intentional`
+ * sinaliza que este OUTRO é deliberado (serviços, vacinas, taxas) — o
+ * gate "OUTRO → NEEDS_REVIEW" no resolver ignora estes casos porque o
+ * canonical mapper consegue apontar a categoria certa
+ * (SERVIÇOS E ARTIGOS NÃO COMERCIALIZÁVEIS).
+ */
+type CategoryRule = {
+  pattern: RegExp;
+  type: ProductType;
+  intentional?: boolean;
+};
+
+const CATEGORY_TO_PRODUCT_TYPE: CategoryRule[] = [
+  // ── Serviços / SNS / vacinas — productType=OUTRO intencional, canonical
+  //    cai em SERVIÇOS E ARTIGOS NÃO COMERCIALIZÁVEIS via mapper.
+  {
+    pattern: /administra[cç][aã]o\s+vacina|servi[cç]o\s+(?:sns|cl[ií]nic|farma)|consult[aá]\s+enfermag|vacina\s+(?:covid|gripe|sns)|taxa\s+(?:moderadora|sns)/i,
+    type: "OUTRO",
+    intentional: true,
+  },
+
+  // ── Específicos primeiro: saúde oral, estimulantes, suplementos via
+  //    "saúde e bem-estar" / hepa / fígado / circulação. Têm de vencer
+  //    "dermis" (que aparece em breadcrumbs mistos) e ordens genéricas.
   { pattern: /sa[uú]de\s+oral|escova(?:s)?\s+(?:de\s+)?dentes?|pasta(?:s)?\s+(?:de\s+)?dent|fio\s+dent[aá]rio|elixir/i, type: "HIGIENE_CUIDADO" },
   { pattern: /estimulantes?\s+e?\s+energizantes?|energ[ií]ticos?(?:\s|$)/i, type: "SUPLEMENTO" },
-  // Circulação / pernas cansadas / hemorroidas (suplementos venotónicos)
   { pattern: /circula(?:c|ç)[aã]o|pernas\s+cansadas|venoton[ií]c|hemorr[oó]id|h?emo\s+duo/i, type: "SUPLEMENTO" },
-  // Laxantes não-medicamento (Easylax, Movicol-suplementar, etc.)
   { pattern: /easylax|laxat[ivo]+(?!\s*med)|tr[aâ]nsit[oa]\s+intest|obstipa[cç][aã]o\s+suplement/i, type: "SUPLEMENTO" },
+
+  // ── Pattern A — Suplementos por breadcrumb categórico
+  { pattern: /ansiedade,?\s+stress|dist[uú]rbios?\s+(?:do|de)\s+sono|insomnia|relax(?:ant)?\s+gomas/i, type: "SUPLEMENTO" },
+  { pattern: /trato\s+(?:digestivo|intestinal)/i, type: "SUPLEMENTO" },
+  { pattern: /sistema\s+cardiovascular|colesterol/i, type: "SUPLEMENTO" },
+  { pattern: /sa[uú]de\s+feminina|menopausa|climat[eé]rio|genipausa/i, type: "SUPLEMENTO" },
+
+  // ── Pattern F — Homeopatia → SUPLEMENTO (closest existing ProductType;
+  //    canonical mapper aponta para "SAÚDE NATURAL" via fromExternal)
+  { pattern: /\bboiron\b|apis\s+mellif|nux\s+vomic|\barnica\b|\d+\s*ch\b|gr[aâ]nul[oa]s?\s+\d+ch|homeop[aá]t/i, type: "SUPLEMENTO" },
+
   { pattern: /sa[uú]de\s+e\s+bem.?estar|h?epat(?:o|ic)|f[ií]gado|articula(?:c|ç)[oõ]es|defesas?|imunidade|suplement|multivit|prob[ií]o|prebi[oó]|colag[eé]nio/i, type: "SUPLEMENTO" },
-  // Dermocosmética DEPOIS dos suplemento-hints — "dermis" aparece em
-  // breadcrumbs de farmácia que misturam saúde corporal e suplementos.
+
+  // ── Pattern D — Dispositivos médicos / Material clínico
+  { pattern: /tiras?\s+glicemi|contour\s+next|ascencia|glucometro|teste\s+(?:gravidez|fertili|ovula)/i, type: "DISPOSITIVO_MEDICO" },
+  { pattern: /[aá]gua\s+destilada|[aá]lcool\s+(?:isopr[oó]p|et[ií]lico)|consum[ií]vel\s+cl[ií]nic|pensos?\s+e?\s+material\s+de\s+desinfe/i, type: "DISPOSITIVO_MEDICO" },
+
+  // ── Pattern E — Puericultura: Aptamil, Chicco, fórmulas infantis, brinquedos
+  { pattern: /aptamil|nan\s+(?:hm|optipro|sensit)|hipp\b|holle\b|leite\s+(?:lactente|cresciment|infant)|f[oó]rmula\s+infant|chicco|brinquedos?|cavalg[aá]vel|peluche|cavalinho\s+saltit/i, type: "PUERICULTURA" },
+
+  // ── Dermo / Cosmética / Solares (mantém ordem actual)
   {
     pattern:
       /dermo|skincare|skin\s?care|cuidados?\s+(?:de\s+)?(?:rosto|corpo|pele)|hidratantes?\s+corpor|cremes?\s+corpor|emoliente|creme\s+(?:de\s+)?noite|s[eé]rum|tonico|tónico|micelar|despigment|cica|atopic|at[oó]pic|psor[ií]ase\s+creme|exomega|trixera|toleriane|cicalfate|dermis/i,
@@ -108,6 +144,7 @@ const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = 
   },
   { pattern: /protec[cç][aã]o\s+solar|sunscreen|spf|fps|p[oó]s-?solar|after[\s-]?sun|autobronz|fotoprotec/i, type: "DERMOCOSMETICA" },
   { pattern: /maquilhag|makeup|cosm[eé]tic|perfume|fragranc|batom|rimmel/i, type: "DERMOCOSMETICA" },
+
   { pattern: /vitamin|nutri[cç][aã]o|food\s+supplement|magn[eé]sio|c[aá]lcio/i, type: "SUPLEMENTO" },
   { pattern: /m[aã]m[aã]|beb[eé]|baby|infant|puericultura|crian[cç]a|fralda|chupeta|bibera|tetina|chuch/i, type: "PUERICULTURA" },
   { pattern: /veterin|\bpet\b|c[aã]o|gato|felino|canino|frontline|bravecto/i, type: "VETERINARIA" },
@@ -127,7 +164,7 @@ const CATEGORY_TO_PRODUCT_TYPE: Array<{ pattern: RegExp; type: ProductType }> = 
  */
 function inferProductTypeFromExternal(
   sources: ExternalSourceData[]
-): { type: ProductType; evidence: string } | null {
+): { type: ProductType; evidence: string; intentional: boolean } | null {
   for (const s of sources) {
     const blob = [
       s.rawCategory ?? "",
@@ -137,7 +174,11 @@ function inferProductTypeFromExternal(
     if (!blob.trim()) continue;
     for (const rule of CATEGORY_TO_PRODUCT_TYPE) {
       if (rule.pattern.test(blob)) {
-        return { type: rule.type, evidence: blob.trim().slice(0, 120) };
+        return {
+          type: rule.type,
+          evidence: blob.trim().slice(0, 120),
+          intentional: !!rule.intentional,
+        };
       }
     }
   }
@@ -335,15 +376,24 @@ export function resolveProduct(
   // quando o nome ou o site indica claramente DERMOCOSMETICA, SUPLEMENTO,
   // etc. — a evidência externa é precisamente o que falta.
   //
+  // Casos especiais (rule.intentional=true em CATEGORY_TO_PRODUCT_TYPE):
+  // serviços/vacinas SNS são *legitimamente* OUTRO mas têm canonical N1/N2
+  // bem definidos (SERVIÇOS E ARTIGOS NÃO COMERCIALIZÁVEIS). Nesses casos
+  // o gate "OUTRO → NEEDS_REVIEW" é dispensado.
+  //
   // A confiança pós-refinamento é capada em 0.65 — suficiente para passar
   // o gate de revisão (0.50) e para o mapper escolher uma categoria
   // canónica, mas abaixo do tier "VERIFIED" (0.75) que exige fonte forte.
+  let outroIsIntentional = false;
   if (productType === "OUTRO" || typeConf < MIN_USEFUL_CONFIDENCE) {
     const inferred = inferProductTypeFromExternal(sources);
     if (inferred) {
       productType = inferred.type;
       typeConf = Math.max(typeConf, 0.65);
       classificationSource = "EXTERNAL";
+      if (inferred.type === "OUTRO" && inferred.intentional) {
+        outroIsIntentional = true;
+      }
     }
   }
 
@@ -417,21 +467,27 @@ export function resolveProduct(
   //
   // Gates para NEEDS_REVIEW (em ordem de prioridade):
   //   (1) conflito entre fontes em campos críticos
-  //   (2) productType ainda OUTRO depois da tentativa de upgrade externo —
-  //       não faz sentido VERIFIED para um produto sem categoria comercial
-  //       atribuída
+  //   (2) productType ainda OUTRO depois da tentativa de upgrade externo,
+  //       MENOS quando o OUTRO foi escolhido intencionalmente (ex.: serviços
+  //       SNS, vacinas — têm canonical N1/N2 reais em SERVIÇOS E ARTIGOS
+  //       NÃO COMERCIALIZÁVEIS).
   //   (3) typeConf < 0.50 (classifier nem o resolver conseguiram tipo claro)
   //
-  // VERIFIED exige tipo claro (≠ OUTRO) E confirmação externa forte
-  // (maxFieldConf ≥ 0.75). PARTIALLY_VERIFIED quando o tipo está claro
-  // mas a evidência externa não atinge o tier alto.
+  // VERIFIED exige tipo claro E confirmação externa forte (maxFieldConf ≥ 0.75).
+  // PARTIALLY_VERIFIED quando o tipo está claro mas a evidência externa não
+  // atinge o tier alto, ou quando OUTRO foi escolhido intencionalmente.
   let verificationStatus: VerificationStatus;
   if (hasAnyConflict) {
     verificationStatus = "NEEDS_REVIEW";
-  } else if (productType === "OUTRO") {
+  } else if (productType === "OUTRO" && !outroIsIntentional) {
     verificationStatus = "NEEDS_REVIEW";
   } else if (typeConf < MIN_USEFUL_CONFIDENCE) {
     verificationStatus = "NEEDS_REVIEW";
+  } else if (productType === "OUTRO" && outroIsIntentional) {
+    // OUTRO intencional (serviço, taxa) — atribui PARTIALLY_VERIFIED.
+    // Não chega a VERIFIED porque o tipo continua "outro" — admin pode
+    // querer reclassificar como serviço específico.
+    verificationStatus = "PARTIALLY_VERIFIED";
   } else if (maxFieldConf >= VERIFIED_THRESHOLD) {
     verificationStatus = "VERIFIED";
   } else {
