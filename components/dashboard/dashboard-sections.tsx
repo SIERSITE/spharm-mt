@@ -6,7 +6,7 @@ import {
   ArrowRightLeft,
   ChevronDown,
   Layers,
-  PackagePlus,
+  PackageMinus,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -36,38 +36,45 @@ function fmtPct(v: number, digits = 1): string {
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
 
-function SectionShell({
+const PREMIUM_CARD =
+  "rounded-[20px] border border-white/70 bg-white/82 shadow-[0_10px_28px_rgba(15,23,42,0.05)] backdrop-blur-md";
+
+function CardShell({
   icon,
   title,
   hint,
+  className = "",
   children,
 }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   title: string;
   hint?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <header className="flex items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
+    <section className={`${PREMIUM_CARD} px-4 py-3.5 ${className}`}>
+      <header className="flex items-center justify-between gap-2 pb-2.5">
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-700">
-            {icon}
+          {icon && (
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+              {icon}
+            </div>
+          )}
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {title}
+            </div>
+            {hint && <div className="text-[11px] text-slate-500">{hint}</div>}
           </div>
-          <h2 className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-            {title}
-          </h2>
         </div>
-        {hint && (
-          <span className="hidden text-[11px] text-slate-400 sm:block">{hint}</span>
-        )}
       </header>
-      <div className="pt-2.5">{children}</div>
+      <div className="border-t border-slate-100 pt-2.5">{children}</div>
     </section>
   );
 }
 
-function KpiCard({
+function KpiTile({
   label,
   value,
   sublabel,
@@ -78,32 +85,81 @@ function KpiCard({
   value: string;
   sublabel?: string;
   href?: string;
-  tone?: "neutral" | "warn" | "alert" | "ok" | "muted";
+  tone?: "neutral" | "warn" | "alert" | "ok";
 }) {
   const tones: Record<string, string> = {
-    neutral: "border-slate-200 bg-white text-slate-900",
-    warn: "border-amber-200 bg-amber-50 text-amber-900",
-    alert: "border-rose-200 bg-rose-50 text-rose-900",
-    ok: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    muted: "border-slate-200 bg-slate-50 text-slate-700",
+    neutral: "text-slate-900",
+    warn: "text-amber-700",
+    alert: "text-rose-700",
+    ok: "text-emerald-700",
   };
   const inner = (
     <>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
         {label}
       </div>
-      <div className="mt-0.5 text-[18px] font-semibold leading-tight tabular-nums">
+      <div className={`mt-1 text-[18px] font-semibold leading-none tabular-nums ${tones[tone]}`}>
         {value}
       </div>
-      {sublabel && <div className="mt-0.5 text-[10px] opacity-70">{sublabel}</div>}
+      {sublabel && (
+        <div className="mt-0.5 text-[10px] text-slate-500">{sublabel}</div>
+      )}
     </>
   );
-  const className = `rounded-lg border px-3 py-2 ${tones[tone]} ${
-    href ? "transition hover:border-slate-300 hover:shadow-sm" : ""
-  }`;
+  const className =
+    "rounded-[14px] border border-white/70 bg-white/78 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.035)]";
   if (href) {
     return (
-      <Link href={href} className={`block ${className}`}>
+      <Link
+        href={href}
+        className={`block ${className} transition hover:border-emerald-200 hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]`}
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={className}>{inner}</div>;
+}
+
+function KpiRow({
+  label,
+  value,
+  sublabel,
+  href,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  sublabel?: string;
+  href?: string;
+  tone?: "neutral" | "warn" | "alert" | "ok";
+}) {
+  const tones: Record<string, string> = {
+    neutral: "text-slate-900",
+    warn: "text-amber-700",
+    alert: "text-rose-700",
+    ok: "text-emerald-700",
+  };
+  const inner = (
+    <>
+      <div className="min-w-0">
+        <div className="truncate text-[12px] font-medium text-slate-700">{label}</div>
+        {sublabel && (
+          <div className="truncate text-[10px] text-slate-400">{sublabel}</div>
+        )}
+      </div>
+      <span className={`text-[16px] font-semibold tabular-nums ${tones[tone]}`}>
+        {value}
+      </span>
+    </>
+  );
+  const className = "flex items-baseline justify-between gap-3 rounded-md px-2 py-1.5";
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${className} transition hover:bg-emerald-50/60`}
+      >
         {inner}
       </Link>
     );
@@ -113,8 +169,8 @@ function KpiCard({
 
 function CollapsibleDetail({ children }: { children: React.ReactNode }) {
   return (
-    <details className="group mt-3">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white">
+    <details className="group mt-2.5">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-slate-200 bg-white/60 px-2.5 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white">
         <span className="group-open:hidden">Ver detalhe</span>
         <span className="hidden group-open:inline">Ocultar detalhe</span>
         <ChevronDown className="h-3 w-3 text-slate-400 transition group-open:rotate-180" />
@@ -133,7 +189,7 @@ function ProductPreviewList({
 }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] text-slate-500">
+      <div className="rounded-md border border-dashed border-slate-200 bg-white px-2.5 py-1.5 text-center text-[11px] text-slate-500">
         {emptyMessage}
       </div>
     );
@@ -143,20 +199,18 @@ function ProductPreviewList({
       {items.map((p) => (
         <li
           key={`${p.cnp}-${p.farmaciaNome}`}
-          className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-white px-2.5 py-1.5"
+          className="rounded-md border border-slate-100 bg-white px-2 py-1.5"
         >
-          <div className="min-w-0">
-            <Link
-              href={`/catalogo/artigo/${p.cnp}`}
-              className="block truncate text-[12px] font-medium text-slate-800 transition hover:text-emerald-700"
-            >
-              {p.designacao}
-            </Link>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-              <span className="font-medium text-slate-700">{p.farmaciaNome}</span>
-              <span className="text-slate-300">·</span>
-              <span>{p.detail}</span>
-            </div>
+          <Link
+            href={`/catalogo/artigo/${p.cnp}`}
+            className="block truncate text-[11px] font-medium text-slate-800 transition hover:text-emerald-700"
+          >
+            {p.designacao}
+          </Link>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+            <span className="font-medium text-slate-700">{p.farmaciaNome}</span>
+            <span className="text-slate-300">·</span>
+            <span>{p.detail}</span>
           </div>
         </li>
       ))}
@@ -168,196 +222,248 @@ function SeeAllLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-cyan-700 transition hover:text-cyan-800"
+      className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-cyan-700 transition hover:text-cyan-800"
     >
       {label}
-      <ArrowRight className="h-3 w-3" />
+      <ArrowRight className="h-2.5 w-2.5" />
     </Link>
   );
 }
 
-// ─── Tendência (top da página) — bar chart compacto ─────────────────────────
+// ─── Top: Executive summary (left) ───────────────────────────────────────────
 
-export function TrendSection({
+export function ExecutiveSummary({
+  pharmaciesCount,
+  transferSuggestionsTotal,
+  atRiskCount,
+  excessStockValueEur,
+}: {
+  pharmaciesCount: number;
+  transferSuggestionsTotal: number;
+  atRiskCount: number;
+  excessStockValueEur: number;
+}) {
+  return (
+    <section className={`${PREMIUM_CARD} relative overflow-hidden p-5`}>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+          Estado operacional
+        </span>
+        <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50/70 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-600/80">
+          Monitorização entre farmácias
+        </span>
+      </div>
+
+      <h2 className="max-w-[42ch] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-slate-900">
+        Cobertura, rotação e diferenças operacionais
+      </h2>
+      <p className="mt-1.5 max-w-[60ch] text-[12px] leading-snug text-slate-500">
+        Leitura consolidada de stock entre farmácias, com sugestões de
+        transferências, diferenças de cobertura e referências com rotação
+        desigual.
+      </p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiTile
+          label="Farmácias"
+          value={fmtNumber(pharmaciesCount)}
+          sublabel="em análise"
+        />
+        <KpiTile
+          label="Transferências"
+          value={fmtNumber(transferSuggestionsTotal)}
+          sublabel="sugeridas"
+          href={transferSuggestionsTotal > 0 ? "/transferencias" : undefined}
+          tone={transferSuggestionsTotal > 0 ? "ok" : "neutral"}
+        />
+        <KpiTile
+          label="Produtos em risco"
+          value={fmtNumber(atRiskCount)}
+          sublabel="cobertura < 7d"
+          href={atRiskCount > 0 ? "/stock?filter=at-risk" : undefined}
+          tone={atRiskCount > 0 ? "warn" : "ok"}
+        />
+        <KpiTile
+          label="Valor em excesso"
+          value={fmtEur(excessStockValueEur)}
+          sublabel="cobertura > 60d"
+          href={excessStockValueEur > 0 ? "/excessos?days=60" : undefined}
+          tone={excessStockValueEur > 0 ? "warn" : "ok"}
+        />
+      </div>
+    </section>
+  );
+}
+
+// ─── Top: Tendência (right) — visual chart card ──────────────────────────────
+
+export function TendenciaCard({
   data,
 }: {
   data: DashboardData["trend"];
 }) {
   const { monthlyTrend, currentMonthTotalEur, salesTrendPct } = data;
 
-  if (monthlyTrend == null || monthlyTrend.length === 0) {
-    return (
-      <SectionShell
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Tendência — 12 meses"
-      >
-        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-[12px] text-slate-500">
+  return (
+    <section className={`${PREMIUM_CARD} p-5`}>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Leitura executiva
+          </div>
+          <h3 className="mt-1 text-[16px] font-semibold leading-tight text-slate-900">
+            Tendência operacional
+          </h3>
+        </div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <Activity className="h-4 w-4" />
+        </div>
+      </header>
+
+      {monthlyTrend == null || monthlyTrend.length === 0 ? (
+        <div className="mt-5 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-[12px] text-slate-500">
           Sem dados suficientes
         </div>
-      </SectionShell>
-    );
-  }
+      ) : (
+        <TendenciaBody
+          monthlyTrend={monthlyTrend}
+          currentMonthTotalEur={currentMonthTotalEur}
+          salesTrendPct={salesTrendPct}
+        />
+      )}
+    </section>
+  );
+}
 
+function TendenciaBody({
+  monthlyTrend,
+  currentMonthTotalEur,
+  salesTrendPct,
+}: {
+  monthlyTrend: NonNullable<DashboardData["trend"]["monthlyTrend"]>;
+  currentMonthTotalEur: number | null;
+  salesTrendPct: number | null;
+}) {
   const currentBucket = monthlyTrend[monthlyTrend.length - 1];
   const prevBucket =
     monthlyTrend.length >= 2 ? monthlyTrend[monthlyTrend.length - 2] : null;
+  const max = Math.max(1, ...monthlyTrend.map((b) => b.valorTotal));
+  const lastIdx = monthlyTrend.length - 1;
 
   return (
-    <SectionShell
-      icon={<Activity className="h-3.5 w-3.5" />}
-      title="Tendência — 12 meses"
-    >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <>
+      <div className="mt-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
           Mês actual ({currentBucket.label})
-        </span>
-        <span className="text-[22px] font-semibold leading-none text-slate-900 tabular-nums">
-          {currentMonthTotalEur === null ? "Sem dados" : fmtEur(currentMonthTotalEur)}
-        </span>
-        {salesTrendPct === null ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-            {prevBucket ? `Sem baseline (${prevBucket.label} = 0 €)` : "Sem mês anterior"}
+        </div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-[24px] font-semibold leading-none text-slate-900 tabular-nums">
+            {currentMonthTotalEur === null
+              ? "Sem dados"
+              : fmtEur(currentMonthTotalEur)}
           </span>
-        ) : (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-              salesTrendPct >= 0
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-rose-50 text-rose-700"
-            }`}
-          >
-            {salesTrendPct >= 0 ? (
-              <TrendingUp className="h-2.5 w-2.5" />
-            ) : (
-              <TrendingDown className="h-2.5 w-2.5" />
-            )}
-            {fmtPct(salesTrendPct)}
-            {prevBucket && (
-              <span className="font-medium opacity-80">vs {prevBucket.label}</span>
-            )}
-          </span>
-        )}
+          {salesTrendPct === null ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+              Sem baseline
+            </span>
+          ) : (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                salesTrendPct >= 0
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-rose-50 text-rose-700"
+              }`}
+            >
+              {salesTrendPct >= 0 ? (
+                <TrendingUp className="h-2.5 w-2.5" />
+              ) : (
+                <TrendingDown className="h-2.5 w-2.5" />
+              )}
+              {fmtPct(salesTrendPct)}
+              {prevBucket && (
+                <span className="font-medium opacity-80">vs {prevBucket.label}</span>
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
-      <MonthlyBarChart buckets={monthlyTrend} />
-    </SectionShell>
-  );
-}
-
-function MonthlyBarChart({
-  buckets,
-}: {
-  buckets: NonNullable<DashboardData["trend"]["monthlyTrend"]>;
-}) {
-  const W = 1000;
-  const H = 96;
-  const PAD_X = 8;
-  const PAD_TOP = 6;
-  const PAD_BOTTOM = 18;
-
-  const max = Math.max(1, ...buckets.map((b) => b.valorTotal));
-  const lastIdx = buckets.length - 1;
-  const slot = (W - 2 * PAD_X) / buckets.length;
-  const barWidth = slot * 0.62;
-
-  return (
-    <div className="mt-2">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="h-20 w-full"
-        role="img"
-        aria-label="Vendas mensais — últimos 12 meses"
-      >
-        {buckets.map((b, i) => {
-          const cx = PAD_X + (i + 0.5) * slot;
-          const h = (b.valorTotal / max) * (H - PAD_TOP - PAD_BOTTOM);
-          const y = H - PAD_BOTTOM - h;
-          const isLast = i === lastIdx;
-          return (
-            <g key={i}>
-              {/* Bar background (thin track) */}
-              <rect
-                x={cx - barWidth / 2}
-                y={PAD_TOP}
-                width={barWidth}
-                height={H - PAD_TOP - PAD_BOTTOM}
-                rx={2}
-                fill="rgb(241 245 249)"
-              />
-              {b.valorTotal > 0 && (
-                <rect
-                  x={cx - barWidth / 2}
-                  y={y}
-                  width={barWidth}
-                  height={h}
-                  rx={2}
-                  fill={isLast ? "rgb(5 150 105)" : "rgb(16 185 129 / 0.55)"}
+      {/* Bar chart — rounded pill bars at the top, gradient fill, current month highlighted */}
+      <div className="mt-4">
+        <div className="flex h-24 items-end gap-1.5">
+          {monthlyTrend.map((b, i) => {
+            const isLast = i === lastIdx;
+            const heightPx =
+              b.valorTotal > 0
+                ? Math.max(4, Math.round((b.valorTotal / max) * 88))
+                : 0;
+            return (
+              <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+                {heightPx > 0 ? (
+                  <div
+                    title={`${b.label} ${b.ano}: ${fmtEur(b.valorTotal)}`}
+                    className={`w-full rounded-t-full ${
+                      isLast
+                        ? "bg-gradient-to-t from-emerald-600 to-emerald-400"
+                        : "bg-gradient-to-t from-emerald-500/65 to-emerald-300/30"
+                    }`}
+                    style={{ height: `${heightPx}px` }}
+                  />
+                ) : (
+                  <div className="h-1 w-full rounded-full bg-slate-100" />
+                )}
+                <span
+                  className={`text-[9px] font-medium ${
+                    isLast ? "text-slate-900" : "text-slate-400"
+                  }`}
                 >
-                  <title>{`${b.label} ${b.ano}: ${fmtEur(b.valorTotal)}`}</title>
-                </rect>
-              )}
-              <text
-                x={cx}
-                y={H - 4}
-                textAnchor="middle"
-                fontSize={10}
-                fill={isLast ? "rgb(15 23 42)" : "rgb(100 116 139)"}
-                fontWeight={isLast ? 600 : 400}
-              >
-                {b.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+                  {b.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
-// ─── Alertas críticos ────────────────────────────────────────────────────────
+// ─── Card: Alertas críticos ──────────────────────────────────────────────────
 
-export function CriticalAlertsSection({
+export function CriticalAlertsCard({
   data,
 }: {
   data: DashboardData["criticalAlerts"];
 }) {
   return (
-    <SectionShell
+    <CardShell
       icon={<AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
       title="Alertas críticos"
-      hint="Stock que precisa de atenção imediata"
+      hint="Stock que precisa de atenção"
     >
-      <div className="grid gap-2 md:grid-cols-3">
-        <KpiCard
-          label="Em rotura (com vendas)"
+      <div className="space-y-0.5">
+        <KpiRow
+          label="Em rotura"
+          sublabel="sem stock, com vendas em 90d"
           value={fmtNumber(data.outOfStockCount)}
-          sublabel="Sem stock, vendia nos últimos 90d"
           href="/stock?filter=out-of-stock"
           tone={data.outOfStockCount > 0 ? "alert" : "ok"}
         />
-        <KpiCard
-          label="Em risco (cobertura < 7d)"
+        <KpiRow
+          label="Em risco"
+          sublabel="cobertura < 7 dias"
           value={fmtNumber(data.atRiskCount)}
-          sublabel="Cobertura inferior a 7 dias"
           href="/stock?filter=at-risk"
           tone={data.atRiskCount > 0 ? "warn" : "ok"}
-        />
-        <KpiCard
-          label="Stock parado (60d)"
-          value={fmtEur(data.deadStockValueEur)}
-          sublabel={`${fmtNumber(data.deadStockCount)} produto${data.deadStockCount === 1 ? "" : "s"}`}
-          href="/stock?filter=no-movement-3m"
-          tone={data.deadStockCount > 0 ? "warn" : "ok"}
         />
       </div>
 
       <CollapsibleDetail>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-3">
           <div>
-            <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Top em rotura
-            </h3>
+            </h4>
             <ProductPreviewList
               items={data.outOfStockSample}
               emptyMessage="Sem produtos em rotura."
@@ -370,9 +476,9 @@ export function CriticalAlertsSection({
             )}
           </div>
           <div>
-            <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Top em risco
-            </h3>
+            </h4>
             <ProductPreviewList
               items={data.atRiskSample}
               emptyMessage="Sem produtos em risco."
@@ -386,11 +492,11 @@ export function CriticalAlertsSection({
           </div>
         </div>
       </CollapsibleDetail>
-    </SectionShell>
+    </CardShell>
   );
 }
 
-// ─── Transferências sugeridas ────────────────────────────────────────────────
+// ─── Card: Transferências sugeridas ──────────────────────────────────────────
 
 const PRIORITY_TONE: Record<string, string> = {
   alta: "border-rose-200 bg-rose-50 text-rose-700",
@@ -403,43 +509,43 @@ const PRIORITY_LABEL: Record<string, string> = {
   baixa: "Baixa",
 };
 
-export function OptimizationSection({
+export function TransferenciasCard({
   data,
 }: {
   data: DashboardData["optimization"];
 }) {
   return (
-    <SectionShell
+    <CardShell
       icon={<Sparkles className="h-3.5 w-3.5 text-emerald-700" />}
-      title="Transferências sugeridas"
+      title="Transferências"
       hint="Equilíbrio de stock entre farmácias"
     >
-      <div className="grid gap-2 md:grid-cols-2">
-        <KpiCard
+      <div className="space-y-0.5">
+        <KpiRow
           label="Sugestões activas"
-          value={fmtNumber(data.transferSuggestionsTotal)}
           sublabel={
             data.transferSuggestionsTotal === 0
-              ? "Sem desequilíbrios actuais"
-              : "Calculadas pelo motor de transferências"
+              ? "Sem desequilíbrios"
+              : "Calculadas pelo motor"
           }
-          href="/transferencias"
+          value={fmtNumber(data.transferSuggestionsTotal)}
+          href={data.transferSuggestionsTotal > 0 ? "/transferencias" : undefined}
           tone={data.transferSuggestionsTotal > 0 ? "ok" : "neutral"}
         />
-        <KpiCard
-          label="Valor estimado a libertar"
+        <KpiRow
+          label="Valor a libertar"
+          sublabel="Σ qty × pvp das sugestões"
           value={fmtEur(data.estimatedValueUnlockedEur)}
-          sublabel="Σ quantidade × pvp das sugestões"
           tone="neutral"
         />
       </div>
 
       <CollapsibleDetail>
-        <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Top 3 sugestões
-        </h3>
+        </h4>
         {data.topTransferSuggestions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] text-slate-500">
+          <div className="rounded-md border border-dashed border-slate-200 bg-white px-2.5 py-1.5 text-center text-[11px] text-slate-500">
             Sem transferências sugeridas no momento.
           </div>
         ) : (
@@ -447,36 +553,36 @@ export function OptimizationSection({
             {data.topTransferSuggestions.map((t) => (
               <li
                 key={`${t.cnp}-${t.farmaciaOrigem}-${t.farmaciaDestino}`}
-                className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-white px-2.5 py-1.5"
+                className="rounded-md border border-slate-100 bg-white px-2 py-1.5"
               >
-                <div className="min-w-0">
+                <div className="flex items-start justify-between gap-2">
                   <Link
                     href={`/catalogo/artigo/${t.cnp}`}
-                    className="block truncate text-[12px] font-medium text-slate-800 transition hover:text-emerald-700"
+                    className="block min-w-0 flex-1 truncate text-[11px] font-medium text-slate-800 transition hover:text-emerald-700"
                   >
                     {t.produto}
                   </Link>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-                    <span className="font-medium text-slate-700">{t.farmaciaOrigem}</span>
-                    <ArrowRightLeft className="h-2.5 w-2.5 text-slate-400" />
-                    <span className="font-medium text-slate-700">{t.farmaciaDestino}</span>
-                    <span className="text-slate-300">·</span>
-                    <span>{fmtNumber(t.quantidadeSugerida)} un.</span>
-                    {t.valorUnlocked > 0 && (
-                      <>
-                        <span className="text-slate-300">·</span>
-                        <span>{fmtEur(t.valorUnlocked)}</span>
-                      </>
-                    )}
-                  </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+                      PRIORITY_TONE[t.prioridade] ?? PRIORITY_TONE.baixa
+                    }`}
+                  >
+                    {PRIORITY_LABEL[t.prioridade] ?? t.prioridade}
+                  </span>
                 </div>
-                <span
-                  className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
-                    PRIORITY_TONE[t.prioridade] ?? PRIORITY_TONE.baixa
-                  }`}
-                >
-                  {PRIORITY_LABEL[t.prioridade] ?? t.prioridade}
-                </span>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+                  <span className="font-medium text-slate-700">{t.farmaciaOrigem}</span>
+                  <ArrowRightLeft className="h-2.5 w-2.5 text-slate-400" />
+                  <span className="font-medium text-slate-700">{t.farmaciaDestino}</span>
+                  <span className="text-slate-300">·</span>
+                  <span>{fmtNumber(t.quantidadeSugerida)} un.</span>
+                  {t.valorUnlocked > 0 && (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span>{fmtEur(t.valorUnlocked)}</span>
+                    </>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -488,62 +594,63 @@ export function OptimizationSection({
           />
         )}
       </CollapsibleDetail>
-    </SectionShell>
+    </CardShell>
   );
 }
 
-// ─── Stock mínimo & reposição ────────────────────────────────────────────────
+// ─── Card: Excessos / stock parado ───────────────────────────────────────────
 
-export function ReposicaoSection({
+export function ExcessosCard({
   data,
 }: {
-  data: DashboardData["reposicao"];
+  data: DashboardData["excess"];
 }) {
   return (
-    <SectionShell
-      icon={<PackagePlus className="h-3.5 w-3.5 text-sky-700" />}
-      title="Stock mínimo & reposição"
-      hint="Indicadores de reposição (proposta real em /encomendas/nova)"
+    <CardShell
+      icon={<PackageMinus className="h-3.5 w-3.5 text-amber-700" />}
+      title="Excessos / stock parado"
+      hint="Inventário sub-utilizado"
     >
-      <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-        <KpiCard
-          label="Abaixo do mínimo"
-          value={fmtNumber(data.belowMinCount)}
-          sublabel="stockAtual ≤ stockMinimo"
-          href="/stock?filter=below-min"
-          tone={data.belowMinCount > 0 ? "warn" : "ok"}
+      <div className="space-y-0.5">
+        <KpiRow
+          label="Valor em excesso"
+          sublabel="cobertura > 60 dias"
+          value={fmtEur(data.excessStockValueEur)}
+          href={data.excessStockCount > 0 ? "/excessos?days=60" : undefined}
+          tone={data.excessStockValueEur > 0 ? "warn" : "ok"}
         />
-        <KpiCard
-          label="Valor a repor"
-          value={fmtEur(data.estimatedValueToRestoreEur)}
-          sublabel="Σ (mínimo − actual) × custo"
-          tone="neutral"
+        <KpiRow
+          label="Coberturas > 60d"
+          sublabel="produtos em excesso"
+          value={fmtNumber(data.excessStockCount)}
+          href={data.excessStockCount > 0 ? "/excessos?days=60" : undefined}
+          tone={data.excessStockCount > 0 ? "warn" : "ok"}
         />
-        <Link
-          href="/encomendas/nova"
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 text-[12px] font-semibold text-sky-700 transition hover:border-sky-400 hover:bg-sky-100"
-        >
-          Gerar encomenda
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <KpiRow
+          label="Sem vendas em 90d"
+          sublabel="produtos parados"
+          value={fmtNumber(data.noMovementCount)}
+          href={data.noMovementCount > 0 ? "/stock?filter=no-movement-3m" : undefined}
+          tone={data.noMovementCount > 0 ? "warn" : "ok"}
+        />
       </div>
 
       <CollapsibleDetail>
-        <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Maiores défices
-        </h3>
+        <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Top excessos por valor
+        </h4>
         <ProductPreviewList
-          items={data.belowMinSample}
-          emptyMessage="Sem produtos abaixo do mínimo."
+          items={data.excessSample}
+          emptyMessage="Sem produtos em excesso."
         />
-        {data.belowMinCount > data.belowMinSample.length && (
+        {data.excessStockCount > data.excessSample.length && (
           <SeeAllLink
-            href="/stock?filter=below-min"
-            label={`Ver os ${fmtNumber(data.belowMinCount)} produtos abaixo do mínimo`}
+            href="/excessos?days=60"
+            label={`Ver os ${fmtNumber(data.excessStockCount)} produtos em excesso`}
           />
         )}
       </CollapsibleDetail>
-    </SectionShell>
+    </CardShell>
   );
 }
 
@@ -555,20 +662,23 @@ export function PerPharmacyDetail({
   pharmacies: DashboardData["perPharmacy"];
 }) {
   return (
-    <details className="group rounded-xl border border-slate-200 bg-white px-4 py-3">
+    <details className={`group ${PREMIUM_CARD} px-4 py-3`}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
             <Layers className="h-3.5 w-3.5" />
           </div>
-          <h2 className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-            Detalhe por farmácia
-          </h2>
-          <span className="text-[10px] text-slate-400">
-            ({pharmacies.length})
-          </span>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Detalhe por farmácia
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {pharmacies.length} farmácia{pharmacies.length === 1 ? "" : "s"} ·
+              {" "}vendas, margem, stock parado, alertas
+            </div>
+          </div>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 transition group-hover:border-slate-300">
+        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/60 px-2.5 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white">
           <span className="group-open:hidden">Ver detalhe</span>
           <span className="hidden group-open:inline">Ocultar detalhe</span>
           <ChevronDown className="h-3 w-3 text-slate-400 transition group-open:rotate-180" />

@@ -1,10 +1,11 @@
 import { MainShell } from "@/components/layout/main-shell";
 import { getDashboardData } from "@/lib/dashboard";
 import {
-  TrendSection,
-  CriticalAlertsSection,
-  OptimizationSection,
-  ReposicaoSection,
+  ExecutiveSummary,
+  TendenciaCard,
+  CriticalAlertsCard,
+  TransferenciasCard,
+  ExcessosCard,
   PerPharmacyDetail,
 } from "@/components/dashboard/dashboard-sections";
 
@@ -15,22 +16,24 @@ export default async function DashboardPage() {
 
   return (
     <MainShell>
-      <div className="space-y-2.5">
-        <section className="flex items-end justify-between gap-3">
-          <div>
-            <h1 className="text-[18px] font-semibold leading-tight text-slate-900">
-              Dashboard
-            </h1>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              {data.pharmaciesCount} farmácia{data.pharmaciesCount === 1 ? "" : "s"} em análise
-            </p>
-          </div>
+      <div className="space-y-3">
+        {/* Top: split layout — executive summary (left) + chart card (right) */}
+        <section className="grid gap-3 lg:grid-cols-[1.35fr_0.95fr]">
+          <ExecutiveSummary
+            pharmaciesCount={data.pharmaciesCount}
+            transferSuggestionsTotal={data.optimization.transferSuggestionsTotal}
+            atRiskCount={data.criticalAlerts.atRiskCount}
+            excessStockValueEur={data.excess.excessStockValueEur}
+          />
+          <TendenciaCard data={data.trend} />
         </section>
 
-        <TrendSection data={data.trend} />
-        <CriticalAlertsSection data={data.criticalAlerts} />
-        <OptimizationSection data={data.optimization} />
-        <ReposicaoSection data={data.reposicao} />
+        {/* Row de cartões compactos */}
+        <section className="grid gap-3 md:grid-cols-3">
+          <CriticalAlertsCard data={data.criticalAlerts} />
+          <TransferenciasCard data={data.optimization} />
+          <ExcessosCard data={data.excess} />
+        </section>
 
         <PerPharmacyDetail pharmacies={data.perPharmacy} />
       </div>

@@ -101,8 +101,6 @@ export type DashboardData = {
     outOfStockSample: ActionableProduct[];
     atRiskCount: number;
     atRiskSample: ActionableProduct[];
-    deadStockValueEur: number;
-    deadStockCount: number;
   };
 
   // Transferências sugeridas
@@ -112,11 +110,16 @@ export type DashboardData = {
     topTransferSuggestions: DashboardTopSuggestion[];
   };
 
-  // Stock mínimo & reposição (NÃO é uma proposta — /encomendas/nova é)
-  reposicao: {
-    belowMinCount: number;
-    belowMinSample: ActionableProduct[];
-    estimatedValueToRestoreEur: number;
+  // Excessos / stock parado — o destino operacional é /excessos?days=60.
+  excess: {
+    /** Σ stockAtual × custo para produtos com cobertura > 60 dias. */
+    excessStockValueEur: number;
+    /** Número de produtos com cobertura > 60 dias. */
+    excessStockCount: number;
+    /** Número de produtos com stockAtual > 0 e sem vendas em 90 dias. */
+    noMovementCount: number;
+    /** Top excessos por valor de stock (para detalhe). */
+    excessSample: ActionableProduct[];
   };
 
   // Detalhe por farmácia (collapsed by default na UI)
@@ -136,7 +139,6 @@ const MONTH_LABELS_PT = [
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
 ];
 const TREND_MONTHS = 12;
-const DEAD_STOCK_DAYS = 60;
 const SAMPLE_SIZE = 5;
 const TRANSFER_SAMPLE_SIZE = 3;
 
@@ -148,7 +150,7 @@ function unitCost(row: StockRowEnriched): number {
   return row.puc ?? row.pmc ?? 0;
 }
 
-function detailFor(filter: "out-of-stock" | "at-risk" | "below-min", row: StockRowEnriched): string {
+function detailFor(filter: "out-of-stock" | "at-risk" | "excess", row: StockRowEnriched): string {
   switch (filter) {
     case "out-of-stock":
       return `stock 0 · vendia ${(row.avgDaily90d * 30).toFixed(1)} un./mês`;
@@ -156,19 +158,16 @@ function detailFor(filter: "out-of-stock" | "at-risk" | "below-min", row: StockR
       return row.coverage != null
         ? `cobertura ${row.coverage.toFixed(1)} dias · stock ${Math.round(row.stockAtual)} un.`
         : `stock ${Math.round(row.stockAtual)} un.`;
-    case "below-min": {
-      const need = Math.max(
-        0,
-        (row.stockMinimo ?? 0) - row.stockAtual,
-      );
-      return `${Math.round(row.stockAtual)}/${row.stockMinimo ?? 0} · faltam ${Math.round(need)} un.`;
-    }
+    case "excess":
+      return row.coverage != null
+        ? `cobertura ${Math.round(row.coverage)} dias · stock ${Math.round(row.stockAtual)} un.`
+        : `stock ${Math.round(row.stockAtual)} un.`;
   }
 }
 
 function toActionable(
   row: StockRowEnriched,
-  detailKind: "out-of-stock" | "at-risk" | "below-min",
+  detailKind: "out-of-stock" | "at-risk" | "excess",
 ): ActionableProduct {
   return {
     cnp: row.cnp,
@@ -417,25 +416,19 @@ export async function getDashboardData(): Promise<DashboardData> {
     perPharmacyData.perPharmacy.map((p) => p.id),
   );
 
-  // ── Section 1: Critical operational alerts ────────────────────────────
+  // ── Alertas críticos ──────────────────────────────────────────────────
   const outOfStockRows = stockRows.filter((r) => matchStockFilter(r, "out-of-stock"));
   const atRiskRows = stockRows.filter((r) => matchStockFilter(r, "at-risk"));
 
-  // Dead stock (60-day window). Reuses loadStockEnriched but applies a
-  // date-based predicate on dataUltimaVenda — distinct from the 90-day
-  // "no movement" filter in matchStockFilter.
-  const deadStockCutoff = new Date(Date.now() - DEAD_STOCK_DAYS * 86_400_000);
-  const deadStockRows = stockRows.filter((r) => {
-    if (r.stockAtual <= 0) return false;
-    if (r.dataUltimaVenda == null) return true;
-    return new Date(r.dataUltimaVenda) < deadStockCutoff;
-  });
-  const deadStockValueEur = deadStockRows.reduce(
+  // ── Excessos / stock parado ───────────────────────────────────────────
+  const excessRows = stockRows.filter((r) => matchStockFilter(r, "excess-stock-60d"));
+  const excessStockValueEur = excessRows.reduce(
     (sum, r) => sum + r.stockAtual * unitCost(r),
     0,
   );
+  const noMovementRows = stockRows.filter((r) => matchStockFilter(r, "no-movement-3m"));
 
-  // ── Section 3: Optimization ───────────────────────────────────────────
+  // ── Optimization ──────────────────────────────────────────────────────
   const estimatedValueUnlockedEur = allTransfers.reduce(
     (sum, t) => sum + (t.valorUnlocked ?? 0),
     0,
@@ -451,14 +444,6 @@ export async function getDashboardData(): Promise<DashboardData> {
       prioridade: t.prioridade,
       valorUnlocked: t.valorUnlocked ?? 0,
     }));
-
-  // ── Section 4: Stock mínimo & reposição ───────────────────────────────
-  // Schema-direct heuristic. NOT a proposal — /encomendas/nova does that.
-  const belowMinRows = stockRows.filter((r) => matchStockFilter(r, "below-min"));
-  const estimatedValueToRestoreEur = belowMinRows.reduce((sum, r) => {
-    const need = Math.max(0, (r.stockMinimo ?? 0) - r.stockAtual);
-    return sum + need * unitCost(r);
-  }, 0);
 
   // ── Tendência: derivada da série mensal real ──────────────────────────
   const currentMonthTotalEur =
@@ -479,11 +464,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     b.salesQty90d - a.salesQty90d;
   const sortByCoverageAsc = (a: StockRowEnriched, b: StockRowEnriched) =>
     (a.coverage ?? Infinity) - (b.coverage ?? Infinity);
-  const sortByDeficitDesc = (a: StockRowEnriched, b: StockRowEnriched) => {
-    const ad = (a.stockMinimo ?? 0) - a.stockAtual;
-    const bd = (b.stockMinimo ?? 0) - b.stockAtual;
-    return bd - ad;
-  };
+  const sortByExcessValueDesc = (a: StockRowEnriched, b: StockRowEnriched) =>
+    b.stockAtual * unitCost(b) - a.stockAtual * unitCost(a);
 
   return {
     pharmaciesCount: farmaciaIds.length,
@@ -507,8 +489,6 @@ export async function getDashboardData(): Promise<DashboardData> {
         .sort(sortByCoverageAsc)
         .slice(0, SAMPLE_SIZE)
         .map((r) => toActionable(r, "at-risk")),
-      deadStockValueEur,
-      deadStockCount: deadStockRows.length,
     },
 
     optimization: {
@@ -517,14 +497,15 @@ export async function getDashboardData(): Promise<DashboardData> {
       topTransferSuggestions,
     },
 
-    reposicao: {
-      belowMinCount: belowMinRows.length,
-      belowMinSample: belowMinRows
+    excess: {
+      excessStockValueEur,
+      excessStockCount: excessRows.length,
+      noMovementCount: noMovementRows.length,
+      excessSample: excessRows
         .slice()
-        .sort(sortByDeficitDesc)
+        .sort(sortByExcessValueDesc)
         .slice(0, SAMPLE_SIZE)
-        .map((r) => toActionable(r, "below-min")),
-      estimatedValueToRestoreEur,
+        .map((r) => toActionable(r, "excess")),
     },
 
     perPharmacy: perPharmacyData.perPharmacy,
