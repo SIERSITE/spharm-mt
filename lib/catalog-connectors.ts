@@ -1496,8 +1496,23 @@ const retailPharmacyConnector: ExternalConnector = {
  *
  * O conector interno fica em código como referência, mas não é chamado.
  */
+// Decisão Maio 2026: `retailPharmacyConnector` adicionado a MEDICAMENTO
+// como SECUNDÁRIO para enriquecer imagens (`imagemUrl`). INFARMED é
+// REGULATORY e fornece os campos autoritários (DCI/ATC/forma/dosagem/
+// fabricante) mas NUNCA tem imagem — o snapshot não inclui multimédia.
+//
+// O retail é tier=RETAIL, portanto:
+//  · NÃO pode escrever fabricante/DCI/ATC (bloqueio de tier no resolver
+//    e na persistência — defesa em profundidade).
+//  · A imagem só é gravada com confidence ≥ 0.75 (THRESHOLD_AUTO), o
+//    que apenas acontece em matches sku/cnp (conf 0.78-0.80), nunca em
+//    fuzzy_name (conf 0.55). Imagens campanha/categoria/placeholder
+//    chegam tipicamente com fuzzy_name ou similarity baixa → não passam.
+//  · A `categoria` retail também é devolvida mas para MEDICAMENTOS o
+//    nivel2 canónico é determinado primariamente pelo ATC (tier
+//    REGULATORY via INFARMED), não pela breadcrumb retail.
 const CONNECTORS_BY_TYPE: Record<ProductType, ExternalConnector[]> = {
-  MEDICAMENTO:        [infarmedConnector],
+  MEDICAMENTO:        [infarmedConnector, retailPharmacyConnector],
   SUPLEMENTO:         [openFoodFactsConnector, retailPharmacyConnector],
   DERMOCOSMETICA:     [openBeautyFactsConnector, retailPharmacyConnector],
   DISPOSITIVO_MEDICO: [eudamedConnector, retailPharmacyConnector],

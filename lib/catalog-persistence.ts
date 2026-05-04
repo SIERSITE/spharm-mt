@@ -168,6 +168,8 @@ export async function persistResolvedProduct(
       classificacaoNivel1Id: true,
       classificacaoNivel2Id: true,
       productType: true,
+      flagMSRM: true,
+      flagMNSRM: true,
     },
   });
 
@@ -407,26 +409,55 @@ export async function persistResolvedProduct(
     }
   }
 
-  // ── Imagem URL — exige confiança alta (risco de imagem errada)
+  // ── Imagem URL — exige confiança alta (risco de imagem errada).
+  //
+  // Confiança é baseada na qualidade do MATCH do produto na fonte (CNP
+  // exacto no URL/página, similaridade alta de nome com a designação),
+  // não no productType. Threshold = THRESHOLD_AUTO (0.75), o que na
+  // prática filtra automaticamente:
+  //   - matches fuzzy_name (retail conf 0.55) → skip (não escreve imagem)
+  //   - matches sku/cnp/designacao (retail conf 0.78–0.80) → write
+  //   - matches OFF/OBF com baseConf 0.65–0.70 e similarity baixa →
+  //     conf final < 0.75 → skip
+  // INFARMED nunca devolve imagem (imagemUrl=null no connector).
   {
     const ev = evaluateField("imagemUrl", product.imagemUrl, resolved.imagemUrl, relevance.imagemUrl);
     if (ev.status !== "ok") {
       record({ field: "imagemUrl", status: ev.status, reason: ev.reason });
     } else if ((resolved.imagemUrl?.confidence ?? 0) < THRESHOLD_AUTO) {
+      const src = resolved.imagemUrl?.source ?? "—";
+      const conf = ((resolved.imagemUrl?.confidence ?? 0) * 100).toFixed(0);
       record({
-        field: "imagemUrl", status: "skipped",
-        reason: `imagemUrl exige conf ≥ ${(THRESHOLD_AUTO * 100).toFixed(0)}% (got ${((resolved.imagemUrl?.confidence ?? 0) * 100).toFixed(0)}%)`,
+        field: "imagemUrl",
+        status: "skipped",
+        reason:
+          `imagemUrl exige conf ≥ ${(THRESHOLD_AUTO * 100).toFixed(0)}% ` +
+          `(got ${conf}% de fonte ${src}) — match não suficientemente seguro`,
+        source: resolved.imagemUrl?.source ?? null,
+        confidence: resolved.imagemUrl?.confidence ?? null,
       });
     } else {
       const normalized = normalizeImageUrl(resolved.imagemUrl!.value);
       if (!normalized) {
-        record({ field: "imagemUrl", status: "skipped", reason: "URL inválida após normalização" });
+        record({
+          field: "imagemUrl",
+          status: "skipped",
+          reason: `URL inválida após normalização (raw=${resolved.imagemUrl!.value.slice(0, 80)})`,
+          source: resolved.imagemUrl!.source,
+          confidence: resolved.imagemUrl!.confidence,
+        });
       } else {
         updates.imagemUrl = normalized;
         record({
-          field: "imagemUrl", status: "updated",
-          reason: `fonte ${resolved.imagemUrl!.source}`, newValue: normalized,
-          source: resolved.imagemUrl!.source, confidence: resolved.imagemUrl!.confidence,
+          field: "imagemUrl",
+          status: "updated",
+          reason:
+            `fonte ${resolved.imagemUrl!.source} ` +
+            `(conf ${(resolved.imagemUrl!.confidence * 100).toFixed(0)}%, ` +
+            `tier ${resolved.imagemUrl!.tier})`,
+          newValue: normalized,
+          source: resolved.imagemUrl!.source,
+          confidence: resolved.imagemUrl!.confidence,
         });
       }
     }
@@ -465,14 +496,43 @@ export async function persistResolvedProduct(
     };
     record({ field: "classificacaoNivel1Id", status: "skipped", reason: canonicalDecision.reason });
   } else {
+    // DCI: preferir o valor já em BD (foi gravado por uma corrida anterior
+    // ou por import) — se ausente, usar o resolvido pelo motor a partir
+    // dos conectores (tipicamente INFARMED, REGULATORY tier).
+    const effectiveDci = product.dci ?? resolved.dci?.value ?? null;
+    const effectiveAtc = resolved.codigoATC?.value ?? product.codigoATC ?? null;
+
     const canonical = mapToCanonical({
       productType: resolved.productType,
       productTypeConfidence: resolved.productTypeConfidence,
       externalCategory: resolved.categoria?.value ?? null,
       externalSubcategory: resolved.subcategoria?.value ?? null,
       designacao: product.designacao,
-      atc: resolved.codigoATC?.value ?? product.codigoATC ?? null,
+      atc: effectiveAtc,
+      dci: effectiveDci,
     });
+
+    // Log diagnóstico verbose para MEDICAMENTOS — explicita porque o
+    // mapper escolheu este nivel2, especialmente quando cai no fallback
+    // "Outros Medicamentos". Crítico para diagnosticar produtos que
+    // ficam genericamente classificados.
+    if (
+      canonical &&
+      canonical.nivel1 === "MEDICAMENTOS" &&
+      (resolved.productType === "MEDICAMENTO" ||
+        product.flagMSRM ||
+        product.flagMNSRM)
+    ) {
+      const fallback = canonical.method === "others_fallback";
+      const tag = fallback ? "[med-fallback]" : "[med-map]";
+      console.log(
+        `${tag} cnp-product=${productId} ` +
+        `atc=${effectiveAtc ?? "—"} dci=${effectiveDci ?? "—"} ` +
+        `→ ${canonical.nivel1} / ${canonical.nivel2} ` +
+        `(method=${canonical.method}, conf=${canonical.confidence.toFixed(2)}). ` +
+        `${canonical.reason}`,
+      );
+    }
 
     if (!canonical) {
       const reason =

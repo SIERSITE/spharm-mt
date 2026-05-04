@@ -31,6 +31,13 @@ export type TaxonomyMapInput = {
   externalSubcategory: string | null;
   designacao: string;
   atc: string | null;
+  /**
+   * Princípio activo / DCI — se disponível, é usado como sinal de keyword
+   * para escolher nivel2 dentro de MEDICAMENTOS quando o ATC sozinho não
+   * é específico o suficiente, ou como fallback quando o ATC é null.
+   * Origem típica: snapshot INFARMED (REGULATORY tier).
+   */
+  dci?: string | null;
 };
 
 export type TaxonomyMapOutput = {
@@ -40,9 +47,18 @@ export type TaxonomyMapOutput = {
   method:
     | "keyword"
     | "atc"
+    | "atc_prefix"
+    | "dci"
     | "external_category_hint"
     | "product_type_only"
     | "others_fallback";
+  /**
+   * Razão estruturada para diagnóstico — explicita *porquê* o mapper
+   * escolheu este (nivel1, nivel2). Útil em logs verbose, especialmente
+   * para entender porque um medicamento caiu em "Outros Medicamentos"
+   * ou porque um ATC foi (ou não foi) usado.
+   */
+  reason: string;
 };
 
 // ─── ProductType → Nivel1 canónico ────────────────────────────────────────────
@@ -59,22 +75,139 @@ const PRODUCT_TYPE_TO_NIVEL1: Record<ProductType, string | null> = {
   OUTRO: null,
 };
 
-// ─── ATC (1ª letra) → Nivel2 canónico dentro de MEDICAMENTOS ──────────────────
+// ─── ATC → Nivel2 canónico dentro de MEDICAMENTOS ────────────────────────────
+//
+// O ATC (Anatomical Therapeutic Chemical) tem 5 níveis hierárquicos:
+//
+//   N         (1 char) — grupo anatómico principal
+//   N02       (3 chars) — grupo terapêutico principal
+//   N02B      (4 chars) — subgrupo terapêutico/farmacológico
+//   N02BE     (5 chars) — subgrupo químico-terapêutico/farmacológico
+//   N02BE01   (7 chars) — substância química (DCI)
+//
+// O nível-1 (primeira letra) sozinho é demasiado coarse para decidir nivel2
+// canónico — por exemplo, um analgésico (N02) e um antiepiléptico (N03)
+// caem ambos na letra "N" mas deveriam ir para "Analgésicos e Anti-
+// inflamatórios" e "Sistema Nervoso" respectivamente.
+//
+// Estratégia (Maio 2026):
+//   1. Se atc tem ≥3 chars e o prefixo de 3 está em ATC_PREFIX_TO_NIVEL2,
+//      usa esse mapeamento (alta confiança, 0.92).
+//   2. Senão, fallback à letra (ATC_LETTER_TO_NIVEL2, conf 0.85).
+//   3. Senão, keyword/DCI (conf 0.80).
+//
+// "Outros Medicamentos" como nivel2 só aparece quando NENHUMA das fontes
+// (ATC prefix, ATC letter, keyword, DCI) tem um match canónico — é o
+// último recurso, alinhado com a política do mapper.
 
+/**
+ * Mapa fino por prefixo de 3 caracteres (grupo terapêutico ATC L2).
+ * Cobre os casos onde a primeira letra é demasiado genérica.
+ */
+const ATC_PREFIX_TO_NIVEL2: Record<string, string> = {
+  // ── A: Aparelho digestivo e metabolismo ──────────────────────────────
+  A02: "Sistema Digestivo",   // Anti-ácidos, IBP, anti-úlcera
+  A03: "Sistema Digestivo",   // Antiespasmódicos, anticolinérgicos
+  A04: "Sistema Digestivo",   // Antieméticos
+  A06: "Sistema Digestivo",   // Laxantes
+  A07: "Sistema Digestivo",   // Antidiarreicos, anti-inflamatórios intestinais
+  A09: "Sistema Digestivo",   // Digestivos enzimáticos
+  A10: "Diabetes",            // Insulinas, antidiabéticos orais
+  A11: "Outros Medicamentos", // Vitaminas (sem cat específica em MEDICAMENTOS)
+  A12: "Outros Medicamentos", // Suplementos minerais (idem)
+  A16: "Outros Medicamentos", // Outros — metabolismo
+
+  // ── B: Sangue e órgãos hematopoiéticos ───────────────────────────────
+  // Anticoagulantes/antitrombóticos não têm cat própria; cardiovascular
+  // é o destino clínico mais frequente (apixabano, varfarina, AAS dose CV).
+  B01: "Cardiovascular",      // Antitrombóticos
+  B02: "Outros Medicamentos", // Antihemorrágicos
+  B03: "Outros Medicamentos", // Antianémicos
+
+  // ── C: Sistema cardiovascular ────────────────────────────────────────
+  C01: "Cardiovascular",
+  C02: "Cardiovascular",
+  C03: "Cardiovascular",      // Diuréticos (uso cardio)
+  C04: "Cardiovascular",
+  C05: "Cardiovascular",
+  C07: "Cardiovascular",      // Beta-bloqueantes (nebivolol, bisoprolol)
+  C08: "Cardiovascular",      // Bloqueadores Ca (amlodipina)
+  C09: "Cardiovascular",      // IECA/ARA (enalapril, losartan, ramipril)
+  C10: "Cardiovascular",      // Estatinas (atorvastatina, sinvastatina)
+
+  // ── D: Dermatológicos ────────────────────────────────────────────────
+  D01: "Dermatológicos",      // Antifúngicos tópicos
+  D02: "Dermatológicos",      // Emolientes/protectores
+  D03: "Dermatológicos",      // Cicatrizantes
+  D05: "Dermatológicos",      // Antipsoríase
+  D06: "Dermatológicos",      // Antibióticos/quimioterápicos tópicos
+  D07: "Dermatológicos",      // Corticosteróides tópicos
+  D08: "Antisséticos e Desinfetantes", // Antissépticos/desinfetantes (clorhexidina, iodopovidona)
+  D10: "Dermatológicos",      // Antiacne
+  D11: "Dermatológicos",      // Outros dermatológicos
+
+  // ── G: Sistema genito-urinário e hormonas sexuais ────────────────────
+  G01: "Ginecológicos",
+  G02: "Ginecológicos",
+  G03: "Ginecológicos",       // Hormonas sexuais (anticoncepcionais, TRH)
+  G04: "Urológicos",          // Urológicos (tansulosina, finasterida BPH)
+
+  // ── J: Anti-infecciosos sistémicos (sem cat dedicada — fica Outros) ──
+  J01: "Outros Medicamentos", // Antibióticos sistémicos
+  J02: "Outros Medicamentos", // Antifúngicos sistémicos
+  J04: "Outros Medicamentos", // Antimicobacterianos
+  J05: "Outros Medicamentos", // Antivirais sistémicos
+  J06: "Outros Medicamentos", // Imunoglobulinas
+  J07: "Outros Medicamentos", // Vacinas
+
+  // ── M: Sistema músculo-esquelético ───────────────────────────────────
+  M01: "Analgésicos e Anti-inflamatórios", // AINEs (ibuprofeno, diclofenac, naproxeno)
+  M02: "Analgésicos e Anti-inflamatórios", // Tópicos articulares
+  M03: "Sistema Nervoso",                 // Relaxantes musculares
+  M04: "Analgésicos e Anti-inflamatórios", // Antigotosos
+  M05: "Outros Medicamentos",              // Doenças ósseas (bifosfonatos)
+
+  // ── N: Sistema nervoso ───────────────────────────────────────────────
+  N01: "Outros Medicamentos",             // Anestésicos
+  N02: "Analgésicos e Anti-inflamatórios", // Analgésicos (paracetamol N02BE01, opióides)
+  N03: "Sistema Nervoso",                 // Antiepilépticos
+  N04: "Sistema Nervoso",                 // Antiparkinsonianos
+  N05: "Sistema Nervoso",                 // Psicolépticos (ansiolíticos, antipsicóticos)
+  N06: "Sistema Nervoso",                 // Psicoanalépticos (antidepressivos)
+  N07: "Sistema Nervoso",                 // Outros do SNC
+
+  // ── R: Sistema respiratório ──────────────────────────────────────────
+  R01: "Constipação, Tosse e Gripe",      // Nasais (descongestionantes)
+  R02: "Constipação, Tosse e Gripe",      // Garganta
+  R03: "Respiratório",                    // Asma/DPOC (salbutamol, budesonida, formoterol)
+  R05: "Constipação, Tosse e Gripe",      // Tosse e expectorantes
+  R06: "Alergias",                        // Anti-histamínicos sistémicos (cetirizina, loratadina, bilastina)
+  R07: "Respiratório",                    // Outros respiratórios
+
+  // ── S: Órgãos sensoriais ─────────────────────────────────────────────
+  S01: "Oftálmicos",
+  S02: "Otológicos",
+  S03: "Oftálmicos",                      // Combinados oftálmicos+otológicos — preferir oftálmico
+};
+
+/**
+ * Mapa coarse por primeira letra do ATC. Fallback quando o prefixo de 3
+ * não está coberto. Mantém-se conservador para evitar mapping errados.
+ */
 const ATC_LETTER_TO_NIVEL2: Record<string, string> = {
   A: "Sistema Digestivo",            // Alimentary tract and metabolism
   B: "Outros Medicamentos",           // Blood and blood forming organs
   C: "Cardiovascular",               // Cardiovascular system
   D: "Dermatológicos",               // Dermatologicals
-  G: "Ginecológicos",                // Genito-urinary system
+  G: "Ginecológicos",                // Genito-urinary system (default G01-G03)
   H: "Outros Medicamentos",           // Systemic hormonal preparations
   J: "Outros Medicamentos",           // Anti-infectives systemic
   L: "Outros Medicamentos",           // Antineoplastic
   M: "Analgésicos e Anti-inflamatórios", // Musculo-skeletal system
-  N: "Sistema Nervoso",              // Nervous system
+  N: "Sistema Nervoso",              // Nervous system (default não-N02)
   P: "Outros Medicamentos",           // Antiparasitic
-  R: "Respiratório",                 // Respiratory system
-  S: "Oftálmicos",                   // Sensory organs
+  R: "Respiratório",                 // Respiratory system (default não-R06)
+  S: "Oftálmicos",                   // Sensory organs (default S01)
   V: "Outros Medicamentos",           // Various
 };
 
@@ -319,36 +452,93 @@ function resolveNivel1FromProductType(input: TaxonomyMapInput): { nivel1: string
   return { nivel1: mapped, confidence: input.productTypeConfidence };
 }
 
-function resolveNivel2(nivel1: string, input: TaxonomyMapInput): { nivel2: string; confidence: number } | null {
-  // 1. Se é MEDICAMENTOS e há ATC válido, usar a 1ª letra
-  if (nivel1 === "MEDICAMENTOS" && input.atc) {
-    const letter = input.atc.charAt(0).toUpperCase();
-    const byAtc = ATC_LETTER_TO_NIVEL2[letter];
-    if (byAtc && isValidNivel2(nivel1, byAtc)) {
-      return { nivel2: byAtc, confidence: 0.90 };
+type Nivel2Resolution = {
+  nivel2: string;
+  confidence: number;
+  method: "atc" | "atc_prefix" | "keyword" | "dci" | "external_category_hint";
+  reason: string;
+};
+
+function resolveNivel2(nivel1: string, input: TaxonomyMapInput): Nivel2Resolution | null {
+  const isMed = nivel1 === "MEDICAMENTOS";
+  const atc = input.atc?.trim() ?? null;
+  const atcUpper = atc ? atc.toUpperCase() : null;
+
+  // 1. MEDICAMENTOS — ATC prefixo de 3 (mais específico que letra). Cobre
+  //    casos como N02 (analgésicos), R06 (alergias), C07/C08/C09/C10
+  //    (cardiovascular), D08 (antissépticos), S02 (otológicos), etc.
+  if (isMed && atcUpper && atcUpper.length >= 3) {
+    const prefix3 = atcUpper.slice(0, 3);
+    const byPrefix = ATC_PREFIX_TO_NIVEL2[prefix3];
+    if (byPrefix && isValidNivel2(nivel1, byPrefix)) {
+      return {
+        nivel2: byPrefix,
+        confidence: 0.92,
+        method: "atc_prefix",
+        reason: `ATC prefix ${prefix3} (${atcUpper}) → ${byPrefix}`,
+      };
     }
   }
 
-  // 2. Keyword matching sobre designação + categoria externa
+  // 2. Keyword matching sobre designação + categoria externa + DCI.
+  //    Para medicamentos, o DCI (vindo da snapshot INFARMED) é frequentemente
+  //    a única palavra reconhecível — incluí-lo no texto-alvo permite que
+  //    keywords como "ibuprofeno" / "paracetamol" / "nebivolol" / "cetirizina"
+  //    resolvam o nivel2 mesmo quando a designacao do ERP é abreviada.
   const textBlob = [
     input.externalCategory ?? "",
     input.externalSubcategory ?? "",
     input.designacao,
+    input.dci ?? "",
   ].join(" ");
 
   const rules = KEYWORD_RULES[nivel1] ?? [];
   for (const rule of rules) {
     if (rule.pattern.test(textBlob)) {
-      return { nivel2: rule.nivel2, confidence: 0.80 };
+      const matched = rule.pattern.exec(textBlob)?.[0] ?? "?";
+      // Pequeno boost se foi a DCI a despoletar o match (sinal regulatório
+      // forte). Detecção: o match tem de cair dentro do segmento DCI do blob.
+      const dciHit = !!input.dci && rule.pattern.test(input.dci);
+      const conf = dciHit && isMed ? 0.85 : 0.80;
+      return {
+        nivel2: rule.nivel2,
+        confidence: conf,
+        method: dciHit && isMed ? "dci" : "keyword",
+        reason: dciHit && isMed
+          ? `DCI "${input.dci}" → keyword match "${matched}" → ${rule.nivel2}`
+          : `keyword "${matched}" → ${rule.nivel2}`,
+      };
     }
   }
 
-  // 3. Validação de qualquer nivel2 textualmente presente na categoria externa
+  // 3. MEDICAMENTOS — ATC letra (1 char) como fallback coarse. Só corre
+  //    se o prefixo de 3 não estava no mapa, o que significa que o ATC é
+  //    raro/genérico (ex.: "Z" inválido, "V03" misc). A confiança é menor
+  //    porque a letra sozinha é ambígua dentro de N/R/S.
+  if (isMed && atcUpper && atcUpper.length >= 1) {
+    const letter = atcUpper.charAt(0);
+    const byLetter = ATC_LETTER_TO_NIVEL2[letter];
+    if (byLetter && isValidNivel2(nivel1, byLetter)) {
+      return {
+        nivel2: byLetter,
+        confidence: 0.78,
+        method: "atc",
+        reason: `ATC letter ${letter} (${atcUpper}, prefix3 sem match) → ${byLetter}`,
+      };
+    }
+  }
+
+  // 4. Validação de qualquer nivel2 textualmente presente na categoria externa
   if (input.externalCategory || input.externalSubcategory) {
     const externalBlob = `${input.externalCategory ?? ""} ${input.externalSubcategory ?? ""}`.toLowerCase();
     for (const n2 of getNivel2For(nivel1)) {
       if (externalBlob.includes(n2.toLowerCase())) {
-        return { nivel2: n2, confidence: 0.78 };
+        return {
+          nivel2: n2,
+          confidence: 0.78,
+          method: "external_category_hint",
+          reason: `breadcrumb contém "${n2}"`,
+        };
       }
     }
   }
@@ -377,11 +567,32 @@ export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput | nul
   const fromExternal = resolveNivel1FromExternal(input);
   const fromType = resolveNivel1FromProductType(input);
 
-  const n1 = fromExternal ?? fromType;
+  // Safety: para MEDICAMENTO com confiança alta (flagMSRM/flagMNSRM/ATC
+  // foram suficientes para o classifier dar 0.95+), o productType é
+  // autoridade superior a qualquer breadcrumb retail. Sem isto, uma
+  // página retail com breadcrumb "Saúde > Cardiovascular" poderia
+  // empurrar a classificação para SUPLEMENTOS ALIMENTARES (via padrão
+  // /sistema cardiovascular|colesterol/), mesmo o produto sendo um
+  // medicamento C09 (IECA). Os outros productTypes não têm a mesma
+  // garantia regulatória — só MEDICAMENTO tem flag/ATC oficial.
+  const isHighConfMed =
+    input.productType === "MEDICAMENTO" && input.productTypeConfidence >= 0.90;
+  let n1 = fromExternal ?? fromType;
+  let n1FromTypeOverride = false;
+  if (isHighConfMed && fromType && (!n1 || n1.nivel1 !== fromType.nivel1)) {
+    n1 = fromType;
+    n1FromTypeOverride = true;
+  }
 
   if (!n1 || n1.confidence < 0.60) {
     return null;
   }
+
+  const n1ReasonPrefix = n1FromTypeOverride
+    ? `nivel1 via productType=MEDICAMENTO (high-conf, override breadcrumb) → ${n1.nivel1}`
+    : fromExternal
+    ? `nivel1 via breadcrumb/designação → ${n1.nivel1}`
+    : `nivel1 via productType=${input.productType} → ${n1.nivel1}`;
 
   const n2 = resolveNivel2(n1.nivel1, input);
   if (n2) {
@@ -389,11 +600,8 @@ export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput | nul
       nivel1: n1.nivel1,
       nivel2: n2.nivel2,
       confidence: Math.min(n1.confidence, n2.confidence),
-      method: n2.confidence >= 0.88
-        ? "atc"
-        : fromExternal
-        ? "external_category_hint"
-        : "keyword",
+      method: n2.method,
+      reason: `${n1ReasonPrefix}; ${n2.reason}`,
     };
   }
 
@@ -403,11 +611,41 @@ export function mapToCanonical(input: TaxonomyMapInput): TaxonomyMapOutput | nul
   // sinalizar à UI que o nivel2 foi inferido por fallback, não por keyword.
   const others = othersNameFor(n1.nivel1);
   if (others) {
+    // Razão diagnóstica explícita para o caller (logs, UI, fila de revisão).
+    // Para MEDICAMENTOS, lista os sinais que falharam: ATC prefix, ATC
+    // letra, keyword/DCI — para o admin saber porque é que o medicamento
+    // ficou em "Outros Medicamentos".
+    let fallbackReason = "sem keyword/ATC específico";
+    if (n1.nivel1 === "MEDICAMENTOS") {
+      const parts: string[] = [];
+      if (input.atc) {
+        const u = input.atc.toUpperCase();
+        const p3 = u.length >= 3 ? u.slice(0, 3) : null;
+        const letter = u.charAt(0);
+        const p3Mapped = p3 ? ATC_PREFIX_TO_NIVEL2[p3] : null;
+        const letterMapped = ATC_LETTER_TO_NIVEL2[letter];
+        if (p3 && !p3Mapped) parts.push(`ATC prefix ${p3} sem mapeamento`);
+        if (letter && !letterMapped) parts.push(`ATC letter ${letter} sem mapeamento`);
+        if (p3Mapped && !isValidNivel2(n1.nivel1, p3Mapped)) {
+          parts.push(`ATC prefix ${p3} → "${p3Mapped}" não é nivel2 válido`);
+        }
+      } else {
+        parts.push("ATC ausente");
+      }
+      if (input.dci) {
+        parts.push(`DCI "${input.dci}" sem keyword associada`);
+      } else {
+        parts.push("DCI ausente");
+      }
+      parts.push("designação sem keyword reconhecida");
+      fallbackReason = parts.join("; ");
+    }
     return {
       nivel1: n1.nivel1,
       nivel2: others,
       confidence: Math.min(n1.confidence, 0.55),
       method: "others_fallback",
+      reason: `${n1ReasonPrefix}; fallback "${others}" (${fallbackReason})`,
     };
   }
 
