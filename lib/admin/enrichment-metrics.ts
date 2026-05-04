@@ -2,6 +2,7 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type EnrichmentSourceStatus, type VerificationStatus } from "@/generated/prisma/client";
 import { getConnectorsForProductType } from "@/lib/catalog-connectors";
+import { MIN_CATALOGUABLE_CNP } from "@/lib/catalog-enrichment";
 import type { ProductType } from "@/lib/catalog-types";
 
 /**
@@ -230,6 +231,14 @@ export async function loadFieldsByConnector(daysBack = 7): Promise<FieldByConnec
 
 export type PipelineSummary = {
   productsTotal: number;
+  /**
+   * Produtos catalogáveis: cnp > MIN_CATALOGUABLE_CNP. Os restantes são
+   * códigos internos/ERP (taxas, serviços, atos clínicos, stock interno)
+   * que ficam fora do enriquecimento web.
+   */
+  productsCataloguable: number;
+  /** Produtos com cnp <= MIN_CATALOGUABLE_CNP — excluídos do enriquecimento. */
+  productsInternalNonCataloguable: number;
   productsByVerificationStatus: Record<VerificationStatus, number>;
   productsEnrichedToday: number;
   productsEnrichedLast7Days: number;
@@ -252,9 +261,14 @@ export async function loadPipelineSummary(): Promise<PipelineSummary> {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const where = { estado: { not: "INATIVO" as const } };
+  const cataloguableWhere = {
+    ...where,
+    cnp: { gt: MIN_CATALOGUABLE_CNP },
+  };
 
   const [
     productsTotal,
+    productsCataloguable,
     byStatus,
     enrichedToday,
     enriched7,
@@ -264,6 +278,7 @@ export async function loadPipelineSummary(): Promise<PipelineSummary> {
     byOrigem,
   ] = await Promise.all([
     prisma.produto.count({ where }),
+    prisma.produto.count({ where: cataloguableWhere }),
     prisma.produto.groupBy({
       by: ["verificationStatus"],
       where,
@@ -302,6 +317,8 @@ export async function loadPipelineSummary(): Promise<PipelineSummary> {
 
   return {
     productsTotal,
+    productsCataloguable,
+    productsInternalNonCataloguable: Math.max(0, productsTotal - productsCataloguable),
     productsByVerificationStatus,
     productsEnrichedToday: enrichedToday,
     productsEnrichedLast7Days: enriched7,

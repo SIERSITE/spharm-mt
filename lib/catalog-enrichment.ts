@@ -139,6 +139,25 @@ export async function fetchOrigemSignals(produtoId: string): Promise<OrigemSigna
   };
 }
 
+// ─── Códigos internos / não catalogáveis ─────────────────────────────────────
+
+/**
+ * Os códigos com CNP <= 2.000.000 são internos do ERP / não-padrão (taxas,
+ * serviços, atos clínicos, artigos de stock interno, etc.) e NÃO devem
+ * entrar no pipeline de enriquecimento web — geram falsos positivos quando
+ * são pesquisados em fontes externas.
+ *
+ * Toda a selecção de produtos (jobs diário e semanal, seed da fila, e a
+ * própria função `enrichProduct`) tem de respeitar este limite. A guarda
+ * existe a vários níveis para garantir que mesmo chamadas ad-hoc
+ * (`enrichProductByCnp`, worker contínuo) ficam protegidas.
+ */
+export const MIN_CATALOGUABLE_CNP = 2_000_000;
+
+export function isCataloguableCnp(cnp: number | null | undefined): boolean {
+  return typeof cnp === "number" && cnp > MIN_CATALOGUABLE_CNP;
+}
+
 // ─── Tipos de selecção ────────────────────────────────────────────────────────
 
 export type DailyEnrichmentCriteria = {
@@ -178,6 +197,8 @@ export async function getProductsForDailyEnrichment(
   const rows = await prisma.produto.findMany({
     where: {
       estado: { not: "INATIVO" },
+      // Excluir códigos internos/ERP (não-cataloguáveis na web).
+      cnp: { gt: MIN_CATALOGUABLE_CNP },
       filaEnriquecimento: { none: { estado: "EM_PROCESSAMENTO" } },
       OR: [
         { verificationStatus: "PENDING" },
@@ -283,6 +304,8 @@ export async function getProductsForWeeklyReverification(
   const rows = await prisma.produto.findMany({
     where: {
       estado: { not: "INATIVO" },
+      // Excluir códigos internos/ERP (não-cataloguáveis na web).
+      cnp: { gt: MIN_CATALOGUABLE_CNP },
       filaEnriquecimento: { none: { estado: "EM_PROCESSAMENTO" } },
       AND: [manualProtectionFilter, { OR: orConditions }],
     },
@@ -419,6 +442,30 @@ export async function enrichProduct(
       productId, cnp: null, status: "failed",
       productType: "OUTRO", productTypeConfidence: 0,
       verificationStatus: "FAILED", fieldsUpdated: [], queued: false, dryRun,
+    };
+  }
+
+  // Guarda dura: produtos com CNP <= MIN_CATALOGUABLE_CNP são códigos
+  // internos do ERP. Não pesquisar na web, não classificar, não enviar
+  // para revisão manual. A fila de enriquecimento fica fechada (SUCESSO
+  // com nota explicativa) para que o worker não volte a tentar.
+  if (!isCataloguableCnp(product.cnp)) {
+    if (!dryRun) {
+      await updateEnrichmentQueue(productId, "SUCESSO", {
+        ultimaFonte: null,
+        mensagemErro: "skipped: cnp <= 2.000.000 (interno/não-cataloguável)",
+      });
+    }
+    return {
+      productId,
+      cnp: product.cnp,
+      status: "failed",
+      productType: "OUTRO",
+      productTypeConfidence: 0,
+      verificationStatus: "FAILED",
+      fieldsUpdated: [],
+      queued: false,
+      dryRun,
     };
   }
 

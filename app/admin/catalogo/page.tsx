@@ -149,7 +149,15 @@ export default async function CatalogOverviewPage({ searchParams }: Props) {
 
       {/* Stats macro */}
       <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Stat label="Produtos" value={pipeline.productsTotal} />
+        <Stat
+          label="Produtos catalogáveis"
+          value={pipeline.productsCataloguable}
+          hint={
+            pipeline.productsInternalNonCataloguable > 0
+              ? `+${pipeline.productsInternalNonCataloguable.toLocaleString("pt-PT")} códigos internos excluídos (cnp ≤ 2.000.000)`
+              : `Total ${pipeline.productsTotal.toLocaleString("pt-PT")}`
+          }
+        />
         <Stat
           label="Verificados hoje"
           value={pipeline.productsEnrichedToday}

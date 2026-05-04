@@ -21,6 +21,7 @@
 
 import "dotenv/config";
 import { legacyPrisma as prisma } from "../lib/prisma";
+import { MIN_CATALOGUABLE_CNP } from "../lib/catalog-enrichment";
 
 type Args = {
   dryRun: boolean;
@@ -77,11 +78,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  // 2. Seed normal — produtos não-INATIVOS
+  // 2. Seed normal — produtos não-INATIVOS, e apenas códigos catalogáveis
+  // (cnp > 2.000.000). Códigos internos do ERP nunca devem entrar na fila.
   const where: {
     estado: { not: "INATIVO" };
+    cnp: { gt: number };
     verificationStatus?: "PENDING";
-  } = { estado: { not: "INATIVO" } };
+  } = {
+    estado: { not: "INATIVO" },
+    cnp: { gt: MIN_CATALOGUABLE_CNP },
+  };
   if (args.onlyUnverified) where.verificationStatus = "PENDING";
 
   const total = await prisma.produto.count({ where });
