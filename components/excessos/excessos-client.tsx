@@ -201,9 +201,9 @@ export function ExcessosClient({
     const priorityRank: Record<Priority, number> = { alta: 3, media: 2, baixa: 1 };
     return [...rowsForReport].sort((a, b) => {
       switch (snapshot.ordenarPor) {
-        case "produto": return a.produto.localeCompare(b.produto);
-        case "farmaciaOrigem": return a.farmaciaOrigem.localeCompare(b.farmaciaOrigem);
-        case "farmaciaDestino": return a.farmaciaDestino.localeCompare(b.farmaciaDestino);
+        case "produto": return a.produto.localeCompare(b.produto, "pt-PT", { sensitivity: "base" });
+        case "farmaciaOrigem": return a.farmaciaOrigem.localeCompare(b.farmaciaOrigem, "pt-PT");
+        case "farmaciaDestino": return a.farmaciaDestino.localeCompare(b.farmaciaDestino, "pt-PT");
         case "quantidadeSugerida": return b.quantidadeSugerida - a.quantidadeSugerida;
         case "prioridade":
         default: return priorityRank[b.prioridade] - priorityRank[a.prioridade];
@@ -797,6 +797,6 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 function sum(values: number[]) { return values.reduce((acc, value) => acc + value, 0); }
 function formatDatePt(value: string) { return new Date(value).toLocaleDateString("pt-PT"); }
 function humanizeOption(option: string) {
-  const map: Record<string, string> = { prioridade: "Prioridade", quantidadeSugerida: "Quantidade sugerida", produto: "Produto", farmaciaOrigem: "Farmácia origem", farmaciaDestino: "Farmácia destino", alta: "Alta", media: "Média", baixa: "Baixa" };
+  const map: Record<string, string> = { prioridade: "Prioridade", quantidadeSugerida: "Quantidade sugerida", produto: "Descrição do artigo (A-Z)", farmaciaOrigem: "Farmácia origem", farmaciaDestino: "Farmácia destino", alta: "Alta", media: "Média", baixa: "Baixa" };
   return map[option] ?? option;
 }

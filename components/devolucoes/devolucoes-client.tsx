@@ -113,13 +113,22 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
       groups.get(key)!.push(r);
     }
     return Array.from(groups.entries())
-      .map(([fornecedor, rows]) => ({
-        fornecedor,
-        rows,
-        totalQty: rows.reduce((s, r) => s + r.quantidade, 0),
-        totalValue: rows.reduce((s, r) => s + r.valor, 0),
-        farmaciasCount: new Set(rows.map((r) => r.farmacia)).size,
-      }))
+      .map(([fornecedor, groupRows]) => {
+        // Linhas dentro de cada fornecedor: ordenadas alfabeticamente por
+        // descrição do artigo (A-Z, locale pt-PT, case-insensitive). A ordem
+        // dos próprios fornecedores mantém-se por valor desc (default
+        // operacional). Totais não são afectados pela reordenação.
+        const rows = [...groupRows].sort((a, b) =>
+          a.produto.localeCompare(b.produto, "pt-PT", { sensitivity: "base" }),
+        );
+        return {
+          fornecedor,
+          rows,
+          totalQty: rows.reduce((s, r) => s + r.quantidade, 0),
+          totalValue: rows.reduce((s, r) => s + r.valor, 0),
+          farmaciasCount: new Set(rows.map((r) => r.farmacia)).size,
+        };
+      })
       .sort((a, b) => b.totalValue - a.totalValue);
   }, [filteredRows]);
 

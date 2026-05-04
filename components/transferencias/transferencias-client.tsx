@@ -263,11 +263,11 @@ export function TransferenciasClient({
     return [...rowsForReport].sort((a, b) => {
       switch (snapshot.ordenarPor) {
         case "produto":
-          return a.produto.localeCompare(b.produto);
+          return a.produto.localeCompare(b.produto, "pt-PT", { sensitivity: "base" });
         case "farmaciaOrigem":
-          return a.farmaciaOrigem.localeCompare(b.farmaciaOrigem);
+          return a.farmaciaOrigem.localeCompare(b.farmaciaOrigem, "pt-PT");
         case "farmaciaDestino":
-          return a.farmaciaDestino.localeCompare(b.farmaciaDestino);
+          return a.farmaciaDestino.localeCompare(b.farmaciaDestino, "pt-PT");
         case "quantidadeSugerida":
           return b.quantidadeSugerida - a.quantidadeSugerida;
         case "prioridade":
@@ -1462,7 +1462,7 @@ function humanizeOption(option: string) {
   const map: Record<string, string> = {
     prioridade: "Prioridade",
     quantidadeSugerida: "Quantidade sugerida",
-    produto: "Produto",
+    produto: "Descrição do artigo (A-Z)",
     farmaciaOrigem: "Farmácia origem",
     farmaciaDestino: "Farmácia destino",
     alta: "Alta",

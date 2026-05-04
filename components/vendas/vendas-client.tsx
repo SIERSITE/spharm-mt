@@ -292,9 +292,9 @@ export function VendasClient({
     return [...currentRows].sort((a, b) => {
       switch (ordenarPor) {
         case "codigo":
-          return a.codigo.localeCompare(b.codigo);
+          return a.codigo.localeCompare(b.codigo, "pt-PT");
         case "descricao":
-          return a.descricao.localeCompare(b.descricao);
+          return a.descricao.localeCompare(b.descricao, "pt-PT", { sensitivity: "base" });
         case "existencia":
           return b.existencia - a.existencia;
         case "totalVendas":
@@ -1543,7 +1543,7 @@ function formatDatePt(value: string) {
 function humanizeOption(option: string) {
   const map: Record<string, string> = {
     totalVendas: "Total vendas",
-    descricao: "Descrição",
+    descricao: "Descrição do artigo (A-Z)",
     codigo: "Código",
     existencia: "Existência",
     artigo: "Artigo",
