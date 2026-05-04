@@ -1,11 +1,10 @@
 import { MainShell } from "@/components/layout/main-shell";
 import { getDashboardData } from "@/lib/dashboard";
 import {
+  TrendSection,
   CriticalAlertsSection,
-  StockEfficiencySection,
   OptimizationSection,
   ReposicaoSection,
-  TrendSection,
   PerPharmacyDetail,
 } from "@/components/dashboard/dashboard-sections";
 
@@ -24,11 +23,10 @@ export default async function DashboardPage() {
           </p>
         </section>
 
+        <TrendSection data={data.trend} />
         <CriticalAlertsSection data={data.criticalAlerts} />
-        <StockEfficiencySection data={data.stockEfficiency} />
         <OptimizationSection data={data.optimization} />
         <ReposicaoSection data={data.reposicao} />
-        <TrendSection data={data.trend} />
 
         <PerPharmacyDetail pharmacies={data.perPharmacy} />
       </div>

@@ -4,7 +4,6 @@ import {
   Activity,
   ArrowRight,
   ArrowRightLeft,
-  Boxes,
   Layers,
   PackagePlus,
   Sparkles,
@@ -33,14 +32,6 @@ function fmtPct(v: number | null, digits = 1): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}%`;
-}
-
-function fmtDays(v: number | null, digits = 1): string {
-  if (v == null) return "Sem dados suficientes";
-  return `${v.toLocaleString("pt-PT", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })} dias`;
 }
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
@@ -241,82 +232,6 @@ export function CriticalAlertsSection({
   );
 }
 
-// ─── Section 2: Stock efficiency ─────────────────────────────────────────────
-
-export function StockEfficiencySection({
-  data,
-}: {
-  data: DashboardData["stockEfficiency"];
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-      <SectionHeader
-        icon={<Boxes className="h-4 w-4 text-cyan-700" />}
-        title="Eficiência de stock"
-        hint="Sinais de saúde do inventário."
-      />
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <KpiCard
-          label="Cobertura média"
-          value={fmtDays(data.coverageAvgDays)}
-          sublabel={
-            data.coverageAvgDays == null
-              ? "Sem produtos com demanda mensurável"
-              : "Média sobre produtos com vendas"
-          }
-          tone="neutral"
-        />
-        <KpiCard
-          label="Excesso de stock (60d+)"
-          value={fmtNumber(data.excessStockCount)}
-          sublabel="Cobertura superior a 60 dias"
-          href="/excessos?days=60"
-          tone={data.excessStockCount > 0 ? "warn" : "ok"}
-        />
-        <KpiCard
-          label="Catálogo sem movimento"
-          value={
-            data.catalogWithoutMovementPct == null
-              ? "Sem dados suficientes"
-              : `${data.catalogWithoutMovementPct.toFixed(1)}%`
-          }
-          sublabel={
-            data.catalogWithoutMovementPct == null
-              ? ""
-              : `${fmtNumber(data.catalogWithoutMovementCount)} de ${fmtNumber(data.catalogWithStockCount)} sem vendas em 90d`
-          }
-          href="/stock?filter=no-movement-3m"
-          tone={
-            data.catalogWithoutMovementPct != null && data.catalogWithoutMovementPct > 30
-              ? "warn"
-              : "neutral"
-          }
-        />
-      </div>
-
-      {data.excessStockSample.length > 0 && (
-        <div className="mt-5">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Top produtos com excesso
-          </h3>
-          <div className="mt-2">
-            <ProductPreviewList
-              items={data.excessStockSample}
-              emptyMessage="Sem produtos com excesso."
-            />
-          </div>
-          {data.excessStockCount > data.excessStockSample.length && (
-            <SeeAllLink
-              href="/excessos?days=60"
-              label={`Ver os ${fmtNumber(data.excessStockCount)} produtos com excesso`}
-            />
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
 // ─── Section 3: Optimization opportunities ───────────────────────────────────
 
 const PRIORITY_TONE: Record<string, string> = {
@@ -488,99 +403,190 @@ export function ReposicaoSection({
   );
 }
 
-// ─── Section 5: Trend (secondary) ────────────────────────────────────────────
+// ─── Tendência (top da página) ───────────────────────────────────────────────
 
 export function TrendSection({
   data,
 }: {
   data: DashboardData["trend"];
 }) {
-  const { salesTrendPct, weeklyChart } = data;
-  const max = weeklyChart ? Math.max(1, ...weeklyChart.map((b) => b.value)) : 1;
-  const totalUnits = weeklyChart
-    ? weeklyChart.reduce((s, b) => s + b.value, 0)
-    : 0;
+  const { monthlyTrend, currentMonthTotalEur, salesTrendPct } = data;
+
+  // Sem nenhum dado mensal → mostrar fallback claro, sem números fictícios.
+  if (monthlyTrend == null || monthlyTrend.length === 0) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+        <SectionHeader
+          icon={<Activity className="h-4 w-4 text-slate-600" />}
+          title="Tendência — últimos 12 meses"
+          hint="Vendas mensais agregadas em todas as farmácias activas."
+        />
+        <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-[13px] text-slate-500">
+          Sem dados suficientes
+        </div>
+      </section>
+    );
+  }
+
+  const currentBucket = monthlyTrend[monthlyTrend.length - 1];
+  const prevBucket =
+    monthlyTrend.length >= 2 ? monthlyTrend[monthlyTrend.length - 2] : null;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
       <SectionHeader
         icon={<Activity className="h-4 w-4 text-slate-600" />}
-        title="Tendência"
-        hint="Vendas mês-a-mês e procura dos últimos 7 dias."
+        title="Tendência — últimos 12 meses"
+        hint="Vendas mensais agregadas em todas as farmácias activas."
       />
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/72 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Vendas vs. mês anterior
-            </div>
-            {salesTrendPct == null ? (
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                Sem baseline
-              </span>
-            ) : (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                  salesTrendPct >= 0
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-rose-50 text-rose-700"
-                }`}
-              >
-                {salesTrendPct >= 0 ? (
-                  <TrendingUp className="h-3 w-3" />
-                ) : (
-                  <TrendingDown className="h-3 w-3" />
-                )}
-                {fmtPct(salesTrendPct)}
-              </span>
-            )}
-          </div>
+
+      <div className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Mês actual ({currentBucket.label})
+          </span>
         </div>
-
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/72 p-4">
-          <div className="mb-3 flex items-end justify-between">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Procura — últimos 7 dias
-              </div>
-              <div className="mt-1 text-sm font-semibold text-slate-800">
-                {weeklyChart == null
-                  ? "Sem dados de vendas no período"
-                  : `${fmtNumber(totalUnits)} unidades`}
-              </div>
-            </div>
-          </div>
-
-          {weeklyChart == null ? (
-            <div className="flex h-20 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-[11px] text-slate-500">
-              Sem dados.
-            </div>
+        <div className="flex items-baseline gap-3">
+          <span className="text-[28px] font-semibold leading-none text-slate-900 tabular-nums">
+            {currentMonthTotalEur == null
+              ? "Sem dados suficientes"
+              : fmtEur(currentMonthTotalEur)}
+          </span>
+          {salesTrendPct == null ? (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+              {prevBucket ? `Sem baseline (${prevBucket.label} = 0 €)` : "Sem mês anterior"}
+            </span>
           ) : (
-            <>
-              <div className="mb-2 flex h-20 items-end gap-2">
-                {weeklyChart.map((b, i) => {
-                  const heightPx = Math.max(2, Math.round((b.value / max) * 72));
-                  return (
-                    <div key={i} className="flex flex-1 flex-col items-center">
-                      <div
-                        title={`${b.date}: ${fmtNumber(b.value)} un.`}
-                        className="w-full rounded-t-md bg-gradient-to-t from-emerald-500/75 to-emerald-300/35"
-                        style={{ height: `${heightPx}px` }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {weeklyChart.map((b, i) => (
-                  <span key={i}>{b.dayLabel}</span>
-                ))}
-              </div>
-            </>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                salesTrendPct >= 0
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-rose-50 text-rose-700"
+              }`}
+            >
+              {salesTrendPct >= 0 ? (
+                <TrendingUp className="h-3 w-3" />
+              ) : (
+                <TrendingDown className="h-3 w-3" />
+              )}
+              {fmtPct(salesTrendPct)}
+              {prevBucket && (
+                <span className="font-medium opacity-80">vs {prevBucket.label}</span>
+              )}
+            </span>
           )}
         </div>
       </div>
+
+      <MonthlyLineChart buckets={monthlyTrend} />
     </section>
+  );
+}
+
+function MonthlyLineChart({
+  buckets,
+}: {
+  buckets: NonNullable<DashboardData["trend"]["monthlyTrend"]>;
+}) {
+  // SVG coordinates. Width is responsive via viewBox.
+  const W = 1000;
+  const H = 200;
+  const PAD_X = 24;
+  const PAD_TOP = 16;
+  const PAD_BOTTOM = 32; // espaço para labels dos meses
+
+  const max = Math.max(1, ...buckets.map((b) => b.valorTotal));
+  const lastIdx = buckets.length - 1;
+
+  const points = buckets.map((b, i) => {
+    const x =
+      buckets.length === 1
+        ? W / 2
+        : PAD_X + (i / (buckets.length - 1)) * (W - 2 * PAD_X);
+    const y = H - PAD_BOTTOM - (b.valorTotal / max) * (H - PAD_TOP - PAD_BOTTOM);
+    return { x, y, b };
+  });
+
+  const polyline = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  // Área sob a linha — para enfatizar visualmente.
+  const areaPath = `M ${points[0].x.toFixed(1)},${(H - PAD_BOTTOM).toFixed(1)} L ${polyline.replace(/ /g, " L ")} L ${points[lastIdx].x.toFixed(1)},${(H - PAD_BOTTOM).toFixed(1)} Z`;
+
+  // 4 linhas guia horizontais (25% / 50% / 75% / 100% do max).
+  const gridLines = [0.25, 0.5, 0.75, 1].map(
+    (frac) => H - PAD_BOTTOM - frac * (H - PAD_TOP - PAD_BOTTOM),
+  );
+
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/40 p-3">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-44 w-full"
+        role="img"
+        aria-label="Vendas mensais — últimos 12 meses"
+      >
+        {/* Linhas guia horizontais subtis */}
+        {gridLines.map((y, i) => (
+          <line
+            key={i}
+            x1={PAD_X}
+            y1={y}
+            x2={W - PAD_X}
+            y2={y}
+            stroke="rgb(226 232 240)"
+            strokeWidth={1}
+            strokeDasharray={i === 3 ? undefined : "3 4"}
+          />
+        ))}
+
+        {/* Área sob a linha */}
+        <path d={areaPath} fill="rgb(16 185 129 / 0.12)" />
+
+        {/* Linha principal */}
+        <polyline
+          points={polyline}
+          fill="none"
+          stroke="rgb(5 150 105)"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+
+        {/* Pontos */}
+        {points.map((p, i) => {
+          const isLast = i === lastIdx;
+          return (
+            <g key={i}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={isLast ? 4 : 2.5}
+                fill={isLast ? "rgb(5 150 105)" : "white"}
+                stroke="rgb(5 150 105)"
+                strokeWidth={isLast ? 2 : 1.5}
+              >
+                <title>{`${p.b.label} ${p.b.ano}: ${fmtEur(p.b.valorTotal)}`}</title>
+              </circle>
+            </g>
+          );
+        })}
+
+        {/* Labels dos meses por baixo */}
+        {points.map((p, i) => (
+          <text
+            key={`l-${i}`}
+            x={p.x}
+            y={H - 8}
+            textAnchor="middle"
+            fontSize={11}
+            fill={i === lastIdx ? "rgb(15 23 42)" : "rgb(100 116 139)"}
+            fontWeight={i === lastIdx ? 600 : 400}
+          >
+            {p.b.label}
+          </text>
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -592,7 +598,7 @@ export function PerPharmacyDetail({
   pharmacies: DashboardData["perPharmacy"];
 }) {
   return (
-    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-3 open:py-4">
+    <details className="group rounded-2xl border border-slate-200 bg-white px-5 py-3 open:py-4">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
@@ -608,7 +614,11 @@ export function PerPharmacyDetail({
             </p>
           </div>
         </div>
-        <ArrowRight className="h-4 w-4 text-slate-400 transition group-open:rotate-90" />
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 transition group-hover:border-slate-300">
+          <span className="group-open:hidden">Ver detalhe</span>
+          <span className="hidden group-open:inline">Ocultar detalhe</span>
+          <ArrowRight className="h-3 w-3 text-slate-400 transition group-open:rotate-90" />
+        </span>
       </summary>
 
       <div className="mt-4 overflow-x-auto">

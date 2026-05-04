@@ -36,7 +36,6 @@ import {
 } from "@/lib/stock-data";
 import {
   getTransferenciasData,
-  getExcessosData,
   type Priority,
 } from "@/lib/transferencias-data";
 
@@ -60,10 +59,14 @@ export type DashboardTopSuggestion = {
   valorUnlocked: number;
 };
 
-export type DashboardWeeklyDay = {
-  dayLabel: string;
-  date: string;
-  value: number;
+export type DashboardMonthlyTrend = {
+  ano: number;
+  /** Mês 1..12 */
+  mes: number;
+  /** Label PT abreviado: "Jan", "Fev", … */
+  label: string;
+  /** Vendas em € (VendaMensal.valorTotal) somadas em todas as farmácias activas. */
+  valorTotal: number;
 };
 
 export type PerPharmacyData = {
@@ -82,7 +85,17 @@ export type DashboardData = {
   // Header context
   pharmaciesCount: number;
 
-  // Section 1 — Critical operational alerts
+  // Tendência (top da página) — vendas mensais nos últimos 12 meses.
+  trend: {
+    /** 12 buckets, mais antigo→mais recente. null quando sem nenhum dado. */
+    monthlyTrend: DashboardMonthlyTrend[] | null;
+    /** Total do mês actual em €. null quando não existe valor para o mês actual. */
+    currentMonthTotalEur: number | null;
+    /** % MoM (mês actual vs anterior). null quando não há baseline. */
+    salesTrendPct: number | null;
+  };
+
+  // Alertas críticos
   criticalAlerts: {
     outOfStockCount: number;
     outOfStockSample: ActionableProduct[];
@@ -92,39 +105,21 @@ export type DashboardData = {
     deadStockCount: number;
   };
 
-  // Section 2 — Stock efficiency
-  stockEfficiency: {
-    coverageAvgDays: number | null;
-    excessStockCount: number;
-    excessStockSample: ActionableProduct[];
-    /** % of products with stockAtual > 0 with no sales in last 90 days. */
-    catalogWithoutMovementPct: number | null;
-    catalogWithoutMovementCount: number;
-    catalogWithStockCount: number;
-  };
-
-  // Section 3 — Optimization opportunities
+  // Transferências sugeridas
   optimization: {
     transferSuggestionsTotal: number;
     estimatedValueUnlockedEur: number;
     topTransferSuggestions: DashboardTopSuggestion[];
   };
 
-  // Section 4 — Stock mínimo & reposição (NOT a proposal preview)
+  // Stock mínimo & reposição (NÃO é uma proposta — /encomendas/nova é)
   reposicao: {
     belowMinCount: number;
     belowMinSample: ActionableProduct[];
-    /** Sum of (stockMinimo − stockAtual) × cost across below-min products. */
     estimatedValueToRestoreEur: number;
   };
 
-  // Section 5 — Trend (secondary)
-  trend: {
-    salesTrendPct: number | null;
-    weeklyChart: DashboardWeeklyDay[] | null;
-  };
-
-  // Detalhe por farmácia (collapsible)
+  // Detalhe por farmácia (collapsed by default na UI)
   perPharmacy: PerPharmacyData[];
 };
 
@@ -136,37 +131,30 @@ function toNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const DAY_LABELS_PT = ["D", "S", "T", "Q", "Q", "S", "S"]; // Domingo..Sábado
-const WEEKLY_CHART_DAYS = 7;
+const MONTH_LABELS_PT = [
+  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+];
+const TREND_MONTHS = 12;
 const DEAD_STOCK_DAYS = 60;
-const NO_MOVEMENT_DAYS = 90;
-const EXCESS_THRESHOLD_DAYS = 60;
 const SAMPLE_SIZE = 5;
 const TRANSFER_SAMPLE_SIZE = 3;
 
-function dayLabel(d: Date): string {
-  return DAY_LABELS_PT[d.getDay()] ?? "?";
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function monthLabel(mes: number): string {
+  return MONTH_LABELS_PT[mes - 1] ?? "?";
 }
 
 function unitCost(row: StockRowEnriched): number {
   return row.puc ?? row.pmc ?? 0;
 }
 
-function detailFor(filter: "out-of-stock" | "at-risk" | "excess" | "below-min", row: StockRowEnriched): string {
+function detailFor(filter: "out-of-stock" | "at-risk" | "below-min", row: StockRowEnriched): string {
   switch (filter) {
     case "out-of-stock":
       return `stock 0 · vendia ${(row.avgDaily90d * 30).toFixed(1)} un./mês`;
     case "at-risk":
       return row.coverage != null
         ? `cobertura ${row.coverage.toFixed(1)} dias · stock ${Math.round(row.stockAtual)} un.`
-        : `stock ${Math.round(row.stockAtual)} un.`;
-    case "excess":
-      return row.coverage != null
-        ? `cobertura ${Math.round(row.coverage)} dias · stock ${Math.round(row.stockAtual)} un.`
         : `stock ${Math.round(row.stockAtual)} un.`;
     case "below-min": {
       const need = Math.max(
@@ -180,7 +168,7 @@ function detailFor(filter: "out-of-stock" | "at-risk" | "excess" | "below-min", 
 
 function toActionable(
   row: StockRowEnriched,
-  detailKind: "out-of-stock" | "at-risk" | "excess" | "below-min",
+  detailKind: "out-of-stock" | "at-risk" | "below-min",
 ): ActionableProduct {
   return {
     cnp: row.cnp,
@@ -354,42 +342,60 @@ async function loadPerPharmacy(): Promise<{
   return { perPharmacy, totalSales, totalSalesPrev };
 }
 
-// ─── Weekly chart (Venda daily) ──────────────────────────────────────────────
+// ─── 12-month trend (VendaMensal monthly) ────────────────────────────────────
 
-async function loadWeeklyChart(farmaciaIds: string[]): Promise<DashboardWeeklyDay[] | null> {
+async function loadMonthlyTrend(
+  farmaciaIds: string[],
+): Promise<DashboardMonthlyTrend[] | null> {
   if (farmaciaIds.length === 0) return null;
   const prisma = await getPrisma();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - (WEEKLY_CHART_DAYS - 1));
+  const now = new Date();
+  const currentAno = now.getFullYear();
+  const currentMes = now.getMonth() + 1;
+  const currentPeriod = currentAno * 12 + currentMes;
+  const startPeriod = currentPeriod - (TREND_MONTHS - 1);
 
-  const dailyRows = await prisma.$queryRaw<
-    Array<{ day: string; total: string }>
+  // Aggregate VendaMensal.valorTotal by (ano, mes) across active pharmacies.
+  // Same monthly granularity as everything else in this loader — the fast path
+  // is `(ano * 12 + mes)` linear period, identical to dashboard.ts and
+  // transferencias-data.ts.
+  const monthlyRows = await prisma.$queryRaw<
+    Array<{ ano: number; mes: number; total: string }>
   >(Prisma.sql`
     SELECT
-      TO_CHAR(DATE("data"), 'YYYY-MM-DD') AS "day",
-      SUM("quantidade")::text             AS "total"
-    FROM "Venda"
-    WHERE "data" >= ${startDate}
-      AND "farmaciaId" = ANY(${farmaciaIds})
-    GROUP BY DATE("data")
-    ORDER BY DATE("data") ASC
+      vm."ano"                AS "ano",
+      vm."mes"                AS "mes",
+      SUM(vm."valorTotal")::text AS "total"
+    FROM "VendaMensal" vm
+    WHERE (vm."ano" * 12 + vm."mes") >= ${startPeriod}
+      AND (vm."ano" * 12 + vm."mes") <= ${currentPeriod}
+      AND vm."farmaciaId" = ANY(${farmaciaIds})
+    GROUP BY vm."ano", vm."mes"
+    ORDER BY vm."ano", vm."mes"
   `);
 
-  const dailyMap = new Map(dailyRows.map((r) => [r.day, toNum(r.total)]));
-  const buckets: DashboardWeeklyDay[] = [];
-  for (let i = 0; i < WEEKLY_CHART_DAYS; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
+  const byPeriod = new Map<number, number>();
+  for (const r of monthlyRows) {
+    byPeriod.set(r.ano * 12 + r.mes, toNum(r.total));
+  }
+
+  const buckets: DashboardMonthlyTrend[] = [];
+  for (let i = 0; i < TREND_MONTHS; i++) {
+    const period = startPeriod + i;
+    const ano = Math.floor((period - 1) / 12);
+    const mes = ((period - 1) % 12) + 1;
     buckets.push({
-      dayLabel: dayLabel(d),
-      date: isoDate(d),
-      value: dailyMap.get(isoDate(d)) ?? 0,
+      ano,
+      mes,
+      label: monthLabel(mes),
+      valorTotal: byPeriod.get(period) ?? 0,
     });
   }
-  return buckets.every((b) => b.value === 0) ? null : buckets;
+
+  // Se todos os meses são zero, não há sinal — devolver null para a UI
+  // mostrar "Sem dados suficientes" em vez de uma linha plana.
+  return buckets.every((b) => b.valorTotal === 0) ? null : buckets;
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -406,8 +412,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     new Set(stockRows.map((r) => r.farmaciaId)),
   );
 
-  // Section 5 chart depends on the same farmacia set.
-  const weeklyChart = await loadWeeklyChart(
+  // 12-month trend (top da página).
+  const monthlyTrend = await loadMonthlyTrend(
     perPharmacyData.perPharmacy.map((p) => p.id),
   );
 
@@ -428,24 +434,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     (sum, r) => sum + r.stockAtual * unitCost(r),
     0,
   );
-
-  // ── Section 2: Stock efficiency ───────────────────────────────────────
-  const measurableCoverages = stockRows
-    .filter((r) => r.coverage != null)
-    .map((r) => r.coverage as number);
-  const coverageAvgDays =
-    measurableCoverages.length > 0
-      ? measurableCoverages.reduce((a, b) => a + b, 0) / measurableCoverages.length
-      : null;
-
-  const excessRows = stockRows.filter((r) => matchStockFilter(r, "excess-stock-60d"));
-
-  const withStock = stockRows.filter((r) => r.stockAtual > 0);
-  const noMovementRows = stockRows.filter((r) => matchStockFilter(r, "no-movement-3m"));
-  const catalogWithoutMovementPct =
-    withStock.length > 0
-      ? (noMovementRows.length / withStock.length) * 100
-      : null;
 
   // ── Section 3: Optimization ───────────────────────────────────────────
   const estimatedValueUnlockedEur = allTransfers.reduce(
@@ -472,21 +460,25 @@ export async function getDashboardData(): Promise<DashboardData> {
     return sum + need * unitCost(r);
   }, 0);
 
-  // ── Section 5: Trend ──────────────────────────────────────────────────
+  // ── Tendência: derivada da série mensal real ──────────────────────────
+  const currentMonthTotalEur =
+    monthlyTrend && monthlyTrend.length > 0
+      ? monthlyTrend[monthlyTrend.length - 1].valorTotal
+      : null;
+  const prevMonthTotal =
+    monthlyTrend && monthlyTrend.length >= 2
+      ? monthlyTrend[monthlyTrend.length - 2].valorTotal
+      : null;
   const salesTrendPct =
-    perPharmacyData.totalSalesPrev > 0
-      ? ((perPharmacyData.totalSales - perPharmacyData.totalSalesPrev) /
-          perPharmacyData.totalSalesPrev) *
-        100
+    currentMonthTotalEur !== null && prevMonthTotal !== null && prevMonthTotal > 0
+      ? ((currentMonthTotalEur - prevMonthTotal) / prevMonthTotal) * 100
       : null;
 
-  // Order samples by signal strength.
+  // Ordenadores das amostras por força do sinal.
   const sortBySalesQty90dDesc = (a: StockRowEnriched, b: StockRowEnriched) =>
     b.salesQty90d - a.salesQty90d;
   const sortByCoverageAsc = (a: StockRowEnriched, b: StockRowEnriched) =>
     (a.coverage ?? Infinity) - (b.coverage ?? Infinity);
-  const sortByCoverageDesc = (a: StockRowEnriched, b: StockRowEnriched) =>
-    (b.coverage ?? 0) - (a.coverage ?? 0);
   const sortByDeficitDesc = (a: StockRowEnriched, b: StockRowEnriched) => {
     const ad = (a.stockMinimo ?? 0) - a.stockAtual;
     const bd = (b.stockMinimo ?? 0) - b.stockAtual;
@@ -495,6 +487,12 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   return {
     pharmaciesCount: farmaciaIds.length,
+
+    trend: {
+      monthlyTrend,
+      currentMonthTotalEur,
+      salesTrendPct,
+    },
 
     criticalAlerts: {
       outOfStockCount: outOfStockRows.length,
@@ -513,19 +511,6 @@ export async function getDashboardData(): Promise<DashboardData> {
       deadStockCount: deadStockRows.length,
     },
 
-    stockEfficiency: {
-      coverageAvgDays,
-      excessStockCount: excessRows.length,
-      excessStockSample: excessRows
-        .slice()
-        .sort(sortByCoverageDesc)
-        .slice(0, SAMPLE_SIZE)
-        .map((r) => toActionable(r, "excess")),
-      catalogWithoutMovementPct,
-      catalogWithoutMovementCount: noMovementRows.length,
-      catalogWithStockCount: withStock.length,
-    },
-
     optimization: {
       transferSuggestionsTotal: allTransfers.length,
       estimatedValueUnlockedEur,
@@ -542,23 +527,9 @@ export async function getDashboardData(): Promise<DashboardData> {
       estimatedValueToRestoreEur,
     },
 
-    trend: {
-      salesTrendPct,
-      weeklyChart,
-    },
-
     perPharmacy: perPharmacyData.perPharmacy,
   };
 }
 
-// Re-export the pharmacy data type for the perPharmacyData object literal
-// callers that previously imported PharmacyData (legacy import path).
+// Alias para callers legacy que importavam `PharmacyData`.
 export type PharmacyData = PerPharmacyData;
-
-// Re-export legacy thresholds used by the dashboard for documentation
-// purposes (not used elsewhere).
-export const DEAD_STOCK_THRESHOLD_DAYS = DEAD_STOCK_DAYS;
-export const NO_MOVEMENT_THRESHOLD_DAYS = NO_MOVEMENT_DAYS;
-export const EXCESS_THRESHOLD_DAYS_DASHBOARD = EXCESS_THRESHOLD_DAYS;
-// Note: `getExcessosData()` itself is parameterizable via thresholdDays.
-void getExcessosData; // keep import alive in case future sections wire it directly.
