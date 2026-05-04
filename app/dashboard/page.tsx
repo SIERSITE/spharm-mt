@@ -16,7 +16,15 @@ export default async function DashboardPage() {
 
   return (
     <MainShell>
-      <div className="space-y-3">
+      <div className="space-y-5">
+        {/* Cabeçalho da página — alinhado com o padrão de /stock */}
+        <section>
+          <h1 className="text-[20px] font-semibold text-slate-900">Dashboard</h1>
+          <p className="mt-1 text-[12px] text-slate-500">
+            {data.pharmaciesCount} farmácia{data.pharmaciesCount === 1 ? "" : "s"} em análise · destaques operacionais
+          </p>
+        </section>
+
         {/* Top: split layout — executive summary (left) + chart card (right) */}
         <section className="grid gap-3 lg:grid-cols-[1.35fr_0.95fr]">
           <ExecutiveSummary
