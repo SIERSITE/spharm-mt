@@ -1,5 +1,4 @@
 import { MainShell } from "@/components/layout/main-shell";
-import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { getDashboardData } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -230,9 +229,6 @@ export default async function DashboardPage() {
             alerts={String(summary.totalAlerts)}
           />
         </section>
-
-        {/* RESTO */}
-        <DashboardHero />
       </div>
     </MainShell>
   );
