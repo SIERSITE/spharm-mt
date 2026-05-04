@@ -1,95 +1,37 @@
 /**
  * lib/stock-data.ts
  *
- * Single source of truth for "stock filters". Both the dashboard's
- * critical-alerts/efficiency sections and the /stock page consume the
- * same predicate (`matchStockFilter`) and the same enriched dataset
- * (`loadStockEnriched`) — so the count shown in the dashboard always
- * equals the count visible in /stock under the same filter.
+ * Server-only. Loaders Prisma para a página /stock e para a dashboard.
+ * Os tipos/labels/predicados (que precisam de viver tanto no servidor
+ * como no cliente) ficam em `lib/stock-shared.ts` — re-exportados aqui
+ * para conveniência dos callers do servidor.
  *
- * Public surface:
- *   · `loadStockEnriched()` — full dataset, one row per
- *     (produto × farmacia), with coverage / avgDaily90d /
- *     dataUltimaVenda computed. Includes stockAtual <= 0 by default.
- *   · `matchStockFilter(row, filter)` — pure predicate.
- *   · `getStockData(filter?)` — backwards-compatible loader for the
- *     existing /stock client. Without a filter, preserves the
- *     historical "top 300 by stock value" behaviour. With a filter,
- *     drops the cap so the visible count matches the dashboard count.
+ * IMPORTANTE: NUNCA importar este ficheiro a partir de um Client
+ * Component. Use `@/lib/stock-shared` em vez disso.
  */
 import "server-only";
 import { loadPfAndSales } from "@/lib/transferencias-data";
 import { getPrisma } from "@/lib/prisma";
+import {
+  matchStockFilter,
+  type StockFilter,
+  type StockMetrics,
+  type StockRow,
+  type StockRowEnriched,
+} from "@/lib/stock-shared";
 
-// ─── Filtros (canónicos) ─────────────────────────────────────────────────────
-
-export type StockFilter =
-  | "out-of-stock"
-  | "at-risk"
-  | "excess-stock-60d"
-  | "no-movement-3m"
-  | "below-min";
-
-export const STOCK_FILTER_LABELS: Record<StockFilter, string> = {
-  "out-of-stock": "Em rotura (com vendas recentes)",
-  "at-risk": "Em risco (cobertura < 7 dias)",
-  "excess-stock-60d": "Excesso de stock (cobertura > 60 dias)",
-  "no-movement-3m": "Sem movimento (90 dias)",
-  "below-min": "Abaixo do stock mínimo",
-};
-
-export function isStockFilter(v: unknown): v is StockFilter {
-  return (
-    v === "out-of-stock" ||
-    v === "at-risk" ||
-    v === "excess-stock-60d" ||
-    v === "no-movement-3m" ||
-    v === "below-min"
-  );
-}
-
-// ─── Linha enriquecida (consumida por dashboard + /stock) ────────────────────
-
-export type StockRowEnriched = {
-  produtoId: string;
-  farmaciaId: string;
-  farmaciaNome: string;
-  cnp: string;
-  designacao: string;
-  stockAtual: number;
-  stockMinimo: number | null;
-  pvp: number | null;
-  puc: number | null;
-  pmc: number | null;
-  dataUltimaVenda: Date | null;
-  /** Quantidade vendida nos últimos 3 meses (VendaMensal). */
-  salesQty90d: number;
-  /** salesQty90d / 90. */
-  avgDaily90d: number;
-  /** stockAtual / avgDaily90d. null quando avgDaily=0 (sem demanda mensurável). */
-  coverage: number | null;
-};
-
-// ─── Predicado partilhado ────────────────────────────────────────────────────
-
-export function matchStockFilter(row: StockRowEnriched, filter: StockFilter): boolean {
-  switch (filter) {
-    case "out-of-stock":
-      return row.stockAtual <= 0 && row.salesQty90d > 0;
-    case "at-risk":
-      return row.stockAtual > 0 && row.coverage != null && row.coverage < 7;
-    case "excess-stock-60d":
-      return row.coverage != null && row.coverage > 60;
-    case "no-movement-3m":
-      return row.stockAtual > 0 && row.salesQty90d <= 0;
-    case "below-min":
-      return (
-        row.stockMinimo != null &&
-        row.stockMinimo > 0 &&
-        row.stockAtual <= row.stockMinimo
-      );
-  }
-}
+// Re-exports para callers server-side que esperam a superfície completa.
+export {
+  STOCK_FILTER_LABELS,
+  isStockFilter,
+  matchStockFilter,
+} from "@/lib/stock-shared";
+export type {
+  StockFilter,
+  StockMetrics,
+  StockRow,
+  StockRowEnriched,
+} from "@/lib/stock-shared";
 
 // ─── Loader (full dataset) ───────────────────────────────────────────────────
 
@@ -139,32 +81,7 @@ export async function loadStockEnriched(
   });
 }
 
-// ─── Backwards-compat legacy shape ───────────────────────────────────────────
-//
-// O cliente /stock existente (StockClient) consome StockRow + StockMetrics.
-// Mantemos esse contrato; a única diferença é que `getStockData(filter)` agora
-// pré-filtra o universo via matchStockFilter antes de produzir as linhas, e
-// quando há filtro deixa cair o LIMIT histórico de 300 (para a contagem da
-// dashboard bater certo com a contagem do /stock).
-
-export type StockRow = {
-  product: string;
-  cnp: string;
-  pharmacy: string;
-  stock: number;
-  coverage: string;
-  rotation: string;
-  lastMovement: string;
-  status: "Estável" | "Baixa cobertura" | "Parado" | "Transferência sugerida";
-  suggestion?: string;
-};
-
-export type StockMetrics = {
-  referencias: number;
-  baixaCobertura: number;
-  stockParado: number;
-  transferencias: number;
-};
+// ─── Backwards-compat legacy shape para /stock client ────────────────────────
 
 const LEGACY_ROW_LIMIT = 300;
 
@@ -273,15 +190,12 @@ export async function getStockData(
     ? enriched.filter((r) => matchStockFilter(r, filter))
     : enriched;
 
-  // Order by stock value desc (matches the existing default).
   const sorted = filtered.slice().sort((a, b) => {
     const av = a.stockAtual * (a.puc ?? a.pmc ?? 0);
     const bv = b.stockAtual * (b.puc ?? b.pmc ?? 0);
     return bv - av;
   });
 
-  // Sem filtro: top 300 por valor de stock (histórico). Com filtro: tudo
-  // (para que a contagem visível coincida com a contagem da dashboard).
   const visible = filter ? sorted : sorted.slice(0, LEGACY_ROW_LIMIT);
   const rows = visible.map((r) => toLegacyRow(r, peerCoverageMap));
 

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Search, Filter, ArrowRightLeft, AlertTriangle, X } from "lucide-react";
-import type { StockRow, StockMetrics, StockFilter } from "@/lib/stock-data";
-import { STOCK_FILTER_LABELS } from "@/lib/stock-data";
+import type { StockRow, StockMetrics, StockFilter } from "@/lib/stock-shared";
+import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
 
 const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"];
 const statusOptions: StockRow["status"][] = [
