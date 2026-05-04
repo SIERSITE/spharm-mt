@@ -16,7 +16,15 @@ export default async function DashboardPage() {
 
   return (
     <MainShell>
-      <div className="space-y-5">
+      {/*
+        AppShell ambient decoration (cross + ECG) lives in the top-right
+        of the content area extending ~220px from the inner-container top.
+        Push the dashboard wrapper down so the executive summary / chart
+        cards never collide with that decoration; `relative z-10` is
+        explicit so the wrapper carries its own stacking context above
+        any future bg layer.
+      */}
+      <div className="relative z-10 space-y-5 pt-10">
         {/* Cabeçalho da página — alinhado com o padrão de /stock */}
         <section>
           <h1 className="text-[20px] font-semibold text-slate-900">Dashboard</h1>
