@@ -24,17 +24,19 @@ export default async function DashboardPage() {
         explicit so the wrapper carries its own stacking context above
         any future bg layer.
       */}
-      <div className="relative z-10 space-y-5 pt-10">
+      <div className="relative z-10 space-y-6 pt-10">
         {/* Cabeçalho da página — alinhado com o padrão de /stock */}
         <section>
-          <h1 className="text-[20px] font-semibold text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-[12px] text-slate-500">
+          <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-[12px] text-slate-400">
             {data.pharmaciesCount} farmácia{data.pharmaciesCount === 1 ? "" : "s"} em análise · destaques operacionais
           </p>
         </section>
 
         {/* Top: split layout — executive summary (left) + chart card (right) */}
-        <section className="grid gap-3 lg:grid-cols-[1.35fr_0.95fr]">
+        <section className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
           <ExecutiveSummary
             pharmaciesCount={data.pharmaciesCount}
             transferSuggestionsTotal={data.optimization.transferSuggestionsTotal}
@@ -45,7 +47,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Row de cartões compactos */}
-        <section className="grid gap-3 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-3">
           <CriticalAlertsCard data={data.criticalAlerts} />
           <TransferenciasCard data={data.optimization} />
           <ExcessosCard data={data.excess} />

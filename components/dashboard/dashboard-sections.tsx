@@ -36,8 +36,7 @@ function fmtPct(v: number, digits = 1): string {
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
 
-const PREMIUM_CARD =
-  "rounded-[20px] border border-white/70 bg-white/82 shadow-[0_10px_28px_rgba(15,23,42,0.05)] backdrop-blur-md";
+const CARD_CLASS = "rounded-2xl border border-slate-100 bg-white";
 
 function CardShell({
   icon,
@@ -53,23 +52,23 @@ function CardShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className={`${PREMIUM_CARD} px-4 py-3.5 ${className}`}>
-      <header className="flex items-center justify-between gap-2 pb-2.5">
-        <div className="flex items-center gap-2">
+    <section className={`${CARD_CLASS} p-5 ${className}`}>
+      <header className="flex items-start justify-between gap-3 pb-4">
+        <div className="flex items-center gap-2.5">
           {icon && (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
               {icon}
             </div>
           )}
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <h2 className="text-[16px] font-semibold leading-tight text-slate-900">
               {title}
-            </div>
-            {hint && <div className="text-[11px] text-slate-500">{hint}</div>}
+            </h2>
+            {hint && <p className="mt-0.5 text-[12px] text-slate-400">{hint}</p>}
           </div>
         </div>
       </header>
-      <div className="border-t border-slate-100 pt-2.5">{children}</div>
+      <div className="space-y-3">{children}</div>
     </section>
   );
 }
@@ -87,7 +86,7 @@ function KpiTile({
   href?: string;
   tone?: "neutral" | "warn" | "alert" | "ok";
 }) {
-  const tones: Record<string, string> = {
+  const valueTone: Record<string, string> = {
     neutral: "text-slate-900",
     warn: "text-amber-700",
     alert: "text-rose-700",
@@ -95,87 +94,40 @@ function KpiTile({
   };
   const inner = (
     <>
-      <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-        {label}
-      </div>
-      <div className={`mt-1 text-[18px] font-semibold leading-none tabular-nums ${tones[tone]}`}>
+      <div className="text-[12px] font-medium text-slate-500">{label}</div>
+      <div
+        className={`mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums ${valueTone[tone]}`}
+      >
         {value}
       </div>
       {sublabel && (
-        <div className="mt-0.5 text-[10px] text-slate-500">{sublabel}</div>
+        <div className="mt-1 text-[12px] text-slate-400">{sublabel}</div>
       )}
     </>
   );
-  const className =
-    "rounded-[14px] border border-white/70 bg-white/78 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.035)]";
+  const baseClass = "block rounded-xl bg-slate-50 p-3";
   if (href) {
     return (
       <Link
         href={href}
-        className={`block ${className} transition hover:border-emerald-200 hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]`}
+        className={`${baseClass} transition hover:bg-slate-100`}
       >
         {inner}
       </Link>
     );
   }
-  return <div className={className}>{inner}</div>;
-}
-
-function KpiRow({
-  label,
-  value,
-  sublabel,
-  href,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  href?: string;
-  tone?: "neutral" | "warn" | "alert" | "ok";
-}) {
-  const tones: Record<string, string> = {
-    neutral: "text-slate-900",
-    warn: "text-amber-700",
-    alert: "text-rose-700",
-    ok: "text-emerald-700",
-  };
-  const inner = (
-    <>
-      <div className="min-w-0">
-        <div className="truncate text-[12px] font-medium text-slate-700">{label}</div>
-        {sublabel && (
-          <div className="truncate text-[10px] text-slate-400">{sublabel}</div>
-        )}
-      </div>
-      <span className={`text-[16px] font-semibold tabular-nums ${tones[tone]}`}>
-        {value}
-      </span>
-    </>
-  );
-  const className = "flex items-baseline justify-between gap-3 rounded-md px-2 py-1.5";
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className={`${className} transition hover:bg-emerald-50/60`}
-      >
-        {inner}
-      </Link>
-    );
-  }
-  return <div className={className}>{inner}</div>;
+  return <div className={baseClass}>{inner}</div>;
 }
 
 function CollapsibleDetail({ children }: { children: React.ReactNode }) {
   return (
-    <details className="group mt-2.5">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-slate-200 bg-white/60 px-2.5 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white">
+    <details className="group">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-700 transition hover:text-slate-900">
         <span className="group-open:hidden">Ver detalhe</span>
         <span className="hidden group-open:inline">Ocultar detalhe</span>
-        <ChevronDown className="h-3 w-3 text-slate-400 transition group-open:rotate-180" />
+        <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
       </summary>
-      <div className="mt-2.5">{children}</div>
+      <div className="mt-3">{children}</div>
     </details>
   );
 }
@@ -189,27 +141,27 @@ function ProductPreviewList({
 }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-slate-200 bg-white px-2.5 py-1.5 text-center text-[11px] text-slate-500">
+      <div className="rounded-lg bg-slate-50 px-3 py-2 text-center text-[12px] text-slate-400">
         {emptyMessage}
       </div>
     );
   }
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-1.5">
       {items.map((p) => (
         <li
           key={`${p.cnp}-${p.farmaciaNome}`}
-          className="rounded-md border border-slate-100 bg-white px-2 py-1.5"
+          className="rounded-lg bg-slate-50 px-3 py-2"
         >
           <Link
             href={`/catalogo/artigo/${p.cnp}`}
-            className="block truncate text-[11px] font-medium text-slate-800 transition hover:text-emerald-700"
+            className="block truncate text-[13px] font-medium text-slate-900 transition hover:text-emerald-700"
           >
             {p.designacao}
           </Link>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-            <span className="font-medium text-slate-700">{p.farmaciaNome}</span>
-            <span className="text-slate-300">·</span>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-400">
+            <span className="font-medium text-slate-500">{p.farmaciaNome}</span>
+            <span>·</span>
             <span>{p.detail}</span>
           </div>
         </li>
@@ -222,10 +174,10 @@ function SeeAllLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-cyan-700 transition hover:text-cyan-800"
+      className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 transition hover:text-emerald-800"
     >
       {label}
-      <ArrowRight className="h-2.5 w-2.5" />
+      <ArrowRight className="h-3 w-3" />
     </Link>
   );
 }
@@ -244,26 +196,26 @@ export function ExecutiveSummary({
   excessStockValueEur: number;
 }) {
   return (
-    <section className={`${PREMIUM_CARD} relative overflow-hidden p-5`}>
+    <section className={`${CARD_CLASS} p-5`}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-medium text-emerald-700">
           Estado operacional
         </span>
-        <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50/70 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-600/80">
+        <span className="inline-flex items-center rounded-full bg-emerald-50/60 px-2.5 py-1 text-[12px] font-medium text-emerald-600">
           Monitorização entre farmácias
         </span>
       </div>
 
-      <h2 className="max-w-[42ch] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-slate-900">
+      <h2 className="max-w-[44ch] text-[20px] font-semibold leading-tight tracking-tight text-slate-900">
         Cobertura, rotação e diferenças operacionais
       </h2>
-      <p className="mt-1.5 max-w-[60ch] text-[12px] leading-snug text-slate-500">
+      <p className="mt-2 max-w-[64ch] text-[12px] leading-relaxed text-slate-400">
         Leitura consolidada de stock entre farmácias, com sugestões de
         transferências, diferenças de cobertura e referências com rotação
         desigual.
       </p>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
           label="Farmácias"
           value={fmtNumber(pharmaciesCount)}
@@ -305,23 +257,25 @@ export function TendenciaCard({
   const { monthlyTrend, currentMonthTotalEur, salesTrendPct } = data;
 
   return (
-    <section className={`${PREMIUM_CARD} p-5`}>
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Leitura executiva
+    <section className={`${CARD_CLASS} p-5`}>
+      <header className="flex items-start justify-between gap-3 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <Activity className="h-4 w-4" />
           </div>
-          <h3 className="mt-1 text-[16px] font-semibold leading-tight text-slate-900">
-            Tendência operacional
-          </h3>
-        </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-          <Activity className="h-4 w-4" />
+          <div>
+            <h2 className="text-[16px] font-semibold leading-tight text-slate-900">
+              Tendência operacional
+            </h2>
+            <p className="mt-0.5 text-[12px] text-slate-400">
+              Vendas nos últimos 12 meses
+            </p>
+          </div>
         </div>
       </header>
 
       {monthlyTrend == null || monthlyTrend.length === 0 ? (
-        <div className="mt-5 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-[12px] text-slate-500">
+        <div className="rounded-lg bg-slate-50 px-3 py-6 text-center text-[12px] text-slate-400">
           Sem dados suficientes
         </div>
       ) : (
@@ -351,80 +305,86 @@ function TendenciaBody({
   const lastIdx = monthlyTrend.length - 1;
 
   return (
-    <>
-      <div className="mt-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+    <div className="space-y-4">
+      <div>
+        <div className="text-[12px] font-medium text-slate-500">
           Mês actual ({currentBucket.label})
         </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-[24px] font-semibold leading-none text-slate-900 tabular-nums">
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+          <span className="text-[28px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums">
             {currentMonthTotalEur === null
               ? "Sem dados"
               : fmtEur(currentMonthTotalEur)}
           </span>
           {salesTrendPct === null ? (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[12px] font-medium text-slate-500">
               Sem baseline
             </span>
           ) : (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium ${
                 salesTrendPct >= 0
                   ? "bg-emerald-50 text-emerald-700"
                   : "bg-rose-50 text-rose-700"
               }`}
             >
               {salesTrendPct >= 0 ? (
-                <TrendingUp className="h-2.5 w-2.5" />
+                <TrendingUp className="h-3 w-3" />
               ) : (
-                <TrendingDown className="h-2.5 w-2.5" />
+                <TrendingDown className="h-3 w-3" />
               )}
               {fmtPct(salesTrendPct)}
               {prevBucket && (
-                <span className="font-medium opacity-80">vs {prevBucket.label}</span>
+                <span className="font-normal opacity-80">vs {prevBucket.label}</span>
               )}
             </span>
           )}
         </div>
       </div>
 
-      {/* Bar chart — rounded pill bars at the top, gradient fill, current month highlighted */}
-      <div className="mt-4">
-        <div className="flex h-24 items-end gap-1.5">
+      {/* Bar chart — fixed-width bars with subtle baseline */}
+      <div>
+        <div className="flex h-24 items-end justify-between border-b border-slate-100">
           {monthlyTrend.map((b, i) => {
             const isLast = i === lastIdx;
-            const heightPx =
+            const heightPct =
               b.valorTotal > 0
-                ? Math.max(4, Math.round((b.valorTotal / max) * 88))
+                ? Math.max(4, Math.round((b.valorTotal / max) * 100))
                 : 0;
             return (
-              <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
-                {heightPx > 0 ? (
+              <div
+                key={i}
+                className="flex h-full w-4 items-end"
+                title={`${b.label} ${b.ano}: ${fmtEur(b.valorTotal)}`}
+              >
+                {heightPct > 0 ? (
                   <div
-                    title={`${b.label} ${b.ano}: ${fmtEur(b.valorTotal)}`}
-                    className={`w-full rounded-t-full ${
-                      isLast
-                        ? "bg-gradient-to-t from-emerald-600 to-emerald-400"
-                        : "bg-gradient-to-t from-emerald-500/65 to-emerald-300/30"
+                    className={`w-full rounded-md ${
+                      isLast ? "bg-emerald-500" : "bg-emerald-300/60"
                     }`}
-                    style={{ height: `${heightPx}px` }}
+                    style={{ height: `${heightPct}%` }}
                   />
-                ) : (
-                  <div className="h-1 w-full rounded-full bg-slate-100" />
-                )}
-                <span
-                  className={`text-[9px] font-medium ${
-                    isLast ? "text-slate-900" : "text-slate-400"
-                  }`}
-                >
-                  {b.label}
-                </span>
+                ) : null}
               </div>
             );
           })}
         </div>
+        <div className="mt-2 flex justify-between">
+          {monthlyTrend.map((b, i) => (
+            <span
+              key={i}
+              className={`w-4 text-center text-[12px] ${
+                i === lastIdx
+                  ? "font-medium text-slate-900"
+                  : "text-slate-400"
+              }`}
+            >
+              {b.label}
+            </span>
+          ))}
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -437,33 +397,44 @@ export function CriticalAlertsCard({
 }) {
   return (
     <CardShell
-      icon={<AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
+      icon={<AlertTriangle className="h-4 w-4 text-rose-600" />}
       title="Alertas críticos"
       hint="Stock que precisa de atenção"
     >
-      <div className="space-y-0.5">
-        <KpiRow
-          label="Em rotura"
-          sublabel="sem stock, com vendas em 90d"
-          value={fmtNumber(data.outOfStockCount)}
+      <div className="space-y-3">
+        <Link
           href="/stock?filter=out-of-stock"
-          tone={data.outOfStockCount > 0 ? "alert" : "ok"}
-        />
-        <KpiRow
-          label="Em risco"
-          sublabel="cobertura < 7 dias"
-          value={fmtNumber(data.atRiskCount)}
+          className="block rounded-xl bg-red-50 p-3 transition hover:bg-red-100"
+        >
+          <div className="text-[12px] font-medium text-rose-700/80">Em rotura</div>
+          <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-rose-700">
+            {fmtNumber(data.outOfStockCount)}
+          </div>
+          <div className="mt-1 text-[12px] text-rose-600/70">
+            sem stock, vendia em 90d
+          </div>
+        </Link>
+
+        <Link
           href="/stock?filter=at-risk"
-          tone={data.atRiskCount > 0 ? "warn" : "ok"}
-        />
+          className="block rounded-xl bg-yellow-50 p-3 transition hover:bg-yellow-100"
+        >
+          <div className="text-[12px] font-medium text-amber-700/80">Em risco</div>
+          <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-amber-700">
+            {fmtNumber(data.atRiskCount)}
+          </div>
+          <div className="mt-1 text-[12px] text-amber-600/70">
+            cobertura inferior a 7 dias
+          </div>
+        </Link>
       </div>
 
       <CollapsibleDetail>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
-            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Top em rotura
-            </h4>
+            </h3>
             <ProductPreviewList
               items={data.outOfStockSample}
               emptyMessage="Sem produtos em rotura."
@@ -476,9 +447,9 @@ export function CriticalAlertsCard({
             )}
           </div>
           <div>
-            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Top em risco
-            </h4>
+            </h3>
             <ProductPreviewList
               items={data.atRiskSample}
               emptyMessage="Sem produtos em risco."
@@ -499,9 +470,9 @@ export function CriticalAlertsCard({
 // ─── Card: Transferências sugeridas ──────────────────────────────────────────
 
 const PRIORITY_TONE: Record<string, string> = {
-  alta: "border-rose-200 bg-rose-50 text-rose-700",
-  media: "border-amber-200 bg-amber-50 text-amber-700",
-  baixa: "border-slate-200 bg-slate-50 text-slate-600",
+  alta: "bg-rose-50 text-rose-700",
+  media: "bg-amber-50 text-amber-700",
+  baixa: "bg-slate-100 text-slate-600",
 };
 const PRIORITY_LABEL: Record<string, string> = {
   alta: "Alta",
@@ -516,69 +487,96 @@ export function TransferenciasCard({
 }) {
   return (
     <CardShell
-      icon={<Sparkles className="h-3.5 w-3.5 text-emerald-700" />}
+      icon={<Sparkles className="h-4 w-4 text-emerald-700" />}
       title="Transferências"
       hint="Equilíbrio de stock entre farmácias"
     >
-      <div className="space-y-0.5">
-        <KpiRow
-          label="Sugestões activas"
-          sublabel={
-            data.transferSuggestionsTotal === 0
-              ? "Sem desequilíbrios"
-              : "Calculadas pelo motor"
-          }
-          value={fmtNumber(data.transferSuggestionsTotal)}
-          href={data.transferSuggestionsTotal > 0 ? "/transferencias" : undefined}
-          tone={data.transferSuggestionsTotal > 0 ? "ok" : "neutral"}
-        />
-        <KpiRow
-          label="Valor a libertar"
-          sublabel="Σ qty × pvp das sugestões"
-          value={fmtEur(data.estimatedValueUnlockedEur)}
-          tone="neutral"
-        />
+      <div className="space-y-3">
+        {data.transferSuggestionsTotal > 0 ? (
+          <Link
+            href="/transferencias"
+            className="block rounded-xl bg-emerald-50 p-3 transition hover:bg-emerald-100"
+          >
+            <div className="text-[12px] font-medium text-emerald-700/80">
+              Sugestões activas
+            </div>
+            <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-emerald-700">
+              {fmtNumber(data.transferSuggestionsTotal)}
+            </div>
+            <div className="mt-1 text-[12px] text-emerald-600/70">
+              calculadas pelo motor
+            </div>
+          </Link>
+        ) : (
+          <div className="rounded-xl bg-slate-50 p-3">
+            <div className="text-[12px] font-medium text-slate-500">
+              Sugestões activas
+            </div>
+            <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-slate-900">
+              0
+            </div>
+            <div className="mt-1 text-[12px] text-slate-400">
+              sem desequilíbrios
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl bg-slate-50 p-3">
+          <div className="text-[12px] font-medium text-slate-500">
+            Valor a libertar
+          </div>
+          <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-slate-900">
+            {fmtEur(data.estimatedValueUnlockedEur)}
+          </div>
+          <div className="mt-1 text-[12px] text-slate-400">
+            Σ qty × pvp das sugestões
+          </div>
+        </div>
       </div>
 
       <CollapsibleDetail>
-        <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Top 3 sugestões
-        </h4>
+        </h3>
         {data.topTransferSuggestions.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-200 bg-white px-2.5 py-1.5 text-center text-[11px] text-slate-500">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-center text-[12px] text-slate-400">
             Sem transferências sugeridas no momento.
           </div>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {data.topTransferSuggestions.map((t) => (
               <li
                 key={`${t.cnp}-${t.farmaciaOrigem}-${t.farmaciaDestino}`}
-                className="rounded-md border border-slate-100 bg-white px-2 py-1.5"
+                className="rounded-lg bg-slate-50 px-3 py-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <Link
                     href={`/catalogo/artigo/${t.cnp}`}
-                    className="block min-w-0 flex-1 truncate text-[11px] font-medium text-slate-800 transition hover:text-emerald-700"
+                    className="block min-w-0 flex-1 truncate text-[13px] font-medium text-slate-900 transition hover:text-emerald-700"
                   >
                     {t.produto}
                   </Link>
                   <span
-                    className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+                    className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                       PRIORITY_TONE[t.prioridade] ?? PRIORITY_TONE.baixa
                     }`}
                   >
                     {PRIORITY_LABEL[t.prioridade] ?? t.prioridade}
                   </span>
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-                  <span className="font-medium text-slate-700">{t.farmaciaOrigem}</span>
-                  <ArrowRightLeft className="h-2.5 w-2.5 text-slate-400" />
-                  <span className="font-medium text-slate-700">{t.farmaciaDestino}</span>
-                  <span className="text-slate-300">·</span>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-400">
+                  <span className="font-medium text-slate-600">
+                    {t.farmaciaOrigem}
+                  </span>
+                  <ArrowRightLeft className="h-3 w-3 text-slate-300" />
+                  <span className="font-medium text-slate-600">
+                    {t.farmaciaDestino}
+                  </span>
+                  <span>·</span>
                   <span>{fmtNumber(t.quantidadeSugerida)} un.</span>
                   {t.valorUnlocked > 0 && (
                     <>
-                      <span className="text-slate-300">·</span>
+                      <span>·</span>
                       <span>{fmtEur(t.valorUnlocked)}</span>
                     </>
                   )}
@@ -605,40 +603,74 @@ export function ExcessosCard({
 }: {
   data: DashboardData["excess"];
 }) {
+  const valorTone =
+    data.excessStockValueEur > 0 ? "text-amber-700" : "text-slate-900";
+  const valorBg = data.excessStockValueEur > 0 ? "bg-amber-50" : "bg-slate-50";
+
   return (
     <CardShell
-      icon={<PackageMinus className="h-3.5 w-3.5 text-amber-700" />}
+      icon={<PackageMinus className="h-4 w-4 text-amber-700" />}
       title="Excessos / stock parado"
       hint="Inventário sub-utilizado"
     >
-      <div className="space-y-0.5">
-        <KpiRow
-          label="Valor em excesso"
-          sublabel="cobertura > 60 dias"
-          value={fmtEur(data.excessStockValueEur)}
-          href={data.excessStockCount > 0 ? "/excessos?days=60" : undefined}
-          tone={data.excessStockValueEur > 0 ? "warn" : "ok"}
-        />
-        <KpiRow
-          label="Coberturas > 60d"
-          sublabel="produtos em excesso"
-          value={fmtNumber(data.excessStockCount)}
-          href={data.excessStockCount > 0 ? "/excessos?days=60" : undefined}
-          tone={data.excessStockCount > 0 ? "warn" : "ok"}
-        />
-        <KpiRow
-          label="Sem vendas em 90d"
-          sublabel="produtos parados"
-          value={fmtNumber(data.noMovementCount)}
-          href={data.noMovementCount > 0 ? "/stock?filter=no-movement-3m" : undefined}
-          tone={data.noMovementCount > 0 ? "warn" : "ok"}
-        />
+      <div className="space-y-3">
+        {data.excessStockCount > 0 ? (
+          <Link
+            href="/excessos?days=60"
+            className={`block rounded-xl ${valorBg} p-3 transition hover:bg-amber-100`}
+          >
+            <div className="text-[12px] font-medium text-slate-500">
+              Valor em excesso
+            </div>
+            <div
+              className={`mt-1.5 text-[24px] font-semibold leading-none tracking-tight tabular-nums ${valorTone}`}
+            >
+              {fmtEur(data.excessStockValueEur)}
+            </div>
+            <div className="mt-1 text-[12px] text-slate-400">
+              cobertura {">"} 60 dias
+            </div>
+          </Link>
+        ) : (
+          <div className={`rounded-xl ${valorBg} p-3`}>
+            <div className="text-[12px] font-medium text-slate-500">
+              Valor em excesso
+            </div>
+            <div
+              className={`mt-1.5 text-[24px] font-semibold leading-none tracking-tight tabular-nums ${valorTone}`}
+            >
+              {fmtEur(data.excessStockValueEur)}
+            </div>
+            <div className="mt-1 text-[12px] text-slate-400">
+              cobertura {">"} 60 dias
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <KpiTile
+            label="Coberturas > 60d"
+            value={fmtNumber(data.excessStockCount)}
+            sublabel="produtos em excesso"
+            href={data.excessStockCount > 0 ? "/excessos?days=60" : undefined}
+            tone={data.excessStockCount > 0 ? "warn" : "neutral"}
+          />
+          <KpiTile
+            label="Sem vendas 90d"
+            value={fmtNumber(data.noMovementCount)}
+            sublabel="produtos parados"
+            href={
+              data.noMovementCount > 0 ? "/stock?filter=no-movement-3m" : undefined
+            }
+            tone={data.noMovementCount > 0 ? "warn" : "neutral"}
+          />
+        </div>
       </div>
 
       <CollapsibleDetail>
-        <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Top excessos por valor
-        </h4>
+        </h3>
         <ProductPreviewList
           items={data.excessSample}
           emptyMessage="Sem produtos em excesso."
@@ -662,64 +694,66 @@ export function PerPharmacyDetail({
   pharmacies: DashboardData["perPharmacy"];
 }) {
   return (
-    <details className={`group ${PREMIUM_CARD} px-4 py-3`}>
+    <details className={`group ${CARD_CLASS} p-5`}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-            <Layers className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-slate-700">
+            <Layers className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <h2 className="text-[16px] font-semibold leading-tight text-slate-900">
               Detalhe por farmácia
-            </div>
-            <div className="text-[10px] text-slate-400">
+            </h2>
+            <p className="mt-0.5 text-[12px] text-slate-400">
               {pharmacies.length} farmácia{pharmacies.length === 1 ? "" : "s"} ·
               {" "}vendas, margem, stock parado, alertas
-            </div>
+            </p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/60 px-2.5 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white">
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 transition hover:text-slate-900">
           <span className="group-open:hidden">Ver detalhe</span>
           <span className="hidden group-open:inline">Ocultar detalhe</span>
-          <ChevronDown className="h-3 w-3 text-slate-400 transition group-open:rotate-180" />
+          <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
         </span>
       </summary>
 
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-4 overflow-x-auto">
         <table className="min-w-full text-left">
-          <thead className="border-b border-slate-100 text-[10px] uppercase tracking-[0.12em] text-slate-400">
+          <thead className="border-b border-slate-100 text-[12px] font-medium text-slate-400">
             <tr>
-              <th className="px-2 py-1.5 font-semibold">Farmácia</th>
-              <th className="px-2 py-1.5 text-right font-semibold">Vendas (mês)</th>
-              <th className="px-2 py-1.5 text-right font-semibold">Margem</th>
-              <th className="px-2 py-1.5 text-right font-semibold">Stock parado</th>
-              <th className="px-2 py-1.5 text-right font-semibold">Alertas mín.</th>
+              <th className="px-3 py-2 text-left font-medium">Farmácia</th>
+              <th className="px-3 py-2 text-right font-medium">Vendas (mês)</th>
+              <th className="px-3 py-2 text-right font-medium">Margem</th>
+              <th className="px-3 py-2 text-right font-medium">Stock parado</th>
+              <th className="px-3 py-2 text-right font-medium">Alertas mín.</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-[12px] text-slate-700">
+          <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
             {pharmacies.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-2 py-4 text-center text-slate-400">
+                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
                   Sem farmácias activas.
                 </td>
               </tr>
             ) : (
               pharmacies.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50/70">
-                  <td className="px-2 py-1.5 font-medium text-slate-800">{p.name}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
+                  <td className="px-3 py-2.5 font-medium text-slate-900">
+                    {p.name}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">
                     {fmtEur(p.sales)}
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
+                  <td className="px-3 py-2.5 text-right tabular-nums">
                     {p.margin.toFixed(1)}%
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
+                  <td className="px-3 py-2.5 text-right tabular-nums">
                     {fmtEur(p.stoppedStockValue)}
-                    <span className="ml-1 text-[10px] text-slate-400">
+                    <span className="ml-1 text-[12px] text-slate-400">
                       ({fmtNumber(p.stoppedStockCount)})
                     </span>
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">
+                  <td className="px-3 py-2.5 text-right tabular-nums">
                     {fmtNumber(p.alerts)}
                   </td>
                 </tr>
