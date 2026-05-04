@@ -2,12 +2,12 @@ import { MainShell } from "@/components/layout/main-shell";
 import { getDashboardData } from "@/lib/dashboard";
 import {
   ExecutiveSummary,
-  TendenciaCard,
   CriticalAlertsCard,
   TransferenciasCard,
   ExcessosCard,
   PerPharmacyDetail,
 } from "@/components/dashboard/dashboard-sections";
+import { TendenciaCard } from "@/components/dashboard/trend-card";
 
 export const dynamic = "force-dynamic";
 

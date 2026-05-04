@@ -1,15 +1,12 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  Activity,
   ArrowRight,
   ArrowRightLeft,
   ChevronDown,
   Layers,
   PackageMinus,
   Sparkles,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard";
 
@@ -24,14 +21,6 @@ function fmtNumber(n: number, digits = 0): string {
 
 function fmtEur(n: number, digits = 0): string {
   return `${fmtNumber(n, digits)} €`;
-}
-
-function fmtPct(v: number, digits = 1): string {
-  const sign = v >= 0 ? "+" : "";
-  return `${sign}${v.toLocaleString("pt-PT", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}%`;
 }
 
 // ─── Building blocks ─────────────────────────────────────────────────────────
@@ -247,146 +236,9 @@ export function ExecutiveSummary({
   );
 }
 
-// ─── Top: Tendência (right) — visual chart card ──────────────────────────────
-
-export function TendenciaCard({
-  data,
-}: {
-  data: DashboardData["trend"];
-}) {
-  const { monthlyTrend, currentMonthTotalEur, salesTrendPct } = data;
-
-  return (
-    <section className={`${CARD_CLASS} p-5`}>
-      <header className="flex items-start justify-between gap-3 pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-            <Activity className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-[16px] font-semibold leading-tight text-slate-900">
-              Tendência operacional
-            </h2>
-            <p className="mt-0.5 text-[12px] text-slate-400">
-              Vendas nos últimos 12 meses
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {monthlyTrend == null || monthlyTrend.length === 0 ? (
-        <div className="rounded-lg bg-slate-50 px-3 py-6 text-center text-[12px] text-slate-400">
-          Sem dados suficientes
-        </div>
-      ) : (
-        <TendenciaBody
-          monthlyTrend={monthlyTrend}
-          currentMonthTotalEur={currentMonthTotalEur}
-          salesTrendPct={salesTrendPct}
-        />
-      )}
-    </section>
-  );
-}
-
-function TendenciaBody({
-  monthlyTrend,
-  currentMonthTotalEur,
-  salesTrendPct,
-}: {
-  monthlyTrend: NonNullable<DashboardData["trend"]["monthlyTrend"]>;
-  currentMonthTotalEur: number | null;
-  salesTrendPct: number | null;
-}) {
-  const currentBucket = monthlyTrend[monthlyTrend.length - 1];
-  const prevBucket =
-    monthlyTrend.length >= 2 ? monthlyTrend[monthlyTrend.length - 2] : null;
-  const max = Math.max(1, ...monthlyTrend.map((b) => b.valorTotal));
-  const lastIdx = monthlyTrend.length - 1;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-[12px] font-medium text-slate-500">
-          Mês actual ({currentBucket.label})
-        </div>
-        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
-          <span className="text-[28px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums">
-            {currentMonthTotalEur === null
-              ? "Sem dados"
-              : fmtEur(currentMonthTotalEur)}
-          </span>
-          {salesTrendPct === null ? (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[12px] font-medium text-slate-500">
-              Sem baseline
-            </span>
-          ) : (
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium ${
-                salesTrendPct >= 0
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-rose-50 text-rose-700"
-              }`}
-            >
-              {salesTrendPct >= 0 ? (
-                <TrendingUp className="h-3 w-3" />
-              ) : (
-                <TrendingDown className="h-3 w-3" />
-              )}
-              {fmtPct(salesTrendPct)}
-              {prevBucket && (
-                <span className="font-normal opacity-80">vs {prevBucket.label}</span>
-              )}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Bar chart — fixed-width bars with subtle baseline */}
-      <div>
-        <div className="flex h-24 items-end justify-between border-b border-slate-100">
-          {monthlyTrend.map((b, i) => {
-            const isLast = i === lastIdx;
-            const heightPct =
-              b.valorTotal > 0
-                ? Math.max(4, Math.round((b.valorTotal / max) * 100))
-                : 0;
-            return (
-              <div
-                key={i}
-                className="flex h-full w-4 items-end"
-                title={`${b.label} ${b.ano}: ${fmtEur(b.valorTotal)}`}
-              >
-                {heightPct > 0 ? (
-                  <div
-                    className={`w-full rounded-md ${
-                      isLast ? "bg-emerald-500" : "bg-emerald-300/60"
-                    }`}
-                    style={{ height: `${heightPct}%` }}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-2 flex justify-between">
-          {monthlyTrend.map((b, i) => (
-            <span
-              key={i}
-              className={`w-4 text-center text-[12px] ${
-                i === lastIdx
-                  ? "font-medium text-slate-900"
-                  : "text-slate-400"
-              }`}
-            >
-              {b.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+// TendenciaCard live em components/dashboard/trend-card.tsx (client component
+// — precisa de estado local para o filtro de farmácia e selecção de mês). É
+// importado directamente em app/dashboard/page.tsx.
 
 // ─── Card: Alertas críticos ──────────────────────────────────────────────────
 

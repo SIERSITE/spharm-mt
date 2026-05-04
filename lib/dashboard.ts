@@ -65,8 +65,15 @@ export type DashboardMonthlyTrend = {
   mes: number;
   /** Label PT abreviado: "Jan", "Fev", … */
   label: string;
-  /** Vendas em € (VendaMensal.valorTotal) somadas em todas as farmácias activas. */
+  /** Vendas em € (VendaMensal.valorTotal). No agregado de grupo, soma todas
+   *  as farmácias activas; numa série por-farmácia, é o valor dessa farmácia. */
   valorTotal: number;
+};
+
+export type DashboardPharmacyTrend = {
+  farmaciaId: string;
+  farmaciaNome: string;
+  monthlyTrend: DashboardMonthlyTrend[];
 };
 
 export type PerPharmacyData = {
@@ -87,11 +94,16 @@ export type DashboardData = {
 
   // Tendência (top da página) — vendas mensais nos últimos 12 meses.
   trend: {
-    /** 12 buckets, mais antigo→mais recente. null quando sem nenhum dado. */
+    /** Agregado de grupo: 12 buckets, mais antigo→mais recente.
+     *  null quando todas as farmácias têm zero em todo o intervalo. */
     monthlyTrend: DashboardMonthlyTrend[] | null;
-    /** Total do mês actual em €. null quando não existe valor para o mês actual. */
+    /** Série por farmácia (uma entrada por farmácia activa, sempre 12
+     *  buckets — contém zeros se a farmácia não tem dados no período).
+     *  Permite ao card de tendência filtrar sem nova query. */
+    byPharmacy: DashboardPharmacyTrend[];
+    /** Total do mês actual em € (grupo). null quando não há dados. */
     currentMonthTotalEur: number | null;
-    /** % MoM (mês actual vs anterior). null quando não há baseline. */
+    /** % MoM (mês actual vs anterior, agregado de grupo). null sem baseline. */
     salesTrendPct: number | null;
   };
 
@@ -344,9 +356,14 @@ async function loadPerPharmacy(): Promise<{
 // ─── 12-month trend (VendaMensal monthly) ────────────────────────────────────
 
 async function loadMonthlyTrend(
-  farmaciaIds: string[],
-): Promise<DashboardMonthlyTrend[] | null> {
-  if (farmaciaIds.length === 0) return null;
+  farmacias: Array<{ id: string; nome: string }>,
+): Promise<{
+  monthlyTrend: DashboardMonthlyTrend[] | null;
+  byPharmacy: DashboardPharmacyTrend[];
+}> {
+  if (farmacias.length === 0) {
+    return { monthlyTrend: null, byPharmacy: [] };
+  }
   const prisma = await getPrisma();
 
   const now = new Date();
@@ -355,46 +372,72 @@ async function loadMonthlyTrend(
   const currentPeriod = currentAno * 12 + currentMes;
   const startPeriod = currentPeriod - (TREND_MONTHS - 1);
 
-  // Aggregate VendaMensal.valorTotal by (ano, mes) across active pharmacies.
-  // Same monthly granularity as everything else in this loader — the fast path
-  // is `(ano * 12 + mes)` linear period, identical to dashboard.ts and
-  // transferencias-data.ts.
+  const farmaciaIds = farmacias.map((f) => f.id);
+
+  // Aggregate VendaMensal.valorTotal by (ano, mes, farmaciaId). One pass over
+  // VendaMensal feeds both the group total (sum across farmácias) and the
+  // per-pharmacy series consumed by the trend card filter — no extra queries.
   const monthlyRows = await prisma.$queryRaw<
-    Array<{ ano: number; mes: number; total: string }>
+    Array<{ ano: number; mes: number; farmaciaId: string; total: string }>
   >(Prisma.sql`
     SELECT
-      vm."ano"                AS "ano",
-      vm."mes"                AS "mes",
+      vm."ano"          AS "ano",
+      vm."mes"          AS "mes",
+      vm."farmaciaId"   AS "farmaciaId",
       SUM(vm."valorTotal")::text AS "total"
     FROM "VendaMensal" vm
     WHERE (vm."ano" * 12 + vm."mes") >= ${startPeriod}
       AND (vm."ano" * 12 + vm."mes") <= ${currentPeriod}
       AND vm."farmaciaId" = ANY(${farmaciaIds})
-    GROUP BY vm."ano", vm."mes"
-    ORDER BY vm."ano", vm."mes"
+    GROUP BY vm."ano", vm."mes", vm."farmaciaId"
+    ORDER BY vm."ano", vm."mes", vm."farmaciaId"
   `);
 
-  const byPeriod = new Map<number, number>();
+  const buildBuckets = (lookup: Map<number, number>): DashboardMonthlyTrend[] => {
+    const buckets: DashboardMonthlyTrend[] = [];
+    for (let i = 0; i < TREND_MONTHS; i++) {
+      const period = startPeriod + i;
+      const ano = Math.floor((period - 1) / 12);
+      const mes = ((period - 1) % 12) + 1;
+      buckets.push({
+        ano,
+        mes,
+        label: monthLabel(mes),
+        valorTotal: lookup.get(period) ?? 0,
+      });
+    }
+    return buckets;
+  };
+
+  // Group: sum across farmácias by period.
+  const groupByPeriod = new Map<number, number>();
   for (const r of monthlyRows) {
-    byPeriod.set(r.ano * 12 + r.mes, toNum(r.total));
+    const period = r.ano * 12 + r.mes;
+    groupByPeriod.set(
+      period,
+      (groupByPeriod.get(period) ?? 0) + toNum(r.total),
+    );
   }
+  const groupSeries = buildBuckets(groupByPeriod);
+  const groupHasData = groupSeries.some((b) => b.valorTotal > 0);
 
-  const buckets: DashboardMonthlyTrend[] = [];
-  for (let i = 0; i < TREND_MONTHS; i++) {
-    const period = startPeriod + i;
-    const ano = Math.floor((period - 1) / 12);
-    const mes = ((period - 1) % 12) + 1;
-    buckets.push({
-      ano,
-      mes,
-      label: monthLabel(mes),
-      valorTotal: byPeriod.get(period) ?? 0,
-    });
+  // Per-pharmacy: one series per farmácia (always 12 buckets, zeros included).
+  const byFarmaciaPeriod = new Map<string, Map<number, number>>();
+  for (const f of farmacias) byFarmaciaPeriod.set(f.id, new Map());
+  for (const r of monthlyRows) {
+    const m = byFarmaciaPeriod.get(r.farmaciaId);
+    if (m) m.set(r.ano * 12 + r.mes, toNum(r.total));
   }
+  const byPharmacy: DashboardPharmacyTrend[] = farmacias.map((f) => ({
+    farmaciaId: f.id,
+    farmaciaNome: f.nome,
+    monthlyTrend: buildBuckets(byFarmaciaPeriod.get(f.id) ?? new Map()),
+  }));
 
-  // Se todos os meses são zero, não há sinal — devolver null para a UI
-  // mostrar "Sem dados suficientes" em vez de uma linha plana.
-  return buckets.every((b) => b.valorTotal === 0) ? null : buckets;
+  return {
+    monthlyTrend: groupHasData ? groupSeries : null,
+    byPharmacy,
+  };
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -411,10 +454,11 @@ export async function getDashboardData(): Promise<DashboardData> {
     new Set(stockRows.map((r) => r.farmaciaId)),
   );
 
-  // 12-month trend (top da página).
-  const monthlyTrend = await loadMonthlyTrend(
-    perPharmacyData.perPharmacy.map((p) => p.id),
+  // 12-month trend (top da página). Devolve grupo + série por farmácia.
+  const trendData = await loadMonthlyTrend(
+    perPharmacyData.perPharmacy.map((p) => ({ id: p.id, nome: p.name })),
   );
+  const monthlyTrend = trendData.monthlyTrend;
 
   // ── Alertas críticos ──────────────────────────────────────────────────
   const outOfStockRows = stockRows.filter((r) => matchStockFilter(r, "out-of-stock"));
@@ -472,6 +516,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     trend: {
       monthlyTrend,
+      byPharmacy: trendData.byPharmacy,
       currentMonthTotalEur,
       salesTrendPct,
     },
