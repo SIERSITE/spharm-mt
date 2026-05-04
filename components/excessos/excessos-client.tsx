@@ -80,13 +80,23 @@ function toggleValue(
 export function ExcessosClient({
   farmaciasInfo,
   filterOptions,
+  initialRows: preloadedRows,
+  initialThresholdDays,
 }: {
   farmaciasInfo: FarmaciaInfo[];
   filterOptions: ReportingFilterOptions;
+  /** Linhas pré-carregadas pelo server quando há ?days na URL (entrada da dashboard). */
+  initialRows?: TransferSuggestionRow[];
+  /** Threshold (em dias) usado quando ?days está presente. */
+  initialThresholdDays?: number;
 }) {
-  // Lazy: nada de Excessos é carregado até clicar em "Gerar".
-  const [rows, setRows] = useState<TransferSuggestionRow[]>([]);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  // Lazy: sem ?days na URL, não carrega nada até clicar em "Gerar". Com ?days,
+  // já vem pré-carregado do server e o mesmo threshold é reutilizado em
+  // re-execuções (botão "Gerar").
+  const [rows, setRows] = useState<TransferSuggestionRow[]>(preloadedRows ?? []);
+  const [hasGenerated, setHasGenerated] = useState(
+    (preloadedRows?.length ?? 0) > 0,
+  );
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
   const initialRows = rows;
@@ -95,7 +105,11 @@ export function ExcessosClient({
     setGenerationError(null);
     startTransition(async () => {
       try {
-        const result = await runExcessosReport();
+        const result = await runExcessosReport(
+          initialThresholdDays !== undefined
+            ? { thresholdDays: initialThresholdDays }
+            : undefined,
+        );
         setRows(result);
         setHasGenerated(true);
       } catch (err) {

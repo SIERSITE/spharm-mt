@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Search, Filter, ArrowRightLeft, AlertTriangle, X } from "lucide-react";
-import type { StockRow, StockMetrics } from "@/lib/stock-data";
+import type { StockRow, StockMetrics, StockFilter } from "@/lib/stock-data";
+import { STOCK_FILTER_LABELS } from "@/lib/stock-data";
 
 const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"];
 const statusOptions: StockRow["status"][] = [
@@ -56,10 +57,12 @@ export function StockClient({
   initialRows,
   pharmacyNames,
   metrics,
+  activeFilter,
 }: {
   initialRows: StockRow[];
   pharmacyNames: string[];
   metrics: StockMetrics;
+  activeFilter?: StockFilter | null;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -118,6 +121,22 @@ export function StockClient({
             Cobertura, rotação e diferenças de stock por farmácia
           </p>
         </section>
+
+        {activeFilter && (
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-[12px] text-cyan-800">
+            <span>
+              <span className="font-semibold">Filtro activo:</span>{" "}
+              {STOCK_FILTER_LABELS[activeFilter]} · {initialRows.length.toLocaleString("pt-PT")} produto
+              {initialRows.length === 1 ? "" : "s"}
+            </span>
+            <Link
+              href="/stock"
+              className="inline-flex items-center gap-1 rounded-full border border-cyan-300 bg-white px-2.5 py-1 text-[11px] font-medium text-cyan-700 transition hover:border-cyan-400"
+            >
+              Limpar filtro
+            </Link>
+          </section>
+        )}
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Metric
