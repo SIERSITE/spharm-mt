@@ -55,7 +55,7 @@ type PfBase = {
   fabricanteCanonico: string | null;
 };
 
-async function loadPfAndSales(farmaciaIds: string[]): Promise<{
+export async function loadPfAndSales(farmaciaIds: string[]): Promise<{
   pfRows: PfBase[];
   salesMap: Map<string, number>;
 }> {

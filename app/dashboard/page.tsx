@@ -1,5 +1,7 @@
 import { MainShell } from "@/components/layout/main-shell";
+import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { getDashboardData } from "@/lib/dashboard";
+import { getDashboardHeroData } from "@/lib/dashboard-hero-data";
 
 export const dynamic = "force-dynamic";
 
@@ -171,7 +173,10 @@ function ConsolidatedRow({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const { summary, pharmacies } = await getDashboardData();
+  const [{ summary, pharmacies }, heroData] = await Promise.all([
+    getDashboardData(),
+    getDashboardHeroData(),
+  ]);
 
   return (
     <MainShell>
@@ -229,6 +234,8 @@ export default async function DashboardPage() {
             alerts={String(summary.totalAlerts)}
           />
         </section>
+
+        <DashboardHero data={heroData} />
       </div>
     </MainShell>
   );
