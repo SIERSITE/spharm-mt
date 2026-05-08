@@ -1,0 +1,972 @@
+{
+  "version": "1",
+  "lastUpdate": "2026-05-08T13:26:03.415Z",
+  "stats": {
+    "searched": 100,
+    "matched_strong": 4,
+    "ambiguous": 0,
+    "not_found": 72,
+    "failed": 24
+  },
+  "mappings": {
+    "2074797": {
+      "cnp": 2074797,
+      "matchedAt": "2026-05-08T13:21:18.911Z",
+      "matchedVia": "search_designacao",
+      "searchedAs": "Haldol",
+      "designacaoOficial": "Haldol",
+      "dci": "Haloperidol",
+      "codigoATC": "N05AD01",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "1 mg",
+      "embalagem": "Blister 60 unidade(s)",
+      "titularAim": "Essential Pharma Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "2.9.2 - Antipsicóticos",
+      "siblings": [
+        9256453
+      ]
+    },
+    "2074995": {
+      "cnp": 2074995,
+      "matchedAt": "2026-05-08T13:21:41.586Z",
+      "matchedVia": "search_designacao",
+      "searchedAs": "Haldol",
+      "designacaoOficial": "Haldol",
+      "dci": "Haloperidol",
+      "codigoATC": "N05AD01",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "5 mg",
+      "embalagem": "Blister 60 unidade(s)",
+      "titularAim": "Essential Pharma Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "2.9.2 - Antipsicóticos",
+      "siblings": []
+    },
+    "2181485": {
+      "cnp": 2181485,
+      "matchedAt": "2026-05-08T13:25:32.075Z",
+      "matchedVia": "search_designacao",
+      "searchedAs": "Gopten",
+      "designacaoOficial": "Gopten",
+      "dci": "Trandolapril",
+      "codigoATC": "C09AA10",
+      "formaFarmaceutica": "Cápsula",
+      "dosagem": "2 mg",
+      "embalagem": "Blister 56 unidade(s)",
+      "titularAim": "Viatris Healthcare, Lda.",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        4543187,
+        5800487
+      ]
+    },
+    "2192789": {
+      "cnp": 2192789,
+      "matchedAt": "2026-05-08T13:25:56.837Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Fositen",
+      "dci": "Fosinopril",
+      "codigoATC": "C09AA09",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "20 mg",
+      "embalagem": "Blister 20 unidade(s)",
+      "titularAim": "Bausch Health (Ireland) Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2192888,
+        2208882,
+        4655189
+      ]
+    },
+    "2192888": {
+      "cnp": 2192888,
+      "matchedAt": "2026-05-08T13:25:56.837Z",
+      "matchedVia": "search_designacao",
+      "searchedAs": "Fositen",
+      "designacaoOficial": "Fositen",
+      "dci": "Fosinopril",
+      "codigoATC": "C09AA09",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "20 mg",
+      "embalagem": "Blister 60 unidade(s)",
+      "titularAim": "Bausch Health (Ireland) Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2192789,
+        2208882,
+        4655189
+      ]
+    },
+    "2208882": {
+      "cnp": 2208882,
+      "matchedAt": "2026-05-08T13:25:56.837Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Fositen",
+      "dci": "Fosinopril",
+      "codigoATC": "C09AA09",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "20 mg",
+      "embalagem": "Blister 30 unidade(s)",
+      "titularAim": "Bausch Health (Ireland) Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2192789,
+        2192888,
+        4655189
+      ]
+    },
+    "4543187": {
+      "cnp": 4543187,
+      "matchedAt": "2026-05-08T13:25:32.075Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Gopten",
+      "dci": "Trandolapril",
+      "codigoATC": "C09AA10",
+      "formaFarmaceutica": "Cápsula",
+      "dosagem": "2 mg",
+      "embalagem": "Blister 28 unidade(s)",
+      "titularAim": "Viatris Healthcare, Lda.",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2181485,
+        5800487
+      ]
+    },
+    "4655189": {
+      "cnp": 4655189,
+      "matchedAt": "2026-05-08T13:25:56.837Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Fositen",
+      "dci": "Fosinopril",
+      "codigoATC": "C09AA09",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "20 mg",
+      "embalagem": "Blister 10 unidade(s)",
+      "titularAim": "Bausch Health (Ireland) Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2192789,
+        2192888,
+        2208882
+      ]
+    },
+    "5800487": {
+      "cnp": 5800487,
+      "matchedAt": "2026-05-08T13:25:32.075Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Gopten",
+      "dci": "Trandolapril",
+      "codigoATC": "C09AA10",
+      "formaFarmaceutica": "Cápsula",
+      "dosagem": "2 mg",
+      "embalagem": "Blister 14 unidade(s)",
+      "titularAim": "Viatris Healthcare, Lda.",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "3.4.2.1 - Inibidores da enzima de conversão da angiotensina",
+      "siblings": [
+        2181485,
+        4543187
+      ]
+    },
+    "9256453": {
+      "cnp": 9256453,
+      "matchedAt": "2026-05-08T13:21:18.911Z",
+      "matchedVia": "sibling_cnp",
+      "searchedAs": null,
+      "designacaoOficial": "Haldol",
+      "dci": "Haloperidol",
+      "codigoATC": "N05AD01",
+      "formaFarmaceutica": "Comprimido",
+      "dosagem": "1 mg",
+      "embalagem": "Blister 20 unidade(s)",
+      "titularAim": "Essential Pharma Limited",
+      "estadoAim": "Autorizado",
+      "grupoTerapeutico": "2.9.2 - Antipsicóticos",
+      "siblings": [
+        2074797
+      ]
+    }
+  },
+  "notFound": {
+    "2000001": {
+      "cnp": 2000001,
+      "searchedAs": "IAP PHARMA Nº1",
+      "searchedAt": "2026-05-08T13:15:20.538Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000002": {
+      "cnp": 2000002,
+      "searchedAs": "IAP PHARMA Nº2",
+      "searchedAt": "2026-05-08T13:15:27.241Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000004": {
+      "cnp": 2000004,
+      "searchedAs": "IAP PHARMA Nº4",
+      "searchedAt": "2026-05-08T13:15:33.648Z",
+      "reason": "failed",
+      "details": "stage=search: submit HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000005": {
+      "cnp": 2000005,
+      "searchedAs": "IAP PHARMA Nº5",
+      "searchedAt": "2026-05-08T13:15:36.748Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000006": {
+      "cnp": 2000006,
+      "searchedAs": "IAP PHARMA Nº6",
+      "searchedAt": "2026-05-08T13:15:39.837Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000009": {
+      "cnp": 2000009,
+      "searchedAs": "IAP PHARMA Nº9",
+      "searchedAt": "2026-05-08T13:15:42.944Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000010": {
+      "cnp": 2000010,
+      "searchedAs": "IAP PHARMA Nº10",
+      "searchedAt": "2026-05-08T13:15:49.556Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000011": {
+      "cnp": 2000011,
+      "searchedAs": "IAP PHARMA Nº11",
+      "searchedAt": "2026-05-08T13:15:56.259Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000012": {
+      "cnp": 2000012,
+      "searchedAs": "IAP PHARMA Nº12",
+      "searchedAt": "2026-05-08T13:16:03.045Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000013": {
+      "cnp": 2000013,
+      "searchedAs": "IAP PHARMA Nº43(13)",
+      "searchedAt": "2026-05-08T13:16:09.720Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000014": {
+      "cnp": 2000014,
+      "searchedAs": "IAP PHARMA Nº14",
+      "searchedAt": "2026-05-08T13:16:16.613Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000015": {
+      "cnp": 2000015,
+      "searchedAs": "IAP PHARMA Nº15",
+      "searchedAt": "2026-05-08T13:16:24.008Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000016": {
+      "cnp": 2000016,
+      "searchedAs": "IAP PHARMA Nº16",
+      "searchedAt": "2026-05-08T13:16:30.598Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000017": {
+      "cnp": 2000017,
+      "searchedAs": "IAP PHARMA Nº17",
+      "searchedAt": "2026-05-08T13:16:37.726Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000018": {
+      "cnp": 2000018,
+      "searchedAs": "IAP PHARMA Nº48(18)",
+      "searchedAt": "2026-05-08T13:16:44.286Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000019": {
+      "cnp": 2000019,
+      "searchedAs": "IAP PHARMA Nº19",
+      "searchedAt": "2026-05-08T13:16:50.869Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000022": {
+      "cnp": 2000022,
+      "searchedAs": "IAP PHARMA Nº22",
+      "searchedAt": "2026-05-08T13:16:57.584Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000023": {
+      "cnp": 2000023,
+      "searchedAs": "IAP PHARMA Nº23",
+      "searchedAt": "2026-05-08T13:17:04.177Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000027": {
+      "cnp": 2000027,
+      "searchedAs": "IAP PHARMA Nº27",
+      "searchedAt": "2026-05-08T13:17:10.736Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000028": {
+      "cnp": 2000028,
+      "searchedAs": "IAP PHARMA Nº28",
+      "searchedAt": "2026-05-08T13:17:17.429Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000029": {
+      "cnp": 2000029,
+      "searchedAs": "IAP PHARMA Nº29",
+      "searchedAt": "2026-05-08T13:17:24.102Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000030": {
+      "cnp": 2000030,
+      "searchedAs": "IAP PHARMA Nº30",
+      "searchedAt": "2026-05-08T13:17:30.726Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000032": {
+      "cnp": 2000032,
+      "searchedAs": "IAP PHARMA Nº32",
+      "searchedAt": "2026-05-08T13:17:37.329Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000035": {
+      "cnp": 2000035,
+      "searchedAs": "IAP PHARMA Nº35",
+      "searchedAt": "2026-05-08T13:17:43.909Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000038": {
+      "cnp": 2000038,
+      "searchedAs": "IAP PHARMA Nº38",
+      "searchedAt": "2026-05-08T13:17:50.554Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000039": {
+      "cnp": 2000039,
+      "searchedAs": "IAP PHARMA Nº39",
+      "searchedAt": "2026-05-08T13:17:57.058Z",
+      "reason": "failed",
+      "details": "stage=search: submit HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000040": {
+      "cnp": 2000040,
+      "searchedAs": "IAP PHARMA Nº40",
+      "searchedAt": "2026-05-08T13:18:00.154Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000050": {
+      "cnp": 2000050,
+      "searchedAs": "IAP PHARMA Nº70",
+      "searchedAt": "2026-05-08T13:18:03.260Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000051": {
+      "cnp": 2000051,
+      "searchedAs": "IAP PHARMA Nº51",
+      "searchedAt": "2026-05-08T13:18:06.594Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000052": {
+      "cnp": 2000052,
+      "searchedAs": "IAP PHARMA Nº52",
+      "searchedAt": "2026-05-08T13:18:09.685Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000055": {
+      "cnp": 2000055,
+      "searchedAs": "IAP PHARMA Nº55",
+      "searchedAt": "2026-05-08T13:18:16.752Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000056": {
+      "cnp": 2000056,
+      "searchedAs": "IAP PHARMA Nº56",
+      "searchedAt": "2026-05-08T13:18:23.928Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000057": {
+      "cnp": 2000057,
+      "searchedAs": "IAP PHARMA Nº57",
+      "searchedAt": "2026-05-08T13:18:30.556Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000058": {
+      "cnp": 2000058,
+      "searchedAs": "IAP PHARMA Nº58",
+      "searchedAt": "2026-05-08T13:18:37.122Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000059": {
+      "cnp": 2000059,
+      "searchedAs": "IAP PHARMA Nº69",
+      "searchedAt": "2026-05-08T13:18:43.878Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000062": {
+      "cnp": 2000062,
+      "searchedAs": "IAP PHARMA Nº62",
+      "searchedAt": "2026-05-08T13:18:50.746Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000063": {
+      "cnp": 2000063,
+      "searchedAs": "IAP PHARMA Nº63",
+      "searchedAt": "2026-05-08T13:18:53.857Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000065": {
+      "cnp": 2000065,
+      "searchedAs": "IAP PHARMA Nº65",
+      "searchedAt": "2026-05-08T13:18:56.990Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000066": {
+      "cnp": 2000066,
+      "searchedAs": "IAP PHARMA Nº66",
+      "searchedAt": "2026-05-08T13:19:00.113Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000068": {
+      "cnp": 2000068,
+      "searchedAs": "IAP PHARMA Nº68",
+      "searchedAt": "2026-05-08T13:19:03.200Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000071": {
+      "cnp": 2000071,
+      "searchedAs": "IAP PHARMA Nº71",
+      "searchedAt": "2026-05-08T13:19:06.312Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000073": {
+      "cnp": 2000073,
+      "searchedAs": "IAP PHARMA Nº73",
+      "searchedAt": "2026-05-08T13:19:09.486Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000077": {
+      "cnp": 2000077,
+      "searchedAs": "IAP PHARMA Nº77",
+      "searchedAt": "2026-05-08T13:19:12.604Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2000086": {
+      "cnp": 2000086,
+      "searchedAs": "IAP PHARMA Nº86",
+      "searchedAt": "2026-05-08T13:19:19.210Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000087": {
+      "cnp": 2000087,
+      "searchedAs": "IAP PHARMA Nº87",
+      "searchedAt": "2026-05-08T13:19:25.800Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000088": {
+      "cnp": 2000088,
+      "searchedAs": "IAP PHARMA Nº88",
+      "searchedAt": "2026-05-08T13:19:32.603Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000090": {
+      "cnp": 2000090,
+      "searchedAs": "IAP PHARMA Nº90",
+      "searchedAt": "2026-05-08T13:19:39.291Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000300": {
+      "cnp": 2000300,
+      "searchedAs": "IAP PHARMA Nº30+",
+      "searchedAt": "2026-05-08T13:19:46.035Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000320": {
+      "cnp": 2000320,
+      "searchedAs": "IAP PHARMA Nº32+",
+      "searchedAt": "2026-05-08T13:19:52.850Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000710": {
+      "cnp": 2000710,
+      "searchedAs": "IAP PHARMA Nº71+",
+      "searchedAt": "2026-05-08T13:19:59.415Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2000990": {
+      "cnp": 2000990,
+      "searchedAs": "Leite Magnesia Phillips Oral",
+      "searchedAt": "2026-05-08T13:20:06.314Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2003499": {
+      "cnp": 2003499,
+      "searchedAs": "Benaderma 50",
+      "searchedAt": "2026-05-08T13:20:13.221Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2014892": {
+      "cnp": 2014892,
+      "searchedAs": "Melhoral 500",
+      "searchedAt": "2026-05-08T13:20:20.018Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2047280": {
+      "cnp": 2047280,
+      "searchedAs": "Decapeptyl Pó Veículo Para",
+      "searchedAt": "2026-05-08T13:20:26.961Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2047397": {
+      "cnp": 2047397,
+      "searchedAs": "Proton gastrorresistente",
+      "searchedAt": "2026-05-08T13:20:33.588Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2051795": {
+      "cnp": 2051795,
+      "searchedAs": "Zyrtec oral medida",
+      "searchedAt": "2026-05-08T13:20:40.642Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2055184": {
+      "cnp": 2055184,
+      "searchedAs": "Sirdalud.",
+      "searchedAt": "2026-05-08T13:20:47.243Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2055283": {
+      "cnp": 2055283,
+      "searchedAs": "Sirdalud",
+      "searchedAt": "2026-05-08T13:20:55.585Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2079895": {
+      "cnp": 2079895,
+      "searchedAs": "TOPICAL 1%",
+      "searchedAt": "2026-05-08T13:21:48.647Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2087492": {
+      "cnp": 2087492,
+      "searchedAs": "Calicida Indiano pomada",
+      "searchedAt": "2026-05-08T13:21:55.616Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2092393": {
+      "cnp": 2092393,
+      "searchedAs": "Nupercainal 20 pda rect bisnaga",
+      "searchedAt": "2026-05-08T13:22:02.316Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2093193": {
+      "cnp": 2093193,
+      "searchedAs": "Parafinina oral",
+      "searchedAt": "2026-05-08T13:22:09.247Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2110030": {
+      "cnp": 2110030,
+      "searchedAs": "IAP PHARMA Nº30",
+      "searchedAt": "2026-05-08T13:22:15.787Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2115889": {
+      "cnp": 2115889,
+      "searchedAs": "Hyalart",
+      "searchedAt": "2026-05-08T13:22:23.046Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2120392": {
+      "cnp": 2120392,
+      "searchedAs": "Modina revest",
+      "searchedAt": "2026-05-08T13:22:29.607Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2121093": {
+      "cnp": 2121093,
+      "searchedAs": "Nimodipina Tecnilor. Revest.",
+      "searchedAt": "2026-05-08T13:22:36.420Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2124555": {
+      "cnp": 2124555,
+      "searchedAs": "Lovren M5 Mascara Waterproof Effect",
+      "searchedAt": "2026-05-08T13:22:43.025Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2125553": {
+      "cnp": 2125553,
+      "searchedAs": "Cerelac Arroz",
+      "searchedAt": "2026-05-08T13:22:49.626Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2132280": {
+      "cnp": 2132280,
+      "searchedAs": "Diflucan 35 pó oral medida",
+      "searchedAt": "2026-05-08T13:22:56.212Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2133387": {
+      "cnp": 2133387,
+      "searchedAs": "Proscar revest",
+      "searchedAt": "2026-05-08T13:23:02.756Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2134492": {
+      "cnp": 2134492,
+      "searchedAs": "Voltaren Rapid revest",
+      "searchedAt": "2026-05-08T13:23:09.329Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2134690": {
+      "cnp": 2134690,
+      "searchedAs": "Voltaren Rapid revest",
+      "searchedAt": "2026-05-08T13:23:15.912Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2135085": {
+      "cnp": 2135085,
+      "searchedAs": "Lamisil",
+      "searchedAt": "2026-05-08T13:23:19.003Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2135184": {
+      "cnp": 2135184,
+      "searchedAs": "Lamisil 15",
+      "searchedAt": "2026-05-08T13:23:22.096Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2137297": {
+      "cnp": 2137297,
+      "searchedAs": "Pandermil 30",
+      "searchedAt": "2026-05-08T13:23:25.216Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2138592": {
+      "cnp": 2138592,
+      "searchedAs": "Mentocaína-r 20 Pastilha",
+      "searchedAt": "2026-05-08T13:23:28.303Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2145771": {
+      "cnp": 2145771,
+      "searchedAs": "Haan Hand Sanitizer Bright Rose",
+      "searchedAt": "2026-05-08T13:23:31.413Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2145772": {
+      "cnp": 2145772,
+      "searchedAs": "Haan Hand Sanitizer Purifying Verbena",
+      "searchedAt": "2026-05-08T13:23:34.515Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2145773": {
+      "cnp": 2145773,
+      "searchedAs": "Haan Hand Sanitizer Soothing Lavender",
+      "searchedAt": "2026-05-08T13:23:37.611Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2145777": {
+      "cnp": 2145777,
+      "searchedAs": "Haan MouthSpray Apple Day",
+      "searchedAt": "2026-05-08T13:23:40.725Z",
+      "reason": "failed",
+      "details": "stage=session: HTTP 503",
+      "candidatesEvaluated": 0
+    },
+    "2145778": {
+      "cnp": 2145778,
+      "searchedAs": "Haan MouthSpray Goog on Ya",
+      "searchedAt": "2026-05-08T13:23:47.287Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2145779": {
+      "cnp": 2145779,
+      "searchedAs": "Haan MouthSpray Life's Beach",
+      "searchedAt": "2026-05-08T13:23:53.853Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2146082": {
+      "cnp": 2146082,
+      "searchedAs": "LACIPIL 56",
+      "searchedAt": "2026-05-08T13:24:00.594Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2146983": {
+      "cnp": 2146983,
+      "searchedAs": "Klacid Pediátrico oral medida",
+      "searchedAt": "2026-05-08T13:24:07.145Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2150886": {
+      "cnp": 2150886,
+      "searchedAs": "Advantan 30",
+      "searchedAt": "2026-05-08T13:24:13.738Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2151082": {
+      "cnp": 2151082,
+      "searchedAs": "Advantan 30 pomada",
+      "searchedAt": "2026-05-08T13:24:20.337Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2152494": {
+      "cnp": 2152494,
+      "searchedAs": "Remisil 100",
+      "searchedAt": "2026-05-08T13:24:27.121Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2159184": {
+      "cnp": 2159184,
+      "searchedAs": "Allergodil pulv nasal",
+      "searchedAt": "2026-05-08T13:24:33.666Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2173599": {
+      "cnp": 2173599,
+      "searchedAs": "Reuxen 100",
+      "searchedAt": "2026-05-08T13:24:40.258Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2175883": {
+      "cnp": 2175883,
+      "searchedAs": "Metroderme 30",
+      "searchedAt": "2026-05-08T13:24:47.167Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2176485": {
+      "cnp": 2176485,
+      "searchedAs": "Zestoretic 20",
+      "searchedAt": "2026-05-08T13:24:53.750Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2177384": {
+      "cnp": 2177384,
+      "searchedAs": "Pentasa 10 sup",
+      "searchedAt": "2026-05-08T13:25:00.370Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2177681": {
+      "cnp": 2177681,
+      "searchedAs": "Levotuss 200 xar medida",
+      "searchedAt": "2026-05-08T13:25:06.990Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2178887": {
+      "cnp": 2178887,
+      "searchedAs": "Pentasa. Lib. Prol.",
+      "searchedAt": "2026-05-08T13:25:13.817Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2184992": {
+      "cnp": 2184992,
+      "searchedAs": "Biloban revest",
+      "searchedAt": "2026-05-08T13:25:38.647Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    },
+    "2195782": {
+      "cnp": 2195782,
+      "searchedAs": "Fluimucil eferv",
+      "searchedAt": "2026-05-08T13:26:03.414Z",
+      "reason": "no_results",
+      "details": "rowsTotal=0",
+      "candidatesEvaluated": 0
+    }
+  }
+}
