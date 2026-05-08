@@ -56,6 +56,7 @@ export const ModelName = {
   FabricanteAlias: 'FabricanteAlias',
   Classificacao: 'Classificacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
+  RegulatoryRecord: 'RegulatoryRecord',
   ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
   EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
@@ -191,6 +192,25 @@ export const InfarmedSnapshotScalarFieldEnum = {
 } as const
 
 export type InfarmedSnapshotScalarFieldEnum = (typeof InfarmedSnapshotScalarFieldEnum)[keyof typeof InfarmedSnapshotScalarFieldEnum]
+
+
+export const RegulatoryRecordScalarFieldEnum = {
+  cnp: 'cnp',
+  designacaoOficial: 'designacaoOficial',
+  dci: 'dci',
+  codigoATC: 'codigoATC',
+  formaFarmaceutica: 'formaFarmaceutica',
+  dosagem: 'dosagem',
+  embalagem: 'embalagem',
+  grupoTerapeutico: 'grupoTerapeutico',
+  titularAim: 'titularAim',
+  estadoAim: 'estadoAim',
+  source: 'source',
+  importedAt: 'importedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RegulatoryRecordScalarFieldEnum = (typeof RegulatoryRecordScalarFieldEnum)[keyof typeof RegulatoryRecordScalarFieldEnum]
 
 
 export const ProdutoVerificacaoHistoricoScalarFieldEnum = {

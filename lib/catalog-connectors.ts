@@ -1235,10 +1235,35 @@ async function evaluateRetailCandidate(
   };
 }
 
+// ─── Diagnóstico: skip retail (Maio 2026) ─────────────────────────────────────
+//
+// Toggle apenas para scripts de validação / dry-runs onde queremos isolar a
+// qualidade da classificação interna (ATC/DCI/keyword) do custo de HTTP do
+// retail. Quando ligado, `retailPharmacyConnector.lookup` devolve `null`
+// imediatamente sem fazer pesquisas externas.
+//
+// NUNCA chamar isto em código de produção. O setter é exposto apenas para
+// `scripts/reprocess-catalog.ts --skip-retail` e equivalentes diagnósticos.
+
+let SKIP_RETAIL_CONNECTOR = false;
+
+export function setSkipRetailConnector(skip: boolean): void {
+  SKIP_RETAIL_CONNECTOR = skip;
+}
+
 const retailPharmacyConnector: ExternalConnector = {
   name: "retail_pharmacy",
 
   async lookup(req): Promise<ExternalSourceData | null> {
+    if (SKIP_RETAIL_CONNECTOR) {
+      req.trace?.({
+        kind: "result",
+        connector: "retail_pharmacy",
+        status: "NO_MATCH",
+        reason: "skipped: SKIP_RETAIL_CONNECTOR=true (modo diagnóstico)",
+      });
+      return null;
+    }
     if (!req.designacao && !req.cnp && !req.url) return null;
 
     const trace = req.trace;

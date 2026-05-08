@@ -389,6 +389,7 @@ export const ModelName = {
   FabricanteAlias: 'FabricanteAlias',
   Classificacao: 'Classificacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
+  RegulatoryRecord: 'RegulatoryRecord',
   ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
   EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
@@ -431,7 +432,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -802,6 +803,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.InfarmedSnapshotCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.InfarmedSnapshotCountAggregateOutputType> | number
+        }
+      }
+    }
+    RegulatoryRecord: {
+      payload: Prisma.$RegulatoryRecordPayload<ExtArgs>
+      fields: Prisma.RegulatoryRecordFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RegulatoryRecordFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RegulatoryRecordFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        findFirst: {
+          args: Prisma.RegulatoryRecordFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RegulatoryRecordFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        findMany: {
+          args: Prisma.RegulatoryRecordFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>[]
+        }
+        create: {
+          args: Prisma.RegulatoryRecordCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        createMany: {
+          args: Prisma.RegulatoryRecordCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RegulatoryRecordCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>[]
+        }
+        delete: {
+          args: Prisma.RegulatoryRecordDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        update: {
+          args: Prisma.RegulatoryRecordUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        deleteMany: {
+          args: Prisma.RegulatoryRecordDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RegulatoryRecordUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RegulatoryRecordUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>[]
+        }
+        upsert: {
+          args: Prisma.RegulatoryRecordUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryRecordPayload>
+        }
+        aggregate: {
+          args: Prisma.RegulatoryRecordAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRegulatoryRecord>
+        }
+        groupBy: {
+          args: Prisma.RegulatoryRecordGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegulatoryRecordGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RegulatoryRecordCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegulatoryRecordCountAggregateOutputType> | number
         }
       }
     }
@@ -2934,6 +3009,25 @@ export const InfarmedSnapshotScalarFieldEnum = {
 export type InfarmedSnapshotScalarFieldEnum = (typeof InfarmedSnapshotScalarFieldEnum)[keyof typeof InfarmedSnapshotScalarFieldEnum]
 
 
+export const RegulatoryRecordScalarFieldEnum = {
+  cnp: 'cnp',
+  designacaoOficial: 'designacaoOficial',
+  dci: 'dci',
+  codigoATC: 'codigoATC',
+  formaFarmaceutica: 'formaFarmaceutica',
+  dosagem: 'dosagem',
+  embalagem: 'embalagem',
+  grupoTerapeutico: 'grupoTerapeutico',
+  titularAim: 'titularAim',
+  estadoAim: 'estadoAim',
+  source: 'source',
+  importedAt: 'importedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RegulatoryRecordScalarFieldEnum = (typeof RegulatoryRecordScalarFieldEnum)[keyof typeof RegulatoryRecordScalarFieldEnum]
+
+
 export const ProdutoVerificacaoHistoricoScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
@@ -3931,6 +4025,7 @@ export type GlobalOmitConfig = {
   fabricanteAlias?: Prisma.FabricanteAliasOmit
   classificacao?: Prisma.ClassificacaoOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
+  regulatoryRecord?: Prisma.RegulatoryRecordOmit
   produtoVerificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoOmit
   enrichmentSourceLog?: Prisma.EnrichmentSourceLogOmit
   fornecedor?: Prisma.FornecedorOmit

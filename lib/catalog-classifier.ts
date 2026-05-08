@@ -126,6 +126,9 @@ const KEYWORDS_SUPLEMENTO = new Set([
   "camomila", "propolis", "geleia real",
   "l-carnitina", "l carnitina", "triptofano", "lisina",
   "astaxantina", "luteina", "licopeno", "resveratrol",
+  // Marcas de suplementos alimentares (Maio 2026 — adicionado para
+  // detecção de produtos mis-classificados como MEDICAMENTO)
+  "solgar",
 ]);
 
 const KEYWORDS_DERMOCOSMETICA = new Set([
@@ -138,6 +141,14 @@ const KEYWORDS_DERMOCOSMETICA = new Set([
   "atoderm", "lipikar", "kerium", "aquaphor",
   "sensibio", "cicaplast", "effaclar", "toleriane", "anthelios",
   "photoderm", "hydrabio",
+  // Marcas adicionadas Maio 2026 — comuns em farmácia portuguesa, mis-
+  // classificadas como MEDICAMENTO por falta de vocabulário.
+  // "a-derma" → o tokenizer parte por hífen; o bigrama "a derma" cobre
+  // tanto "A-Derma" como "A Derma".
+  "a derma", "a-derma", "aderma",
+  // "akileine" — produtos de cuidado dos pés/pernas (cremes, bálsamos,
+  // gels). Caem em DERMOCOSMÉTICA / Mãos e Pés via taxonomy-map.
+  "akileine",
   "hidratante", "hidratacao", "serum", "soro facial",
   "protetor solar", "fotoprotecao", "spf",
   "anti-idade", "anti idade", "antiaging",
@@ -205,6 +216,15 @@ const KEYWORDS_VETERINARIA = new Set([
   "cao", "gato", "felino", "canino",
   "spot on", "spot-on",
   "collar antiparasitario",
+  // Adicionado Maio 2026 — palavras-chave e marcas frequentemente
+  // mis-classificadas como MEDICAMENTO no bucket "Outros Medicamentos".
+  // Lista conservadora: apenas marcas explícitas listadas pelo utilizador.
+  "vet", // covers "Vet" e "VET" via lowercase normalization
+  // Marcas veterinárias comuns em farmácia portuguesa
+  "fortekor", "milbemax", "rimadyl", "effipro", "easotic", "semintra",
+  "cortavance",
+  // Laboratórios veterinários (titularAim típico nos snapshots INFARMED)
+  "virbac", "elanco", "zoetis", "dechra",
 ]);
 
 // ─── Fontes recomendadas por tipo ─────────────────────────────────────────────

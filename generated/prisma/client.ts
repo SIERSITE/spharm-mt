@@ -74,6 +74,21 @@ export type Classificacao = Prisma.ClassificacaoModel
  */
 export type InfarmedSnapshot = Prisma.InfarmedSnapshotModel
 /**
+ * Model RegulatoryRecord
+ * Camada regulatória v2 (Maio 2026). Tabela standalone, indexada por CNP,
+ * alimentada pelo importador genérico `scripts/import-regulatory-record.ts`
+ * a partir de qualquer fonte (CEDIME/ANF, INFARMED Open Data, listas
+ * comparticipados, genéricos, etc.).
+ * 
+ * MVP simples — sem provenance per-field, sem versioning multi-source,
+ * sem conflict engine. Merge por CNP com regra "preservar não-null":
+ * um import só sobrescreve campos já preenchidos quando corrido com `--force`.
+ * 
+ * O `infarmedConnector` em `lib/catalog-connectors.ts` lê esta tabela
+ * primeiro e cai em `InfarmedSnapshot` quando o CNP não está aqui.
+ */
+export type RegulatoryRecord = Prisma.RegulatoryRecordModel
+/**
  * Model ProdutoVerificacaoHistorico
  * Histórico de verificações automáticas por produto.
  */

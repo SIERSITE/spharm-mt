@@ -183,58 +183,58 @@ enum EstadoInventario {
 
 /// Produto global do grupo, identificado por CNP.
 model Produto {
-  id                    String               @id @default(cuid())
-  cnp                   Int                  @unique
-  designacao            String
-  fabricanteId          String?
-  classificacaoNivel1Id String?
-  classificacaoNivel2Id String?
-  tipoArtigo            String?
-  codigoATC             String?
-  dci                   String?
-  imagemUrl             String?
-  formaFarmaceutica     String?
-  dosagem               String?
-  embalagem             String?
-  flagGenerico          Boolean              @default(false)
-  flagMSRM              Boolean              @default(false)
-  flagMNSRM             Boolean              @default(false)
-  grupoHomogeneo        String?
-  estado                ProdutoEstado        @default(PENDENTE)
-  origemDados           ProdutoOrigemDados   @default(FARMACIA)
-  validadoManualmente          Boolean              @default(false)
+  id                        String             @id @default(cuid())
+  cnp                       Int                @unique
+  designacao                String
+  fabricanteId              String?
+  classificacaoNivel1Id     String?
+  classificacaoNivel2Id     String?
+  tipoArtigo                String?
+  codigoATC                 String?
+  dci                       String?
+  imagemUrl                 String?
+  formaFarmaceutica         String?
+  dosagem                   String?
+  embalagem                 String?
+  flagGenerico              Boolean            @default(false)
+  flagMSRM                  Boolean            @default(false)
+  flagMNSRM                 Boolean            @default(false)
+  grupoHomogeneo            String?
+  estado                    ProdutoEstado      @default(PENDENTE)
+  origemDados               ProdutoOrigemDados @default(FARMACIA)
+  validadoManualmente       Boolean            @default(false)
   // Classificação e verificação automática
-  productType                  String?
-  productTypeConfidence        Float?
-  classificationSource         String?
-  classificationVersion        String?
-  verificationStatus           VerificationStatus   @default(PENDING)
-  lastVerifiedAt               DateTime?
-  lastVerificationAttemptAt    DateTime?
-  externallyVerified           Boolean              @default(false)
-  needsManualReview            Boolean              @default(false)
-  manualReviewReason           String?
-  dataCriacao                  DateTime             @default(now())
-  dataAtualizacao              DateTime             @updatedAt
+  productType               String?
+  productTypeConfidence     Float?
+  classificationSource      String?
+  classificationVersion     String?
+  verificationStatus        VerificationStatus @default(PENDING)
+  lastVerifiedAt            DateTime?
+  lastVerificationAttemptAt DateTime?
+  externallyVerified        Boolean            @default(false)
+  needsManualReview         Boolean            @default(false)
+  manualReviewReason        String?
+  dataCriacao               DateTime           @default(now())
+  dataAtualizacao           DateTime           @updatedAt
 
-  fabricante                   Fabricante?          @relation(fields: [fabricanteId], references: [id])
-  classificacaoNivel1          Classificacao?       @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
-  classificacaoNivel2          Classificacao?       @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
+  fabricante          Fabricante?    @relation(fields: [fabricanteId], references: [id])
+  classificacaoNivel1 Classificacao? @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
+  classificacaoNivel2 Classificacao? @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
 
-  produtosFarmacia             ProdutoFarmacia[]
-  vendas                       Venda[]
-  vendasMensais                VendaMensal[]
-  compras                      Compra[]
-  devolucoes                   Devolucao[]
-  historicoStocks              HistoricoStock[]
-  ajustesStock                 AjusteStock[]
-  linhasInventario             LinhaInventario[]
-  indicadores                  IndicadoresProdutoFarmacia[]
-  linhasEncomenda              LinhaEncomenda[]
-  filaRevisao                  FilaRevisao[]
-  filaEnriquecimento           EnriquecimentoFila[]
-  verificacaoHistorico         ProdutoVerificacaoHistorico[]
-  enrichmentSourceLogs         EnrichmentSourceLog[]
+  produtosFarmacia     ProdutoFarmacia[]
+  vendas               Venda[]
+  vendasMensais        VendaMensal[]
+  compras              Compra[]
+  devolucoes           Devolucao[]
+  historicoStocks      HistoricoStock[]
+  ajustesStock         AjusteStock[]
+  linhasInventario     LinhaInventario[]
+  indicadores          IndicadoresProdutoFarmacia[]
+  linhasEncomenda      LinhaEncomenda[]
+  filaRevisao          FilaRevisao[]
+  filaEnriquecimento   EnriquecimentoFila[]
+  verificacaoHistorico ProdutoVerificacaoHistorico[]
+  enrichmentSourceLogs EnrichmentSourceLog[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -247,24 +247,24 @@ model Produto {
 
 /// Fabricante normalizado.
 model Fabricante {
-  id              String            @id @default(cuid())
-  nomeNormalizado String            @unique
+  id              String         @id @default(cuid())
+  nomeNormalizado String         @unique
   paisOrigem      String?
-  estado          EntidadeEstado    @default(ATIVO)
-  dataCriacao     DateTime          @default(now())
-  dataAtualizacao DateTime          @updatedAt
+  estado          EntidadeEstado @default(ATIVO)
+  dataCriacao     DateTime       @default(now())
+  dataAtualizacao DateTime       @updatedAt
 
-  aliases         FabricanteAlias[]
-  produtos        Produto[]
+  aliases  FabricanteAlias[]
+  produtos Produto[]
 }
 
 /// Variantes de nomes de fabricante encontradas nas origens.
 model FabricanteAlias {
-  id            String      @id @default(cuid())
-  fabricanteId  String
-  aliasNome     String
+  id           String @id @default(cuid())
+  fabricanteId String
+  aliasNome    String
 
-  fabricante    Fabricante  @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
+  fabricante Fabricante @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
 
   @@unique([fabricanteId, aliasNome])
   @@index([aliasNome])
@@ -272,20 +272,20 @@ model FabricanteAlias {
 
 /// Árvore de classificação central.
 model Classificacao {
-  id                 String               @id @default(cuid())
+  id                 String            @id @default(cuid())
   nome               String
   tipo               TipoClassificacao
   classificacaoPaiId String?
-  estado             EntidadeEstado       @default(ATIVO)
+  estado             EntidadeEstado    @default(ATIVO)
   ordem              Int?
-  dataCriacao        DateTime             @default(now())
-  dataAtualizacao    DateTime             @updatedAt
+  dataCriacao        DateTime          @default(now())
+  dataAtualizacao    DateTime          @updatedAt
 
-  classificacaoPai   Classificacao?       @relation("ClassificacaoPaiFilho", fields: [classificacaoPaiId], references: [id])
-  subClassificacoes  Classificacao[]      @relation("ClassificacaoPaiFilho")
+  classificacaoPai  Classificacao?  @relation("ClassificacaoPaiFilho", fields: [classificacaoPaiId], references: [id])
+  subClassificacoes Classificacao[] @relation("ClassificacaoPaiFilho")
 
-  produtosNivel1     Produto[]            @relation("ProdutoClassificacaoNivel1")
-  produtosNivel2     Produto[]            @relation("ProdutoClassificacaoNivel2")
+  produtosNivel1 Produto[] @relation("ProdutoClassificacaoNivel1")
+  produtosNivel2 Produto[] @relation("ProdutoClassificacaoNivel2")
 
   @@unique([nome, tipo, classificacaoPaiId])
   @@index([tipo])
@@ -324,6 +324,43 @@ model InfarmedSnapshot {
   @@index([estadoAim])
 }
 
+/// Camada regulatória v2 (Maio 2026). Tabela standalone, indexada por CNP,
+/// alimentada pelo importador genérico `scripts/import-regulatory-record.ts`
+/// a partir de qualquer fonte (CEDIME/ANF, INFARMED Open Data, listas
+/// comparticipados, genéricos, etc.).
+///
+/// MVP simples — sem provenance per-field, sem versioning multi-source,
+/// sem conflict engine. Merge por CNP com regra "preservar não-null":
+/// um import só sobrescreve campos já preenchidos quando corrido com `--force`.
+///
+/// O `infarmedConnector` em `lib/catalog-connectors.ts` lê esta tabela
+/// primeiro e cai em `InfarmedSnapshot` quando o CNP não está aqui.
+model RegulatoryRecord {
+  cnp               Int      @id
+  designacaoOficial String?
+  dci               String?
+  codigoATC         String?
+  formaFarmaceutica String?
+  dosagem           String?
+  embalagem         String?
+  grupoTerapeutico  String?
+  /// Titular da AIM (fabricante regulatório).
+  titularAim        String?
+  /// "Autorizado", "Suspenso", "Revogado", "Caducado", etc.
+  estadoAim         String?
+  /// Tag livre identificando a fonte/import (ex.: "cedime_anf_2026-05",
+  /// "infarmed_comparticipados_2026-04"). O último import vence em campos
+  /// que sobrescreva.
+  source            String
+  importedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([codigoATC])
+  @@index([dci])
+  @@index([source])
+  @@index([estadoAim])
+}
+
 /// Histórico de verificações automáticas por produto.
 model ProdutoVerificacaoHistorico {
   id                 String   @id @default(cuid())
@@ -335,7 +372,7 @@ model ProdutoVerificacaoHistorico {
   sourceSummary      Json?
   fieldsUpdated      String[]
 
-  produto            Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@index([produtoId, verificadoEm])
 }
@@ -356,35 +393,35 @@ model ProdutoVerificacaoHistorico {
 ///
 /// Append-only. Não há UPDATE; reverify gera nova row.
 model EnrichmentSourceLog {
-  id              String                  @id @default(cuid())
-  produtoId       String
-  source          String
-  status          EnrichmentSourceStatus
+  id             String                 @id @default(cuid())
+  produtoId      String
+  source         String
+  status         EnrichmentSourceStatus
   /// Confiança devolvida pela fonte para este produto. Preenchido em SUCCESS e PARTIAL_HIT.
-  confidence      Float?
+  confidence     Float?
   /// "cnp" | "sku" | "designacao" | "fuzzy_name" | "ean" | "unknown".
-  matchedBy       String?
-  durationMs      Int?
+  matchedBy      String?
+  durationMs     Int?
   /// Lista de campos não-null devolvidos pela fonte (fabricante, atc, categoria, …).
   /// Permite contar coverage por campo por fonte.
-  fieldsReturned  String[]
-  errorMessage    String?
+  fieldsReturned String[]
+  errorMessage   String?
   /// URL da página/registo de onde os dados vieram, quando aplicável.
   /// Crucial para conectores web (retail_pharmacy) — admin pode abrir a página.
-  url             String?
+  url            String?
   /// Query exacta enviada à fonte (DDG, OFF/OBF, etc.). Permite reproduzir a busca.
-  query           String?
+  query          String?
   /// Marca / fabricante exactamente como aparece na fonte, antes de qualquer
   /// normalização. Mostrado ao admin como sinal cru.
-  rawBrand        String?
+  rawBrand       String?
   /// Categoria/breadcrumb cru, antes do mapeamento canónico.
-  rawCategory     String?
+  rawCategory    String?
   /// Nome do produto na fonte (og:title, h1, designacaoOficial, etc.).
   /// Permite ao admin ver se o conector apanhou o produto certo.
-  rawProductName  String?
-  createdAt       DateTime                @default(now())
+  rawProductName String?
+  createdAt      DateTime               @default(now())
 
-  produto         Produto                 @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@index([source, createdAt])
   @@index([produtoId, createdAt])
@@ -400,28 +437,28 @@ enum EnrichmentSourceStatus {
 
 /// Fornecedor normalizado.
 model Fornecedor {
-  id                        String                         @id @default(cuid())
-  nomeNormalizado           String                         @unique
-  tipo                      FornecedorTipo                 @default(OUTRO)
-  estado                    EntidadeEstado                 @default(ATIVO)
-  dataCriacao               DateTime                       @default(now())
-  dataAtualizacao           DateTime                       @updatedAt
+  id              String         @id @default(cuid())
+  nomeNormalizado String         @unique
+  tipo            FornecedorTipo @default(OUTRO)
+  estado          EntidadeEstado @default(ATIVO)
+  dataCriacao     DateTime       @default(now())
+  dataAtualizacao DateTime       @updatedAt
 
-  aliases                   FornecedorAlias[]
-  produtosFarmacia          ProdutoFarmacia[]
-  compras                   Compra[]                       @relation("CompraFornecedor")
-  devolucoesDestino         Devolucao[]                    @relation("DevolucaoFornecedorDestino")
+  aliases                     FornecedorAlias[]
+  produtosFarmacia            ProdutoFarmacia[]
+  compras                     Compra[]                     @relation("CompraFornecedor")
+  devolucoesDestino           Devolucao[]                  @relation("DevolucaoFornecedorDestino")
   indicadoresUltimoFornecedor IndicadoresProdutoFarmacia[] @relation("IndicadorUltimoFornecedor")
-  linhasEncomenda           LinhaEncomenda[]               @relation("LinhaEncomendaFornecedorSugerido")
+  linhasEncomenda             LinhaEncomenda[]             @relation("LinhaEncomendaFornecedorSugerido")
 }
 
 /// Variantes de nomes de fornecedor.
 model FornecedorAlias {
-  id            String      @id @default(cuid())
-  fornecedorId  String
-  aliasNome     String
+  id           String @id @default(cuid())
+  fornecedorId String
+  aliasNome    String
 
-  fornecedor    Fornecedor  @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 
   @@unique([fornecedorId, aliasNome])
   @@index([aliasNome])
@@ -432,31 +469,31 @@ model FornecedorAlias {
 //////////////////////////////////////////////////////
 
 model Farmacia {
-  id               String                     @id @default(cuid())
-  nome             String
-  codigoANF        String?
-  morada           String?
-  contacto         String?
-  estado           EntidadeEstado             @default(ATIVO)
-  dataAdesao       DateTime                   @default(now())
-  dataCriacao      DateTime                   @default(now())
-  dataAtualizacao  DateTime                   @updatedAt
+  id              String         @id @default(cuid())
+  nome            String
+  codigoANF       String?
+  morada          String?
+  contacto        String?
+  estado          EntidadeEstado @default(ATIVO)
+  dataAdesao      DateTime       @default(now())
+  dataCriacao     DateTime       @default(now())
+  dataAtualizacao DateTime       @updatedAt
 
-  utilizadores     Utilizador[]
+  utilizadores      Utilizador[]
   utilizadoresExtra UtilizadorFarmacia[]
-  produtosFarmacia ProdutoFarmacia[]
-  produtosInternos ProdutoInterno[]
-  vendas           Venda[]
-  vendasMensais    VendaMensal[]
-  compras          Compra[]
-  devolucoes       Devolucao[]
-  historicoStocks  HistoricoStock[]
-  ajustesStock     AjusteStock[]
-  inventarios      Inventario[]
-  indicadores      IndicadoresProdutoFarmacia[]
-  listasEncomenda  ListaEncomenda[]
-  lotesIngestao    LoteIngestao[]
-  emailConfig      EmailConfig?
+  produtosFarmacia  ProdutoFarmacia[]
+  produtosInternos  ProdutoInterno[]
+  vendas            Venda[]
+  vendasMensais     VendaMensal[]
+  compras           Compra[]
+  devolucoes        Devolucao[]
+  historicoStocks   HistoricoStock[]
+  ajustesStock      AjusteStock[]
+  inventarios       Inventario[]
+  indicadores       IndicadoresProdutoFarmacia[]
+  listasEncomenda   ListaEncomenda[]
+  lotesIngestao     LoteIngestao[]
+  emailConfig       EmailConfig?
 
   @@unique([nome])
   @@index([codigoANF])
@@ -486,27 +523,27 @@ model EmailConfig {
 }
 
 model Utilizador {
-  id              String             @id @default(cuid())
-  email           String             @unique
-  nome            String
-  perfil          UtilizadorPerfil
+  id                 String           @id @default(cuid())
+  email              String           @unique
+  nome               String
+  perfil             UtilizadorPerfil
   /// Farmácia PRIMÁRIA (contexto por defeito para sessão e filtros).
   /// Para GESTOR_GRUPO/ADMINISTRADOR é opcional. Para acesso a várias
   /// farmácias usar a relação `farmacias` (UtilizadorFarmacia).
-  farmaciaId      String?
-  estado          EntidadeEstado     @default(ATIVO)
-  passwordHash    String?
+  farmaciaId         String?
+  estado             EntidadeEstado   @default(ATIVO)
+  passwordHash       String?
   /// Marca o próximo login como forçado a alterar a password (ex:
   /// reset administrativo). A API /login vai validar e redirigir.
-  mustChangePassword Boolean         @default(false)
-  ultimoLogin     DateTime?
-  dataCriacao     DateTime           @default(now())
-  dataAtualizacao DateTime           @updatedAt
+  mustChangePassword Boolean          @default(false)
+  ultimoLogin        DateTime?
+  dataCriacao        DateTime         @default(now())
+  dataAtualizacao    DateTime         @updatedAt
 
-  farmacia        Farmacia?          @relation(fields: [farmaciaId], references: [id])
+  farmacia        Farmacia?            @relation(fields: [farmaciaId], references: [id])
   farmacias       UtilizadorFarmacia[]
   listasEncomenda ListaEncomenda[]
-  auditoria       AuditLog[]         @relation("AuditLogActor")
+  auditoria       AuditLog[]           @relation("AuditLogActor")
 }
 
 /// Associação N:N utilizador → farmácias para perfis com acesso a
@@ -514,13 +551,13 @@ model Utilizador {
 /// Pode ser ignorado quando `Utilizador.perfil = ADMINISTRADOR`, que
 /// por contrato tem acesso a TODAS as farmácias.
 model UtilizadorFarmacia {
-  id            String     @id @default(cuid())
-  utilizadorId  String
-  farmaciaId    String
-  dataCriacao   DateTime   @default(now())
+  id           String   @id @default(cuid())
+  utilizadorId String
+  farmaciaId   String
+  dataCriacao  DateTime @default(now())
 
-  utilizador    Utilizador @relation(fields: [utilizadorId], references: [id], onDelete: Cascade)
-  farmacia      Farmacia   @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  utilizador Utilizador @relation(fields: [utilizadorId], references: [id], onDelete: Cascade)
+  farmacia   Farmacia   @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
   @@unique([utilizadorId, farmaciaId])
   @@index([farmaciaId])
@@ -531,17 +568,17 @@ model UtilizadorFarmacia {
 /// não acoplar a um domínio específico. Chamar `logAudit(...)` do
 /// server-side quando uma acção precisa ser rastreável.
 model AuditLog {
-  id           String     @id @default(cuid())
-  actorId      String?
-  action       String
-  entity       String?
-  entityId     String?
-  metaJson     String?
-  ip           String?
-  userAgent    String?
-  createdAt    DateTime   @default(now())
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String?
+  entityId  String?
+  metaJson  String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
 
-  actor        Utilizador? @relation("AuditLogActor", fields: [actorId], references: [id])
+  actor Utilizador? @relation("AuditLogActor", fields: [actorId], references: [id])
 
   @@index([actorId, createdAt])
   @@index([entity, entityId])
@@ -554,22 +591,22 @@ model AuditLog {
 
 /// Tudo o que varia entre farmácias vive aqui.
 model ProdutoFarmacia {
-  id                   String        @id @default(cuid())
+  id                   String    @id @default(cuid())
   produtoId            String
   farmaciaId           String
   designacaoLocal      String?
-  pvp                  Decimal?      @db.Decimal(12, 4)
-  pmc                  Decimal?      @db.Decimal(12, 4)
-  puc                  Decimal?      @db.Decimal(12, 4)
-  stockAtual           Decimal?      @db.Decimal(14, 3)
-  stockRaw             Decimal?      @db.Decimal(14, 3)
-  stockMinimo          Decimal?      @db.Decimal(14, 3)
-  stockMaximo          Decimal?      @db.Decimal(14, 3)
+  pvp                  Decimal?  @db.Decimal(12, 4)
+  pmc                  Decimal?  @db.Decimal(12, 4)
+  puc                  Decimal?  @db.Decimal(12, 4)
+  stockAtual           Decimal?  @db.Decimal(14, 3)
+  stockRaw             Decimal?  @db.Decimal(14, 3)
+  stockMinimo          Decimal?  @db.Decimal(14, 3)
+  stockMaximo          Decimal?  @db.Decimal(14, 3)
   fornecedorHabitualId String?
   dataUltimaVenda      DateTime?
   dataUltimaCompra     DateTime?
   validadeMaisAntiga   DateTime?
-  flagRetirado         Boolean       @default(false)
+  flagRetirado         Boolean   @default(false)
   modeloGestaoStock    String?
   familiaOrigem        String?
   categoriaOrigem      String?
@@ -579,12 +616,12 @@ model ProdutoFarmacia {
   /// OCP, Alliance, etc.). Usado apenas como contexto interno, análise de
   /// abastecimento e hints fracos. NUNCA como fabricante canónico.
   fornecedorOrigem     String?
-  dataAtualizacao      DateTime      @updatedAt
-  dataCriacao          DateTime      @default(now())
+  dataAtualizacao      DateTime  @updatedAt
+  dataCriacao          DateTime  @default(now())
 
-  produto              Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  farmacia             Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  fornecedorHabitual   Fornecedor?   @relation(fields: [fornecedorHabitualId], references: [id])
+  produto            Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  farmacia           Farmacia    @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  fornecedorHabitual Fornecedor? @relation(fields: [fornecedorHabitualId], references: [id])
 
   @@unique([produtoId, farmaciaId])
   @@index([farmaciaId])
@@ -599,23 +636,23 @@ model ProdutoFarmacia {
 
 /// Produtos internos/localizados apenas na farmácia.
 model ProdutoInterno {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   farmaciaId      String
   codigoInterno   Int
   designacao      String?
   tipoArtigo      String?
-  pvp             Decimal?      @db.Decimal(12, 4)
-  puc             Decimal?      @db.Decimal(12, 4)
-  stockAtual      Decimal?      @db.Decimal(14, 3)
-  flagRetirado    Boolean       @default(false)
-  dataCriacao     DateTime      @default(now())
-  dataAtualizacao DateTime      @updatedAt
+  pvp             Decimal? @db.Decimal(12, 4)
+  puc             Decimal? @db.Decimal(12, 4)
+  stockAtual      Decimal? @db.Decimal(14, 3)
+  flagRetirado    Boolean  @default(false)
+  dataCriacao     DateTime @default(now())
+  dataAtualizacao DateTime @updatedAt
   loteIngestaoId  String?
 
-  farmacia        Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  loteIngestao    LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+  farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
-  ajustesStock    AjusteStock[]
+  ajustesStock     AjusteStock[]
   linhasInventario LinhaInventario[]
 
   @@unique([farmaciaId, codigoInterno])
@@ -629,24 +666,24 @@ model ProdutoInterno {
 
 /// Vendas diárias agregadas por produto-dia-farmácia.
 model Venda {
-  id                   String        @id @default(cuid())
+  id                   String     @id @default(cuid())
   farmaciaId           String
   produtoId            String
   data                 DateTime
-  quantidade           Decimal       @db.Decimal(14, 3)
-  valorTotal           Decimal       @db.Decimal(14, 2)
-  valorUnitario        Decimal?      @db.Decimal(12, 4)
-  custoUnitario        Decimal?      @db.Decimal(12, 4)
+  quantidade           Decimal    @db.Decimal(14, 3)
+  valorTotal           Decimal    @db.Decimal(14, 2)
+  valorUnitario        Decimal?   @db.Decimal(12, 4)
+  custoUnitario        Decimal?   @db.Decimal(12, 4)
   tipoVenda            TipoVenda?
-  valorComparticipacao Decimal?      @db.Decimal(14, 2)
-  valorPagoUtente      Decimal?      @db.Decimal(14, 2)
+  valorComparticipacao Decimal?   @db.Decimal(14, 2)
+  valorPagoUtente      Decimal?   @db.Decimal(14, 2)
   numeroTransacoes     Int?
-  dataIngestao         DateTime      @default(now())
+  dataIngestao         DateTime   @default(now())
   loteIngestaoId       String?
 
-  farmacia             Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto              Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  loteIngestao         LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+  farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
   @@index([farmaciaId, data])
   @@index([produtoId, data])
@@ -656,21 +693,21 @@ model Venda {
 
 /// Vendas mensais agregadas.
 model VendaMensal {
-  id               String        @id @default(cuid())
-  farmaciaId       String
-  produtoId        String
-  ano              Int
-  mes              Int
-  quantidade       Decimal       @db.Decimal(14, 3)
-  valorTotal       Decimal       @db.Decimal(14, 2)
-  mesCompleto      Boolean       @default(true)
-  origemBootstrap  Boolean       @default(false)
-  dataAtualizacao  DateTime      @updatedAt
-  loteIngestaoId   String?
+  id              String   @id @default(cuid())
+  farmaciaId      String
+  produtoId       String
+  ano             Int
+  mes             Int
+  quantidade      Decimal  @db.Decimal(14, 3)
+  valorTotal      Decimal  @db.Decimal(14, 2)
+  mesCompleto     Boolean  @default(true)
+  origemBootstrap Boolean  @default(false)
+  dataAtualizacao DateTime @updatedAt
+  loteIngestaoId  String?
 
-  farmacia         Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto          Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  loteIngestao     LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+  farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
   @@unique([farmaciaId, produtoId, ano, mes])
   @@index([ano, mes])
@@ -680,23 +717,23 @@ model VendaMensal {
 
 /// Compras diárias agregadas por produto-dia-farmácia-fornecedor.
 model Compra {
-  id                  String        @id @default(cuid())
+  id                  String   @id @default(cuid())
   farmaciaId          String
   produtoId           String
   fornecedorId        String?
   data                DateTime
-  quantidade          Decimal       @db.Decimal(14, 3)
-  valorTotal          Decimal       @db.Decimal(14, 2)
-  precoUnitario       Decimal?      @db.Decimal(12, 4)
-  descontoBonificacao Decimal?      @db.Decimal(14, 2)
+  quantidade          Decimal  @db.Decimal(14, 3)
+  valorTotal          Decimal  @db.Decimal(14, 2)
+  precoUnitario       Decimal? @db.Decimal(12, 4)
+  descontoBonificacao Decimal? @db.Decimal(14, 2)
   numeroDocumento     String?
-  dataIngestao        DateTime      @default(now())
+  dataIngestao        DateTime @default(now())
   loteIngestaoId      String?
 
-  farmacia            Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto             Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  fornecedor          Fornecedor?   @relation("CompraFornecedor", fields: [fornecedorId], references: [id])
-  loteIngestao        LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+  farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedor   Fornecedor?   @relation("CompraFornecedor", fields: [fornecedorId], references: [id])
+  loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
   @@index([farmaciaId, data])
   @@index([produtoId, data])
@@ -707,22 +744,22 @@ model Compra {
 
 /// Devoluções diárias.
 model Devolucao {
-  id                  String         @id @default(cuid())
+  id                  String        @id @default(cuid())
   farmaciaId          String
   produtoId           String
   data                DateTime
-  quantidade          Decimal        @db.Decimal(14, 3)
-  valor               Decimal        @db.Decimal(14, 2)
+  quantidade          Decimal       @db.Decimal(14, 3)
+  valor               Decimal       @db.Decimal(14, 2)
   tipo                TipoDevolucao
   motivo              String?
   fornecedorDestinoId String?
-  dataIngestao        DateTime       @default(now())
+  dataIngestao        DateTime      @default(now())
   loteIngestaoId      String?
 
-  farmacia            Farmacia       @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto             Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  fornecedorDestino   Fornecedor?    @relation("DevolucaoFornecedorDestino", fields: [fornecedorDestinoId], references: [id])
-  loteIngestao        LoteIngestao?  @relation(fields: [loteIngestaoId], references: [id])
+  farmacia          Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto           Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedorDestino Fornecedor?   @relation("DevolucaoFornecedorDestino", fields: [fornecedorDestinoId], references: [id])
+  loteIngestao      LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
   @@index([farmaciaId, data])
   @@index([produtoId, data])
@@ -733,17 +770,17 @@ model Devolucao {
 
 /// Histórico periódico de stock por produto-farmácia.
 model HistoricoStock {
-  id              String        @id @default(cuid())
-  farmaciaId      String
-  produtoId       String
-  dataFotografia  DateTime
-  quantidade      Decimal       @db.Decimal(14, 3)
-  valorCusto      Decimal?      @db.Decimal(14, 2)
-  loteIngestaoId  String?
+  id             String   @id @default(cuid())
+  farmaciaId     String
+  produtoId      String
+  dataFotografia DateTime
+  quantidade     Decimal  @db.Decimal(14, 3)
+  valorCusto     Decimal? @db.Decimal(14, 2)
+  loteIngestaoId String?
 
-  farmacia        Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto         Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  loteIngestao    LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
+  farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
   @@unique([farmaciaId, produtoId, dataFotografia])
   @@index([farmaciaId, dataFotografia])
@@ -756,23 +793,23 @@ model HistoricoStock {
 
 /// Ajustes manuais de stock ou correções operacionais.
 model AjusteStock {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   farmaciaId       String
   produtoId        String?
   produtoInternoId String?
   data             DateTime
   tipo             TipoAjusteStock
-  quantidade       Decimal        @db.Decimal(14, 3)
-  valor            Decimal?       @db.Decimal(14, 2)
+  quantidade       Decimal         @db.Decimal(14, 3)
+  valor            Decimal?        @db.Decimal(14, 2)
   motivo           String?
   observacoes      String?
-  dataIngestao     DateTime       @default(now())
+  dataIngestao     DateTime        @default(now())
   loteIngestaoId   String?
 
-  farmacia         Farmacia       @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  produto          Produto?       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  produtoInterno   ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
-  loteIngestao     LoteIngestao?  @relation(fields: [loteIngestaoId], references: [id])
+  farmacia       Farmacia        @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto        Produto?        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produtoInterno ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
+  loteIngestao   LoteIngestao?   @relation(fields: [loteIngestaoId], references: [id])
 
   @@index([farmaciaId, data])
   @@index([produtoId, data])
@@ -783,19 +820,19 @@ model AjusteStock {
 
 /// Cabeçalho de inventário físico da farmácia.
 model Inventario {
-  id               String           @id @default(cuid())
-  farmaciaId       String
-  nome             String?
-  dataInventario   DateTime
-  estado           EstadoInventario @default(RASCUNHO)
-  observacoes      String?
-  dataCriacao      DateTime         @default(now())
-  dataAtualizacao  DateTime         @updatedAt
-  loteIngestaoId   String?
+  id              String           @id @default(cuid())
+  farmaciaId      String
+  nome            String?
+  dataInventario  DateTime
+  estado          EstadoInventario @default(RASCUNHO)
+  observacoes     String?
+  dataCriacao     DateTime         @default(now())
+  dataAtualizacao DateTime         @updatedAt
+  loteIngestaoId  String?
 
-  farmacia         Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  loteIngestao     LoteIngestao?    @relation(fields: [loteIngestaoId], references: [id])
-  linhas           LinhaInventario[]
+  farmacia     Farmacia          @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  loteIngestao LoteIngestao?     @relation(fields: [loteIngestaoId], references: [id])
+  linhas       LinhaInventario[]
 
   @@index([farmaciaId, dataInventario])
   @@index([estado])
@@ -803,19 +840,19 @@ model Inventario {
 
 /// Linhas do inventário por produto.
 model LinhaInventario {
-  id               String         @id @default(cuid())
+  id               String   @id @default(cuid())
   inventarioId     String
   produtoId        String?
   produtoInternoId String?
-  stockSistema     Decimal?       @db.Decimal(14, 3)
-  stockContado     Decimal        @db.Decimal(14, 3)
-  diferenca        Decimal?       @db.Decimal(14, 3)
-  valorDiferenca   Decimal?       @db.Decimal(14, 2)
+  stockSistema     Decimal? @db.Decimal(14, 3)
+  stockContado     Decimal  @db.Decimal(14, 3)
+  diferenca        Decimal? @db.Decimal(14, 3)
+  valorDiferenca   Decimal? @db.Decimal(14, 2)
   observacoes      String?
 
-  inventario       Inventario     @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
-  produto          Produto?       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  produtoInterno   ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
+  inventario     Inventario      @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  produto        Produto?        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produtoInterno ProdutoInterno? @relation(fields: [produtoInternoId], references: [id], onDelete: Cascade)
 
   @@index([inventarioId])
   @@index([produtoId])
@@ -844,9 +881,9 @@ model IndicadoresProdutoFarmacia {
   valorStockParado      Decimal?             @db.Decimal(14, 2)
   dataCalculo           DateTime             @updatedAt
 
-  produto               Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  farmacia              Farmacia             @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  ultimoFornecedor      Fornecedor?          @relation("IndicadorUltimoFornecedor", fields: [ultimoFornecedorId], references: [id])
+  produto          Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  farmacia         Farmacia    @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  ultimoFornecedor Fornecedor? @relation("IndicadorUltimoFornecedor", fields: [ultimoFornecedorId], references: [id])
 
   @@unique([produtoId, farmaciaId])
   @@index([farmaciaId])
@@ -857,24 +894,24 @@ model IndicadoresProdutoFarmacia {
 
 /// Lista de encomenda guardada pelo utilizador.
 model ListaEncomenda {
-  id              String                @id @default(cuid())
+  id              String               @id @default(cuid())
   farmaciaId      String
   nome            String
-  estado          EstadoListaEncomenda  @default(RASCUNHO)
+  estado          EstadoListaEncomenda @default(RASCUNHO)
   /// Sub-estado do fluxo de exportação para SPharm. Aplica-se apenas
   /// quando `estado = FINALIZADA`; em RASCUNHO o valor existe mas não
   /// é consumido pelo agent (o outbox só cria rows para listas
   /// finalizadas via createEncomendaWithOutbox). Default PENDENTE é
   /// seguro porque sem OrderOutbox associado nada é exportado.
-  estadoExport    OrderExportState      @default(PENDENTE)
+  estadoExport    OrderExportState     @default(PENDENTE)
   criadoPorId     String
-  dataCriacao     DateTime              @default(now())
-  dataAtualizacao DateTime              @updatedAt
+  dataCriacao     DateTime             @default(now())
+  dataAtualizacao DateTime             @updatedAt
 
-  farmacia        Farmacia              @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  criadoPor       Utilizador            @relation(fields: [criadoPorId], references: [id])
-  linhas          LinhaEncomenda[]
-  outbox          OrderOutbox?
+  farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])
+  linhas    LinhaEncomenda[]
+  outbox    OrderOutbox?
 
   @@index([farmaciaId])
   @@index([criadoPorId])
@@ -884,17 +921,17 @@ model ListaEncomenda {
 
 /// Linhas da lista de encomenda.
 model LinhaEncomenda {
-  id                   String         @id @default(cuid())
+  id                   String   @id @default(cuid())
   listaEncomendaId     String
   produtoId            String
-  quantidadeSugerida   Decimal?       @db.Decimal(14, 3)
-  quantidadeAjustada   Decimal?       @db.Decimal(14, 3)
+  quantidadeSugerida   Decimal? @db.Decimal(14, 3)
+  quantidadeAjustada   Decimal? @db.Decimal(14, 3)
   fornecedorSugeridoId String?
   notas                String?
 
-  listaEncomenda       ListaEncomenda @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
-  produto              Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  fornecedorSugerido   Fornecedor?    @relation("LinhaEncomendaFornecedorSugerido", fields: [fornecedorSugeridoId], references: [id])
+  listaEncomenda     ListaEncomenda @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
+  produto            Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  fornecedorSugerido Fornecedor?    @relation("LinhaEncomendaFornecedorSugerido", fields: [fornecedorSugeridoId], references: [id])
 
   @@unique([listaEncomendaId, produtoId])
   @@index([produtoId])
@@ -903,16 +940,16 @@ model LinhaEncomenda {
 
 /// Fila de revisão manual do catálogo.
 model FilaRevisao {
-  id             String             @id @default(cuid())
-  produtoId      String
-  tipoRevisao    TipoRevisao
-  prioridade     PrioridadeRevisao  @default(MEDIA)
-  dadosOrigem    Json?
-  estado         EstadoFilaRevisao  @default(PENDENTE)
-  dataCriacao    DateTime           @default(now())
-  dataResolucao  DateTime?
+  id            String            @id @default(cuid())
+  produtoId     String
+  tipoRevisao   TipoRevisao
+  prioridade    PrioridadeRevisao @default(MEDIA)
+  dadosOrigem   Json?
+  estado        EstadoFilaRevisao @default(PENDENTE)
+  dataCriacao   DateTime          @default(now())
+  dataResolucao DateTime?
 
-  produto        Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@index([estado, prioridade])
   @@index([produtoId])
@@ -932,7 +969,7 @@ model EnriquecimentoFila {
   dataCriacao      DateTime             @default(now())
   dataAtualizacao  DateTime             @updatedAt
 
-  produto          Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@unique([produtoId])
   @@index([estado, prioridade])
@@ -944,12 +981,12 @@ model EnriquecimentoFila {
 
 /// Registo de cada lote recebido/processado.
 model LoteIngestao {
-  id                String              @id @default(cuid())
+  id                String             @id @default(cuid())
   farmaciaId        String
   tipo              TipoLoteIngestao
   dataReferencia    DateTime
   dataProcessamento DateTime?
-  estado            EstadoLoteIngestao  @default(RECEBIDO)
+  estado            EstadoLoteIngestao @default(RECEBIDO)
   totalRegistos     Int?
   totalAceites      Int?
   totalRejeitados   Int?
@@ -957,19 +994,19 @@ model LoteIngestao {
   nomeFicheiro      String?
   blobUrl           String?
   hashConteudo      String?
-  dataCriacao       DateTime            @default(now())
-  dataAtualizacao   DateTime            @updatedAt
+  dataCriacao       DateTime           @default(now())
+  dataAtualizacao   DateTime           @updatedAt
 
-  farmacia          Farmacia            @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
-  vendas            Venda[]
-  vendasMensais     VendaMensal[]
-  compras           Compra[]
-  devolucoes        Devolucao[]
-  historicoStocks   HistoricoStock[]
-  produtosInternos  ProdutoInterno[]
-  ajustesStock      AjusteStock[]
-  inventarios       Inventario[]
+  vendas           Venda[]
+  vendasMensais    VendaMensal[]
+  compras          Compra[]
+  devolucoes       Devolucao[]
+  historicoStocks  HistoricoStock[]
+  produtosInternos ProdutoInterno[]
+  ajustesStock     AjusteStock[]
+  inventarios      Inventario[]
 
   @@index([farmaciaId, tipo, dataReferencia])
   @@index([estado])
@@ -999,55 +1036,55 @@ model LoteIngestao {
 /// Outbox de exportação de encomendas. 1:1 com ListaEncomenda.
 /// Criado na mesma transacção via lib/ingest/orders.ts:createEncomendaWithOutbox.
 model OrderOutbox {
-  id                String           @id @default(cuid())
-  listaEncomendaId  String           @unique
+  id               String @id @default(cuid())
+  listaEncomendaId String @unique
   /// Denormalizado para permitir index (farmaciaId, state) sem join
   /// na query hot-path do agent.
-  farmaciaId        String
+  farmaciaId       String
 
   /// Snapshot congelado do payload que o agent vai escrever em SPharm.
   /// JSON serializado. IMUTÁVEL — edições à lista após criação do
   /// outbox requerem cancelar+recriar (ver lib/ingest/orders.ts).
-  payloadJson       String
+  payloadJson String
 
   /// Chave determinística: "{tenantSlug}:{listaEncomendaId}". Usada
   /// pelo agent como stamp para idempotência em SPharm. A ferramenta
   /// de stamping em SPharm será decidida quando chegar o schema real.
-  idempotencyKey    String           @unique
+  idempotencyKey String @unique
 
   /// Hash sha256 do payloadJson. Se o mesmo idempotencyKey alguma vez
   /// aparecer com hash diferente, o agent deve abortar e marcar
   /// FALHADO — defesa contra mutação acidental do payload congelado.
-  payloadHash       String
+  payloadHash String
 
-  state             OrderExportState @default(PENDENTE)
+  state OrderExportState @default(PENDENTE)
 
   /// Contador de tentativas (incluindo a corrente). Reset a 0 no /retry.
-  attemptCount      Int              @default(0)
+  attemptCount  Int       @default(0)
   /// Próxima janela elegível para o agent claim. now() inicial.
   /// Schedule de retry: 1m · 5m · 30m · 2h · 8h · 24h · então FALHADO.
-  nextAttemptAt     DateTime         @default(now())
-  lastError         String?
-  lastAttemptAt     DateTime?
+  nextAttemptAt DateTime  @default(now())
+  lastError     String?
+  lastAttemptAt DateTime?
 
   // ── Lease ────────────────────────────────────────────────────────
   /// Identificador da instância do agent que reclamou a row.
   /// Null quando não há lease activa.
-  leasedBy          String?
+  leasedBy    String?
   /// TTL da lease. 5 min por defeito — próximo run reclama após isto.
-  leasedUntil       DateTime?
+  leasedUntil DateTime?
 
   // ── Confirmação ──────────────────────────────────────────────────
   /// Número de documento atribuído por SPharm depois do INSERT.
   /// Preenchido no endpoint /ack.
-  spharmDocumentId  String?
-  exportedAt        DateTime?
+  spharmDocumentId String?
+  exportedAt       DateTime?
 
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  listaEncomenda    ListaEncomenda   @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
-  audits            OrderExportAudit[]
+  listaEncomenda ListaEncomenda     @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
+  audits         OrderExportAudit[]
 
   // Hot path: o agent pede pending rows ordenadas por nextAttemptAt.
   @@index([state, nextAttemptAt])
@@ -1062,10 +1099,10 @@ model OrderOutbox {
 /// rastreabilidade operacional. O OrderOutbox guarda apenas o estado
 /// corrente; a timeline completa vive aqui.
 model OrderExportAudit {
-  id             String      @id @default(cuid())
+  id             String   @id @default(cuid())
   outboxId       String
   attempt        Int
-  at             DateTime    @default(now())
+  at             DateTime @default(now())
   /// "ATTEMPT" | "SUCCESS" | "FAILURE" | "RETRY_SCHEDULED" |
   /// "GAVE_UP" | "MANUAL_RETRY" | "MANUAL_CANCEL" | "LEASE_CLAIMED" |
   /// "LEASE_RELEASED" | "LEASE_EXPIRED"
@@ -1077,7 +1114,7 @@ model OrderExportAudit {
   /// Null para acções do agent.
   actorId        String?
 
-  outbox         OrderOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+  outbox OrderOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
 
   @@index([outboxId, at])
   @@index([status, at])
