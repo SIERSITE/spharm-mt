@@ -390,6 +390,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
+  RegulatoryAcquisitionJob: 'RegulatoryAcquisitionJob',
   ProdutoVerificacaoHistorico: 'ProdutoVerificacaoHistorico',
   EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
@@ -432,7 +433,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -877,6 +878,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.RegulatoryRecordCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.RegulatoryRecordCountAggregateOutputType> | number
+        }
+      }
+    }
+    RegulatoryAcquisitionJob: {
+      payload: Prisma.$RegulatoryAcquisitionJobPayload<ExtArgs>
+      fields: Prisma.RegulatoryAcquisitionJobFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RegulatoryAcquisitionJobFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RegulatoryAcquisitionJobFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        findFirst: {
+          args: Prisma.RegulatoryAcquisitionJobFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RegulatoryAcquisitionJobFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        findMany: {
+          args: Prisma.RegulatoryAcquisitionJobFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>[]
+        }
+        create: {
+          args: Prisma.RegulatoryAcquisitionJobCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        createMany: {
+          args: Prisma.RegulatoryAcquisitionJobCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RegulatoryAcquisitionJobCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>[]
+        }
+        delete: {
+          args: Prisma.RegulatoryAcquisitionJobDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        update: {
+          args: Prisma.RegulatoryAcquisitionJobUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        deleteMany: {
+          args: Prisma.RegulatoryAcquisitionJobDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RegulatoryAcquisitionJobUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RegulatoryAcquisitionJobUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>[]
+        }
+        upsert: {
+          args: Prisma.RegulatoryAcquisitionJobUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegulatoryAcquisitionJobPayload>
+        }
+        aggregate: {
+          args: Prisma.RegulatoryAcquisitionJobAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRegulatoryAcquisitionJob>
+        }
+        groupBy: {
+          args: Prisma.RegulatoryAcquisitionJobGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegulatoryAcquisitionJobGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RegulatoryAcquisitionJobCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegulatoryAcquisitionJobCountAggregateOutputType> | number
         }
       }
     }
@@ -3028,6 +3103,27 @@ export const RegulatoryRecordScalarFieldEnum = {
 export type RegulatoryRecordScalarFieldEnum = (typeof RegulatoryRecordScalarFieldEnum)[keyof typeof RegulatoryRecordScalarFieldEnum]
 
 
+export const RegulatoryAcquisitionJobScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  designacao: 'designacao',
+  status: 'status',
+  priority: 'priority',
+  attempts: 'attempts',
+  lastSourceTried: 'lastSourceTried',
+  lastError: 'lastError',
+  lastAttemptAt: 'lastAttemptAt',
+  nextAttemptAt: 'nextAttemptAt',
+  fieldsObtained: 'fieldsObtained',
+  sourceResults: 'sourceResults',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RegulatoryAcquisitionJobScalarFieldEnum = (typeof RegulatoryAcquisitionJobScalarFieldEnum)[keyof typeof RegulatoryAcquisitionJobScalarFieldEnum]
+
+
 export const ProdutoVerificacaoHistoricoScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
@@ -3661,6 +3757,20 @@ export type ListEnumTipoClassificacaoFieldRefInput<$PrismaModel> = FieldRefInput
 
 
 /**
+ * Reference to a field of type 'AcquisitionJobStatus'
+ */
+export type EnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'AcquisitionJobStatus[]'
+ */
+export type ListEnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'Json'
  */
 export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
@@ -4026,6 +4136,7 @@ export type GlobalOmitConfig = {
   classificacao?: Prisma.ClassificacaoOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   regulatoryRecord?: Prisma.RegulatoryRecordOmit
+  regulatoryAcquisitionJob?: Prisma.RegulatoryAcquisitionJobOmit
   produtoVerificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoOmit
   enrichmentSourceLog?: Prisma.EnrichmentSourceLogOmit
   fornecedor?: Prisma.FornecedorOmit

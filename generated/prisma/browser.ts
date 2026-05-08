@@ -65,6 +65,32 @@ export type InfarmedSnapshot = Prisma.InfarmedSnapshotModel
  */
 export type RegulatoryRecord = Prisma.RegulatoryRecordModel
 /**
+ * Model RegulatoryAcquisitionJob
+ * Job da regulatory acquisition pipeline (Phase 0 — Maio 2026).
+ * 
+ * Cada produto que precisa de fetch regulatório (DCI, ATC, forma, dosagem,
+ * embalagem, titularAim) entra como um job nesta queue. Workers stateless
+ * processam jobs em background, tentam fontes externas em ordem de
+ * prioridade, e populam `RegulatoryRecord` quando obtêm dados.
+ * 
+ * Lifecycle (ver enum AcquisitionJobStatus):
+ * PENDING → IN_PROGRESS → { DONE, PARTIAL, FAILED, BLOCKED }
+ * 
+ * Worker — `scripts/workers/regulatory-acquisition-worker.ts`:
+ * · Claim com FOR UPDATE SKIP LOCKED (safe para múltiplos workers)
+ * · Backoff exponencial (1h, 4h, 1d, 3d, 7d) até MAX_ATTEMPTS=6
+ * · GC: jobs IN_PROGRESS há > 30min são reset a PENDING (worker crashed)
+ * 
+ * Enqueue — `scripts/enqueue-regulatory-acquisition.ts`:
+ * · Por CNP / lista de CNPs / cohort predefinido / ficheiro
+ * · Upsert com priority configurável
+ * 
+ * Phase 0 (esta versão): zero fetchers reais. Worker simula outcome
+ * determinístico para validar o lifecycle. Phase 1+ adiciona fetchers
+ * (INFARMED Infomed, WHO ATC, manufacturer pages, etc.).
+ */
+export type RegulatoryAcquisitionJob = Prisma.RegulatoryAcquisitionJobModel
+/**
  * Model ProdutoVerificacaoHistorico
  * Histórico de verificações automáticas por produto.
  */

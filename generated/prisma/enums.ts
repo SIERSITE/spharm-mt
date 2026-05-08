@@ -225,6 +225,18 @@ export const EstadoInventario = {
 export type EstadoInventario = (typeof EstadoInventario)[keyof typeof EstadoInventario]
 
 
+export const AcquisitionJobStatus = {
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE',
+  PARTIAL: 'PARTIAL',
+  FAILED: 'FAILED',
+  BLOCKED: 'BLOCKED'
+} as const
+
+export type AcquisitionJobStatus = (typeof AcquisitionJobStatus)[keyof typeof AcquisitionJobStatus]
+
+
 export const EnrichmentSourceStatus = {
   SUCCESS: 'SUCCESS',
   NO_MATCH: 'NO_MATCH',

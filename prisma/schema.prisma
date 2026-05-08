@@ -177,6 +177,24 @@ enum EstadoInventario {
   CANCELADO
 }
 
+/// Estados do ciclo de vida de um RegulatoryAcquisitionJob.
+/// Transições típicas:
+///   PENDING      → IN_PROGRESS    (worker claimed)
+///   IN_PROGRESS  → DONE           (todos os campos obtidos)
+///   IN_PROGRESS  → PARTIAL        (alguns campos obtidos, retry agendado)
+///   IN_PROGRESS  → PENDING        (transient failure, backoff agendado)
+///   IN_PROGRESS  → FAILED         (max attempts excedidas)
+///   IN_PROGRESS  → BLOCKED        (ambiguidade, requer revisão manual)
+///   PARTIAL      → IN_PROGRESS    (worker tenta de novo para completar)
+enum AcquisitionJobStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  PARTIAL
+  FAILED
+  BLOCKED
+}
+
 //////////////////////////////////////////////////////
 // CATÁLOGO CENTRAL
 //////////////////////////////////////////////////////
@@ -359,6 +377,60 @@ model RegulatoryRecord {
   @@index([dci])
   @@index([source])
   @@index([estadoAim])
+}
+
+/// Job da regulatory acquisition pipeline (Phase 0 — Maio 2026).
+///
+/// Cada produto que precisa de fetch regulatório (DCI, ATC, forma, dosagem,
+/// embalagem, titularAim) entra como um job nesta queue. Workers stateless
+/// processam jobs em background, tentam fontes externas em ordem de
+/// prioridade, e populam `RegulatoryRecord` quando obtêm dados.
+///
+/// Lifecycle (ver enum AcquisitionJobStatus):
+///   PENDING → IN_PROGRESS → { DONE, PARTIAL, FAILED, BLOCKED }
+///
+/// Worker — `scripts/workers/regulatory-acquisition-worker.ts`:
+///   · Claim com FOR UPDATE SKIP LOCKED (safe para múltiplos workers)
+///   · Backoff exponencial (1h, 4h, 1d, 3d, 7d) até MAX_ATTEMPTS=6
+///   · GC: jobs IN_PROGRESS há > 30min são reset a PENDING (worker crashed)
+///
+/// Enqueue — `scripts/enqueue-regulatory-acquisition.ts`:
+///   · Por CNP / lista de CNPs / cohort predefinido / ficheiro
+///   · Upsert com priority configurável
+///
+/// Phase 0 (esta versão): zero fetchers reais. Worker simula outcome
+/// determinístico para validar o lifecycle. Phase 1+ adiciona fetchers
+/// (INFARMED Infomed, WHO ATC, manufacturer pages, etc.).
+model RegulatoryAcquisitionJob {
+  id              String               @id @default(cuid())
+  cnp             Int                  @unique
+  designacao      String?
+  status          AcquisitionJobStatus @default(PENDING)
+  /// Prioridade — menor = primeiro. 1=urgente, 50=normal (default), 100=fundo.
+  priority        Int                  @default(50)
+  attempts        Int                  @default(0)
+  /// Última fonte tentada (para diagnóstico): "infarmed_infomed", "manufacturer_page", …
+  lastSourceTried String?
+  lastError       String?
+  lastAttemptAt   DateTime?
+  /// Backoff scheduling — jobs só são claimable quando NOW() >= nextAttemptAt.
+  nextAttemptAt   DateTime             @default(now())
+  /// Lista de campos já populados em RegulatoryRecord para este CNP
+  /// (snapshot na altura do último processamento). Usada para evitar
+  /// retentar campos já obtidos.
+  fieldsObtained  String[]             @default([])
+  /// Resumo bruto de cada fonte tentada (debug). Exemplo:
+  /// { "infarmed_infomed": { ok: true, fields: ["dci","atc"] },
+  ///   "manufacturer_page": { ok: false, reason: "no match" } }
+  sourceResults   Json?
+  /// Quando atinge status DONE pela primeira vez. Não é actualizado em
+  /// re-runs subsequentes.
+  completedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([priority, nextAttemptAt])
 }
 
 /// Histórico de verificações automáticas por produto.
