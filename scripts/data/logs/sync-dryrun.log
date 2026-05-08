@@ -1,0 +1,191 @@
+──────────────────────────────────────────────────────────────────────────
+Sync RegulatoryRecord → Produto (DRY-RUN)
+──────────────────────────────────────────────────────────────────────────
+  campos:    codigoATC, dci, formaFarmaceutica, dosagem, embalagem
+  scope:     CNPs em scripts/data/infomed-cnp-medguid-mapping.json
+  política:  só copia se Produto.<campo> == null
+  ignora:    validadoManualmente=true
+
+[1/4] CNPs em mapping: 359
+(node:8728) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2/4] Produtos vivos com esses CNPs: 95
+        · skipped validadoManualmente=true: 0
+        · elegíveis (não-validados):        95
+[3/4] RegulatoryRecord rows correspondentes: 95
+[4/4] Plano:
+        · com mudanças (would update): 95
+        · sem mudanças (todos campos já preenchidos): 0
+        · sem RegulatoryRecord match: 0
+
+  would_fill por campo:
+    codigoATC              95
+    dci                    95
+    formaFarmaceutica      95
+    dosagem                95
+    embalagem              95
+
+  Amostra (20 produtos antes/depois):
+
+  CNP 3599495  "Aero-Om Antidiarreico, 2 mg x 12 comp"
+    → codigoATC            cur=∅  new="A07DA03"  [FILL]
+    → dci                  cur=∅  new="Loperamida"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="2 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 12 unidade(s)"  [FILL]
+
+  CNP 2532794  "Amoxicilina Labesfal, 500 mg x 16 cáps"
+    → codigoATC            cur=∅  new="J01CA04"  [FILL]
+    → dci                  cur=∅  new="Amoxicilina"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="500 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 16 unidade(s)"  [FILL]
+
+  CNP 2695989  "Atacand, 8 mg x 28 comp"
+    → codigoATC            cur=∅  new="C09CA06"  [FILL]
+    → dci                  cur=∅  new="Candesartan"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="8 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 28 unidade(s)"  [FILL]
+
+  CNP 4538096  "Bromalex, 6 mg x 40 comp"
+    → codigoATC            cur=∅  new="N05BA08"  [FILL]
+    → dci                  cur=∅  new="Bromazepam"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="6 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 40 unidade(s)"  [FILL]
+
+  CNP 9452102  "Castilium, 10 mg x 30 comp"
+    → codigoATC            cur=∅  new="N05BA09"  [FILL]
+    → dci                  cur=∅  new="Clobazam"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="10 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 30 unidade(s)"  [FILL]
+
+  CNP 2459980  "Catalip, 200 mg x 30 cáps"
+    → codigoATC            cur=∅  new="C10AB05"  [FILL]
+    → dci                  cur=∅  new="Fenofibrato"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="200 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 30 unidade(s)"  [FILL]
+
+  CNP 3196482  "Celebrex, 200 mg x 20 cáps"
+    → codigoATC            cur=∅  new="M01AH01"  [FILL]
+    → dci                  cur=∅  new="Celecoxib"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="200 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 20 unidade(s)"  [FILL]
+
+  CNP 3196888  "Celebrex, 200 mg x 60 cáps"
+    → codigoATC            cur=∅  new="M01AH01"  [FILL]
+    → dci                  cur=∅  new="Celecoxib"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="200 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 60 unidade(s)"  [FILL]
+
+  CNP 9479519  "Clonix, 300 mg x 40 cáps"
+    → codigoATC            cur=∅  new="N02B"  [FILL]
+    → dci                  cur=∅  new="Clonixina"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="300 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 40 unidade(s)"  [FILL]
+
+  CNP 9521161  "Cloxam, 2 mg x 60 comp"
+    → codigoATC            cur=∅  new="N05BA22"  [FILL]
+    → dci                  cur=∅  new="Cloxazolam"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="2 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 60 unidade(s)"  [FILL]
+
+  CNP 5012174  "Dagesil 10 Mg/g Gel"
+    → codigoATC            cur=∅  new="M02AA15"  [FILL]
+    → dci                  cur=∅  new="Diclofenac"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Gel"  [FILL]
+    → dosagem              cur=∅  new="10 mg/g"  [FILL]
+    → embalagem            cur=∅  new="Bisnaga 1 unidade(s) - 100 g"  [FILL]
+
+  CNP 2360295  "Dermofix, 600 mg/30 g x 1 creme bisn"
+    → codigoATC            cur=∅  new="D01AC14"  [FILL]
+    → dci                  cur=∅  new="Sertaconazol"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Creme"  [FILL]
+    → dosagem              cur=∅  new="20 mg/g"  [FILL]
+    → embalagem            cur=∅  new="Bisnaga 1 unidade(s) - 30 g"  [FILL]
+
+  CNP 4702288  "Dilbloc, 25 mg x 56 comp"
+    → codigoATC            cur=∅  new="C07AG02"  [FILL]
+    → dci                  cur=∅  new="Carvedilol"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="25 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 56 unidade(s)"  [FILL]
+
+  CNP 3736089  "Eutirox, 25 mcg x 60 comp"
+    → codigoATC            cur=∅  new="H03AA01"  [FILL]
+    → dci                  cur=∅  new="Levotiroxina sódica"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="0.025 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 60 unidade(s)"  [FILL]
+
+  CNP 2443588  "EMLA, 2,5/2,5 g % p/p x 5 creme bisn"
+    → codigoATC            cur=∅  new="N01BB20"  [FILL]
+    → dci                  cur=∅  new="Lidocaína + Prilocaína"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Creme"  [FILL]
+    → dosagem              cur=∅  new="25 mg/g + 25 mg/g"  [FILL]
+    → embalagem            cur=∅  new="Bisnaga 5 unidade(s) - 5 g"  [FILL]
+
+  CNP 3256385  "Etalpha 0.5 µg 30 Cápsula"
+    → codigoATC            cur=∅  new="A11CC03"  [FILL]
+    → dci                  cur=∅  new="Alfacalcidol"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="0.5 µg"  [FILL]
+    → embalagem            cur=∅  new="Blister 30 unidade(s)"  [FILL]
+
+  CNP 3742780  "Eutirox, 50 mcg x 60 comp"
+    → codigoATC            cur=∅  new="H03AA01"  [FILL]
+    → dci                  cur=∅  new="Levotiroxina sódica"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido"  [FILL]
+    → dosagem              cur=∅  new="0.05 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 60 unidade(s)"  [FILL]
+
+  CNP 2707784  "Exelon 1.5 Mg 28 Cápsula"
+    → codigoATC            cur=∅  new="N06DA03"  [FILL]
+    → dci                  cur=∅  new="Rivastigmina"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="1.5 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 28 unidade(s)"  [FILL]
+
+  CNP 3401981  "Femoston 1/5, 1/5 mg x 84 comp"
+    → codigoATC            cur=∅  new="G03FA14"  [FILL]
+    → dci                  cur=∅  new="Didrogesterona + Estradiol"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Comprimido revestido"  [FILL]
+    → dosagem              cur=∅  new="5 mg + 1 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 84 unidade(s)"  [FILL]
+
+  CNP 4977096  "Fluconazol Alter 200 Mg 7 Cápsula"
+    → codigoATC            cur=∅  new="J02AC01"  [FILL]
+    → dci                  cur=∅  new="Fluconazol"  [FILL]
+    → formaFarmaceutica    cur=∅  new="Cápsula"  [FILL]
+    → dosagem              cur=∅  new="200 mg"  [FILL]
+    → embalagem            cur=∅  new="Blister 7 unidade(s)"  [FILL]
+
+──────────────────────────────────────────────────────────────────────────
+Resumo:
+  elegíveis:                         95
+  would_update:                    95
+  unchanged:                         0
+  skipped validadoManualmente=true:  0
+  sem RegulatoryRecord match:        0
+  por campo (would_fill):
+    codigoATC              95
+    dci                    95
+    formaFarmaceutica      95
+    dosagem                95
+    embalagem              95
+  modo: DRY-RUN
+──────────────────────────────────────────────────────────────────────────

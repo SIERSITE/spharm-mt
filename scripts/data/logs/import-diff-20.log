@@ -1,0 +1,237 @@
+(node:6236) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+CNP 2527190  (sibling_cnp)
+  × designacaoOficial    cur="Legalon , 140 mg Blister 20 Unidade(s) C"  new="Legalon"  [PRESERVE]
+  → dci                  cur="∅"  new="Silimarina"  [SET]
+  → codigoATC            cur="∅"  new="A05BA03"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="140 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 20 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="6.9.1 - Coleréticos e colagogos"  [SET]
+  = titularAim           cur="Cooper Consumer Health B.V."  new="Cooper Consumer Health B.V."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2181485  (search_designacao)
+  × designacaoOficial    cur="Gopten, 2 mg x 56 cáps"  new="Gopten"  [PRESERVE]
+  → dci                  cur="∅"  new="Trandolapril"  [SET]
+  → codigoATC            cur="∅"  new="C09AA10"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="2 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 56 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="3.4.2.1 - Inibidores da enzima de conver"  [SET]
+  = titularAim           cur="Viatris Healthcare, Lda."  new="Viatris Healthcare, Lda."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2360295  (search_designacao)
+  × designacaoOficial    cur="Dermofix, 20 mg/g - 30 g x 1 creme bisna"  new="Dermofix"  [PRESERVE]
+  → dci                  cur="∅"  new="Sertaconazol"  [SET]
+  → codigoATC            cur="∅"  new="D01AC14"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Creme"  [SET]
+  → dosagem              cur="∅"  new="20 mg/g"  [SET]
+  → embalagem            cur="∅"  new="Bisnaga 1 unidade(s) - 30 g"  [SET]
+  → grupoTerapeutico     cur="∅"  new="13.1.3 - Antifúngicos"  [SET]
+  × titularAim           cur="Ferrer Portugal S.A."  new="Ferrer Portugal, S.A."  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 3401882  (sibling_cnp)
+  × designacaoOficial    cur="Femoston 1/5, 5/1 mg x 28 comp"  new="Femoston 1/5"  [PRESERVE]
+  → dci                  cur="∅"  new="Didrogesterona + Estradiol"  [SET]
+  → codigoATC            cur="∅"  new="G03FA14"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido revestido"  [SET]
+  → dosagem              cur="∅"  new="5 mg + 1 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 28 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="8.5.1.1 - Tratamento de substituição"  [SET]
+  × titularAim           cur="Theramex Ireland Ltd"  new="Theramex Ireland Limited"  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 3735685  (search_designacao)
+  × designacaoOficial    cur="Eutirox , 0.025 mg Blister 20 Unidade(s)"  new="Eutirox"  [PRESERVE]
+  → dci                  cur="∅"  new="Levotiroxina sódica"  [SET]
+  → codigoATC            cur="∅"  new="H03AA01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="0.025 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 20 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="8.3 - Hormonas da tiróide e antitiroideu"  [SET]
+  = titularAim           cur="Merck, S.A."  new="Merck, S.A."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2532794  (search_designacao)
+  × designacaoOficial    cur="Amoxicilina Labesfal, 500 mg x 16 cáps"  new="Amoxicilina Labesfal"  [PRESERVE]
+  → dci                  cur="∅"  new="Amoxicilina"  [SET]
+  → codigoATC            cur="∅"  new="J01CA04"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="500 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 16 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="1.1.1.2 - Aminopenicilinas"  [SET]
+  × titularAim           cur="Generis Farmacêutica, S.A. Portugal"  new="Generis Farmacêutica, S.A."  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2387488  (sibling_cnp)
+  × designacaoOficial    cur="Movalis, 15 mg x 10 comp"  new="Movalis"  [PRESERVE]
+  → dci                  cur="∅"  new="Meloxicam"  [SET]
+  → codigoATC            cur="∅"  new="M01AC06"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="15 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 10 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="9.1.6 - Oxicans"  [SET]
+  = titularAim           cur="Boehringer Ingelheim, Portugal Lda."  new="Boehringer Ingelheim, Portugal Lda."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2074797  (search_designacao)
+  × designacaoOficial    cur="Haldol, 1 mg x 60 comp"  new="Haldol"  [PRESERVE]
+  → dci                  cur="∅"  new="Haloperidol"  [SET]
+  → codigoATC            cur="∅"  new="N05AD01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="1 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 60 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="2.9.2 - Antipsicóticos"  [SET]
+  = titularAim           cur="Essential Pharma Limited"  new="Essential Pharma Limited"  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2196087  (search_designacao)
+  × designacaoOficial    cur="Fluimucil, 300 mg/3 mL x 5 sol inj amp"  new="Fluimucil"  [PRESERVE]
+  → dci                  cur="∅"  new="Acetilcisteína"  [SET]
+  → codigoATC            cur="∅"  new="R05CB01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Solução injetável"  [SET]
+  → dosagem              cur="∅"  new="300 mg/3 ml"  [SET]
+  → embalagem            cur="∅"  new="Ampola 5 unidade(s) - 3 ml"  [SET]
+  → grupoTerapeutico     cur="∅"  new="5.2.2 - Expetorantes"  [SET]
+  × titularAim           cur="Zambon Produtos Farmacêuticos, Lda."  new="Zambon - Produtos Farmacêuticos, Lda."  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2527299  (search_designacao)
+  × designacaoOficial    cur="Legalon , 140 mg Blister 60 Unidade(s) C"  new="Legalon"  [PRESERVE]
+  → dci                  cur="∅"  new="Silimarina"  [SET]
+  → codigoATC            cur="∅"  new="A05BA03"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="140 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 60 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="6.9.1 - Coleréticos e colagogos"  [SET]
+  = titularAim           cur="Cooper Consumer Health B.V."  new="Cooper Consumer Health B.V."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2192789  (sibling_cnp)
+  × designacaoOficial    cur="Fositen , 20 mg Blister 20 Unidade(s) Co"  new="Fositen"  [PRESERVE]
+  → dci                  cur="∅"  new="Fosinopril"  [SET]
+  → codigoATC            cur="∅"  new="C09AA09"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="20 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 20 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="3.4.2.1 - Inibidores da enzima de conver"  [SET]
+  × titularAim           cur="Bausch Health Ireland Limited"  new="Bausch Health (Ireland) Limited"  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2710184  (sibling_cnp)
+  × designacaoOficial    cur="Advantan, 1 mg/g-20 g x 1 emul bisnaga"  new="Advantan"  [PRESERVE]
+  → dci                  cur="∅"  new="Aceponato de metilprednisolona"  [SET]
+  → codigoATC            cur="∅"  new="D07AC14"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Emulsão cutânea"  [SET]
+  → dosagem              cur="∅"  new="1 mg/g"  [SET]
+  → embalagem            cur="∅"  new="Bisnaga 1 unidade(s) - 20 g"  [SET]
+  → grupoTerapeutico     cur="∅"  new="13.5 - Corticosteróides de aplicação tóp"  [SET]
+  = titularAim           cur="Leo Pharma A/S"  new="Leo Pharma A/S"  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 3401981  (search_designacao)
+  × designacaoOficial    cur="Femoston 1/5, 5/1 mg x 84 comp"  new="Femoston 1/5"  [PRESERVE]
+  → dci                  cur="∅"  new="Didrogesterona + Estradiol"  [SET]
+  → codigoATC            cur="∅"  new="G03FA14"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido revestido"  [SET]
+  → dosagem              cur="∅"  new="5 mg + 1 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 84 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="8.5.1.1 - Tratamento de substituição"  [SET]
+  × titularAim           cur="Theramex Ireland Ltd"  new="Theramex Ireland Limited"  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 3735784  (sibling_cnp)
+  × designacaoOficial    cur="Eutirox , 0.025 mg Blister 25 Unidade(s)"  new="Eutirox"  [PRESERVE]
+  → dci                  cur="∅"  new="Levotiroxina sódica"  [SET]
+  → codigoATC            cur="∅"  new="H03AA01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="0.025 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 25 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="8.3 - Hormonas da tiróide e antitiroideu"  [SET]
+  = titularAim           cur="Merck, S.A."  new="Merck, S.A."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2846095  (sibling_cnp)
+  × designacaoOficial    cur="Fluconazol Alter MG, 150 mg x 1 cáps"  new="Fluconazol Alter"  [PRESERVE]
+  → dci                  cur="∅"  new="Fluconazol"  [SET]
+  → codigoATC            cur="∅"  new="J02AC01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="150 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 1 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="1.2 - Antifúngicos"  [SET]
+  = titularAim           cur="Alter, S.A."  new="Alter, S.A."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2387587  (sibling_cnp)
+  × designacaoOficial    cur="Movalis, 15 mg x 20 comp"  new="Movalis"  [PRESERVE]
+  → dci                  cur="∅"  new="Meloxicam"  [SET]
+  → codigoATC            cur="∅"  new="M01AC06"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="15 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 20 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="9.1.6 - Oxicans"  [SET]
+  = titularAim           cur="Boehringer Ingelheim, Portugal Lda."  new="Boehringer Ingelheim, Portugal Lda."  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2074995  (search_designacao)
+  × designacaoOficial    cur="Haldol, 5 mg x 60 comp"  new="Haldol"  [PRESERVE]
+  → dci                  cur="∅"  new="Haloperidol"  [SET]
+  → codigoATC            cur="∅"  new="N05AD01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="5 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 60 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="2.9.2 - Antipsicóticos"  [SET]
+  = titularAim           cur="Essential Pharma Limited"  new="Essential Pharma Limited"  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2732386  (sibling_cnp)
+  × designacaoOficial    cur="Xenical, 120 mg x 21 cáps"  new="Xenical"  [PRESERVE]
+  → dci                  cur="∅"  new="Orlistato"  [SET]
+  → codigoATC            cur="∅"  new="A08AB01"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Cápsula"  [SET]
+  → dosagem              cur="∅"  new="120 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 21 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="6.5 - Inibidores enzimáticos"  [SET]
+  × titularAim           cur="Cheplapharm Arzneimittel Gmbh"  new="Cheplapharm Arzneimittel GmbH"  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2192888  (search_designacao)
+  × designacaoOficial    cur="Fositen , 20 mg Blister 60 Unidade(s) Co"  new="Fositen"  [PRESERVE]
+  → dci                  cur="∅"  new="Fosinopril"  [SET]
+  → codigoATC            cur="∅"  new="C09AA09"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Comprimido"  [SET]
+  → dosagem              cur="∅"  new="20 mg"  [SET]
+  → embalagem            cur="∅"  new="Blister 60 unidade(s)"  [SET]
+  → grupoTerapeutico     cur="∅"  new="3.4.2.1 - Inibidores da enzima de conver"  [SET]
+  × titularAim           cur="Bausch Health Ireland Limited"  new="Bausch Health (Ireland) Limited"  [PRESERVE]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+CNP 2710283  (search_designacao)
+  × designacaoOficial    cur="Advantan, 1 mg/g-50 g x 1 emul bisnaga"  new="Advantan"  [PRESERVE]
+  → dci                  cur="∅"  new="Aceponato de metilprednisolona"  [SET]
+  → codigoATC            cur="∅"  new="D07AC14"  [SET]
+  → formaFarmaceutica    cur="∅"  new="Emulsão cutânea"  [SET]
+  → dosagem              cur="∅"  new="1 mg/g"  [SET]
+  → embalagem            cur="∅"  new="Bisnaga 1 unidade(s) - 50 g"  [SET]
+  → grupoTerapeutico     cur="∅"  new="13.5 - Corticosteróides de aplicação tóp"  [SET]
+  = titularAim           cur="Leo Pharma A/S"  new="Leo Pharma A/S"  [same]
+  × estadoAim            cur="Situação Inicial"  new="Autorizado"  [PRESERVE]
+
+──────────────────────────────────────────────────────────────────────────
+Resumo dos 20 exemplos:
+  registos novos (insert):                0
+  fields SET (curVal=∅ → newVal):         120
+  fields PRESERVE (curVal!=∅, mantém):    48
+  fields SAME (igual):                    12
+──────────────────────────────────────────────────────────────────────────

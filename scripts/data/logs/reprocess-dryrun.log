@@ -1,0 +1,77 @@
+──────────────────────────────────────────────────────────────────────
+Reprocessamento do catálogo (MEDICAMENTOS-priority)
+──────────────────────────────────────────────────────────────────────
+  dryRun:          true
+  firstBatchOnly:  true
+  batchSize:       150
+  startFrom:       (nenhum)
+  limit:           (sem limite)
+  inclui não-med:  false
+  skipRetail:      true
+  onlyWithAtcOrDci:true
+(node:11752) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  baseline:
+    PASS 1 (med + Outros Medicamentos):  0
+    PASS 2 (med com campos em falta):    1271
+    "Outros Medicamentos" no início:     6195
+
+
+══════════════════════════════════════════════════════════════════════
+PASS 1 — MEDICAMENTO em "Outros Medicamentos" (com ATC ou DCI)
+══════════════════════════════════════════════════════════════════════
+  (sem produtos elegíveis neste pass)
+
+══════════════════════════════════════════════════════════════════════
+SUMÁRIO FINAL
+══════════════════════════════════════════════════════════════════════
+  total processados:           0
+  total actualizados:          0
+  total sem alterações:        0
+  total falharam:              0
+  reclassificações de N2:      0
+  ATC preenchido:              0
+  DCI preenchido:              0
+  imagens adicionadas:         0
+  "Outros Medicamentos" antes: 6195
+  "Outros Medicamentos" depois:6195 (estimado, dry-run)
+  modo:                        DRY-RUN (sem escrita em BD)
+
+  Métricas de sinal (ATC/DCI):
+    com ATC:                       0
+    com DCI:                       0
+    com ATC ou DCI:                0
+    sem nenhum dos dois:           0
+
+  Reclassificações por método:
+    via ATC prefix (3 chars):      0
+    via ATC letter (1 char):       0
+    via DCI (keyword no DCI):      0
+    via keyword (designação):      0
+    via outro:                     0
+
+  Continuam em "Outros Medicamentos":
+    apesar de ter ATC ou DCI:      0
+    sem qualquer sinal:            0
+
+  Distribuição por categoria de análise:
+    1. Improved:                  0
+    2. Still Outros (no signal):  0
+    3. Still Outros (rule gap):   0
+    4. Image found and safe:      0
+    5. Image skipped:             0
+    6. Suspicious / review:       0
+    7. productType duvidoso:      0
+    -. Already OK:                0
+
+  Recomendação:
+    · Se os números acima parecerem razoáveis, próximo passo: correr o mesmo comando sem --dry-run para aplicar o primeiro batch real.
+══════════════════════════════════════════════════════════════════════

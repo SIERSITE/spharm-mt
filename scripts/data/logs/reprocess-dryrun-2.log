@@ -1,0 +1,1135 @@
+──────────────────────────────────────────────────────────────────────
+Reprocessamento do catálogo (MEDICAMENTOS-priority)
+──────────────────────────────────────────────────────────────────────
+  dryRun:          true
+  firstBatchOnly:  true
+  batchSize:       150
+  startFrom:       (nenhum)
+  limit:           (sem limite)
+  inclui não-med:  false
+  skipRetail:      true
+  onlyWithAtcOrDci:true
+(node:9260) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  baseline:
+    PASS 1 (med + Outros Medicamentos):  93
+    PASS 2 (med com campos em falta):    1271
+    "Outros Medicamentos" no início:     6195
+
+
+══════════════════════════════════════════════════════════════════════
+PASS 1 — MEDICAMENTO em "Outros Medicamentos" (com ATC ou DCI)
+══════════════════════════════════════════════════════════════════════
+  [MEDICAMENTO 97%] CNP:5056387 "Abilify, 10 mg x 28 comp"
+  [dry-run] cmnsu1e34000j1slqbgtlf4jn [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    1. CNP=5056387 | Abilify, 10 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05AX12 | DCI=Aripiprazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05AX12) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5006820 "Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp."
+  [dry-run] cmnsu1e35002g1slqtecs5uuo [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    2. CNP=5006820 | Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp.
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3393683 "Actos, 15 mg x 28 comp"
+  [dry-run] cmnsu1e3500471slq2llaqjk7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    3. CNP=3393683 | Actos, 15 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Diabetes"
+        ATC=A10BG03 | DCI=Pioglitazona
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix A10 (A10BG03) → Diabetes
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5062500 "Adrovance, 70 mg + 5600 UI x 4 comp"
+  [dry-run] cmnsu1e36005c1slqjebmqv2u [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    4. CNP=5062500 | Adrovance, 70 mg + 5600 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2710283 "Advantan, 1 mg/mL x 50 emul bisn"
+  [dry-run] cmnsu1e37007k1slqatspjb4c [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    5. CNP=2710283 | Advantan, 1 mg/mL x 50 emul bisn
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=D07AC14 | DCI=Aceponato de metilprednisolona
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix D07 (D07AC14) → Dermatológicos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3599495 "Aero-Om Antidiarreico, 2 mg x 12 comp"
+  [dry-run] cmnsu1e3700831slq1xntpsuy [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    6. CNP=3599495 | Aero-Om Antidiarreico, 2 mg x 12 comp
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=A07DA03 | DCI=Loperamida
+        image: farmaciaarade.pt/…/Aero-Om-Antidiarreico-12-comp.-Farmac... → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix A07 (A07DA03) → Sistema Digestivo
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2532794 "Amoxicilina Labesfal, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3800dj1slqm1wjwvbl [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    7. CNP=2532794 | Amoxicilina Labesfal, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: ssd-armaturenshop.de/…/kermi-2532794-zbat010-set-montageklei... → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2697381 "Atacand, 16 mg x 56 comp"
+  [dry-run] cmnsu1e3a00ip1slquvjyhxzd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    8. CNP=2697381 | Atacand, 16 mg x 56 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2695989 "Atacand, 8 mg x 28 comp"
+  [dry-run] cmnsu1e3a00iq1slql9ihx8mv [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    9. CNP=2695989 | Atacand, 8 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4601993 "Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida"
+  [dry-run] cmnsu1e3c00r51slqrzztu60y [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   10. CNP=4601993 | Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3854585 "Ben-U-Ron, 500 mg x 20 comp*"
+  [dry-run] cmnsu1e3d00uj1slqvh6r3ywt [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   11. CNP=3854585 | Ben-U-Ron, 500 mg x 20 comp*
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BE01 | DCI=Paracetamol
+        image: www.farmaciasportuguesas.pt/…/3854585-ben-u-ron-500-mg-x-20-comp_21... → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BE01) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4535399 "Bialzepam, 6 mg x 20 cáps"
+  [dry-run] cmnsu1e3e010i1slqfegh0tku [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   12. CNP=4535399 | Bialzepam, 6 mg x 20 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA01 | DCI=Diazepam
+        image: www.picclickimg.com/…/Bedienfeld-Ferolli-Econcept-25C-W7075... → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA01) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9093864 "Bialzepam, 6 mg x 60 cáps"
+  [dry-run] cmnsu1e3e010j1slqgmpl4wbs [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   13. CNP=9093864 | Bialzepam, 6 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA01 | DCI=Diazepam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA01) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2700789 "Blopress, 16 mg x 56 comp"
+  [dry-run] cmnsu1e3g015v1slqepk8nt0s [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   14. CNP=2700789 | Blopress, 16 mg x 56 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2699684 "Blopress, 8 mg x 28 comp"
+  [dry-run] cmnsu1e3g015y1slqteg9h6u4 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   15. CNP=2699684 | Blopress, 8 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4537791 "Bromalex 3 Mg 20 Comp."
+  [dry-run] cmnsu1e3g017f1slqx9p2ydit [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   16. CNP=4537791 | Bromalex 3 Mg 20 Comp.
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA08 | DCI=Bromazepam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA08) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4537692 "Bromalex, 1,5 mg x 40 comp"
+  [dry-run] cmnsu1e3g017g1slq1hht9rgl [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   17. CNP=4537692 | Bromalex, 1,5 mg x 40 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA08 | DCI=Bromazepam
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA08) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4537890 "Bromalex, 3 mg x 40 comp"
+  [dry-run] cmnsu1e3g017h1slq909xv9yg [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   18. CNP=4537890 | Bromalex, 3 mg x 40 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA08 | DCI=Bromazepam
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA08) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4538096 "Bromalex, 6 mg x 40 comp"
+  [dry-run] cmnsu1e3g017i1slqhvwg9em6 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   19. CNP=4538096 | Bromalex, 6 mg x 40 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA08 | DCI=Bromazepam
+        image: myhealthbox.eu/…/mhb_logo_site.png → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA08) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2922185 "Cardipril, 5 mg x 56 comp"
+  [dry-run] cmnsu1e3h01b11slqbj4l7dvm [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   20. CNP=2922185 | Cardipril, 5 mg x 56 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA16 | DCI=Imidapril
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA16) → Cardiovascular
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9452102 "Castilium, 10 mg x 30 comp"
+  [dry-run] cmnsu1e3h01bz1slq7e9trkum [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   21. CNP=9452102 | Castilium, 10 mg x 30 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA09 | DCI=Clobazam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA09) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2459980 "Catalip, 200 mg x 30 cáps"
+  [dry-run] cmnsu1e3h01c41slqsea5mlf7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   22. CNP=2459980 | Catalip, 200 mg x 30 cáps
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C10AB05 | DCI=Fenofibrato
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C10 (C10AB05) → Cardiovascular
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4798989 "Ceclor, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3i01fk1slqo4pcknkc [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   23. CNP=4798989 | Ceclor, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01DC04 | DCI=Cefaclor
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3195187 "Celebrex, 100 mg x 20 cáps"
+  [dry-run] cmnsu1e3i01ft1slq651vb6z6 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   24. CNP=3195187 | Celebrex, 100 mg x 20 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AH01 | DCI=Celecoxib
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AH01) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3196482 "Celebrex, 200 mg x 20 cáps"
+  [dry-run] cmnsu1e3i01fu1slqb4t20sk0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   25. CNP=3196482 | Celebrex, 200 mg x 20 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AH01 | DCI=Celecoxib
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AH01) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3196888 "Celebrex, 200 mg x 60 cáps"
+  [dry-run] cmnsu1e3i01fv1slq62jxpkax [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   26. CNP=3196888 | Celebrex, 200 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AH01 | DCI=Celecoxib
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AH01) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9479501 "Clonix, 300 mg x 10 cáps"
+  [dry-run] cmnsu1e3n01wf1slq0cnsyznf [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   27. CNP=9479501 | Clonix, 300 mg x 10 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02B | DCI=Clonixina
+        image: bparts-eu.s3-eu-west-1.amazonaws.com/…/gir0dh332edb5v0mxoseoyhm5ly4st8m.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02B) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5003009 "Clonix, 300 mg x 20 cáps"
+  [dry-run] cmnsu1e3n01wg1slqm4n9h3cp [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   28. CNP=5003009 | Clonix, 300 mg x 20 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02B | DCI=Clonixina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02B) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9479519 "Clonix, 300 mg x 40 cáps"
+  [dry-run] cmnsu1e3n01wh1slqytvrdeka [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   29. CNP=9479519 | Clonix, 300 mg x 40 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02B | DCI=Clonixina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02B) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9521161 "Cloxam, 2 mg x 60 comp"
+  [dry-run] cmnsu1e3n01x61slqw3dsy8zi [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   30. CNP=9521161 | Cloxam, 2 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA22 | DCI=Cloxazolam
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA22) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 95%] CNP:5012174 "Dagesil 10 Mg/g Gel"
+  [dry-run] cmnsu1e3p02501slqnhd61zoi [MEDICAMENTO 95%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   31. CNP=5012174 | Dagesil 10 Mg/g Gel
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M02AA15 | DCI=Diclofenac
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M02 (M02AA15) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2360295 "Dermofix, 600 mg/30 g x 1 creme bisn"
+  [dry-run] cmnsu1e3q02881slqlxgbri5o [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   32. CNP=2360295 | Dermofix, 600 mg/30 g x 1 creme bisn
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=D01AC14 | DCI=Sertaconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix D01 (D01AC14) → Dermatológicos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4702288 "Dilbloc, 25 mg x 56 comp"
+  [dry-run] cmnsu1e3r02au1slq64hjdxhh [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   33. CNP=4702288 | Dilbloc, 25 mg x 56 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C07AG02 | DCI=Carvedilol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C07 (C07AG02) → Cardiovascular
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2443588 "EMLA, 2,5/2,5 g % p/p x 5 creme bisn"
+  [dry-run] cmnsu1e3v02sf1slqsirm0kj7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   34. CNP=2443588 | EMLA, 2,5/2,5 g % p/p x 5 creme bisn
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=N01BB20 | DCI=Lidocaína + Prilocaína
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3256385 "Etalpha 0.5 µg 30 Cápsula"
+  [dry-run] cmnsu1e3x02wt1slq4ziwh2v1 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   35. CNP=3256385 | Etalpha 0.5 µg 30 Cápsula
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=A11CC03 | DCI=Alfacalcidol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3735685 "Eutirox, 25 mcg x 20 comp"
+  [dry-run] cmnsu1e3x02y01slqucisk6rx [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   36. CNP=3735685 | Eutirox, 25 mcg x 20 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3736089 "Eutirox, 25 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y11slqlwv0d1nd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   37. CNP=3736089 | Eutirox, 25 mcg x 60 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3742780 "Eutirox, 50 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y21slqaqmubchq [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   38. CNP=3742780 | Eutirox, 50 mcg x 60 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3743689 "Eutirox, 75 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y31slqjyhulj78 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   39. CNP=3743689 | Eutirox, 75 mcg x 60 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2707784 "Exelon 1.5 Mg 28 Cápsula"
+  [dry-run] cmnsu1e3x02ye1slq8dl2fc38 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   40. CNP=2707784 | Exelon 1.5 Mg 28 Cápsula
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N06DA03 | DCI=Rivastigmina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N06 (N06DA03) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2708188 "Exelon 3 Mg 56 Cápsula"
+  [dry-run] cmnsu1e3x02yg1slqbdey3j8d [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   41. CNP=2708188 | Exelon 3 Mg 56 Cápsula
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N06DA03 | DCI=Rivastigmina
+        image: www.chemicalbook.com/…/2708188-16-1.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N06 (N06DA03) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4367785 "Ezetrol, 10 mg x 28 comp"
+  [dry-run] cmnsu1e3x02z61slqw7lg6tko [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   42. CNP=4367785 | Ezetrol, 10 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C10AX09 | DCI=Ezetimiba
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C10 (C10AX09) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3401981 "Femoston 1/5, 1/5 mg x 84 comp"
+  [dry-run] cmnsu1e3x02zr1slqyrkw6wrm [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   43. CNP=3401981 | Femoston 1/5, 1/5 mg x 84 comp
+        nivel2: "Outros Medicamentos" → "Ginecológicos"
+        ATC=G03FA14 | DCI=Didrogesterona + Estradiol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix G03 (G03FA14) → Ginecológicos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4666889 "Floxapen, 500 mg x 24 cáps"
+  [dry-run] cmnsu1e3y03301slqqcb3t8j6 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   44. CNP=4666889 | Floxapen, 500 mg x 24 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01CF05 | DCI=Flucloxacilina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:4977096 "Fluconazol Alter 200 Mg 7 Cápsula"
+  [dry-run] cmnsu1e3y03361slqwtuwlg48 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   45. CNP=4977096 | Fluconazol Alter 200 Mg 7 Cápsula
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2192888 "Fositen, 20 mg x 60 comp"
+  [dry-run] cmnsu1e3z035y1slqzvl87o5r [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   46. CNP=2192888 | Fositen, 20 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA09 | DCI=Fosinopril
+        image: architizer-prod.imgix.net/…/150408393641209.JPG → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA09) → Cardiovascular
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2826089 "Fucidine H 10 Mg/g + 20 Mg/g Creme"
+  [dry-run] cmnsu1e3z03771slqsfbm1yl8 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   47. CNP=2826089 | Fucidine H 10 Mg/g + 20 Mg/g Creme
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=D07CA01 | DCI=Hidrocortisona + Ácido fusídico
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix D07 (D07CA01) → Dermatológicos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2181485 "Gopten, 2 mg x 56 cáps"
+  [dry-run] cmnsu1e4003az1slqmvjqvb8d [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   48. CNP=2181485 | Gopten, 2 mg x 56 cáps
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA10 | DCI=Trandolapril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA10) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2074797 "Haldol, 1 mg x 60 comp"
+  [dry-run] cmnsu1e4003cf1slqjp6avf98 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   49. CNP=2074797 | Haldol, 1 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05AD01 | DCI=Haloperidol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05AD01) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2074995 "Haldol, 5 mg x 60 comp"
+  [dry-run] cmnsu1e4003cg1slqhm3aryk7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   50. CNP=2074995 | Haldol, 5 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05AD01 | DCI=Haloperidol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05AD01) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4675286 "Lanoxin, 0,25 mg x 30 comp"
+  [dry-run] cmnsu1e4503tx1slqc1sf8e7u [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   51. CNP=4675286 | Lanoxin, 0,25 mg x 30 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C01AA05 | DCI=Digoxina
+        image: www.mecofarma.com/…/open_graph_image.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C01 (C01AA05) → Cardiovascular
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2527299 "Legalon, 140 mg x 60 cáps"
+  [dry-run] cmnsu1e4503v81slq84dmjxl7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   52. CNP=2527299 | Legalon, 140 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=A05BA03 | DCI=Silimarina
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC letter A (A05BA03, prefix3 sem match) → Sistema Digestivo
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2241396 "Lipril, 20 mg x 60 comp"
+  [dry-run] cmnsu1e4m03zq1slqcjv9akh9 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   53. CNP=2241396 | Lipril, 20 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA03 | DCI=Lisinopril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA03) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2241198 "Lipril, 5 mg x 60 comp"
+  [dry-run] cmnsu1e4m03zr1slq5vspcli2 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   54. CNP=2241198 | Lipril, 5 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA03 | DCI=Lisinopril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA03) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2840288 "Micardis, 40 mg x 28 comp"
+  [dry-run] cmnsu1e4q04dl1slq5yacat8j [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   55. CNP=2840288 | Micardis, 40 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA07 | DCI=Telmisartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA07) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2840684 "Micardis, 80 mg x 28 comp"
+  [dry-run] cmnsu1e4q04dm1slqgetgii3l [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   56. CNP=2840684 | Micardis, 80 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA07 | DCI=Telmisartan
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA07) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2387785 "Movalis, 15 mg x 60 comp"
+  [dry-run] cmnsu1e4r04ik1slqtqil9jjc [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   57. CNP=2387785 | Movalis, 15 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AC06 | DCI=Meloxicam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AC06) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2401180 "Nebilet, 5 mg x 28 comp"
+  [dry-run] cmnsu1e4t04od1slqgya861b7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   58. CNP=2401180 | Nebilet, 5 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C07AB12 | DCI=Nebivolol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C07 (C07AB12) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2433084 "Neurontin 100 Mg 20 Cápsula"
+  [dry-run] cmnsu1e4u04q31slq60trusm2 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   59. CNP=2433084 | Neurontin 100 Mg 20 Cápsula
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BF01 | DCI=Gabapentina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BF01) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5815584 "Neurontin, 100 mg x 60 cáps"
+  [dry-run] cmnsu1e4u04q41slqs5po42mc [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   60. CNP=5815584 | Neurontin, 100 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BF01 | DCI=Gabapentina
+        image: thecrankshopvt.com/…/polarisravegasket5812350_2.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BF01) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3076593 "Proaxen, 300 mg x 60 comp"
+  [dry-run] cmnsu1e5205kp1slqd4rjqa8o [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   61. CNP=3076593 | Proaxen, 300 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AF02 | DCI=Oxcarbazepina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AF02) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3076791 "Proaxen, 600 mg x 60 comp"
+  [dry-run] cmnsu1e5205kq1slqsu7uhqnd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   62. CNP=3076791 | Proaxen, 600 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AF02 | DCI=Oxcarbazepina
+        image: s1.kuantokusta.pt/…/1371593_2_7-pecas-conjunto-lounge-jar... → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AF02) → Sistema Nervoso
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4560793 "Rantudil, 60 mg x 10 cáps"
+  [dry-run] cmnsu1e5505rh1slqm0j6p9la [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   63. CNP=4560793 | Rantudil, 60 mg x 10 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AB11 | DCI=Acemetacina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AB11) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9510735 "Rantudil, 60 mg x 60 cáps"
+  [dry-run] cmnsu1e5505ri1slqr9igh5ap [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   64. CNP=9510735 | Rantudil, 60 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AB11 | DCI=Acemetacina
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AB11) → Analgésicos e Anti-inflamatórios
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4863684 "Rubifen, 10 mg x 50 comp"
+  [dry-run] cmnsu1e58063z1slqp2su13li [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   65. CNP=4863684 | Rubifen, 10 mg x 50 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N06BA04 | DCI=Metilfenidato
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N06 (N06BA04) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4864187 "Rubifen, 20 mg x 50 comp"
+  [dry-run] cmnsu1e5806401slq1fn8al8x [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   66. CNP=4864187 | Rubifen, 20 mg x 50 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N06BA04 | DCI=Metilfenidato
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N06 (N06BA04) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3221694 "Topamax, 25 mg x 60 cáps"
+  [dry-run] cmnsu1e5e06pm1slqvgg28ro0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   67. CNP=3221694 | Topamax, 25 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AX11 | DCI=Topiramato
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AX11) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3221793 "Topamax, 50 mg x 60 cáps"
+  [dry-run] cmnsu1e5e06po1slqorng66ix [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   68. CNP=3221793 | Topamax, 50 mg x 60 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AX11 | DCI=Topiramato
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AX11) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4592382 "Triatec 5 Mg 56 Cápsula"
+  [dry-run] cmnsu1e5e06sc1slqs4vpd30a [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   69. CNP=4592382 | Triatec 5 Mg 56 Cápsula
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA05 | DCI=Ramipril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA05) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4636593 "Voltaren, 75 mg/3 mL x 3 sol inj amp"
+  [dry-run] cmnsu1e5i079c1slqjzn5pawa [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   70. CNP=4636593 | Voltaren, 75 mg/3 mL x 3 sol inj amp
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=M01AB05 | DCI=Diclofenac
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix M01 (M01AB05) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4578886 "Xanax, 0,5 mg x 20 comp"
+  [dry-run] cmnsu1e5j07az1slq3zmpaxgv [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   71. CNP=4578886 | Xanax, 0,5 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA12 | DCI=Alprazolam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA12) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5787791 "Xanax, 0,5 mg x 60 comp"
+  [dry-run] cmnsu1e5j07b01slqm1f06xmw [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   72. CNP=5787791 | Xanax, 0,5 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA12 | DCI=Alprazolam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA12) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2732584 "Xenical, 120 mg x 84 cáps"
+  [dry-run] cmnsu1e5j07bc1slqccrhnng0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   73. CNP=2732584 | Xenical, 120 mg x 84 cáps
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=A08AB01 | DCI=Orlistato
+        image: — → —
+        mapping reason: (dry-run) atc: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC letter A (A08AB01, prefix3 sem match) → Sistema Digestivo
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2925394 "Zigabal, 600 mg x 60 comp"
+  [dry-run] cmnsu1e5j07dj1slqumb9v4ze [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   74. CNP=2925394 | Zigabal, 600 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AF02 | DCI=Oxcarbazepina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AF02) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5048970 "Zonegran 50 Mg 14 Cápsula"
+  [dry-run] cmnsu1e5j07f01slqvl0nwwof [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   75. CNP=5048970 | Zonegran 50 Mg 14 Cápsula
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AX15 | DCI=Zonisamida
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AX15) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4580296 "Castilium, 10 mg x 20 comp"
+  [dry-run] cmnsu3bi11vqu1slqpl58mahp [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   76. CNP=4580296 | Castilium, 10 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA09 | DCI=Clobazam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA09) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4539292 "Cloxam, 2 mg x 20 comp"
+  [dry-run] cmnsu3bi11vsv1slq0xz9vosj [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   77. CNP=4539292 | Cloxam, 2 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05BA22 | DCI=Cloxazolam
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05BA22) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4607784 "ACICLOVIR GENERIS 800 MG X 25 COMP"
+  [dry-run] cmnsu49ow21dy1slqs5jq5a5e [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   78. CNP=4607784 | ACICLOVIR GENERIS 800 MG X 25 COMP
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3095791 "AZITROMICINA GENERIS SUSP 200 MG/5ML 15 ML"
+  [dry-run] cmnsu49oy21on1slqqlqk3o3d [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   79. CNP=3095791 | AZITROMICINA GENERIS SUSP 200 MG/5ML 15 ML
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2708089 "Exelon 3 Mg 28 Cápsula"
+  [dry-run] cmnsu49p522i11slqerli8jcg [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   80. CNP=2708089 | Exelon 3 Mg 28 Cápsula
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N06DA03 | DCI=Rivastigmina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N06 (N06DA03) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3401882 "Femoston 1/5 5 Mg + 1 Mg 28 Comp. Revest."
+  [dry-run] cmnsu49p522ih1slqow9dlf6j [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   81. CNP=3401882 | Femoston 1/5 5 Mg + 1 Mg 28 Comp. Revest.
+        nivel2: "Outros Medicamentos" → "Ginecológicos"
+        ATC=G03FA14 | DCI=Didrogesterona + Estradiol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix G03 (G03FA14) → Ginecológicos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2846194 "FLUCONAZOL ALTER CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jl1slqpzltfrxy [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   82. CNP=2846194 | FLUCONAZOL ALTER CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2846798 "FLUCONAZOL SUPREMASE CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jp1slqr7ybktmt [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   83. CNP=2846798 | FLUCONAZOL SUPREMASE CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:4849089 "FLUCONAZOL TOLI G CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jq1slqisnrilt0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   84. CNP=4849089 | FLUCONAZOL TOLI G CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2196087 "FLUIMUCIL INJ 300 MG/3 ML X 5"
+  [dry-run] cmnsu49p522jr1slqkfqlr5as [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   85. CNP=2196087 | FLUIMUCIL INJ 300 MG/3 ML X 5
+        nivel2: "Outros Medicamentos" → "Constipação, Tosse e Gripe"
+        ATC=R05CB01 | DCI=Acetilcisteína
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix R05 (R05CB01) → Constipação, Tosse e Gripe
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3847597 "GABAPENTINA GABAMOX 400 MG X 60 CAPS"
+  [dry-run] cmnsu49p622l71slqwm0yqu5u [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   86. CNP=3847597 | GABAPENTINA GABAMOX 400 MG X 60 CAPS
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BF01 | DCI=Gabapentina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BF01) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4388385 "GABAPENTINA MYLAN 400 MG X 60 CAPS"
+  [dry-run] cmnsu49p622lb1slqqvauoqsd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   87. CNP=4388385 | GABAPENTINA MYLAN 400 MG X 60 CAPS
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BF01 | DCI=Gabapentina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BF01) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5014147 "GABAPENTINA TOLIFE 300 MG 60 CÁPSULA"
+  [dry-run] cmnsu49p622le1slqmqrs50ko [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   88. CNP=5014147 | GABAPENTINA TOLIFE 300 MG 60 CÁPSULA
+        nivel2: "Outros Medicamentos" → "Analgésicos e Anti-inflamatórios"
+        ATC=N02BF01 | DCI=Gabapentina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N02 (N02BF01) → Analgésicos e Anti-inflamatórios
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4277398 "GASTROLIBER 60 MG X 60 CAPS"
+  [dry-run] cmnsu49p622ll1slq0kqdih8a [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   89. CNP=4277398 | GASTROLIBER 60 MG X 60 CAPS
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=A02BC03 | DCI=Lansoprazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix A02 (A02BC03) → Sistema Digestivo
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3395993 "LAURODERME CR 100 G"
+  [dry-run] cmnsu49p923081slq8o3vh8af [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   90. CNP=3395993 | LAURODERME CR 100 G
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=D01AE12 | DCI=Óxido de zinco + Ácido salicílico
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix D01 (D01AE12) → Dermatológicos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4907184 "LISINOPRIL GENERIS 20 MG X 56 COMP"
+  [dry-run] cmnsu49pa232i1slqvbesn9me [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   91. CNP=4907184 | LISINOPRIL GENERIS 20 MG X 56 COMP
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA03 | DCI=Lisinopril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA03) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4906889 "LISINOPRIL GENERIS 5 MG X 56 COMP"
+  [dry-run] cmnsu49pa232j1slqr0bctvn6 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   92. CNP=4906889 | LISINOPRIL GENERIS 5 MG X 56 COMP
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09AA03 | DCI=Lisinopril
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09AA03) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3221496 "TOPAMAX 15 MG 20 CÁPSULA"
+  [dry-run] cmnsu49pj24871slqexjb485l [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   93. CNP=3221496 | TOPAMAX 15 MG 20 CÁPSULA
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N03AX11 | DCI=Topiramato
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N03 (N03AX11) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+
+— Batch 1 —
+  processed=93 updated=75 unchanged=18 failed=0
+  reclassN2=75 +atc=0 +dci=0 +img=0 still-outros=18
+  signal: hasATC=93 hasDCI=93 hasAtcOrDci=93 hasNeither=0
+  reclass por método: atc_prefix=73 atc(letra)=2 dci=0 keyword=0 outro=0
+  ATENÇÃO: 18 produto(s) com ATC/DCI mas continuam em Outros Medicamentos — possível gap de regras no mapper.
+
+  Categorias do batch 1:
+    1. Improved (n2 reclassificado):                75
+    2. Still Outros — sem ATC/DCI signal:           0
+    3. Still Outros — falta regra para ATC/DCI:     18
+    4. Image found and safe:                        0
+    5. Image skipped (com razão):                   0
+    6. Suspicious / needs manual review:            0
+    7. productType duvidoso (poss. não-medicamento):0
+    -. Já estava OK / sem alteração:                0
+
+  Exemplos — outros_missing_rule (até 5):
+    2. CNP=5006820 | Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp.
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+    4. CNP=5062500 | Adrovance, 70 mg + 5600 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+    7. CNP=2532794 | Amoxicilina Labesfal, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: ssd-armaturenshop.de/…/kermi-2532794-zbat010-set-montageklei... → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+   10. CNP=4601993 | Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+   23. CNP=4798989 | Ceclor, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01DC04 | DCI=Cefaclor
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  progresso: 93/93 (~0 restantes neste pass)
+
+[stop] --first-batch-only activo. Para continuar: re-corre sem essa flag.
+
+══════════════════════════════════════════════════════════════════════
+SUMÁRIO FINAL
+══════════════════════════════════════════════════════════════════════
+  total processados:           93
+  total actualizados:          75
+  total sem alterações:        18
+  total falharam:              0
+  reclassificações de N2:      75
+  ATC preenchido:              0
+  DCI preenchido:              0
+  imagens adicionadas:         0
+  "Outros Medicamentos" antes: 6195
+  "Outros Medicamentos" depois:6120 (estimado, dry-run)
+  modo:                        DRY-RUN (sem escrita em BD)
+
+  Métricas de sinal (ATC/DCI):
+    com ATC:                       93
+    com DCI:                       93
+    com ATC ou DCI:                93
+    sem nenhum dos dois:           0
+
+  Reclassificações por método:
+    via ATC prefix (3 chars):      73
+    via ATC letter (1 char):       2
+    via DCI (keyword no DCI):      0
+    via keyword (designação):      0
+    via outro:                     0
+
+  Continuam em "Outros Medicamentos":
+    apesar de ter ATC ou DCI:      18
+    sem qualquer sinal:            0
+
+  Distribuição por categoria de análise:
+    1. Improved:                  75
+    2. Still Outros (no signal):  0
+    3. Still Outros (rule gap):   18
+    4. Image found and safe:      0
+    5. Image skipped:             0
+    6. Suspicious / review:       0
+    7. productType duvidoso:      0
+    -. Already OK:                0
+
+  Recomendação:
+    · 75 reclassificação(ões) propostas vão sair de "Outros Medicamentos".
+    · 18 produto(s) com ATC/DCI MAS sem regra que melhore — oportunidade para enriquecer ATC_PREFIX_TO_NIVEL2 / KEYWORD_RULES numa iteração futura.
+    · Se os números acima parecerem razoáveis, próximo passo: correr o mesmo comando sem --dry-run para aplicar o primeiro batch real.
+══════════════════════════════════════════════════════════════════════

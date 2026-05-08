@@ -1,0 +1,201 @@
+──────────────────────────────────────────────────────────────────────
+Reprocessamento do catálogo (MEDICAMENTOS-priority)
+──────────────────────────────────────────────────────────────────────
+  dryRun:          false
+  firstBatchOnly:  true
+  batchSize:       150
+  startFrom:       (nenhum)
+  limit:           (sem limite)
+  inclui não-med:  false
+  skipRetail:      true
+  onlyWithAtcOrDci:true
+(node:7824) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  baseline:
+    PASS 1 (med + Outros Medicamentos):  93
+    PASS 2 (med com campos em falta):    1271
+    "Outros Medicamentos" no início:     6195
+
+
+══════════════════════════════════════════════════════════════════════
+PASS 1 — MEDICAMENTO em "Outros Medicamentos" (com ATC ou DCI)
+══════════════════════════════════════════════════════════════════════
+[enrich] cnp=5056387 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5006820 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3393683 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5062500 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2710283 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3599495 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2532794 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2697381 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2695989 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4601993 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3854585 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4535399 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9093864 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2700789 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2699684 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4537791 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4537692 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4537890 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4538096 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2922185 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9452102 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2459980 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4798989 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3195187 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3196482 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3196888 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9479501 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5003009 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9479519 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9521161 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5012174 type=MEDICAMENTO typeConf=95% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2360295 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4702288 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2443588 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3256385 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3735685 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3736089 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3742780 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3743689 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2707784 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2708188 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4367785 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3401981 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4666889 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4977096 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2192888 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2826089 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2181485 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2074797 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2074995 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4675286 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2527299 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2241396 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2241198 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2840288 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2840684 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2387785 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2401180 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2433084 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5815584 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3076593 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3076791 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4560793 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=9510735 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4863684 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4864187 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3221694 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3221793 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4592382 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4636593 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4578886 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5787791 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2732584 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2925394 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5048970 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4580296 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4539292 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4607784 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3095791 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2708089 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3401882 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2846194 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2846798 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4849089 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=2196087 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3847597 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4388385 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=5014147 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4277398 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3395993 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4907184 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=4906889 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+[enrich] cnp=3221496 type=MEDICAMENTO typeConf=97% status=PARTIALLY_VERIFIED (downgrade de VERIFIED) needsReview=false queued=false fields=[—]
+
+— Batch 1 —
+  processed=93 updated=75 unchanged=18 failed=0
+  reclassN2=75 +atc=0 +dci=0 +img=0 still-outros=18
+  signal: hasATC=93 hasDCI=93 hasAtcOrDci=93 hasNeither=0
+  reclass por método: atc_prefix=73 atc(letra)=2 dci=0 keyword=0 outro=0
+  ATENÇÃO: 18 produto(s) com ATC/DCI mas continuam em Outros Medicamentos — possível gap de regras no mapper.
+
+  Amostra (primeiros 10):
+    1. CNP=5056387 | Abilify, 10 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Sistema Nervoso"
+        ATC=N05AX12 | DCI=Aripiprazol
+        image: — → —
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix N05 (N05AX12) → Sistema Nervoso
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+    2. CNP=5006820 | Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp.
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+    3. CNP=3393683 | Actos, 15 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Diabetes"
+        ATC=A10BG03 | DCI=Pioglitazona
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → www.farmaciamymed24.pt/…/farmaceutica.jpg
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix A10 (A10BG03) → Diabetes
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+    4. CNP=5062500 | Adrovance, 70 mg + 5600 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → www.farmaciamymed24.pt/…/farmaceutica.jpg
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+    5. CNP=2710283 | Advantan, 1 mg/mL x 50 emul bisn
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=D07AC14 | DCI=Aceponato de metilprednisolona
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix D07 (D07AC14) → Dermatológicos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+    6. CNP=3599495 | Aero-Om Antidiarreico, 2 mg x 12 comp
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=A07DA03 | DCI=Loperamida
+        image: farmaciaarade.pt/…/Aero-Om-Antidiarreico-12-comp.-Farmac... → farmaciaarade.pt/…/Aero-Om-Antidiarreico-12-comp.-Farmac...
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix A07 (A07DA03) → Sistema Digestivo
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+    7. CNP=2532794 | Amoxicilina Labesfal, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: ssd-armaturenshop.de/…/kermi-2532794-zbat010-set-montageklei... → ssd-armaturenshop.de/…/kermi-2532794-zbat010-set-montageklei...
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+    8. CNP=2697381 | Atacand, 16 mg x 56 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+    9. CNP=2695989 | Atacand, 8 mg x 28 comp
+        nivel2: "Outros Medicamentos" → "Cardiovascular"
+        ATC=C09CA06 | DCI=Candesartan
+        image: — → —
+        mapping reason: atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix C09 (C09CA06) → Cardiovascular
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+   10. CNP=4601993 | Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  progresso: 93/93 (~0 restantes neste pass)
+
+[stop] --first-batch-only activo. Para continuar: re-corre sem essa flag.

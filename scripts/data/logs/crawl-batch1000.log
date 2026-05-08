@@ -1,0 +1,963 @@
+──────────────────────────────────────────────────────────────────────────
+INFOMED Crawler HTTP-only — CNP → detalhes regulatórios
+──────────────────────────────────────────────────────────────────────────
+  cohort:           outros-medicamentos
+  limit:            700
+  rateLimitMs:      1500
+  maxCandidates:    3
+  resume:           true
+  retryNotFound:    false
+  dryRun:           false
+  mapping file:     C:\projetos\spharm-mt\scripts\data\infomed-cnp-medguid-mapping.json
+
+  Mapping carregado: 119 mapped, 275 not_found
+(node:2432) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Cohort total:     6191
+  Por processar:    5890 (após skip mapped/notFound)
+  Vão processar:    700
+
+  Amostra (5):
+    cnp=2829091  Depakine, 40 mg/ mL x 200 xar colher
+      → search: "Depakine 200 xar colher"
+    cnp=2830685  Vinpocetina Kern MG, 5 mg x 50 comp
+      → search: "Vinpocetina Kern MG"
+    cnp=2837086  Innohep 4500 U.i. Anti-xa/0.45 Ml 10 Sol. Injetável
+      → search: "Innohep 4500 U.i. Anti-xa"
+    cnp=2840288  Micardis, 40 mg x 28 comp
+      → search: "Micardis"
+    cnp=2840684  Micardis, 80 mg x 28 comp
+      → search: "Micardis"
+
+  [run] processar 700 CNPs...
+  [session] max searches/session: 30, cooldown: 30000ms
+  [1/700] cnp=2829091 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [2/700] cnp=2830685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [3/700] cnp=2837086 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [4/700] cnp=2840288 ✓ MATCHED "Micardis" (C09CA07) +4 siblings (added=5) [11s, evaluated=3]
+  [5/700] cnp=2840684 ✓ MATCHED "Micardis" (C09CA07) +4 siblings (added=5) [11s, evaluated=3]
+  [6/700] cnp=2842680 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [7/700] cnp=2846194 ✓ MATCHED "Fluconazol Alter" (J02AC01) +1 siblings (added=2) [10s, evaluated=3]
+  [8/700] cnp=2846798 ✓ MATCHED "Fluconazol Supremase 150 mg Cápsulas" (J02AC01) +1 siblings (added=2) [10s, evaluated=3]
+  [9/700] cnp=2849487 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [10/700] cnp=2854883 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 10/700 · rate=0.14/s · eta=80m36s
+  [11/700] cnp=2855088 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [12/700] cnp=2857282 · NOT_FOUND (no_cnp_match, rows=3, evaluated=3) [10s]
+  [13/700] cnp=2860385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [14/700] cnp=2869584 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [15/700] cnp=2871184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [16/700] cnp=2871382 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [17/700] cnp=2874386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [18/700] cnp=2874683 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [19/700] cnp=2874980 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [20/700] cnp=2875581 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 20/700 · rate=0.17/s · eta=64m48s
+  [21/700] cnp=2878288 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [22/700] cnp=2880581 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [23/700] cnp=2881381 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [24/700] cnp=2888980 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [25/700] cnp=2889087 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [26/700] cnp=2889384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [27/700] cnp=2891695 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [28/700] cnp=2902880 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [29/700] cnp=2911386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [30/700] cnp=2911485 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 30/700 · rate=0.20/s · eta=56m32s
+    [session] rotation após 30 searches; cooldown 30000ms
+  [31/700] cnp=2922185 ✓ MATCHED "Cardipril" (C09AA16) +21 siblings (added=22) [41s, evaluated=3]
+  [32/700] cnp=2922383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [33/700] cnp=2922698 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [34/700] cnp=2923589 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=2925196)
+    [503] backoff 30000ms before retry 2/3 (cnp=2925196)
+  [35/700] cnp=2925196 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+  [36/700] cnp=2925394 ✓ MATCHED "Zigabal" (N03AF02) +1 siblings (added=2) [9s, evaluated=2]
+  [37/700] cnp=2931681 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [38/700] cnp=2933687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [39/700] cnp=2935682 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [40/700] cnp=2943983 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 40/700 · rate=0.14/s · eta=76m05s
+  [41/700] cnp=2945780 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [42/700] cnp=2945988 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [43/700] cnp=2948099 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [44/700] cnp=2948396 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [45/700] cnp=2957488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [46/700] cnp=2965788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [47/700] cnp=2965986 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [48/700] cnp=2970382 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [49/700] cnp=2970481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [50/700] cnp=2970689 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 50/700 · rate=0.16/s · eta=67m48s
+  [51/700] cnp=2970887 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [52/700] cnp=2976280 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [53/700] cnp=2979185 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [54/700] cnp=2982783 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [55/700] cnp=2986487 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [56/700] cnp=2989283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [57/700] cnp=2999399 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [58/700] cnp=2999498 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [59/700] cnp=2999597 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=2999696)
+  [60/700] cnp=2999696 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+    [checkpoint] saved · 60/700 · rate=0.17/s · eta=63m48s
+  [61/700] cnp=3000080 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [62/700] cnp=3002888 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [63/700] cnp=3016383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [64/700] cnp=3030988 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [65/700] cnp=3035482 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=3060183)
+  [66/700] cnp=3060183 · NOT_FOUND (no_results, rows=0, evaluated=0) [13s]
+  [67/700] cnp=3060282 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [68/700] cnp=3061280 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [69/700] cnp=3067899 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [70/700] cnp=3072089 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+    [checkpoint] saved · 70/700 · rate=0.17/s · eta=61m09s
+  [71/700] cnp=3074580 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [72/700] cnp=3076593 ✓ MATCHED "Proaxen" (N03AF02) +1 siblings (added=2) [8s, evaluated=2]
+  [73/700] cnp=3076791 ✓ MATCHED "Proaxen" (N03AF02) +1 siblings (added=2) [8s, evaluated=2]
+  [74/700] cnp=3079282 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [75/700] cnp=3080785 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [76/700] cnp=3080983 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [77/700] cnp=3081288 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [78/700] cnp=3089687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [79/700] cnp=3090685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [80/700] cnp=3092384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 80/700 · rate=0.18/s · eta=58m59s
+  [81/700] cnp=3094885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [82/700] cnp=3095791 ✓ MATCHED "Azitromicina Generis" (J01FA10) +1 siblings (added=2) [8s, evaluated=2]
+  [83/700] cnp=3112786 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [84/700] cnp=3112885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [85/700] cnp=3114485 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [86/700] cnp=3121985 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [87/700] cnp=3124989 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [88/700] cnp=3125986 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [89/700] cnp=3126489 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [90/700] cnp=3141488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 90/700 · rate=0.18/s · eta=56m22s
+  [91/700] cnp=3141686 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [92/700] cnp=3151289 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [93/700] cnp=3151388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [94/700] cnp=3151586 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [95/700] cnp=3152881 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [96/700] cnp=3160686 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [97/700] cnp=3162286 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [98/700] cnp=3179389 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [99/700] cnp=3179694 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [100/700] cnp=3182284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 100/700 · rate=0.18/s · eta=56m29s
+  [101/700] cnp=3182383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [102/700] cnp=3186186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [103/700] cnp=3191087 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [104/700] cnp=3191186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [105/700] cnp=3195187 ✓ MATCHED "Celebrex" (M01AH01) +13 siblings (added=14) [10s, evaluated=2]
+  [106/700] cnp=3196482 ✓ MATCHED "Celebrex" (M01AH01) +13 siblings (added=14) [9s, evaluated=2]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=3196888)
+    [503] backoff 30000ms before retry 2/3 (cnp=3196888)
+  [107/700] cnp=3196888 ✓ MATCHED "Celebrex" (M01AH01) +13 siblings (added=0) [49s, evaluated=2]
+  [108/700] cnp=3198199 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [109/700] cnp=3199189 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [110/700] cnp=3203783 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 110/700 · rate=0.17/s · eta=59m19s
+  [111/700] cnp=3203882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [112/700] cnp=3211588 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [113/700] cnp=3211786 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [114/700] cnp=3212289 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [8s]
+  [115/700] cnp=3218682 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [116/700] cnp=3221496 ✓ MATCHED "Topamax" (N03AX11) +1 siblings (added=2) [10s, evaluated=3]
+  [117/700] cnp=3221694 ✓ MATCHED "Topamax" (N03AX11) +0 siblings (added=1) [11s, evaluated=3]
+  [118/700] cnp=3221793 ✓ MATCHED "Topamax" (N03AX11) +0 siblings (added=1) [10s, evaluated=3]
+  [119/700] cnp=3224185 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [120/700] cnp=3224284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 120/700 · rate=0.16/s · eta=59m00s
+  [121/700] cnp=3231693 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [122/700] cnp=3232691 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [123/700] cnp=3232782 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [124/700] cnp=3234283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [125/700] cnp=3241593 · NOT_FOUND (no_cnp_match, rows=6, evaluated=3) [10s]
+  [126/700] cnp=3244985 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [127/700] cnp=3245388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [128/700] cnp=3245487 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [129/700] cnp=3256385 ✓ MATCHED "Etalpha" (A11CC03) +0 siblings (added=1) [10s, evaluated=3]
+  [130/700] cnp=3264082 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 130/700 · rate=0.17/s · eta=57m25s
+  [131/700] cnp=3268083 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [132/700] cnp=3268182 · NOT_FOUND (no_cnp_match, rows=4, evaluated=3) [10s]
+  [133/700] cnp=3268380 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=3269081)
+    [503] backoff 30000ms before retry 2/3 (cnp=3269081)
+  [134/700] cnp=3269081 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+  [135/700] cnp=3273687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [136/700] cnp=3283587 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [137/700] cnp=3291481 · NOT_FOUND (no_results, rows=0, evaluated=0) [4s]
+  [138/700] cnp=3291788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [139/700] cnp=3311180 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [140/700] cnp=3312188 · NOT_FOUND (no_results, rows=0, evaluated=0) [9s]
+    [checkpoint] saved · 140/700 · rate=0.16/s · eta=58m47s
+  [141/700] cnp=3312386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [142/700] cnp=3313384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [143/700] cnp=3314085 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [144/700] cnp=3322484 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [145/700] cnp=3339181 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [146/700] cnp=3368289 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [147/700] cnp=3374485 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [148/700] cnp=3374683 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [149/700] cnp=3381183 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [150/700] cnp=3391380 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 150/700 · rate=0.16/s · eta=56m05s
+  [151/700] cnp=3391984 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [152/700] cnp=3393386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [153/700] cnp=3393683 ✓ MATCHED "Actos" (A10BG03) +4 siblings (added=5) [11s, evaluated=3]
+  [154/700] cnp=3395993 ✓ MATCHED "Lauroderme" (D01AE12) +1 siblings (added=2) [10s, evaluated=3]
+  [155/700] cnp=3401882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [156/700] cnp=3401981 ✓ MATCHED "Femoston 1/5" (G03FA14) +1 siblings (added=2) [8s, evaluated=2]
+  [157/700] cnp=3404589 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [158/700] cnp=3404688 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [159/700] cnp=3458080 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [160/700] cnp=3458189 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 160/700 · rate=0.16/s · eta=55m00s
+  [161/700] cnp=3474285 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [162/700] cnp=3474384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [163/700] cnp=3474483 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [164/700] cnp=3474582 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [165/700] cnp=3474681 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [166/700] cnp=3474889 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [167/700] cnp=3480795 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [168/700] cnp=3480894 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [169/700] cnp=3481090 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [170/700] cnp=3481298 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 170/700 · rate=0.16/s · eta=54m15s
+  [171/700] cnp=3488186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [172/700] cnp=3491685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [173/700] cnp=3493988 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [174/700] cnp=3494085 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [175/700] cnp=3494283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [176/700] cnp=3502382 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [177/700] cnp=3502481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [178/700] cnp=3506888 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [179/700] cnp=3516283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [180/700] cnp=3519287 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 180/700 · rate=0.17/s · eta=52m00s
+  [181/700] cnp=3520186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [182/700] cnp=3520285 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [183/700] cnp=3527488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [184/700] cnp=3531795 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [185/700] cnp=3532686 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [186/700] cnp=3540788 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [187/700] cnp=3545092 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [188/700] cnp=3545290 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [189/700] cnp=3546587 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=3546686)
+    [503] backoff 30000ms before retry 2/3 (cnp=3546686)
+  [190/700] cnp=3546686 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+    [checkpoint] saved · 190/700 · rate=0.16/s · eta=51m52s
+  [191/700] cnp=3549185 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [192/700] cnp=3549680 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [193/700] cnp=3559291 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [194/700] cnp=3568383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [195/700] cnp=3573987 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [196/700] cnp=3574084 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [197/700] cnp=3583788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [198/700] cnp=3584984 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [199/700] cnp=3599495 ✓ MATCHED "Aero-OM antidiarreico" (A07DA03) +0 siblings (added=1) [9s, evaluated=2]
+  [200/700] cnp=3600285 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+    [checkpoint] saved · 200/700 · rate=0.16/s · eta=50m35s
+  [201/700] cnp=3600582 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [202/700] cnp=3600889 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [203/700] cnp=3601184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [204/700] cnp=3601481 · NOT_FOUND (no_results, rows=0, evaluated=0) [11s]
+  [205/700] cnp=3601788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [206/700] cnp=3613387 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [8s]
+  [207/700] cnp=3632783 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=3633385)
+    [503] backoff 30000ms before retry 2/3 (cnp=3633385)
+  [208/700] cnp=3633385 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+  [209/700] cnp=3634482 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [210/700] cnp=3638681 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 210/700 · rate=0.16/s · eta=50m52s
+  [211/700] cnp=3639184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=3664281)
+  [212/700] cnp=3664281 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+  [213/700] cnp=3665882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [214/700] cnp=3676285 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [215/700] cnp=3685096 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [216/700] cnp=3687589 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [217/700] cnp=3687787 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [218/700] cnp=3692282 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [219/700] cnp=3695889 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [220/700] cnp=3697182 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 220/700 · rate=0.16/s · eta=49m14s
+  [221/700] cnp=3700481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [222/700] cnp=3722683 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [9s]
+  [223/700] cnp=3732088 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [224/700] cnp=3735685 ✓ MATCHED "Eutirox" (H03AA01) +9 siblings (added=10) [11s, evaluated=3]
+  [225/700] cnp=3736089 ✓ MATCHED "Eutirox" (H03AA01) +9 siblings (added=0) [11s, evaluated=3]
+  [226/700] cnp=3742780 ✓ MATCHED "Eutirox" (H03AA01) +9 siblings (added=10) [11s, evaluated=3]
+  [227/700] cnp=3743689 ✓ MATCHED "Eutirox" (H03AA01) +9 siblings (added=10) [11s, evaluated=3]
+  [228/700] cnp=3744588 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [12s]
+  [229/700] cnp=3745486 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [11s]
+  [230/700] cnp=3746385 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [11s]
+    [checkpoint] saved · 230/700 · rate=0.16/s · eta=49m52s
+  [231/700] cnp=3747284 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [11s]
+  [232/700] cnp=3748183 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [11s]
+  [233/700] cnp=3759396 · NOT_FOUND (no_results, rows=0, evaluated=0) [1s]
+  [234/700] cnp=3761780 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [235/700] cnp=3761988 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [236/700] cnp=3762184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [237/700] cnp=3769486 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [238/700] cnp=3771086 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [239/700] cnp=3772688 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [240/700] cnp=3784485 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 240/700 · rate=0.16/s · eta=48m30s
+  [241/700] cnp=3785284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [242/700] cnp=3787587 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [243/700] cnp=3787884 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [244/700] cnp=3788783 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [245/700] cnp=3804184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [246/700] cnp=3807484 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [247/700] cnp=3808698 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=3809787)
+    [503] backoff 30000ms before retry 2/3 (cnp=3809787)
+    [503] backoff 90000ms before retry 3/3 (cnp=3809787)
+  [248/700] cnp=3809787 · NOT_FOUND (no_results, rows=0, evaluated=0) [2m12s]
+  [249/700] cnp=3815487 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [250/700] cnp=3830890 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 250/700 · rate=0.15/s · eta=51m30s
+  [resolve cnp=3843687] candidato row=0 (Rinialer) falhou: click row HTTP 503
+  [resolve cnp=3843687] candidato row=1 (Rinialer) falhou: click row HTTP 503
+  [251/700] cnp=3843687 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [7s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=3844388)
+  [252/700] cnp=3844388 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+  [253/700] cnp=3847399 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [254/700] cnp=3847498 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [255/700] cnp=3847597 ✓ MATCHED "Gabapentina Gabamox 400 mg Cápsulas" (N02BF01) +0 siblings (added=1) [12s, evaluated=3]
+    [503] backoff 10000ms before retry 1/3 (cnp=3848785)
+    [503] backoff 30000ms before retry 2/3 (cnp=3848785)
+  [256/700] cnp=3848785 · NOT_FOUND (no_results, rows=0, evaluated=0) [43s]
+  [257/700] cnp=3848884 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [258/700] cnp=3849296 · NOT_FOUND (no_cnp_match, rows=3, evaluated=3) [10s]
+  [259/700] cnp=3849395 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [260/700] cnp=3851987 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 260/700 · rate=0.14/s · eta=51m36s
+  [261/700] cnp=3852183 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [262/700] cnp=3853785 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [263/700] cnp=3854585 ✓ MATCHED "Ben-U-Ron" (N02BE01) +1 siblings (added=2) [10s, evaluated=3]
+  [264/700] cnp=3856598 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [265/700] cnp=3862380 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [266/700] cnp=3862786 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [267/700] cnp=3863180 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [268/700] cnp=3885985 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [269/700] cnp=3886884 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [270/700] cnp=3887882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 270/700 · rate=0.14/s · eta=49m44s
+  [271/700] cnp=3887981 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [272/700] cnp=3888187 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [273/700] cnp=3888286 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [274/700] cnp=3888484 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [275/700] cnp=3888583 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [276/700] cnp=3900685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [277/700] cnp=3900982 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [278/700] cnp=3906682 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [279/700] cnp=3906989 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [280/700] cnp=3907284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 280/700 · rate=0.15/s · eta=47m44s
+  [281/700] cnp=3907581 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [282/700] cnp=3914280 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=3920683)
+    [503] backoff 30000ms before retry 2/3 (cnp=3920683)
+  [283/700] cnp=3920683 · NOT_FOUND (no_results, rows=0, evaluated=0) [42s]
+  [284/700] cnp=3921186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [285/700] cnp=3921384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [286/700] cnp=3925799 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [287/700] cnp=3925898 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [288/700] cnp=3938081 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [289/700] cnp=3938289 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [290/700] cnp=3938388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 290/700 · rate=0.15/s · eta=46m47s
+  [291/700] cnp=3949989 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [292/700] cnp=3958386 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [293/700] cnp=3968682 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [294/700] cnp=3974490 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [295/700] cnp=3982782 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [296/700] cnp=3984481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [297/700] cnp=4003786 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [298/700] cnp=4004289 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [299/700] cnp=4005088 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [300/700] cnp=4009288 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 300/700 · rate=0.15/s · eta=44m56s
+  [301/700] cnp=4009882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=4009981)
+    [503] backoff 30000ms before retry 2/3 (cnp=4009981)
+  [302/700] cnp=4009981 · NOT_FOUND (no_results, rows=0, evaluated=0) [45s]
+  [303/700] cnp=4014882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [304/700] cnp=4026985 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [305/700] cnp=4027199 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [306/700] cnp=4027686 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [307/700] cnp=4027785 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [308/700] cnp=4027983 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [309/700] cnp=4031381 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [310/700] cnp=4037388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 310/700 · rate=0.15/s · eta=44m05s
+  [311/700] cnp=4041786 · NOT_FOUND (no_results, rows=0, evaluated=0) [1s]
+  [312/700] cnp=4049789 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [313/700] cnp=4050589 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [314/700] cnp=4051280 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [315/700] cnp=4057881 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [316/700] cnp=4060281 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [317/700] cnp=4061586 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [318/700] cnp=4061685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [319/700] cnp=4062683 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [320/700] cnp=4065595 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 320/700 · rate=0.15/s · eta=42m19s
+  [321/700] cnp=4084588 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [322/700] cnp=4089785 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [323/700] cnp=4091187 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [324/700] cnp=4107983 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [325/700] cnp=4109385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [326/700] cnp=4111886 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [327/700] cnp=4112181 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [328/700] cnp=4113189 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [329/700] cnp=4113486 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [330/700] cnp=4115986 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 330/700 · rate=0.15/s · eta=40m38s
+  [331/700] cnp=4116281 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [332/700] cnp=4117388 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [333/700] cnp=4117685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [334/700] cnp=4125478 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [335/700] cnp=4131587 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [336/700] cnp=4140182 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [337/700] cnp=4140588 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=4141982)
+    [503] backoff 30000ms before retry 2/3 (cnp=4141982)
+  [338/700] cnp=4141982 · NOT_FOUND (no_results, rows=0, evaluated=0) [42s]
+  [339/700] cnp=4145389 · NOT_FOUND (no_results, rows=0, evaluated=0) [4s]
+  [340/700] cnp=4145983 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 340/700 · rate=0.15/s · eta=40m17s
+  [341/700] cnp=4147492 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [342/700] cnp=4153472 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [343/700] cnp=4155180 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [344/700] cnp=4159380 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [345/700] cnp=4164687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [346/700] cnp=4164885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [347/700] cnp=4185385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [348/700] cnp=4186599 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [349/700] cnp=4189882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [350/700] cnp=4200986 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 350/700 · rate=0.15/s · eta=38m39s
+  [351/700] cnp=4201083 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [352/700] cnp=4204384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [353/700] cnp=4204582 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [354/700] cnp=4210282 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [355/700] cnp=4258299 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [356/700] cnp=4260881 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [357/700] cnp=4261087 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [358/700] cnp=4261285 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [359/700] cnp=4266086 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [360/700] cnp=4273082 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 360/700 · rate=0.15/s · eta=37m04s
+  [361/700] cnp=4273181 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [362/700] cnp=4273793 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [363/700] cnp=4275582 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [364/700] cnp=4277398 ✓ MATCHED "Gastroliber" (A02BC03) +5 siblings (added=6) [11s, evaluated=3]
+  [365/700] cnp=4282984 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [366/700] cnp=4283883 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [367/700] cnp=4284980 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [368/700] cnp=4300489 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [369/700] cnp=4304085 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [370/700] cnp=4314787 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 370/700 · rate=0.15/s · eta=36m08s
+    [503] backoff 10000ms before retry 1/3 (cnp=4328282)
+    [503] backoff 30000ms before retry 2/3 (cnp=4328282)
+  [371/700] cnp=4328282 · NOT_FOUND (no_results, rows=0, evaluated=0) [43s]
+  [372/700] cnp=4333498 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [373/700] cnp=4334181 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [374/700] cnp=4334488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [375/700] cnp=4338380 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [376/700] cnp=4339685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [377/700] cnp=4340899 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [378/700] cnp=4352886 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [379/700] cnp=4357281 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [380/700] cnp=4358388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 380/700 · rate=0.15/s · eta=35m13s
+  [381/700] cnp=4361788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [382/700] cnp=4362885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [383/700] cnp=4367785 ✓ MATCHED "Ezetrol" (C10AX09) +5 siblings (added=6) [11s, evaluated=3]
+  [384/700] cnp=4375283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [385/700] cnp=4376182 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [386/700] cnp=4376687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [387/700] cnp=4386884 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [388/700] cnp=4388385 ✓ MATCHED "Gabapentina Mylan" (N02BF01) +15 siblings (added=16) [11s, evaluated=3]
+  [resolve cnp=4392486] candidato row=2 (Gabapentina Mylan
+											MG) falhou: click row HTTP 503
+  [389/700] cnp=4392486 · NOT_FOUND (no_cnp_match, rows=3, evaluated=3) [11s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=4392981)
+  [390/700] cnp=4392981 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+    [checkpoint] saved · 390/700 · rate=0.15/s · eta=34m14s
+  [391/700] cnp=4393385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [392/700] cnp=4398699 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [393/700] cnp=4399291 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [394/700] cnp=4399598 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [395/700] cnp=4400495 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [396/700] cnp=4421186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [397/700] cnp=4432597 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [398/700] cnp=4432696 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [399/700] cnp=4435384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [400/700] cnp=4452389 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 400/700 · rate=0.15/s · eta=32m45s
+  [401/700] cnp=4460283 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [402/700] cnp=4483897 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [403/700] cnp=4485488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [404/700] cnp=4497483 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [405/700] cnp=4499885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [406/700] cnp=4506481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [407/700] cnp=4506986 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [408/700] cnp=4507398 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [409/700] cnp=4508495 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [410/700] cnp=4509386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 410/700 · rate=0.15/s · eta=31m19s
+  [411/700] cnp=4509485 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [412/700] cnp=4511481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [413/700] cnp=4511796 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [414/700] cnp=4531489 · NOT_FOUND (no_results, rows=0, evaluated=0) [4s]
+  [415/700] cnp=4535399 ✓ MATCHED "Bialzepam" (N05BA01) +2 siblings (added=3) [10s, evaluated=3]
+  [416/700] cnp=4535597 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [417/700] cnp=4537098 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [418/700] cnp=4537692 ✓ MATCHED "Bromalex" (N05BA08) +2 siblings (added=3) [11s, evaluated=3]
+  [419/700] cnp=4537791 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [420/700] cnp=4537890 ✓ MATCHED "Bromalex" (N05BA08) +2 siblings (added=3) [42s, evaluated=3]
+    [checkpoint] saved · 420/700 · rate=0.15/s · eta=30m36s
+  [421/700] cnp=4538096 ✓ MATCHED "Bromalex" (N05BA08) +2 siblings (added=3) [13s, evaluated=3]
+  [422/700] cnp=4538195 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [423/700] cnp=4539292 ✓ MATCHED "Cloxam" (N05BA22) +2 siblings (added=3) [9s, evaluated=2]
+  [424/700] cnp=4543385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [425/700] cnp=4549291 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [426/700] cnp=4560793 ✓ MATCHED "Rantudil" (M01AB11) +3 siblings (added=4) [8s, evaluated=2]
+  [427/700] cnp=4567095 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [428/700] cnp=4576286 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=4576385)
+  [429/700] cnp=4576385 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+  [430/700] cnp=4578092 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 430/700 · rate=0.15/s · eta=29m34s
+  [431/700] cnp=4578886 ✓ MATCHED "Xanax" (N05BA12) +4 siblings (added=5) [11s, evaluated=3]
+  [432/700] cnp=4579082 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [433/700] cnp=4579488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [434/700] cnp=4580296 ✓ MATCHED "Castilium" (N05BA09) +2 siblings (added=3) [9s, evaluated=2]
+  [435/700] cnp=4580494 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [436/700] cnp=4580684 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [8s]
+  [437/700] cnp=4581088 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [438/700] cnp=4586194 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [439/700] cnp=4592382 ✓ MATCHED "Triatec" (C09AA05) +1 siblings (added=2) [11s, evaluated=3]
+  [440/700] cnp=4600284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 440/700 · rate=0.15/s · eta=28m30s
+  [441/700] cnp=4601993 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [442/700] cnp=4607784 ✓ MATCHED "Aciclovir Generis 800 mg Comprimidos" (J05AB01) +3 siblings (added=4) [9s, evaluated=2]
+  [443/700] cnp=4610895 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [8s]
+  [444/700] cnp=4616686 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [445/700] cnp=4618492 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [446/700] cnp=4620183 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [447/700] cnp=4624284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [448/700] cnp=4636098 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [449/700] cnp=4636593 ✓ MATCHED "Voltaren" (M01AB05) +1 siblings (added=2) [10s, evaluated=3]
+  [450/700] cnp=4640884 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 450/700 · rate=0.15/s · eta=27m20s
+  [451/700] cnp=4645792 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [452/700] cnp=4646394 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [453/700] cnp=4666889 ✓ MATCHED "Floxapen" (J01CF05) +1 siblings (added=2) [11s, evaluated=3]
+  [454/700] cnp=4675286 ✓ MATCHED "Lanoxin" (C01AA05) +2 siblings (added=3) [10s, evaluated=3]
+  [455/700] cnp=4701983 · NOT_FOUND (no_cnp_match, rows=4, evaluated=3) [10s]
+  [456/700] cnp=4702288 ✓ MATCHED "Dilbloc" (C07AG02) +2 siblings (added=3) [8s, evaluated=2]
+  [457/700] cnp=4704789 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [458/700] cnp=4708392 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [8s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [459/700] cnp=4726394 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [460/700] cnp=4728481 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 460/700 · rate=0.15/s · eta=26m35s
+  [461/700] cnp=4729281 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [462/700] cnp=4729687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [463/700] cnp=4729885 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [464/700] cnp=4730388 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [465/700] cnp=4730784 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [466/700] cnp=4734596 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [467/700] cnp=4734885 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [468/700] cnp=4736294 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+  [469/700] cnp=4736781 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [470/700] cnp=4746681 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 470/700 · rate=0.15/s · eta=25m19s
+  [471/700] cnp=4747580 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [472/700] cnp=4753687 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [473/700] cnp=4753786 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=4761094)
+    [503] backoff 30000ms before retry 2/3 (cnp=4761094)
+  [474/700] cnp=4761094 · NOT_FOUND (no_results, rows=0, evaluated=0) [42s]
+  [475/700] cnp=4761383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [476/700] cnp=4768685 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [477/700] cnp=4779385 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [478/700] cnp=4779484 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [479/700] cnp=4792883 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [480/700] cnp=4794186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 480/700 · rate=0.15/s · eta=24m19s
+  [481/700] cnp=4798989 ✓ MATCHED "Ceclor" (J01DC04) +7 siblings (added=8) [10s, evaluated=3]
+  [482/700] cnp=4799797 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [483/700] cnp=4804381 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [484/700] cnp=4804886 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [485/700] cnp=4812186 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [486/700] cnp=4814984 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [487/700] cnp=4847281 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [488/700] cnp=4849089 ✓ MATCHED "Fluconazol ToLife" (J02AC01) +2 siblings (added=3) [8s, evaluated=2]
+  [489/700] cnp=4849592 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [490/700] cnp=4849691 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 490/700 · rate=0.15/s · eta=23m07s
+  [491/700] cnp=4863189 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [492/700] cnp=4863684 ✓ MATCHED "Rubifen" (N06BA04) +4 siblings (added=5) [10s, evaluated=3]
+  [493/700] cnp=4864187 ✓ MATCHED "Rubifen" (N06BA04) +4 siblings (added=5) [10s, evaluated=3]
+  [494/700] cnp=4877486 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [495/700] cnp=4877783 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [496/700] cnp=4877882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [497/700] cnp=4880696 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [498/700] cnp=4881389 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [499/700] cnp=4882494 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [500/700] cnp=4882593 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 500/700 · rate=0.15/s · eta=21m55s
+    [503] backoff 10000ms before retry 1/3 (cnp=4883393)
+  [501/700] cnp=4883393 · NOT_FOUND (no_results, rows=0, evaluated=0) [13s]
+  [502/700] cnp=4892188 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [503/700] cnp=4892287 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [504/700] cnp=4892386 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [505/700] cnp=4892782 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [506/700] cnp=4893681 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+    [503] backoff 10000ms before retry 1/3 (cnp=4893780)
+    [503] backoff 30000ms before retry 2/3 (cnp=4893780)
+  [507/700] cnp=4893780 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+  [508/700] cnp=4894580 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [509/700] cnp=4895181 · NOT_FOUND (no_results, rows=0, evaluated=0) [4s]
+  [510/700] cnp=4895785 · NOT_FOUND (no_results, rows=0, evaluated=0) [5s]
+    [checkpoint] saved · 510/700 · rate=0.15/s · eta=21m03s
+  [511/700] cnp=4903282 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [512/700] cnp=4906889 ✓ MATCHED "Lisinopril Generis 5 mg Comprimidos" (C09AA03) +2 siblings (added=3) [10s, evaluated=2]
+  [513/700] cnp=4907184 ✓ MATCHED "Lisinopril Generis 20 mg Comprimidos" (C09AA03) +2 siblings (added=3) [10s, evaluated=2]
+  [514/700] cnp=4918389 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [515/700] cnp=4919288 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [516/700] cnp=4938585 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [517/700] cnp=4943882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [518/700] cnp=4944385 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [519/700] cnp=4944880 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [520/700] cnp=4977096 ✓ MATCHED "Fluconazol Alter" (J02AC01) +1 siblings (added=2) [10s, evaluated=3]
+    [checkpoint] saved · 520/700 · rate=0.15/s · eta=19m56s
+  [521/700] cnp=4977492 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [522/700] cnp=4977591 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [523/700] cnp=4979589 · NOT_FOUND (no_results, rows=0, evaluated=0) [3s]
+  [524/700] cnp=4993184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [525/700] cnp=4993689 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [526/700] cnp=4999793 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [527/700] cnp=5002621 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [528/700] cnp=5002639 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [529/700] cnp=5002803 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [530/700] cnp=5002829 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 530/700 · rate=0.15/s · eta=18m41s
+  [531/700] cnp=5002860 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [532/700] cnp=5003009 ✓ MATCHED "Clonix" (N02B) +2 siblings (added=3) [10s, evaluated=2]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=5005277)
+    [503] backoff 30000ms before retry 2/3 (cnp=5005277)
+  [533/700] cnp=5005277 · NOT_FOUND (no_results, rows=0, evaluated=0) [42s]
+  [534/700] cnp=5006044 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [535/700] cnp=5006820 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [536/700] cnp=5008925 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [537/700] cnp=5011028 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [538/700] cnp=5012174 ✓ MATCHED "Dagesil" (M02AA15) +2 siblings (added=3) [10s, evaluated=3]
+  [539/700] cnp=5012190 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [540/700] cnp=5012398 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 540/700 · rate=0.15/s · eta=17m43s
+  [541/700] cnp=5012992 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [542/700] cnp=5013289 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [543/700] cnp=5013420 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [544/700] cnp=5013628 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [545/700] cnp=5013636 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [546/700] cnp=5014113 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [547/700] cnp=5014147 ✓ MATCHED "Gabapentina toLife" (N02BF01) +2 siblings (added=3) [11s, evaluated=3]
+  [548/700] cnp=5014212 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [549/700] cnp=5014246 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [550/700] cnp=5014279 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 550/700 · rate=0.15/s · eta=16m30s
+  [551/700] cnp=5015326 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [552/700] cnp=5015458 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [553/700] cnp=5015565 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [554/700] cnp=5015615 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [555/700] cnp=5015649 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [556/700] cnp=5015672 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [557/700] cnp=5015987 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [558/700] cnp=5016050 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [559/700] cnp=5016100 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=5016456)
+    [503] backoff 30000ms before retry 2/3 (cnp=5016456)
+  [560/700] cnp=5016456 · NOT_FOUND (no_results, rows=0, evaluated=0) [43s]
+    [checkpoint] saved · 560/700 · rate=0.15/s · eta=15m27s
+  [561/700] cnp=5016480 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [562/700] cnp=5016985 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [563/700] cnp=5017140 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [564/700] cnp=5017223 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [565/700] cnp=5017231 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [566/700] cnp=5017264 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [567/700] cnp=5017488 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [568/700] cnp=5018015 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [569/700] cnp=5018650 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [570/700] cnp=5018726 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 570/700 · rate=0.15/s · eta=14m14s
+  [571/700] cnp=5018775 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [572/700] cnp=5021514 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [573/700] cnp=5021522 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [574/700] cnp=5021530 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [575/700] cnp=5021548 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [576/700] cnp=5021878 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [577/700] cnp=5023841 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [578/700] cnp=5023924 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [579/700] cnp=5024518 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [580/700] cnp=5024542 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 580/700 · rate=0.15/s · eta=13m02s
+  [581/700] cnp=5024575 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [582/700] cnp=5024625 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [583/700] cnp=5024658 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [584/700] cnp=5024708 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [585/700] cnp=5025788 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=5025853)
+  [586/700] cnp=5025853 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+  [587/700] cnp=5026117 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [588/700] cnp=5026141 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [589/700] cnp=5026315 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [590/700] cnp=5026562 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 590/700 · rate=0.15/s · eta=11m53s
+  [591/700] cnp=5027453 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [592/700] cnp=5027461 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [593/700] cnp=5027487 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [594/700] cnp=5028345 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [595/700] cnp=5031174 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=5031224)
+    [503] backoff 30000ms before retry 2/3 (cnp=5031224)
+  [596/700] cnp=5031224 · NOT_FOUND (no_results, rows=0, evaluated=0) [42s]
+  [597/700] cnp=5032602 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [598/700] cnp=5033162 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [599/700] cnp=5034319 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [600/700] cnp=5034426 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 600/700 · rate=0.15/s · eta=10m50s
+  [601/700] cnp=5035654 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [602/700] cnp=5036132 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [603/700] cnp=5036165 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [604/700] cnp=5036298 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [605/700] cnp=5036371 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [606/700] cnp=5036397 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [607/700] cnp=5036470 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [608/700] cnp=5037122 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [609/700] cnp=5037288 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [610/700] cnp=5037429 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 610/700 · rate=0.15/s · eta=9m41s
+  [611/700] cnp=5037460 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [612/700] cnp=5037536 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [613/700] cnp=5039110 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [614/700] cnp=5039201 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [615/700] cnp=5039383 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [616/700] cnp=5039607 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [617/700] cnp=5039615 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [618/700] cnp=5039623 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [619/700] cnp=5039649 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [620/700] cnp=5039706 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 620/700 · rate=0.16/s · eta=8m33s
+  [621/700] cnp=5042478 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [622/700] cnp=5042528 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [623/700] cnp=5043237 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [624/700] cnp=5043245 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [625/700] cnp=5043302 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [626/700] cnp=5043310 · NOT_FOUND (no_results, rows=0, evaluated=0) [32s]
+  [627/700] cnp=5043336 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [628/700] cnp=5043351 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [629/700] cnp=5043898 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [630/700] cnp=5044193 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 630/700 · rate=0.16/s · eta=7m29s
+  [631/700] cnp=5045661 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [632/700] cnp=5046701 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [633/700] cnp=5047261 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [634/700] cnp=5047477 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [635/700] cnp=5047766 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [636/700] cnp=5047824 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [637/700] cnp=5048905 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [11s]
+  [638/700] cnp=5048921 · NOT_FOUND (no_cnp_match, rows=10, evaluated=3) [10s]
+  [639/700] cnp=5048947 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [640/700] cnp=5048970 ✓ MATCHED "Zonegran" (N03AX15) +2 siblings (added=3) [11s, evaluated=3]
+    [checkpoint] saved · 640/700 · rate=0.16/s · eta=6m24s
+  [641/700] cnp=5049739 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [642/700] cnp=5049804 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [643/700] cnp=5049861 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [644/700] cnp=5049978 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [645/700] cnp=5050596 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [646/700] cnp=5051651 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [647/700] cnp=5052212 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=5052261)
+  [648/700] cnp=5052261 · NOT_FOUND (no_results, rows=0, evaluated=0) [13s]
+  [649/700] cnp=5053780 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [650/700] cnp=5053913 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 650/700 · rate=0.16/s · eta=5m19s
+  [651/700] cnp=5054135 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [652/700] cnp=5054143 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [653/700] cnp=5054168 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [654/700] cnp=5055462 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [655/700] cnp=5055470 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [656/700] cnp=5055660 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [657/700] cnp=5056387 ✓ MATCHED "Abilify" (N05AX12) +4 siblings (added=5) [10s, evaluated=3]
+  [658/700] cnp=5056809 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [659/700] cnp=5056858 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [660/700] cnp=5056882 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 660/700 · rate=0.16/s · eta=4m14s
+  [661/700] cnp=5056924 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [662/700] cnp=5057047 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [663/700] cnp=5057112 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [664/700] cnp=5057237 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [665/700] cnp=5057880 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [666/700] cnp=5058250 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [667/700] cnp=5058276 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [668/700] cnp=5058284 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [669/700] cnp=5058318 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [670/700] cnp=5058334 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 670/700 · rate=0.16/s · eta=3m09s
+  [671/700] cnp=5058573 · NOT_FOUND (no_cnp_match, rows=8, evaluated=3) [10s]
+  [672/700] cnp=5061239 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [673/700] cnp=5061841 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [674/700] cnp=5061858 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [675/700] cnp=5061866 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [676/700] cnp=5061874 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [677/700] cnp=5062153 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [session] rotation após 30 searches; cooldown 30000ms
+  [678/700] cnp=5062500 ✓ MATCHED "Adrovance" (M05BB03) +2 siblings (added=3) [38s, evaluated=2]
+  [679/700] cnp=5063938 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [680/700] cnp=5063946 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 680/700 · rate=0.16/s · eta=2m06s
+  [681/700] cnp=5063961 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [682/700] cnp=5064001 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [683/700] cnp=5064431 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [503] backoff 10000ms before retry 1/3 (cnp=5064571)
+    [503] backoff 30000ms before retry 2/3 (cnp=5064571)
+  [684/700] cnp=5064571 · NOT_FOUND (no_results, rows=0, evaluated=0) [44s]
+  [685/700] cnp=5064746 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [686/700] cnp=5064969 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [687/700] cnp=5065040 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [688/700] cnp=5065081 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [resolve cnp=5065156] candidato row=0 (Fosavance) falhou: click row HTTP 503
+  [resolve cnp=5065156] candidato row=1 (Fosavance) falhou: click row HTTP 503
+  [689/700] cnp=5065156 · NOT_FOUND (no_cnp_match, rows=2, evaluated=2) [7s]
+    [session] refresh falhou (refresh HTTP 503); rota.
+    [503] backoff 10000ms before retry 1/3 (cnp=5065552)
+  [690/700] cnp=5065552 · NOT_FOUND (no_results, rows=0, evaluated=0) [12s]
+    [checkpoint] saved · 690/700 · rate=0.16/s · eta=1m03s
+  [691/700] cnp=5066329 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [692/700] cnp=5066345 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [693/700] cnp=5067384 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [694/700] cnp=5067558 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [695/700] cnp=5068184 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [696/700] cnp=5070057 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [697/700] cnp=5070719 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [698/700] cnp=5070925 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [699/700] cnp=5071402 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+  [700/700] cnp=5071634 · NOT_FOUND (no_results, rows=0, evaluated=0) [2s]
+    [checkpoint] saved · 700/700 · rate=0.16/s · eta=0s
+
+══════════════════════════════════════════════════════════════════════════
+SUMÁRIO
+══════════════════════════════════════════════════════════════════════════
+  processed:                  700
+  matched_strong:             81
+  siblings auto-mapped:       278
+  total mapped (file):        359
+  ambiguous:                  0
+  not_found:                  919
+  failed:                     0
+  HTTP 503 count:             45
+  retries (backoff):          45
+  sessions created:           39
+  session rotations:          38
+  avg searches/session:       18.3
+  tempo total:                74m05s
+  taxa efectiva:              0.16 CNPs/s (9.4/min)
+  ETA para 6191 (cohort):     655m18s (extrapolado deste run)
+  total notFound (file):      917
+
+  Exemplos matched (25):
+    2840288  Micardis, 40 mg x 28 comp                      → "Micardis                 "  C09CA07   +4 sib
+    2840684  Micardis, 80 mg x 28 comp                      → "Micardis                 "  C09CA07   +4 sib
+    2846194  FLUCONAZOL ALTER CAPS 150 MG X 2               → "Fluconazol Alter
+								"  J02AC01   +1 sib
+    2846798  FLUCONAZOL SUPREMASE CAPS 150 MG X 2           → "Fluconazol Supremase 150 "  J02AC01   +1 sib
+    2922185  Cardipril, 5 mg x 56 comp                      → "Cardipril                "  C09AA16   +21 sib
+    2925394  Zigabal, 600 mg x 60 comp                      → "Zigabal                  "  N03AF02   +1 sib
+    3076593  Proaxen, 300 mg x 60 comp                      → "Proaxen                  "  N03AF02   +1 sib
+    3076791  Proaxen, 600 mg x 60 comp                      → "Proaxen                  "  N03AF02   +1 sib
+    3095791  AZITROMICINA GENERIS SUSP 200 MG/5ML 15 ML     → "Azitromicina Generis     "  J01FA10   +1 sib
+    3195187  Celebrex, 100 mg x 20 cáps                     → "Celebrex                 "  M01AH01   +13 sib
+    3196482  Celebrex, 200 mg x 20 cáps                     → "Celebrex                 "  M01AH01   +13 sib
+    3196888  Celebrex, 200 mg x 60 cáps                     → "Celebrex                 "  M01AH01   +13 sib
+    3221496  TOPAMAX 15 MG 20 CÁPSULA                       → "Topamax                  "  N03AX11   +1 sib
+    3221694  Topamax, 25 mg x 60 cáps                       → "Topamax                  "  N03AX11   +0 sib
+    3221793  Topamax, 50 mg x 60 cáps                       → "Topamax                  "  N03AX11   +0 sib
+    3256385  Etalpha 0.5 µg 30 Cápsula                      → "Etalpha                  "  A11CC03   +0 sib
+    3393683  Actos, 15 mg x 28 comp                         → "Actos                    "  A10BG03   +4 sib
+    3395993  LAURODERME CR 100 G                            → "Lauroderme               "  D01AE12   +1 sib
+    3401981  Femoston 1/5, 1/5 mg x 84 comp                 → "Femoston 1/5             "  G03FA14   +1 sib
+    3599495  Aero-Om Antidiarreico, 2 mg x 12 comp          → "Aero-OM antidiarreico    "  A07DA03   +0 sib
+    3735685  Eutirox, 25 mcg x 20 comp                      → "Eutirox                  "  H03AA01   +9 sib
+    3736089  Eutirox, 25 mcg x 60 comp                      → "Eutirox                  "  H03AA01   +9 sib
+    3742780  Eutirox, 50 mcg x 60 comp                      → "Eutirox                  "  H03AA01   +9 sib
+    3743689  Eutirox, 75 mcg x 60 comp                      → "Eutirox                  "  H03AA01   +9 sib
+    3847597  GABAPENTINA GABAMOX 400 MG X 60 CAPS           → "Gabapentina Gabamox 400 m"  N02BF01   +0 sib
+
+  Exemplos not_found (25):
+    2829091  Depakine, 40 mg/ mL x 200 xar colher                no_results (rows=0, eval=0)
+    2830685  Vinpocetina Kern MG, 5 mg x 50 comp                 no_results (rows=0, eval=0)
+    2837086  Innohep 4500 U.i. Anti-xa/0.45 Ml 10 Sol. Injetáve  no_results (rows=0, eval=0)
+    2842680  Emadine, 2,5 mg/5 mL x 1 sol col                    no_results (rows=0, eval=0)
+    2849487  Trazone AC, 150 mg x 60 comp lib mod                no_results (rows=0, eval=0)
+    2854883  Pantoc 20 Mg 14 Comp. Gastrorresistente*            no_results (rows=0, eval=0)
+    2855088  Pantoc 20 Mg 56 Comp. Gastrorresistente             no_results (rows=0, eval=0)
+    2857282  Spasmomen, 40 mg x 60 comp                          no_cnp_match (rows=3, eval=3)
+    2860385  Darob 160 Mg 20 Comp.                               no_results (rows=0, eval=0)
+    2869584  Betamox Plus, 875/125 mg x 16 comp revest           no_results (rows=0, eval=0)
+    2871184  Zanicor, 10 mg x 56 comp revest                     no_results (rows=0, eval=0)
+    2871382  Implanon NXT, 68 mg x 1 impl                        no_results (rows=0, eval=0)
+    2874386  Seretaide Diskus, 100/50 mcg/dose x 60 pó inal uni  no_results (rows=0, eval=0)
+    2874683  Seretaide Diskus, 250/50 mcg/dose x 60 pó inal uni  no_results (rows=0, eval=0)
+    2874980  Seretaide Diskus, 500/50 mcg/dose x 60 pó inal uni  no_results (rows=0, eval=0)
+    2875581  Veraspir Diskus, 250/50 mcg/dose x 60 pó inal unid  no_results (rows=0, eval=0)
+    2878288  Zofenil, 30 mg x 28 comp revest                     no_results (rows=0, eval=0)
+    2880581  Pariet, 10 mg x 56 comp gastrorresistente           no_results (rows=0, eval=0)
+    2881381  Pariet, 20 mg x 56 comp gastrorresistente           no_results (rows=0, eval=0)
+    2888980  Vicks Vaporub x 50 pda inal vap                     no_results (rows=0, eval=0)
+    2889087  Vicks Vaporub x 100 pda inal vap                    no_results (rows=0, eval=0)
+    2889384  Tantum Verde, 1,5 mg/mL x 30 sol pulv               no_results (rows=0, eval=0)
+    2891695  Dagragel, 0,078/5,532 g x 6 gel rect bisnaga        no_results (rows=0, eval=0)
+    2902880  Estreva, 1 mg/g x 50 gel bis                        no_results (rows=0, eval=0)
+    2911386  Voltaren, 0,3 mg/0,3 mL x 20 sol col unidose        no_results (rows=0, eval=0)
+
+  Mapping file: C:\projetos\spharm-mt\scripts\data\infomed-cnp-medguid-mapping.json
+══════════════════════════════════════════════════════════════════════════

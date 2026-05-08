@@ -1,0 +1,72 @@
+──────────────────────────────────────────────────────────────────────────
+Importer mapping → RegulatoryRecord
+──────────────────────────────────────────────────────────────────────────
+
+[1/4] A ler staging file...
+  staging file:    scripts\data\infomed-cnp-medguid-mapping.json
+  lastUpdate:      2026-05-08T15:29:21.780Z
+  mappings totais: 359
+  notFound:        917
+  source tag:      infomed_search_2026-05-08
+  dryRun:          true
+  force:           false
+  excludeSiblings: false
+  read em 0s
+
+[2/4] A filtrar entries...
+  total mappings:           359
+  seleccionados:            359
+  saltados (siblings):      0
+  saltados (cnp <= 2000000): 0
+  saltados (fora de --only): 0
+  saltados (cnp inválido):  0
+  filtrado em 0s
+  · matched directo (search): 78
+  · matched sibling:          281
+
+  Cobertura no subset seleccionado:
+    designacaoOficial      359 (100.0%)
+    dci                    359 (100.0%)
+    codigoATC              359 (100.0%)
+    formaFarmaceutica      359 (100.0%)
+    dosagem                359 (100.0%)
+    embalagem              359 (100.0%)
+    grupoTerapeutico       359 (100.0%)
+    titularAim             359 (100.0%)
+    estadoAim              359 (100.0%)
+
+  Amostra (5 entries seleccionadas):
+    {"cnp":2074797,"designacaoOficial":"Haldol","dci":"Haloperidol","codigoATC":"N05AD01","formaFarmaceutica":"Comprimido","dosagem":"1 mg","embalagem":"Blister 60 unidade(s)","grupoTerapeutico":"2.9.2 - Antipsicóticos","titularAim":"Essential Pharma Limited","estadoAim":"Autorizado"}
+    {"cnp":2074995,"designacaoOficial":"Haldol","dci":"Haloperidol","codigoATC":"N05AD01","formaFarmaceutica":"Comprimido","dosagem":"5 mg","embalagem":"Blister 60 unidade(s)","grupoTerapeutico":"2.9.2 - Antipsicóticos","titularAim":"Essential Pharma Limited","estadoAim":"Autorizado"}
+    {"cnp":2181485,"designacaoOficial":"Gopten","dci":"Trandolapril","codigoATC":"C09AA10","formaFarmaceutica":"Cápsula","dosagem":"2 mg","embalagem":"Blister 56 unidade(s)","grupoTerapeutico":"3.4.2.1 - Inibidores da enzima de con…","titularAim":"Viatris Healthcare, Lda.","estadoAim":"Autorizado"}
+    {"cnp":2192789,"designacaoOficial":"Fositen","dci":"Fosinopril","codigoATC":"C09AA09","formaFarmaceutica":"Comprimido","dosagem":"20 mg","embalagem":"Blister 20 unidade(s)","grupoTerapeutico":"3.4.2.1 - Inibidores da enzima de con…","titularAim":"Bausch Health (Ireland) Limited","estadoAim":"Autorizado"}
+    {"cnp":2192888,"designacaoOficial":"Fositen","dci":"Fosinopril","codigoATC":"C09AA09","formaFarmaceutica":"Comprimido","dosagem":"20 mg","embalagem":"Blister 60 unidade(s)","grupoTerapeutico":"3.4.2.1 - Inibidores da enzima de con…","titularAim":"Bausch Health (Ireland) Limited","estadoAim":"Autorizado"}
+
+[3/4] A simular upserts em batches de 500...
+(node:6944) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [1/1] proc=359/359 ins=0 upd=359 unch=0 fail=0 batch=1579ms eta=0s
+
+[4/4] Métricas de qualidade pós-import:
+  total RegulatoryRecord:               283122
+  com designacaoOficial:                283122 (100.0%)
+  com titularAim:                       279943 (98.9%)
+  com estadoAim:                        282291 (99.7%)
+  com codigoATC:                        0 (0.0%)
+  com dci:                              0 (0.0%)
+  com formaFarmaceutica:                0 (0.0%)
+  com dosagem:                          0 (0.0%)
+  com embalagem:                        0 (0.0%)
+  com grupoTerapeutico:                 0 (0.0%)
+  cobertura RegulatoryRecord ∩ Produto: 12592 / 13687 (92.0%)
+
+──────────────────────────────────────────────────────────────────────────
+RESULTADO (DRY-RUN): inseridos=0 actualizados=359 inalterados=0 falhas=0 · tempo=3s
+──────────────────────────────────────────────────────────────────────────
