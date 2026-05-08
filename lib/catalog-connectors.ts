@@ -167,59 +167,116 @@ const internalPharmacyConnector: ExternalConnector = {
  *    (devolve null). Não queremos propagar medicamentos inactivos.
  *  - Sem snapshot → devolve null (pipeline degrada graciosamente).
  */
+// ─── infarmedConnector — DUAL-READ (Maio 2026) ────────────────────────────────
+//
+// Lê de DUAS tabelas em paralelo e funde por campo:
+//   1. RegulatoryRecord (nova, fonte primária a partir do dia em que tiver
+//      dados clínicos reais — INFARMED Open Data, comparticipados, etc.)
+//   2. InfarmedSnapshot (legacy, mantida operacional como fallback até a
+//      RegulatoryRecord cobrir todos os CNPs).
+//
+// Estratégia de merge:
+//   · Por cada campo (dci, codigoATC, titularAim, …), preferir
+//     RegulatoryRecord; cair em InfarmedSnapshot se RegulatoryRecord trouxer
+//     null para esse campo. Determinístico e simples — sem provenance
+//     per-field nesta versão (entra no v3 quando justificar).
+//   · Se ambas as tabelas não têm o CNP → devolve null (cai no retail).
+//   · Se estadoAim mergido for Suspenso/Revogado/Caducado → devolve null
+//     (mesma regra de exclusão da v1).
+//
+// Confidence permanece 0.95 (tier REGULATORY). Quando o source da
+// RegulatoryRecord for um índice (ex.: cedime_anf — sem clínica), os
+// campos clínicos vêm null e não contribuem para o resolver — só os
+// campos que existem é que afectam a decisão.
+//
+// Notes carrega provenance human-readable das tabelas usadas para
+// permitir diagnóstico via logs do enrichProduct.
 const infarmedConnector: ExternalConnector = {
   name: "infarmed",
 
   async lookup(req): Promise<ExternalSourceData | null> {
     if (!req.cnp) return null;
 
-    const row = await prisma.infarmedSnapshot.findUnique({
-      where: { cnp: req.cnp },
-      select: {
-        dci: true,
-        codigoATC: true,
-        titularAim: true,
-        formaFarmaceutica: true,
-        dosagem: true,
-        embalagem: true,
-        grupoTerapeutico: true,
-        estadoAim: true,
-        snapshotVersion: true,
-        designacaoOficial: true,
-      },
-    });
+    const [regRecord, snapshot] = await Promise.all([
+      prisma.regulatoryRecord.findUnique({
+        where: { cnp: req.cnp },
+        select: {
+          dci: true,
+          codigoATC: true,
+          titularAim: true,
+          formaFarmaceutica: true,
+          dosagem: true,
+          embalagem: true,
+          grupoTerapeutico: true,
+          estadoAim: true,
+          designacaoOficial: true,
+          source: true,
+        },
+      }),
+      prisma.infarmedSnapshot.findUnique({
+        where: { cnp: req.cnp },
+        select: {
+          dci: true,
+          codigoATC: true,
+          titularAim: true,
+          formaFarmaceutica: true,
+          dosagem: true,
+          embalagem: true,
+          grupoTerapeutico: true,
+          estadoAim: true,
+          snapshotVersion: true,
+          designacaoOficial: true,
+        },
+      }),
+    ]);
 
-    if (!row) return null;
+    if (!regRecord && !snapshot) return null;
 
-    // Ignorar medicamentos não autorizados
-    if (
-      row.estadoAim &&
-      ["Suspenso", "Revogado", "Caducado"].includes(row.estadoAim)
-    ) {
+    // Merge per-field: RegulatoryRecord vence, fallback InfarmedSnapshot.
+    const dci = regRecord?.dci ?? snapshot?.dci ?? null;
+    const atc = regRecord?.codigoATC ?? snapshot?.codigoATC ?? null;
+    const titularAim = regRecord?.titularAim ?? snapshot?.titularAim ?? null;
+    const formaFarmaceutica =
+      regRecord?.formaFarmaceutica ?? snapshot?.formaFarmaceutica ?? null;
+    const dosagem = regRecord?.dosagem ?? snapshot?.dosagem ?? null;
+    const embalagem = regRecord?.embalagem ?? snapshot?.embalagem ?? null;
+    const grupoTerapeutico =
+      regRecord?.grupoTerapeutico ?? snapshot?.grupoTerapeutico ?? null;
+    const estadoAim = regRecord?.estadoAim ?? snapshot?.estadoAim ?? null;
+    const designacaoOficial =
+      regRecord?.designacaoOficial ?? snapshot?.designacaoOficial ?? null;
+
+    // Ignorar medicamentos não autorizados (mesma regra do connector v1).
+    if (estadoAim && ["Suspenso", "Revogado", "Caducado"].includes(estadoAim)) {
       return null;
     }
+
+    // Provenance — quais tabelas contribuíram. Human-readable para logs.
+    const provenance: string[] = [];
+    if (regRecord) provenance.push(`RegulatoryRecord(${regRecord.source})`);
+    if (snapshot) provenance.push(`InfarmedSnapshot(${snapshot.snapshotVersion})`);
 
     return {
       source: "infarmed",
       tier: "REGULATORY",
       matchedBy: "cnp",
       confidence: 0.95,
-      fabricante: row.titularAim,        // Titular da AIM = fabricante canónico
-      principioAtivo: row.dci,
-      atc: row.codigoATC,
-      dosagem: row.dosagem,
-      embalagem: row.embalagem,
-      formaFarmaceutica: row.formaFarmaceutica,
-      categoria: row.grupoTerapeutico,
+      fabricante: titularAim, // Titular da AIM = fabricante canónico
+      principioAtivo: dci,
+      atc,
+      dosagem,
+      embalagem,
+      formaFarmaceutica,
+      categoria: grupoTerapeutico,
       subcategoria: null,
       imagemUrl: null,
-      notes: `INFARMED snapshot ${row.snapshotVersion}${row.estadoAim ? ` · ${row.estadoAim}` : ""}`,
+      notes: `dual-read [${provenance.join(" + ")}]${estadoAim ? ` · ${estadoAim}` : ""}`,
       // Evidência crua para o admin
       url: null,
-      query: `InfarmedSnapshot WHERE cnp=${req.cnp}`,
-      rawBrand: row.titularAim,
-      rawCategory: row.grupoTerapeutico,
-      rawProductName: row.designacaoOficial,
+      query: `RegulatoryRecord+InfarmedSnapshot WHERE cnp=${req.cnp}`,
+      rawBrand: titularAim,
+      rawCategory: grupoTerapeutico,
+      rawProductName: designacaoOficial,
     };
   },
 };
