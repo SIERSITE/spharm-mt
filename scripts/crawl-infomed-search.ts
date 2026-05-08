@@ -42,20 +42,46 @@ import { legacyPrisma as prisma } from "../lib/prisma";
 import {
   resolveCnpViaDesignacaoSearch,
   normalizeForSearch,
+  startSearchSession,
+  refreshIndexViewState,
+  InfomedSearchError,
 } from "../lib/regulatory-sources/infomed-search-resolver";
-import type { ResolveOutcome } from "../lib/regulatory-sources/infomed-search-resolver";
+import type {
+  ResolveOutcome,
+  SearchSession,
+} from "../lib/regulatory-sources/infomed-search-resolver";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const MAPPING_FILE = path.resolve("scripts/data/infomed-cnp-medguid-mapping.json");
 const DEFAULT_LIMIT = 100;
 /**
- * Rate-limit defensivo entre CNPs. Cada CNP cria fresh session (GET index)
- * e o INFOMED tem anti-bot que devolve 503 quando se criam muitas sessões
- * num curto período. 3000ms = ~20 CNPs/min ≈ 1200/hora — suficiente para
- * 6191 CNPs em ~5h overnight.
+ * Rate-limit defensivo entre CNPs.
+ *
+ * Com session-reuse activo, o gargalo anti-bot move-se de "sessões frescas"
+ * para "requests por minuto". 1500ms é suficiente porque cada CNP só cria
+ * fresh session a cada N pesquisas (default 30).
  */
-const DEFAULT_RATE_LIMIT_MS = 3000;
+const DEFAULT_RATE_LIMIT_MS = 1500;
+
+/**
+ * Sessões reusadas: quantas pesquisas máximas antes de rotacionar.
+ * Observámos que o anti-bot dispara após ~80 sessões frescas em ~5min;
+ * mantendo 30 searches/session minimiza pressão anti-bot e dá margem.
+ */
+const DEFAULT_MAX_SEARCHES_PER_SESSION = 30;
+
+/**
+ * Cooldown ao rotacionar sessão (após max searches, ou após 503).
+ * Dá tempo ao server para baixar contadores anti-bot.
+ */
+const DEFAULT_COOLDOWN_MS = 30_000;
+
+/**
+ * Backoff exponencial em 503. Tentativas de retry para o mesmo CNP.
+ * [10s, 30s, 90s] = 3 retries. Ao 4º 503, marca failed.
+ */
+const BACKOFF_503_MS = [10_000, 30_000, 90_000];
 const DEFAULT_CHECKPOINT_EVERY = 5;
 const DEFAULT_MAX_CANDIDATES = 3;
 
@@ -112,6 +138,16 @@ type Args = {
   resume: boolean;
   retryNotFound: boolean;
   dryRun: boolean;
+  maxSearchesPerSession: number;
+  cooldownMs: number;
+};
+
+type RuntimeMetrics = {
+  sessionsCreated: number;
+  rotations: number;
+  http503Count: number;
+  retries: number;
+  searchesUsedThisSession: number[];
 };
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────
@@ -126,6 +162,8 @@ function parseArgs(): Args {
     resume: false,
     retryNotFound: false,
     dryRun: false,
+    maxSearchesPerSession: DEFAULT_MAX_SEARCHES_PER_SESSION,
+    cooldownMs: DEFAULT_COOLDOWN_MS,
   };
   for (const a of process.argv.slice(2)) {
     if (a === "--dry-run") out.dryRun = true;
@@ -145,11 +183,92 @@ function parseArgs(): Args {
     } else if (a.startsWith("--max-candidates=")) {
       const n = parseInt(a.split("=")[1], 10);
       if (!isNaN(n) && n >= 1 && n <= 20) out.maxCandidates = n;
+    } else if (a.startsWith("--max-searches-per-session=")) {
+      const n = parseInt(a.split("=")[1], 10);
+      if (!isNaN(n) && n >= 1 && n <= 200) out.maxSearchesPerSession = n;
+    } else if (a.startsWith("--cooldown-ms=")) {
+      const n = parseInt(a.split("=")[1], 10);
+      if (!isNaN(n) && n >= 1000 && n <= 600_000) out.cooldownMs = n;
     } else {
       console.warn(`[aviso] argumento desconhecido: ${a}`);
     }
   }
   return out;
+}
+
+// ─── Session pool ─────────────────────────────────────────────────────────────
+
+type SessionPool = {
+  current: SearchSession | null;
+  searchesUsed: number;
+  /** searches counts of expired sessions for stats */
+  pastSearches: number[];
+};
+
+/**
+ * Devolve uma session pronta a usar — reusa a actual se ainda dentro do
+ * orçamento, senão rota (com cooldown). ViewState é refresh para garantir
+ * que está fresco antes da próxima search.
+ *
+ * Em caso de erro 503 (anti-bot) durante refresh ou criação, lança
+ * InfomedSearchError com httpStatus=503 — caller decide backoff.
+ */
+async function acquireSession(
+  pool: SessionPool,
+  args: Args,
+  metrics: RuntimeMetrics,
+): Promise<SearchSession> {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // Rotação se atingimos o limite de searches/session
+  if (pool.current && pool.searchesUsed >= args.maxSearchesPerSession) {
+    pool.pastSearches.push(pool.searchesUsed);
+    metrics.searchesUsedThisSession.push(pool.searchesUsed);
+    metrics.rotations++;
+    pool.current = null;
+    pool.searchesUsed = 0;
+    console.log(
+      `    [session] rotation após ${args.maxSearchesPerSession} searches; cooldown ${args.cooldownMs}ms`,
+    );
+    await sleep(args.cooldownMs);
+  }
+
+  // Nova sessão se não há
+  if (!pool.current) {
+    pool.current = await startSearchSession();
+    pool.searchesUsed = 0;
+    metrics.sessionsCreated++;
+    return pool.current;
+  }
+
+  // Refresh ViewState reusando JSESSIONID
+  try {
+    const fresh = await refreshIndexViewState(pool.current.jsessionid);
+    pool.current.indexViewState = fresh;
+    return pool.current;
+  } catch (err) {
+    // Refresh falhou (sessão expirou ou 503) — rota
+    console.warn(
+      `    [session] refresh falhou (${err instanceof Error ? err.message.slice(0, 60) : err}); rota.`,
+    );
+    pool.pastSearches.push(pool.searchesUsed);
+    metrics.searchesUsedThisSession.push(pool.searchesUsed);
+    metrics.rotations++;
+    pool.current = null;
+    pool.searchesUsed = 0;
+    throw err;
+  }
+}
+
+/** Marca a session corrente como inválida (após 503 ou erro grave). */
+function invalidateSession(pool: SessionPool, metrics: RuntimeMetrics): void {
+  if (pool.current) {
+    pool.pastSearches.push(pool.searchesUsed);
+    metrics.searchesUsedThisSession.push(pool.searchesUsed);
+    metrics.rotations++;
+  }
+  pool.current = null;
+  pool.searchesUsed = 0;
 }
 
 // ─── Mapping I/O ──────────────────────────────────────────────────────────────
@@ -325,18 +444,89 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Process loop
+  // Process loop com session pool + retry/backoff
   console.log(`\n  [run] processar ${targets.length} CNPs...`);
+  console.log(`  [session] max searches/session: ${args.maxSearchesPerSession}, cooldown: ${args.cooldownMs}ms`);
   const tStart = Date.now();
   let processed = 0;
 
   const examples: {
-    matched: Array<{ cnp: number; designacao: string; via: string; siblings: number }>;
+    matched: Array<{ cnp: number; designacao: string; via: string; siblings: number; atc: string | null }>;
     ambiguous: Array<{ cnp: number; designacao: string; matched: number }>;
     notFound: Array<{ cnp: number; designacao: string; reason: string }>;
     failed: Array<{ cnp: number; designacao: string; error: string }>;
   } = { matched: [], ambiguous: [], notFound: [], failed: [] };
-  const maxExamples = 20;
+  const maxExamples = 25;
+
+  const pool: SessionPool = { current: null, searchesUsed: 0, pastSearches: [] };
+  const metrics: RuntimeMetrics = {
+    sessionsCreated: 0,
+    rotations: 0,
+    http503Count: 0,
+    retries: 0,
+    searchesUsedThisSession: [],
+  };
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** Resolve um CNP com retry-on-503 (backoff exponencial). */
+  async function resolveWithRetry(
+    cnp: number,
+    designacao: string,
+  ): Promise<ResolveOutcome> {
+    let lastOutcome: ResolveOutcome | null = null;
+    for (let attempt = 0; attempt <= BACKOFF_503_MS.length; attempt++) {
+      try {
+        const session = await acquireSession(pool, args, metrics);
+        const outcome = await resolveCnpViaDesignacaoSearch(cnp, designacao, {
+          rateLimitMs: args.rateLimitMs,
+          maxCandidatesToFetch: args.maxCandidates,
+          session,
+        });
+        pool.searchesUsed++;
+        // Detect 503 inside outcome (failed at session/search/click stage)
+        if (outcome.kind === "failed" && /503/.test(outcome.error)) {
+          throw new InfomedSearchError(`503 in outcome (${outcome.stage})`, outcome.stage, 503);
+        }
+        return outcome;
+      } catch (err) {
+        if (err instanceof InfomedSearchError && err.httpStatus === 503) {
+          metrics.http503Count++;
+          invalidateSession(pool, metrics);
+          if (attempt < BACKOFF_503_MS.length) {
+            const backoff = BACKOFF_503_MS[attempt];
+            metrics.retries++;
+            console.log(
+              `    [503] backoff ${backoff}ms before retry ${attempt + 1}/${BACKOFF_503_MS.length} (cnp=${cnp})`,
+            );
+            await sleep(backoff);
+            continue;
+          }
+          // Backoffs esgotados — devolve failed
+          lastOutcome = {
+            kind: "failed",
+            cnp,
+            error: `HTTP 503 after ${BACKOFF_503_MS.length} retries`,
+            stage: err.stage,
+          };
+          break;
+        }
+        // Outro erro — não retentamos
+        return {
+          kind: "failed",
+          cnp,
+          error: err instanceof Error ? err.message : String(err),
+          stage: "session",
+        };
+      }
+    }
+    return lastOutcome ?? {
+      kind: "failed",
+      cnp,
+      error: "exhausted retries",
+      stage: "session",
+    };
+  }
 
   try {
     for (const product of targets) {
@@ -344,10 +534,7 @@ async function main(): Promise<void> {
       mapping.stats.searched++;
       const tProd = Date.now();
 
-      const outcome = await resolveCnpViaDesignacaoSearch(product.cnp, product.designacao, {
-        rateLimitMs: args.rateLimitMs,
-        maxCandidatesToFetch: args.maxCandidates,
-      });
+      const outcome = await resolveWithRetry(product.cnp, product.designacao);
 
       const elapsed = Date.now() - tProd;
 
@@ -369,6 +556,7 @@ async function main(): Promise<void> {
             designacao: product.designacao,
             via: outcome.matchedRow.nome,
             siblings: allCnps.filter((c) => c !== product.cnp).length,
+            atc: outcome.detail.codigoATC,
           });
         }
         console.log(
@@ -454,38 +642,64 @@ async function main(): Promise<void> {
         );
       }
 
-      // Rate-limit entre CNPs — protege contra anti-bot que limita
-      // a criação de sessões fresh por IP. Cada CNP cria 1 session.
+      // Rate-limit entre CNPs
       if (processed < targets.length) {
-        await new Promise((r) => setTimeout(r, args.rateLimitMs));
+        await sleep(args.rateLimitMs);
       }
     }
   } finally {
+    // Adicionar a session corrente às stats
+    if (pool.current) {
+      metrics.searchesUsedThisSession.push(pool.searchesUsed);
+    }
     saveMappingAtomic(mapping);
   }
 
   // ── Final summary ────────────────────────────────────────────────────────
   const totalElapsed = Date.now() - tStart;
+  const totalSiblingsAdded =
+    Object.keys(mapping.mappings).length - mapping.stats.matched_strong;
+  const avgSearchesPerSession =
+    metrics.searchesUsedThisSession.length > 0
+      ? metrics.searchesUsedThisSession.reduce((a, b) => a + b, 0) /
+        metrics.searchesUsedThisSession.length
+      : 0;
+  // Estimativa de ETA para 6191 (se este run for representativo)
+  const etaFor6191Ms =
+    processed > 0 ? (totalElapsed / processed) * 6191 : 0;
+
   console.log(`\n${"═".repeat(74)}`);
   console.log("SUMÁRIO");
   console.log("═".repeat(74));
-  console.log(`  processados:                ${processed}`);
-  console.log(`  matched_strong (este run):  ${mapping.stats.matched_strong}`);
+  console.log(`  processed:                  ${processed}`);
+  console.log(`  matched_strong:             ${mapping.stats.matched_strong}`);
+  console.log(`  siblings auto-mapped:       ${totalSiblingsAdded}`);
+  console.log(`  total mapped (file):        ${Object.keys(mapping.mappings).length}`);
   console.log(`  ambiguous:                  ${mapping.stats.ambiguous}`);
   console.log(`  not_found:                  ${mapping.stats.not_found}`);
   console.log(`  failed:                     ${mapping.stats.failed}`);
+  console.log(`  HTTP 503 count:             ${metrics.http503Count}`);
+  console.log(`  retries (backoff):          ${metrics.retries}`);
+  console.log(`  sessions created:           ${metrics.sessionsCreated}`);
+  console.log(`  session rotations:          ${metrics.rotations}`);
+  console.log(`  avg searches/session:       ${avgSearchesPerSession.toFixed(1)}`);
   console.log(`  tempo total:                ${fmtMs(totalElapsed)}`);
   console.log(
     `  taxa efectiva:              ${(processed / (totalElapsed / 1000)).toFixed(2)} CNPs/s ` +
       `(${(processed / (totalElapsed / 60000)).toFixed(1)}/min)`,
   );
-  console.log(`  total mapped (file):        ${Object.keys(mapping.mappings).length}`);
+  console.log(
+    `  ETA para 6191 (cohort):     ${fmtMs(etaFor6191Ms)} (extrapolado deste run)`,
+  );
   console.log(`  total notFound (file):      ${Object.keys(mapping.notFound).length}`);
 
   if (examples.matched.length > 0) {
     console.log(`\n  Exemplos matched (${examples.matched.length}):`);
     for (const e of examples.matched) {
-      console.log(`    ${e.cnp}  ${e.designacao.slice(0, 50).padEnd(50)}  → "${e.via}" (+${e.siblings} siblings)`);
+      console.log(
+        `    ${e.cnp}  ${e.designacao.slice(0, 45).padEnd(45)}  ` +
+          `→ "${e.via.slice(0, 25).padEnd(25)}"  ${(e.atc ?? "—").padEnd(8)}  +${e.siblings} sib`,
+      );
     }
   }
   if (examples.ambiguous.length > 0) {

@@ -74,6 +74,12 @@ export type ResolveOptions = {
   rateLimitMs: number;
   /** máximo de rows a fetch (cada row = +1 round-trip). default: 3 */
   maxCandidatesToFetch: number;
+  /**
+   * Sessão pré-existente para reusar. Se não passada, cria fresh.
+   * Em modo session-reuse, o caller mantém uma sessão por N searches
+   * antes de rotacionar (poupa GET index.xhtml e reduz pressão anti-bot).
+   */
+  session?: SearchSession;
 };
 
 export type ResolveOutcome =
@@ -176,6 +182,52 @@ export async function startSearchSession(): Promise<SearchSession> {
     );
   }
   return { jsessionid, indexViewState: viewState };
+}
+
+/**
+ * Refresca o ViewState da `index.xhtml` REUSANDO o JSESSIONID actual.
+ * Não cria nova sessão server-side — só obtém um ViewState fresco para
+ * a próxima search no mesmo session.
+ *
+ * Lança InfomedSearchError em 503/erro — caller decide se rota para
+ * nova sessão ou backoff.
+ */
+export async function refreshIndexViewState(jsessionid: string): Promise<string> {
+  let res: Response;
+  try {
+    res = await timedFetch(INDEX_URL, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
+        Cookie: `JSESSIONID=${jsessionid}`,
+      },
+      redirect: "manual",
+    });
+  } catch (err) {
+    throw new InfomedSearchError(
+      `refresh network error: ${err instanceof Error ? err.message : String(err)}`,
+      "session",
+      null,
+    );
+  }
+  if (!res.ok && res.status !== 302) {
+    throw new InfomedSearchError(
+      `refresh HTTP ${res.status}`,
+      "session",
+      res.status,
+    );
+  }
+  const html = await res.text();
+  const viewState = extractViewState(html);
+  if (!viewState) {
+    throw new InfomedSearchError(
+      "sem ViewState no refresh — sessão pode ter expirado",
+      "session",
+      res.status,
+    );
+  }
+  return viewState;
 }
 
 // ─── Steps 2 + 3: submit + parse listagem ─────────────────────────────────────
@@ -500,7 +552,11 @@ export async function resolveCnpViaDesignacaoSearch(
 
   let session: SearchSession;
   try {
-    session = await startSearchSession();
+    if (opts.session) {
+      session = opts.session;
+    } else {
+      session = await startSearchSession();
+    }
   } catch (err) {
     return {
       kind: "failed",
