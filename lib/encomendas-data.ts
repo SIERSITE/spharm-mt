@@ -21,6 +21,7 @@ import {
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
 import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
+import { findInternalSubstitutions } from "@/lib/transfers/internal-substitution";
 
 export type EncomendaMonthlyMovement = { mes: string; compras: number; vendas: number };
 export type EncomendaPurchaseHistory = {
@@ -49,6 +50,22 @@ export type EncomendaBaseRow = {
   movimentos6M: EncomendaMonthlyMovement[];
   ultimasCompras: EncomendaPurchaseHistory[];
   condicoesFornecedor: EncomendaSupplierCondition[];
+  /**
+   * Substituição operacional interna same-CNP: existe stock de excesso
+   * noutra farmácia do grupo para o mesmo CNP. Quando true, os campos
+   * `substitution*` ficam preenchidos. A decisão de mostrar a sugestão
+   * ao utilizador é client-side (tipicamente só quando `sugestao > 0`).
+   *
+   * Apenas same-CNP nesta fase — DCI-equivalente fica para próxima
+   * iteração. Read-only, recomendação não-bloqueante.
+   */
+  internalSubstitutionAvailable: boolean;
+  substitutionSourceFarmacia?: string;
+  substitutionQtySuggested?: number;
+  /** Valor evitado em €. `transferableQty × puc` com fallbacks. */
+  substitutionAvoidedPurchaseValue?: number;
+  substitutionCoverageOrigin?: number;
+  substitutionCoverageDestination?: number;
 };
 
 function toF(v: unknown): number {
@@ -76,6 +93,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     cnp: string;
     designacao: string;
     stockAtual: number;
+    /** Preço unitário de custo. Usado em `avoidedPurchaseEstimate` da substituição. */
+    puc: number | null;
     fornecedorOrigem: string | null;
     categoriaOrigem: string | null;
     subcategoriaOrigem: string | null;
@@ -95,6 +114,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       p.cnp::text                   AS cnp,
       p.designacao,
       pf."stockAtual"::float        AS "stockAtual",
+      pf.puc::float                 AS puc,
       pf."fornecedorOrigem",
       pf."categoriaOrigem",
       pf."subcategoriaOrigem",
@@ -157,16 +177,59 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     vmIndex.get(k)!.push({ ano: r.ano, mes: r.mes, qty: toF(r.qty) });
   }
 
-  // 3. Construir as linhas finais
+  // Cache recent3 (vendas 3m) por par — reaproveitado no main loop e na
+  // detecção de substituição.
+  const recent3ByKey = new Map<string, number>();
+  for (const pf of pfRows) {
+    const k = `${pf.produtoId}:${pf.farmaciaId}`;
+    const vendas = vmIndex.get(k) ?? [];
+    const recent3 = vendas
+      .filter((v) => v.ano * 12 + v.mes >= periodEnd - 3)
+      .reduce((s, v) => s + v.qty, 0);
+    recent3ByKey.set(k, recent3);
+  }
+
+  // 3. Substituição operacional interna (same-CNP).
+  //
+  // Thresholds adaptados a encomendas (vs. /transferencias):
+  //   - ruptureThresholdDays: 15  → destino abaixo da cobertura-alvo
+  //     canónica (≈ período usual de encomenda)
+  //   - excessThresholdDays:  30  → origem com excesso confortável
+  //   - targetCoverageDays:   15  → alinhado com encomenda
+  //   - reserveDaysSource:    14  → mantém origem acima de 14d
+  //
+  // O detector é puro (`findInternalSubstitutions`) e reutiliza a fórmula
+  // canónica de avgDaily/coverage. Quando IPF está populada, a fonte
+  // numérica é a mesma (drift 0.0000 validado em Fase 1).
+  const substitutionInput = pfRows.map((pf) => ({
+    produtoId: pf.produtoId,
+    farmaciaId: pf.farmaciaId,
+    farmaciaNome: pf.farmaciaNome,
+    cnp: pf.cnp,
+    designacao: pf.designacao,
+    stockAtual: toF(pf.stockAtual),
+    puc: pf.puc,
+    salesQty: recent3ByKey.get(`${pf.produtoId}:${pf.farmaciaId}`) ?? 0,
+  }));
+  const substitutions = findInternalSubstitutions(substitutionInput, {
+    ruptureThresholdDays: 15,
+    excessThresholdDays: 30,
+    targetCoverageDays: 15,
+    reserveDaysSource: 14,
+    minTransferableQty: 1,
+  });
+  const subsByDestino = new Map<string, (typeof substitutions)[number]>();
+  for (const s of substitutions) {
+    subsByDestino.set(`${s.produtoId}:${s.destinoFarmaciaId}`, s);
+  }
+
+  // 4. Construir as linhas finais
   const result: EncomendaBaseRow[] = [];
   for (const pf of pfRows) {
     const k = `${pf.produtoId}:${pf.farmaciaId}`;
     const vendas = vmIndex.get(k) ?? [];
 
-    // Soma dos últimos 3 meses (rotação)
-    const recent3 = vendas
-      .filter((v) => v.ano * 12 + v.mes >= periodEnd - 3)
-      .reduce((s, v) => s + v.qty, 0);
+    const recent3 = recent3ByKey.get(k) ?? 0;
     const liveAd = avgDaily(recent3, WINDOW_90D);
     const { value: ad } = resolveAvgDaily90d(ipfMap.get(k), liveAd);
     const rotacaoMedia = monthlyVelocity(ad);
@@ -193,6 +256,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       subcategoriaOrigem: pf.subcategoriaOrigem,
     });
 
+    const sub = subsByDestino.get(k);
+
     result.push({
       cnp: pf.cnp,
       produto: pf.designacao,
@@ -206,6 +271,15 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       movimentos6M,
       ultimasCompras: [], // ver nota
       condicoesFornecedor: [], // ver nota
+      // Substituição operacional interna (same-CNP) — recomendação
+      // não-bloqueante. Cliente decide quando mostrar (tipicamente só
+      // quando sugestao > 0).
+      internalSubstitutionAvailable: sub !== undefined,
+      substitutionSourceFarmacia: sub?.suggestedSourceFarmaciaNome,
+      substitutionQtySuggested: sub?.transferableQty,
+      substitutionAvoidedPurchaseValue: sub?.avoidedPurchaseEstimate,
+      substitutionCoverageOrigin: sub?.stockCoverageOrigin,
+      substitutionCoverageDestination: sub?.stockCoverageDestination ?? undefined,
     });
   }
 

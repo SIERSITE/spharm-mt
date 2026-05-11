@@ -58,6 +58,14 @@ type EncomendaFarmaciaRow = {
   movimentos6M: MonthlyMovement[];
   condicoesFornecedor: SupplierCondition[];
   ultimasCompras: PurchaseHistory[];
+  // Substituição interna same-CNP (recomendação, não bloqueio).
+  // Carregada do server; mostrada apenas quando há sugestão a ordenar.
+  internalSubstitutionAvailable: boolean;
+  substitutionSourceFarmacia?: string;
+  substitutionQtySuggested?: number;
+  substitutionAvoidedPurchaseValue?: number;
+  substitutionCoverageOrigin?: number;
+  substitutionCoverageDestination?: number;
 };
 
 type GroupEncomendaRow = {
@@ -80,8 +88,18 @@ type GroupEncomendaRow = {
     prioridade: Prioridade;
     movimentos6M: MonthlyMovement[];
     ultimasCompras: PurchaseHistory[];
+    // Substituição interna por farmácia (badge na linha por-farmácia).
+    internalSubstitutionAvailable: boolean;
+    substitutionSourceFarmacia?: string;
+    substitutionQtySuggested?: number;
+    substitutionAvoidedPurchaseValue?: number;
   }>;
   condicoesFornecedor: SupplierCondition[];
+  // Agregado ao nível do grupo: existe transferência interna possível
+  // em pelo menos uma das farmácias e quantos € evitáveis no total.
+  hasInternalSubstitution: boolean;
+  substitutionAvoidedTotal: number;
+  substitutionQtyTotal: number;
 };
 
 // O shape das linhas reais vem de EncomendaBaseRow. Mantemos o nome
@@ -236,6 +254,23 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
           : "Estável"
   ) as Prioridade;
 
+  // Agregado de substituição — só conta linhas em que o destino TEM
+  // sugestão a encomendar (caso contrário a transferência não evita
+  // compra que não existe).
+  const rowsComSubstituicao = rows.filter(
+    (r) => r.internalSubstitutionAvailable && r.sugestao > 0,
+  );
+  const hasInternalSubstitution = rowsComSubstituicao.length > 0;
+  const substitutionAvoidedTotal = Number(
+    rowsComSubstituicao
+      .reduce((s, r) => s + (r.substitutionAvoidedPurchaseValue ?? 0), 0)
+      .toFixed(2),
+  );
+  const substitutionQtyTotal = rowsComSubstituicao.reduce(
+    (s, r) => s + (r.substitutionQtySuggested ?? 0),
+    0,
+  );
+
   return {
     cnp: first.cnp,
     produto: first.produto,
@@ -258,8 +293,15 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
         prioridade: r.prioridade as Prioridade,
         movimentos6M: r.movimentos6M,
         ultimasCompras: r.ultimasCompras,
+        internalSubstitutionAvailable: r.internalSubstitutionAvailable,
+        substitutionSourceFarmacia: r.substitutionSourceFarmacia,
+        substitutionQtySuggested: r.substitutionQtySuggested,
+        substitutionAvoidedPurchaseValue: r.substitutionAvoidedPurchaseValue,
       })),
     condicoesFornecedor: first.condicoesFornecedor,
+    hasInternalSubstitution,
+    substitutionAvoidedTotal,
+    substitutionQtyTotal,
   };
 });
 
@@ -333,8 +375,17 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       const valorUnitario = row.sugestaoGrupo > 0 ? row.valorEstimado / row.sugestaoGrupo : 0;
       return sum + qtd * valorUnitario;
     }, 0);
+    // KPI agregado: artigos onde existe alternativa interna (same-CNP)
+    // e valor de compra evitável estimado.
+    const comSubstituicao = groupRows.filter(
+      (r) => r.hasInternalSubstitution && r.sugestaoGrupo > 0,
+    ).length;
+    const valorEvitavel = groupRows.reduce(
+      (s, r) => (r.sugestaoGrupo > 0 ? s + r.substitutionAvoidedTotal : s),
+      0,
+    );
 
-    return { artigos, criticos, valor };
+    return { artigos, criticos, valor, comSubstituicao, valorEvitavel };
   }, [groupRows, editableGroupRows]);
 
   const filtrosAtivosCount =
@@ -599,6 +650,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
               <span>
                 <span className="font-semibold text-red-600">{resumo.criticos}</span> críticos
               </span>
+              {resumo.comSubstituicao > 0 && (
+                <span title="Artigos com alternativa interna same-CNP detectada">
+                  <span className="font-semibold text-cyan-700">
+                    {resumo.comSubstituicao}
+                  </span>{" "}
+                  c/ transf. interna
+                  {resumo.valorEvitavel > 0 && (
+                    <span className="ml-1 text-cyan-600">
+                      (−
+                      {resumo.valorEvitavel.toLocaleString("pt-PT", {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      })}{" "}
+                      €)
+                    </span>
+                  )}
+                </span>
+              )}
               <span>
                 <span className="font-semibold text-slate-900">
                   {resumo.valor.toLocaleString("pt-PT", {
@@ -779,6 +848,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                           {row.produto}
                         </Link>
                         <div className="text-[12px] text-slate-500">CNP {row.cnp}</div>
+                        {row.hasInternalSubstitution && (
+                          <div
+                            className="mt-1 inline-flex items-center gap-1 rounded-md border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700"
+                            title={`Existe excesso same-CNP noutra farmácia do grupo. Transferência interna pode evitar ${row.substitutionAvoidedTotal.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € em compras.`}
+                          >
+                            ↻ Transferência interna possível
+                            {row.substitutionAvoidedTotal > 0 && (
+                              <span className="ml-1 text-cyan-600">
+                                · −
+                                {row.substitutionAvoidedTotal.toLocaleString("pt-PT", {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                })}{" "}
+                                €
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -813,18 +900,49 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
 
                     <td className="px-3 py-2.5 align-top">
                       <div className="space-y-1">
-                        {row.porFarmacia.map((item) => (
-                          <div
-                            key={`${row.cnp}-${item.farmacia}`}
-                            className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1"
-                          >
-                            <span className="text-[12px] text-slate-700">{item.farmacia}</span>
-                            <span className="text-[12px] text-slate-500">
-                              stock {item.stockAtual} · cob. {item.coberturaAtual} d · sug.{" "}
-                              <span className="font-semibold text-slate-900">{item.sugestao}</span>
-                            </span>
-                          </div>
-                        ))}
+                        {row.porFarmacia.map((item) => {
+                          const mostraSubstituicao =
+                            item.internalSubstitutionAvailable &&
+                            item.sugestao > 0 &&
+                            (item.substitutionQtySuggested ?? 0) > 0;
+                          return (
+                            <div
+                              key={`${row.cnp}-${item.farmacia}`}
+                              className="rounded-lg bg-slate-50 px-2 py-1"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[12px] text-slate-700">
+                                  {item.farmacia}
+                                </span>
+                                <span className="text-[12px] text-slate-500">
+                                  stock {item.stockAtual} · cob. {item.coberturaAtual} d · sug.{" "}
+                                  <span className="font-semibold text-slate-900">
+                                    {item.sugestao}
+                                  </span>
+                                </span>
+                              </div>
+                              {mostraSubstituicao && (
+                                <div className="mt-0.5 text-[11px] leading-4 text-cyan-700">
+                                  ↻ Transferir {item.substitutionQtySuggested} un. de{" "}
+                                  <span className="font-medium">
+                                    {item.substitutionSourceFarmacia}
+                                  </span>
+                                  {(item.substitutionAvoidedPurchaseValue ?? 0) > 0 && (
+                                    <span className="text-cyan-600">
+                                      {" "}
+                                      · evita{" "}
+                                      {item.substitutionAvoidedPurchaseValue!.toLocaleString(
+                                        "pt-PT",
+                                        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                                      )}{" "}
+                                      €
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
 
