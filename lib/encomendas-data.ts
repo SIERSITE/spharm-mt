@@ -22,6 +22,7 @@ import {
 } from "@/lib/operational/metrics-shared";
 import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
 import { findInternalSubstitutions } from "@/lib/transfers/internal-substitution";
+import { findDciEquivalentSubstitutions } from "@/lib/transfers/dci-equivalent-substitution";
 
 export type EncomendaMonthlyMovement = { mes: string; compras: number; vendas: number };
 export type EncomendaPurchaseHistory = {
@@ -56,8 +57,10 @@ export type EncomendaBaseRow = {
    * `substitution*` ficam preenchidos. A decisão de mostrar a sugestão
    * ao utilizador é client-side (tipicamente só quando `sugestao > 0`).
    *
-   * Apenas same-CNP nesta fase — DCI-equivalente fica para próxima
-   * iteração. Read-only, recomendação não-bloqueante.
+   * Same-CNP tem **prioridade**: quando existe alternativa same-CNP, o
+   * detector DCI-equivalente (campos `dciEquivalent*` abaixo) não é
+   * aplicado a esta linha. DCI-equivalente entra apenas como fallback.
+   * Read-only, recomendação não-bloqueante.
    */
   internalSubstitutionAvailable: boolean;
   substitutionSourceFarmacia?: string;
@@ -66,6 +69,34 @@ export type EncomendaBaseRow = {
   substitutionAvoidedPurchaseValue?: number;
   substitutionCoverageOrigin?: number;
   substitutionCoverageDestination?: number;
+
+  /**
+   * Substituição interna DCI-equivalente (recomendação CAUTELAR).
+   *
+   * Aplicada APENAS quando `internalSubstitutionAvailable === false`
+   * para a mesma linha — same-CNP tem prioridade sempre. Quando
+   * presente, o produto source tem um CNP DIFERENTE mas partilha:
+   *   · DCI normalizada
+   *   · forma farmacêutica
+   *   · dosagem
+   *   · ATC5 (primeiros 5 chars do código ATC)
+   *   · flags MSRM/MNSRM
+   *
+   * Read-only, recomendação não-bloqueante. UI deve sinalizar com
+   * cor/texto distintos do same-CNP e exigir validação humana antes
+   * da transferência.
+   *
+   * `dciEquivalentReason` documenta a base clínica (ex: "Mesmo DCI:
+   * dapagliflozina 10mg comprimido rev (ATC A10BK)"). Não é o motivo
+   * de incluir/excluir — é o detalhe a apresentar ao operador.
+   */
+  dciEquivalentAvailable: boolean;
+  dciEquivalentCnp?: string;
+  dciEquivalentProductName?: string;
+  dciEquivalentSourceFarmacia?: string;
+  dciEquivalentQtySuggested?: number;
+  dciEquivalentAvoidedPurchaseValue?: number;
+  dciEquivalentReason?: string;
 };
 
 function toF(v: unknown): number {
@@ -101,6 +132,14 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     canonN1: string | null;
     canonN2: string | null;
     fabricanteCanonico: string | null;
+    // Catálogo (Produto) — usado pelo detector DCI-equivalente
+    dci: string | null;
+    formaFarmaceutica: string | null;
+    dosagem: string | null;
+    flagMSRM: boolean;
+    flagMNSRM: boolean;
+    codigoATC: string | null;
+    productType: string | null;
   };
 
   // Puxa as 4 fontes de categoria que o resolver precisa: canónico N1/N2
@@ -120,7 +159,14 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       pf."subcategoriaOrigem",
       c1.nome                       AS "canonN1",
       c2.nome                       AS "canonN2",
-      fab."nomeNormalizado"         AS "fabricanteCanonico"
+      fab."nomeNormalizado"         AS "fabricanteCanonico",
+      p.dci                         AS dci,
+      p."formaFarmaceutica"         AS "formaFarmaceutica",
+      p.dosagem                     AS dosagem,
+      p."flagMSRM"                  AS "flagMSRM",
+      p."flagMNSRM"                 AS "flagMNSRM",
+      p."codigoATC"                 AS "codigoATC",
+      p."productType"               AS "productType"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p   ON p.id  = pf."produtoId"
     JOIN "Farmacia" f   ON f.id  = pf."farmaciaId"
@@ -223,6 +269,48 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     subsByDestino.set(`${s.produtoId}:${s.destinoFarmaciaId}`, s);
   }
 
+  // 3b. Substituição DCI-equivalente — RECOMENDAÇÃO CAUTELAR.
+  //
+  // Aplica os mesmos thresholds que same-CNP (mesma cobertura-alvo,
+  // mesma reserva-origem) e os gates clínicos do detector
+  // (`findDciEquivalentSubstitutions`): pré-filtro
+  // productType=MEDICAMENTO + DCI não vazio; gates pair-level forma /
+  // dosagem / ATC5 / MSRM-MNSRM. Quando qualquer campo clínico está
+  // ausente num lado do par, o detector rejeita silenciosamente —
+  // fallback seguro.
+  //
+  // Indexação por `${produtoId}:${destinoFarmaciaId}` à imagem de
+  // same-CNP, para o lookup no main loop ser O(1).
+  const dciInput = pfRows.map((pf) => ({
+    produtoId: pf.produtoId,
+    farmaciaId: pf.farmaciaId,
+    farmaciaNome: pf.farmaciaNome,
+    cnp: pf.cnp,
+    designacao: pf.designacao,
+    stockAtual: toF(pf.stockAtual),
+    puc: pf.puc,
+    salesQty: recent3ByKey.get(`${pf.produtoId}:${pf.farmaciaId}`) ?? 0,
+    dci: pf.dci,
+    formaFarmaceutica: pf.formaFarmaceutica,
+    dosagem: pf.dosagem,
+    flagMSRM: !!pf.flagMSRM,
+    flagMNSRM: !!pf.flagMNSRM,
+    codigoATC: pf.codigoATC,
+    productType: pf.productType,
+  }));
+  const dciResult = findDciEquivalentSubstitutions(dciInput, {
+    ruptureThresholdDays: 15,
+    excessThresholdDays: 30,
+    targetCoverageDays: 15,
+    reserveDaysSource: 14,
+    minTransferableQty: 1,
+    requireMedicamento: true,
+  });
+  const dciByDestino = new Map<string, (typeof dciResult.candidates)[number]>();
+  for (const c of dciResult.candidates) {
+    dciByDestino.set(`${c.destinoProdutoId}:${c.destinoFarmaciaId}`, c);
+  }
+
   // 4. Construir as linhas finais
   const result: EncomendaBaseRow[] = [];
   for (const pf of pfRows) {
@@ -257,6 +345,14 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     });
 
     const sub = subsByDestino.get(k);
+    // DCI-equivalente APENAS quando same-CNP indisponível (prioridade
+    // same-CNP). Esta regra mantém a UI determinística — um destino
+    // tem 0 ou 1 substituição associada, nunca duas concorrentes.
+    const dciCand = sub === undefined ? dciByDestino.get(k) : undefined;
+    const dciReason = dciCand
+      ? `Mesmo DCI: ${dciCand.dci} ${dciCand.dosagem} ${dciCand.formaFarmaceutica}` +
+        (dciCand.atc5 ? ` (ATC ${dciCand.atc5})` : "")
+      : undefined;
 
     result.push({
       cnp: pf.cnp,
@@ -280,6 +376,15 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       substitutionAvoidedPurchaseValue: sub?.avoidedPurchaseEstimate,
       substitutionCoverageOrigin: sub?.stockCoverageOrigin,
       substitutionCoverageDestination: sub?.stockCoverageDestination ?? undefined,
+      // Substituição DCI-equivalente — RECOMENDAÇÃO CAUTELAR,
+      // populada APENAS se same-CNP não estiver disponível.
+      dciEquivalentAvailable: dciCand !== undefined,
+      dciEquivalentCnp: dciCand?.sourceCnp,
+      dciEquivalentProductName: dciCand?.sourceDesignacao,
+      dciEquivalentSourceFarmacia: dciCand?.sourceFarmaciaNome,
+      dciEquivalentQtySuggested: dciCand?.transferableQty,
+      dciEquivalentAvoidedPurchaseValue: dciCand?.avoidedPurchaseEstimate,
+      dciEquivalentReason: dciReason,
     });
   }
 

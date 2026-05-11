@@ -66,6 +66,17 @@ type EncomendaFarmaciaRow = {
   substitutionAvoidedPurchaseValue?: number;
   substitutionCoverageOrigin?: number;
   substitutionCoverageDestination?: number;
+  // Substituição DCI-equivalente — RECOMENDAÇÃO CAUTELAR. Aparece
+  // apenas quando NÃO há alternativa same-CNP para a mesma linha
+  // (same-CNP tem prioridade). UI mostra com tom distinto e exige
+  // validação humana.
+  dciEquivalentAvailable: boolean;
+  dciEquivalentCnp?: string;
+  dciEquivalentProductName?: string;
+  dciEquivalentSourceFarmacia?: string;
+  dciEquivalentQtySuggested?: number;
+  dciEquivalentAvoidedPurchaseValue?: number;
+  dciEquivalentReason?: string;
 };
 
 type GroupEncomendaRow = {
@@ -93,6 +104,15 @@ type GroupEncomendaRow = {
     substitutionSourceFarmacia?: string;
     substitutionQtySuggested?: number;
     substitutionAvoidedPurchaseValue?: number;
+    // DCI-equivalente per-farmácia. Populado apenas quando same-CNP
+    // não está disponível para essa farmácia.
+    dciEquivalentAvailable: boolean;
+    dciEquivalentCnp?: string;
+    dciEquivalentProductName?: string;
+    dciEquivalentSourceFarmacia?: string;
+    dciEquivalentQtySuggested?: number;
+    dciEquivalentAvoidedPurchaseValue?: number;
+    dciEquivalentReason?: string;
   }>;
   condicoesFornecedor: SupplierCondition[];
   // Agregado ao nível do grupo: existe transferência interna possível
@@ -100,6 +120,12 @@ type GroupEncomendaRow = {
   hasInternalSubstitution: boolean;
   substitutionAvoidedTotal: number;
   substitutionQtyTotal: number;
+  // DCI-equivalente agregado (sempre mutuamente exclusivo com same-CNP
+  // para a mesma farmácia, mas o grupo pode ter ambos em farmácias
+  // diferentes).
+  hasDciEquivalent: boolean;
+  dciEquivalentAvoidedTotal: number;
+  dciEquivalentQtyTotal: number;
 };
 
 // O shape das linhas reais vem de EncomendaBaseRow. Mantemos o nome
@@ -271,6 +297,22 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     0,
   );
 
+  // DCI-equivalente — mutuamente exclusivo com same-CNP por linha
+  // (server-side garante), portanto não há sobreposição a desfazer.
+  const rowsComDci = rows.filter(
+    (r) => r.dciEquivalentAvailable && r.sugestao > 0,
+  );
+  const hasDciEquivalent = rowsComDci.length > 0;
+  const dciEquivalentAvoidedTotal = Number(
+    rowsComDci
+      .reduce((s, r) => s + (r.dciEquivalentAvoidedPurchaseValue ?? 0), 0)
+      .toFixed(2),
+  );
+  const dciEquivalentQtyTotal = rowsComDci.reduce(
+    (s, r) => s + (r.dciEquivalentQtySuggested ?? 0),
+    0,
+  );
+
   return {
     cnp: first.cnp,
     produto: first.produto,
@@ -297,11 +339,21 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
         substitutionSourceFarmacia: r.substitutionSourceFarmacia,
         substitutionQtySuggested: r.substitutionQtySuggested,
         substitutionAvoidedPurchaseValue: r.substitutionAvoidedPurchaseValue,
+        dciEquivalentAvailable: r.dciEquivalentAvailable,
+        dciEquivalentCnp: r.dciEquivalentCnp,
+        dciEquivalentProductName: r.dciEquivalentProductName,
+        dciEquivalentSourceFarmacia: r.dciEquivalentSourceFarmacia,
+        dciEquivalentQtySuggested: r.dciEquivalentQtySuggested,
+        dciEquivalentAvoidedPurchaseValue: r.dciEquivalentAvoidedPurchaseValue,
+        dciEquivalentReason: r.dciEquivalentReason,
       })),
     condicoesFornecedor: first.condicoesFornecedor,
     hasInternalSubstitution,
     substitutionAvoidedTotal,
     substitutionQtyTotal,
+    hasDciEquivalent,
+    dciEquivalentAvoidedTotal,
+    dciEquivalentQtyTotal,
   };
 });
 
@@ -384,8 +436,16 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       (s, r) => (r.sugestaoGrupo > 0 ? s + r.substitutionAvoidedTotal : s),
       0,
     );
+    // DCI-equivalente (cautelar) — contabilizado em separado.
+    const comDciEquivalente = groupRows.filter(
+      (r) => r.hasDciEquivalent && r.sugestaoGrupo > 0,
+    ).length;
+    const valorEvitavelDci = groupRows.reduce(
+      (s, r) => (r.sugestaoGrupo > 0 ? s + r.dciEquivalentAvoidedTotal : s),
+      0,
+    );
 
-    return { artigos, criticos, valor, comSubstituicao, valorEvitavel };
+    return { artigos, criticos, valor, comSubstituicao, valorEvitavel, comDciEquivalente, valorEvitavelDci };
   }, [groupRows, editableGroupRows]);
 
   const filtrosAtivosCount =
@@ -668,6 +728,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   )}
                 </span>
               )}
+              {resumo.comDciEquivalente > 0 && (
+                <span title="Artigos com equivalente por DCI noutra farmácia (CNP diferente). Requer validação humana antes de transferir.">
+                  <span className="font-semibold text-amber-700">
+                    {resumo.comDciEquivalente}
+                  </span>{" "}
+                  c/ DCI-equiv. (cautelar)
+                  {resumo.valorEvitavelDci > 0 && (
+                    <span className="ml-1 text-amber-700">
+                      (~−
+                      {resumo.valorEvitavelDci.toLocaleString("pt-PT", {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      })}{" "}
+                      €)
+                    </span>
+                  )}
+                </span>
+              )}
               <span>
                 <span className="font-semibold text-slate-900">
                   {resumo.valor.toLocaleString("pt-PT", {
@@ -866,6 +944,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                             )}
                           </div>
                         )}
+                        {row.hasDciEquivalent && (
+                          <div
+                            className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                            title={`Equivalente por DCI noutra farmácia (CNP diferente). Validar antes de transferir. Estimativa de poupança: ${row.dciEquivalentAvoidedTotal.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €.`}
+                          >
+                            ⚠ Equivalente por DCI — validar antes de transferir
+                            {row.dciEquivalentAvoidedTotal > 0 && (
+                              <span className="ml-1 text-amber-700">
+                                · −
+                                {row.dciEquivalentAvoidedTotal.toLocaleString("pt-PT", {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                })}{" "}
+                                €
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -905,6 +1001,11 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                             item.internalSubstitutionAvailable &&
                             item.sugestao > 0 &&
                             (item.substitutionQtySuggested ?? 0) > 0;
+                          const mostraDci =
+                            !item.internalSubstitutionAvailable &&
+                            item.dciEquivalentAvailable &&
+                            item.sugestao > 0 &&
+                            (item.dciEquivalentQtySuggested ?? 0) > 0;
                           return (
                             <div
                               key={`${row.cnp}-${item.farmacia}`}
@@ -938,6 +1039,35 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                                       €
                                     </span>
                                   )}
+                                </div>
+                              )}
+                              {mostraDci && (
+                                <div
+                                  className="mt-0.5 text-[11px] leading-4 text-amber-800"
+                                  title={item.dciEquivalentReason ?? "Equivalente por DCI — validar antes de transferir"}
+                                >
+                                  ⚠ DCI-equivalente: {item.dciEquivalentQtySuggested} un. de{" "}
+                                  <span className="font-medium">
+                                    {item.dciEquivalentProductName}
+                                  </span>
+                                  {" "}(CNP {item.dciEquivalentCnp}) em{" "}
+                                  <span className="font-medium">
+                                    {item.dciEquivalentSourceFarmacia}
+                                  </span>
+                                  {(item.dciEquivalentAvoidedPurchaseValue ?? 0) > 0 && (
+                                    <span className="text-amber-700">
+                                      {" "}
+                                      · ~
+                                      {item.dciEquivalentAvoidedPurchaseValue!.toLocaleString(
+                                        "pt-PT",
+                                        { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                                      )}{" "}
+                                      €
+                                    </span>
+                                  )}
+                                  <div className="text-amber-700/80">
+                                    Validar antes de transferir
+                                  </div>
                                 </div>
                               )}
                             </div>
