@@ -16,6 +16,7 @@ import {
   coverageDays,
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
+import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
 import {
   findInternalSubstitutions,
   type InternalSubstitution,
@@ -163,14 +164,22 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
   const farmaciaIds = farmacias.map((f) => f.id);
   if (farmaciaIds.length < 2) return [];
 
-  const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds);
+  // Dual-read: IPF + sales em paralelo. Quando IPF tem linha, usa
+  // mediaVendasDiarias90d (pré-calculado, drift 0 vs live); cai para
+  // VendaMensal × 90d quando IPF ausente.
+  const [{ pfRows, salesMap }, ipfMap] = await Promise.all([
+    loadPfAndSales(farmaciaIds),
+    loadIpfBatch(farmaciaIds),
+  ]);
 
   // Group by produtoId
   type Entry = PfBase & { avgDaily: number; coverage: number };
   const byProduto = new Map<string, Entry[]>();
   for (const row of pfRows) {
-    const qty3m = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
-    const ad = avgDaily(qty3m, WINDOW_90D);
+    const key = `${row.produtoId}:${row.farmaciaId}`;
+    const qty3m = salesMap.get(key) ?? 0;
+    const liveAd = avgDaily(qty3m, WINDOW_90D);
+    const { value: ad } = resolveAvgDaily90d(ipfMap.get(key), liveAd);
     const cov = coverageDays(toF(row.stockAtual), ad);
     const coverage = cov === null ? Infinity : cov;
     if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);
@@ -284,14 +293,21 @@ export async function getExcessosData(
   const farmaciaIds = farmacias.map((f) => f.id);
   if (farmaciaIds.length === 0) return [];
 
-  const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds);
+  // Dual-read também em /excessos (mesma política de stock-data /
+  // transferencias).
+  const [{ pfRows, salesMap }, ipfMap] = await Promise.all([
+    loadPfAndSales(farmaciaIds),
+    loadIpfBatch(farmaciaIds),
+  ]);
 
   // Build per-product map
   type Entry = PfBase & { avgDaily: number; coverage: number };
   const byProduto = new Map<string, Entry[]>();
   for (const row of pfRows) {
-    const qty3m = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
-    const ad = avgDaily(qty3m, WINDOW_90D);
+    const key = `${row.produtoId}:${row.farmaciaId}`;
+    const qty3m = salesMap.get(key) ?? 0;
+    const liveAd = avgDaily(qty3m, WINDOW_90D);
+    const { value: ad } = resolveAvgDaily90d(ipfMap.get(key), liveAd);
     const cov = coverageDays(toF(row.stockAtual), ad);
     const coverage = cov === null ? Infinity : cov;
     if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);

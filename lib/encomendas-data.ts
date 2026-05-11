@@ -20,6 +20,7 @@ import {
   monthlyVelocity,
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
+import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
 
 export type EncomendaMonthlyMovement = { mes: string; compras: number; vendas: number };
 export type EncomendaPurchaseHistory = {
@@ -114,6 +115,12 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
 
   if (pfRows.length === 0) return [];
 
+  // Dual-read: IPF carregado em paralelo com vendas mensais. Quando IPF
+  // tem linha, `mediaVendasDiarias90d` substitui o cálculo `recent3 / 90`
+  // (numericamente idêntico — drift 0.0000 validado em scripts/tests
+  // e em scripts/indicadores-produto-farmacia-dry-run.ts).
+  const ipfMap = await loadIpfBatch(farmaciaIds);
+
   // 2. Vendas dos últimos 6 meses agrupadas por (produto, farmácia, ano, mes)
   const now = new Date();
   const periodEnd = now.getFullYear() * 12 + now.getMonth() + 1;
@@ -160,7 +167,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     const recent3 = vendas
       .filter((v) => v.ano * 12 + v.mes >= periodEnd - 3)
       .reduce((s, v) => s + v.qty, 0);
-    const ad = avgDaily(recent3, WINDOW_90D);
+    const liveAd = avgDaily(recent3, WINDOW_90D);
+    const { value: ad } = resolveAvgDaily90d(ipfMap.get(k), liveAd);
     const rotacaoMedia = monthlyVelocity(ad);
     const stockAtual = Math.round(toF(pf.stockAtual));
     // Convenção legada do shape EncomendaBaseRow: 999 quando há stock

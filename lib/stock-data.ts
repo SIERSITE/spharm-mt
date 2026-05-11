@@ -18,6 +18,7 @@ import {
   rotationClass,
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
+import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
 import {
   matchStockFilter,
   type StockFilter,
@@ -56,15 +57,24 @@ export async function loadStockEnriched(
   const farmaciaIds = await getActiveFarmaciaIds();
   if (farmaciaIds.length === 0) return [];
 
-  const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds, {
-    // Default: include stock=0 rows so the "out-of-stock" filter works.
-    // /transferencias still passes the default (excludes stock=0).
-    includeOutOfStock: options?.includeOutOfStock ?? true,
-  });
+  // Dual-read: IPF + sales em paralelo. Quando IPF tem linha para o
+  // par (produto, farmacia), o avgDaily90d vem do indicador pré-
+  // calculado. Caso contrário, computa-se live a partir de salesMap.
+  // Output numérico idêntico (drift 0.0000 confirmado em dry-run).
+  const [{ pfRows, salesMap }, ipfMap] = await Promise.all([
+    loadPfAndSales(farmaciaIds, {
+      // Default: include stock=0 rows so the "out-of-stock" filter works.
+      // /transferencias still passes the default (excludes stock=0).
+      includeOutOfStock: options?.includeOutOfStock ?? true,
+    }),
+    loadIpfBatch(farmaciaIds),
+  ]);
 
   return pfRows.map((p) => {
-    const salesQty90d = salesMap.get(`${p.produtoId}:${p.farmaciaId}`) ?? 0;
-    const avgDaily90d = avgDaily(salesQty90d, WINDOW_90D);
+    const key = `${p.produtoId}:${p.farmaciaId}`;
+    const salesQty90d = salesMap.get(key) ?? 0;
+    const liveAd = avgDaily(salesQty90d, WINDOW_90D);
+    const { value: avgDaily90d } = resolveAvgDaily90d(ipfMap.get(key), liveAd);
     const coverage = coverageDays(Number(p.stockAtual), avgDaily90d);
     return {
       produtoId: p.produtoId,
