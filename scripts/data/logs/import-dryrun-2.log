@@ -1,0 +1,74 @@
+──────────────────────────────────────────────────────────────────────────
+Importer mapping → RegulatoryRecord
+──────────────────────────────────────────────────────────────────────────
+
+[1/4] A ler staging file...
+  staging file:    scripts\data\infomed-cnp-medguid-mapping.json
+  lastUpdate:      2026-05-09T00:26:12.092Z
+  mappings totais: 1153
+  notFound:        5766
+  source tag:      infomed_search_2026-05-09
+  dryRun:          true
+  force:           false
+  excludeSiblings: false
+  read em 0s
+
+[2/4] A filtrar entries...
+  total mappings:           1153
+  seleccionados:            1153
+  saltados (siblings):      0
+  saltados (cnp <= 2000000): 0
+  saltados (fora de --only): 0
+  saltados (cnp inválido):  0
+  filtrado em 0s
+  · matched directo (search): 381
+  · matched sibling:          772
+
+  Cobertura no subset seleccionado:
+    designacaoOficial     1153 (100.0%)
+    dci                   1153 (100.0%)
+    codigoATC             1153 (100.0%)
+    formaFarmaceutica     1153 (100.0%)
+    dosagem               1153 (100.0%)
+    embalagem             1153 (100.0%)
+    grupoTerapeutico      1153 (100.0%)
+    titularAim            1153 (100.0%)
+    estadoAim             1153 (100.0%)
+
+  Amostra (5 entries seleccionadas):
+    {"cnp":2046688,"designacaoOficial":"Lovenox","dci":"Enoxaparina sódica","codigoATC":"B01AB05","formaFarmaceutica":"Solução injetável em seringa pré-cheia","dosagem":"20 mg/0.2 ml","embalagem":"Seringa pré-cheia 2 unidade(s) - 0.2 ml","grupoTerapeutico":"4.3.1.1 - Heparinas","titularAim":"Sanofi - Produtos Farmacêuticos, Lda.","estadoAim":"Autorizado"}
+    {"cnp":2046787,"designacaoOficial":"Lovenox","dci":"Enoxaparina sódica","codigoATC":"B01AB05","formaFarmaceutica":"Solução injetável em seringa pré-cheia","dosagem":"40 mg/0.4 ml","embalagem":"Seringa pré-cheia 2 unidade(s) - 0.4 ml","grupoTerapeutico":"4.3.1.1 - Heparinas","titularAim":"Sanofi - Produtos Farmacêuticos, Lda.","estadoAim":"Autorizado"}
+    {"cnp":2074797,"designacaoOficial":"Haldol","dci":"Haloperidol","codigoATC":"N05AD01","formaFarmaceutica":"Comprimido","dosagem":"1 mg","embalagem":"Blister 60 unidade(s)","grupoTerapeutico":"2.9.2 - Antipsicóticos","titularAim":"Essential Pharma Limited","estadoAim":"Autorizado"}
+    {"cnp":2074995,"designacaoOficial":"Haldol","dci":"Haloperidol","codigoATC":"N05AD01","formaFarmaceutica":"Comprimido","dosagem":"5 mg","embalagem":"Blister 60 unidade(s)","grupoTerapeutico":"2.9.2 - Antipsicóticos","titularAim":"Essential Pharma Limited","estadoAim":"Autorizado"}
+    {"cnp":2181485,"designacaoOficial":"Gopten","dci":"Trandolapril","codigoATC":"C09AA10","formaFarmaceutica":"Cápsula","dosagem":"2 mg","embalagem":"Blister 56 unidade(s)","grupoTerapeutico":"3.4.2.1 - Inibidores da enzima de con…","titularAim":"Viatris Healthcare, Lda.","estadoAim":"Autorizado"}
+
+[3/4] A simular upserts em batches de 500...
+(node:10928) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [1/3] proc=500/1153 ins=0 upd=176 unch=324 fail=0 batch=1556ms eta=2s
+  [2/3] proc=1000/1153 ins=7 upd=654 unch=339 fail=0 batch=292ms eta=0s
+  [3/3] proc=1153/1153 ins=7 upd=787 unch=359 fail=0 batch=119ms eta=0s
+
+[4/4] Métricas de qualidade pós-import:
+  total RegulatoryRecord:               283122
+  com designacaoOficial:                283122 (100.0%)
+  com titularAim:                       279943 (98.9%)
+  com estadoAim:                        282291 (99.7%)
+  com codigoATC:                        359 (0.1%)
+  com dci:                              359 (0.1%)
+  com formaFarmaceutica:                359 (0.1%)
+  com dosagem:                          359 (0.1%)
+  com embalagem:                        359 (0.1%)
+  com grupoTerapeutico:                 359 (0.1%)
+  cobertura RegulatoryRecord ∩ Produto: 12592 / 13687 (92.0%)
+
+──────────────────────────────────────────────────────────────────────────
+RESULTADO (DRY-RUN): inseridos=7 actualizados=787 inalterados=359 falhas=0 · tempo=4s
+──────────────────────────────────────────────────────────────────────────
