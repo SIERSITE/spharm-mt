@@ -17,6 +17,7 @@
     "tenancy:deactivate": "tsx scripts/tenancy/deactivate-tenant.ts",
     "tenancy:reactivate": "tsx scripts/tenancy/reactivate-tenant.ts",
     "tenancy:smoke-resolver": "tsx scripts/tenancy/smoke-test-resolver.ts",
+    "tenancy:issue-ingest-key": "tsx scripts/tenancy/issue-ingest-key.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",
     "env:doctor": "tsx scripts/env-doctor.ts"
   },
