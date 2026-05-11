@@ -54,7 +54,8 @@ export const ModelName = {
   Tenant: 'Tenant',
   TenantEvent: 'TenantEvent',
   GlobalAdmin: 'GlobalAdmin',
-  GlobalAdminTenant: 'GlobalAdminTenant'
+  GlobalAdminTenant: 'GlobalAdminTenant',
+  SyncRun: 'SyncRun'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -137,6 +138,29 @@ export const GlobalAdminTenantScalarFieldEnum = {
 } as const
 
 export type GlobalAdminTenantScalarFieldEnum = (typeof GlobalAdminTenantScalarFieldEnum)[keyof typeof GlobalAdminTenantScalarFieldEnum]
+
+
+export const SyncRunScalarFieldEnum = {
+  id: 'id',
+  tenantSlug: 'tenantSlug',
+  source: 'source',
+  status: 'status',
+  triggerType: 'triggerType',
+  workerId: 'workerId',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  durationMs: 'durationMs',
+  recordsRead: 'recordsRead',
+  recordsInserted: 'recordsInserted',
+  recordsUpdated: 'recordsUpdated',
+  recordsFailed: 'recordsFailed',
+  errorSummary: 'errorSummary',
+  metaJson: 'metaJson',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SyncRunScalarFieldEnum = (typeof SyncRunScalarFieldEnum)[keyof typeof SyncRunScalarFieldEnum]
 
 
 export const SortOrder = {

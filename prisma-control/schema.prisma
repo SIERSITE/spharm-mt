@@ -176,3 +176,88 @@ model GlobalAdminTenant {
   @@id([globalAdminId, tenantId])
   @@index([tenantId])
 }
+
+//////////////////////////////////////////////////////
+// SYNC RUN LEDGER (Fase 1 WS-B — observabilidade de jobs)
+//
+// Cada execução de um job/sync emite uma linha aqui. O modelo é
+// deliberadamente cross-tenant (vive no control plane) para que um
+// operador veja num só lugar "as últimas 200 execuções do grupo".
+//
+// Sem FK explícita para Tenant: a história sobrevive a desactivações
+// e o `tenantSlug` é informativo. Index dedicado para queries por
+// tenant.
+//////////////////////////////////////////////////////
+
+enum SyncRunStatus {
+  /// Foi registado mas o worker ainda não começou (raro — só se o
+  /// startSyncRun() criar antes do dispatcher).
+  PENDING
+  /// startedAt populado, finishedAt ainda não.
+  RUNNING
+  /// Concluído sem erros.
+  COMPLETED
+  /// Concluído com erros (errorSummary populado).
+  FAILED
+}
+
+enum SyncRunTrigger {
+  /// Disparado por CLI manual (`npx tsx scripts/...`).
+  CLI
+  /// Disparado por scheduler (Vercel Cron ou daemon externo).
+  CRON
+  /// Disparado a partir da UI admin.
+  UI
+  /// Disparado por um job que está a re-tentar uma execução falhada.
+  RETRY
+}
+
+/// Ledger imutável-por-padrão de execuções de sync/jobs.
+/// INSERT no início (startSyncRun), UPDATE final único
+/// (completeSyncRun / failSyncRun). Nenhum delete em runtime.
+model SyncRun {
+  id              String          @id @default(cuid())
+
+  /// Identifica o tenant cuja BD foi sincronizada. Não é FK para
+  /// preservar histórico após desactivação do tenant. Slug em vez de
+  /// id porque é o identificador estável visível em logs.
+  tenantSlug      String
+
+  /// Nome do source/job: "regulatory-import", "regulatory-sync",
+  /// "reprocess-catalog", "infomed-fetch-details", "daily-enrich",
+  /// etc. Caller controla — não há enum porque a lista vai crescer.
+  source          String
+
+  status          SyncRunStatus   @default(RUNNING)
+  triggerType     SyncRunTrigger  @default(CLI)
+
+  /// Quem (ou o quê) executou. Para CLI: `${hostname}/${pid}`.
+  /// Para CRON: nome do scheduler. Para UI: id do utilizador.
+  workerId        String?
+
+  startedAt       DateTime        @default(now())
+  finishedAt      DateTime?
+  /// Cache de finishedAt − startedAt em ms. Preenchido pelo
+  /// completeSyncRun/failSyncRun para evitar recomputar em queries.
+  durationMs      Int?
+
+  /// Contadores opcionais. Caller preenche o que fizer sentido.
+  recordsRead     Int             @default(0)
+  recordsInserted Int             @default(0)
+  recordsUpdated  Int             @default(0)
+  recordsFailed   Int             @default(0)
+
+  /// Mensagem curta de erro (≤ 500 char). Null quando status=COMPLETED.
+  errorSummary    String?
+
+  /// JSON livre serializado para meta-info (path do log, parâmetros do
+  /// run, batch size, etc.). Opcional.
+  metaJson        String?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantSlug, startedAt(sort: Desc)])
+  @@index([source, startedAt(sort: Desc)])
+  @@index([status, startedAt(sort: Desc)])
+}

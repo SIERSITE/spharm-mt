@@ -18,3 +18,23 @@ export const TenantEstado = {
 } as const
 
 export type TenantEstado = (typeof TenantEstado)[keyof typeof TenantEstado]
+
+
+export const SyncRunStatus = {
+  PENDING: 'PENDING',
+  RUNNING: 'RUNNING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED'
+} as const
+
+export type SyncRunStatus = (typeof SyncRunStatus)[keyof typeof SyncRunStatus]
+
+
+export const SyncRunTrigger = {
+  CLI: 'CLI',
+  CRON: 'CRON',
+  UI: 'UI',
+  RETRY: 'RETRY'
+} as const
+
+export type SyncRunTrigger = (typeof SyncRunTrigger)[keyof typeof SyncRunTrigger]

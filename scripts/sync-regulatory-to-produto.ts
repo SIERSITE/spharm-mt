@@ -29,22 +29,38 @@
 
 import "dotenv/config";
 import * as fs from "fs";
-import { legacyPrisma as prisma } from "../lib/prisma";
+import { legacyPrisma } from "../lib/prisma";
+import type { PrismaClient } from "../generated/prisma/client";
 
 const MAPPING_FILE = "scripts/data/infomed-cnp-medguid-mapping.json";
 
 const FIELDS = ["codigoATC", "dci", "formaFarmaceutica", "dosagem", "embalagem"] as const;
 type FieldName = (typeof FIELDS)[number];
 
-type Args = { apply: boolean; sampleN: number };
+// Tenant-safe: prisma é resolvido em main(); default = legacyPrisma.
+let prisma: PrismaClient = legacyPrisma;
+
+// SyncRun id, hoisted ao escopo do módulo para o catch fora de main().
+let runId: string | null = null;
+
+type Args = {
+  apply: boolean;
+  sampleN: number;
+  tenantSlug: string | null;
+  recordSyncRun: boolean;
+};
 
 function parseArgs(): Args {
-  const out: Args = { apply: false, sampleN: 20 };
+  const out: Args = { apply: false, sampleN: 20, tenantSlug: null, recordSyncRun: false };
   for (const a of process.argv.slice(2)) {
     if (a === "--apply") out.apply = true;
+    else if (a === "--record-sync-run") out.recordSyncRun = true;
     else if (a.startsWith("--sample=")) {
       const n = parseInt(a.split("=")[1], 10);
       if (!isNaN(n) && n >= 0 && n <= 200) out.sampleN = n;
+    } else if (a.startsWith("--tenant=")) {
+      const v = a.split("=")[1];
+      if (v) out.tenantSlug = v;
     } else {
       console.warn(`[aviso] argumento desconhecido: ${a}`);
     }
@@ -95,6 +111,29 @@ function buildUpdates(p: ProdutoRow, r: RegulatoryRow): Partial<Record<FieldName
 
 async function main(): Promise<void> {
   const args = parseArgs();
+
+  // Tenant-safe resolution
+  if (args.tenantSlug) {
+    const { getTenantPrismaOrLegacy } = await import("../lib/tenant-registry");
+    prisma = await getTenantPrismaOrLegacy(args.tenantSlug);
+  }
+  const slugForLedger = args.tenantSlug ?? "legacy";
+
+  // SyncRun observability (opt-in)
+  if (args.recordSyncRun) {
+    const { startSyncRun } = await import("../lib/sync/sync-run");
+    const handle = await startSyncRun({
+      tenantSlug: slugForLedger,
+      source: "regulatory-sync",
+      meta: {
+        apply: args.apply,
+        sampleN: args.sampleN,
+        mappingFile: MAPPING_FILE,
+      },
+    });
+    runId = handle.id;
+  }
+
   console.log("─".repeat(74));
   console.log(`Sync RegulatoryRecord → Produto (${args.apply ? "LIVE" : "DRY-RUN"})`);
   console.log("─".repeat(74));
@@ -102,6 +141,8 @@ async function main(): Promise<void> {
   console.log(`  scope:     CNPs em ${MAPPING_FILE}`);
   console.log(`  política:  só copia se Produto.<campo> == null`);
   console.log(`  ignora:    validadoManualmente=true`);
+  console.log(`  tenant:    ${args.tenantSlug ?? "(legacy)"}`);
+  if (runId) console.log(`  syncRunId: ${runId}`);
   console.log();
 
   const mappingCnps = loadMappingCnps();
@@ -134,6 +175,10 @@ async function main(): Promise<void> {
 
   if (eligible.length === 0) {
     console.log("\nNada para sincronizar.");
+    if (runId) {
+      const { completeSyncRun } = await import("../lib/sync/sync-run");
+      await completeSyncRun(runId, { recordsRead: produtos.length });
+    }
     return;
   }
 
@@ -257,11 +302,27 @@ async function main(): Promise<void> {
   }
   console.log(`  modo: ${args.apply ? "LIVE" : "DRY-RUN"}`);
   console.log("─".repeat(74));
+
+  if (runId) {
+    const { completeSyncRun } = await import("../lib/sync/sync-run");
+    await completeSyncRun(runId, {
+      recordsRead: eligible.length,
+      recordsUpdated: args.apply ? plans.length : 0,
+    });
+  }
 }
 
 main()
-  .catch((err) => {
+  .catch(async (err) => {
     console.error("[fatal]", err);
+    if (runId) {
+      try {
+        const { failSyncRun } = await import("../lib/sync/sync-run");
+        await failSyncRun(runId, err);
+      } catch (closeErr) {
+        console.error("[fatal] failSyncRun também falhou:", closeErr);
+      }
+    }
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());

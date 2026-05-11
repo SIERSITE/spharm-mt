@@ -57,13 +57,26 @@
  */
 
 import "dotenv/config";
-import { legacyPrisma as prisma } from "../lib/prisma";
+import { legacyPrisma } from "../lib/prisma";
+import type { PrismaClient } from "../generated/prisma/client";
 import { enrichProduct, isCataloguableCnp } from "../lib/catalog-enrichment";
 import { mapToCanonical } from "../lib/catalog-taxonomy-map";
 import { resolveClassificationIdsFromCategory } from "../lib/catalog-classification";
 import { setSkipRetailConnector } from "../lib/catalog-connectors";
 import { classifyProductType } from "../lib/catalog-classifier";
 import type { ProductType } from "../lib/catalog-types";
+
+// `prisma` é resolvido em `main()` — pode ser legacyPrisma (default,
+// back-compat) ou o cliente de um tenant específico se `--tenant=` for
+// passado. As funções neste módulo (que referem `prisma` no escopo
+// lexical) ficam a apontar para o cliente activo a partir desse
+// momento.
+let prisma: PrismaClient = legacyPrisma;
+
+// SyncRun id, hoisted ao escopo do módulo para que o `.catch()` no
+// fundo do ficheiro consiga registar falha. Só populado quando
+// `--record-sync-run` é passado.
+let runId: string | null = null;
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 
@@ -87,6 +100,19 @@ type Args = {
    * sem ATC/DCI onde o mapper não pode fazer nada por design).
    */
   onlyWithAtcOrDci: boolean;
+  /**
+   * Tenant-safe execution — quando definido, resolve o PrismaClient
+   * via control plane em vez de usar legacyPrisma. Slug tem de
+   * corresponder a um Tenant.estado=ACTIVE. Default null = legacy.
+   */
+  tenantSlug: string | null;
+  /**
+   * Quando true, escreve uma linha em SyncRun (control plane) antes
+   * e depois da execução para observabilidade. Default false para
+   * manter compatibilidade com runs CLI antigos que não dependem
+   * do control plane.
+   */
+  recordSyncRun: boolean;
 };
 
 function parseArgs(): Args {
@@ -100,6 +126,8 @@ function parseArgs(): Args {
     includeNonMedicamento: false,
     skipRetail: false,
     onlyWithAtcOrDci: false,
+    tenantSlug: null,
+    recordSyncRun: false,
   };
   for (const a of args) {
     if (a === "--dry-run") out.dryRun = true;
@@ -107,6 +135,7 @@ function parseArgs(): Args {
     else if (a === "--include-non-medicamento") out.includeNonMedicamento = true;
     else if (a === "--skip-retail") out.skipRetail = true;
     else if (a === "--only-with-atc-or-dci") out.onlyWithAtcOrDci = true;
+    else if (a === "--record-sync-run") out.recordSyncRun = true;
     else if (a.startsWith("--batch-size=")) {
       const n = parseInt(a.split("=")[1], 10);
       if (!isNaN(n) && n > 0 && n <= 500) out.batchSize = n;
@@ -117,6 +146,9 @@ function parseArgs(): Args {
     } else if (a.startsWith("--limit=")) {
       const n = parseInt(a.split("=")[1], 10);
       if (!isNaN(n) && n > 0) out.limit = n;
+    } else if (a.startsWith("--tenant=")) {
+      const v = a.split("=")[1];
+      if (v) out.tenantSlug = v;
     } else {
       console.warn(`[aviso] argumento desconhecido: ${a}`);
     }
@@ -1058,6 +1090,34 @@ async function countPass3(): Promise<number> {
 async function main(): Promise<void> {
   const args = parseArgs();
 
+  // Tenant resolution: --tenant=<slug> resolve via control plane;
+  // sem flag, mantém legacyPrisma (back-compat com runs CLI existentes).
+  if (args.tenantSlug) {
+    const { getTenantPrismaOrLegacy } = await import("../lib/tenant-registry");
+    prisma = await getTenantPrismaOrLegacy(args.tenantSlug);
+  }
+
+  // SyncRun observability — opt-in via --record-sync-run. Quando
+  // disponível, escreve linha no control plane antes e depois.
+  const slugForLedger = args.tenantSlug ?? "legacy";
+  if (args.recordSyncRun) {
+    const { startSyncRun } = await import("../lib/sync/sync-run");
+    const handle = await startSyncRun({
+      tenantSlug: slugForLedger,
+      source: "reprocess-catalog",
+      meta: {
+        batchSize: args.batchSize,
+        dryRun: args.dryRun,
+        firstBatchOnly: args.firstBatchOnly,
+        limit: args.limit,
+        skipRetail: args.skipRetail,
+        onlyWithAtcOrDci: args.onlyWithAtcOrDci,
+        startFrom: args.startFrom,
+      },
+    });
+    runId = handle.id;
+  }
+
   console.log("─".repeat(70));
   console.log("Reprocessamento do catálogo (MEDICAMENTOS-priority)");
   console.log("─".repeat(70));
@@ -1069,6 +1129,8 @@ async function main(): Promise<void> {
   console.log(`  inclui não-med:  ${args.includeNonMedicamento}`);
   console.log(`  skipRetail:      ${args.skipRetail}`);
   console.log(`  onlyWithAtcOrDci:${args.onlyWithAtcOrDci}`);
+  console.log(`  tenant:          ${args.tenantSlug ?? "(legacy — DATABASE_URL)"}`);
+  if (runId) console.log(`  syncRunId:       ${runId}`);
 
   // Aplica o toggle de retail ANTES de qualquer chamada a enrichProduct.
   // Em --skip-retail, o connector retail devolve null imediatamente — o
@@ -1082,6 +1144,10 @@ async function main(): Promise<void> {
       `[fatal] Classificacao "Outros Medicamentos" (NIVEL_2, ATIVO) não encontrada. ` +
         `Corre 'npx tsx scripts/seed-taxonomy.ts' primeiro.`,
     );
+    if (runId) {
+      const { failSyncRun } = await import("../lib/sync/sync-run");
+      await failSyncRun(runId, new Error("Classificacao 'Outros Medicamentos' em falta"));
+    }
     process.exitCode = 1;
     return;
   }
@@ -1153,7 +1219,15 @@ async function main(): Promise<void> {
   );
 
   if (args.firstBatchOnly || (args.limit !== null && totals.processed >= args.limit)) {
-    printFinalSummary(totals, args, outrosMedicamentosId);
+    await printFinalSummary(totals, args, outrosMedicamentosId);
+    if (runId) {
+      const { completeSyncRun } = await import("../lib/sync/sync-run");
+      await completeSyncRun(runId, {
+        recordsRead: totals.processed,
+        recordsUpdated: totals.updated,
+        recordsFailed: totals.failed,
+      });
+    }
     return;
   }
 
@@ -1180,6 +1254,15 @@ async function main(): Promise<void> {
   }
 
   await printFinalSummary(totals, args, outrosMedicamentosId);
+
+  if (runId) {
+    const { completeSyncRun } = await import("../lib/sync/sync-run");
+    await completeSyncRun(runId, {
+      recordsRead: totals.processed,
+      recordsUpdated: totals.updated,
+      recordsFailed: totals.failed,
+    });
+  }
 }
 
 async function printFinalSummary(
@@ -1294,8 +1377,16 @@ async function printFinalSummary(
 }
 
 main()
-  .catch((err) => {
+  .catch(async (err) => {
     console.error("[erro fatal]", err);
+    if (runId) {
+      try {
+        const { failSyncRun } = await import("../lib/sync/sync-run");
+        await failSyncRun(runId, err);
+      } catch (closeErr) {
+        console.error("[erro fatal] failSyncRun também falhou:", closeErr);
+      }
+    }
     process.exitCode = 1;
   })
   .finally(async () => {

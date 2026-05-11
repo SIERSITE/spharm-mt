@@ -39,3 +39,10 @@ export type GlobalAdmin = Prisma.GlobalAdminModel
  * tem acesso para suporte. Null = todos (ex: role "ops").
  */
 export type GlobalAdminTenant = Prisma.GlobalAdminTenantModel
+/**
+ * Model SyncRun
+ * Ledger imutável-por-padrão de execuções de sync/jobs.
+ * INSERT no início (startSyncRun), UPDATE final único
+ * (completeSyncRun / failSyncRun). Nenhum delete em runtime.
+ */
+export type SyncRun = Prisma.SyncRunModel
