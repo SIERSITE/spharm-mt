@@ -152,29 +152,36 @@ const ATC_PREFIX_TO_NIVEL2: Record<string, string> = {
   G03: "Ginecológicos",       // Hormonas sexuais (anticoncepcionais, TRH)
   G04: "Urológicos",          // Urológicos (tansulosina, finasterida BPH)
 
-  // ── J: Anti-infecciosos sistémicos (sem cat dedicada — fica Outros) ──
-  J01: "Outros Medicamentos", // Antibióticos sistémicos
-  J02: "Outros Medicamentos", // Antifúngicos sistémicos
-  J04: "Outros Medicamentos", // Antimicobacterianos
-  J05: "Outros Medicamentos", // Antivirais sistémicos
-  J06: "Outros Medicamentos", // Imunoglobulinas
-  J07: "Outros Medicamentos", // Vacinas
+  // ── H: Preparados hormonais sistémicos ───────────────────────────────
+  H02: "Hormonas e Corticoides",          // Corticoides sistémicos (prednisolona, metilprednisolona, deflazacorte)
+  H03: "Hormonas e Corticoides",          // Hormonas tiróide/antitiroideus (levotiroxina, iodeto de potássio)
+
+  // ── J: Anti-infecciosos sistémicos ───────────────────────────────────
+  J01: "Anti-infecciosos",                // Antibióticos sistémicos (amoxicilina, azitromicina, cefradina)
+  J02: "Anti-infecciosos",                // Antifúngicos sistémicos (fluconazol)
+  J04: "Anti-infecciosos",                // Antimicobacterianos (raros em retalho)
+  J05: "Anti-infecciosos",                // Antivirais sistémicos (aciclovir)
+  J06: "Outros Medicamentos",             // Imunoglobulinas (hospitalar)
+  J07: "Outros Medicamentos",             // Vacinas (especiais)
 
   // ── M: Sistema músculo-esquelético ───────────────────────────────────
   M01: "Analgésicos e Anti-inflamatórios", // AINEs (ibuprofeno, diclofenac, naproxeno)
   M02: "Analgésicos e Anti-inflamatórios", // Tópicos articulares
   M03: "Sistema Nervoso",                 // Relaxantes musculares
   M04: "Analgésicos e Anti-inflamatórios", // Antigotosos
-  M05: "Outros Medicamentos",              // Doenças ósseas (bifosfonatos)
+  M05: "Outros Medicamentos",              // Doenças ósseas (bifosfonatos) — volume pequeno, mantém-se Outros
 
   // ── N: Sistema nervoso ───────────────────────────────────────────────
-  N01: "Outros Medicamentos",             // Anestésicos
+  N01: "Outros Medicamentos",             // Anestésicos (sistémicos/hospitalares) — excepção N01BB tópico (ver ATC_PREFIX4_TO_NIVEL2)
   N02: "Analgésicos e Anti-inflamatórios", // Analgésicos (paracetamol N02BE01, opióides)
   N03: "Sistema Nervoso",                 // Antiepilépticos
   N04: "Sistema Nervoso",                 // Antiparkinsonianos
   N05: "Sistema Nervoso",                 // Psicolépticos (ansiolíticos, antipsicóticos)
   N06: "Sistema Nervoso",                 // Psicoanalépticos (antidepressivos)
   N07: "Sistema Nervoso",                 // Outros do SNC
+
+  // ── P: Antiparasitários ──────────────────────────────────────────────
+  P02: "Sistema Digestivo",               // Antihelmínticos / vermífugos (mebendazol, albendazol) — actuam no tracto digestivo
 
   // ── R: Sistema respiratório ──────────────────────────────────────────
   R01: "Constipação, Tosse e Gripe",      // Nasais (descongestionantes)
@@ -189,6 +196,28 @@ const ATC_PREFIX_TO_NIVEL2: Record<string, string> = {
   S02: "Otológicos",
   S03: "Oftálmicos",                      // Combinados oftálmicos+otológicos — preferir oftálmico
 };
+
+/**
+ * Excepções por sub-prefixo ATC mais específico que o grupo de 3 chars
+ * (tipicamente 5 chars = subgrupo químico). Consultado ANTES do prefixo
+ * de 3 chars — tem prioridade máxima quando uma sub-classe ATC diverge
+ * da regra geral do grupo.
+ *
+ * Lookup: o ATC do produto é testado contra cada chave por `startsWith`
+ * — ordenado pelo comprimento desc para garantir match mais específico.
+ *
+ * Caso de uso actual: N01BB (anestésicos locais amidas — Lidocaína,
+ * Prilocaína; ex.: EMLA creme) → "Dermatológicos" porque é aplicação
+ * cutânea, embora N01 sistémico continue em "Outros Medicamentos".
+ */
+const ATC_SUBGROUP_TO_NIVEL2: Record<string, string> = {
+  N01BB: "Dermatológicos",  // Anestésicos locais — amidas (Lidocaína, Prilocaína; tipicamente cremes EMLA)
+};
+
+/** Chaves de ATC_SUBGROUP_TO_NIVEL2 ordenadas por comprimento desc (cache). */
+const ATC_SUBGROUP_KEYS_SORTED = Object.keys(ATC_SUBGROUP_TO_NIVEL2).sort(
+  (a, b) => b.length - a.length,
+);
 
 /**
  * Mapa coarse por primeira letra do ATC. Fallback quando o prefixo de 3
@@ -464,9 +493,29 @@ function resolveNivel2(nivel1: string, input: TaxonomyMapInput): Nivel2Resolutio
   const atc = input.atc?.trim() ?? null;
   const atcUpper = atc ? atc.toUpperCase() : null;
 
-  // 1. MEDICAMENTOS — ATC prefixo de 3 (mais específico que letra). Cobre
-  //    casos como N02 (analgésicos), R06 (alergias), C07/C08/C09/C10
-  //    (cardiovascular), D08 (antissépticos), S02 (otológicos), etc.
+  // 1a. MEDICAMENTOS — sub-prefixo ATC (excepções 4-5 chars). Consultado
+  //     ANTES do prefixo de 3 para que sub-classes específicas (ex.:
+  //     N01BB → Dermatológicos para anestésicos tópicos) tenham prioridade
+  //     sobre a regra do grupo de 3 chars (ex.: N01 → Outros Medicamentos).
+  if (isMed && atcUpper) {
+    for (const key of ATC_SUBGROUP_KEYS_SORTED) {
+      if (atcUpper.startsWith(key)) {
+        const target = ATC_SUBGROUP_TO_NIVEL2[key];
+        if (target && isValidNivel2(nivel1, target)) {
+          return {
+            nivel2: target,
+            confidence: 0.94,
+            method: "atc_prefix",
+            reason: `ATC subgroup ${key} (${atcUpper}) → ${target}`,
+          };
+        }
+      }
+    }
+  }
+
+  // 1b. MEDICAMENTOS — ATC prefixo de 3 (mais específico que letra). Cobre
+  //     casos como N02 (analgésicos), R06 (alergias), C07/C08/C09/C10
+  //     (cardiovascular), D08 (antissépticos), S02 (otológicos), etc.
   if (isMed && atcUpper && atcUpper.length >= 3) {
     const prefix3 = atcUpper.slice(0, 3);
     const byPrefix = ATC_PREFIX_TO_NIVEL2[prefix3];

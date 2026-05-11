@@ -1,0 +1,648 @@
+──────────────────────────────────────────────────────────────────────
+Reprocessamento do catálogo (MEDICAMENTOS-priority)
+──────────────────────────────────────────────────────────────────────
+  dryRun:          true
+  firstBatchOnly:  true
+  batchSize:       150
+  startFrom:       (nenhum)
+  limit:           (sem limite)
+  inclui não-med:  false
+  skipRetail:      true
+  onlyWithAtcOrDci:true
+(node:2268) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  baseline:
+    PASS 1 (med + Outros Medicamentos):  48
+    PASS 2 (med com campos em falta):    1539
+    "Outros Medicamentos" no início:     5805
+
+
+══════════════════════════════════════════════════════════════════════
+PASS 1 — MEDICAMENTO em "Outros Medicamentos" (com ATC ou DCI)
+══════════════════════════════════════════════════════════════════════
+  [MEDICAMENTO 97%] CNP:5006820 "Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp."
+  [dry-run] cmnsu1e35002g1slqtecs5uuo [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    1. CNP=5006820 | Aciclovir Generis 800 Mg Comprimidos 800 Mg 35 Comp.
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J05 (J05AB01) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5062500 "Adrovance, 70 mg + 5600 UI x 4 comp"
+  [dry-run] cmnsu1e36005c1slqjebmqv2u [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    2. CNP=5062500 | Adrovance, 70 mg + 5600 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:2532794 "Amoxicilina Labesfal, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3800dj1slqm1wjwvbl [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    3. CNP=2532794 | Amoxicilina Labesfal, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: ssd-armaturenshop.de/…/kermi-2532794-zbat010-set-montageklei... → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01CA04) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4601993 "Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida"
+  [dry-run] cmnsu1e3c00r51slqrzztu60y [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    4. CNP=4601993 | Azitromicina Generis, 200 mg/5 mL x 30 pó susp oral medida
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01FA10) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4798989 "Ceclor, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3i01fk1slqo4pcknkc [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    5. CNP=4798989 | Ceclor, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01DC04 | DCI=Cefaclor
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01DC04) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9540906 "Cefradur, 1000 mg x 16 comp"
+  [dry-run] cmnsu1e3i01fm1slqndcdrgst [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    6. CNP=9540906 | Cefradur, 1000 mg x 16 comp
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01DB09 | DCI=Cefradina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01DB09) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9422501 "Cefradur, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3i01fn1slq43gvc3ta [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    7. CNP=9422501 | Cefradur, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01DB09 | DCI=Cefradina
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01DB09) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9577700 "Cipamox, 1000 mg x 16 comp"
+  [dry-run] cmnsu1e3m01u21slq93pm1ilw [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    8. CNP=9577700 | Cipamox, 1000 mg x 16 comp
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01CA04) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8352112 "Clamoxyl, 500 mg x 16 cáps"
+  [dry-run] cmnsu1e3n01ve1slqeewthqfq [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+    9. CNP=8352112 | Clamoxyl, 500 mg x 16 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01CA04 | DCI=Amoxicilina
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01CA04) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8293407 "Dalacin C, 150 mg x 16 cáps"
+  [dry-run] cmnsu1e3p02571slql69l1swo [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   10. CNP=8293407 | Dalacin C, 150 mg x 16 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01FF01 | DCI=Clindamicina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01FF01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8114314 "Depo-Medrol, 40 mg/mL x 3 susp inj amp"
+  [dry-run] cmnsu1e3q026o1slqnvw75u4c [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   11. CNP=8114314 | Depo-Medrol, 40 mg/mL x 3 susp inj amp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB04 | DCI=Metilprednisolona
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB04) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8692806 "Diflucan 50 Mg 7 Cápsula"
+  [dry-run] cmnsu1e3r02aj1slqnkv2hljj [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   12. CNP=8692806 | Diflucan 50 Mg 7 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8692822 "Diflucan, 150 mg x 1 cáps"
+  [dry-run] cmnsu1e3r02ak1slqdrw1o8dd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   13. CNP=8692822 | Diflucan, 150 mg x 1 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8692830 "Diflucan, 150 mg x 2 cáps"
+  [dry-run] cmnsu1e3r02al1slqhjgx5wq0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   14. CNP=8692830 | Diflucan, 150 mg x 2 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2443588 "EMLA, 2,5/2,5 g % p/p x 5 creme bisn"
+  [dry-run] cmnsu1e3v02sf1slqsirm0kj7 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   15. CNP=2443588 | EMLA, 2,5/2,5 g % p/p x 5 creme bisn
+        nivel2: "Outros Medicamentos" → "Dermatológicos"
+        ATC=N01BB20 | DCI=Lidocaína + Prilocaína
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC subgroup N01BB (N01BB20) → Dermatológicos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3256385 "Etalpha 0.5 µg 30 Cápsula"
+  [dry-run] cmnsu1e3x02wt1slq4ziwh2v1 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   16. CNP=3256385 | Etalpha 0.5 µg 30 Cápsula
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=A11CC03 | DCI=Alfacalcidol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:8532499 "Etalpha, 0,25 mcg x 30 cáps"
+  [dry-run] cmnsu1e3x02wu1slq38cy2yws [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   17. CNP=8532499 | Etalpha, 0,25 mcg x 30 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=A11CC03 | DCI=Alfacalcidol
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:3735685 "Eutirox, 25 mcg x 20 comp"
+  [dry-run] cmnsu1e3x02y01slqucisk6rx [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   18. CNP=3735685 | Eutirox, 25 mcg x 20 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H03 (H03AA01) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3736089 "Eutirox, 25 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y11slqlwv0d1nd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   19. CNP=3736089 | Eutirox, 25 mcg x 60 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H03 (H03AA01) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3742780 "Eutirox, 50 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y21slqaqmubchq [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   20. CNP=3742780 | Eutirox, 50 mcg x 60 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H03 (H03AA01) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3743689 "Eutirox, 75 mcg x 60 comp"
+  [dry-run] cmnsu1e3x02y31slqjyhulj78 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   21. CNP=3743689 | Eutirox, 75 mcg x 60 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H03AA01 | DCI=Levotiroxina sódica
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H03 (H03AA01) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4666889 "Floxapen, 500 mg x 24 cáps"
+  [dry-run] cmnsu1e3y03301slqqcb3t8j6 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   22. CNP=4666889 | Floxapen, 500 mg x 24 cáps
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01CF05 | DCI=Flucloxacilina
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01CF05) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4977096 "Fluconazol Alter 200 Mg 7 Cápsula"
+  [dry-run] cmnsu1e3y03361slqwtuwlg48 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   23. CNP=4977096 | Fluconazol Alter 200 Mg 7 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5661004 "Fluconazol Aurovitas 150 Mg 2 Cápsula"
+  [dry-run] cmnsu1e3y03371slqtyk5ypj5 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   24. CNP=5661004 | Fluconazol Aurovitas 150 Mg 2 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: myhealthbox.eu/…/mhb_logo_site.png → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5722038 "Fluconazol Generis 150 Mg 2 Cápsula"
+  [dry-run] cmnsu1e3y03381slq8a1kh2w3 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   25. CNP=5722038 | Fluconazol Generis 150 Mg 2 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5301650 "Fluconazol Krka 50 Mg 7 Cápsula"
+  [dry-run] cmnsu1e3y03391slq8ntx75ha [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   26. CNP=5301650 | Fluconazol Krka 50 Mg 7 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5862214 "Fluconazol Ratiopharm  200 Mg 14 Cápsula"
+  [dry-run] cmnsu1e3y033e1slqs6kldjkn [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   27. CNP=5862214 | Fluconazol Ratiopharm  200 Mg 14 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5566781 "Fosavance, 70 mg + 2800 UI x 4 comp"
+  [dry-run] cmnsu1e3z035u1slqaf84qb7l [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   28. CNP=5566781 | Fosavance, 70 mg + 2800 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  [MEDICAMENTO 97%] CNP:9507343 "Lepicortinolo, 20 mg x 20 comp"
+  [dry-run] cmnsu1e4503vi1slqqp8gms9z [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   29. CNP=9507343 | Lepicortinolo, 20 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB06 | DCI=Prednisolona
+        image: www.mecofarma.com/…/open_graph_image.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB06) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9507376 "Lepicortinolo, 20 mg x 60 comp"
+  [dry-run] cmnsu1e4503vj1slqwx3u9pnf [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   30. CNP=9507376 | Lepicortinolo, 20 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB06 | DCI=Prednisolona
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB06) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9507327 "Lepicortinolo, 5 mg x 20 comp"
+  [dry-run] cmnsu1e4503vk1slqjdifx04n [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   31. CNP=9507327 | Lepicortinolo, 5 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB06 | DCI=Prednisolona
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB06) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9507368 "Lepicortinolo, 5 mg x 60 comp"
+  [dry-run] cmnsu1e4503vl1slqoi92c6jq [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   32. CNP=9507368 | Lepicortinolo, 5 mg x 60 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB06 | DCI=Prednisolona
+        image: online.farmaciasreisbarata.pt/…/no-image-2048-a2addb12_1200x1200.gif → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB06) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5790381 "Medrol, 16 mg x 50 comp"
+  [dry-run] cmnsu1e4o048t1slq35ez5wov [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   33. CNP=5790381 | Medrol, 16 mg x 50 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB04 | DCI=Metilprednisolona
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB04) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8315226 "Medrol, 4 mg x 20 comp"
+  [dry-run] cmnsu1e4o048u1slqabtvj4j2 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   34. CNP=8315226 | Medrol, 4 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB04 | DCI=Metilprednisolona
+        image: cdn-standardprod.oss.draeger-data.com/…/Draeger-D.png → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB04) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5790282 "Medrol, 4 mg x 50 comp"
+  [dry-run] cmnsu1e4o048v1slq8zhpgy4g [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   35. CNP=5790282 | Medrol, 4 mg x 50 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB04 | DCI=Metilprednisolona
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB04) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9359703 "Pantelmin, 100 mg x 6 comp"
+  [dry-run] cmnsu1e4y055x1slqfceod85e [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   36. CNP=9359703 | Pantelmin, 100 mg x 6 comp
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=P02CA01 | DCI=Mebendazol
+        image: www.farmaciasegura.pthttps/…/default.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix P02 (P02CA01) → Sistema Digestivo
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8657015 "Rosilan, 30 mg x 10 comp"
+  [dry-run] cmnsu1e58061q1slq2rbmetsc [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   37. CNP=8657015 | Rosilan, 30 mg x 10 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB13 | DCI=Deflazacorte
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB13) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8657007 "Rosilan, 6 mg x 20 comp"
+  [dry-run] cmnsu1e58061r1slq9z1fiif5 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   38. CNP=8657007 | Rosilan, 6 mg x 20 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H02AB13 | DCI=Deflazacorte
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H02 (H02AB13) → Hormonas e Corticoides
+        image decision: unchanged — campo já preenchido na BD
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:9434423 "Toloxim, 100 mg x 18 comp"
+  [dry-run] cmnsu1e5d06p31slqy3b13wsd [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   39. CNP=9434423 | Toloxim, 100 mg x 18 comp
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=P02CA01 | DCI=Mebendazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix P02 (P02CA01) → Sistema Digestivo
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5483359 "Yodafar, 0,2 mg x 50 comp"
+  [dry-run] cmnsu1e5j07c41slqt66c54us [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   40. CNP=5483359 | Yodafar, 0,2 mg x 50 comp
+        nivel2: "Outros Medicamentos" → "Hormonas e Corticoides"
+        ATC=H03CA | DCI=Iodeto de potássio
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix H03 (H03CA) → Hormonas e Corticoides
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8644815 "Zentel, 400 mg x 1 comp"
+  [dry-run] cmnsu1e5j07d81slqkfmnp05h [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   41. CNP=8644815 | Zentel, 400 mg x 1 comp
+        nivel2: "Outros Medicamentos" → "Sistema Digestivo"
+        ATC=P02CA03 | DCI=Albendazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix P02 (P02CA03) → Sistema Digestivo
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:8583906 "Zovirax, 200 mg x 25 comp"
+  [dry-run] cmnsu1e5k07fe1slqsub1gqri [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   42. CNP=8583906 | Zovirax, 200 mg x 25 comp
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J05 (J05AB01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4607784 "ACICLOVIR GENERIS 800 MG X 25 COMP"
+  [dry-run] cmnsu49ow21dy1slqs5jq5a5e [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   43. CNP=4607784 | ACICLOVIR GENERIS 800 MG X 25 COMP
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J05AB01 | DCI=Aciclovir
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J05 (J05AB01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:3095791 "AZITROMICINA GENERIS SUSP 200 MG/5ML 15 ML"
+  [dry-run] cmnsu49oy21on1slqqlqk3o3d [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   44. CNP=3095791 | AZITROMICINA GENERIS SUSP 200 MG/5ML 15 ML
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J01FA10 | DCI=Azitromicina
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J01 (J01FA10) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2846194 "FLUCONAZOL ALTER CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jl1slqpzltfrxy [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   45. CNP=2846194 | FLUCONAZOL ALTER CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:5856034 "Fluconazol Ratiopharm  150 Mg 2 Cápsula"
+  [dry-run] cmnsu49p522jo1slqrsv1pwz3 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   46. CNP=5856034 | Fluconazol Ratiopharm  150 Mg 2 Cápsula
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:2846798 "FLUCONAZOL SUPREMASE CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jp1slqr7ybktmt [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   47. CNP=2846798 | FLUCONAZOL SUPREMASE CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+  [MEDICAMENTO 97%] CNP:4849089 "FLUCONAZOL TOLI G CAPS 150 MG X 2"
+  [dry-run] cmnsu49p522jq1slqisnrilt0 [MEDICAMENTO 97%]:
+    Campos: nenhum
+    Verificação: PARTIALLY_VERIFIED (downgrade de VERIFIED) | Estado: PENDENTE
+   48. CNP=4849089 | FLUCONAZOL TOLI G CAPS 150 MG X 2
+        nivel2: "Outros Medicamentos" → "Anti-infecciosos"
+        ATC=J02AC01 | DCI=Fluconazol
+        image: — → —
+        mapping reason: (dry-run) atc_prefix: nivel1 via productType=MEDICAMENTO → MEDICAMENTOS; ATC prefix J02 (J02AC01) → Anti-infecciosos
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: updated (cat: improved)
+
+— Batch 1 —
+  processed=48 updated=44 unchanged=4 failed=0
+  reclassN2=44 +atc=0 +dci=0 +img=0 still-outros=4
+  signal: hasATC=48 hasDCI=48 hasAtcOrDci=48 hasNeither=0
+  reclass por método: atc_prefix=44 atc(letra)=0 dci=0 keyword=0 outro=0
+  ATENÇÃO: 4 produto(s) com ATC/DCI mas continuam em Outros Medicamentos — possível gap de regras no mapper.
+
+  Categorias do batch 1:
+    1. Improved (n2 reclassificado):                44
+    2. Still Outros — sem ATC/DCI signal:           0
+    3. Still Outros — falta regra para ATC/DCI:     4
+    4. Image found and safe:                        0
+    5. Image skipped (com razão):                   0
+    6. Suspicious / needs manual review:            0
+    7. productType duvidoso (poss. não-medicamento):0
+    -. Já estava OK / sem alteração:                0
+
+  Exemplos — outros_missing_rule (até 5):
+    2. CNP=5062500 | Adrovance, 70 mg + 5600 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+   16. CNP=3256385 | Etalpha 0.5 µg 30 Cápsula
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=A11CC03 | DCI=Alfacalcidol
+        image: www.farmaciamymed24.pt/…/farmaceutica.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+   17. CNP=8532499 | Etalpha, 0,25 mcg x 30 cáps
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=A11CC03 | DCI=Alfacalcidol
+        image: www.farmaciaon.pt/…/produto_farmaciaonMSRM.jpg → —
+        image decision: unchanged — campo já preenchido na BD
+        outcome: unchanged (cat: outros_missing_rule)
+   28. CNP=5566781 | Fosavance, 70 mg + 2800 UI x 4 comp
+        nivel2: "Outros Medicamentos" == "Outros Medicamentos"
+        ATC=M05BB03 | DCI=Ácido alendrónico + Colecalciferol
+        image: — → —
+        image decision: skipped — nenhuma fonte devolveu valor
+        outcome: unchanged (cat: outros_missing_rule)
+  progresso: 48/48 (~0 restantes neste pass)
+
+[stop] --first-batch-only activo. Para continuar: re-corre sem essa flag.
+
+══════════════════════════════════════════════════════════════════════
+SUMÁRIO FINAL
+══════════════════════════════════════════════════════════════════════
+  total processados:           48
+  total actualizados:          44
+  total sem alterações:        4
+  total falharam:              0
+  reclassificações de N2:      44
+  ATC preenchido:              0
+  DCI preenchido:              0
+  imagens adicionadas:         0
+  "Outros Medicamentos" antes: 5805
+  "Outros Medicamentos" depois:5761 (estimado, dry-run)
+  modo:                        DRY-RUN (sem escrita em BD)
+
+  Métricas de sinal (ATC/DCI):
+    com ATC:                       48
+    com DCI:                       48
+    com ATC ou DCI:                48
+    sem nenhum dos dois:           0
+
+  Reclassificações por método:
+    via ATC prefix (3 chars):      44
+    via ATC letter (1 char):       0
+    via DCI (keyword no DCI):      0
+    via keyword (designação):      0
+    via outro:                     0
+
+  Continuam em "Outros Medicamentos":
+    apesar de ter ATC ou DCI:      4
+    sem qualquer sinal:            0
+
+  Distribuição por categoria de análise:
+    1. Improved:                  44
+    2. Still Outros (no signal):  0
+    3. Still Outros (rule gap):   4
+    4. Image found and safe:      0
+    5. Image skipped:             0
+    6. Suspicious / review:       0
+    7. productType duvidoso:      0
+    -. Already OK:                0
+
+  Recomendação:
+    · 44 reclassificação(ões) propostas vão sair de "Outros Medicamentos".
+    · 4 produto(s) com ATC/DCI MAS sem regra que melhore — oportunidade para enriquecer ATC_PREFIX_TO_NIVEL2 / KEYWORD_RULES numa iteração futura.
+    · Se os números acima parecerem razoáveis, próximo passo: correr o mesmo comando sem --dry-run para aplicar o primeiro batch real.
+══════════════════════════════════════════════════════════════════════

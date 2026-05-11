@@ -43,6 +43,8 @@ export const CANONICAL_TAXONOMY: CanonicalCategory[] = [
       "Urológicos",
       "Respiratório",
       "Antisséticos e Desinfetantes",
+      "Anti-infecciosos",
+      "Hormonas e Corticoides",
       "Outros Medicamentos",
     ],
   },
