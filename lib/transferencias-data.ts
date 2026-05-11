@@ -16,6 +16,11 @@ import {
   coverageDays,
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
+import {
+  findInternalSubstitutions,
+  type InternalSubstitution,
+  type SubstitutionOptions,
+} from "@/lib/transfers/internal-substitution";
 
 export type Priority = "alta" | "media" | "baixa";
 
@@ -347,4 +352,52 @@ export async function getExcessosData(
 
   result.sort((a, b) => b.coberturaOrigem - a.coberturaOrigem);
   return result.slice(0, 200);
+}
+
+/**
+ * Substituição operacional interna (WS-C Fase 1): para produtos em
+ * ruptura iminente, encontra **mesmo CNP** com excesso noutra
+ * farmácia do grupo. Mais agressivo do que `getTransferenciasData`
+ * — destinos com `coverage < 7d` e origens com `coverage > 30d`.
+ *
+ * NÃO substitui `getTransferenciasData` — é um path adicional focado
+ * em "encomendas evitáveis hoje". Para o relatório de transferência
+ * tradicional (rebalancing entre farmácias com ratio 2.5:1), continua
+ * a usar `getTransferenciasData`.
+ *
+ * Output: linhas `InternalSubstitution` com `suggestedSourceFarmaciaId`,
+ * `stockCoverageOrigin`, `stockCoverageDestination`,
+ * `avoidedPurchaseEstimate`. Ordenado por € poupados desc.
+ */
+export async function getInternalSubstitutionsData(
+  options?: SubstitutionOptions,
+): Promise<InternalSubstitution[]> {
+  const prisma = await getPrisma();
+  const farmacias = await prisma.farmacia.findMany({
+    where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
+    select: { id: true, nome: true },
+    orderBy: { nome: "asc" },
+  });
+  const farmaciaIds = farmacias.map((f) => f.id);
+  if (farmaciaIds.length < 2) return [];
+
+  // includeOutOfStock=true porque o destino em ruptura pode ter
+  // stockAtual=0. A origem precisa de ter stock para ser candidata —
+  // o filtro final acontece em findInternalSubstitutions.
+  const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds, {
+    includeOutOfStock: true,
+  });
+
+  const input = pfRows.map((p) => ({
+    produtoId: p.produtoId,
+    farmaciaId: p.farmaciaId,
+    farmaciaNome: p.farmaciaNome,
+    cnp: p.cnp,
+    designacao: p.designacao,
+    stockAtual: Number(p.stockAtual),
+    puc: p.puc,
+    salesQty: salesMap.get(`${p.produtoId}:${p.farmaciaId}`) ?? 0,
+  }));
+
+  return findInternalSubstitutions(input, options);
 }
