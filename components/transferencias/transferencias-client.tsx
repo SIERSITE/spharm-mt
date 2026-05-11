@@ -47,6 +47,10 @@ type TransferSuggestionRow = {
   fornecedor: string;
   prioridade: Priority;
   observacao?: string;
+  // Enriquecimento clínico — opcional para retro-compat com snapshots
+  // antigos que não tinham estes campos.
+  dci?: string | null;
+  codigoATC?: string | null;
 };
 
 type ReportSnapshot = {
@@ -870,6 +874,10 @@ export function TransferenciasClient({
                           <Link
                             href={`/stock/artigo/${row.cnp}`}
                             className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
+                            title={[
+                              row.dci ? `DCI: ${row.dci}` : null,
+                              row.codigoATC ? `ATC: ${row.codigoATC}` : null,
+                            ].filter(Boolean).join(" · ") || undefined}
                           >
                             {row.produto}
                           </Link>
@@ -879,6 +887,20 @@ export function TransferenciasClient({
                                 — não pertence à identidade do artigo. */}
                             {[row.fabricante, row.categoria].filter(Boolean).join(" · ") || "—"}
                           </div>
+                          {(row.codigoATC || row.dci) && (
+                            <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] text-slate-500">
+                              {row.codigoATC && (
+                                <span className="rounded bg-slate-100 px-1 font-mono text-slate-600">
+                                  {row.codigoATC}
+                                </span>
+                              )}
+                              {row.dci && (
+                                <span className="truncate" title={row.dci}>
+                                  · {row.dci}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className="mt-1">
                             <PriorityBadge prioridade={row.prioridade} />
                           </div>

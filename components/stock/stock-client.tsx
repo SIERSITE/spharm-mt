@@ -327,13 +327,27 @@ export function StockClient({
                     href={`/stock/artigo/${row.cnp}`}
                     onClick={(e) => e.stopPropagation()}
                     className="group block"
-                    title={`Abrir ficha de ${row.product}`}
+                    title={[
+                      `Abrir ficha de ${row.product}`,
+                      row.dci ? `DCI: ${row.dci}` : null,
+                      row.codigoATC ? `ATC: ${row.codigoATC}` : null,
+                    ].filter(Boolean).join(" · ")}
                   >
                     <span className="block truncate font-semibold text-slate-900 transition duration-150 group-hover:text-emerald-700 group-hover:underline group-hover:underline-offset-2">
                       {row.product}
                     </span>
-                    <div className="mt-0.5 text-[11px] text-slate-500 transition group-hover:text-slate-600">
-                      CNP {row.cnp}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-500 transition group-hover:text-slate-600">
+                      <span>CNP {row.cnp}</span>
+                      {row.codigoATC && (
+                        <span className="rounded bg-slate-100 px-1 font-mono text-[10px] text-slate-600">
+                          {row.codigoATC}
+                        </span>
+                      )}
+                      {row.dci && (
+                        <span className="truncate text-slate-500" title={row.dci}>
+                          · {row.dci}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 </div>

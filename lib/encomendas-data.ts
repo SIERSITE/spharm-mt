@@ -48,6 +48,9 @@ export type EncomendaBaseRow = {
   fornecedor: string; // grossista habitual
   fabricante: string; // canónico
   categoria: string;
+  // Enriquecimento clínico — surfaced em tooltip + chip ATC na UI.
+  dci: string | null;
+  codigoATC: string | null;
   movimentos6M: EncomendaMonthlyMovement[];
   ultimasCompras: EncomendaPurchaseHistory[];
   condicoesFornecedor: EncomendaSupplierCondition[];
@@ -364,6 +367,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       fornecedor: pf.fornecedorOrigem ?? "",
       fabricante: pf.fabricanteCanonico ?? "",
       categoria: categoriaResolvida,
+      dci: pf.dci,
+      codigoATC: pf.codigoATC,
       movimentos6M,
       ultimasCompras: [], // ver nota
       condicoesFornecedor: [], // ver nota

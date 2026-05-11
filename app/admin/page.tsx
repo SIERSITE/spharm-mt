@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   loadAdminOverviewSummary,
   listTenantOverviews,
+  loadIpfFreshnessForAdmin,
 } from "@/lib/admin/tenant-data";
 import { CheckCircle2, AlertTriangle, AlertCircle, Activity } from "lucide-react";
 
@@ -34,9 +35,10 @@ function Stat({
 }
 
 export default async function AdminOverviewPage() {
-  const [summary, tenants] = await Promise.all([
+  const [summary, tenants, ipfFreshness] = await Promise.all([
     loadAdminOverviewSummary(),
     listTenantOverviews(),
+    loadIpfFreshnessForAdmin(),
   ]);
 
   return (
@@ -79,6 +81,59 @@ export default async function AdminOverviewPage() {
           </div>
         </div>
       </section>
+
+      {/* IPF read-model freshness — surfaced para monitorização operacional.
+          Sem nova infra; consome `getIpfFreshness` já implementado. */}
+      {ipfFreshness && (
+        <section
+          className={`rounded-2xl border px-5 py-4 ${
+            ipfFreshness.healthy
+              ? "border-emerald-200 bg-emerald-50"
+              : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-4 text-[13px]">
+            <div className="flex items-center gap-2 font-semibold text-slate-900">
+              {ipfFreshness.healthy ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              )}
+              IPF read-model: {ipfFreshness.healthy ? "saudável" : "atenção"}
+            </div>
+            <span className="text-slate-700">
+              {ipfFreshness.totalIpfRows.toLocaleString("pt-PT")} linhas
+            </span>
+            <span className="text-slate-700">
+              cobertura{" "}
+              <span className="font-semibold">
+                {(ipfFreshness.coverage * 100).toFixed(2)}%
+              </span>
+            </span>
+            <span className="text-slate-700">
+              último refresh{" "}
+              <span className="font-semibold">
+                {ipfFreshness.ageHours === null
+                  ? "—"
+                  : ipfFreshness.ageHours < 1
+                    ? `${Math.round(ipfFreshness.ageHours * 60)} min`
+                    : `${ipfFreshness.ageHours.toFixed(1)} h`}
+              </span>
+            </span>
+            <span className="text-[11px] text-slate-500">
+              (threshold {ipfFreshness.thresholdHours}h ·{" "}
+              {(ipfFreshness.thresholdCoverage * 100).toFixed(0)}%)
+            </span>
+          </div>
+          {!ipfFreshness.healthy && ipfFreshness.reasons.length > 0 && (
+            <ul className="mt-2 ml-1 list-disc pl-4 text-[12px] text-amber-800">
+              {ipfFreshness.reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="Tenants" value={summary.totalTenants} />

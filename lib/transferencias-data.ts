@@ -48,6 +48,9 @@ export type TransferSuggestionRow = {
    * registado.
    */
   valorUnlocked: number;
+  // Enriquecimento clínico — surfaced em tooltip na UI.
+  dci: string | null;
+  codigoATC: string | null;
 };
 
 function toF(v: unknown): number {
@@ -73,6 +76,10 @@ export type PfBase = {
   canonN2: string | null;
   fornecedorOrigem: string | null;
   fabricanteCanonico: string | null;
+  // Enriquecimento clínico — usado por tooltips na UI (item 3) e pelo
+  // detector DCI-equivalente (lib/transfers/dci-equivalent-substitution).
+  dci: string | null;
+  codigoATC: string | null;
 };
 
 export type LoadPfAndSalesOptions = {
@@ -120,7 +127,9 @@ export async function loadPfAndSales(
       c1.nome                          AS "canonN1",
       c2.nome                          AS "canonN2",
       pf."fornecedorOrigem",
-      fab."nomeNormalizado"            AS "fabricanteCanonico"
+      fab."nomeNormalizado"            AS "fabricanteCanonico",
+      p.dci                            AS dci,
+      p."codigoATC"                    AS "codigoATC"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p ON p.id  = pf."produtoId"
     JOIN "Farmacia" f ON f.id  = pf."farmaciaId"
@@ -253,6 +262,8 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
                 ? "Transferência recomendada antes de reposição externa."
                 : "Afinação opcional de cobertura.",
           valorUnlocked,
+          dci: origem.dci,
+          codigoATC: origem.codigoATC,
         });
       }
     }
@@ -362,6 +373,8 @@ export async function getExcessosData(
         prioridade,
         observacao: `Excesso de ${Math.round(entry.coverage)} dias de cobertura.`,
         valorUnlocked,
+        dci: entry.dci,
+        codigoATC: entry.codigoATC,
       });
     }
   }

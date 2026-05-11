@@ -60,6 +60,9 @@ export type StockRowEnriched = {
   avgDaily90d: number;
   /** stockAtual / avgDaily90d. null quando avgDaily=0 (sem demanda mensurável). */
   coverage: number | null;
+  // Enriquecimento clínico — surfaced em tooltip na UI.
+  dci: string | null;
+  codigoATC: string | null;
 };
 
 // ─── Predicado pura — sem I/O, sem Prisma. Re-utilizável em qualquer lado. ───
@@ -95,6 +98,9 @@ export type StockRow = {
   lastMovement: string;
   status: "Estável" | "Baixa cobertura" | "Parado" | "Transferência sugerida";
   suggestion?: string;
+  // Enriquecimento clínico — surfaced em tooltip na UI.
+  dci?: string | null;
+  codigoATC?: string | null;
 };
 
 export type StockMetrics = {

@@ -91,6 +91,8 @@ export async function loadStockEnriched(
       salesQty90d,
       avgDaily90d,
       coverage,
+      dci: p.dci,
+      codigoATC: p.codigoATC,
     };
   });
 }
@@ -160,6 +162,8 @@ function toLegacyRow(
     lastMovement,
     status,
     suggestion,
+    dci: row.dci,
+    codigoATC: row.codigoATC,
   };
 }
 

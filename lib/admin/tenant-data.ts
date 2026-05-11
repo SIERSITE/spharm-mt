@@ -1,6 +1,8 @@
 import "server-only";
 import { controlPrisma, listTenants, type TenantRecord } from "@/lib/control-plane";
 import { getTenantPrismaForAdmin } from "@/lib/admin/tenant-client";
+import { legacyPrisma } from "@/lib/prisma";
+import { getIpfFreshness, type IpfFreshness } from "@/lib/operational/ipf-freshness";
 
 /**
  * lib/admin/tenant-data.ts
@@ -246,5 +248,23 @@ export async function loadAdminOverviewSummary(): Promise<AdminOverviewSummary> 
       controlPlaneOk: false,
       controlPlaneError: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/**
+ * Snapshot do read-model IPF (legacy DB). Surfaced no /admin para
+ * monitorização operacional simples — diz quando foi a última
+ * actualização e se o read-model está saudável.
+ *
+ * Falha silenciosa: se a BD não responder, devolve `null` em vez de
+ * propagar — o admin não tem que cair só porque IPF está em
+ * manutenção.
+ */
+export async function loadIpfFreshnessForAdmin(): Promise<IpfFreshness | null> {
+  try {
+    return await getIpfFreshness(legacyPrisma);
+  } catch (err) {
+    console.error("[admin/loadIpfFreshness] failed:", err);
+    return null;
   }
 }

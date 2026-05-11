@@ -95,6 +95,13 @@ export type ForEachOptions = {
    * todos). Default `false` — handler de erro é silencioso após log.
    */
   rethrowFirstError?: boolean;
+  /**
+   * Limite de concorrência. Default `1` (sequencial). Quando > 1 corre
+   * até `parallelLimit` tenants em paralelo via fila simples. Cada
+   * tenant abre uma conexão Neon — respeitar budget do plano antes de
+   * elevar (ver `notes/infra-hardening-plan.md`).
+   */
+  parallelLimit?: number;
 };
 
 /**
@@ -116,7 +123,11 @@ export async function forEachActiveTenant(
     ? allActive.filter((t) => options.onlySlugs!.includes(t.slug))
     : allActive;
 
-  log(`Iniciando: ${tenants.length} tenant(s) ACTIVE${options.onlySlugs ? " (filtrado)" : ""}`);
+  const limit = Math.max(1, options.parallelLimit ?? 1);
+  log(
+    `Iniciando: ${tenants.length} tenant(s) ACTIVE${options.onlySlugs ? " (filtrado)" : ""}` +
+      (limit > 1 ? ` · parallelLimit=${limit}` : ""),
+  );
 
   const summary: TenantIterSummary = {
     total: tenants.length,
@@ -127,11 +138,9 @@ export async function forEachActiveTenant(
   };
   let firstError: unknown = null;
 
-  for (let i = 0; i < tenants.length; i++) {
-    const tenant = tenants[i]!;
+  const processOne = async (tenant: TenantRecord, ordinal: number): Promise<void> => {
     const t0Tenant = Date.now();
-    log(`[${i + 1}/${tenants.length}] tenant=${tenant.slug} (estado=${tenant.estado})`);
-
+    log(`[${ordinal}/${tenants.length}] tenant=${tenant.slug} (estado=${tenant.estado})`);
     try {
       const prisma = await getTenantPrismaOrLegacy(tenant.slug);
       await handler({ tenant, prisma });
@@ -144,6 +153,24 @@ export async function forEachActiveTenant(
       log(`  ✗ ${tenant.slug} falhou: ${msg.slice(0, 200)}`);
       if (firstError === null) firstError = err;
     }
+  };
+
+  if (limit === 1) {
+    for (let i = 0; i < tenants.length; i++) {
+      await processOne(tenants[i]!, i + 1);
+    }
+  } else {
+    // Fila simples: cada worker puxa o próximo índice atómico.
+    let nextIdx = 0;
+    const total = tenants.length;
+    const workers = Array.from({ length: Math.min(limit, total) }, async () => {
+      while (true) {
+        const idx = nextIdx++;
+        if (idx >= total) return;
+        await processOne(tenants[idx]!, idx + 1);
+      }
+    });
+    await Promise.all(workers);
   }
 
   summary.durationMs = Date.now() - t0;

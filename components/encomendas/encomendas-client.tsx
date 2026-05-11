@@ -53,6 +53,8 @@ type EncomendaFarmaciaRow = {
   fornecedor: string;
   fabricante: string;
   categoria: string;
+  dci?: string | null;
+  codigoATC?: string | null;
   valorEstimado: number;
   prioridade: Prioridade;
   movimentos6M: MonthlyMovement[];
@@ -85,6 +87,8 @@ type GroupEncomendaRow = {
   fornecedor: string;
   fabricante: string;
   categoria: string;
+  dci: string | null;
+  codigoATC: string | null;
   stockGrupo: number;
   sugestaoGrupo: number;
   encomendarGrupo: number;
@@ -319,6 +323,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     fornecedor: first.fornecedor,
     fabricante: first.fabricante,
     categoria: first.categoria,
+    dci: first.dci ?? null,
+    codigoATC: first.codigoATC ?? null,
     stockGrupo,
     sugestaoGrupo,
     encomendarGrupo: sugestaoGrupo,
@@ -922,10 +928,26 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                         <Link
                           href={`/stock/artigo/${row.cnp}`}
                           className="block leading-5 font-semibold text-slate-900 transition hover:text-emerald-600"
+                          title={[
+                            row.dci ? `DCI: ${row.dci}` : null,
+                            row.codigoATC ? `ATC: ${row.codigoATC}` : null,
+                          ].filter(Boolean).join(" · ") || undefined}
                         >
                           {row.produto}
                         </Link>
-                        <div className="text-[12px] text-slate-500">CNP {row.cnp}</div>
+                        <div className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-slate-500">
+                          <span>CNP {row.cnp}</span>
+                          {row.codigoATC && (
+                            <span className="rounded bg-slate-100 px-1 font-mono text-[10px] text-slate-600">
+                              {row.codigoATC}
+                            </span>
+                          )}
+                          {row.dci && (
+                            <span className="truncate text-slate-500" title={row.dci}>
+                              · {row.dci}
+                            </span>
+                          )}
+                        </div>
                         {row.hasInternalSubstitution && (
                           <div
                             className="mt-1 inline-flex items-center gap-1 rounded-md border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700"
