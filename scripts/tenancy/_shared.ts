@@ -2,6 +2,7 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+import { validateEnvOrThrow } from "../../lib/env";
 
 /**
  * Helpers partilhados por todos os scripts de tenancy.
@@ -17,13 +18,16 @@ import pg from "pg";
 
 export const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/;
 
-/** Exit com mensagem se qualquer env obrigatória do control plane falhar. */
+/**
+ * Exit com mensagem accionável se qualquer env obrigatória do control
+ * plane falhar. Delegado para `lib/env.ts` — single source of truth
+ * para descrição e exemplo de cada chave.
+ */
 export function requireControlEnv(): void {
-  const missing: string[] = [];
-  if (!process.env.CONTROL_DATABASE_URL) missing.push("CONTROL_DATABASE_URL");
-  if (!process.env.TENANT_ENCRYPTION_SECRET) missing.push("TENANT_ENCRYPTION_SECRET");
-  if (missing.length > 0) {
-    console.error(`[tenancy] env em falta: ${missing.join(", ")}`);
+  try {
+    validateEnvOrThrow(["CONTROL_DATABASE_URL", "TENANT_ENCRYPTION_SECRET"]);
+  } catch (err) {
+    console.error(`[tenancy] ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
 }
@@ -34,11 +38,10 @@ export function requireControlEnv(): void {
  * migrate, health) não precisam.
  */
 export function requireAdminEnv(): void {
-  const missing: string[] = [];
-  if (!process.env.POSTGRES_ADMIN_URL) missing.push("POSTGRES_ADMIN_URL");
-  if (!process.env.TENANT_DB_HOST) missing.push("TENANT_DB_HOST");
-  if (missing.length > 0) {
-    console.error(`[tenancy] env em falta para operações admin: ${missing.join(", ")}`);
+  try {
+    validateEnvOrThrow(["POSTGRES_ADMIN_URL", "TENANT_DB_HOST"]);
+  } catch (err) {
+    console.error(`[tenancy] ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
 }
