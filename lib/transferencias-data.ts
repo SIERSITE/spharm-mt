@@ -11,6 +11,11 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import {
+  avgDaily,
+  coverageDays,
+  WINDOW_90D,
+} from "@/lib/operational/metrics-shared";
 
 export type Priority = "alta" | "media" | "baixa";
 
@@ -160,10 +165,11 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
   const byProduto = new Map<string, Entry[]>();
   for (const row of pfRows) {
     const qty3m = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
-    const avgDaily = qty3m / 90;
-    const coverage = avgDaily > 0 ? toF(row.stockAtual) / avgDaily : Infinity;
+    const ad = avgDaily(qty3m, WINDOW_90D);
+    const cov = coverageDays(toF(row.stockAtual), ad);
+    const coverage = cov === null ? Infinity : cov;
     if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);
-    byProduto.get(row.produtoId)!.push({ ...row, avgDaily, coverage });
+    byProduto.get(row.produtoId)!.push({ ...row, avgDaily: ad, coverage });
   }
 
   const result: TransferSuggestionRow[] = [];
@@ -280,10 +286,11 @@ export async function getExcessosData(
   const byProduto = new Map<string, Entry[]>();
   for (const row of pfRows) {
     const qty3m = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
-    const avgDaily = qty3m / 90;
-    const coverage = avgDaily > 0 ? toF(row.stockAtual) / avgDaily : Infinity;
+    const ad = avgDaily(qty3m, WINDOW_90D);
+    const cov = coverageDays(toF(row.stockAtual), ad);
+    const coverage = cov === null ? Infinity : cov;
     if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);
-    byProduto.get(row.produtoId)!.push({ ...row, avgDaily, coverage });
+    byProduto.get(row.produtoId)!.push({ ...row, avgDaily: ad, coverage });
   }
 
   const result: TransferSuggestionRow[] = [];

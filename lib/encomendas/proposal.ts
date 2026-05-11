@@ -2,6 +2,7 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { avgDaily } from "@/lib/operational/metrics-shared";
 
 /**
  * lib/encomendas/proposal.ts
@@ -207,7 +208,10 @@ export async function generateOrderProposal(
   const rows: ProposalRow[] = [];
   for (const r of rawRows) {
     const salesQty = toF(r.salesQty);
-    const avgDailySales = salesQty / numDays;
+    // avgDaily canónico via lib/operational/metrics-shared. A janela é
+    // a definida pelo utilizador (numDays) e a fonte é `Venda` diária
+    // (diferente dos outros loaders que usam VendaMensal × 90d).
+    const avgDailySales = avgDaily(salesQty, numDays);
     const target =
       input.baseRule === "total"
         ? salesQty

@@ -13,6 +13,12 @@ import "server-only";
 import { loadPfAndSales } from "@/lib/transferencias-data";
 import { getPrisma } from "@/lib/prisma";
 import {
+  avgDaily,
+  coverageDays,
+  rotationClass,
+  WINDOW_90D,
+} from "@/lib/operational/metrics-shared";
+import {
   matchStockFilter,
   type StockFilter,
   type StockMetrics,
@@ -34,8 +40,6 @@ export type {
 } from "@/lib/stock-shared";
 
 // ─── Loader (full dataset) ───────────────────────────────────────────────────
-
-const DAYS_90 = 90;
 
 async function getActiveFarmaciaIds(): Promise<string[]> {
   const prisma = await getPrisma();
@@ -60,8 +64,8 @@ export async function loadStockEnriched(
 
   return pfRows.map((p) => {
     const salesQty90d = salesMap.get(`${p.produtoId}:${p.farmaciaId}`) ?? 0;
-    const avgDaily90d = salesQty90d / DAYS_90;
-    const coverage = avgDaily90d > 0 ? Number(p.stockAtual) / avgDaily90d : null;
+    const avgDaily90d = avgDaily(salesQty90d, WINDOW_90D);
+    const coverage = coverageDays(Number(p.stockAtual), avgDaily90d);
     return {
       produtoId: p.produtoId,
       farmaciaId: p.farmaciaId,
@@ -123,8 +127,8 @@ function toLegacyRow(
   }
 
   const coverageStr = coverage === null ? "∞" : `${Math.round(coverage)} dias`;
-  const rotationStr =
-    avgDaily90d > 0.5 ? "Alta" : avgDaily90d > 0.1 ? "Média" : "Baixa";
+  const rotClass = rotationClass(avgDaily90d, null);
+  const rotationStr = rotClass === "alta" ? "Alta" : rotClass === "media" ? "Média" : "Baixa";
 
   let lastMovement = "—";
   if (dataUltimaVenda) {

@@ -14,6 +14,12 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import {
+  avgDaily,
+  coverageDays,
+  monthlyVelocity,
+  WINDOW_90D,
+} from "@/lib/operational/metrics-shared";
 
 export type EncomendaMonthlyMovement = { mes: string; compras: number; vendas: number };
 export type EncomendaPurchaseHistory = {
@@ -154,11 +160,14 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     const recent3 = vendas
       .filter((v) => v.ano * 12 + v.mes >= periodEnd - 3)
       .reduce((s, v) => s + v.qty, 0);
-    const avgDaily = recent3 / 90;
-    const rotacaoMedia = Math.round(avgDaily * 30 * 10) / 10; // unidades/mês, 1 casa decimal
+    const ad = avgDaily(recent3, WINDOW_90D);
+    const rotacaoMedia = monthlyVelocity(ad);
     const stockAtual = Math.round(toF(pf.stockAtual));
-    const coberturaAtual =
-      avgDaily > 0 ? Math.round(stockAtual / avgDaily) : stockAtual > 0 ? 999 : 0;
+    // Convenção legada do shape EncomendaBaseRow: 999 quando há stock
+    // mas sem demanda mensurável; 0 quando stock vazio. coverageDays
+    // canónico devolve null no primeiro caso — mapear no boundary.
+    const cov = coverageDays(stockAtual, ad);
+    const coberturaAtual = cov === null ? 999 : Math.round(cov);
 
     // Movimentos 6M — só vendas; compras ficam a 0 enquanto não houver pipeline real
     const movimentos6M: EncomendaMonthlyMovement[] = vendas

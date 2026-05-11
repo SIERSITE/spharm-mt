@@ -178,28 +178,28 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const fabricantes = filterOptions.fabricantes;
   const categorias = filterOptions.categorias;
 
+  // A rotacaoMedia vem já calculada pelo server (lib/operational/metrics-shared)
+  // a partir de VendaMensal × 90d. O selector "Período" controla apenas a
+  // cobertura-alvo lida (via coberturaAlvoDias) e a UX de leitura — NÃO
+  // reescreve o número server. O factor mágico ×1.08/×1.04/×1/×0.96/×0.93
+  // que existia aqui foi removido em Fase 1 WS-A: deformava o output
+  // server (até 8% acima ou 7% abaixo) sem base estatística e fazia com
+  // que o número visível ao utilizador não correspondesse ao que estava
+  // na BD.
   const rowsCalculadas = useMemo<EncomendaFarmaciaRow[]>(() => {
     return initialRows.map((item) => {
-      const fatorPeriodo =
-        periodoAnalise === 7 ? 1.08 :
-        periodoAnalise === 15 ? 1.04 :
-        periodoAnalise === 30 ? 1 :
-        periodoAnalise === 60 ? 0.96 : 0.93;
-
-      const rotacaoAjustada = Number((item.rotacaoMedia * fatorPeriodo).toFixed(1));
-      const sugestao = calcularSugestao(item.stockAtual, rotacaoAjustada, coberturaAlvoDias);
+      const sugestao = calcularSugestao(item.stockAtual, item.rotacaoMedia, coberturaAlvoDias);
       const prioridade = calcularPrioridade(item.coberturaAtual, sugestao);
-      const valorEstimado = Number((sugestao * (4.5 + rotacaoAjustada * 1.8)).toFixed(2));
+      const valorEstimado = Number((sugestao * (4.5 + item.rotacaoMedia * 1.8)).toFixed(2));
 
       return {
         ...item,
-        rotacaoMedia: rotacaoAjustada,
         sugestao,
         prioridade,
         valorEstimado,
       };
     });
-  }, [periodoAnalise, coberturaAlvoDias]);
+  }, [initialRows, coberturaAlvoDias]);
 
   const groupRows = useMemo<GroupEncomendaRow[]>(() => {
     const filtered = rowsCalculadas.filter((row) => {
