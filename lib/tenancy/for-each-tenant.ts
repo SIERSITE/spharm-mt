@@ -30,9 +30,39 @@
  * (ver `notes/infra-hardening-plan.md`).
  */
 
-import { listTenants, type TenantRecord } from "@/lib/control-plane";
+import { getControlPrismaCli } from "@/lib/sync/control-client-cli";
 import { getTenantPrismaOrLegacy } from "@/lib/tenant-registry";
 import type { PrismaClient } from "@/generated/prisma/client";
+
+/**
+ * Minimal subset de `Tenant` que este iterador precisa. Definido aqui
+ * para evitar arrastar o tipo completo de `lib/control-plane.ts` (que
+ * tem `import "server-only"` e quebra em CLI).
+ */
+export type TenantRecord = {
+  id: string;
+  slug: string;
+  nome: string;
+  estado: "PROVISIONING" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED" | "FAILED";
+  dbHost: string;
+  dbName: string;
+};
+
+async function listActiveTenantsCli(): Promise<TenantRecord[]> {
+  const prisma = getControlPrismaCli();
+  return prisma.tenant.findMany({
+    where: { estado: "ACTIVE" },
+    select: {
+      id: true,
+      slug: true,
+      nome: true,
+      estado: true,
+      dbHost: true,
+      dbName: true,
+    },
+    orderBy: [{ slug: "asc" }],
+  });
+}
 
 export type TenantIterContext = {
   tenant: TenantRecord;
@@ -81,7 +111,7 @@ export async function forEachActiveTenant(
   const t0 = Date.now();
   const log = options.onProgress ?? ((msg: string) => console.log(`[for-each-tenant] ${msg}`));
 
-  const allActive = await listTenants({ estado: "ACTIVE" });
+  const allActive = await listActiveTenantsCli();
   const tenants = options.onlySlugs
     ? allActive.filter((t) => options.onlySlugs!.includes(t.slug))
     : allActive;
@@ -142,7 +172,7 @@ export async function forSingleTenant(
   options: { onProgress?: (msg: string) => void } = {},
 ): Promise<boolean> {
   const log = options.onProgress ?? ((msg: string) => console.log(`[for-tenant] ${msg}`));
-  const allActive = await listTenants({ estado: "ACTIVE" });
+  const allActive = await listActiveTenantsCli();
   const tenant = allActive.find((t) => t.slug === slug);
   if (!tenant) {
     log(`tenant slug="${slug}" não encontrado em estado ACTIVE.`);

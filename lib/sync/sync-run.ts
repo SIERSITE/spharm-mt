@@ -30,7 +30,7 @@
  * separado a correr periodicamente).
  */
 
-import { controlPrisma } from "@/lib/control-plane";
+import { getControlPrismaCli } from "@/lib/sync/control-client-cli";
 import { hostname } from "node:os";
 import type {
   SyncRunStatus,
@@ -73,7 +73,7 @@ function defaultWorkerId(): string {
  * mínimo (id + identificação) para uso nas chamadas subsequentes.
  */
 export async function startSyncRun(input: StartSyncRunInput): Promise<SyncRunHandle> {
-  const row = await controlPrisma.syncRun.create({
+  const row = await getControlPrismaCli().syncRun.create({
     data: {
       tenantSlug: input.tenantSlug,
       source: input.source,
@@ -98,7 +98,7 @@ export async function completeSyncRun(
   const finishedAt = new Date();
   // Lê o startedAt para calcular duração com precisão. Fallback para
   // 0 se a linha não existir (caller atrasado).
-  const existing = await controlPrisma.syncRun.findUnique({
+  const existing = await getControlPrismaCli().syncRun.findUnique({
     where: { id },
     select: { startedAt: true },
   });
@@ -106,7 +106,7 @@ export async function completeSyncRun(
     ? Math.max(0, finishedAt.getTime() - existing.startedAt.getTime())
     : 0;
 
-  await controlPrisma.syncRun.update({
+  await getControlPrismaCli().syncRun.update({
     where: { id },
     data: {
       status: "COMPLETED" satisfies SyncRunStatus,
@@ -129,7 +129,7 @@ export async function failSyncRun(
   counts: SyncRunCounts = {},
 ): Promise<void> {
   const finishedAt = new Date();
-  const existing = await controlPrisma.syncRun.findUnique({
+  const existing = await getControlPrismaCli().syncRun.findUnique({
     where: { id },
     select: { startedAt: true },
   });
@@ -138,7 +138,7 @@ export async function failSyncRun(
     : 0;
   const errorSummary = errorToSummary(error);
 
-  await controlPrisma.syncRun.update({
+  await getControlPrismaCli().syncRun.update({
     where: { id },
     data: {
       status: "FAILED" satisfies SyncRunStatus,
