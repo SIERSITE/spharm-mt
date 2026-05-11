@@ -193,8 +193,10 @@ export default async function AdminOverviewPage() {
                 <th className="py-2">Nome</th>
                 <th className="py-2">Estado</th>
                 <th className="py-2">DB</th>
+                <th className="py-2">Last sync</th>
+                <th className="py-2">Backup</th>
                 <th className="py-2">Heartbeat</th>
-                <th className="py-2">Ingest key</th>
+                <th className="py-2">Key</th>
                 <th className="py-2"></th>
               </tr>
             </thead>
@@ -208,6 +210,38 @@ export default async function AdminOverviewPage() {
                   </td>
                   <td className="py-2 text-slate-500">
                     {t.dbHost}/{t.dbName}
+                  </td>
+                  <td className="py-2" title={t.lastSyncAt ? `${t.lastSyncSource} · ${t.lastSyncStatus}` : "nunca"}>
+                    {t.lastSyncAt ? (
+                      <span
+                        className={
+                          t.lastSyncStatus === "FAILED"
+                            ? "text-rose-600"
+                            : t.lastSyncStatus === "RUNNING"
+                              ? "text-amber-600"
+                              : "text-emerald-600"
+                        }
+                      >
+                        {t.lastSyncMinutesAgo !== null && t.lastSyncMinutesAgo < 60
+                          ? `${t.lastSyncMinutesAgo}m`
+                          : t.lastSyncMinutesAgo !== null && t.lastSyncMinutesAgo < 60 * 24
+                            ? `${Math.floor(t.lastSyncMinutesAgo / 60)}h`
+                            : t.lastSyncMinutesAgo !== null
+                              ? `${Math.floor(t.lastSyncMinutesAgo / 60 / 24)}d`
+                              : "—"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2" title={t.lastBackupAt?.toISOString() ?? "sem backup registado"}>
+                    {t.lastBackupAt ? (
+                      <span className={t.backupStale ? "text-amber-600" : "text-emerald-600"}>
+                        {t.backupAgeDays === 0 ? "hoje" : `${t.backupAgeDays}d`}
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">sem registo</span>
+                    )}
                   </td>
                   <td className="py-2">
                     {t.lastAgentHeartbeatAt ? (
@@ -224,7 +258,7 @@ export default async function AdminOverviewPage() {
                   </td>
                   <td className="py-2">
                     {t.ingestKeyConfigured ? (
-                      <span className="text-emerald-600">configurada</span>
+                      <span className="text-emerald-600">ok</span>
                     ) : (
                       <span className="text-amber-600">em falta</span>
                     )}

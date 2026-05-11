@@ -27,11 +27,24 @@ export type TenantOverviewRow = {
   heartbeatMinutesAgo: number | null;
   heartbeatHealthy: boolean;
   createdAt: Date;
+  // RC Mode — operacionalização multi-grupo
+  lastBackupAt: Date | null;
+  backupAgeDays: number | null;
+  backupStale: boolean;
+  /** Última linha SyncRun observada (qualquer source). */
+  lastSyncAt: Date | null;
+  lastSyncSource: string | null;
+  lastSyncStatus: "RUNNING" | "SUCCEEDED" | "FAILED" | null;
+  lastSyncMinutesAgo: number | null;
 };
 
 const HEARTBEAT_HEALTHY_WINDOW_MIN = 30;
+const BACKUP_STALE_DAYS = 2;
 
-function decorateRow(t: TenantRecord): TenantOverviewRow {
+function decorateRow(
+  t: TenantRecord,
+  syncByTenant: Map<string, { startedAt: Date; source: string; status: "RUNNING" | "SUCCEEDED" | "FAILED" }>,
+): TenantOverviewRow {
   let minutesAgo: number | null = null;
   let healthy = false;
   if (t.lastAgentHeartbeatAt) {
@@ -40,6 +53,15 @@ function decorateRow(t: TenantRecord): TenantOverviewRow {
     );
     healthy = minutesAgo < HEARTBEAT_HEALTHY_WINDOW_MIN;
   }
+  const backupAgeDays =
+    t.lastBackupAt === null
+      ? null
+      : Math.floor((Date.now() - t.lastBackupAt.getTime()) / (1000 * 60 * 60 * 24));
+  const backupStale = backupAgeDays === null || backupAgeDays > BACKUP_STALE_DAYS;
+  const sync = syncByTenant.get(t.slug) ?? null;
+  const lastSyncMinutesAgo = sync
+    ? Math.floor((Date.now() - sync.startedAt.getTime()) / 60_000)
+    : null;
   return {
     id: t.id,
     slug: t.slug,
@@ -56,12 +78,51 @@ function decorateRow(t: TenantRecord): TenantOverviewRow {
     heartbeatMinutesAgo: minutesAgo,
     heartbeatHealthy: healthy,
     createdAt: t.createdAt,
+    lastBackupAt: t.lastBackupAt ?? null,
+    backupAgeDays,
+    backupStale,
+    lastSyncAt: sync?.startedAt ?? null,
+    lastSyncSource: sync?.source ?? null,
+    lastSyncStatus: sync?.status ?? null,
+    lastSyncMinutesAgo,
   };
 }
 
+/**
+ * Última linha de SyncRun por tenantSlug. Uma query agregada cobre
+ * todos os tenants em vez de N queries.
+ */
+async function loadLastSyncByTenant(): Promise<
+  Map<string, { startedAt: Date; source: string; status: "RUNNING" | "SUCCEEDED" | "FAILED" }>
+> {
+  const rows = await controlPrisma.$queryRawUnsafe<
+    { tenantSlug: string; startedAt: Date; source: string; status: string }[]
+  >(`
+    SELECT DISTINCT ON ("tenantSlug")
+      "tenantSlug", "startedAt", source, status
+    FROM "SyncRun"
+    ORDER BY "tenantSlug", "startedAt" DESC
+  `);
+  const out = new Map<
+    string,
+    { startedAt: Date; source: string; status: "RUNNING" | "SUCCEEDED" | "FAILED" }
+  >();
+  for (const r of rows) {
+    out.set(r.tenantSlug, {
+      startedAt: r.startedAt,
+      source: r.source,
+      status: (r.status as "RUNNING" | "SUCCEEDED" | "FAILED") ?? "RUNNING",
+    });
+  }
+  return out;
+}
+
 export async function listTenantOverviews(): Promise<TenantOverviewRow[]> {
-  const tenants = await listTenants();
-  return tenants.map(decorateRow);
+  const [tenants, syncByTenant] = await Promise.all([
+    listTenants(),
+    loadLastSyncByTenant().catch(() => new Map()),
+  ]);
+  return tenants.map((t) => decorateRow(t, syncByTenant as never));
 }
 
 export async function getTenantOverviewById(
@@ -69,7 +130,33 @@ export async function getTenantOverviewById(
 ): Promise<{ tenant: TenantRecord; overview: TenantOverviewRow } | null> {
   const tenant = await controlPrisma.tenant.findUnique({ where: { id } });
   if (!tenant) return null;
-  return { tenant, overview: decorateRow(tenant) };
+  // Single-tenant lookup faz query individual para o último SyncRun.
+  const syncByTenant = new Map<
+    string,
+    { startedAt: Date; source: string; status: "RUNNING" | "SUCCEEDED" | "FAILED" }
+  >();
+  try {
+    const last = await controlPrisma.$queryRawUnsafe<
+      { startedAt: Date; source: string; status: string }[]
+    >(
+      `SELECT "startedAt", source, status
+       FROM "SyncRun"
+       WHERE "tenantSlug" = $1
+       ORDER BY "startedAt" DESC
+       LIMIT 1`,
+      tenant.slug,
+    );
+    if (last.length > 0) {
+      syncByTenant.set(tenant.slug, {
+        startedAt: last[0].startedAt,
+        source: last[0].source,
+        status: (last[0].status as "RUNNING" | "SUCCEEDED" | "FAILED") ?? "RUNNING",
+      });
+    }
+  } catch {
+    // SyncRun table pode ainda não existir em envs antigas — ignora.
+  }
+  return { tenant, overview: decorateRow(tenant, syncByTenant) };
 }
 
 // ─────────────────────────────────────────────────────────────

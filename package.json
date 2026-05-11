@@ -16,7 +16,8 @@
     "tenancy:health": "tsx scripts/tenancy/health-check-tenants.ts",
     "tenancy:deactivate": "tsx scripts/tenancy/deactivate-tenant.ts",
     "tenancy:reactivate": "tsx scripts/tenancy/reactivate-tenant.ts",
-    "tenancy:smoke-resolver": "tsx scripts/tenancy/smoke-test-resolver.ts"
+    "tenancy:smoke-resolver": "tsx scripts/tenancy/smoke-test-resolver.ts",
+    "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
