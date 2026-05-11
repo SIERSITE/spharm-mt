@@ -2,24 +2,29 @@
  * scripts/jobs/refresh-ipf.ts
  *
  * Scheduler-ready wrapper para o populate de
- * `IndicadoresProdutoFarmacia`. Foi desenhado para ser chamado por
- * um scheduler externo (Vercel Cron, Railway worker, etc.) sem
- * acoplamento — actualmente sem cron real.
+ * `IndicadoresProdutoFarmacia`. Pode ser invocado por:
+ *   · CLI (`npx tsx scripts/jobs/refresh-ipf.ts`)
+ *   · scheduler externo (Railway worker, container cron, etc.)
+ *
+ * O endpoint serverless `/api/jobs/refresh-ipf` é o entry-point para
+ * Vercel Cron — chama directamente `runIpfPopulate` da lib, não passa
+ * por aqui. Ambos partilham a mesma orquestração canónica.
  *
  * Política:
  *   · Sem `--all-tenants` ou `--tenant=<slug>`: corre o populate
  *     contra a BD legacy (a mesma que `DATABASE_URL` aponta).
- *   · Com `--tenant=<slug>`: passa o slug ao populate para resolução
- *     via control plane (precisa de CONTROL_DATABASE_URL).
+ *   · Com `--tenant=<slug>`: resolve via control plane (precisa de
+ *     CONTROL_DATABASE_URL).
  *   · Com `--all-tenants`: itera todos os tenants ACTIVE do control
- *     plane (precisa de CONTROL_DATABASE_URL); falha rápido se a
- *     env não estiver definida.
- *   · `--record-sync-run` propaga-se para o populate.
- *   · `--dry-run` propaga-se para o populate.
+ *     plane (precisa de CONTROL_DATABASE_URL); falha rápido se a env
+ *     não estiver definida.
+ *   · `--record-sync-run` escreve uma linha por execução em SyncRun.
+ *   · `--dry-run` calcula tudo mas não escreve.
+ *   · Após o populate (modo single), corre health check e devolve
+ *     exit-code != 0 se o read-model continuar unhealthy.
  *
- * Não duplica lógica de cálculo. Spawn do
- * `populate-indicadores-produto-farmacia.ts` como child process
- * (mesma sandbox, output streamed).
+ * Não duplica lógica de cálculo — invoca in-process
+ * `runIpfPopulate(prisma, opts)` da lib.
  *
  * Uso:
  *   # Legacy (uma BD)
@@ -36,8 +41,10 @@
  */
 
 import "dotenv/config";
-import { spawn } from "node:child_process";
-import * as path from "node:path";
+import { legacyPrisma } from "../../lib/prisma";
+import type { PrismaClient } from "../../generated/prisma/client";
+import { runIpfPopulate, type IpfPopulateResult } from "../../lib/operational/ipf-populate";
+import { getIpfFreshness } from "../../lib/operational/ipf-freshness";
 
 type Args = {
   dryRun: boolean;
@@ -73,33 +80,74 @@ function parseArgs(): Args {
   return out;
 }
 
-const POPULATE_SCRIPT = path.resolve("scripts/populate-indicadores-produto-farmacia.ts");
-
-function buildPopulateArgs(args: Args, overrideTenantSlug?: string): string[] {
-  const out: string[] = [];
-  if (args.dryRun) out.push("--dry-run");
-  if (args.recordSyncRun) out.push("--record-sync-run");
-  if (args.farmaciaId) out.push(`--farmacia=${args.farmaciaId}`);
-  if (args.paradoThresholdDays !== null) out.push(`--parado-threshold=${args.paradoThresholdDays}`);
-  const slug = overrideTenantSlug ?? args.tenantSlug;
-  if (slug) out.push(`--tenant=${slug}`);
-  return out;
-}
-
-type PopulateResult = { exitCode: number; elapsedMs: number };
-
-function runPopulate(populateArgs: string[]): Promise<PopulateResult> {
-  const t0 = Date.now();
-  return new Promise((resolve) => {
-    const child = spawn("npx", ["tsx", POPULATE_SCRIPT, ...populateArgs], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-      env: process.env,
+/**
+ * Corre populate + health check para um único PrismaClient
+ * (legacy/tenant). Devolve `{ ok, result }` para o caller decidir
+ * exit code / agregação multi-tenant.
+ */
+async function runForPrisma(
+  prisma: PrismaClient,
+  args: Args,
+  tenantSlugForLedger: string,
+): Promise<{ ok: boolean; result: IpfPopulateResult }> {
+  let runId: string | null = null;
+  if (args.recordSyncRun) {
+    const { startSyncRun } = await import("../../lib/sync/sync-run");
+    const handle = await startSyncRun({
+      tenantSlug: tenantSlugForLedger,
+      source: "ipf-populate",
+      meta: {
+        dryRun: args.dryRun,
+        farmaciaId: args.farmaciaId,
+        paradoThresholdDays: args.paradoThresholdDays ?? 90,
+        invokedBy: "refresh-ipf-wrapper",
+      },
     });
-    child.on("close", (code) => {
-      resolve({ exitCode: code ?? 1, elapsedMs: Date.now() - t0 });
+    runId = handle.id;
+    console.log(`  syncRunId: ${runId}`);
+  }
+
+  let result: IpfPopulateResult;
+  try {
+    result = await runIpfPopulate(
+      prisma,
+      {
+        dryRun: args.dryRun,
+        farmaciaId: args.farmaciaId,
+        paradoThresholdDays: args.paradoThresholdDays ?? 90,
+      },
+      (msg) => console.log(msg),
+    );
+  } catch (err) {
+    if (runId) {
+      const { failSyncRun } = await import("../../lib/sync/sync-run");
+      await failSyncRun(runId, err);
+    }
+    throw err;
+  }
+
+  if (runId) {
+    const { completeSyncRun } = await import("../../lib/sync/sync-run");
+    await completeSyncRun(runId, {
+      recordsRead: result.pfRowsCount,
+      recordsInserted: result.rowsUpserted,
+      recordsFailed: result.rowsFailed,
     });
-  });
+  }
+
+  // Health post-check (não corre em dry-run — dataCalculo não foi tocado).
+  if (!args.dryRun) {
+    const fresh = await getIpfFreshness(prisma);
+    console.log(
+      `  health: coverage=${(fresh.coverage * 100).toFixed(2)}% age=${fresh.ageHours?.toFixed(1) ?? "—"}h ` +
+        `healthy=${fresh.healthy}`,
+    );
+    if (!fresh.healthy) {
+      for (const r of fresh.reasons) console.log(`    · ${r}`);
+      return { ok: false, result };
+    }
+  }
+  return { ok: result.rowsFailed === 0, result };
 }
 
 async function main(): Promise<void> {
@@ -126,14 +174,16 @@ async function main(): Promise<void> {
     }
 
     const { forEachActiveTenant } = await import("../../lib/tenancy/for-each-tenant");
+    const { getTenantPrismaOrLegacy } = await import("../../lib/tenant-registry");
     const summary = await forEachActiveTenant(
       async ({ tenant }) => {
         console.log(`\n──── tenant=${tenant.slug} (${tenant.nome}) ────`);
-        const res = await runPopulate(buildPopulateArgs(args, tenant.slug));
-        if (res.exitCode !== 0) {
+        const tenantPrisma = await getTenantPrismaOrLegacy(tenant.slug);
+        const { ok, result } = await runForPrisma(tenantPrisma, args, tenant.slug);
+        if (!ok) {
           throw new Error(
-            `populate exit code ${res.exitCode} para tenant ${tenant.slug} ` +
-              `(elapsed ${(res.elapsedMs / 1000).toFixed(1)}s)`,
+            `populate/health falhou para tenant ${tenant.slug} ` +
+              `(upserted=${result.rowsUpserted} failed=${result.rowsFailed})`,
           );
         }
       },
@@ -151,11 +201,25 @@ async function main(): Promise<void> {
   }
 
   // ── Path 2: single tenant ou legacy ────────────────────────────────────
-  const res = await runPopulate(buildPopulateArgs(args));
-  const elapsedTotal = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log("\n" + "─".repeat(78));
-  console.log(`refresh-ipf concluído. exitCode=${res.exitCode} elapsed=${elapsedTotal}s`);
-  if (res.exitCode !== 0) process.exit(res.exitCode);
+  let prisma: PrismaClient = legacyPrisma;
+  let slugForLedger = "legacy";
+  if (args.tenantSlug) {
+    const { getTenantPrismaOrLegacy } = await import("../../lib/tenant-registry");
+    prisma = await getTenantPrismaOrLegacy(args.tenantSlug);
+    slugForLedger = args.tenantSlug;
+  }
+
+  try {
+    const { ok, result } = await runForPrisma(prisma, args, slugForLedger);
+    const elapsedTotal = ((Date.now() - t0) / 1000).toFixed(1);
+    console.log("\n" + "─".repeat(78));
+    console.log(
+      `refresh-ipf concluído. upserted=${result.rowsUpserted} failed=${result.rowsFailed} ok=${ok} elapsed=${elapsedTotal}s`,
+    );
+    if (!ok) process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((e) => {
