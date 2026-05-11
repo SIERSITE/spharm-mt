@@ -39,6 +39,13 @@ export type EncomendaSupplierCondition = {
 };
 
 export type EncomendaBaseRow = {
+  /** ID interno do produto, exposto ao client para o CTA "Criar
+   *  transferência" (server action precisa do produtoId, não só do
+   *  CNP). Não é renderizado na UI. */
+  produtoId: string;
+  /** ID interno da farmácia desta linha — necessário para o CTA de
+   *  transferência (destino). Não é renderizado. */
+  farmaciaId: string;
   cnp: string;
   produto: string;
   farmacia: string;
@@ -100,6 +107,14 @@ export type EncomendaBaseRow = {
   dciEquivalentQtySuggested?: number;
   dciEquivalentAvoidedPurchaseValue?: number;
   dciEquivalentReason?: string;
+  /** Produto source para DCI-equivalent (produtoId interno do produto
+   *  que vai ser fisicamente transferido). Para same-CNP é igual a
+   *  `produtoId` do destino. */
+  dciEquivalentSourceProdutoId?: string;
+  /** Farmácia origem (id) — same-CNP: `substitutionSourceFarmaciaId`;
+   *  DCI: `dciEquivalentSourceFarmaciaId`. */
+  substitutionSourceFarmaciaId?: string;
+  dciEquivalentSourceFarmaciaId?: string;
 };
 
 function toF(v: unknown): number {
@@ -358,6 +373,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       : undefined;
 
     result.push({
+      produtoId: pf.produtoId,
+      farmaciaId: pf.farmaciaId,
       cnp: pf.cnp,
       produto: pf.designacao,
       farmacia: pf.farmaciaNome,
@@ -377,6 +394,7 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       // quando sugestao > 0).
       internalSubstitutionAvailable: sub !== undefined,
       substitutionSourceFarmacia: sub?.suggestedSourceFarmaciaNome,
+      substitutionSourceFarmaciaId: sub?.suggestedSourceFarmaciaId,
       substitutionQtySuggested: sub?.transferableQty,
       substitutionAvoidedPurchaseValue: sub?.avoidedPurchaseEstimate,
       substitutionCoverageOrigin: sub?.stockCoverageOrigin,
@@ -387,6 +405,8 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       dciEquivalentCnp: dciCand?.sourceCnp,
       dciEquivalentProductName: dciCand?.sourceDesignacao,
       dciEquivalentSourceFarmacia: dciCand?.sourceFarmaciaNome,
+      dciEquivalentSourceFarmaciaId: dciCand?.sourceFarmaciaId,
+      dciEquivalentSourceProdutoId: dciCand?.sourceProdutoId,
       dciEquivalentQtySuggested: dciCand?.transferableQty,
       dciEquivalentAvoidedPurchaseValue: dciCand?.avoidedPurchaseEstimate,
       dciEquivalentReason: dciReason,

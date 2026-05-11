@@ -19,6 +19,7 @@ import { ReportActions } from "@/components/reporting/report-actions";
 import { buildTransferenciasReport } from "@/lib/reporting/adapters/transferencias";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 
 type ModoVisualizacao = "tabela" | "relatorio";
 type Ordenacao =
@@ -51,6 +52,10 @@ type TransferSuggestionRow = {
   // antigos que não tinham estes campos.
   dci?: string | null;
   codigoATC?: string | null;
+  // IDs internos — opcionais para retro-compat com snapshots antigos.
+  produtoId?: string;
+  farmaciaOrigemId?: string;
+  farmaciaDestinoId?: string;
 };
 
 type ReportSnapshot = {
@@ -857,6 +862,7 @@ export function TransferenciasClient({
                     <th className="px-2 py-2.5 text-center font-semibold">Sug.</th>
                     <th className="px-2 py-2.5 text-center font-semibold">Excesso</th>
                     <th className="px-2 py-2.5 text-center font-semibold">Necess.</th>
+                    <th className="px-2 py-2.5 font-semibold">Acção</th>
                   </tr>
                 </thead>
 
@@ -917,6 +923,27 @@ export function TransferenciasClient({
                       </td>
                       <td className="px-2 py-2.5 text-center">{row.excessoOrigem}</td>
                       <td className="px-2 py-2.5 text-center">{row.necessidadeDestino}</td>
+                      <td className="px-2 py-2.5">
+                        {row.produtoId && row.farmaciaDestinoId && row.farmaciaOrigemId ? (
+                          <CreateInternalTransferButton
+                            kind="same-cnp"
+                            variant="cyan"
+                            label="Criar"
+                            input={{
+                              destinoFarmaciaId: row.farmaciaDestinoId,
+                              sourceFarmaciaNome: row.farmaciaOrigem,
+                              produtoId: row.produtoId,
+                              cnp: row.cnp,
+                              designacao: row.produto,
+                              quantidade: row.quantidadeSugerida,
+                              kind: "same-cnp",
+                              motivo: row.observacao ?? "transferência sugerida",
+                            }}
+                          />
+                        ) : (
+                          <span className="text-[10px] text-slate-400">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
 
@@ -934,6 +961,7 @@ export function TransferenciasClient({
                       <td className="px-2 py-2.5 text-center">
                         {sum(orderedRows.map((r) => r.necessidadeDestino))}
                       </td>
+                      <td className="px-2 py-2.5" />
                     </tr>
                   )}
                 </tbody>

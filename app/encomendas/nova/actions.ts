@@ -130,3 +130,116 @@ export async function generateProposalAction(
     };
   }
 }
+
+// ─── Transferência interna (RC Batch 2) ───────────────────────────────
+//
+// Reutiliza `createEncomendaWithOutbox` em modo RASCUNHO (sem outbox /
+// sem export agent). A `ListaEncomenda` resultante é o registo
+// operacional da transferência sugerida; o operador revê, ajusta a
+// quantidade e finaliza no flow existente em /encomendas/[id]. As
+// linhas têm `notas` estruturada com a origem (source farmácia + CNP)
+// e o motivo (same-cnp ou dci-equivalent). Sem novos modelos, sem
+// outbox.
+
+export type InternalTransferKind = "same-cnp" | "dci-equivalent";
+
+export type CreateInternalTransferInput = {
+  /** Farmácia destino — onde a ruptura está iminente. Esta é a
+   *  `ListaEncomenda.farmaciaId`. */
+  destinoFarmaciaId: string;
+  /** Farmácia origem — onde existe excesso. Vai para `notas` da linha. */
+  sourceFarmaciaNome: string;
+  /** Produto a transferir (mesmo `produtoId` para same-CNP; produtoId
+   *  do source para DCI-equivalent). */
+  produtoId: string;
+  /** CNP — informativo, para apresentação consistente nos logs e
+   *  notas. */
+  cnp: string;
+  designacao: string;
+  quantidade: number;
+  kind: InternalTransferKind;
+  /** "rotura iminente" | "excesso interno" | livre */
+  motivo: string;
+  /** Para DCI-equivalent: identifica o produto que existe na origem
+   *  (CNP diferente do destino). */
+  dciSourceProductName?: string;
+  dciSourceCnp?: string;
+};
+
+export type CreateInternalTransferResult =
+  | { ok: true; listaEncomendaId: string }
+  | { ok: false; error: string };
+
+function buildTransferNote(input: CreateInternalTransferInput): string {
+  const lines: string[] = [];
+  lines.push(`Transferência interna sugerida (${input.kind}).`);
+  lines.push(`Origem: ${input.sourceFarmaciaNome}`);
+  if (input.kind === "dci-equivalent" && input.dciSourceProductName) {
+    lines.push(`Source product: ${input.dciSourceProductName} (CNP ${input.dciSourceCnp ?? "—"})`);
+    lines.push(`Atenção: DCI-equivalente. Validar antes de transferir.`);
+  }
+  lines.push(`Motivo: ${input.motivo}`);
+  return lines.join(" · ");
+}
+
+export async function createInternalTransferAction(
+  input: CreateInternalTransferInput,
+): Promise<CreateInternalTransferResult> {
+  const session = await requirePermission("reports.write");
+  const prisma = await getPrisma();
+  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+
+  if (!input.destinoFarmaciaId) return { ok: false, error: "Farmácia destino em falta." };
+  if (!input.produtoId) return { ok: false, error: "Produto em falta." };
+  if (!Number.isFinite(input.quantidade) || input.quantidade <= 0) {
+    return { ok: false, error: "Quantidade tem de ser > 0." };
+  }
+  if (input.kind === "dci-equivalent" && !input.dciSourceCnp) {
+    return { ok: false, error: "DCI-equivalente requer CNP do produto source." };
+  }
+
+  const nome =
+    input.kind === "same-cnp"
+      ? `Transferência interna · ${input.sourceFarmaciaNome} → ${input.designacao}`
+      : `Transferência DCI · ${input.sourceFarmaciaNome} → ${input.designacao}`;
+
+  try {
+    const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
+      farmaciaId: input.destinoFarmaciaId,
+      criadoPorId: session.sub,
+      nome: nome.slice(0, 180), // safety bound
+      finalize: false, // RASCUNHO sempre — operador revê e finaliza no flow normal
+      linhas: [
+        {
+          produtoId: input.produtoId,
+          quantidadeSugerida: input.quantidade,
+          quantidadeAjustada: null,
+          fornecedorSugeridoId: null,
+          notas: buildTransferNote(input),
+        },
+      ],
+    });
+
+    await logAudit({
+      actorId: session.sub,
+      action: "internal_transfer.created_draft",
+      entity: "ListaEncomenda",
+      entityId: result.listaEncomendaId,
+      meta: {
+        kind: input.kind,
+        destinoFarmaciaId: input.destinoFarmaciaId,
+        sourceFarmaciaNome: input.sourceFarmaciaNome,
+        cnp: input.cnp,
+        quantidade: input.quantidade,
+        motivo: input.motivo,
+      },
+    });
+
+    revalidatePath("/encomendas/lista");
+    revalidatePath("/encomendas");
+    revalidatePath("/dashboard");
+    return { ok: true, listaEncomendaId: result.listaEncomendaId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}

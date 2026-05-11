@@ -9,6 +9,7 @@ import {
   Undo2,
   BookOpen,
   Settings,
+  Repeat2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -35,6 +36,7 @@ const sections: NavSection[] = [
   {
     label: "Decisão",
     items: [
+      { href: "/oportunidades", label: "Oportunidades", icon: Repeat2 },
       { href: "/encomendas", label: "Encomendas", icon: ShoppingCart },
     ],
   },

@@ -17,6 +17,7 @@ import { buildEncomendasReport } from "@/lib/reporting/adapters/encomendas";
 import { useTransition } from "react";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { EncomendaBaseRow } from "@/lib/encomendas-data";
+import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { runEncomendasReport } from "@/app/encomendas/actions";
 
@@ -43,6 +44,8 @@ type SupplierCondition = {
 };
 
 type EncomendaFarmaciaRow = {
+  produtoId?: string;
+  farmaciaId?: string;
   cnp: string;
   produto: string;
   farmacia: string;
@@ -64,6 +67,7 @@ type EncomendaFarmaciaRow = {
   // Carregada do server; mostrada apenas quando há sugestão a ordenar.
   internalSubstitutionAvailable: boolean;
   substitutionSourceFarmacia?: string;
+  substitutionSourceFarmaciaId?: string;
   substitutionQtySuggested?: number;
   substitutionAvoidedPurchaseValue?: number;
   substitutionCoverageOrigin?: number;
@@ -76,6 +80,8 @@ type EncomendaFarmaciaRow = {
   dciEquivalentCnp?: string;
   dciEquivalentProductName?: string;
   dciEquivalentSourceFarmacia?: string;
+  dciEquivalentSourceFarmaciaId?: string;
+  dciEquivalentSourceProdutoId?: string;
   dciEquivalentQtySuggested?: number;
   dciEquivalentAvoidedPurchaseValue?: number;
   dciEquivalentReason?: string;
@@ -103,9 +109,13 @@ type GroupEncomendaRow = {
     prioridade: Prioridade;
     movimentos6M: MonthlyMovement[];
     ultimasCompras: PurchaseHistory[];
+    // IDs internos — necessários ao CTA de transferência interna.
+    produtoId?: string;
+    farmaciaId?: string;
     // Substituição interna por farmácia (badge na linha por-farmácia).
     internalSubstitutionAvailable: boolean;
     substitutionSourceFarmacia?: string;
+    substitutionSourceFarmaciaId?: string;
     substitutionQtySuggested?: number;
     substitutionAvoidedPurchaseValue?: number;
     // DCI-equivalente per-farmácia. Populado apenas quando same-CNP
@@ -114,6 +124,8 @@ type GroupEncomendaRow = {
     dciEquivalentCnp?: string;
     dciEquivalentProductName?: string;
     dciEquivalentSourceFarmacia?: string;
+    dciEquivalentSourceFarmaciaId?: string;
+    dciEquivalentSourceProdutoId?: string;
     dciEquivalentQtySuggested?: number;
     dciEquivalentAvoidedPurchaseValue?: number;
     dciEquivalentReason?: string;
@@ -203,6 +215,13 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const farmaciasUniverse = Array.from(
     new Set(farmaciasInfo.map((f) => f.nome))
   ).sort((a, b) => a.localeCompare(b, "pt-PT"));
+
+  // Lookup nome→id para CTAs de transferência interna.
+  const farmaciaIdByNome = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of farmaciasInfo) m.set(f.nome, f.id);
+    return m;
+  }, [farmaciasInfo]);
 
   const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useState<string[]>(
     farmaciasUniverse
@@ -333,6 +352,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     porFarmacia: rows
       .sort((a, b) => a.farmacia.localeCompare(b.farmacia))
       .map((r) => ({
+        produtoId: r.produtoId,
+        farmaciaId: r.farmaciaId,
         farmacia: r.farmacia,
         stockAtual: r.stockAtual,
         coberturaAtual: r.coberturaAtual,
@@ -343,12 +364,15 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
         ultimasCompras: r.ultimasCompras,
         internalSubstitutionAvailable: r.internalSubstitutionAvailable,
         substitutionSourceFarmacia: r.substitutionSourceFarmacia,
+        substitutionSourceFarmaciaId: r.substitutionSourceFarmaciaId,
         substitutionQtySuggested: r.substitutionQtySuggested,
         substitutionAvoidedPurchaseValue: r.substitutionAvoidedPurchaseValue,
         dciEquivalentAvailable: r.dciEquivalentAvailable,
         dciEquivalentCnp: r.dciEquivalentCnp,
         dciEquivalentProductName: r.dciEquivalentProductName,
         dciEquivalentSourceFarmacia: r.dciEquivalentSourceFarmacia,
+        dciEquivalentSourceFarmaciaId: r.dciEquivalentSourceFarmaciaId,
+        dciEquivalentSourceProdutoId: r.dciEquivalentSourceProdutoId,
         dciEquivalentQtySuggested: r.dciEquivalentQtySuggested,
         dciEquivalentAvoidedPurchaseValue: r.dciEquivalentAvoidedPurchaseValue,
         dciEquivalentReason: r.dciEquivalentReason,
@@ -1061,6 +1085,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                                       €
                                     </span>
                                   )}
+                                  {item.produtoId && item.farmaciaId && (
+                                    <div className="mt-1">
+                                      <CreateInternalTransferButton
+                                        kind="same-cnp"
+                                        variant="cyan"
+                                        input={{
+                                          destinoFarmaciaId: item.farmaciaId,
+                                          sourceFarmaciaNome: item.substitutionSourceFarmacia ?? "",
+                                          produtoId: item.produtoId,
+                                          cnp: row.cnp,
+                                          designacao: row.produto,
+                                          quantidade: item.substitutionQtySuggested ?? 0,
+                                          kind: "same-cnp",
+                                          motivo: "rotura iminente · excesso interno",
+                                        }}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {mostraDci && (
@@ -1090,6 +1132,26 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                                   <div className="text-amber-700/80">
                                     Validar antes de transferir
                                   </div>
+                                  {item.farmaciaId && item.dciEquivalentSourceProdutoId && (
+                                    <div className="mt-1">
+                                      <CreateInternalTransferButton
+                                        kind="dci-equivalent"
+                                        variant="amber"
+                                        input={{
+                                          destinoFarmaciaId: item.farmaciaId,
+                                          sourceFarmaciaNome: item.dciEquivalentSourceFarmacia ?? "",
+                                          produtoId: item.dciEquivalentSourceProdutoId,
+                                          cnp: item.dciEquivalentCnp ?? row.cnp,
+                                          designacao: item.dciEquivalentProductName ?? row.produto,
+                                          quantidade: item.dciEquivalentQtySuggested ?? 0,
+                                          kind: "dci-equivalent",
+                                          motivo: item.dciEquivalentReason ?? "DCI-equivalente",
+                                          dciSourceProductName: item.dciEquivalentProductName,
+                                          dciSourceCnp: item.dciEquivalentCnp,
+                                        }}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

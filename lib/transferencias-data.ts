@@ -51,6 +51,10 @@ export type TransferSuggestionRow = {
   // Enriquecimento clínico — surfaced em tooltip na UI.
   dci: string | null;
   codigoATC: string | null;
+  // IDs internos — necessários ao CTA "Criar transferência".
+  produtoId: string;
+  farmaciaOrigemId: string;
+  farmaciaDestinoId: string;
 };
 
 function toF(v: unknown): number {
@@ -264,6 +268,9 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
           valorUnlocked,
           dci: origem.dci,
           codigoATC: origem.codigoATC,
+          produtoId: origem.produtoId,
+          farmaciaOrigemId: origem.farmaciaId,
+          farmaciaDestinoId: destino.farmaciaId,
         });
       }
     }
@@ -375,6 +382,9 @@ export async function getExcessosData(
         valorUnlocked,
         dci: entry.dci,
         codigoATC: entry.codigoATC,
+        produtoId: entry.produtoId,
+        farmaciaOrigemId: entry.farmaciaId,
+        farmaciaDestinoId: destino?.farmaciaId ?? "",
       });
     }
   }

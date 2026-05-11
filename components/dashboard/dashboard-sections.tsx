@@ -565,7 +565,7 @@ export function InternalSubstitutionCard({
       <div className="space-y-3">
         {hasData ? (
           <Link
-            href="/encomendas"
+            href="/oportunidades"
             className={`block rounded-xl ${valorBg} p-3 transition hover:bg-cyan-100`}
           >
             <div className="text-[12px] font-medium text-cyan-700/80">
@@ -657,7 +657,7 @@ export function InternalSubstitutionCard({
         )}
         {data.count > data.top.length && (
           <SeeAllLink
-            href="/encomendas"
+            href="/oportunidades"
             label={`Ver as ${fmtNumber(data.count)} oportunidades`}
           />
         )}
