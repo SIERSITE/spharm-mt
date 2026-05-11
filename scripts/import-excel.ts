@@ -15,6 +15,7 @@
 
 import "dotenv/config";
 import path from "path";
+import { legacyPrisma } from "../lib/prisma";
 import {
   ensureFarmacia,
   importSalesFromExcel,
@@ -26,11 +27,14 @@ const FILES_DIR = path.join(process.cwd(), "example_files");
 async function main() {
   console.log("─── Importação Excel → Base de Dados ───────────────────────\n");
 
+  // CLI default: legacy DB. Para multi-tenant, usar `/api/ingest/v1/*`.
+  const prisma = legacyPrisma;
+
   // ── Garantir que as farmácias existem ────────────────────────────────────────
   console.log("▶ Garantir farmácias...");
   const [idPrincipal, idCastelo] = await Promise.all([
-    ensureFarmacia("Farmácia Principal"),
-    ensureFarmacia("Farmácia Castelo"),
+    ensureFarmacia(prisma, "Farmácia Principal"),
+    ensureFarmacia(prisma, "Farmácia Castelo"),
   ]);
   console.log(`  Farmácia Principal  → ${idPrincipal}`);
   console.log(`  Farmácia Castelo    → ${idCastelo}\n`);
@@ -38,6 +42,7 @@ async function main() {
   // ── Farmácia Principal ───────────────────────────────────────────────────────
   console.log("▶ Farmácia Principal — Vendas...");
   const r1 = await importSalesFromExcel(
+    prisma,
     path.join(FILES_DIR, "MapaEvolucaoVendas.xlsx"),
     idPrincipal
   );
@@ -47,6 +52,7 @@ async function main() {
 
   console.log("▶ Farmácia Principal — Stock...");
   const r2 = await importStockFromExcel(
+    prisma,
     path.join(FILES_DIR, "stock_Atual.xlsx"),
     idPrincipal
   );
@@ -55,6 +61,7 @@ async function main() {
   // ── Farmácia Castelo ─────────────────────────────────────────────────────────
   console.log("\n▶ Farmácia Castelo — Vendas...");
   const r3 = await importSalesFromExcel(
+    prisma,
     path.join(FILES_DIR, "MapaEvolucaoVendas_c.xlsx"),
     idCastelo
   );
@@ -64,6 +71,7 @@ async function main() {
 
   console.log("▶ Farmácia Castelo — Stock...");
   const r4 = await importStockFromExcel(
+    prisma,
     path.join(FILES_DIR, "stock_castelo.xlsx"),
     idCastelo
   );

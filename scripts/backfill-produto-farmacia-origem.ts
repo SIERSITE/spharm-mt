@@ -252,7 +252,7 @@ async function main(): Promise<void> {
   };
 
   for (const t of TARGETS) {
-    const farmaciaId = await ensureFarmacia(t.farmacia);
+    const farmaciaId = await ensureFarmacia(prisma, t.farmacia);
     const filePath = path.join(FILES_DIR, t.file);
     console.log(`▶ ${t.farmacia} — ${t.file}`);
     const stats = await backfillForFarmacia(filePath, farmaciaId, args);

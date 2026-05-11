@@ -27,7 +27,7 @@
  */
 
 import * as XLSX from "xlsx";
-import { legacyPrisma as prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@/generated/prisma/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,8 +68,8 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-/** Garante que a farmácia existe; devolve o id */
-export async function ensureFarmacia(nome: string): Promise<string> {
+/** Garante que a farmácia existe; devolve o id. Tenant-aware via `prisma`. */
+export async function ensureFarmacia(prisma: PrismaClient, nome: string): Promise<string> {
   const f = await prisma.farmacia.upsert({
     where: { nome },
     create: { nome },
@@ -84,6 +84,7 @@ export async function ensureFarmacia(nome: string): Promise<string> {
  * Devolve Map<cnp, produtoId>.
  */
 async function batchEnsureProdutos(
+  prisma: PrismaClient,
   rows: Array<{ cnp: number; designacao: string }>
 ): Promise<Map<number, string>> {
   // Deduplicar por CNP (mantém primeira ocorrência)
@@ -136,6 +137,7 @@ export type ImportSalesResult = {
  * valorTotal = quantidade × pvp  (melhor aproximação de receita disponível)
  */
 export async function importSalesFromExcel(
+  prisma: PrismaClient,
   filePath: string,
   farmaciaId: string
 ): Promise<ImportSalesResult> {
@@ -221,7 +223,7 @@ export async function importSalesFromExcel(
   }
 
   // ── Batch upsert Produto ────────────────────────────────────────────────────
-  const cnpMap = await batchEnsureProdutos(parsed);
+  const cnpMap = await batchEnsureProdutos(prisma, parsed);
 
   // ── Batch upsert ProdutoFarmacia (pmc, pvp, origens) ────────────────────────
   // Deduplicar por cnp, depois agrupar em chunks de 50 upserts concorrentes.
@@ -339,6 +341,7 @@ export type ImportStockResult = {
  * - Não afecta pmc/pvp (definidos pelo importSalesFromExcel)
  */
 export async function importStockFromExcel(
+  prisma: PrismaClient,
   filePath: string,
   farmaciaId: string
 ): Promise<ImportStockResult> {
@@ -375,7 +378,7 @@ export async function importStockFromExcel(
   }
 
   // ── Batch upsert Produto ────────────────────────────────────────────────────
-  const cnpMap = await batchEnsureProdutos(parsed);
+  const cnpMap = await batchEnsureProdutos(prisma, parsed);
 
   // ── Batch upsert ProdutoFarmacia (stockAtual, puc) ──────────────────────────
   const pfRows = parsed
