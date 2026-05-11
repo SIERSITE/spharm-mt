@@ -36,6 +36,7 @@ import {
 } from "@/lib/stock-data";
 import {
   getTransferenciasData,
+  getInternalSubstitutionsData,
   type Priority,
 } from "@/lib/transferencias-data";
 
@@ -57,6 +58,22 @@ export type DashboardTopSuggestion = {
   quantidadeSugerida: number;
   prioridade: Priority;
   valorUnlocked: number;
+};
+
+/**
+ * Item de "encomenda evitável" mostrado no tile de substituição interna.
+ * Origem da informação: `getInternalSubstitutionsData` com thresholds de
+ * encomenda (rupture<15, excess>30), idêntico ao path de `/encomendas`.
+ */
+export type DashboardInternalSubstitution = {
+  cnp: string;
+  produto: string;
+  farmaciaOrigem: string;
+  farmaciaDestino: string;
+  quantidadeTransferivel: number;
+  valorEvitavel: number;
+  coberturaOrigem: number;
+  coberturaDestino: number;
 };
 
 export type DashboardMonthlyTrend = {
@@ -120,6 +137,22 @@ export type DashboardData = {
     transferSuggestionsTotal: number;
     estimatedValueUnlockedEur: number;
     topTransferSuggestions: DashboardTopSuggestion[];
+  };
+
+  /**
+   * Substituição interna same-CNP detectada para encomendas. Origem:
+   * `getInternalSubstitutionsData` com thresholds de encomenda. Espelha
+   * o que o gestor já vê em `/encomendas` como "transferência interna
+   * possível".
+   *
+   * Empty state: count=0 e top=[] → UI mostra "Sem oportunidades
+   * internas detectadas".
+   */
+  internalSubstitution: {
+    count: number;
+    units: number;
+    avoidedPurchaseValueEur: number;
+    top: DashboardInternalSubstitution[];
   };
 
   // Excessos / stock parado — o destino operacional é /excessos?days=60.
@@ -444,9 +477,21 @@ async function loadMonthlyTrend(
 
 export async function getDashboardData(): Promise<DashboardData> {
   // Run independent loaders in parallel.
-  const [stockRows, allTransfers, perPharmacyData] = await Promise.all([
+  //
+  // `getInternalSubstitutionsData` chamado com thresholds de encomenda
+  // (rupture<15, excess>30) — mesma vista que o gestor encontra em
+  // `/encomendas` no badge "Transferência interna possível". Não duplica
+  // cálculo; reutiliza a fonte canónica.
+  const [stockRows, allTransfers, internalSubs, perPharmacyData] = await Promise.all([
     loadStockEnriched({ includeOutOfStock: true }),
     getTransferenciasData(),
+    getInternalSubstitutionsData({
+      ruptureThresholdDays: 15,
+      excessThresholdDays: 30,
+      targetCoverageDays: 15,
+      reserveDaysSource: 14,
+      minTransferableQty: 1,
+    }),
     loadPerPharmacy(),
   ]);
 
@@ -540,6 +585,27 @@ export async function getDashboardData(): Promise<DashboardData> {
       transferSuggestionsTotal: allTransfers.length,
       estimatedValueUnlockedEur,
       topTransferSuggestions,
+    },
+
+    internalSubstitution: {
+      count: internalSubs.length,
+      units: internalSubs.reduce((s, sub) => s + sub.transferableQty, 0),
+      avoidedPurchaseValueEur: internalSubs.reduce(
+        (s, sub) => s + sub.avoidedPurchaseEstimate,
+        0,
+      ),
+      // top 3 já vem ordenado por € evitáveis desc no
+      // findInternalSubstitutions (ver lib/transfers/internal-substitution.ts)
+      top: internalSubs.slice(0, TRANSFER_SAMPLE_SIZE).map((s) => ({
+        cnp: s.cnp,
+        produto: s.designacao,
+        farmaciaOrigem: s.suggestedSourceFarmaciaNome,
+        farmaciaDestino: s.destinoFarmaciaNome,
+        quantidadeTransferivel: s.transferableQty,
+        valorEvitavel: s.avoidedPurchaseEstimate,
+        coberturaOrigem: s.stockCoverageOrigin,
+        coberturaDestino: s.stockCoverageDestination ?? 0,
+      })),
     },
 
     excess: {

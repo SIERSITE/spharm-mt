@@ -5,6 +5,7 @@ import {
   CriticalAlertsCard,
   TransferenciasCard,
   ExcessosCard,
+  InternalSubstitutionCard,
   PerPharmacyDetail,
 } from "@/components/dashboard/dashboard-sections";
 import { TendenciaCard } from "@/components/dashboard/trend-card";
@@ -46,11 +47,14 @@ export default async function DashboardPage() {
           <TendenciaCard data={data.trend} />
         </section>
 
-        {/* Row de cartões compactos */}
-        <section className="grid gap-4 md:grid-cols-3">
+        {/* Row de cartões compactos. Em XL passa para 4 cols para incluir
+            Encomendas Evitáveis (substituição interna same-CNP) ao lado
+            de Transferências/Excessos. Em md cai para 2 cols. */}
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <CriticalAlertsCard data={data.criticalAlerts} />
           <TransferenciasCard data={data.optimization} />
           <ExcessosCard data={data.excess} />
+          <InternalSubstitutionCard data={data.internalSubstitution} />
         </section>
 
         <PerPharmacyDetail pharmacies={data.perPharmacy} />

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Layers,
   PackageMinus,
+  Repeat2,
   Sparkles,
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard";
@@ -531,6 +532,133 @@ export function ExcessosCard({
           <SeeAllLink
             href="/excessos?days=60"
             label={`Ver os ${fmtNumber(data.excessStockCount)} produtos em excesso`}
+          />
+        )}
+      </CollapsibleDetail>
+    </CardShell>
+  );
+}
+
+// ─── Card: Substituição interna same-CNP (Fase A) ────────────────────────────
+//
+// Mostra encomendas evitáveis HOJE — mesma vista que o gestor vê em
+// `/encomendas` como badge "Transferência interna possível". Carregado
+// via `getInternalSubstitutionsData` com thresholds de encomenda
+// (rupture<15, excess>30). Estilo compacto/premium, sem gráfico, CTA
+// para `/encomendas`.
+
+export function InternalSubstitutionCard({
+  data,
+}: {
+  data: DashboardData["internalSubstitution"];
+}) {
+  const hasData = data.count > 0;
+  const valorTone = data.avoidedPurchaseValueEur > 0 ? "text-cyan-700" : "text-slate-900";
+  const valorBg = data.avoidedPurchaseValueEur > 0 ? "bg-cyan-50" : "bg-slate-50";
+
+  return (
+    <CardShell
+      icon={<Repeat2 className="h-4 w-4 text-cyan-700" />}
+      title="Encomendas evitáveis"
+      hint="Substituição interna same-CNP"
+    >
+      <div className="space-y-3">
+        {hasData ? (
+          <Link
+            href="/encomendas"
+            className={`block rounded-xl ${valorBg} p-3 transition hover:bg-cyan-100`}
+          >
+            <div className="text-[12px] font-medium text-cyan-700/80">
+              Compra evitável
+            </div>
+            <div
+              className={`mt-1.5 text-[24px] font-semibold leading-none tracking-tight tabular-nums ${valorTone}`}
+            >
+              {fmtEur(data.avoidedPurchaseValueEur)}
+            </div>
+            <div className="mt-1 text-[12px] text-cyan-600/70">
+              {fmtNumber(data.units)} un. transferíveis entre farmácias
+            </div>
+          </Link>
+        ) : (
+          <div className="rounded-xl bg-slate-50 p-3">
+            <div className="text-[12px] font-medium text-slate-500">
+              Compra evitável
+            </div>
+            <div className="mt-1.5 text-[24px] font-semibold leading-none tracking-tight tabular-nums text-slate-900">
+              0 €
+            </div>
+            <div className="mt-1 text-[12px] text-slate-400">
+              Sem oportunidades internas detectadas
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl bg-slate-50 p-3">
+          <div className="text-[12px] font-medium text-slate-500">
+            Oportunidades
+          </div>
+          <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-slate-900">
+            {fmtNumber(data.count)}
+          </div>
+          <div className="mt-1 text-[12px] text-slate-400">
+            same-CNP entre farmácias
+          </div>
+        </div>
+      </div>
+
+      <CollapsibleDetail>
+        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Top 3 oportunidades
+        </h3>
+        {data.top.length === 0 ? (
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-center text-[12px] text-slate-400">
+            Sem oportunidades internas detectadas.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {data.top.map((s) => (
+              <li
+                key={`${s.cnp}-${s.farmaciaOrigem}-${s.farmaciaDestino}`}
+                className="rounded-lg bg-slate-50 px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Link
+                    href={`/catalogo/artigo/${s.cnp}`}
+                    className="block min-w-0 flex-1 truncate text-[13px] font-medium text-slate-900 transition hover:text-cyan-700"
+                  >
+                    {s.produto}
+                  </Link>
+                  {s.valorEvitavel > 0 && (
+                    <span className="inline-flex shrink-0 items-center rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-700">
+                      −{fmtEur(s.valorEvitavel)}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-400">
+                  <span className="font-medium text-slate-600">
+                    {s.farmaciaOrigem}
+                  </span>
+                  <ArrowRightLeft className="h-3 w-3 text-slate-300" />
+                  <span className="font-medium text-slate-600">
+                    {s.farmaciaDestino}
+                  </span>
+                  <span>·</span>
+                  <span>{fmtNumber(s.quantidadeTransferivel)} un.</span>
+                  <span>·</span>
+                  <span>
+                    cob. {Math.round(s.coberturaOrigem)}d →{" "}
+                    {Math.round(s.coberturaDestino)}d
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.count > data.top.length && (
+          <SeeAllLink
+            href="/encomendas"
+            label={`Ver as ${fmtNumber(data.count)} oportunidades`}
           />
         )}
       </CollapsibleDetail>
