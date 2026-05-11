@@ -21,6 +21,7 @@
 
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
+import { recordIpfHit, recordLiveFallback } from "@/lib/operational/ipf-metrics";
 
 export type IpfReadRow = {
   produtoId: string;
@@ -119,7 +120,9 @@ export function resolveAvgDaily90d(
   liveAvgDaily90d: number,
 ): { value: number; source: "ipf" | "live" } {
   if (ipfRow) {
+    recordIpfHit();
     return { value: ipfRow.mediaVendasDiarias90d ?? 0, source: "ipf" };
   }
+  recordLiveFallback();
   return { value: liveAvgDaily90d, source: "live" };
 }
