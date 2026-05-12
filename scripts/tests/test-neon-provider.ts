@@ -29,6 +29,33 @@
 
 import { NeonProvider, type FetchLike } from "../../lib/db-providers";
 
+/**
+ * Helper para construir um NeonProvider com defaults amigáveis a testes:
+ *  · apiBaseUrl="https://mock"  → caminho previsível
+ *  · sleep=instant              → testes de retry não dormem
+ *  · onRetry=silent             → sem ruído no stdout dos asserts
+ *  · retryMaxAttempts=3         → testes esgotam rápido (default é 5)
+ *  · retryBaseDelayMs=1         → mantém o orçamento total trivial
+ */
+function makeProvider(opts: {
+  projectId: string;
+  fetcher: FetchLike;
+  retryMaxAttempts?: number;
+}): NeonProvider {
+  return new NeonProvider({
+    apiKey: "k",
+    projectId: opts.projectId,
+    apiBaseUrl: "https://mock",
+    fetcher: opts.fetcher,
+    sleep: async () => {},
+    onRetry: () => {},
+    retryMaxAttempts: opts.retryMaxAttempts ?? 3,
+    retryBaseDelayMs: 1,
+    retryMaxDelayMs: 1,
+    retryMaxTotalMs: 100,
+  });
+}
+
 const errors: string[] = [];
 
 function assert(cond: boolean, msg: string): void {
@@ -393,6 +420,172 @@ async function run() {
       assert(msg.includes("destroy parcial"), "destroyDatabase parcial → erro accionável");
       assert(msg.includes("DB x"), "menciona DB falhada");
     }
+  }
+
+  // ─── 10. HTTP 423 retry → success ────────────────────────────────
+  // Cenário: project tem operação concorrente; createRole devolve 423
+  // duas vezes, depois 200. Provider deve retry e eventualmente sucesso.
+  console.log("\n▶ NeonProvider — HTTP 423 retry até success");
+  {
+    let roleCallCount = 0;
+    const retryEvents: { attempt: number; label: string }[] = [];
+    const { fetcher, calls } = makeFetcher([
+      {
+        match: (c) => c.method === "GET" && c.path.startsWith("/projects/p10/branches"),
+        respond: { status: 200, json: { branches: [{ id: "br", name: "main", default: true }] } },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/roles"),
+        respond: () => {
+          roleCallCount++;
+          if (roleCallCount < 3) {
+            return { status: 423, text: "project already has running conflicting operations" };
+          }
+          return { status: 200, json: { role: { name: "spharmmt_demo", password: "pw" } } };
+        },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/databases"),
+        respond: { status: 500, text: "stop here after retry succeeded" },
+      },
+      { match: (c) => c.method === "DELETE", respond: { status: 200, json: {} } },
+    ]);
+    const p = new NeonProvider({
+      apiKey: "k",
+      projectId: "p10",
+      apiBaseUrl: "https://mock",
+      fetcher,
+      sleep: async () => {},
+      onRetry: (info) => retryEvents.push({ attempt: info.attempt, label: info.label }),
+      retryMaxAttempts: 5,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+      retryMaxTotalMs: 1000,
+    });
+    try {
+      await p.createDatabase({ slug: "demo" });
+    } catch {
+      // esperado — paramos em createDatabase 500
+    }
+    assert(roleCallCount === 3, `createRole tentou 3 vezes (2× 423 + 1× sucesso); got ${roleCallCount}`);
+    assert(retryEvents.length === 2, `onRetry disparado 2 vezes; got ${retryEvents.length}`);
+    assert(
+      retryEvents.every((e) => e.label === "createRole"),
+      "todos os retries foram do step createRole"
+    );
+    assert(retryEvents[0].attempt === 1, "primeiro retry após attempt=1");
+    const postRoleCalls = calls.filter((c) => c.method === "POST" && c.path.endsWith("/roles"));
+    assert(postRoleCalls.length === 3, `3× POST role (2 falhas + 1 sucesso); got ${postRoleCalls.length}`);
+  }
+
+  // ─── 11. HTTP 423 esgotado → erro accionável ──────────────────────
+  console.log("\n▶ NeonProvider — HTTP 423 esgotado após maxAttempts");
+  {
+    let roleCallCount = 0;
+    const { fetcher } = makeFetcher([
+      {
+        match: (c) => c.method === "GET" && c.path.startsWith("/projects/p11/branches"),
+        respond: { status: 200, json: { branches: [{ id: "br", name: "main", default: true }] } },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/roles"),
+        respond: () => {
+          roleCallCount++;
+          return { status: 423, text: "project already has running conflicting operations" };
+        },
+      },
+    ]);
+    const p = makeProvider({ projectId: "p11", fetcher, retryMaxAttempts: 3 });
+    try {
+      await p.createDatabase({ slug: "demo" });
+      assert(false, "esperava erro");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      assert(
+        msg.includes("createRole") && (msg.includes("persistente") || msg.includes("esgotado")),
+        `erro accionável menciona createRole + persistência/esgotado; got: ${msg.slice(0, 200)}`
+      );
+      assert(msg.includes("HTTP 423") || msg.includes("423"), "menciona HTTP 423");
+    }
+    assert(roleCallCount === 3, `tentou exactamente retryMaxAttempts (3) vezes; got ${roleCallCount}`);
+  }
+
+  // ─── 12. 423 em getConnectionUri → cleanup db + role ─────────────
+  console.log("\n▶ NeonProvider — 423 em connection_uri esgotado");
+  {
+    let uriCallCount = 0;
+    const { fetcher, calls } = makeFetcher([
+      {
+        match: (c) => c.method === "GET" && c.path.startsWith("/projects/p12/branches"),
+        respond: { status: 200, json: { branches: [{ id: "br", name: "main", default: true }] } },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/roles"),
+        respond: { status: 200, json: { role: { name: "spharmmt_demo", password: "pw" } } },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/databases"),
+        respond: { status: 200, json: { database: {} } },
+      },
+      {
+        match: (c) => c.method === "GET" && c.path.startsWith("/projects/p12/connection_uri"),
+        respond: () => {
+          uriCallCount++;
+          return { status: 423, text: "still locked" };
+        },
+      },
+      { match: (c) => c.method === "DELETE", respond: { status: 200, json: {} } },
+    ]);
+    const p = makeProvider({ projectId: "p12", fetcher, retryMaxAttempts: 2 });
+    try {
+      await p.createDatabase({ slug: "demo" });
+      assert(false, "esperava erro");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      assert(msg.includes("connection_uri") || msg.includes("connectionUri"), "erro menciona o step");
+    }
+    assert(uriCallCount === 2, `connection_uri esgotou retryMaxAttempts; got ${uriCallCount}`);
+    const dbDeletes = calls.filter((c) => c.method === "DELETE" && c.path.includes("/databases/"));
+    const roleDeletes = calls.filter((c) => c.method === "DELETE" && c.path.includes("/roles/"));
+    assert(dbDeletes.length === 1, "cleanup: 1× DELETE database após exaustão de connection_uri");
+    assert(roleDeletes.length === 1, "cleanup: 1× DELETE role após exaustão de connection_uri");
+  }
+
+  // ─── 13. Outros erros HTTP NÃO disparam retry ────────────────────
+  console.log("\n▶ NeonProvider — outros 4xx/5xx NÃO disparam retry");
+  {
+    let roleCallCount = 0;
+    const onRetryEvents: number[] = [];
+    const { fetcher } = makeFetcher([
+      {
+        match: (c) => c.method === "GET" && c.path.startsWith("/projects/p13/branches"),
+        respond: { status: 200, json: { branches: [{ id: "br", name: "main", default: true }] } },
+      },
+      {
+        match: (c) => c.method === "POST" && c.path.endsWith("/roles"),
+        respond: () => {
+          roleCallCount++;
+          return { status: 500, text: "internal" };
+        },
+      },
+    ]);
+    const p = new NeonProvider({
+      apiKey: "k",
+      projectId: "p13",
+      apiBaseUrl: "https://mock",
+      fetcher,
+      sleep: async () => {},
+      onRetry: (info) => onRetryEvents.push(info.attempt),
+      retryMaxAttempts: 5,
+      retryBaseDelayMs: 1,
+    });
+    try {
+      await p.createDatabase({ slug: "demo" });
+    } catch {
+      // esperado
+    }
+    assert(roleCallCount === 1, `5xx não retry: createRole chamado 1×; got ${roleCallCount}`);
+    assert(onRetryEvents.length === 0, "onRetry não disparado para 5xx (só para 423)");
   }
 
   // ─── Resumo ──────────────────────────────────────────────────────
