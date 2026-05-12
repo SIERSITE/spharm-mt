@@ -1,0 +1,30 @@
+{
+  "name": "@spharmmt/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SPharm.MT local agent — read-only sync de SPharm ERP (SQL Server) → SaaS via HTTPS.",
+  "type": "module",
+  "main": "src/cli.ts",
+  "bin": {
+    "spharmmt-agent": "src/cli.ts"
+  },
+  "scripts": {
+    "agent": "tsx src/cli.ts",
+    "test-connection": "tsx src/cli.ts test-connection",
+    "discover": "tsx src/cli.ts discover",
+    "health": "tsx src/cli.ts health"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.1",
+    "mssql": "^12.5.2"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

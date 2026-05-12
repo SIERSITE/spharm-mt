@@ -23,7 +23,10 @@
     "tenant:create": "tsx scripts/admin/create-client.ts",
     "env:doctor": "tsx scripts/env-doctor.ts",
     "agent:ingest-folder": "tsx scripts/agent/ingest-folder.ts",
-    "erp:discover": "tsx scripts/erp/spharm-sqlserver-discover.ts"
+    "agent": "tsx agent/src/cli.ts",
+    "agent:test-connection": "tsx agent/src/cli.ts test-connection",
+    "agent:discover": "tsx agent/src/cli.ts discover",
+    "agent:health": "tsx agent/src/cli.ts health"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
