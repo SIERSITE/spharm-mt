@@ -9,6 +9,9 @@ SaaS SPharm.MT via HTTPS autenticado.
 > `/api/ingest/v1/*` e `/api/outbox/v1/*` autenticados com a
 > `SPHARMMT_INGEST_KEY` bound ao tenant deste grupo.
 
+**Para correr o discovery agora:** [`RUN_DISCOVERY.md`](RUN_DISCOVERY.md) (guia passo-a-passo).
+**Antes de configurar:** [`SECURITY.md`](SECURITY.md) (checklist invariante).
+
 Arquitectura completa: [`notes/local-agent-architecture.md`](../notes/local-agent-architecture.md) (no repo SaaS).
 Plano de execução SQL Server específico: [`notes/local-agent-sqlserver-plan.md`](../notes/local-agent-sqlserver-plan.md).
 
