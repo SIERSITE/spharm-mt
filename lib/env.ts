@@ -79,9 +79,9 @@ export const ENV_CATALOG: EnvSpec[] = [
   {
     name: "TENANT_DB_HOST",
     scopes: ["cli"],
-    level: "required",
+    level: "optional",
     description:
-      "Host Postgres onde as BDs por-tenant são criadas. Em Neon, é o pooler do projecto (ex: ep-xxx-pooler.eu-central-1.aws.neon.tech).",
+      "Host Postgres onde as BDs por-tenant são criadas. Usado APENAS pelo modo legacy `--create-db` (LocalPostgresProvider). Em NeonProvider o host vem da própria API.",
     example: "ep-xxxx.eu-central-1.aws.neon.tech",
   },
   {
@@ -94,10 +94,42 @@ export const ENV_CATALOG: EnvSpec[] = [
   {
     name: "POSTGRES_ADMIN_URL",
     scopes: ["cli"],
-    level: "required",
+    level: "optional",
     description:
-      "Connection string com privilégios CREATEDB / CREATE ROLE. Em Neon, role owner do projecto. Usada APENAS por `provision-tenant.ts` para criar BDs novas.",
+      "Connection string com privilégios CREATEDB / CREATE ROLE. Usada APENAS pelo modo legacy `--create-db` (LocalPostgresProvider). Em Neon partilhado normalmente falha com 42501 — usa NeonProvider em vez.",
     example: "postgres://owner:pass@host/postgres?sslmode=require",
+  },
+  // ── Neon API (Platform Admin Tool) ─────────────────────────────────
+  {
+    name: "NEON_API_KEY",
+    scopes: ["cli"],
+    level: "optional",
+    description:
+      "API key da Neon (criar em https://console.neon.tech/app/settings/api-keys). Activa o NeonProvider — provisão automática de DBs por cliente. Sem isto, cai em ManualUrlProvider/LocalPostgresProvider conforme flags.",
+    example: "napi_xxxxxxxxxxxxxxxxxxxxxxxx",
+  },
+  {
+    name: "NEON_PROJECT_ID",
+    scopes: ["cli"],
+    level: "optional",
+    description:
+      "ID do Neon project onde criar as DBs por cliente. Obrigatório quando NEON_API_KEY está definido. Visível no dashboard Neon — ex: `morning-snow-12345678`.",
+    example: "old-leaf-12345678",
+  },
+  {
+    name: "NEON_DEFAULT_REGION",
+    scopes: ["cli"],
+    level: "optional",
+    description:
+      "Região por defeito para novas DBs Neon. Não muda DBs já criadas — Neon escolhe automaticamente baseado no projecto. Informativo.",
+    example: "eu-west-2",
+  },
+  {
+    name: "NEON_API_BASE_URL",
+    scopes: ["cli"],
+    level: "optional",
+    description:
+      "Override do base URL da Neon API. Default https://console.neon.tech/api/v2. Útil para staging/testing.",
   },
   // ── Auth ───────────────────────────────────────────────────────────
   {
@@ -145,6 +177,56 @@ export const ENV_CATALOG: EnvSpec[] = [
     level: "optional",
     description:
       "Quando '1', activa logs verbosos do browser Puppeteer em scripts de scraping INFARMED.",
+  },
+  // ── ERP SPharm (SQL Server) — discovery + on-premise sync ──────────
+  {
+    name: "ERP_SQLSERVER_HOST",
+    scopes: ["cli"],
+    level: "optional",
+    description:
+      "Host SQL Server do ERP SPharm da farmácia (on-premise). Só necessário em scripts erp:* (discover/bootstrap/daily).",
+    example: "localhost  ou  192.168.1.10  ou  SERVER\\SQLEXPRESS",
+  },
+  {
+    name: "ERP_SQLSERVER_PORT",
+    scopes: ["cli"],
+    level: "optional",
+    description: "Porta SQL Server. Default 1433. Não aplicável a instâncias nomeadas (usa o named pipe).",
+    example: "1433",
+  },
+  {
+    name: "ERP_SQLSERVER_DATABASE",
+    scopes: ["cli"],
+    level: "optional",
+    description: "Nome da BD SPharm no SQL Server.",
+    example: "SPHARM",
+  },
+  {
+    name: "ERP_SQLSERVER_USER",
+    scopes: ["cli"],
+    level: "optional",
+    description: "User SQL Server com permissão SELECT na BD SPharm. Idealmente um login dedicado read-only.",
+    example: "spharm_readonly",
+  },
+  {
+    name: "ERP_SQLSERVER_PASSWORD",
+    scopes: ["cli"],
+    level: "optional",
+    description: "Password do user SQL Server. NUNCA logar — mascarada em todos os outputs.",
+  },
+  {
+    name: "ERP_SQLSERVER_ENCRYPT",
+    scopes: ["cli"],
+    level: "optional",
+    description: "TLS para a conexão. '1' liga, '0' desliga. Default '0' (LAN local).",
+    example: "0",
+  },
+  {
+    name: "ERP_SQLSERVER_TRUST_CERT",
+    scopes: ["cli"],
+    level: "optional",
+    description: "Confiar em certificado self-signed quando ENCRYPT=1. '1' aceita, '0' valida. Default '1' (típico em LAN).",
+    example: "1",
   },
   {
     name: "NODE_ENV",

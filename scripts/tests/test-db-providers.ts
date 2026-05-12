@@ -21,6 +21,7 @@ import "dotenv/config";
 import {
   ManualUrlProvider,
   LocalPostgresProvider,
+  NeonProvider,
   selectProvider,
   ProviderSelectionError,
 } from "../../lib/db-providers";
@@ -53,7 +54,15 @@ function assertThrows(fn: () => unknown, expectedMsgFragment: string, label: str
 }
 
 // ─── Snapshot de env para restore ─────────────────────────────────────
-const ENV_KEYS = ["POSTGRES_ADMIN_URL", "TENANT_DB_HOST", "TENANT_DB_PORT"] as const;
+const ENV_KEYS = [
+  "POSTGRES_ADMIN_URL",
+  "TENANT_DB_HOST",
+  "TENANT_DB_PORT",
+  "NEON_API_KEY",
+  "NEON_PROJECT_ID",
+  "NEON_DEFAULT_REGION",
+  "NEON_API_BASE_URL",
+] as const;
 const savedEnv: Record<string, string | undefined> = {};
 for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
 
@@ -173,8 +182,8 @@ clearProviderEnv();
 // 2. ambos → erro
 assertThrows(
   () => selectProvider({ databaseUrl: "postgresql://u:p@h/d", createDb: true }),
-  "mutuamente exclusivos",
-  "databaseUrl + createDb → erro mutuamente exclusivos"
+  "mutuamente exclusiv",
+  "databaseUrl + createDb → erro mutuamente exclusiv*"
 );
 
 // 3. nenhum → erro accionável
@@ -226,6 +235,91 @@ try {
 } catch (err) {
   assert(err instanceof ProviderSelectionError, "selectProvider atira ProviderSelectionError tipado");
 }
+
+// 9. --provider neon sem envs → erro accionável
+clearProviderEnv();
+assertThrows(
+  () => selectProvider({ provider: "neon" }),
+  "NEON_API_KEY",
+  "--provider=neon sem NEON_API_KEY → erro accionável"
+);
+
+// 10. --provider neon com NEON_API_KEY mas sem NEON_PROJECT_ID
+clearProviderEnv();
+process.env.NEON_API_KEY = "napi_fake";
+assertThrows(
+  () => selectProvider({ provider: "neon" }),
+  "NEON_PROJECT_ID",
+  "--provider=neon sem NEON_PROJECT_ID → erro accionável"
+);
+
+// 11. --provider neon com tudo → NeonProvider
+clearProviderEnv();
+process.env.NEON_API_KEY = "napi_fake";
+process.env.NEON_PROJECT_ID = "proj-123";
+{
+  const p = selectProvider({ provider: "neon" });
+  assert(p.name === "neon", "--provider=neon + envs → NeonProvider");
+}
+
+// 12. Auto-detect Neon a partir de env (sem flags)
+clearProviderEnv();
+process.env.NEON_API_KEY = "napi_fake";
+process.env.NEON_PROJECT_ID = "proj-123";
+{
+  const p = selectProvider({});
+  assert(p.name === "neon", "Auto-detect Neon (NEON_API_KEY+NEON_PROJECT_ID definidos)");
+}
+
+// 13. Auto-detect local a partir de env (sem flags, sem Neon)
+clearProviderEnv();
+process.env.POSTGRES_ADMIN_URL = "postgres://admin:pw@local/postgres";
+process.env.TENANT_DB_HOST = "local";
+{
+  const p = selectProvider({});
+  assert(p.name === "local-postgres", "Auto-detect local (POSTGRES_ADMIN_URL + TENANT_DB_HOST sem Neon)");
+}
+
+// 14. Auto-detect Neon ganha sobre local quando ambos definidos
+clearProviderEnv();
+process.env.NEON_API_KEY = "napi_fake";
+process.env.NEON_PROJECT_ID = "proj-123";
+process.env.POSTGRES_ADMIN_URL = "postgres://admin:pw@local/postgres";
+process.env.TENANT_DB_HOST = "local";
+{
+  const p = selectProvider({});
+  assert(p.name === "neon", "Auto-detect prefere Neon sobre local quando ambos disponíveis");
+}
+
+// 15. --provider=manual sem --database-url → erro
+clearProviderEnv();
+assertThrows(
+  () => selectProvider({ provider: "manual" }),
+  "--database-url",
+  "--provider=manual sem --database-url → erro accionável"
+);
+
+// 16. Flags em conflito (--provider + outra flag de modo diferente)
+clearProviderEnv();
+assertThrows(
+  () => selectProvider({ provider: "manual", createDb: true }),
+  "Múltiplas",
+  "--provider=manual + --create-db (modos diferentes) → erro de conflito"
+);
+
+// 17. NeonProvider construtor recusa apiKey vazia
+assertThrows(
+  () => new NeonProvider({ apiKey: "", projectId: "x" }),
+  "apiKey obrigatória",
+  "NeonProvider sem apiKey → erro de constructor"
+);
+
+// 18. NeonProvider construtor recusa projectId vazio
+assertThrows(
+  () => new NeonProvider({ apiKey: "k", projectId: "" }),
+  "projectId obrigatório",
+  "NeonProvider sem projectId → erro de constructor"
+);
 
 restoreEnv();
 

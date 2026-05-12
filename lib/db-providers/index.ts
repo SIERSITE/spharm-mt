@@ -10,5 +10,7 @@ export type { ConnectionTargets, DatabaseProvider } from "./types";
 export { testTenantDbReachable } from "./connectivity";
 export { ManualUrlProvider } from "./manual-url";
 export { LocalPostgresProvider } from "./local-postgres";
+export { NeonProvider } from "./neon";
+export type { NeonProviderConfig, FetchLike } from "./neon";
 export { selectProvider, ProviderSelectionError } from "./select";
-export type { ProviderInputs } from "./select";
+export type { ProviderInputs, ProviderKind } from "./select";
