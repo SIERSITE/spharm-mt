@@ -57,27 +57,43 @@ function printChecklist(slug: string): void {
   console.log(`Tenant: ${slug}`);
   console.log("");
   console.log("[ ] 1. Emitir ingest API key:");
-  console.log(`        npx tsx scripts/tenancy/issue-ingest-key.ts --slug=${slug}`);
+  console.log(`        npm run tenancy:issue-ingest-key -- --slug=${slug}`);
   console.log("        (mostra a key em claro UMA VEZ — anota-a)");
   console.log("");
-  console.log("[ ] 2. Configurar o agent Windows do grupo com:");
-  console.log(`        X-Tenant-Slug: ${slug}`);
-  console.log(`        Authorization: Bearer <key emitida no passo 1>`);
+  console.log("[ ] 2. Ingest agent — configurar uma de duas vias:");
   console.log("");
-  console.log("[ ] 3. Confirmar primeiro heartbeat:");
-  console.log(`        Abrir /admin e verificar coluna Heartbeat para ${slug}`);
+  console.log("        2a) CLI agent (folder mode):");
+  console.log(`            npm run agent:ingest-folder -- \\`);
+  console.log(`              --tenant=${slug} --farmacia=<nome ou cuid> \\`);
+  console.log(`              --input=<pasta> --endpoint=<baseUrl> \\`);
+  console.log(`              --key=<key emitida no passo 1> --once`);
+  console.log("");
+  console.log("        2b) HTTP directo (curl etc):");
+  console.log(`            POST <baseUrl>/api/ingest/v1/snapshot/stock`);
+  console.log(`            Authorization: Bearer <key>`);
+  console.log(`            X-Tenant-Slug: ${slug}`);
+  console.log("");
+  console.log("[ ] 3. Confirmar primeiro heartbeat / first sync:");
+  console.log(`        Abrir /admin — coluna 'Last sync' e 'Heartbeat'`);
   console.log("");
   console.log("[ ] 4. Validar primeiros dados ingeridos:");
   console.log(`        npm run tenancy:health -- --slug=${slug}`);
   console.log("");
-  console.log("[ ] 5. Registar primeiro backup:");
-  console.log(`        (manual no provider Neon; depois atualizar Tenant.lastBackupAt)`);
+  console.log("[ ] 5. Refresh IPF + verificar dashboard:");
+  console.log(`        npx tsx scripts/jobs/refresh-ipf.ts --tenant=${slug}`);
+  console.log(`        Abrir /dashboard no tenant`);
   console.log("");
-  console.log("[ ] 6. Comunicar ao grupo:");
-  console.log(`        - URL: https://${slug}.spharmmt.app (ou domínio equivalente)`);
+  console.log("[ ] 6. Registar primeiro backup:");
+  console.log(`        (manual no provider Neon; depois actualizar Tenant.lastBackupAt)`);
+  console.log("");
+  console.log("[ ] 7. Comunicar ao grupo:");
+  console.log(`        - URL: https://${slug}.<domain> (ou domínio equivalente)`);
   console.log(`        - Credencial admin entregue pelo CLI no passo provision`);
   console.log("");
-  console.log("Documento de referência: notes/tenant-onboarding.md");
+  console.log("Documentos de referência:");
+  console.log("  · notes/tenant-onboarding.md");
+  console.log("  · notes/ingestion-agent-folder-mode.md");
+  console.log("  · notes/pilot-bootstrap-report.md");
 }
 
 function main(): void {
@@ -89,6 +105,7 @@ function main(): void {
       "admin-email": { type: "string" },
       "admin-password": { type: "string" },
       "admin-nome": { type: "string" },
+      "farmacia-inicial": { type: "string" },
       "skip-smoke": { type: "boolean", default: false },
     },
     strict: true,
@@ -99,7 +116,7 @@ function main(): void {
   const adminEmail = values["admin-email"];
   if (!slug || !nome || !adminEmail) {
     console.error(
-      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N] [--skip-smoke]",
+      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"] [--skip-smoke]",
     );
     process.exit(1);
   }
@@ -111,6 +128,7 @@ function main(): void {
   ];
   if (values["admin-password"]) provisionArgs.push(`--admin-password=${values["admin-password"]}`);
   if (values["admin-nome"]) provisionArgs.push(`--admin-nome=${values["admin-nome"]}`);
+  if (values["farmacia-inicial"]) provisionArgs.push(`--farmacia-inicial=${values["farmacia-inicial"]}`);
 
   const outcomes: Outcome[] = [];
 

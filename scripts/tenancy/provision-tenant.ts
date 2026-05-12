@@ -60,6 +60,7 @@ async function main() {
       "admin-email": { type: "string" },
       "admin-password": { type: "string" },
       "admin-nome": { type: "string" },
+      "farmacia-inicial": { type: "string" },
     },
     strict: true,
     allowPositionals: false,
@@ -70,10 +71,11 @@ async function main() {
   const adminEmail = values["admin-email"];
   const adminNome = values["admin-nome"] ?? "Administrador";
   let adminPassword = values["admin-password"];
+  const farmaciaInicial = values["farmacia-inicial"]?.trim() || null;
 
   if (!slug || !nome || !adminEmail) {
     console.error(
-      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N]"
+      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"]"
     );
     process.exit(1);
   }
@@ -167,11 +169,12 @@ async function main() {
     }
     process.stdout.write(migrateResult.stdout ?? "");
 
-    // Passo 7 — seed admin via PrismaClient do tenant
+    // Passo 7 — seed admin + (opcional) farmácia inicial
     console.log("▶ A criar utilizador administrador inicial…");
     const passwordHash = await bcrypt.hash(adminPassword, 10);
     const adapter = new PrismaPg({ connectionString: tenantUrl });
     const tenantDb = new TenantPrismaClient({ adapter });
+    let farmaciaInicialId: string | null = null;
     try {
       await tenantDb.utilizador.create({
         data: {
@@ -183,6 +186,20 @@ async function main() {
           mustChangePassword: true,
         },
       });
+      // Opcional: criar 1ª farmácia para destrancar o primeiro upload
+      // via ingest API (que exige farmaciaId existente). Sem isto, o
+      // operador tem de criar manualmente via SQL / Prisma Studio.
+      if (farmaciaInicial) {
+        console.log(`▶ A criar farmácia inicial "${farmaciaInicial}"…`);
+        const f = await tenantDb.farmacia.create({
+          data: {
+            nome: farmaciaInicial,
+            estado: "ATIVO",
+          },
+          select: { id: true },
+        });
+        farmaciaInicialId = f.id;
+      }
     } finally {
       await tenantDb.$disconnect();
     }
@@ -209,6 +226,9 @@ async function main() {
     console.log(`  Admin email    : ${adminEmail}`);
     console.log(`  Admin password : ${adminPassword}   ← MOSTRADO UMA VEZ`);
     console.log(`  Subdomain      : ${slug}.spharmmt.app (ou o teu host)`);
+    if (farmaciaInicial && farmaciaInicialId) {
+      console.log(`  Farmácia       : ${farmaciaInicial}  (id=${farmaciaInicialId})`);
+    }
     console.log("─".repeat(60));
     console.log("Comunica a password ao administrador. Será forçado a mudar no primeiro login.");
   } catch (err) {

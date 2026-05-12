@@ -1,4 +1,7 @@
-import "server-only";
+// Sem `import "server-only"` — consumido pela chain CLI via
+// `lib/control-plane.ts`. Funções usam só `node:crypto` (sem APIs
+// browser), portanto continua a ser efectivamente server-only por
+// design. Ver `lib/control-plane.ts` para nota equivalente.
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 
 /**

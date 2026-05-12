@@ -1,4 +1,9 @@
-import "server-only";
+// Sem `import "server-only"` — este módulo é consumido por scripts
+// CLI (`scripts/tenancy/*` e `scripts/jobs/*`) corridos via tsx, fora
+// do bundler Next que resolveria o marker. Ver nota equivalente em
+// `lib/tenant-registry.ts` e `lib/tenant-context.ts`.
+// Continua a ser server-only por design — nunca importar de Client
+// Components. Verificação por code review.
 import { PrismaClient } from "@/generated/prisma-control/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { decryptTenantSecret } from "@/lib/tenant-crypto";
