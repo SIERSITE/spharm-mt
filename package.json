@@ -19,7 +19,8 @@
     "tenancy:smoke-resolver": "tsx scripts/tenancy/smoke-test-resolver.ts",
     "tenancy:issue-ingest-key": "tsx scripts/tenancy/issue-ingest-key.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",
-    "env:doctor": "tsx scripts/env-doctor.ts"
+    "env:doctor": "tsx scripts/env-doctor.ts",
+    "agent:ingest-folder": "tsx scripts/agent/ingest-folder.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
