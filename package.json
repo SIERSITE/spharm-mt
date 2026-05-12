@@ -26,7 +26,8 @@
     "agent": "tsx agent/src/cli.ts",
     "agent:test-connection": "tsx agent/src/cli.ts test-connection",
     "agent:discover": "tsx agent/src/cli.ts discover",
-    "agent:health": "tsx agent/src/cli.ts health"
+    "agent:health": "tsx agent/src/cli.ts health",
+    "agent:package": "node agent/build.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",

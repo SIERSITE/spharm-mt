@@ -4,3 +4,5 @@ output/
 .env
 .env.local
 *.log
+.build-cache/
+agent.config.json

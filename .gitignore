@@ -45,3 +45,8 @@ next-env.d.ts
 # Investigation artefacts (regenerable, large)
 notes/*-capture.json
 notes/*.final-html.html
+
+# Agent build artefacts (regenerable via `npm run agent:package`)
+/dist-agent
+/agent/.build-cache
+/agent/agent.config.json

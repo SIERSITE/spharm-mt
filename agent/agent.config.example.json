@@ -1,0 +1,22 @@
+{
+  "_doc": "Template de configuração do SPharm.MT agent. Copia para agent.config.json e edita. NUNCA commitar agent.config.json. Mais detalhes em INSTALL_WINDOWS.md.",
+  "saas": {
+    "endpoint": "https://app.spharmmt.app",
+    "tenantSlug": "demo-neon",
+    "ingestKey": "COLAR_KEY_64_HEX_DO_DEV",
+    "farmacia": "Farmácia Central"
+  },
+  "sqlServer": {
+    "host": "localhost",
+    "port": 1433,
+    "database": "SPHARM",
+    "user": "spharm_readonly",
+    "password": "COLAR_PASSWORD_DO_LOGIN_READONLY",
+    "encrypt": false,
+    "trustServerCertificate": true
+  },
+  "options": {
+    "outputDir": "output",
+    "agentVersion": "0.1.0"
+  }
+}

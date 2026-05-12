@@ -10,17 +10,20 @@
  */
 
 import "dotenv/config";
+import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
- * Raiz do agent (folder pai de src/). Usada para resolver paths de
- * output e .env. Sobrevive a tsx, ESM, build compilado para dist/.
+ * Estratégia de paths: tudo relativo a `process.cwd()`. Em distribuição
+ * packaged, os `.bat` wrappers começam com `cd /d "%~dp0"` que põe o
+ * cwd na pasta SPharmMT-Agent\ junto ao executável; em dev (tsx via
+ * npm), cwd é o agent/ ou repo root consoante o script. Não usamos
+ * `import.meta.url` para evitar shenanigans entre ESM (tsx) e CJS
+ * (esbuild bundle).
  */
-export const AGENT_ROOT = path.resolve(__dirname, "..");
+
+/** Path do JSON config (preferido em distribuição packaged). */
+export const JSON_CONFIG_PATH = path.resolve(process.cwd(), "agent.config.json");
 
 export type Scope =
   /** Comandos que só falam com a SaaS (ex: heartbeat futuro). */
@@ -107,11 +110,78 @@ const SQL_REQUIRED = [
 ];
 
 /**
+ * Tenta ler `agent.config.json` do cwd (formato JSON estruturado,
+ * preferido em distribuição packaged). Mapeia valores para o mesmo
+ * namespace de envs que o `.env` usa, permitindo que o resto de
+ * `loadConfig` valide igual em ambos os caminhos.
+ *
+ * JSON wins sobre `.env` quando ambos definem a mesma chave — é
+ * intencional, o `.env` é dev-fallback.
+ */
+function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
+  if (!fs.existsSync(JSON_CONFIG_PATH)) return { source: "env" };
+  let raw: string;
+  try {
+    raw = fs.readFileSync(JSON_CONFIG_PATH, "utf8");
+  } catch (err) {
+    throw new ConfigError(
+      `agent.config.json existe mas não foi possível ler: ${err instanceof Error ? err.message : err}`,
+      []
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new ConfigError(
+      `agent.config.json inválido (JSON malformado): ${err instanceof Error ? err.message : err}`,
+      []
+    );
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new ConfigError(`agent.config.json deve ser um objecto JSON.`, []);
+  }
+  const cfg = parsed as Record<string, unknown>;
+  const saas = (cfg.saas as Record<string, unknown> | undefined) ?? {};
+  const sqlServer = (cfg.sqlServer as Record<string, unknown> | undefined) ?? {};
+  const options = (cfg.options as Record<string, unknown> | undefined) ?? {};
+
+  const set = (envName: string, value: unknown): void => {
+    if (value === undefined || value === null) return;
+    process.env[envName] = String(value);
+  };
+
+  set("SPHARMMT_ENDPOINT", saas.endpoint);
+  set("SPHARMMT_TENANT_SLUG", saas.tenantSlug);
+  set("SPHARMMT_INGEST_KEY", saas.ingestKey);
+  set("SPHARMMT_FARMACIA", saas.farmacia);
+
+  set("ERP_SQLSERVER_HOST", sqlServer.host);
+  set("ERP_SQLSERVER_PORT", sqlServer.port);
+  set("ERP_SQLSERVER_DATABASE", sqlServer.database);
+  set("ERP_SQLSERVER_USER", sqlServer.user);
+  set("ERP_SQLSERVER_PASSWORD", sqlServer.password);
+  if (typeof sqlServer.encrypt === "boolean")
+    process.env.ERP_SQLSERVER_ENCRYPT = sqlServer.encrypt ? "1" : "0";
+  if (typeof sqlServer.trustServerCertificate === "boolean")
+    process.env.ERP_SQLSERVER_TRUST_CERT = sqlServer.trustServerCertificate ? "1" : "0";
+
+  set("SPHARMMT_AGENT_OUTPUT_DIR", options.outputDir);
+  set("SPHARMMT_AGENT_VERSION", options.agentVersion);
+
+  return { source: "json", path: JSON_CONFIG_PATH };
+}
+
+/**
  * Carrega config para o scope dado. Lança `ConfigError` listando
  * TODAS as envs em falta (não atira na primeira — diagnose completo
  * no primeiro arranque).
+ *
+ * Ordem de precedência: `agent.config.json` (cwd) ganha sobre `.env`.
+ * Ambos populam o mesmo namespace de process.env.
  */
 export function loadConfig(scope: Scope): AgentConfig {
+  applyJsonConfigIfPresent();
   const groups = REQUIRED_BY_SCOPE[scope];
   const missing: string[] = [];
 
@@ -169,7 +239,7 @@ export function loadConfig(scope: Scope): AgentConfig {
   const sqlTrustCert = boolEnv("ERP_SQLSERVER_TRUST_CERT", true);
 
   const outputDir =
-    optionalEnv("SPHARMMT_AGENT_OUTPUT_DIR") ?? path.join(AGENT_ROOT, "output");
+    optionalEnv("SPHARMMT_AGENT_OUTPUT_DIR") ?? path.resolve(process.cwd(), "output");
 
   const agentVersion = optionalEnv("SPHARMMT_AGENT_VERSION") ?? "0.1.0";
 
