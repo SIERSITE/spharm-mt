@@ -1,31 +1,48 @@
 /**
  * scripts/tenancy/provision-tenant.ts
  *
- * Cria um novo tenant (grupo de farmácias):
- *   1. Valida argumentos
- *   2. Confirma que o slug está livre no control plane
- *   3. Gera credenciais DB (user + random password + dbName)
- *   4. CREATE ROLE + CREATE DATABASE + GRANT CONNECT
- *   5. Insere Tenant (estado=PROVISIONING) no control plane
- *   6. `prisma migrate deploy` contra a nova DB
- *   7. Seed: cria 1 Utilizador ADMINISTRADOR
- *   8. Marca Tenant como ACTIVE
- *   9. Regista TenantEvent "created"
+ * Provisionamento de um novo tenant (grupo de farmácias). Wrapper CLI
+ * thin que selecciona um `DatabaseProvider` a partir das flags e
+ * delega a criação da DB. A lógica de provisão (CREATE ROLE/DB ou
+ * parse de URL externa) vive em `lib/db-providers/*`.
+ *
+ * Modos (mutuamente exclusivos):
+ *
+ *  A) --database-url=<url>   (Neon/Supabase/RDS/on-prem onde já criaste)
+ *     · Operador trouxe a URL completa
+ *     · Provider: ManualUrlProvider
+ *     · Não toca em CREATE ROLE / SET ROLE
+ *
+ *  B) --create-db            (Postgres self-hosted com super-user access)
+ *     · Provider: LocalPostgresProvider
+ *     · Requer POSTGRES_ADMIN_URL + TENANT_DB_HOST
+ *     · Em Neon partilhado normalmente FALHA com 42501 SET ROLE
+ *
+ * Encadeia (qualquer modo):
+ *   1. Valida argumentos + slug livre no control plane
+ *   2. Provider.createDatabase → ConnectionTargets
+ *   3. Insere Tenant (estado=PROVISIONING) no control plane
+ *   4. `prisma migrate deploy` contra a URL do tenant
+ *   5. Seed: 1 Utilizador ADMINISTRADOR + (opcional) farmácia inicial
+ *   6. Marca Tenant=ACTIVE
+ *   7. Regista TenantEvent "created" com provider.name em meta
  *
  * Rollback:
- *   · Erro nos passos 4-5 → cleanup completo (DROP DB + DROP ROLE)
- *   · Erro nos passos 6-8 → tenant fica em FAILED para inspecção
- *     manual. Razão: já há dados que podem ser úteis para debug.
+ *   · Erro em provider.createDatabase → provider trata internamente
+ *     (LocalPostgres faz DROP em cascata se DROP necessário)
+ *   · Erro nos passos 4-7 → Tenant marcado FAILED; infra preservada
+ *     para inspecção. Limpeza posterior:
+ *       npm run tenancy:cleanup-failed -- --slug <slug>
  *
- * Uso:
+ * Uso (modo A — operador trouxe a URL):
  *   npm run tenancy:provision -- \
- *     --slug farmacias-braga \
- *     --nome "Grupo Farmácias de Braga" \
- *     --admin-email admin@braga.pt \
- *     [--admin-password <plain>] \
- *     [--admin-nome "Admin Braga"]
+ *     --database-url "postgresql://USER:PASS@HOST/DBNAME?sslmode=require" \
+ *     --slug farmacias-braga --nome "Grupo Braga" --admin-email a@b.pt \
+ *     [--farmacia-inicial "Farmácia Central"]
  *
- * Se --admin-password não for passada, é gerada e impressa UMA VEZ.
+ * Uso (modo B — self-hosted):
+ *   npm run tenancy:provision -- --create-db \
+ *     --slug farmacias-braga --nome "Grupo Braga" --admin-email a@b.pt
  */
 
 import "dotenv/config";
@@ -36,22 +53,21 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { controlPrisma, logTenantEvent } from "@/lib/control-plane";
 import { encryptTenantSecret } from "@/lib/tenant-crypto";
 import {
+  selectProvider,
+  ProviderSelectionError,
+  type DatabaseProvider,
+  type ConnectionTargets,
+} from "@/lib/db-providers";
+import {
   SLUG_REGEX,
   requireControlEnv,
-  requireAdminEnv,
-  slugToDbNames,
   generatePassword,
-  openAdminClient,
-  quoteIdent,
-  quoteLiteral,
-  buildPgUrl,
   runPrismaForTenant,
   getLatestMigrationName,
 } from "./_shared";
 
 async function main() {
   requireControlEnv();
-  requireAdminEnv();
 
   const { values } = parseArgs({
     options: {
@@ -61,6 +77,8 @@ async function main() {
       "admin-password": { type: "string" },
       "admin-nome": { type: "string" },
       "farmacia-inicial": { type: "string" },
+      "database-url": { type: "string" },
+      "create-db": { type: "boolean", default: false },
     },
     strict: true,
     allowPositionals: false,
@@ -75,7 +93,8 @@ async function main() {
 
   if (!slug || !nome || !adminEmail) {
     console.error(
-      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"]"
+      'Uso: --slug X --nome "Y" --admin-email E (--database-url "<url>" | --create-db)\n' +
+        "        [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"]"
     );
     process.exit(1);
   }
@@ -84,83 +103,86 @@ async function main() {
     process.exit(1);
   }
 
-  // Passo 2 — slug livre?
+  // Selecciona provider — flags validadas aqui; mensagem accionável se ambos/nenhum.
+  let provider: DatabaseProvider;
+  try {
+    provider = selectProvider({
+      databaseUrl: values["database-url"],
+      createDb: values["create-db"],
+    });
+  } catch (err) {
+    if (err instanceof ProviderSelectionError) {
+      console.error(`\n${err.message}`);
+    } else {
+      console.error(err instanceof Error ? err.message : String(err));
+    }
+    process.exit(1);
+    return;
+  }
+
+  // Slug livre no control plane?
   const existing = await controlPrisma.tenant.findUnique({ where: { slug } });
   if (existing) {
     console.error(`Slug já usado pelo tenant id=${existing.id} (estado=${existing.estado}).`);
+    console.error(`  Se ficou parcial, limpa com: npm run tenancy:cleanup-failed -- --slug ${slug}`);
     process.exit(1);
   }
 
-  // Passo 3 — credenciais
-  const { dbUser, dbName } = slugToDbNames(slug);
-  const dbPassword = generatePassword();
+  console.log(`▶ Provisionamento do tenant "${slug}" (provider: ${provider.name})`);
+
+  let targets: ConnectionTargets;
+  try {
+    targets = await provider.createDatabase({ slug });
+  } catch (err) {
+    console.error(`\n✗ Provisionamento de BD falhou (provider: ${provider.name}):`);
+    console.error(`  ${err instanceof Error ? err.message : String(err)}`);
+    if (provider.name === "manual") {
+      console.error("\nDiagnóstico comum:");
+      console.error("  · sslmode em falta — Neon e managed Postgres exigem ?sslmode=require");
+      console.error("  · password mal escapada — verifica caracteres especiais URL-encoded");
+      console.error("  · role/DB inexistente — confirma criação na UI do provider");
+    } else if (provider.name === "local-postgres") {
+      console.error("\nDiagnóstico comum:");
+      console.error("  · POSTGRES_ADMIN_URL sem CREATEDB/CREATEROLE");
+      console.error("  · Em Neon partilhado, CREATE DATABASE com OWNER alheio falha (42501)");
+      console.error("  · Re-corre com --database-url criando DB+role manualmente na UI");
+    }
+    process.exit(1);
+    return;
+  }
+
+  console.log(`  dbHost : ${targets.host}:${targets.port}`);
+  console.log(`  dbName : ${targets.dbName}`);
+  console.log(`  dbUser : ${targets.dbUser}`);
+
   if (!adminPassword) {
     adminPassword = generatePassword(12);
   }
 
-  const dbHost = process.env.TENANT_DB_HOST!;
-  const dbPort = Number(process.env.TENANT_DB_PORT ?? 5432);
-
-  console.log(`▶ Provisionamento do tenant "${slug}"`);
-  console.log(`  dbHost : ${dbHost}:${dbPort}`);
-  console.log(`  dbName : ${dbName}`);
-  console.log(`  dbUser : ${dbUser}`);
-
-  // Passo 4 — CREATE ROLE + DATABASE
-  console.log("▶ A criar role + database no Postgres…");
-  const admin = await openAdminClient();
-  let dbRoleCreated = false;
-  let dbCreated = false;
-  try {
-    await admin.query(
-      `CREATE ROLE ${quoteIdent(dbUser)} LOGIN PASSWORD ${quoteLiteral(dbPassword)}`
-    );
-    dbRoleCreated = true;
-    await admin.query(`CREATE DATABASE ${quoteIdent(dbName)} OWNER ${quoteIdent(dbUser)}`);
-    dbCreated = true;
-    await admin.query(`REVOKE CONNECT ON DATABASE ${quoteIdent(dbName)} FROM PUBLIC`);
-    await admin.query(`GRANT CONNECT ON DATABASE ${quoteIdent(dbName)} TO ${quoteIdent(dbUser)}`);
-  } catch (err) {
-    // Cleanup total — ainda não tocámos no control plane.
-    console.error("✗ Falha a criar role/database. Cleanup parcial…");
-    if (dbCreated) {
-      try {
-        await admin.query(`DROP DATABASE ${quoteIdent(dbName)}`);
-      } catch {}
-    }
-    if (dbRoleCreated) {
-      try {
-        await admin.query(`DROP ROLE ${quoteIdent(dbUser)}`);
-      } catch {}
-    }
-    await admin.end();
-    throw err;
-  }
-  await admin.end();
-
-  // Passo 5 — registar no control plane
+  // Registar no control plane
   console.log("▶ A registar no control plane…");
   const tenant = await controlPrisma.tenant.create({
     data: {
       slug,
       nome,
       estado: "PROVISIONING",
-      dbHost,
-      dbPort,
-      dbName,
-      dbUser,
-      dbPassEncrypted: encryptTenantSecret(dbPassword),
+      dbHost: targets.host,
+      dbPort: targets.port,
+      dbName: targets.dbName,
+      dbUser: targets.dbUser,
+      dbPassEncrypted: encryptTenantSecret(targets.dbPassword),
     },
   });
 
-  // A partir daqui, qualquer erro marca FAILED (não apaga dados).
+  let farmaciaInicialId: string | null = null;
+
+  // A partir daqui, qualquer erro marca FAILED (infra preservada).
   try {
-    // Passo 6 — migrations
+    // Migrations
     console.log("▶ A aplicar migrations (prisma migrate deploy)…");
-    const tenantUrl = buildPgUrl({ host: dbHost, port: dbPort, dbName, user: dbUser, password: dbPassword });
     const migrateResult = runPrismaForTenant(
       ["migrate", "deploy", "--schema", "prisma/schema.prisma"],
-      tenantUrl
+      targets.connectionUrl
     );
     if (migrateResult.status !== 0) {
       throw new Error(
@@ -169,12 +191,11 @@ async function main() {
     }
     process.stdout.write(migrateResult.stdout ?? "");
 
-    // Passo 7 — seed admin + (opcional) farmácia inicial
+    // Seed admin + (opcional) farmácia inicial
     console.log("▶ A criar utilizador administrador inicial…");
     const passwordHash = await bcrypt.hash(adminPassword, 10);
-    const adapter = new PrismaPg({ connectionString: tenantUrl });
+    const adapter = new PrismaPg({ connectionString: targets.connectionUrl });
     const tenantDb = new TenantPrismaClient({ adapter });
-    let farmaciaInicialId: string | null = null;
     try {
       await tenantDb.utilizador.create({
         data: {
@@ -186,16 +207,10 @@ async function main() {
           mustChangePassword: true,
         },
       });
-      // Opcional: criar 1ª farmácia para destrancar o primeiro upload
-      // via ingest API (que exige farmaciaId existente). Sem isto, o
-      // operador tem de criar manualmente via SQL / Prisma Studio.
       if (farmaciaInicial) {
         console.log(`▶ A criar farmácia inicial "${farmaciaInicial}"…`);
         const f = await tenantDb.farmacia.create({
-          data: {
-            nome: farmaciaInicial,
-            estado: "ATIVO",
-          },
+          data: { nome: farmaciaInicial, estado: "ATIVO" },
           select: { id: true },
         });
         farmaciaInicialId = f.id;
@@ -204,7 +219,7 @@ async function main() {
       await tenantDb.$disconnect();
     }
 
-    // Passo 8 — marcar ACTIVE
+    // Marcar ACTIVE
     await controlPrisma.tenant.update({
       where: { id: tenant.id },
       data: {
@@ -214,11 +229,11 @@ async function main() {
       },
     });
 
-    // Passo 9 — audit
+    // Audit
     await logTenantEvent({
       tenantId: tenant.id,
       action: "created",
-      meta: { slug, nome, adminEmail },
+      meta: { slug, nome, adminEmail, provider: provider.name },
     });
 
     console.log(`\n✓ Tenant "${slug}" provisionado com sucesso.`);
@@ -234,7 +249,7 @@ async function main() {
   } catch (err) {
     console.error("\n✗ Provisionamento falhou no meio. Tenant marcado como FAILED.");
     console.error("  DB e role ficam preservados para inspecção manual.");
-    console.error("  Para limpar: npm run tenancy:destroy -- --slug " + slug);
+    console.error(`  Para limpar: npm run tenancy:cleanup-failed -- --slug ${slug}`);
     await controlPrisma.tenant.update({
       where: { id: tenant.id },
       data: { estado: "FAILED" },
@@ -242,7 +257,7 @@ async function main() {
     await logTenantEvent({
       tenantId: tenant.id,
       action: "provision_failed",
-      meta: { error: err instanceof Error ? err.message : String(err) },
+      meta: { error: err instanceof Error ? err.message : String(err), provider: provider.name },
     });
     throw err;
   } finally {

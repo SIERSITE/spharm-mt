@@ -98,12 +98,20 @@ export async function listTenants(filter?: {
  * Constrói a connection string DB de um tenant descifrando a password
  * com `decryptTenantSecret`. Usado pelo resolver em runtime e pelos
  * scripts de migrate-all / backup / health-check.
+ *
+ * Heurística SSL: hosts não-locais (Neon, RDS, qualquer fornecedor
+ * gerido) exigem TLS — anexamos `?sslmode=require` por defeito. Hosts
+ * locais (localhost/127.x/IPv6 loopback) ficam sem para não quebrar
+ * dev environments sem TLS configurado.
  */
+const LOCAL_HOST_REGEX = /^(localhost|127(?:\.\d+){3}|::1|\[::1\])$/i;
+
 export function buildTenantConnectionString(tenant: TenantRecord): string {
   const password = decryptTenantSecret(tenant.dbPassEncrypted);
   const user = encodeURIComponent(tenant.dbUser);
   const pass = encodeURIComponent(password);
-  return `postgresql://${user}:${pass}@${tenant.dbHost}:${tenant.dbPort}/${tenant.dbName}`;
+  const base = `postgresql://${user}:${pass}@${tenant.dbHost}:${tenant.dbPort}/${tenant.dbName}`;
+  return LOCAL_HOST_REGEX.test(tenant.dbHost) ? base : `${base}?sslmode=require`;
 }
 
 /**

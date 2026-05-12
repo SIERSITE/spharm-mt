@@ -29,6 +29,26 @@ import { parseArgs } from "node:util";
 
 type Outcome = { name: string; ok: boolean; durationMs: number; detail?: string };
 
+/**
+ * Quoting de argumentos para `spawn` com `shell: true` no Windows. Sem
+ * isto, args com espaços (--nome "Grupo Piloto Demo", --farmacia-inicial
+ * "Farmácia Central") são partidos por cmd.exe em múltiplos tokens, e o
+ * `parseArgs` do script filho lê só o primeiro pedaço.
+ *
+ * Regras cmd.exe (suficientes para o conjunto de chars que produzimos):
+ *  · Se contém espaços, aspas ou caracteres especiais → envolver em
+ *    aspas duplas e escapar `"` internas como `\"`.
+ *  · Em sh/bash (não-Windows) não envolvemos: o spawn passa o array
+ *    directamente sem shell quoting (shell: false).
+ */
+function quoteArgForWindowsShell(arg: string): string {
+  if (process.platform !== "win32") return arg;
+  if (/[\s"&|<>^]/.test(arg)) {
+    return `"${arg.replace(/"/g, '\\"')}"`;
+  }
+  return arg;
+}
+
 function runStep(name: string, script: string, extraArgs: string[]): Outcome {
   const t0 = Date.now();
   console.log("\n" + "═".repeat(78));
@@ -36,7 +56,8 @@ function runStep(name: string, script: string, extraArgs: string[]): Outcome {
   console.log("═".repeat(78));
   const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
   const fullScript = path.resolve(script);
-  const result = spawnSync(cmd, ["tsx", fullScript, ...extraArgs], {
+  const quoted = extraArgs.map(quoteArgForWindowsShell);
+  const result = spawnSync(cmd, ["tsx", fullScript, ...quoted], {
     stdio: "inherit",
     env: process.env,
     shell: process.platform === "win32",
@@ -106,6 +127,8 @@ function main(): void {
       "admin-password": { type: "string" },
       "admin-nome": { type: "string" },
       "farmacia-inicial": { type: "string" },
+      "database-url": { type: "string" },
+      "create-db": { type: "boolean", default: false },
       "skip-smoke": { type: "boolean", default: false },
     },
     strict: true,
@@ -114,21 +137,41 @@ function main(): void {
   const slug = values.slug;
   const nome = values.nome;
   const adminEmail = values["admin-email"];
+  const databaseUrl = values["database-url"];
+  const createDb = !!values["create-db"];
   if (!slug || !nome || !adminEmail) {
     console.error(
-      "Uso: --slug X --nome \"Y\" --admin-email E [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"] [--skip-smoke]",
+      'Uso: --slug X --nome "Y" --admin-email E (--database-url "<url>" | --create-db)\n' +
+        "        [--admin-password P] [--admin-nome N] [--farmacia-inicial \"<Nome>\"] [--skip-smoke]"
     );
     process.exit(1);
   }
+  if (!databaseUrl && !createDb) {
+    console.error(
+      "\nTens de escolher um modo:\n" +
+        "  · --database-url \"<url>\"   (Neon/serverless — operador pré-cria DB+role)\n" +
+        "  · --create-db               (self-hosted — SQL CREATE ROLE/DATABASE)\n"
+    );
+    process.exit(1);
+  }
+  if (databaseUrl && createDb) {
+    console.error("\n--database-url e --create-db são mutuamente exclusivos.");
+    process.exit(1);
+  }
 
-  const provisionArgs = [
-    `--slug=${slug}`,
-    `--nome=${nome}`,
-    `--admin-email=${adminEmail}`,
+  // Forwarding: usar formato com '=' falha em parseArgs quando o valor
+  // contém '=' (ex: ?sslmode=require). Passamos sempre --key + valor
+  // separados — parseArgs filho lida com isto correctamente.
+  const provisionArgs: string[] = [
+    "--slug", slug,
+    "--nome", nome,
+    "--admin-email", adminEmail,
   ];
-  if (values["admin-password"]) provisionArgs.push(`--admin-password=${values["admin-password"]}`);
-  if (values["admin-nome"]) provisionArgs.push(`--admin-nome=${values["admin-nome"]}`);
-  if (values["farmacia-inicial"]) provisionArgs.push(`--farmacia-inicial=${values["farmacia-inicial"]}`);
+  if (databaseUrl) provisionArgs.push("--database-url", databaseUrl);
+  if (createDb) provisionArgs.push("--create-db");
+  if (values["admin-password"]) provisionArgs.push("--admin-password", values["admin-password"]);
+  if (values["admin-nome"]) provisionArgs.push("--admin-nome", values["admin-nome"]);
+  if (values["farmacia-inicial"]) provisionArgs.push("--farmacia-inicial", values["farmacia-inicial"]);
 
   const outcomes: Outcome[] = [];
 
