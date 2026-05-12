@@ -34,11 +34,11 @@ ficheiro reaparecer na origem.
 ```bash
 npm run agent:ingest-folder -- \
   --tenant=<slug> \
-  --farmacia=<cuid> \
+  --farmacia=<cuid|nome> \
   --input=<folder> \
   --endpoint=<baseUrl> \
   --key=<ingest-key> \
-  (--once | --watch) \
+  (--once | --watch | --retry-failed) \
   [--dry-run] \
   [--watch-interval=<ms>]
 ```
@@ -46,20 +46,38 @@ npm run agent:ingest-folder -- \
 | Flag | Obrigatório | Default | Descrição |
 |---|---|---|---|
 | `--tenant` | sim | — | Slug do tenant (header `X-Tenant-Slug`) |
-| `--farmacia` | sim | — | cuid da farmácia dentro do tenant (form field `farmaciaId`) |
+| `--farmacia` | sim | — | **cuid OU nome** da farmácia dentro do tenant. Resolução automática via `/api/ingest/v1/farmacias`. |
 | `--input` | sim | — | Caminho absoluto da pasta de input |
 | `--endpoint` | sim | — | Base URL da SPharm.MT (sem trailing slash) |
 | `--key` | sim | — | Ingest API key emitida por `tenancy:issue-ingest-key` |
-| `--once` | xor | — | Processa pasta uma vez e sai |
+| `--once` | xor | — | Processa `input/` uma vez e sai |
 | `--watch` | xor | — | Loop indefinido com polling (Ctrl+C para parar) |
+| `--retry-failed` | xor | — | Reprocessa ficheiros em `failed/` uma vez e sai |
 | `--dry-run` | opcional | false | Detecta + classifica sem fazer upload nem mover ficheiros |
 | `--watch-interval` | opcional | 5000 (ms) | Intervalo entre polls em watch mode |
 
-> **Nota sobre `--farmacia`:** hoje exige o **cuid** da farmácia
-> dentro do tenant (ex: `ckhxgzps700001abcde123456`). Para o
-> descobrir: `npm run tenancy:health -- --slug=<tenant>` lista as
-> farmácias e os cuids. Quando existir um endpoint `/api/ingest/v1/farmacias`,
-> o agent passará a aceitar nome.
+### Resolução de `--farmacia`
+
+| Input | Comportamento |
+|---|---|
+| Match `/^c[a-z0-9]{20,}$/i` (cuid) | Usado directamente como id |
+| Outro valor (nome) | GET `/api/ingest/v1/farmacias` → match exacto case-insensitive |
+| Nome com 1 match | Resolvido → cuid; warning se estado != ATIVO |
+| Nome com 0 matches | Erro accionável com lista de farmácias disponíveis |
+| Nome com 2+ matches | Erro accionável com cuids candidatos; pede `--farmacia=<cuid>` |
+| `--dry-run` + nome | Aviso "não resolve em dry-run"; usa nome como id para classificação local apenas |
+
+### Retry mode
+
+`--retry-failed` lê ficheiros da subpasta `failed/` (em vez de
+`input/`) e tenta reprocessar. Idempotência do servidor garante:
+- Se o ficheiro nunca foi processado → upload → move para `processed/`
+- Se já estava como PROCESSADO (mesmo hash) → `skipped_duplicate` →
+  move para `processed/duplicates/`
+- Se falhar de novo → move para `failed/` com novo prefixo timestamp
+  (prefixos acumulam: `<new>_<old>_<nome>.xlsx`; cosmético)
+
+Filename é preservado para detecção; hash decide idempotência.
 
 ## Detecção de tipo
 
@@ -128,7 +146,7 @@ Para debugging operacional: `grep '"status":"failed"' ingest-agent.log` mostra f
 
 ## Smoke local validado
 
-Testado em `/tmp/agent-smoke/` com 4 fixtures (`example_files/*`):
+### Fixtures + detection (4 fixtures de `example_files/*`)
 
 | Caso | Esperado | Observado |
 |---|---|---|
@@ -139,13 +157,49 @@ Testado em `/tmp/agent-smoke/` com 4 fixtures (`example_files/*`):
 | File mtime < 2s | `skipped_unstable` | ✓ skipped, próximo tick processa |
 | Upload contra dev sem control plane | `failed` com HTTP 500 + snippet | ✓ failed, body snippet no log |
 | File moves | timestamp prefix em destino | ✓ `1778572762604_<nome>` |
-| JSONL append | linhas por cada evento | ✓ 12 linhas em smoke |
+| JSONL append | linhas por cada evento | ✓ |
 
-Happy-path (upload com 200 processed) e duplicate skip (segundo
-upload do mesmo ficheiro) **só podem ser validados quando o
-control plane estiver provisionado** (CONTROL_DATABASE_URL).
-Inspecção de código confirma: paths corretos para mover para
-`processed/` e `processed/duplicates/` respectivamente.
+### Resolução de `--farmacia` (6 cenários)
+
+| Caso | Esperado | Observado |
+|---|---|---|
+| `--farmacia=ckxgzps700001abcde123456` | cuid pass-through, sem network | ✓ usado directamente |
+| `--farmacia=<nome>` em `--dry-run` | aviso "não resolve em dry-run" | ✓ aviso + nome usado como id local |
+| `--farmacia=<nome>` com endpoint 500 | erro accionável com snippet do body | ✓ `GET /api/ingest/v1/farmacias devolveu HTTP 500. Confirma --key e --tenant. Body: ...` |
+| Flags conflitantes (`--once` + `--retry-failed`) | erro mutuamente exclusivos | ✓ `--once, --watch e --retry-failed são mutuamente exclusivos.` |
+| Sem flag de modo | erro accionável | ✓ `Tens de passar exactamente um de: --once, --watch ou --retry-failed.` |
+| `--retry-failed` com `failed/` vazio | summary com tudo 0 | ✓ graceful |
+
+### Retry flow (failed → re-upload → re-failed)
+
+Pré-condições:
+- 2 ficheiros no input (`stock_Atual.xlsx`, `MapaEvolucaoVendas.xlsx`)
+- Servidor sem CONTROL_DATABASE_URL → cada upload responde HTTP 500
+
+```
+1. --once       → 2× moved to failed/ (timestamp-prefixed)
+2. --retry-failed → reads failed/, attempts re-upload
+                  → both still fail → moved to failed/ with new prefix
+                  (acumula: <new>_<old>_<nome>.xlsx — cosmético)
+```
+
+Observado: ✓ flow correcto. Idempotência via hash garante que com
+servidor up, segundo retry retorna `skipped_duplicate` e o ficheiro
+move para `processed/duplicates/`.
+
+### Não validado sem control plane
+
+| Cenário | Razão |
+|---|---|
+| Resolução de nome com endpoint OK | `/api/ingest/v1/farmacias` falha em 500 sem control plane |
+| Nome único → resolvido | idem |
+| Nome ambíguo → erro com cuids | idem (não há tenant com farmácias duplicadas para simular) |
+| Upload OK → `processed/` | API blow up em auth path |
+| Duplicate skip no segundo upload | requer 1º upload com sucesso |
+
+Estes paths estão correctos por inspecção de código — testáveis E2E
+assim que P0 infra (Neon + envs) estiver configurada (ver
+`notes/infra-strategy.md`).
 
 ## Operacionalização Windows (sem serviço)
 
@@ -176,9 +230,9 @@ empacotar com `node-windows` ou `nssm` é trivial (~1h).
 
 | Limitação | Mitigação | Crítica? |
 |---|---|---|
-| `--farmacia` exige cuid (não nome) | Comando `tenancy:health --slug=<tenant>` lista cuids | Baixa — 1× por setup |
+| `--farmacia=<nome>` requer chamada ao endpoint farmacias antes do primeiro upload | Cache local poderia evitar (~1 req extra por arranque) | Baixa — overhead trivial |
 | Sem suporte a `compras` | Endpoint `/api/ingest/v1/snapshot/compras` ainda não existe | Baixa — fora do scope piloto |
-| Sem retry automático | Ficheiros em `failed/` precisam de mover manualmente de volta a input para retry | Baixa — falhas são raras com auth correcta |
+| Retry acumula timestamp prefix no filename | Cosmético; idempotência por hash funciona | Não |
 | Polling 5s não em real-time | Aceitável para snapshots diários/horários | Não |
 | Sem checksum cross-session (state file) | Hash de cada ficheiro é calculado a cada tick, mas a movimentação para `processed/` evita reprocess | Não — operacionalmente OK |
 | `process.exit()` no Windows imprime assertion libuv | Cosmético, exit code está correcto | Não |
@@ -195,9 +249,9 @@ empacotar com `node-windows` ou `nssm` é trivial (~1h).
 
 ## Próximos passos (não inicio sem aprovação)
 
-1. **Endpoint `/api/ingest/v1/farmacias`** (~30 min) — destranca `--farmacia=<nome>`.
-2. **Endpoint `/api/ingest/v1/snapshot/compras`** (~1h) — quando pipeline de Compras estiver definido.
-3. **Retry manual via CLI** (~30 min) — `npm run agent:retry-failed -- --input=<folder>` que move tudo de `failed/` de volta a `input/` para nova tentativa.
+1. ~~Endpoint `/api/ingest/v1/farmacias`~~ **— SHIPPED**
+2. ~~Retry manual via CLI~~ **— SHIPPED (`--retry-failed`)**
+3. **Endpoint `/api/ingest/v1/snapshot/compras`** (~1h) — quando pipeline de Compras estiver definido.
 4. **Empacotar como serviço Windows** (~1-2h) — `nssm` ou `node-windows` quando piloto provar valor.
 
 ---

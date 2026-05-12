@@ -65,13 +65,19 @@ type DetectedType = "STOCK" | "VENDAS_MENSAIS" | "unknown";
 
 type Args = {
   tenant: string;
+  /** Valor cru passado pelo operador — cuid OU nome. Resolvido em
+   *  `resolveFarmaciaId` antes do primeiro upload. */
   farmacia: string;
+  /** cuid resolvido — populado em main() antes de processar
+   *  ficheiros. Inicializado como string vazia. */
+  farmaciaId: string;
   input: string;
   endpoint: string;
   key: string;
   once: boolean;
   watch: boolean;
   dryRun: boolean;
+  retryFailed: boolean;
   watchIntervalMs: number;
 };
 
@@ -114,6 +120,7 @@ function parseCliArgs(): Args {
       once: { type: "boolean", default: false },
       watch: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
+      "retry-failed": { type: "boolean", default: false },
       "watch-interval": { type: "string" },
     },
     strict: true,
@@ -127,29 +134,102 @@ function parseCliArgs(): Args {
     console.error(
       `Argumentos em falta: ${missing.join(", ")}\n\n` +
         `Uso: npx tsx scripts/agent/ingest-folder.ts \\\n` +
-        `       --tenant=<slug> --farmacia=<cuid> \\\n` +
+        `       --tenant=<slug> --farmacia=<cuid|nome> \\\n` +
         `       --input=<folder> --endpoint=<baseUrl> --key=<ingest-key> \\\n` +
-        `       (--once | --watch) [--dry-run]\n`,
+        `       (--once | --watch | --retry-failed) [--dry-run]\n`,
     );
     process.exit(1);
   }
-  if (!values.once && !values.watch) {
-    console.error(`Tens de passar --once ou --watch.`);
+  const modes = [values.once, values.watch, values["retry-failed"]].filter(Boolean).length;
+  if (modes === 0) {
+    console.error(`Tens de passar exactamente um de: --once, --watch ou --retry-failed.`);
+    process.exit(1);
+  }
+  if (modes > 1) {
+    console.error(`--once, --watch e --retry-failed são mutuamente exclusivos.`);
     process.exit(1);
   }
   return {
     tenant: values.tenant!,
     farmacia: values.farmacia!,
+    farmaciaId: "",
     input: values.input!,
     endpoint: values.endpoint!.replace(/\/+$/, ""),
     key: values.key!,
     once: !!values.once,
     watch: !!values.watch,
     dryRun: !!values["dry-run"],
+    retryFailed: !!values["retry-failed"],
     watchIntervalMs: values["watch-interval"]
       ? Math.max(1000, parseInt(values["watch-interval"], 10) || POLL_INTERVAL_DEFAULT_MS)
       : POLL_INTERVAL_DEFAULT_MS,
   };
+}
+
+// ─── Farmácia resolver (id ou nome → id) ──────────────────────────────
+
+/**
+ * Resolve `--farmacia=<id|nome>` para um cuid válido. Heurística:
+ *   · Se valor bate /^c[a-z0-9]{20,}$/ trata como cuid e devolve-o
+ *     directamente (a API valida que existe e devolve 404 se não).
+ *   · Caso contrário, chama `GET /api/ingest/v1/farmacias` e
+ *     procura match exacto por nome (case-insensitive). Único →
+ *     devolve id. Zero → erro accionável com lista de nomes
+ *     disponíveis. Múltiplo → erro com cuids candidatos.
+ */
+async function resolveFarmaciaId(args: Args): Promise<string> {
+  // Heurística cuid: começa com letra, 25+ chars alfanum.
+  if (/^c[a-z0-9]{20,}$/i.test(args.farmacia)) {
+    return args.farmacia;
+  }
+
+  const url = `${args.endpoint}/api/ingest/v1/farmacias`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${args.key}`,
+        "X-Tenant-Slug": args.tenant,
+      },
+    });
+  } catch (err) {
+    throw new Error(
+      `Falhou contactar ${url} para resolver nome da farmácia: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+  if (!res.ok) {
+    const snippet = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(
+      `GET /api/ingest/v1/farmacias devolveu HTTP ${res.status}. Confirma --key e --tenant. Body: ${snippet}`,
+    );
+  }
+  const body = (await res.json().catch(() => ({}))) as {
+    farmacias?: Array<{ id: string; nome: string; estado: string }>;
+  };
+  const farmacias = body.farmacias ?? [];
+  const target = args.farmacia.trim().toLowerCase();
+  const matches = farmacias.filter((f) => f.nome.trim().toLowerCase() === target);
+
+  if (matches.length === 1) {
+    if (matches[0].estado !== "ATIVO") {
+      console.warn(`[aviso] Farmácia "${matches[0].nome}" está em estado ${matches[0].estado}. Uploads vão falhar.`);
+    }
+    return matches[0].id;
+  }
+  if (matches.length === 0) {
+    const available = farmacias.map((f) => `  · ${f.nome.padEnd(40)}  ${f.id}  (${f.estado})`).join("\n");
+    throw new Error(
+      `Farmácia "${args.farmacia}" não encontrada no tenant ${args.tenant}.\n` +
+        `Farmácias disponíveis:\n${available || "  (nenhuma)"}`,
+    );
+  }
+  // múltiplo — ambíguo
+  const candidates = matches.map((f) => `  · ${f.id}  (${f.estado})`).join("\n");
+  throw new Error(
+    `Nome "${args.farmacia}" é ambíguo no tenant ${args.tenant} — ${matches.length} farmácias com o mesmo nome:\n` +
+      candidates +
+      `\nUsa --farmacia=<cuid> em vez de nome.`,
+  );
 }
 
 // ─── Folder setup ──────────────────────────────────────────────────────
@@ -265,7 +345,7 @@ async function uploadFile(args: Args, filePath: string, type: "STOCK" | "VENDAS_
   const url = `${args.endpoint}${path}`;
 
   const form = new FormData();
-  form.append("farmaciaId", args.farmacia);
+  form.append("farmaciaId", args.farmaciaId);
   // Node 24 native Blob — File-like
   const blob = new Blob([new Uint8Array(buffer)], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -425,12 +505,12 @@ async function processFile(args: Args, folders: Folders, filePath: string, summa
 
 // ─── Main loop ────────────────────────────────────────────────────────
 
-async function processFolderOnce(args: Args, folders: Folders): Promise<Summary> {
+async function processFolderOnce(args: Args, folders: Folders, sourceDir: string): Promise<Summary> {
   const summary: Summary = { processed: 0, duplicates: 0, failed: 0, quarantined: 0, skippedUnstable: 0 };
-  const entries = await readdir(folders.input, { withFileTypes: true });
+  const entries = await readdir(sourceDir, { withFileTypes: true });
   const files = entries
     .filter((e) => e.isFile())
-    .map((e) => join(folders.input, e.name))
+    .map((e) => join(sourceDir, e.name))
     // Saltar o ficheiro de log
     .filter((p) => basename(p) !== "ingest-agent.log");
 
@@ -469,18 +549,51 @@ function printSummary(s: Summary, args: Args): void {
 
 async function main(): Promise<number> {
   const args = parseCliArgs();
+  const mode = args.retryFailed ? "retry-failed" : args.watch ? `watch (poll ${args.watchIntervalMs}ms)` : "once";
   console.log("─".repeat(78));
   console.log(`ingest-folder agent ${args.dryRun ? "(DRY-RUN) " : ""}— tenant=${args.tenant}`);
   console.log("─".repeat(78));
   console.log(`  endpoint:        ${args.endpoint}`);
-  console.log(`  farmacia:        ${args.farmacia}`);
+  console.log(`  farmacia (raw):  ${args.farmacia}`);
   console.log(`  input:           ${args.input}`);
-  console.log(`  mode:            ${args.watch ? `watch (poll ${args.watchIntervalMs}ms)` : "once"}`);
+  console.log(`  mode:            ${mode}`);
 
   const folders = await ensureFolders(args.input);
 
+  // ── Resolver --farmacia (cuid ou nome) → cuid ─────────────────────
+  // Em dry-run sem network não conseguimos resolver nomes — se for cuid
+  // usa direct; se for nome em dry-run, falha-rápido com mensagem clara.
+  if (args.dryRun && !/^c[a-z0-9]{20,}$/i.test(args.farmacia)) {
+    console.warn(
+      `[aviso] --dry-run com --farmacia=<nome> não resolve (sem network).` +
+        ` A passar nome como id para efeito de classificação local.`,
+    );
+    args.farmaciaId = args.farmacia;
+  } else {
+    try {
+      args.farmaciaId = await resolveFarmaciaId(args);
+      if (args.farmaciaId !== args.farmacia) {
+        console.log(`  farmaciaId:      ${args.farmaciaId}   (resolvido de "${args.farmacia}")`);
+      } else {
+        console.log(`  farmaciaId:      ${args.farmaciaId}`);
+      }
+    } catch (err) {
+      console.error(`\n[fatal] ${err instanceof Error ? err.message : err}`);
+      return 1;
+    }
+  }
+
+  // ── Retry-failed: processa só `failed/` e termina ────────────────
+  if (args.retryFailed) {
+    console.log(`\n[retry] a reprocessar ficheiros de ${folders.failed}\n`);
+    const s = await processFolderOnce(args, folders, folders.failed);
+    printSummary(s, args);
+    return s.failed > 0 ? 1 : 0;
+  }
+
+  // ── Once: processa input/ uma vez ────────────────────────────────
   if (args.once) {
-    const s = await processFolderOnce(args, folders);
+    const s = await processFolderOnce(args, folders, folders.input);
     printSummary(s, args);
     return s.failed > 0 ? 1 : 0;
   }
@@ -493,7 +606,7 @@ async function main(): Promise<number> {
   process.on("SIGTERM", () => { interrupted = true; });
 
   while (!interrupted) {
-    const s = await processFolderOnce(args, folders);
+    const s = await processFolderOnce(args, folders, folders.input);
     const touched = s.processed + s.duplicates + s.failed + s.quarantined;
     if (touched > 0) {
       console.log(`[tick] processed=${s.processed} duplicates=${s.duplicates} failed=${s.failed} quarantined=${s.quarantined}`);
