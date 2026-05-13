@@ -83,6 +83,14 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
   if (farmaciaErr) return farmaciaErr;
 
+  console.log(
+    `[bootstrap/stock] start ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+    })}`
+  );
+
   // 1) Aggregate per externalProductId (SUM across armazéns).
   // Granularidade do payload: (externalProductId, externalWarehouseId).
   // Granularidade do destino: (farmaciaId, produtoId) — 1 row per
@@ -184,6 +192,28 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     }
   }
 
+  const durationMs = Date.now() - t0;
+  console.log(
+    `[bootstrap/stock] done ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+      aggregated: aggMap.size,
+      upserted,
+      skipped: skipped.length,
+      errors: errors.length,
+      durationMs,
+    })}`
+  );
+  for (const e of errors.slice(0, 10)) {
+    console.warn(`[bootstrap/stock] item_error ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      externalId: e.externalId,
+      reason: e.reason,
+      message: e.message.slice(0, 200),
+    })}`);
+  }
+
   const response: BootstrapBatchResponse & { aggregated: number } = {
     ok: true,
     accepted: items.length,
@@ -191,7 +221,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     upserted,
     skipped,
     errors,
-    durationMs: Date.now() - t0,
+    durationMs,
   };
   return NextResponse.json(response);
 });

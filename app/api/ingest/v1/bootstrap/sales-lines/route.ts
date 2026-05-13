@@ -73,6 +73,14 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
   if (farmaciaErr) return farmaciaErr;
 
+  console.log(
+    `[bootstrap/sales-lines] start ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+    })}`
+  );
+
   // 1) Coerce + validate.
   const skipped: BootstrapBatchResponse["skipped"] = [];
   const errors: BootstrapBatchResponse["errors"] = [];
@@ -209,6 +217,29 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     }
   }
 
+  const durationMs = Date.now() - t0;
+  console.log(
+    `[bootstrap/sales-lines] done ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+      upserted,
+      orphanProductLines: orphanCount,
+      skipped: skipped.length,
+      errors: errors.length,
+      durationMs,
+    })}`
+  );
+  for (const e of errors.slice(0, 10)) {
+    console.warn(`[bootstrap/sales-lines] item_error ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      index: e.index,
+      externalId: e.externalId,
+      reason: e.reason,
+      message: e.message.slice(0, 200),
+    })}`);
+  }
+
   const response: BootstrapBatchResponse & { orphanProductLines: number } = {
     ok: true,
     accepted: items.length,
@@ -216,7 +247,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     orphanProductLines: orphanCount,
     skipped,
     errors,
-    durationMs: Date.now() - t0,
+    durationMs,
   };
   return NextResponse.json(response);
 });

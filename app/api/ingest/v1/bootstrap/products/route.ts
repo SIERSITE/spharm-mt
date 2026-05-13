@@ -84,9 +84,24 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
   if (farmaciaErr) return farmaciaErr;
 
-  // 4. Upsert linha-a-linha. Não usamos transaction global — em batches
-  // de 1000 a transaction tornaria o request fragile (single failure
-  // descarta tudo). Cada upsert é idempotente individualmente.
+  console.log(
+    `[bootstrap/products] start ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+    })}`
+  );
+
+  // 4. Upsert linha-a-linha. SEM `$transaction` wrapper: cada upsert
+  // (Produto e ProdutoFarmacia) é internamente atómico via unique
+  // constraints. Eliminar a transaction reduz ~50ms/item de overhead
+  // BEGIN/COMMIT — significativo em batches grandes via Neon serverless.
+  //
+  // Edge case: se Produto upsert OK e ProdutoFarmacia upsert falha,
+  // ficamos com Produto sem ProdutoFarmacia para esta farmácia. NÃO é
+  // inconsistência — retry do batch refaz o ProdutoFarmacia (idempotente
+  // via @@unique(produtoId, farmaciaId)). Reportado em `errors[]` para
+  // diagnose.
   const skipped: BootstrapBatchResponse["skipped"] = [];
   const errors: BootstrapBatchResponse["errors"] = [];
   let upserted = 0;
@@ -128,67 +143,59 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     const fornecedorOrigem = asStringOrNull(raw.fornecedorHabitualNome);
 
     try {
-      await ctx.prisma.$transaction(async (tx) => {
-        // 4.1 Upsert Produto por cnp. Update additive — não tocar em
-        // campos populados por outras fontes (dci, codigoATC,
-        // fabricanteId, etc.).
-        const produto = await tx.produto.upsert({
-          where: { cnp },
-          create: {
-            cnp,
-            externalProductId: externalProductId ?? null,
-            designacao,
-            flagGenerico,
-            flagMnsrmNCompart,
-            origemDados: "FARMACIA",
-          },
-          update: {
-            // Update SAFE — só campos do ERP. NÃO actualiza
-            // designacao se já está populada manualmente?
-            // Para bootstrap inicial, sobrescrever é OK — operador
-            // pode validar.
-            externalProductId: externalProductId ?? undefined,
-            designacao,
-            flagGenerico,
-            flagMnsrmNCompart,
-          },
-        });
+      // 4.1 Upsert Produto por cnp. Additive — campos populados por
+      // outras fontes (dci, codigoATC, fabricanteId) NÃO são tocados.
+      const produto = await ctx.prisma.produto.upsert({
+        where: { cnp },
+        create: {
+          cnp,
+          externalProductId: externalProductId ?? null,
+          designacao,
+          flagGenerico,
+          flagMnsrmNCompart,
+          origemDados: "FARMACIA",
+        },
+        update: {
+          externalProductId: externalProductId ?? undefined,
+          designacao,
+          flagGenerico,
+          flagMnsrmNCompart,
+        },
+      });
 
-        // 4.2 Upsert ProdutoFarmacia (produtoId, farmaciaId).
-        // Campos de pricing + stock-related metadata. **NÃO toca em
-        // stockAtual/Minimo/Maximo** — esses vêm do endpoint /stock.
-        await tx.produtoFarmacia.upsert({
-          where: {
-            produtoId_farmaciaId: {
-              produtoId: produto.id,
-              farmaciaId,
-            },
-          },
-          create: {
+      // 4.2 Upsert ProdutoFarmacia (produtoId, farmaciaId). NÃO toca em
+      // stockAtual/Minimo/Maximo — esses vêm do endpoint /stock.
+      await ctx.prisma.produtoFarmacia.upsert({
+        where: {
+          produtoId_farmaciaId: {
             produtoId: produto.id,
             farmaciaId,
-            externalProductId: externalProductId ?? null,
-            pvp: pvp ?? null,
-            pmc: pmc ?? null,
-            puc: puc ?? null,
-            dataUltimaVenda,
-            dataUltimaCompra,
-            flagRetirado,
-            fornecedorExternalId: fornecedorExternalId ?? null,
-            fornecedorOrigem: fornecedorOrigem ?? null,
           },
-          update: {
-            externalProductId: externalProductId ?? undefined,
-            pvp: pvp ?? undefined,
-            pmc: pmc ?? undefined,
-            puc: puc ?? undefined,
-            dataUltimaVenda: dataUltimaVenda ?? undefined,
-            dataUltimaCompra: dataUltimaCompra ?? undefined,
-            flagRetirado,
-            fornecedorExternalId: fornecedorExternalId ?? undefined,
-            fornecedorOrigem: fornecedorOrigem ?? undefined,
-          },
-        });
+        },
+        create: {
+          produtoId: produto.id,
+          farmaciaId,
+          externalProductId: externalProductId ?? null,
+          pvp: pvp ?? null,
+          pmc: pmc ?? null,
+          puc: puc ?? null,
+          dataUltimaVenda,
+          dataUltimaCompra,
+          flagRetirado,
+          fornecedorExternalId: fornecedorExternalId ?? null,
+          fornecedorOrigem: fornecedorOrigem ?? null,
+        },
+        update: {
+          externalProductId: externalProductId ?? undefined,
+          pvp: pvp ?? undefined,
+          pmc: pmc ?? undefined,
+          puc: puc ?? undefined,
+          dataUltimaVenda: dataUltimaVenda ?? undefined,
+          dataUltimaCompra: dataUltimaCompra ?? undefined,
+          flagRetirado,
+          fornecedorExternalId: fornecedorExternalId ?? undefined,
+          fornecedorOrigem: fornecedorOrigem ?? undefined,
+        },
       });
       upserted++;
     } catch (err) {
@@ -201,13 +208,35 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     }
   }
 
+  const durationMs = Date.now() - t0;
+  console.log(
+    `[bootstrap/products] done ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      farmaciaId,
+      received: items.length,
+      upserted,
+      skipped: skipped.length,
+      errors: errors.length,
+      durationMs,
+    })}`
+  );
+  for (const e of errors.slice(0, 10)) {
+    console.warn(`[bootstrap/products] item_error ${JSON.stringify({
+      tenant: ctx.tenant.slug,
+      index: e.index,
+      externalId: e.externalId,
+      reason: e.reason,
+      message: e.message.slice(0, 200),
+    })}`);
+  }
+
   const response: BootstrapBatchResponse = {
     ok: true,
     accepted: items.length,
     upserted,
     skipped,
     errors,
-    durationMs: Date.now() - t0,
+    durationMs,
   };
   return NextResponse.json(response);
 });
