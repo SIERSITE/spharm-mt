@@ -171,6 +171,15 @@ export const ENV_CATALOG: EnvSpec[] = [
     level: "optional",
     description: "Nº máximo de tentativas de export de uma OrderOutbox. Default 5.",
   },
+  // ── Feature flags ──────────────────────────────────────────────────
+  {
+    name: "ENABLE_AGENT_BOOTSTRAP",
+    scopes: ["ingest"],
+    level: "optional",
+    description:
+      "Feature flag para activar os endpoints /api/ingest/v1/bootstrap/* (products, stock, sales-lines). Quando ausente ou '0', endpoints respondem 503 feature_disabled. Activar SÓ depois de validar bootstrap-dry-run contra dados reais.",
+    example: "1",
+  },
   {
     name: "SPHARM_DEBUG_BROWSE",
     scopes: ["cli"],

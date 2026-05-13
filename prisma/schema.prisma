@@ -203,6 +203,11 @@ enum AcquisitionJobStatus {
 model Produto {
   id                        String             @id @default(cuid())
   cnp                       Int                @unique
+  /// Identificador do produto no ERP da farmácia (Softreis: Stocks.CodigoID).
+  /// Mantido como referência cross-tenant para o agent bootstrap-upload
+  /// fazer upsert por externalProductId quando o cnp não está disponível.
+  /// Único na BD do tenant para idempotência forte.
+  externalProductId         Int?               @unique
   designacao                String
   fabricanteId              String?
   classificacaoNivel1Id     String?
@@ -217,6 +222,9 @@ model Produto {
   flagGenerico              Boolean            @default(false)
   flagMSRM                  Boolean            @default(false)
   flagMNSRM                 Boolean            @default(false)
+  /// MNSRM **não comparticipado** (Softreis: Stocks.MNSRM_NCompart). Distinto
+  /// de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
+  flagMnsrmNCompart         Boolean            @default(false)
   grupoHomogeneo            String?
   estado                    ProdutoEstado      @default(PENDENTE)
   origemDados               ProdutoOrigemDados @default(FARMACIA)
@@ -253,6 +261,7 @@ model Produto {
   filaEnriquecimento   EnriquecimentoFila[]
   verificacaoHistorico ProdutoVerificacaoHistorico[]
   enrichmentSourceLogs EnrichmentSourceLog[]
+  ingestVendasLinhasRaw IngestVendaLinhaRaw[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -566,6 +575,7 @@ model Farmacia {
   listasEncomenda   ListaEncomenda[]
   lotesIngestao     LoteIngestao[]
   emailConfig       EmailConfig?
+  ingestVendasLinhasRaw IngestVendaLinhaRaw[]
 
   @@unique([nome])
   @@index([codigoANF])
@@ -666,6 +676,10 @@ model ProdutoFarmacia {
   id                   String    @id @default(cuid())
   produtoId            String
   farmaciaId           String
+  /// Denormalizado do `Produto.externalProductId` para lookups rápidos
+  /// do agent sem join (ex: stock-upload precisa de mapear CodigoID →
+  /// produtoId em batch). Atualizado pelo endpoint /bootstrap/products.
+  externalProductId    Int?
   designacaoLocal      String?
   pvp                  Decimal?  @db.Decimal(12, 4)
   pmc                  Decimal?  @db.Decimal(12, 4)
@@ -674,7 +688,16 @@ model ProdutoFarmacia {
   stockRaw             Decimal?  @db.Decimal(14, 3)
   stockMinimo          Decimal?  @db.Decimal(14, 3)
   stockMaximo          Decimal?  @db.Decimal(14, 3)
+  /// Stock em encomenda (Softreis: ArmazensStocks.[Existencia Encomenda]).
+  /// Soma per-produto across armazéns na ingestão bootstrap.
+  stockEncomenda       Decimal?  @db.Decimal(14, 3)
+  /// Stock reservado (Softreis: ArmazensStocks.[Existencia Reserva]).
+  stockReserva         Decimal?  @db.Decimal(14, 3)
   fornecedorHabitualId String?
+  /// ID do fornecedor habitual no ERP da farmácia (Softreis:
+  /// ArmazensStocks.[Fornecedor Habitual]). Raw, sem resolução para
+  /// Fornecedor.id — utilizado apenas para audit/debug do bootstrap.
+  fornecedorExternalId Int?
   dataUltimaVenda      DateTime?
   dataUltimaCompra     DateTime?
   validadeMaisAntiga   DateTime?
@@ -698,6 +721,7 @@ model ProdutoFarmacia {
   @@unique([produtoId, farmaciaId])
   @@index([farmaciaId])
   @@index([produtoId])
+  @@index([farmaciaId, externalProductId])
   @@index([fornecedorHabitualId])
   @@index([flagRetirado])
 }
@@ -1082,6 +1106,76 @@ model LoteIngestao {
 
   @@index([farmaciaId, tipo, dataReferencia])
   @@index([estado])
+}
+
+//////////////////////////////////////////////////////
+// INGESTÃO RAW — STAGING DO BOOTSTRAP DO AGENT
+//
+// Tabelas que recebem dados do agent bootstrap-upload em formato
+// **raw**, sem agregação. Distintas das tabelas operacionais (Venda,
+// VendaMensal) porque preservam todos os campos do ERP por linha,
+// incluindo TipoDocumento e raw JSON, para caracterização e replay.
+//
+// O passo seguinte (futuro) — uma vez consolidada a semântica de
+// [Tipo Documento] e [Valor_EUR] — vai aggregar estas linhas em
+// VendaMensal via job server-side. Por agora, esta tabela é apenas
+// staging.
+//////////////////////////////////////////////////////
+
+/// Linhas de venda raw vindas do ERP Softreis via agent bootstrap.
+/// Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
+/// Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
+model IngestVendaLinhaRaw {
+  id                 String   @id @default(cuid())
+  farmaciaId         String
+
+  /// Softreis: Atendimento.[Atendimento ID]. Header da venda.
+  externalSaleId     Int
+  /// Softreis: Atendimento Detalhe.[Detalhe ID]. PK da linha de
+  /// detalhe — base da idempotência.
+  externalSaleLineId Int
+  /// Sequência da linha dentro do atendimento. Permite ordenar e
+  /// distinguir linhas duplicadas legítimas no mesmo Atendimento ID.
+  sequencia          Int?
+
+  dataVenda          DateTime?
+  /// Softreis: Atendimento.[Tipo Documento]. Raw int.
+  tipoDocumento      Int?
+  /// Classificação JS-side ao recepcionar a linha. Strings simples
+  /// para não criar dependência cross-tenant em Prisma enums.
+  /// Valores conhecidos: "VENDA", "DEVOLUCAO_ANULACAO", "UNKNOWN".
+  tipoDocumentoClass String
+
+  /// Softreis: CodigoID. Sempre presente.
+  externalProductId  Int
+  /// Resolvido server-side em best-effort via Produto.externalProductId.
+  /// Null quando o produto não está em Stocks (data quality issue —
+  /// agent reporta no dry-run e aqui fica registo permanente).
+  produtoId          String?
+
+  quantidade         Decimal? @db.Decimal(14, 3)
+  pvpUnitario        Decimal? @db.Decimal(12, 4)
+  valorLinha         Decimal? @db.Decimal(14, 2)
+  ivaValor           Decimal? @db.Decimal(14, 2)
+  descontoValor      Decimal? @db.Decimal(14, 2)
+  comparticipacao1   Decimal? @db.Decimal(14, 2)
+  comparticipacao2   Decimal? @db.Decimal(14, 2)
+  entidadeId         Int?
+
+  /// Payload bruto recebido (forensic). Permite reprocessamento sem
+  /// re-query ao ERP se a interpretação mudar.
+  rawJson            Json
+
+  importedAt         DateTime @default(now())
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto  Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+
+  @@unique([farmaciaId, externalSaleLineId])
+  @@index([farmaciaId, dataVenda])
+  @@index([externalSaleId])
+  @@index([tipoDocumento])
+  @@index([produtoId])
 }
 
 //////////////////////////////////////////////////////

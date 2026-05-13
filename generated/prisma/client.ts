@@ -260,6 +260,13 @@ export type EnriquecimentoFila = Prisma.EnriquecimentoFilaModel
  */
 export type LoteIngestao = Prisma.LoteIngestaoModel
 /**
+ * Model IngestVendaLinhaRaw
+ * Linhas de venda raw vindas do ERP Softreis via agent bootstrap.
+ * Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
+ * Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
+ */
+export type IngestVendaLinhaRaw = Prisma.IngestVendaLinhaRawModel
+/**
  * Model OrderOutbox
  * Outbox de exportação de encomendas. 1:1 com ListaEncomenda.
  * Criado na mesma transacção via lib/ingest/orders.ts:createEncomendaWithOutbox.

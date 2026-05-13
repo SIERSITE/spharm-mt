@@ -416,6 +416,7 @@ export const ModelName = {
   FilaRevisao: 'FilaRevisao',
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
+  IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
 } as const
@@ -433,7 +434,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2805,6 +2806,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    IngestVendaLinhaRaw: {
+      payload: Prisma.$IngestVendaLinhaRawPayload<ExtArgs>
+      fields: Prisma.IngestVendaLinhaRawFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.IngestVendaLinhaRawFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.IngestVendaLinhaRawFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        findFirst: {
+          args: Prisma.IngestVendaLinhaRawFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.IngestVendaLinhaRawFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        findMany: {
+          args: Prisma.IngestVendaLinhaRawFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>[]
+        }
+        create: {
+          args: Prisma.IngestVendaLinhaRawCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        createMany: {
+          args: Prisma.IngestVendaLinhaRawCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.IngestVendaLinhaRawCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>[]
+        }
+        delete: {
+          args: Prisma.IngestVendaLinhaRawDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        update: {
+          args: Prisma.IngestVendaLinhaRawUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        deleteMany: {
+          args: Prisma.IngestVendaLinhaRawDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.IngestVendaLinhaRawUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.IngestVendaLinhaRawUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>[]
+        }
+        upsert: {
+          args: Prisma.IngestVendaLinhaRawUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestVendaLinhaRawPayload>
+        }
+        aggregate: {
+          args: Prisma.IngestVendaLinhaRawAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateIngestVendaLinhaRaw>
+        }
+        groupBy: {
+          args: Prisma.IngestVendaLinhaRawGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestVendaLinhaRawGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.IngestVendaLinhaRawCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestVendaLinhaRawCountAggregateOutputType> | number
+        }
+      }
+    }
     OrderOutbox: {
       payload: Prisma.$OrderOutboxPayload<ExtArgs>
       fields: Prisma.OrderOutboxFieldRefs
@@ -2995,6 +3070,7 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const ProdutoScalarFieldEnum = {
   id: 'id',
   cnp: 'cnp',
+  externalProductId: 'externalProductId',
   designacao: 'designacao',
   fabricanteId: 'fabricanteId',
   classificacaoNivel1Id: 'classificacaoNivel1Id',
@@ -3009,6 +3085,7 @@ export const ProdutoScalarFieldEnum = {
   flagGenerico: 'flagGenerico',
   flagMSRM: 'flagMSRM',
   flagMNSRM: 'flagMNSRM',
+  flagMnsrmNCompart: 'flagMnsrmNCompart',
   grupoHomogeneo: 'grupoHomogeneo',
   estado: 'estado',
   origemDados: 'origemDados',
@@ -3263,6 +3340,7 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
   farmaciaId: 'farmaciaId',
+  externalProductId: 'externalProductId',
   designacaoLocal: 'designacaoLocal',
   pvp: 'pvp',
   pmc: 'pmc',
@@ -3271,7 +3349,10 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   stockRaw: 'stockRaw',
   stockMinimo: 'stockMinimo',
   stockMaximo: 'stockMaximo',
+  stockEncomenda: 'stockEncomenda',
+  stockReserva: 'stockReserva',
   fornecedorHabitualId: 'fornecedorHabitualId',
+  fornecedorExternalId: 'fornecedorExternalId',
   dataUltimaVenda: 'dataUltimaVenda',
   dataUltimaCompra: 'dataUltimaCompra',
   validadeMaisAntiga: 'validadeMaisAntiga',
@@ -3538,6 +3619,32 @@ export const LoteIngestaoScalarFieldEnum = {
 export type LoteIngestaoScalarFieldEnum = (typeof LoteIngestaoScalarFieldEnum)[keyof typeof LoteIngestaoScalarFieldEnum]
 
 
+export const IngestVendaLinhaRawScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalSaleId: 'externalSaleId',
+  externalSaleLineId: 'externalSaleLineId',
+  sequencia: 'sequencia',
+  dataVenda: 'dataVenda',
+  tipoDocumento: 'tipoDocumento',
+  tipoDocumentoClass: 'tipoDocumentoClass',
+  externalProductId: 'externalProductId',
+  produtoId: 'produtoId',
+  quantidade: 'quantidade',
+  pvpUnitario: 'pvpUnitario',
+  valorLinha: 'valorLinha',
+  ivaValor: 'ivaValor',
+  descontoValor: 'descontoValor',
+  comparticipacao1: 'comparticipacao1',
+  comparticipacao2: 'comparticipacao2',
+  entidadeId: 'entidadeId',
+  rawJson: 'rawJson',
+  importedAt: 'importedAt'
+} as const
+
+export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
+
+
 export const OrderOutboxScalarFieldEnum = {
   id: 'id',
   listaEncomendaId: 'listaEncomendaId',
@@ -3590,6 +3697,13 @@ export const NullableJsonNullValueInput = {
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -4162,6 +4276,7 @@ export type GlobalOmitConfig = {
   filaRevisao?: Prisma.FilaRevisaoOmit
   enriquecimentoFila?: Prisma.EnriquecimentoFilaOmit
   loteIngestao?: Prisma.LoteIngestaoOmit
+  ingestVendaLinhaRaw?: Prisma.IngestVendaLinhaRawOmit
   orderOutbox?: Prisma.OrderOutboxOmit
   orderExportAudit?: Prisma.OrderExportAuditOmit
 }

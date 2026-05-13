@@ -27,6 +27,7 @@ export type AggregateProdutoFarmacia = {
 }
 
 export type ProdutoFarmaciaAvgAggregateOutputType = {
+  externalProductId: number | null
   pvp: runtime.Decimal | null
   pmc: runtime.Decimal | null
   puc: runtime.Decimal | null
@@ -34,9 +35,13 @@ export type ProdutoFarmaciaAvgAggregateOutputType = {
   stockRaw: runtime.Decimal | null
   stockMinimo: runtime.Decimal | null
   stockMaximo: runtime.Decimal | null
+  stockEncomenda: runtime.Decimal | null
+  stockReserva: runtime.Decimal | null
+  fornecedorExternalId: number | null
 }
 
 export type ProdutoFarmaciaSumAggregateOutputType = {
+  externalProductId: number | null
   pvp: runtime.Decimal | null
   pmc: runtime.Decimal | null
   puc: runtime.Decimal | null
@@ -44,12 +49,16 @@ export type ProdutoFarmaciaSumAggregateOutputType = {
   stockRaw: runtime.Decimal | null
   stockMinimo: runtime.Decimal | null
   stockMaximo: runtime.Decimal | null
+  stockEncomenda: runtime.Decimal | null
+  stockReserva: runtime.Decimal | null
+  fornecedorExternalId: number | null
 }
 
 export type ProdutoFarmaciaMinAggregateOutputType = {
   id: string | null
   produtoId: string | null
   farmaciaId: string | null
+  externalProductId: number | null
   designacaoLocal: string | null
   pvp: runtime.Decimal | null
   pmc: runtime.Decimal | null
@@ -58,7 +67,10 @@ export type ProdutoFarmaciaMinAggregateOutputType = {
   stockRaw: runtime.Decimal | null
   stockMinimo: runtime.Decimal | null
   stockMaximo: runtime.Decimal | null
+  stockEncomenda: runtime.Decimal | null
+  stockReserva: runtime.Decimal | null
   fornecedorHabitualId: string | null
+  fornecedorExternalId: number | null
   dataUltimaVenda: Date | null
   dataUltimaCompra: Date | null
   validadeMaisAntiga: Date | null
@@ -76,6 +88,7 @@ export type ProdutoFarmaciaMaxAggregateOutputType = {
   id: string | null
   produtoId: string | null
   farmaciaId: string | null
+  externalProductId: number | null
   designacaoLocal: string | null
   pvp: runtime.Decimal | null
   pmc: runtime.Decimal | null
@@ -84,7 +97,10 @@ export type ProdutoFarmaciaMaxAggregateOutputType = {
   stockRaw: runtime.Decimal | null
   stockMinimo: runtime.Decimal | null
   stockMaximo: runtime.Decimal | null
+  stockEncomenda: runtime.Decimal | null
+  stockReserva: runtime.Decimal | null
   fornecedorHabitualId: string | null
+  fornecedorExternalId: number | null
   dataUltimaVenda: Date | null
   dataUltimaCompra: Date | null
   validadeMaisAntiga: Date | null
@@ -102,6 +118,7 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
   id: number
   produtoId: number
   farmaciaId: number
+  externalProductId: number
   designacaoLocal: number
   pvp: number
   pmc: number
@@ -110,7 +127,10 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
   stockRaw: number
   stockMinimo: number
   stockMaximo: number
+  stockEncomenda: number
+  stockReserva: number
   fornecedorHabitualId: number
+  fornecedorExternalId: number
   dataUltimaVenda: number
   dataUltimaCompra: number
   validadeMaisAntiga: number
@@ -127,6 +147,7 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
 
 
 export type ProdutoFarmaciaAvgAggregateInputType = {
+  externalProductId?: true
   pvp?: true
   pmc?: true
   puc?: true
@@ -134,9 +155,13 @@ export type ProdutoFarmaciaAvgAggregateInputType = {
   stockRaw?: true
   stockMinimo?: true
   stockMaximo?: true
+  stockEncomenda?: true
+  stockReserva?: true
+  fornecedorExternalId?: true
 }
 
 export type ProdutoFarmaciaSumAggregateInputType = {
+  externalProductId?: true
   pvp?: true
   pmc?: true
   puc?: true
@@ -144,12 +169,16 @@ export type ProdutoFarmaciaSumAggregateInputType = {
   stockRaw?: true
   stockMinimo?: true
   stockMaximo?: true
+  stockEncomenda?: true
+  stockReserva?: true
+  fornecedorExternalId?: true
 }
 
 export type ProdutoFarmaciaMinAggregateInputType = {
   id?: true
   produtoId?: true
   farmaciaId?: true
+  externalProductId?: true
   designacaoLocal?: true
   pvp?: true
   pmc?: true
@@ -158,7 +187,10 @@ export type ProdutoFarmaciaMinAggregateInputType = {
   stockRaw?: true
   stockMinimo?: true
   stockMaximo?: true
+  stockEncomenda?: true
+  stockReserva?: true
   fornecedorHabitualId?: true
+  fornecedorExternalId?: true
   dataUltimaVenda?: true
   dataUltimaCompra?: true
   validadeMaisAntiga?: true
@@ -176,6 +208,7 @@ export type ProdutoFarmaciaMaxAggregateInputType = {
   id?: true
   produtoId?: true
   farmaciaId?: true
+  externalProductId?: true
   designacaoLocal?: true
   pvp?: true
   pmc?: true
@@ -184,7 +217,10 @@ export type ProdutoFarmaciaMaxAggregateInputType = {
   stockRaw?: true
   stockMinimo?: true
   stockMaximo?: true
+  stockEncomenda?: true
+  stockReserva?: true
   fornecedorHabitualId?: true
+  fornecedorExternalId?: true
   dataUltimaVenda?: true
   dataUltimaCompra?: true
   validadeMaisAntiga?: true
@@ -202,6 +238,7 @@ export type ProdutoFarmaciaCountAggregateInputType = {
   id?: true
   produtoId?: true
   farmaciaId?: true
+  externalProductId?: true
   designacaoLocal?: true
   pvp?: true
   pmc?: true
@@ -210,7 +247,10 @@ export type ProdutoFarmaciaCountAggregateInputType = {
   stockRaw?: true
   stockMinimo?: true
   stockMaximo?: true
+  stockEncomenda?: true
+  stockReserva?: true
   fornecedorHabitualId?: true
+  fornecedorExternalId?: true
   dataUltimaVenda?: true
   dataUltimaCompra?: true
   validadeMaisAntiga?: true
@@ -315,6 +355,7 @@ export type ProdutoFarmaciaGroupByOutputType = {
   id: string
   produtoId: string
   farmaciaId: string
+  externalProductId: number | null
   designacaoLocal: string | null
   pvp: runtime.Decimal | null
   pmc: runtime.Decimal | null
@@ -323,7 +364,10 @@ export type ProdutoFarmaciaGroupByOutputType = {
   stockRaw: runtime.Decimal | null
   stockMinimo: runtime.Decimal | null
   stockMaximo: runtime.Decimal | null
+  stockEncomenda: runtime.Decimal | null
+  stockReserva: runtime.Decimal | null
   fornecedorHabitualId: string | null
+  fornecedorExternalId: number | null
   dataUltimaVenda: Date | null
   dataUltimaCompra: Date | null
   validadeMaisAntiga: Date | null
@@ -364,6 +408,7 @@ export type ProdutoFarmaciaWhereInput = {
   id?: Prisma.StringFilter<"ProdutoFarmacia"> | string
   produtoId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
   farmaciaId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
+  externalProductId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   designacaoLocal?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   pvp?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -372,7 +417,10 @@ export type ProdutoFarmaciaWhereInput = {
   stockRaw?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorExternalId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   dataUltimaVenda?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataUltimaCompra?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   validadeMaisAntiga?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
@@ -393,6 +441,7 @@ export type ProdutoFarmaciaOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrderInput | Prisma.SortOrder
   designacaoLocal?: Prisma.SortOrderInput | Prisma.SortOrder
   pvp?: Prisma.SortOrderInput | Prisma.SortOrder
   pmc?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -401,7 +450,10 @@ export type ProdutoFarmaciaOrderByWithRelationInput = {
   stockRaw?: Prisma.SortOrderInput | Prisma.SortOrder
   stockMinimo?: Prisma.SortOrderInput | Prisma.SortOrder
   stockMaximo?: Prisma.SortOrderInput | Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrderInput | Prisma.SortOrder
+  stockReserva?: Prisma.SortOrderInput | Prisma.SortOrder
   fornecedorHabitualId?: Prisma.SortOrderInput | Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrderInput | Prisma.SortOrder
   dataUltimaVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   dataUltimaCompra?: Prisma.SortOrderInput | Prisma.SortOrder
   validadeMaisAntiga?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -426,6 +478,7 @@ export type ProdutoFarmaciaWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.ProdutoFarmaciaWhereInput | Prisma.ProdutoFarmaciaWhereInput[]
   produtoId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
   farmaciaId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
+  externalProductId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   designacaoLocal?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   pvp?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -434,7 +487,10 @@ export type ProdutoFarmaciaWhereUniqueInput = Prisma.AtLeast<{
   stockRaw?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorExternalId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   dataUltimaVenda?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataUltimaCompra?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   validadeMaisAntiga?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
@@ -455,6 +511,7 @@ export type ProdutoFarmaciaOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrderInput | Prisma.SortOrder
   designacaoLocal?: Prisma.SortOrderInput | Prisma.SortOrder
   pvp?: Prisma.SortOrderInput | Prisma.SortOrder
   pmc?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -463,7 +520,10 @@ export type ProdutoFarmaciaOrderByWithAggregationInput = {
   stockRaw?: Prisma.SortOrderInput | Prisma.SortOrder
   stockMinimo?: Prisma.SortOrderInput | Prisma.SortOrder
   stockMaximo?: Prisma.SortOrderInput | Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrderInput | Prisma.SortOrder
+  stockReserva?: Prisma.SortOrderInput | Prisma.SortOrder
   fornecedorHabitualId?: Prisma.SortOrderInput | Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrderInput | Prisma.SortOrder
   dataUltimaVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   dataUltimaCompra?: Prisma.SortOrderInput | Prisma.SortOrder
   validadeMaisAntiga?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -489,6 +549,7 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"ProdutoFarmacia"> | string
   produtoId?: Prisma.StringWithAggregatesFilter<"ProdutoFarmacia"> | string
   farmaciaId?: Prisma.StringWithAggregatesFilter<"ProdutoFarmacia"> | string
+  externalProductId?: Prisma.IntNullableWithAggregatesFilter<"ProdutoFarmacia"> | number | null
   designacaoLocal?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
   pvp?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -497,7 +558,10 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
   stockRaw?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.DecimalNullableWithAggregatesFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
+  fornecedorExternalId?: Prisma.IntNullableWithAggregatesFilter<"ProdutoFarmacia"> | number | null
   dataUltimaVenda?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
   dataUltimaCompra?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
   validadeMaisAntiga?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
@@ -513,6 +577,7 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
 
 export type ProdutoFarmaciaCreateInput = {
   id?: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -521,6 +586,9 @@ export type ProdutoFarmaciaCreateInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -541,6 +609,7 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
   id?: string
   produtoId: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -549,7 +618,10 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -565,6 +637,7 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
 
 export type ProdutoFarmaciaUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -573,6 +646,9 @@ export type ProdutoFarmaciaUpdateInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -593,6 +669,7 @@ export type ProdutoFarmaciaUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -601,7 +678,10 @@ export type ProdutoFarmaciaUncheckedUpdateInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -619,6 +699,7 @@ export type ProdutoFarmaciaCreateManyInput = {
   id?: string
   produtoId: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -627,7 +708,10 @@ export type ProdutoFarmaciaCreateManyInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -643,6 +727,7 @@ export type ProdutoFarmaciaCreateManyInput = {
 
 export type ProdutoFarmaciaUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -651,6 +736,9 @@ export type ProdutoFarmaciaUpdateManyMutationInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -668,6 +756,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -676,7 +765,10 @@ export type ProdutoFarmaciaUncheckedUpdateManyInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -709,6 +801,7 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacaoLocal?: Prisma.SortOrder
   pvp?: Prisma.SortOrder
   pmc?: Prisma.SortOrder
@@ -717,7 +810,10 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
   stockRaw?: Prisma.SortOrder
   stockMinimo?: Prisma.SortOrder
   stockMaximo?: Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrder
+  stockReserva?: Prisma.SortOrder
   fornecedorHabitualId?: Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrder
   dataUltimaVenda?: Prisma.SortOrder
   dataUltimaCompra?: Prisma.SortOrder
   validadeMaisAntiga?: Prisma.SortOrder
@@ -732,6 +828,7 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
 }
 
 export type ProdutoFarmaciaAvgOrderByAggregateInput = {
+  externalProductId?: Prisma.SortOrder
   pvp?: Prisma.SortOrder
   pmc?: Prisma.SortOrder
   puc?: Prisma.SortOrder
@@ -739,12 +836,16 @@ export type ProdutoFarmaciaAvgOrderByAggregateInput = {
   stockRaw?: Prisma.SortOrder
   stockMinimo?: Prisma.SortOrder
   stockMaximo?: Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrder
+  stockReserva?: Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrder
 }
 
 export type ProdutoFarmaciaMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacaoLocal?: Prisma.SortOrder
   pvp?: Prisma.SortOrder
   pmc?: Prisma.SortOrder
@@ -753,7 +854,10 @@ export type ProdutoFarmaciaMaxOrderByAggregateInput = {
   stockRaw?: Prisma.SortOrder
   stockMinimo?: Prisma.SortOrder
   stockMaximo?: Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrder
+  stockReserva?: Prisma.SortOrder
   fornecedorHabitualId?: Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrder
   dataUltimaVenda?: Prisma.SortOrder
   dataUltimaCompra?: Prisma.SortOrder
   validadeMaisAntiga?: Prisma.SortOrder
@@ -771,6 +875,7 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacaoLocal?: Prisma.SortOrder
   pvp?: Prisma.SortOrder
   pmc?: Prisma.SortOrder
@@ -779,7 +884,10 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
   stockRaw?: Prisma.SortOrder
   stockMinimo?: Prisma.SortOrder
   stockMaximo?: Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrder
+  stockReserva?: Prisma.SortOrder
   fornecedorHabitualId?: Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrder
   dataUltimaVenda?: Prisma.SortOrder
   dataUltimaCompra?: Prisma.SortOrder
   validadeMaisAntiga?: Prisma.SortOrder
@@ -794,6 +902,7 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
 }
 
 export type ProdutoFarmaciaSumOrderByAggregateInput = {
+  externalProductId?: Prisma.SortOrder
   pvp?: Prisma.SortOrder
   pmc?: Prisma.SortOrder
   puc?: Prisma.SortOrder
@@ -801,6 +910,9 @@ export type ProdutoFarmaciaSumOrderByAggregateInput = {
   stockRaw?: Prisma.SortOrder
   stockMinimo?: Prisma.SortOrder
   stockMaximo?: Prisma.SortOrder
+  stockEncomenda?: Prisma.SortOrder
+  stockReserva?: Prisma.SortOrder
+  fornecedorExternalId?: Prisma.SortOrder
 }
 
 export type ProdutoFarmaciaCreateNestedManyWithoutProdutoInput = {
@@ -939,6 +1051,7 @@ export type NullableDecimalFieldUpdateOperationsInput = {
 
 export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   id?: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -947,6 +1060,9 @@ export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -965,6 +1081,7 @@ export type ProdutoFarmaciaCreateWithoutProdutoInput = {
 export type ProdutoFarmaciaUncheckedCreateWithoutProdutoInput = {
   id?: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -973,7 +1090,10 @@ export type ProdutoFarmaciaUncheckedCreateWithoutProdutoInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1020,6 +1140,7 @@ export type ProdutoFarmaciaScalarWhereInput = {
   id?: Prisma.StringFilter<"ProdutoFarmacia"> | string
   produtoId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
   farmaciaId?: Prisma.StringFilter<"ProdutoFarmacia"> | string
+  externalProductId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   designacaoLocal?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   pvp?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1028,7 +1149,10 @@ export type ProdutoFarmaciaScalarWhereInput = {
   stockRaw?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.DecimalNullableFilter<"ProdutoFarmacia"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fornecedorExternalId?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   dataUltimaVenda?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataUltimaCompra?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   validadeMaisAntiga?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
@@ -1044,6 +1168,7 @@ export type ProdutoFarmaciaScalarWhereInput = {
 
 export type ProdutoFarmaciaCreateWithoutFornecedorHabitualInput = {
   id?: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1052,6 +1177,9 @@ export type ProdutoFarmaciaCreateWithoutFornecedorHabitualInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1071,6 +1199,7 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFornecedorHabitualInput = {
   id?: string
   produtoId: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1079,6 +1208,9 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFornecedorHabitualInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1120,6 +1252,7 @@ export type ProdutoFarmaciaUpdateManyWithWhereWithoutFornecedorHabitualInput = {
 
 export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
   id?: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1128,6 +1261,9 @@ export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1146,6 +1282,7 @@ export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
 export type ProdutoFarmaciaUncheckedCreateWithoutFarmaciaInput = {
   id?: string
   produtoId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1154,7 +1291,10 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFarmaciaInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1197,6 +1337,7 @@ export type ProdutoFarmaciaUpdateManyWithWhereWithoutFarmaciaInput = {
 export type ProdutoFarmaciaCreateManyProdutoInput = {
   id?: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1205,7 +1346,10 @@ export type ProdutoFarmaciaCreateManyProdutoInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1221,6 +1365,7 @@ export type ProdutoFarmaciaCreateManyProdutoInput = {
 
 export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1229,6 +1374,9 @@ export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1247,6 +1395,7 @@ export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
 export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1255,7 +1404,10 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1272,6 +1424,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
 export type ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1280,7 +1433,10 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1298,6 +1454,7 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
   id?: string
   produtoId: string
   farmaciaId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1306,6 +1463,9 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1321,6 +1481,7 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
 
 export type ProdutoFarmaciaUpdateWithoutFornecedorHabitualInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1329,6 +1490,9 @@ export type ProdutoFarmaciaUpdateWithoutFornecedorHabitualInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1348,6 +1512,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFornecedorHabitualInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1356,6 +1521,9 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFornecedorHabitualInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1373,6 +1541,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1381,6 +1550,9 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1397,6 +1569,7 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
 export type ProdutoFarmaciaCreateManyFarmaciaInput = {
   id?: string
   produtoId: string
+  externalProductId?: number | null
   designacaoLocal?: string | null
   pvp?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1405,7 +1578,10 @@ export type ProdutoFarmaciaCreateManyFarmaciaInput = {
   stockRaw?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: string | null
+  fornecedorExternalId?: number | null
   dataUltimaVenda?: Date | string | null
   dataUltimaCompra?: Date | string | null
   validadeMaisAntiga?: Date | string | null
@@ -1421,6 +1597,7 @@ export type ProdutoFarmaciaCreateManyFarmaciaInput = {
 
 export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1429,6 +1606,9 @@ export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1447,6 +1627,7 @@ export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
 export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1455,7 +1636,10 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1472,6 +1656,7 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
 export type ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacaoLocal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   pvp?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pmc?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1480,7 +1665,10 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaInput = {
   stockRaw?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMinimo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   stockMaximo?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockEncomenda?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  stockReserva?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorHabitualId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fornecedorExternalId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataUltimaVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataUltimaCompra?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   validadeMaisAntiga?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1500,6 +1688,7 @@ export type ProdutoFarmaciaSelect<ExtArgs extends runtime.Types.Extensions.Inter
   id?: boolean
   produtoId?: boolean
   farmaciaId?: boolean
+  externalProductId?: boolean
   designacaoLocal?: boolean
   pvp?: boolean
   pmc?: boolean
@@ -1508,7 +1697,10 @@ export type ProdutoFarmaciaSelect<ExtArgs extends runtime.Types.Extensions.Inter
   stockRaw?: boolean
   stockMinimo?: boolean
   stockMaximo?: boolean
+  stockEncomenda?: boolean
+  stockReserva?: boolean
   fornecedorHabitualId?: boolean
+  fornecedorExternalId?: boolean
   dataUltimaVenda?: boolean
   dataUltimaCompra?: boolean
   validadeMaisAntiga?: boolean
@@ -1529,6 +1721,7 @@ export type ProdutoFarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   id?: boolean
   produtoId?: boolean
   farmaciaId?: boolean
+  externalProductId?: boolean
   designacaoLocal?: boolean
   pvp?: boolean
   pmc?: boolean
@@ -1537,7 +1730,10 @@ export type ProdutoFarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   stockRaw?: boolean
   stockMinimo?: boolean
   stockMaximo?: boolean
+  stockEncomenda?: boolean
+  stockReserva?: boolean
   fornecedorHabitualId?: boolean
+  fornecedorExternalId?: boolean
   dataUltimaVenda?: boolean
   dataUltimaCompra?: boolean
   validadeMaisAntiga?: boolean
@@ -1558,6 +1754,7 @@ export type ProdutoFarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   id?: boolean
   produtoId?: boolean
   farmaciaId?: boolean
+  externalProductId?: boolean
   designacaoLocal?: boolean
   pvp?: boolean
   pmc?: boolean
@@ -1566,7 +1763,10 @@ export type ProdutoFarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   stockRaw?: boolean
   stockMinimo?: boolean
   stockMaximo?: boolean
+  stockEncomenda?: boolean
+  stockReserva?: boolean
   fornecedorHabitualId?: boolean
+  fornecedorExternalId?: boolean
   dataUltimaVenda?: boolean
   dataUltimaCompra?: boolean
   validadeMaisAntiga?: boolean
@@ -1587,6 +1787,7 @@ export type ProdutoFarmaciaSelectScalar = {
   id?: boolean
   produtoId?: boolean
   farmaciaId?: boolean
+  externalProductId?: boolean
   designacaoLocal?: boolean
   pvp?: boolean
   pmc?: boolean
@@ -1595,7 +1796,10 @@ export type ProdutoFarmaciaSelectScalar = {
   stockRaw?: boolean
   stockMinimo?: boolean
   stockMaximo?: boolean
+  stockEncomenda?: boolean
+  stockReserva?: boolean
   fornecedorHabitualId?: boolean
+  fornecedorExternalId?: boolean
   dataUltimaVenda?: boolean
   dataUltimaCompra?: boolean
   validadeMaisAntiga?: boolean
@@ -1609,7 +1813,7 @@ export type ProdutoFarmaciaSelectScalar = {
   dataCriacao?: boolean
 }
 
-export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "fornecedorHabitualId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
+export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "externalProductId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "stockEncomenda" | "stockReserva" | "fornecedorHabitualId" | "fornecedorExternalId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
 export type ProdutoFarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -1637,6 +1841,12 @@ export type $ProdutoFarmaciaPayload<ExtArgs extends runtime.Types.Extensions.Int
     id: string
     produtoId: string
     farmaciaId: string
+    /**
+     * Denormalizado do `Produto.externalProductId` para lookups rápidos
+     * do agent sem join (ex: stock-upload precisa de mapear CodigoID →
+     * produtoId em batch). Atualizado pelo endpoint /bootstrap/products.
+     */
+    externalProductId: number | null
     designacaoLocal: string | null
     pvp: runtime.Decimal | null
     pmc: runtime.Decimal | null
@@ -1645,7 +1855,22 @@ export type $ProdutoFarmaciaPayload<ExtArgs extends runtime.Types.Extensions.Int
     stockRaw: runtime.Decimal | null
     stockMinimo: runtime.Decimal | null
     stockMaximo: runtime.Decimal | null
+    /**
+     * Stock em encomenda (Softreis: ArmazensStocks.[Existencia Encomenda]).
+     * Soma per-produto across armazéns na ingestão bootstrap.
+     */
+    stockEncomenda: runtime.Decimal | null
+    /**
+     * Stock reservado (Softreis: ArmazensStocks.[Existencia Reserva]).
+     */
+    stockReserva: runtime.Decimal | null
     fornecedorHabitualId: string | null
+    /**
+     * ID do fornecedor habitual no ERP da farmácia (Softreis:
+     * ArmazensStocks.[Fornecedor Habitual]). Raw, sem resolução para
+     * Fornecedor.id — utilizado apenas para audit/debug do bootstrap.
+     */
+    fornecedorExternalId: number | null
     dataUltimaVenda: Date | null
     dataUltimaCompra: Date | null
     validadeMaisAntiga: Date | null
@@ -2092,6 +2317,7 @@ export interface ProdutoFarmaciaFieldRefs {
   readonly id: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly produtoId: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly farmaciaId: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly externalProductId: Prisma.FieldRef<"ProdutoFarmacia", 'Int'>
   readonly designacaoLocal: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly pvp: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
   readonly pmc: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
@@ -2100,7 +2326,10 @@ export interface ProdutoFarmaciaFieldRefs {
   readonly stockRaw: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
   readonly stockMinimo: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
   readonly stockMaximo: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
+  readonly stockEncomenda: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
+  readonly stockReserva: Prisma.FieldRef<"ProdutoFarmacia", 'Decimal'>
   readonly fornecedorHabitualId: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly fornecedorExternalId: Prisma.FieldRef<"ProdutoFarmacia", 'Int'>
   readonly dataUltimaVenda: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly dataUltimaCompra: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly validadeMaisAntiga: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>

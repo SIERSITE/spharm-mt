@@ -83,6 +83,7 @@ export const ModelName = {
   FilaRevisao: 'FilaRevisao',
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
+  IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
 } as const
@@ -106,6 +107,7 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const ProdutoScalarFieldEnum = {
   id: 'id',
   cnp: 'cnp',
+  externalProductId: 'externalProductId',
   designacao: 'designacao',
   fabricanteId: 'fabricanteId',
   classificacaoNivel1Id: 'classificacaoNivel1Id',
@@ -120,6 +122,7 @@ export const ProdutoScalarFieldEnum = {
   flagGenerico: 'flagGenerico',
   flagMSRM: 'flagMSRM',
   flagMNSRM: 'flagMNSRM',
+  flagMnsrmNCompart: 'flagMnsrmNCompart',
   grupoHomogeneo: 'grupoHomogeneo',
   estado: 'estado',
   origemDados: 'origemDados',
@@ -374,6 +377,7 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
   farmaciaId: 'farmaciaId',
+  externalProductId: 'externalProductId',
   designacaoLocal: 'designacaoLocal',
   pvp: 'pvp',
   pmc: 'pmc',
@@ -382,7 +386,10 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   stockRaw: 'stockRaw',
   stockMinimo: 'stockMinimo',
   stockMaximo: 'stockMaximo',
+  stockEncomenda: 'stockEncomenda',
+  stockReserva: 'stockReserva',
   fornecedorHabitualId: 'fornecedorHabitualId',
+  fornecedorExternalId: 'fornecedorExternalId',
   dataUltimaVenda: 'dataUltimaVenda',
   dataUltimaCompra: 'dataUltimaCompra',
   validadeMaisAntiga: 'validadeMaisAntiga',
@@ -649,6 +656,32 @@ export const LoteIngestaoScalarFieldEnum = {
 export type LoteIngestaoScalarFieldEnum = (typeof LoteIngestaoScalarFieldEnum)[keyof typeof LoteIngestaoScalarFieldEnum]
 
 
+export const IngestVendaLinhaRawScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalSaleId: 'externalSaleId',
+  externalSaleLineId: 'externalSaleLineId',
+  sequencia: 'sequencia',
+  dataVenda: 'dataVenda',
+  tipoDocumento: 'tipoDocumento',
+  tipoDocumentoClass: 'tipoDocumentoClass',
+  externalProductId: 'externalProductId',
+  produtoId: 'produtoId',
+  quantidade: 'quantidade',
+  pvpUnitario: 'pvpUnitario',
+  valorLinha: 'valorLinha',
+  ivaValor: 'ivaValor',
+  descontoValor: 'descontoValor',
+  comparticipacao1: 'comparticipacao1',
+  comparticipacao2: 'comparticipacao2',
+  entidadeId: 'entidadeId',
+  rawJson: 'rawJson',
+  importedAt: 'importedAt'
+} as const
+
+export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
+
+
 export const OrderOutboxScalarFieldEnum = {
   id: 'id',
   listaEncomendaId: 'listaEncomendaId',
@@ -701,6 +734,13 @@ export const NullableJsonNullValueInput = {
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {

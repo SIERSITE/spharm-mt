@@ -28,17 +28,20 @@ export type AggregateProduto = {
 
 export type ProdutoAvgAggregateOutputType = {
   cnp: number | null
+  externalProductId: number | null
   productTypeConfidence: number | null
 }
 
 export type ProdutoSumAggregateOutputType = {
   cnp: number | null
+  externalProductId: number | null
   productTypeConfidence: number | null
 }
 
 export type ProdutoMinAggregateOutputType = {
   id: string | null
   cnp: number | null
+  externalProductId: number | null
   designacao: string | null
   fabricanteId: string | null
   classificacaoNivel1Id: string | null
@@ -53,6 +56,7 @@ export type ProdutoMinAggregateOutputType = {
   flagGenerico: boolean | null
   flagMSRM: boolean | null
   flagMNSRM: boolean | null
+  flagMnsrmNCompart: boolean | null
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado | null
   origemDados: $Enums.ProdutoOrigemDados | null
@@ -74,6 +78,7 @@ export type ProdutoMinAggregateOutputType = {
 export type ProdutoMaxAggregateOutputType = {
   id: string | null
   cnp: number | null
+  externalProductId: number | null
   designacao: string | null
   fabricanteId: string | null
   classificacaoNivel1Id: string | null
@@ -88,6 +93,7 @@ export type ProdutoMaxAggregateOutputType = {
   flagGenerico: boolean | null
   flagMSRM: boolean | null
   flagMNSRM: boolean | null
+  flagMnsrmNCompart: boolean | null
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado | null
   origemDados: $Enums.ProdutoOrigemDados | null
@@ -109,6 +115,7 @@ export type ProdutoMaxAggregateOutputType = {
 export type ProdutoCountAggregateOutputType = {
   id: number
   cnp: number
+  externalProductId: number
   designacao: number
   fabricanteId: number
   classificacaoNivel1Id: number
@@ -123,6 +130,7 @@ export type ProdutoCountAggregateOutputType = {
   flagGenerico: number
   flagMSRM: number
   flagMNSRM: number
+  flagMnsrmNCompart: number
   grupoHomogeneo: number
   estado: number
   origemDados: number
@@ -145,17 +153,20 @@ export type ProdutoCountAggregateOutputType = {
 
 export type ProdutoAvgAggregateInputType = {
   cnp?: true
+  externalProductId?: true
   productTypeConfidence?: true
 }
 
 export type ProdutoSumAggregateInputType = {
   cnp?: true
+  externalProductId?: true
   productTypeConfidence?: true
 }
 
 export type ProdutoMinAggregateInputType = {
   id?: true
   cnp?: true
+  externalProductId?: true
   designacao?: true
   fabricanteId?: true
   classificacaoNivel1Id?: true
@@ -170,6 +181,7 @@ export type ProdutoMinAggregateInputType = {
   flagGenerico?: true
   flagMSRM?: true
   flagMNSRM?: true
+  flagMnsrmNCompart?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -191,6 +203,7 @@ export type ProdutoMinAggregateInputType = {
 export type ProdutoMaxAggregateInputType = {
   id?: true
   cnp?: true
+  externalProductId?: true
   designacao?: true
   fabricanteId?: true
   classificacaoNivel1Id?: true
@@ -205,6 +218,7 @@ export type ProdutoMaxAggregateInputType = {
   flagGenerico?: true
   flagMSRM?: true
   flagMNSRM?: true
+  flagMnsrmNCompart?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -226,6 +240,7 @@ export type ProdutoMaxAggregateInputType = {
 export type ProdutoCountAggregateInputType = {
   id?: true
   cnp?: true
+  externalProductId?: true
   designacao?: true
   fabricanteId?: true
   classificacaoNivel1Id?: true
@@ -240,6 +255,7 @@ export type ProdutoCountAggregateInputType = {
   flagGenerico?: true
   flagMSRM?: true
   flagMNSRM?: true
+  flagMnsrmNCompart?: true
   grupoHomogeneo?: true
   estado?: true
   origemDados?: true
@@ -348,6 +364,7 @@ export type ProdutoGroupByArgs<ExtArgs extends runtime.Types.Extensions.Internal
 export type ProdutoGroupByOutputType = {
   id: string
   cnp: number
+  externalProductId: number | null
   designacao: string
   fabricanteId: string | null
   classificacaoNivel1Id: string | null
@@ -362,6 +379,7 @@ export type ProdutoGroupByOutputType = {
   flagGenerico: boolean
   flagMSRM: boolean
   flagMNSRM: boolean
+  flagMnsrmNCompart: boolean
   grupoHomogeneo: string | null
   estado: $Enums.ProdutoEstado
   origemDados: $Enums.ProdutoOrigemDados
@@ -406,6 +424,7 @@ export type ProdutoWhereInput = {
   NOT?: Prisma.ProdutoWhereInput | Prisma.ProdutoWhereInput[]
   id?: Prisma.StringFilter<"Produto"> | string
   cnp?: Prisma.IntFilter<"Produto"> | number
+  externalProductId?: Prisma.IntNullableFilter<"Produto"> | number | null
   designacao?: Prisma.StringFilter<"Produto"> | string
   fabricanteId?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificacaoNivel1Id?: Prisma.StringNullableFilter<"Produto"> | string | null
@@ -420,6 +439,7 @@ export type ProdutoWhereInput = {
   flagGenerico?: Prisma.BoolFilter<"Produto"> | boolean
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
+  flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -453,11 +473,13 @@ export type ProdutoWhereInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaListRelationFilter
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoListRelationFilter
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogListRelationFilter
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawListRelationFilter
 }
 
 export type ProdutoOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrderInput | Prisma.SortOrder
   designacao?: Prisma.SortOrder
   fabricanteId?: Prisma.SortOrderInput | Prisma.SortOrder
   classificacaoNivel1Id?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -472,6 +494,7 @@ export type ProdutoOrderByWithRelationInput = {
   flagGenerico?: Prisma.SortOrder
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
+  flagMnsrmNCompart?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -505,11 +528,13 @@ export type ProdutoOrderByWithRelationInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaOrderByRelationAggregateInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoOrderByRelationAggregateInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogOrderByRelationAggregateInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawOrderByRelationAggregateInput
 }
 
 export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   cnp?: number
+  externalProductId?: number
   AND?: Prisma.ProdutoWhereInput | Prisma.ProdutoWhereInput[]
   OR?: Prisma.ProdutoWhereInput[]
   NOT?: Prisma.ProdutoWhereInput | Prisma.ProdutoWhereInput[]
@@ -527,6 +552,7 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   flagGenerico?: Prisma.BoolFilter<"Produto"> | boolean
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
+  flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -560,11 +586,13 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   filaEnriquecimento?: Prisma.EnriquecimentoFilaListRelationFilter
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoListRelationFilter
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogListRelationFilter
-}, "id" | "cnp">
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawListRelationFilter
+}, "id" | "cnp" | "externalProductId">
 
 export type ProdutoOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrderInput | Prisma.SortOrder
   designacao?: Prisma.SortOrder
   fabricanteId?: Prisma.SortOrderInput | Prisma.SortOrder
   classificacaoNivel1Id?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -579,6 +607,7 @@ export type ProdutoOrderByWithAggregationInput = {
   flagGenerico?: Prisma.SortOrder
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
+  flagMnsrmNCompart?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -608,6 +637,7 @@ export type ProdutoScalarWhereWithAggregatesInput = {
   NOT?: Prisma.ProdutoScalarWhereWithAggregatesInput | Prisma.ProdutoScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Produto"> | string
   cnp?: Prisma.IntWithAggregatesFilter<"Produto"> | number
+  externalProductId?: Prisma.IntNullableWithAggregatesFilter<"Produto"> | number | null
   designacao?: Prisma.StringWithAggregatesFilter<"Produto"> | string
   fabricanteId?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   classificacaoNivel1Id?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
@@ -622,6 +652,7 @@ export type ProdutoScalarWhereWithAggregatesInput = {
   flagGenerico?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
   flagMSRM?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
+  flagMnsrmNCompart?: Prisma.BoolWithAggregatesFilter<"Produto"> | boolean
   grupoHomogeneo?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoWithAggregatesFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosWithAggregatesFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -643,6 +674,7 @@ export type ProdutoScalarWhereWithAggregatesInput = {
 export type ProdutoCreateInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -654,6 +686,7 @@ export type ProdutoCreateInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -687,11 +720,13 @@ export type ProdutoCreateInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -706,6 +741,7 @@ export type ProdutoUncheckedCreateInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -736,11 +772,13 @@ export type ProdutoUncheckedCreateInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -752,6 +790,7 @@ export type ProdutoUpdateInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -785,11 +824,13 @@ export type ProdutoUpdateInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -804,6 +845,7 @@ export type ProdutoUncheckedUpdateInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -834,11 +876,13 @@ export type ProdutoUncheckedUpdateInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateManyInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -853,6 +897,7 @@ export type ProdutoCreateManyInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -874,6 +919,7 @@ export type ProdutoCreateManyInput = {
 export type ProdutoUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -885,6 +931,7 @@ export type ProdutoUpdateManyMutationInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -906,6 +953,7 @@ export type ProdutoUpdateManyMutationInput = {
 export type ProdutoUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -920,6 +968,7 @@ export type ProdutoUncheckedUpdateManyInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -941,6 +990,7 @@ export type ProdutoUncheckedUpdateManyInput = {
 export type ProdutoCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacao?: Prisma.SortOrder
   fabricanteId?: Prisma.SortOrder
   classificacaoNivel1Id?: Prisma.SortOrder
@@ -955,6 +1005,7 @@ export type ProdutoCountOrderByAggregateInput = {
   flagGenerico?: Prisma.SortOrder
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
+  flagMnsrmNCompart?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -975,12 +1026,14 @@ export type ProdutoCountOrderByAggregateInput = {
 
 export type ProdutoAvgOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   productTypeConfidence?: Prisma.SortOrder
 }
 
 export type ProdutoMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacao?: Prisma.SortOrder
   fabricanteId?: Prisma.SortOrder
   classificacaoNivel1Id?: Prisma.SortOrder
@@ -995,6 +1048,7 @@ export type ProdutoMaxOrderByAggregateInput = {
   flagGenerico?: Prisma.SortOrder
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
+  flagMnsrmNCompart?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -1016,6 +1070,7 @@ export type ProdutoMaxOrderByAggregateInput = {
 export type ProdutoMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   designacao?: Prisma.SortOrder
   fabricanteId?: Prisma.SortOrder
   classificacaoNivel1Id?: Prisma.SortOrder
@@ -1030,6 +1085,7 @@ export type ProdutoMinOrderByAggregateInput = {
   flagGenerico?: Prisma.SortOrder
   flagMSRM?: Prisma.SortOrder
   flagMNSRM?: Prisma.SortOrder
+  flagMnsrmNCompart?: Prisma.SortOrder
   grupoHomogeneo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   origemDados?: Prisma.SortOrder
@@ -1050,6 +1106,7 @@ export type ProdutoMinOrderByAggregateInput = {
 
 export type ProdutoSumOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
+  externalProductId?: Prisma.SortOrder
   productTypeConfidence?: Prisma.SortOrder
 }
 
@@ -1079,6 +1136,14 @@ export type StringFieldUpdateOperationsInput = {
 
 export type IntFieldUpdateOperationsInput = {
   set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
+export type NullableIntFieldUpdateOperationsInput = {
+  set?: number | null
   increment?: number
   decrement?: number
   multiply?: number
@@ -1447,9 +1512,26 @@ export type ProdutoUpdateOneRequiredWithoutFilaEnriquecimentoNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutFilaEnriquecimentoInput, Prisma.ProdutoUpdateWithoutFilaEnriquecimentoInput>, Prisma.ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput>
 }
 
+export type ProdutoCreateNestedOneWithoutIngestVendasLinhasRawInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutIngestVendasLinhasRawInput
+  connect?: Prisma.ProdutoWhereUniqueInput
+}
+
+export type ProdutoUpdateOneWithoutIngestVendasLinhasRawNestedInput = {
+  create?: Prisma.XOR<Prisma.ProdutoCreateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput>
+  connectOrCreate?: Prisma.ProdutoCreateOrConnectWithoutIngestVendasLinhasRawInput
+  upsert?: Prisma.ProdutoUpsertWithoutIngestVendasLinhasRawInput
+  disconnect?: Prisma.ProdutoWhereInput | boolean
+  delete?: Prisma.ProdutoWhereInput | boolean
+  connect?: Prisma.ProdutoWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProdutoUpdateToOneWithWhereWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUpdateWithoutIngestVendasLinhasRawInput>, Prisma.ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput>
+}
+
 export type ProdutoCreateWithoutFabricanteInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -1461,6 +1543,7 @@ export type ProdutoCreateWithoutFabricanteInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1493,11 +1576,13 @@ export type ProdutoCreateWithoutFabricanteInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   classificacaoNivel1Id?: string | null
   classificacaoNivel2Id?: string | null
@@ -1511,6 +1596,7 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1541,6 +1627,7 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFabricanteInput = {
@@ -1575,6 +1662,7 @@ export type ProdutoScalarWhereInput = {
   NOT?: Prisma.ProdutoScalarWhereInput | Prisma.ProdutoScalarWhereInput[]
   id?: Prisma.StringFilter<"Produto"> | string
   cnp?: Prisma.IntFilter<"Produto"> | number
+  externalProductId?: Prisma.IntNullableFilter<"Produto"> | number | null
   designacao?: Prisma.StringFilter<"Produto"> | string
   fabricanteId?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificacaoNivel1Id?: Prisma.StringNullableFilter<"Produto"> | string | null
@@ -1589,6 +1677,7 @@ export type ProdutoScalarWhereInput = {
   flagGenerico?: Prisma.BoolFilter<"Produto"> | boolean
   flagMSRM?: Prisma.BoolFilter<"Produto"> | boolean
   flagMNSRM?: Prisma.BoolFilter<"Produto"> | boolean
+  flagMnsrmNCompart?: Prisma.BoolFilter<"Produto"> | boolean
   grupoHomogeneo?: Prisma.StringNullableFilter<"Produto"> | string | null
   estado?: Prisma.EnumProdutoEstadoFilter<"Produto"> | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFilter<"Produto"> | $Enums.ProdutoOrigemDados
@@ -1610,6 +1699,7 @@ export type ProdutoScalarWhereInput = {
 export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -1621,6 +1711,7 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1653,11 +1744,13 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel2Id?: string | null
@@ -1671,6 +1764,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1701,6 +1795,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutClassificacaoNivel1Input = {
@@ -1716,6 +1811,7 @@ export type ProdutoCreateManyClassificacaoNivel1InputEnvelope = {
 export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -1727,6 +1823,7 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1759,11 +1856,13 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -1777,6 +1876,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1807,6 +1907,7 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutClassificacaoNivel2Input = {
@@ -1854,6 +1955,7 @@ export type ProdutoUpdateManyWithWhereWithoutClassificacaoNivel2Input = {
 export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -1865,6 +1967,7 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1897,11 +2000,13 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -1916,6 +2021,7 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -1945,6 +2051,7 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVerificacaoHistoricoInput = {
@@ -1966,6 +2073,7 @@ export type ProdutoUpdateToOneWithWhereWithoutVerificacaoHistoricoInput = {
 export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1977,6 +2085,7 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2009,11 +2118,13 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2028,6 +2139,7 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2057,11 +2169,13 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -2073,6 +2187,7 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2105,11 +2220,13 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -2124,6 +2241,7 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2153,6 +2271,7 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutEnrichmentSourceLogsInput = {
@@ -2174,6 +2293,7 @@ export type ProdutoUpdateToOneWithWhereWithoutEnrichmentSourceLogsInput = {
 export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2185,6 +2305,7 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2217,11 +2338,13 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2236,6 +2359,7 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2265,11 +2389,13 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -2281,6 +2407,7 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2313,11 +2440,13 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -2332,6 +2461,7 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2361,6 +2491,7 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutProdutosFarmaciaInput = {
@@ -2382,6 +2513,7 @@ export type ProdutoUpdateToOneWithWhereWithoutProdutosFarmaciaInput = {
 export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2393,6 +2525,7 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2425,11 +2558,13 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2444,6 +2579,7 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2473,11 +2609,13 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutVendasInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -2489,6 +2627,7 @@ export type ProdutoCreateWithoutVendasInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2521,11 +2660,13 @@ export type ProdutoCreateWithoutVendasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVendasInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -2540,6 +2681,7 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2569,6 +2711,7 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVendasInput = {
@@ -2590,6 +2733,7 @@ export type ProdutoUpdateToOneWithWhereWithoutVendasInput = {
 export type ProdutoUpdateWithoutVendasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2601,6 +2745,7 @@ export type ProdutoUpdateWithoutVendasInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2633,11 +2778,13 @@ export type ProdutoUpdateWithoutVendasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVendasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2652,6 +2799,7 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2681,11 +2829,13 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutVendasMensaisInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -2697,6 +2847,7 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2729,11 +2880,13 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -2748,6 +2901,7 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2777,6 +2931,7 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutVendasMensaisInput = {
@@ -2798,6 +2953,7 @@ export type ProdutoUpdateToOneWithWhereWithoutVendasMensaisInput = {
 export type ProdutoUpdateWithoutVendasMensaisInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2809,6 +2965,7 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2841,11 +2998,13 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2860,6 +3019,7 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -2889,11 +3049,13 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutComprasInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -2905,6 +3067,7 @@ export type ProdutoCreateWithoutComprasInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2937,11 +3100,13 @@ export type ProdutoCreateWithoutComprasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutComprasInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -2956,6 +3121,7 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -2985,6 +3151,7 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutComprasInput = {
@@ -3006,6 +3173,7 @@ export type ProdutoUpdateToOneWithWhereWithoutComprasInput = {
 export type ProdutoUpdateWithoutComprasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3017,6 +3185,7 @@ export type ProdutoUpdateWithoutComprasInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3049,11 +3218,13 @@ export type ProdutoUpdateWithoutComprasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutComprasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3068,6 +3239,7 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3097,11 +3269,13 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutDevolucoesInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -3113,6 +3287,7 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3145,11 +3320,13 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -3164,6 +3341,7 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3193,6 +3371,7 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutDevolucoesInput = {
@@ -3214,6 +3393,7 @@ export type ProdutoUpdateToOneWithWhereWithoutDevolucoesInput = {
 export type ProdutoUpdateWithoutDevolucoesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3225,6 +3405,7 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3257,11 +3438,13 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3276,6 +3459,7 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3305,11 +3489,13 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutHistoricoStocksInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -3321,6 +3507,7 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3353,11 +3540,13 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -3372,6 +3561,7 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3401,6 +3591,7 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutHistoricoStocksInput = {
@@ -3422,6 +3613,7 @@ export type ProdutoUpdateToOneWithWhereWithoutHistoricoStocksInput = {
 export type ProdutoUpdateWithoutHistoricoStocksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3433,6 +3625,7 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3465,11 +3658,13 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3484,6 +3679,7 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3513,11 +3709,13 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutAjustesStockInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -3529,6 +3727,7 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3561,11 +3760,13 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -3580,6 +3781,7 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3609,6 +3811,7 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutAjustesStockInput = {
@@ -3630,6 +3833,7 @@ export type ProdutoUpdateToOneWithWhereWithoutAjustesStockInput = {
 export type ProdutoUpdateWithoutAjustesStockInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3641,6 +3845,7 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3673,11 +3878,13 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3692,6 +3899,7 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3721,11 +3929,13 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutLinhasInventarioInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -3737,6 +3947,7 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3769,11 +3980,13 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -3788,6 +4001,7 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3817,6 +4031,7 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutLinhasInventarioInput = {
@@ -3838,6 +4053,7 @@ export type ProdutoUpdateToOneWithWhereWithoutLinhasInventarioInput = {
 export type ProdutoUpdateWithoutLinhasInventarioInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3849,6 +4065,7 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3881,11 +4098,13 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3900,6 +4119,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -3929,11 +4149,13 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutIndicadoresInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -3945,6 +4167,7 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -3977,11 +4200,13 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -3996,6 +4221,7 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4025,6 +4251,7 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutIndicadoresInput = {
@@ -4046,6 +4273,7 @@ export type ProdutoUpdateToOneWithWhereWithoutIndicadoresInput = {
 export type ProdutoUpdateWithoutIndicadoresInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4057,6 +4285,7 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4089,11 +4318,13 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4108,6 +4339,7 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4137,11 +4369,13 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutLinhasEncomendaInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -4153,6 +4387,7 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4185,11 +4420,13 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -4204,6 +4441,7 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4233,6 +4471,7 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutLinhasEncomendaInput = {
@@ -4254,6 +4493,7 @@ export type ProdutoUpdateToOneWithWhereWithoutLinhasEncomendaInput = {
 export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4265,6 +4505,7 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4297,11 +4538,13 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4316,6 +4559,7 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4345,11 +4589,13 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutFilaRevisaoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -4361,6 +4607,7 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4393,11 +4640,13 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -4412,6 +4661,7 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4441,6 +4691,7 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFilaRevisaoInput = {
@@ -4462,6 +4713,7 @@ export type ProdutoUpdateToOneWithWhereWithoutFilaRevisaoInput = {
 export type ProdutoUpdateWithoutFilaRevisaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4473,6 +4725,7 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4505,11 +4758,13 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4524,6 +4779,7 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4553,11 +4809,13 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   tipoArtigo?: string | null
   codigoATC?: string | null
@@ -4569,6 +4827,7 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4601,11 +4860,13 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -4620,6 +4881,7 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4649,6 +4911,7 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type ProdutoCreateOrConnectWithoutFilaEnriquecimentoInput = {
@@ -4670,6 +4933,7 @@ export type ProdutoUpdateToOneWithWhereWithoutFilaEnriquecimentoInput = {
 export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4681,6 +4945,7 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4713,11 +4978,13 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4732,6 +4999,7 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4761,11 +5029,233 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
+}
+
+export type ProdutoCreateWithoutIngestVendasLinhasRawInput = {
+  id?: string
+  cnp: number
+  externalProductId?: number | null
+  designacao: string
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
+  classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
+  classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogCreateNestedManyWithoutProdutoInput
+}
+
+export type ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput = {
+  id?: string
+  cnp: number
+  externalProductId?: number | null
+  designacao: string
+  fabricanteId?: string | null
+  classificacaoNivel1Id?: string | null
+  classificacaoNivel2Id?: string | null
+  tipoArtigo?: string | null
+  codigoATC?: string | null
+  dci?: string | null
+  imagemUrl?: string | null
+  formaFarmaceutica?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  flagGenerico?: boolean
+  flagMSRM?: boolean
+  flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
+  grupoHomogeneo?: string | null
+  estado?: $Enums.ProdutoEstado
+  origemDados?: $Enums.ProdutoOrigemDados
+  validadoManualmente?: boolean
+  productType?: string | null
+  productTypeConfidence?: number | null
+  classificationSource?: string | null
+  classificationVersion?: string | null
+  verificationStatus?: $Enums.VerificationStatus
+  lastVerifiedAt?: Date | string | null
+  lastVerificationAttemptAt?: Date | string | null
+  externallyVerified?: boolean
+  needsManualReview?: boolean
+  manualReviewReason?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutProdutoInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutProdutoInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutProdutoInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedCreateNestedManyWithoutProdutoInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutProdutoInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedCreateNestedManyWithoutProdutoInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedCreateNestedManyWithoutProdutoInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedCreateNestedManyWithoutProdutoInput
+}
+
+export type ProdutoCreateOrConnectWithoutIngestVendasLinhasRawInput = {
+  where: Prisma.ProdutoWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput>
+}
+
+export type ProdutoUpsertWithoutIngestVendasLinhasRawInput = {
+  update: Prisma.XOR<Prisma.ProdutoUpdateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput>
+  create: Prisma.XOR<Prisma.ProdutoCreateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput>
+  where?: Prisma.ProdutoWhereInput
+}
+
+export type ProdutoUpdateToOneWithWhereWithoutIngestVendasLinhasRawInput = {
+  where?: Prisma.ProdutoWhereInput
+  data: Prisma.XOR<Prisma.ProdutoUpdateWithoutIngestVendasLinhasRawInput, Prisma.ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput>
+}
+
+export type ProdutoUpdateWithoutIngestVendasLinhasRawInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
+  classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
+  classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+}
+
+export type ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  designacao?: Prisma.StringFieldUpdateOperationsInput | string
+  fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  imagemUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
+  origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
+  lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  externallyVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  needsManualReview?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutProdutoNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutProdutoNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasInventario?: Prisma.LinhaInventarioUncheckedUpdateManyWithoutProdutoNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutProdutoNestedInput
+  filaRevisao?: Prisma.FilaRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
+  filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
+  verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
+  enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoCreateManyFabricanteInput = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   classificacaoNivel1Id?: string | null
   classificacaoNivel2Id?: string | null
@@ -4779,6 +5269,7 @@ export type ProdutoCreateManyFabricanteInput = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4800,6 +5291,7 @@ export type ProdutoCreateManyFabricanteInput = {
 export type ProdutoUpdateWithoutFabricanteInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4811,6 +5303,7 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4843,11 +5336,13 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4861,6 +5356,7 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4891,11 +5387,13 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4909,6 +5407,7 @@ export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -4930,6 +5429,7 @@ export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
 export type ProdutoCreateManyClassificacaoNivel1Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel2Id?: string | null
@@ -4943,6 +5443,7 @@ export type ProdutoCreateManyClassificacaoNivel1Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4964,6 +5465,7 @@ export type ProdutoCreateManyClassificacaoNivel1Input = {
 export type ProdutoCreateManyClassificacaoNivel2Input = {
   id?: string
   cnp: number
+  externalProductId?: number | null
   designacao: string
   fabricanteId?: string | null
   classificacaoNivel1Id?: string | null
@@ -4977,6 +5479,7 @@ export type ProdutoCreateManyClassificacaoNivel2Input = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: string | null
   estado?: $Enums.ProdutoEstado
   origemDados?: $Enums.ProdutoOrigemDados
@@ -4998,6 +5501,7 @@ export type ProdutoCreateManyClassificacaoNivel2Input = {
 export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5009,6 +5513,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5041,11 +5546,13 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5059,6 +5566,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5089,11 +5597,13 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel2Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5107,6 +5617,7 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5128,6 +5639,7 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
 export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   tipoArtigo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5139,6 +5651,7 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5171,11 +5684,13 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5189,6 +5704,7 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5219,11 +5735,13 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   filaEnriquecimento?: Prisma.EnriquecimentoFilaUncheckedUpdateManyWithoutProdutoNestedInput
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoUncheckedUpdateManyWithoutProdutoNestedInput
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogUncheckedUpdateManyWithoutProdutoNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  externalProductId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   designacao?: Prisma.StringFieldUpdateOperationsInput | string
   fabricanteId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificacaoNivel1Id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5237,6 +5755,7 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
   flagGenerico?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
   flagMNSRM?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  flagMnsrmNCompart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   grupoHomogeneo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumProdutoEstadoFieldUpdateOperationsInput | $Enums.ProdutoEstado
   origemDados?: Prisma.EnumProdutoOrigemDadosFieldUpdateOperationsInput | $Enums.ProdutoOrigemDados
@@ -5275,6 +5794,7 @@ export type ProdutoCountOutputType = {
   filaEnriquecimento: number
   verificacaoHistorico: number
   enrichmentSourceLogs: number
+  ingestVendasLinhasRaw: number
 }
 
 export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -5292,6 +5812,7 @@ export type ProdutoCountOutputTypeSelect<ExtArgs extends runtime.Types.Extension
   filaEnriquecimento?: boolean | ProdutoCountOutputTypeCountFilaEnriquecimentoArgs
   verificacaoHistorico?: boolean | ProdutoCountOutputTypeCountVerificacaoHistoricoArgs
   enrichmentSourceLogs?: boolean | ProdutoCountOutputTypeCountEnrichmentSourceLogsArgs
+  ingestVendasLinhasRaw?: boolean | ProdutoCountOutputTypeCountIngestVendasLinhasRawArgs
 }
 
 /**
@@ -5402,10 +5923,18 @@ export type ProdutoCountOutputTypeCountEnrichmentSourceLogsArgs<ExtArgs extends 
   where?: Prisma.EnrichmentSourceLogWhereInput
 }
 
+/**
+ * ProdutoCountOutputType without action
+ */
+export type ProdutoCountOutputTypeCountIngestVendasLinhasRawArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.IngestVendaLinhaRawWhereInput
+}
+
 
 export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   cnp?: boolean
+  externalProductId?: boolean
   designacao?: boolean
   fabricanteId?: boolean
   classificacaoNivel1Id?: boolean
@@ -5420,6 +5949,7 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -5453,12 +5983,14 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   filaEnriquecimento?: boolean | Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>
   verificacaoHistorico?: boolean | Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>
   enrichmentSourceLogs?: boolean | Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>
+  ingestVendasLinhasRaw?: boolean | Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["produto"]>
 
 export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   cnp?: boolean
+  externalProductId?: boolean
   designacao?: boolean
   fabricanteId?: boolean
   classificacaoNivel1Id?: boolean
@@ -5473,6 +6005,7 @@ export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -5497,6 +6030,7 @@ export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
 export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   cnp?: boolean
+  externalProductId?: boolean
   designacao?: boolean
   fabricanteId?: boolean
   classificacaoNivel1Id?: boolean
@@ -5511,6 +6045,7 @@ export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -5535,6 +6070,7 @@ export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
 export type ProdutoSelectScalar = {
   id?: boolean
   cnp?: boolean
+  externalProductId?: boolean
   designacao?: boolean
   fabricanteId?: boolean
   classificacaoNivel1Id?: boolean
@@ -5549,6 +6085,7 @@ export type ProdutoSelectScalar = {
   flagGenerico?: boolean
   flagMSRM?: boolean
   flagMNSRM?: boolean
+  flagMnsrmNCompart?: boolean
   grupoHomogeneo?: boolean
   estado?: boolean
   origemDados?: boolean
@@ -5567,7 +6104,7 @@ export type ProdutoSelectScalar = {
   dataAtualizacao?: boolean
 }
 
-export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produto"]>
+export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produto"]>
 export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
@@ -5586,6 +6123,7 @@ export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs
   filaEnriquecimento?: boolean | Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>
   verificacaoHistorico?: boolean | Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>
   enrichmentSourceLogs?: boolean | Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>
+  ingestVendasLinhasRaw?: boolean | Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>
   _count?: boolean | Prisma.ProdutoCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProdutoIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -5619,10 +6157,18 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     filaEnriquecimento: Prisma.$EnriquecimentoFilaPayload<ExtArgs>[]
     verificacaoHistorico: Prisma.$ProdutoVerificacaoHistoricoPayload<ExtArgs>[]
     enrichmentSourceLogs: Prisma.$EnrichmentSourceLogPayload<ExtArgs>[]
+    ingestVendasLinhasRaw: Prisma.$IngestVendaLinhaRawPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     cnp: number
+    /**
+     * Identificador do produto no ERP da farmácia (Softreis: Stocks.CodigoID).
+     * Mantido como referência cross-tenant para o agent bootstrap-upload
+     * fazer upsert por externalProductId quando o cnp não está disponível.
+     * Único na BD do tenant para idempotência forte.
+     */
+    externalProductId: number | null
     designacao: string
     fabricanteId: string | null
     classificacaoNivel1Id: string | null
@@ -5637,6 +6183,11 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     flagGenerico: boolean
     flagMSRM: boolean
     flagMNSRM: boolean
+    /**
+     * MNSRM **não comparticipado** (Softreis: Stocks.MNSRM_NCompart). Distinto
+     * de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
+     */
+    flagMnsrmNCompart: boolean
     grupoHomogeneo: string | null
     estado: $Enums.ProdutoEstado
     origemDados: $Enums.ProdutoOrigemDados
@@ -6064,6 +6615,7 @@ export interface Prisma__ProdutoClient<T, Null = never, ExtArgs extends runtime.
   filaEnriquecimento<T extends Prisma.Produto$filaEnriquecimentoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$filaEnriquecimentoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EnriquecimentoFilaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificacaoHistorico<T extends Prisma.Produto$verificacaoHistoricoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$verificacaoHistoricoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoVerificacaoHistoricoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   enrichmentSourceLogs<T extends Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$enrichmentSourceLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EnrichmentSourceLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  ingestVendasLinhasRaw<T extends Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Produto$ingestVendasLinhasRawArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$IngestVendaLinhaRawPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -6095,6 +6647,7 @@ export interface Prisma__ProdutoClient<T, Null = never, ExtArgs extends runtime.
 export interface ProdutoFieldRefs {
   readonly id: Prisma.FieldRef<"Produto", 'String'>
   readonly cnp: Prisma.FieldRef<"Produto", 'Int'>
+  readonly externalProductId: Prisma.FieldRef<"Produto", 'Int'>
   readonly designacao: Prisma.FieldRef<"Produto", 'String'>
   readonly fabricanteId: Prisma.FieldRef<"Produto", 'String'>
   readonly classificacaoNivel1Id: Prisma.FieldRef<"Produto", 'String'>
@@ -6109,6 +6662,7 @@ export interface ProdutoFieldRefs {
   readonly flagGenerico: Prisma.FieldRef<"Produto", 'Boolean'>
   readonly flagMSRM: Prisma.FieldRef<"Produto", 'Boolean'>
   readonly flagMNSRM: Prisma.FieldRef<"Produto", 'Boolean'>
+  readonly flagMnsrmNCompart: Prisma.FieldRef<"Produto", 'Boolean'>
   readonly grupoHomogeneo: Prisma.FieldRef<"Produto", 'String'>
   readonly estado: Prisma.FieldRef<"Produto", 'ProdutoEstado'>
   readonly origemDados: Prisma.FieldRef<"Produto", 'ProdutoOrigemDados'>
@@ -6916,6 +7470,30 @@ export type Produto$enrichmentSourceLogsArgs<ExtArgs extends runtime.Types.Exten
   take?: number
   skip?: number
   distinct?: Prisma.EnrichmentSourceLogScalarFieldEnum | Prisma.EnrichmentSourceLogScalarFieldEnum[]
+}
+
+/**
+ * Produto.ingestVendasLinhasRaw
+ */
+export type Produto$ingestVendasLinhasRawArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the IngestVendaLinhaRaw
+   */
+  select?: Prisma.IngestVendaLinhaRawSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the IngestVendaLinhaRaw
+   */
+  omit?: Prisma.IngestVendaLinhaRawOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.IngestVendaLinhaRawInclude<ExtArgs> | null
+  where?: Prisma.IngestVendaLinhaRawWhereInput
+  orderBy?: Prisma.IngestVendaLinhaRawOrderByWithRelationInput | Prisma.IngestVendaLinhaRawOrderByWithRelationInput[]
+  cursor?: Prisma.IngestVendaLinhaRawWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.IngestVendaLinhaRawScalarFieldEnum | Prisma.IngestVendaLinhaRawScalarFieldEnum[]
 }
 
 /**

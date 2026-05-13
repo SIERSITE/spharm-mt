@@ -516,14 +516,6 @@ export type EnumTipoClassificacaoFieldUpdateOperationsInput = {
   set?: $Enums.TipoClassificacao
 }
 
-export type NullableIntFieldUpdateOperationsInput = {
-  set?: number | null
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type ClassificacaoUpdateOneWithoutSubClassificacoesNestedInput = {
   create?: Prisma.XOR<Prisma.ClassificacaoCreateWithoutSubClassificacoesInput, Prisma.ClassificacaoUncheckedCreateWithoutSubClassificacoesInput>
   connectOrCreate?: Prisma.ClassificacaoCreateOrConnectWithoutSubClassificacoesInput
