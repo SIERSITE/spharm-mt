@@ -78,6 +78,62 @@ function parseBearer(authHeader: string | null): string | null {
 }
 
 /**
+ * Helper safe-to-log: deriva hint do control plane sem expor password.
+ * Usado em logs de falha de auth para diagnose de "Vercel está a ler
+ * o CONTROL_DATABASE_URL certo?".
+ */
+function deriveControlDbHint(): string {
+  const url = process.env.CONTROL_DATABASE_URL;
+  if (!url) return "(unset)";
+  try {
+    const u = new URL(url);
+    return `${u.hostname}/${u.pathname.replace(/^\//, "") || "(no-db)"}`;
+  } catch {
+    return "(unparseable)";
+  }
+}
+
+/**
+ * Estruturado, mascarado, single-line JSON para Vercel logs. Só dispara
+ * em falhas (sucessos não geram ruído). Campos:
+ *  · outcome           — discriminador (missing/not-found/not-active/no-key/bcrypt-mismatch)
+ *  · slug              — raw header value (pode revelar enumeração mas é necessário)
+ *  · bearerPresent     — boolean
+ *  · bearerLength      — int (não logamos a key)
+ *  · bearerPrefix      — primeiros 6 chars da key (suficiente para
+ *                        cross-ref com agent.config.json sem expor)
+ *  · tenantEstado      — só se tenant foi encontrado
+ *  · hashPresent       — boolean
+ *  · hashPrefix        — primeiros 10 chars da hash bcrypt (metadata
+ *                        $2a$10$ + 4 chars de salt — não recuperável)
+ *  · hashLength        — int
+ *  · controlDbHint     — host/dbName do CONTROL_DATABASE_URL do
+ *                        processo (sem credenciais)
+ */
+type AuthDecision = {
+  outcome:
+    | "missing_credentials"
+    | "tenant_not_found"
+    | "tenant_not_active"
+    | "no_key"
+    | "bcrypt_mismatch";
+  slug: string | null;
+  bearerPresent: boolean;
+  bearerLength?: number;
+  bearerPrefix?: string;
+  tenantEstado?: string;
+  hashPresent?: boolean;
+  hashPrefix?: string;
+  hashLength?: number;
+  controlDbHint: string;
+};
+
+function logAuthFailure(decision: AuthDecision): void {
+  // single-line para grep fácil em Vercel logs
+  console.warn(`[integracao/auth] ${JSON.stringify(decision)}`);
+}
+
+/**
  * Entry point. Chamado por cada route handler em /api/ingest/v1/* e
  * /api/outbox/v1/*. Em falha, lança IntegrationAuthError que o caller
  * converte em Response (helper withIntegrationAuth mais abaixo).
@@ -85,21 +141,65 @@ function parseBearer(authHeader: string | null): string | null {
 export async function authenticateAgent(
   req: NextRequest
 ): Promise<AuthenticatedContext> {
+  const authHeader = req.headers.get("authorization");
   const slug = req.headers.get("x-tenant-slug");
-  const key = parseBearer(req.headers.get("authorization"));
+  const key = parseBearer(authHeader);
+
+  const bearerPresent = !!authHeader;
+  const bearerLength = key?.length;
+  const bearerPrefix = key ? key.slice(0, 6) : undefined;
+  const controlDbHint = deriveControlDbHint();
 
   if (!slug || !key) {
+    logAuthFailure({
+      outcome: "missing_credentials",
+      slug,
+      bearerPresent,
+      bearerLength,
+      bearerPrefix,
+      controlDbHint,
+    });
     throw new IntegrationAuthError(401, "missing credentials", "missing_credentials");
   }
 
   const tenant = await getTenantBySlug(slug);
-  if (!tenant || tenant.estado !== "ACTIVE") {
+  if (!tenant) {
+    logAuthFailure({
+      outcome: "tenant_not_found",
+      slug,
+      bearerPresent,
+      bearerLength,
+      bearerPrefix,
+      controlDbHint,
+    });
     // Resposta genérica — não distinguimos entre "slug não existe",
     // "slug suspenso" e "key errada".
     throw new IntegrationAuthError(401, "invalid credentials");
   }
+  if (tenant.estado !== "ACTIVE") {
+    logAuthFailure({
+      outcome: "tenant_not_active",
+      slug,
+      bearerPresent,
+      bearerLength,
+      bearerPrefix,
+      tenantEstado: tenant.estado,
+      controlDbHint,
+    });
+    throw new IntegrationAuthError(401, "invalid credentials");
+  }
 
   if (!tenant.ingestApiKeyHash) {
+    logAuthFailure({
+      outcome: "no_key",
+      slug,
+      bearerPresent,
+      bearerLength,
+      bearerPrefix,
+      tenantEstado: tenant.estado,
+      hashPresent: false,
+      controlDbHint,
+    });
     throw new IntegrationAuthError(
       401,
       "tenant has no ingest key configured",
@@ -109,6 +209,18 @@ export async function authenticateAgent(
 
   const ok = await bcrypt.compare(key, tenant.ingestApiKeyHash);
   if (!ok) {
+    logAuthFailure({
+      outcome: "bcrypt_mismatch",
+      slug,
+      bearerPresent,
+      bearerLength,
+      bearerPrefix,
+      tenantEstado: tenant.estado,
+      hashPresent: true,
+      hashPrefix: tenant.ingestApiKeyHash.slice(0, 10),
+      hashLength: tenant.ingestApiKeyHash.length,
+      controlDbHint,
+    });
     throw new IntegrationAuthError(401, "invalid credentials");
   }
 
