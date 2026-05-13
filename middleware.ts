@@ -66,11 +66,19 @@ export function middleware(req: NextRequest): NextResponse {
 }
 
 /**
- * Não corre middleware em assets estáticos, imagens, _next, ou na
- * rota de health-check (se existir). Reduz custo por request.
+ * Não corre middleware em:
+ *  · assets estáticos / imagens / _next  (custo por request)
+ *  · /api/health                          (sem deps de tenant)
+ *  · /api/ingest, /api/outbox             (auth própria via
+ *    withIntegrationAuth + header `x-tenant-slug` enviado pelo
+ *    agent on-premise; o middleware NÃO pode sobrescrever esse
+ *    header com o subdomínio do host, senão `spharm-mt.vercel.app`
+ *    força slug="spharm-mt" e o agent recebe 401 tenant_not_found)
+ *  · /api/jobs                            (auth via CRON_SECRET, sem
+ *    dependência de tenant no path)
  */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/health).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/health|api/ingest|api/outbox|api/jobs).*)",
   ],
 };
