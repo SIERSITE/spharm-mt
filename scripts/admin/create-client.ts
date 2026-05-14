@@ -145,7 +145,10 @@ async function main() {
   const { values } = parseArgs({
     options: {
       slug: { type: "string" },
+      // `--nome` e `--name` ambos aceites; `--name` é o nome preferido no
+      // doc de onboarding por consistência com os outros comandos.
       nome: { type: "string" },
+      name: { type: "string" },
       "admin-email": { type: "string" },
       "admin-password": { type: "string" },
       "admin-nome": { type: "string" },
@@ -163,12 +166,12 @@ async function main() {
   });
 
   const slug = values.slug;
-  const nome = values.nome;
+  const nome = values.nome ?? values.name;
   const adminEmail = values["admin-email"];
 
   if (!slug || !nome || !adminEmail) {
     console.error(
-      'Uso: --slug X --nome "Y" --admin-email E [outros]\n' +
+      'Uso: --slug X --name "Y" --admin-email E [outros]\n' +
         '  Provider (escolhe um): --provider=neon|manual|local | --database-url "..." | --create-db\n' +
         '  Farmácias iniciais  : --farmacias "Nome A,Nome B,Nome C"\n' +
         '  Senha admin         : --admin-password XXX  (omite para gerar)\n' +
