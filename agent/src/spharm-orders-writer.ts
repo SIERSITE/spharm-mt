@@ -338,6 +338,40 @@ export function resetInsertSchemaCache(): void {
   cachedInsertSchema = null;
 }
 
+/**
+ * Preflight para `ordersWriteMode=insert`: corre todas as verificações
+ * de schema/permissões/tabelas auxiliares sem escrever nada. Chamado
+ * por `export-orders` no arranque para falhar cedo (antes de leasing
+ * orders do SaaS) se o ambiente não está pronto.
+ *
+ * Verificações:
+ *   · SELECT 1 — confirma conectividade SQL + autenticação
+ *   · sys.columns — confirma `Encomenda ID` e `Detalhe  Enc ID` são IDENTITY
+ *   · OBJECT_ID — confirma `dbo.SPharmMT_OrderWriteLog` existe
+ *   · sys.columns — confirma `productLookupColumn` existe e tem tipo aceitável
+ *   · Rejeita `productLookupColumn=CodCNPEM` (segunda linha de defesa)
+ *
+ * Atira `WriteOrderError(retryable=false)` em qualquer falha — caller
+ * abrevia execução e propaga exit code não-zero.
+ */
+export async function preflightInsertMode(
+  pool: SqlPool,
+  oc: OrdersInsertConfig
+): Promise<{ encomendaIdIsIdentity: boolean; productLookupColumn: string; productLookupType: "numeric" | "string" }> {
+  // SELECT 1 explícito — diagnóstico claro de connectividade antes
+  // das queries em sys.columns (que também o testam implicitamente).
+  await pool.request().query("SELECT 1 AS ok");
+  // resetar cache para garantir que probe corre de fresco em cada
+  // arranque do processo agent (não pode ser teimoso entre crashes)
+  cachedInsertSchema = null;
+  const schema = await getInsertSchema(pool, oc);
+  return {
+    encomendaIdIsIdentity: schema.encomendaIdIsIdentity,
+    productLookupColumn: schema.productLookupColumn,
+    productLookupType: schema.productLookupTypeFamily,
+  };
+}
+
 // ─── Insert: lookup CNP → CodigoID + preços ──────────────────────────
 
 type StocksLookup = {

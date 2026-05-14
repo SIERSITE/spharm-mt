@@ -108,6 +108,7 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev20 | **Hardening final para produção**: startup self-check em `export-orders` (SELECT 1 + IDENTITY probes + write-log + productLookupColumn antes de leasing). Summary formato `EXPORT ORDERS SUMMARY` com `recovered` (write-log já tinha — pós-crash recovery). Log de erros dedicado em `logs/export-orders-errors-<data>.log` (timestamp, outboxId, retryable, mensagem, stack curta). Exit code não-zero em qualquer falha → Task Scheduler regista. Poison protection: classificação retryable=true para deadlock/timeout/network; false para FK/CNP/schema. |
 | 2026-05-14 | rev19 | **Bugfix**: `inspect-product-identifiers` deixou de ser bloqueado pela validação de `ordersInsert`. `loadConfig` agora é tolerante (regista erro detalhado em `cfg.ordersInsertConfigError` mas não atira). Comandos de escrita (`export-orders`, `test-order-write`) chamam o novo helper `assertOrdersWriteReady` para falhar cedo quando necessário. Comandos read-only (`inspect-*`, `setup-*`) correm com qualquer config. |
 | 2026-05-14 | rev18 | **Correcção crítica**: removido uso de `CodCNPEM` para lookup de produto (é Código Nacional Para Equivalência Medicamentosa — grupo homogéneo, partilhado por múltiplos produtos). Novo probe `run-inspect-product-identifiers.bat` para identificar a coluna real do CNP em `dbo.Stocks`. Campo `productLookupColumn` agora obrigatório em `ordersInsert`; `CodCNPEM` é rejeitado em 3 camadas (config, schema probe, lookup). Match ambíguo (>1 produto) também bloqueia. Modo `insert` permanece bloqueado até operador validar a coluna correcta. |
 | 2026-05-14 | rev17 | **Correcção crítica**: removido uso de `VVM_ID` para idempotência (é Via Verde do Medicamento, escrever ali era semanticamente errado). Idempotência agora vive em tabela auxiliar `dbo.SPharmMT_OrderWriteLog` (criada pelo novo `run-setup-orders-write-log.bat`). Modo `insert` bloqueado até tabela existir. Campo `idempotencyColumn` removido do config. |
@@ -319,6 +320,72 @@ Em modo `stub`, aparece também:
 ⚠  ATENÇÃO: ordersWriteMode=stub — NADA foi escrito no SPharm.
    Apenas ficheiros JSON em <outputDir>/orders-export/<YYYY-MM-DD>/.
 ```
+
+## Activação produção encomendas SaaS → SPharm (rev20)
+
+### Sequência exacta de activação
+
+Pré-requisitos (já validados nesta farmácia):
+- DRY-RUN insert OK (`run-test-order-write.bat` opção 1)
+- COMMIT real OK (`run-test-order-write.bat` opção 2)
+- Encomenda visível em SPharm UI após COMMIT
+- Re-run com mesmo `--outbox-id` devolve idempotent (sem duplicação)
+
+Activação:
+
+1. **Editar `agent.config.json`**:
+   ```jsonc
+   "options": {
+     "ordersWriteMode": "insert"        // ← era "stub"
+   },
+   "ordersInsert": { ... }              // todos os campos preenchidos
+   ```
+
+2. **Smoke test de arranque manual** (uma vez):
+   ```
+   run-export-orders-once.bat
+   ```
+   - Verificar que arranque imprime `preflight OK — productLookupColumn=... Encomenda ID identity=true`
+   - Summary final deve mostrar `mode: insert`
+   - Se `pulled=0`, criar 1 encomenda de teste no SaaS e voltar a correr
+   - Confirmar encomenda em SPharm UI
+
+3. **Agendar Task Scheduler**:
+   - Trigger: At startup + every 5 minutes for 1 day, repeat indefinitely
+   - Action: Start a program → `C:\spharmmt\agent\run-export-orders-auto.bat`
+   - Conditions: desmarcar "Start the task only if the computer is on AC power"
+   - Settings: "If the task is already running: Do not start a new instance"
+
+4. **Logs a observar na primeira semana**:
+   - `logs\export-orders-<YYYY-MM-DD>.log` — runs completos do auto BAT
+   - `logs\export-orders-errors-<YYYY-MM-DD>.log` — APENAS erros, formato denso para grep
+   - Task Scheduler → histórico da tarefa → procurar exit codes não-zero
+
+### Rollback rápido
+
+**Cenário**: encomendas a serem escritas mal (preço errado, fornecedor errado, etc).
+
+**Acção**:
+1. Editar `agent.config.json` → `"ordersWriteMode": "stub"`
+2. Próximo run do auto BAT começa a gerar JSON em vez de escrever no SPharm
+3. Encomendas pendentes ficam no outbox SaaS (estado PENDENTE) com payload preservado
+4. Quando o problema for resolvido, voltar a pôr `"ordersWriteMode": "insert"` e correr `run-export-orders-once.bat` para processar a fila acumulada
+
+**Nota**: encomendas JÁ ESCRITAS em SPharm com a config errada continuam lá. Cancelar via SPharm UI (não há undo automático).
+
+### Troubleshooting
+
+| Sintoma | Onde olhar | Causa típica | Acção |
+|---|---|---|---|
+| Task Scheduler regista exit code = 1 (preflight falhou) | `export-orders-errors-<data>.log` linha com `phase=preflight` | SQL Server offline, ou tabela `SPharmMT_OrderWriteLog` foi apagada, ou `productLookupColumn` deixou de existir, ou credenciais SQL expiraram | Ver mensagem exacta; correr `run-setup-orders-write-log.bat` se tabela em falta; correr `run-test-connection.bat` se SQL offline |
+| Task Scheduler regista exit code = 2 (falhas no loop) | `export-orders-errors-<data>.log` linhas com `phase=write` ou `phase=ack` | Encomendas individuais falharam (não preflight) | Cada linha tem `retryable=` — se `true`, deixar reentregar; se `false`, encomenda já foi marcada FALHADO no SaaS e exige triagem humana |
+| `produto não encontrado` | `phase=write retryable=false` | CNP no SaaS não existe em `dbo.Stocks.<productLookupColumn>` | Sincronizar catálogo SaaS↔ERP, ou cancelar a encomenda no SaaS UI |
+| `match ambíguo: N produtos` | `phase=write retryable=false` | `productLookupColumn` configurada para coluna agrupadora | Re-correr `run-inspect-product-identifiers.bat` e reconfigurar |
+| `fornecedor inválido` (FK violation, SQL 547) | `phase=write retryable=false SQL number=547` | `fornecedorIdForOrders` aponta para `Fornecedor ID` inexistente em SPharm | Confirmar em SPharm UI e actualizar `agent.config.json` |
+| `deadlock` (SQL 1205) | `phase=write retryable=true` | Operador SPharm UI a criar encomenda simultaneamente | Reentrega automática no próximo run; se persistir, reduzir frequência do Task Scheduler |
+| `SQL offline / ETIMEOUT` | `phase=preflight retryable=true` ou `phase=write retryable=true` | SQL Server fora, rede caiu | Investigar conectividade; agent retentou no próximo ciclo |
+| Encomenda aparece DUAS VEZES em SPharm | (improvável; investigar) | Bug — exactly-once falhou | Verificar `SPharmMT_OrderWriteLog` para esse `outboxId`; se ID mismatch entre 2 linhas Encomendas, abrir incident |
+| `ack falhou após write OK` | `phase=ack retryable=true` | Rede para SaaS instável após SQL commit | Reentrega automática; write-log evita duplicação no SPharm |
 
 ### Limitações conhecidas v1
 

@@ -286,6 +286,27 @@ Idempotência é gerida em `dbo.SPharmMT_OrderWriteLog` (tabela **exclusivamente
 5. `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT) — smoke test
 6. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
 
+### Activação em produção (rev20)
+
+Quando passar para produção real:
+
+- BAT para Task Scheduler: **`run-export-orders-auto.bat`** (a cada 5-10 min)
+- Logs a observar na primeira semana:
+  - `logs\export-orders-<YYYY-MM-DD>.log` — output completo de cada run
+  - `logs\export-orders-errors-<YYYY-MM-DD>.log` — apenas erros (mais denso, fácil de fazer grep)
+  - Task Scheduler → History da tarefa → exit codes (0 OK, 1 preflight falhou, 2 falhas individuais)
+
+O preflight no arranque valida automaticamente:
+- Conectividade SQL Server (SELECT 1)
+- Tabelas `dbo.Encomendas` e `dbo.[Encomendas Detalhe]` com `IDENTITY` correcto
+- Existência de `dbo.SPharmMT_OrderWriteLog`
+- `productLookupColumn` existe e tem tipo compatível
+- Rejeita `CodCNPEM` (segunda linha de defesa)
+
+Falha do preflight aborta o run com exit=1 antes de leasing qualquer encomenda — não há risco de marcar encomendas como EM_EXPORTACAO sem capacidade de as processar.
+
+**Rollback rápido**: editar `agent.config.json` → `"ordersWriteMode": "stub"`. O próximo run do auto BAT começa a gerar JSON em vez de escrever no SPharm. Encomendas em fila permanecem no SaaS. Quando o problema for resolvido, voltar a `"insert"` e correr `run-export-orders-once.bat` para processar a fila acumulada.
+
 Detalhes completos em [pilot-operator-guide.md](pilot-operator-guide.md#rev15).
 
 ### 8.3 Como parar / desinstalar
