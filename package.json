@@ -30,6 +30,7 @@
     "pilot:precheck": "tsx scripts/pilot-precheck.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",
     "tenant:create": "tsx scripts/admin/create-client.ts",
+    "admin:package-agent": "tsx scripts/admin/package-agent.ts",
     "env:doctor": "tsx scripts/env-doctor.ts",
     "agent:ingest-folder": "tsx scripts/agent/ingest-folder.ts",
     "agent": "tsx agent/src/cli.ts",
