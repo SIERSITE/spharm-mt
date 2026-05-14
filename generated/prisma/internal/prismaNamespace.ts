@@ -3713,6 +3713,7 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
   tipoDocumentoClass: 'tipoDocumentoClass',
   externalProductId: 'externalProductId',
   produtoId: 'produtoId',
+  isNonStockService: 'isNonStockService',
   quantidade: 'quantidade',
   pvpUnitario: 'pvpUnitario',
   valorLinha: 'valorLinha',

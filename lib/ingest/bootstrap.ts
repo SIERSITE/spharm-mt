@@ -227,6 +227,25 @@ export function asBoolOrFalse(v: unknown): boolean {
   return false;
 }
 
+/**
+ * Variante de `asBoolOrFalse` que preserva a distinção entre
+ * "ausente/desconhecido" (null) e "false" explícito. Usado por
+ * `processaStocks` em sales-lines, onde false → marcar serviço,
+ * null → manter conservador.
+ */
+export function asBoolOrNull(v: unknown): boolean | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "1" || t === "true" || t === "y" || t === "s") return true;
+    if (t === "0" || t === "false" || t === "n") return false;
+    return null;
+  }
+  return null;
+}
+
 export function asIsoDateOrNull(v: unknown): Date | null {
   if (v === null || v === undefined) return null;
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;

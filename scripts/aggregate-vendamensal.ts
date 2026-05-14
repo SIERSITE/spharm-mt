@@ -94,22 +94,76 @@ function parseMonthArg(monthArg: string): MonthRange {
 // Pre-flight queries (validações + counts)
 // ─────────────────────────────────────────────────────────────────────
 
+type OrphanSample = {
+  externalProductId: number;
+  rows: number;
+  classes: string[];
+};
+
 type PreflightStats = {
   rawLines: number;
   produtosDistinct: number;
   atendimentosDistinct: number;
   farmaciasDistinct: number;
   byClass: Record<string, number>;
+  /// Total de rows com `produtoId IS NULL` (inclui serviços + orphans operacionais).
   orphans: number;
+  /// Rows marcadas `isNonStockService = true` — serviços/taxas sem
+  /// produto operacional (Stocks.[Processa_Stocks] = 0). Excluídos
+  /// da agregação sem necessidade de `--allow-orphans`.
+  nonStockServices: number;
+  /// Rows com `produtoId IS NULL` E `isNonStockService = false`. Estes
+  /// SIM bloqueiam agregação até `--allow-orphans` ou re-bootstrap.
+  operationalOrphans: number;
   unknowns: number;
+  /// Top externalProductIds órfãos operacionais (para diagnose).
+  operationalOrphanProducts: OrphanSample[];
+  /// Top externalProductIds marcados como non-stock services.
+  nonStockServiceProducts: OrphanSample[];
 };
+
+async function topOrphanProducts(
+  prisma: PrismaClient,
+  range: MonthRange,
+  isNonStockService: boolean,
+  limit = 10
+): Promise<OrphanSample[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{ externalProductId: number; rows: bigint | number; classes: string }>
+  >`
+    SELECT
+      "externalProductId",
+      COUNT(*) AS "rows",
+      STRING_AGG(DISTINCT "tipoDocumentoClass", ',') AS "classes"
+    FROM "IngestVendaLinhaRaw"
+    WHERE "produtoId" IS NULL
+      AND "isNonStockService" = ${isNonStockService}
+      AND "dataVenda" >= ${range.fromInclusive}
+      AND "dataVenda" <  ${range.toExclusive}
+    GROUP BY "externalProductId"
+    ORDER BY COUNT(*) DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((r) => ({
+    externalProductId: Number(r.externalProductId),
+    rows: Number(r.rows),
+    classes: (r.classes ?? "").split(",").filter((s) => s !== ""),
+  }));
+}
 
 async function preflight(prisma: PrismaClient, range: MonthRange): Promise<PreflightStats> {
   const where: Prisma.IngestVendaLinhaRawWhereInput = {
     dataVenda: { gte: range.fromInclusive, lt: range.toExclusive },
   };
 
-  const [rawLines, classDist, orphans, unknowns] = await Promise.all([
+  const [
+    rawLines,
+    classDist,
+    orphans,
+    nonStockServices,
+    operationalOrphans,
+    unknowns,
+  ] = await Promise.all([
     prisma.ingestVendaLinhaRaw.count({ where }),
     prisma.ingestVendaLinhaRaw.groupBy({
       by: ["tipoDocumentoClass"],
@@ -118,28 +172,37 @@ async function preflight(prisma: PrismaClient, range: MonthRange): Promise<Prefl
     }),
     prisma.ingestVendaLinhaRaw.count({ where: { ...where, produtoId: null } }),
     prisma.ingestVendaLinhaRaw.count({
+      where: { ...where, produtoId: null, isNonStockService: true },
+    }),
+    prisma.ingestVendaLinhaRaw.count({
+      where: { ...where, produtoId: null, isNonStockService: false },
+    }),
+    prisma.ingestVendaLinhaRaw.count({
       where: { ...where, tipoDocumentoClass: "UNKNOWN" },
     }),
   ]);
 
   // produtos distintos e atendimentos distintos via groupBy
-  const [produtosG, atendG, farmaciasG] = await Promise.all([
-    prisma.ingestVendaLinhaRaw.findMany({
-      where: { ...where, produtoId: { not: null } },
-      select: { produtoId: true },
-      distinct: ["produtoId"],
-    }),
-    prisma.ingestVendaLinhaRaw.findMany({
-      where,
-      select: { externalSaleId: true },
-      distinct: ["externalSaleId"],
-    }),
-    prisma.ingestVendaLinhaRaw.findMany({
-      where,
-      select: { farmaciaId: true },
-      distinct: ["farmaciaId"],
-    }),
-  ]);
+  const [produtosG, atendG, farmaciasG, opOrphanTop, nonStockTop] =
+    await Promise.all([
+      prisma.ingestVendaLinhaRaw.findMany({
+        where: { ...where, produtoId: { not: null } },
+        select: { produtoId: true },
+        distinct: ["produtoId"],
+      }),
+      prisma.ingestVendaLinhaRaw.findMany({
+        where,
+        select: { externalSaleId: true },
+        distinct: ["externalSaleId"],
+      }),
+      prisma.ingestVendaLinhaRaw.findMany({
+        where,
+        select: { farmaciaId: true },
+        distinct: ["farmaciaId"],
+      }),
+      topOrphanProducts(prisma, range, false),
+      topOrphanProducts(prisma, range, true),
+    ]);
 
   const byClass: Record<string, number> = {};
   for (const r of classDist) byClass[r.tipoDocumentoClass] = r._count._all;
@@ -151,7 +214,11 @@ async function preflight(prisma: PrismaClient, range: MonthRange): Promise<Prefl
     farmaciasDistinct: farmaciasG.length,
     byClass,
     orphans,
+    nonStockServices,
+    operationalOrphans,
     unknowns,
+    operationalOrphanProducts: opOrphanTop,
+    nonStockServiceProducts: nonStockTop,
   };
 }
 
@@ -229,6 +296,7 @@ async function runAggregation(
     FROM "IngestVendaLinhaRaw"
     WHERE "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
       AND "produtoId" IS NOT NULL
+      AND "isNonStockService" = false
       AND "dataVenda" >= ${range.fromInclusive}
       AND "dataVenda" <  ${range.toExclusive}
     GROUP BY "farmaciaId", "produtoId"
@@ -253,14 +321,32 @@ async function runAggregation(
 // Render
 // ─────────────────────────────────────────────────────────────────────
 
+function renderOrphanSamples(label: string, samples: OrphanSample[]): void {
+  if (samples.length === 0) return;
+  console.log(`  ${label}:`);
+  for (const s of samples) {
+    const classes = s.classes.length > 0 ? ` [${s.classes.join(",")}]` : "";
+    console.log(`    extId=${String(s.externalProductId).padStart(7)}  rows=${String(s.rows).padStart(3)}${classes}`);
+  }
+}
+
 function renderPreflight(stats: PreflightStats): void {
   console.log("Counts raw no mês:");
   console.log(`  raw lines             : ${stats.rawLines}`);
   console.log(`  produtos distintos    : ${stats.produtosDistinct}`);
   console.log(`  atendimentos distintos: ${stats.atendimentosDistinct}`);
   console.log(`  farmácias distintas   : ${stats.farmaciasDistinct}`);
-  console.log(`  produtoId IS NULL     : ${stats.orphans}`);
   console.log(`  UNKNOWN               : ${stats.unknowns}`);
+  console.log("");
+  console.log("Rows com produtoId IS NULL:");
+  console.log(`  total                       : ${stats.orphans}`);
+  console.log(`  ├─ non-stock services       : ${stats.nonStockServices}   (excluídos auto da agregação)`);
+  console.log(`  └─ operational orphans      : ${stats.operationalOrphans}   (bloqueia agregação sem --allow-orphans)`);
+  if (stats.nonStockServiceProducts.length > 0 || stats.operationalOrphanProducts.length > 0) {
+    console.log("");
+    renderOrphanSamples("non-stock services (top)", stats.nonStockServiceProducts);
+    renderOrphanSamples("operational orphans (top)", stats.operationalOrphanProducts);
+  }
   console.log("");
   console.log("Distribuição por tipoDocumentoClass:");
   for (const [k, v] of Object.entries(stats.byClass).sort()) {
@@ -495,17 +581,24 @@ async function main() {
       await prisma.$disconnect();
       process.exit(1);
     }
-    if (stats.orphans > 0 && !args.allowOrphans) {
-      console.error(`✗ Aborta: ${stats.orphans} linhas com produtoId IS NULL no mês.`);
-      console.error(`  Estas linhas referenciam externalProductId que não está em Produto.`);
+    if (stats.nonStockServices > 0) {
+      console.log(`ℹ ${stats.nonStockServices} linhas non-stock services excluídas auto da agregação.`);
+    }
+    if (stats.operationalOrphans > 0 && !args.allowOrphans) {
+      console.error(`✗ Aborta: ${stats.operationalOrphans} linhas operational orphans no mês.`);
+      console.error(`  (produtoId IS NULL E isNonStockService=false — produtos legítimos missing)`);
       console.error(`  Opções:`);
-      console.error(`    a) Re-run bootstrap-upload products para esses CNPs`);
-      console.error(`    b) Passar --allow-orphans para ignorar (rows orphan ficam fora da agregação)`);
+      console.error(`    a) Investigar com 'npm run ingest:list-orphans -- --tenant <slug> --month <mm-yyyy>'`);
+      console.error(`    b) Inspeccionar no ERP com 'run-inspect-codigoid.bat'`);
+      console.error(`    c) Re-run bootstrap-upload products para CNPs cobertos`);
+      console.error(`    d) Marcar IDs comprovadamente sem produto via:`);
+      console.error(`         npm run ingest:backfill-services -- --tenant ${args.tenant} --ids <csv>`);
+      console.error(`    e) Passar --allow-orphans para ignorar (rows orphan ficam fora)`);
       await prisma.$disconnect();
       process.exit(1);
     }
-    if (stats.orphans > 0 && args.allowOrphans) {
-      console.log(`⚠ --allow-orphans: ${stats.orphans} linhas orfãs vão ficar fora da agregação.\n`);
+    if (stats.operationalOrphans > 0 && args.allowOrphans) {
+      console.log(`⚠ --allow-orphans: ${stats.operationalOrphans} operational orphans vão ficar fora da agregação.\n`);
     }
 
     // 2) Agregação

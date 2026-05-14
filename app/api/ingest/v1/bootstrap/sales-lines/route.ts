@@ -33,6 +33,7 @@ import {
   asDecimalOrNull,
   asStringOrNull,
   asIsoDateOrNull,
+  asBoolOrNull,
   type BootstrapBatchResponse,
 } from "@/lib/ingest/bootstrap";
 
@@ -56,6 +57,15 @@ type SaleLinePayload = {
   comparticipacao1: unknown;
   comparticipacao2: unknown;
   entidadeId: unknown;
+  /// Softreis: Stocks.[Processa_Stocks] LEFT JOIN d.CodigoID. Quando
+  /// o produto não satisfaz o filtro operacional do bootstrap
+  /// (Retirado=0 AND Processa_Stocks<>0), o `Produto` não é upserted
+  /// e o lookup serve para marcar `isNonStockService`:
+  ///   · processaStocks=false E lookup falha → isNonStockService=true
+  ///     (serviço/taxa, exclui da agregação VendaMensal)
+  ///   · processaStocks=true|null E lookup falha → orphan operational
+  ///     (produto legítimo missing — pede investigação)
+  processaStocks: unknown;
 };
 
 /**
@@ -123,6 +133,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     tipoDocumento: number | null;
     tipoDocumentoClass: string;
     externalProductId: number;
+    processaStocks: boolean | null;
     quantidade: number | null;
     pvpUnitario: number | null;
     valorLinha: number | null;
@@ -177,6 +188,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       tipoDocumento: asIntOrNull(raw.tipoDocumento),
       tipoDocumentoClass,
       externalProductId,
+      processaStocks: asBoolOrNull(raw.processaStocks),
       quantidade: asDecimalOrNull(raw.quantidade),
       pvpUnitario: asDecimalOrNull(raw.pvpUnitario),
       valorLinha: asDecimalOrNull(raw.valorLinha),
@@ -206,11 +218,26 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
 
   // 3) Upsert each line. Idempotente via @@unique(farmaciaId,
   // externalSaleLineId).
+  //
+  // Para cada linha:
+  //  - resolve produtoId via map externalProductId → id
+  //  - quando produtoId é null:
+  //      · processaStocks === false → isNonStockService=true (serviço/taxa)
+  //      · processaStocks === true|null → orphan operational, flag
+  //        permanece false até diagnose explícita
+  //
+  // A flag é update incondicional — se o operador re-classifica (corre
+  // backfill) e depois faz reupload deste batch com ERP a indicar
+  // processaStocks=true, a flag baixa para false. Cenário invulgar mas
+  // a semântica é "o ERP é a verdade no momento do upsert".
   let upserted = 0;
   let orphanCount = 0;
+  let nonStockServiceCount = 0;
   for (const r of resolved) {
     const produtoId = produtoIdByExternal.get(r.externalProductId) ?? null;
+    const isNonStockService = produtoId === null && r.processaStocks === false;
     if (produtoId === null) orphanCount++;
+    if (isNonStockService) nonStockServiceCount++;
 
     try {
       const data = {
@@ -223,6 +250,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         tipoDocumentoClass: r.tipoDocumentoClass,
         externalProductId: r.externalProductId,
         produtoId,
+        isNonStockService,
         quantidade: r.quantidade,
         pvpUnitario: r.pvpUnitario,
         valorLinha: r.valorLinha,
@@ -253,6 +281,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       });
     }
   }
+  const operationalOrphans = orphanCount - nonStockServiceCount;
 
   // Distribuição por classe — observabilidade do classifier server-side
   const classDist: Record<string, number> = {};
@@ -268,6 +297,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       received: items.length,
       upserted,
       orphanProductLines: orphanCount,
+      nonStockServiceLines: nonStockServiceCount,
+      operationalOrphans,
       skipped: skipped.length,
       errors: errors.length,
       classDist,
@@ -285,11 +316,17 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     })}`);
   }
 
-  const response: BootstrapBatchResponse & { orphanProductLines: number } = {
+  const response: BootstrapBatchResponse & {
+    orphanProductLines: number;
+    nonStockServiceLines: number;
+    operationalOrphans: number;
+  } = {
     ok: true,
     accepted: items.length,
     upserted,
     orphanProductLines: orphanCount,
+    nonStockServiceLines: nonStockServiceCount,
+    operationalOrphans,
     skipped,
     errors,
     durationMs,

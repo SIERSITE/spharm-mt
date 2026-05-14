@@ -71,6 +71,7 @@ export type IngestVendaLinhaRawMinAggregateOutputType = {
   tipoDocumentoClass: string | null
   externalProductId: number | null
   produtoId: string | null
+  isNonStockService: boolean | null
   quantidade: runtime.Decimal | null
   pvpUnitario: runtime.Decimal | null
   valorLinha: runtime.Decimal | null
@@ -93,6 +94,7 @@ export type IngestVendaLinhaRawMaxAggregateOutputType = {
   tipoDocumentoClass: string | null
   externalProductId: number | null
   produtoId: string | null
+  isNonStockService: boolean | null
   quantidade: runtime.Decimal | null
   pvpUnitario: runtime.Decimal | null
   valorLinha: runtime.Decimal | null
@@ -115,6 +117,7 @@ export type IngestVendaLinhaRawCountAggregateOutputType = {
   tipoDocumentoClass: number
   externalProductId: number
   produtoId: number
+  isNonStockService: number
   quantidade: number
   pvpUnitario: number
   valorLinha: number
@@ -172,6 +175,7 @@ export type IngestVendaLinhaRawMinAggregateInputType = {
   tipoDocumentoClass?: true
   externalProductId?: true
   produtoId?: true
+  isNonStockService?: true
   quantidade?: true
   pvpUnitario?: true
   valorLinha?: true
@@ -194,6 +198,7 @@ export type IngestVendaLinhaRawMaxAggregateInputType = {
   tipoDocumentoClass?: true
   externalProductId?: true
   produtoId?: true
+  isNonStockService?: true
   quantidade?: true
   pvpUnitario?: true
   valorLinha?: true
@@ -216,6 +221,7 @@ export type IngestVendaLinhaRawCountAggregateInputType = {
   tipoDocumentoClass?: true
   externalProductId?: true
   produtoId?: true
+  isNonStockService?: true
   quantidade?: true
   pvpUnitario?: true
   valorLinha?: true
@@ -326,6 +332,7 @@ export type IngestVendaLinhaRawGroupByOutputType = {
   tipoDocumentoClass: string
   externalProductId: number
   produtoId: string | null
+  isNonStockService: boolean
   quantidade: runtime.Decimal | null
   pvpUnitario: runtime.Decimal | null
   valorLinha: runtime.Decimal | null
@@ -372,6 +379,7 @@ export type IngestVendaLinhaRawWhereInput = {
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
   quantidade?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -397,6 +405,7 @@ export type IngestVendaLinhaRawOrderByWithRelationInput = {
   tipoDocumentoClass?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  isNonStockService?: Prisma.SortOrder
   quantidade?: Prisma.SortOrderInput | Prisma.SortOrder
   pvpUnitario?: Prisma.SortOrderInput | Prisma.SortOrder
   valorLinha?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -426,6 +435,7 @@ export type IngestVendaLinhaRawWhereUniqueInput = Prisma.AtLeast<{
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
   quantidade?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -451,6 +461,7 @@ export type IngestVendaLinhaRawOrderByWithAggregationInput = {
   tipoDocumentoClass?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  isNonStockService?: Prisma.SortOrder
   quantidade?: Prisma.SortOrderInput | Prisma.SortOrder
   pvpUnitario?: Prisma.SortOrderInput | Prisma.SortOrder
   valorLinha?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -482,6 +493,7 @@ export type IngestVendaLinhaRawScalarWhereWithAggregatesInput = {
   tipoDocumentoClass?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntWithAggregatesFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | string | null
+  isNonStockService?: Prisma.BoolWithAggregatesFilter<"IngestVendaLinhaRaw"> | boolean
   quantidade?: Prisma.DecimalNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.DecimalNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.DecimalNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -503,6 +515,7 @@ export type IngestVendaLinhaRawCreateInput = {
   tipoDocumento?: number | null
   tipoDocumentoClass: string
   externalProductId: number
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -528,6 +541,7 @@ export type IngestVendaLinhaRawUncheckedCreateInput = {
   tipoDocumentoClass: string
   externalProductId: number
   produtoId?: string | null
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -549,6 +563,7 @@ export type IngestVendaLinhaRawUpdateInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -574,6 +589,7 @@ export type IngestVendaLinhaRawUncheckedUpdateInput = {
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -597,6 +613,7 @@ export type IngestVendaLinhaRawCreateManyInput = {
   tipoDocumentoClass: string
   externalProductId: number
   produtoId?: string | null
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -618,6 +635,7 @@ export type IngestVendaLinhaRawUpdateManyMutationInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -641,6 +659,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyInput = {
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -679,6 +698,7 @@ export type IngestVendaLinhaRawCountOrderByAggregateInput = {
   tipoDocumentoClass?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  isNonStockService?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   pvpUnitario?: Prisma.SortOrder
   valorLinha?: Prisma.SortOrder
@@ -718,6 +738,7 @@ export type IngestVendaLinhaRawMaxOrderByAggregateInput = {
   tipoDocumentoClass?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  isNonStockService?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   pvpUnitario?: Prisma.SortOrder
   valorLinha?: Prisma.SortOrder
@@ -740,6 +761,7 @@ export type IngestVendaLinhaRawMinOrderByAggregateInput = {
   tipoDocumentoClass?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  isNonStockService?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   pvpUnitario?: Prisma.SortOrder
   valorLinha?: Prisma.SortOrder
@@ -860,6 +882,7 @@ export type IngestVendaLinhaRawCreateWithoutProdutoInput = {
   tipoDocumento?: number | null
   tipoDocumentoClass: string
   externalProductId: number
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -883,6 +906,7 @@ export type IngestVendaLinhaRawUncheckedCreateWithoutProdutoInput = {
   tipoDocumento?: number | null
   tipoDocumentoClass: string
   externalProductId: number
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -935,6 +959,7 @@ export type IngestVendaLinhaRawScalarWhereInput = {
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
   quantidade?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.DecimalNullableFilter<"IngestVendaLinhaRaw"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -956,6 +981,7 @@ export type IngestVendaLinhaRawCreateWithoutFarmaciaInput = {
   tipoDocumento?: number | null
   tipoDocumentoClass: string
   externalProductId: number
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -979,6 +1005,7 @@ export type IngestVendaLinhaRawUncheckedCreateWithoutFarmaciaInput = {
   tipoDocumentoClass: string
   externalProductId: number
   produtoId?: string | null
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1027,6 +1054,7 @@ export type IngestVendaLinhaRawCreateManyProdutoInput = {
   tipoDocumento?: number | null
   tipoDocumentoClass: string
   externalProductId: number
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1048,6 +1076,7 @@ export type IngestVendaLinhaRawUpdateWithoutProdutoInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1071,6 +1100,7 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutProdutoInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1093,6 +1123,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1115,6 +1146,7 @@ export type IngestVendaLinhaRawCreateManyFarmaciaInput = {
   tipoDocumentoClass: string
   externalProductId: number
   produtoId?: string | null
+  isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1136,6 +1168,7 @@ export type IngestVendaLinhaRawUpdateWithoutFarmaciaInput = {
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1159,6 +1192,7 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutFarmaciaInput = {
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1181,6 +1215,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaInput = {
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   pvpUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1206,6 +1241,7 @@ export type IngestVendaLinhaRawSelect<ExtArgs extends runtime.Types.Extensions.I
   tipoDocumentoClass?: boolean
   externalProductId?: boolean
   produtoId?: boolean
+  isNonStockService?: boolean
   quantidade?: boolean
   pvpUnitario?: boolean
   valorLinha?: boolean
@@ -1231,6 +1267,7 @@ export type IngestVendaLinhaRawSelectCreateManyAndReturn<ExtArgs extends runtime
   tipoDocumentoClass?: boolean
   externalProductId?: boolean
   produtoId?: boolean
+  isNonStockService?: boolean
   quantidade?: boolean
   pvpUnitario?: boolean
   valorLinha?: boolean
@@ -1256,6 +1293,7 @@ export type IngestVendaLinhaRawSelectUpdateManyAndReturn<ExtArgs extends runtime
   tipoDocumentoClass?: boolean
   externalProductId?: boolean
   produtoId?: boolean
+  isNonStockService?: boolean
   quantidade?: boolean
   pvpUnitario?: boolean
   valorLinha?: boolean
@@ -1281,6 +1319,7 @@ export type IngestVendaLinhaRawSelectScalar = {
   tipoDocumentoClass?: boolean
   externalProductId?: boolean
   produtoId?: boolean
+  isNonStockService?: boolean
   quantidade?: boolean
   pvpUnitario?: boolean
   valorLinha?: boolean
@@ -1293,7 +1332,7 @@ export type IngestVendaLinhaRawSelectScalar = {
   importedAt?: boolean
 }
 
-export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "externalSaleId" | "externalSaleLineId" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "externalProductId" | "produtoId" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
+export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "externalSaleId" | "externalSaleLineId" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "externalProductId" | "produtoId" | "isNonStockService" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
 export type IngestVendaLinhaRawInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.IngestVendaLinhaRaw$produtoArgs<ExtArgs>
@@ -1351,6 +1390,15 @@ export type $IngestVendaLinhaRawPayload<ExtArgs extends runtime.Types.Extensions
      * agent reporta no dry-run e aqui fica registo permanente).
      */
     produtoId: string | null
+    /**
+     * Linha técnica/serviço sem produto operacional (Softreis:
+     * Stocks.[Processa_Stocks] = 0). Inclui taxas (entrega ao
+     * domicílio, serviço), administração de injectáveis,
+     * rastreios Checksaude, etc. Marcado server-side quando o
+     * agent envia `processaStocks=false` E o lookup ao Produto
+     * falha. Excluído da agregação `VendaMensal`.
+     */
+    isNonStockService: boolean
     quantidade: runtime.Decimal | null
     pvpUnitario: runtime.Decimal | null
     valorLinha: runtime.Decimal | null
@@ -1800,6 +1848,7 @@ export interface IngestVendaLinhaRawFieldRefs {
   readonly tipoDocumentoClass: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly externalProductId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
   readonly produtoId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
+  readonly isNonStockService: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Boolean'>
   readonly quantidade: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Decimal'>
   readonly pvpUnitario: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Decimal'>
   readonly valorLinha: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Decimal'>

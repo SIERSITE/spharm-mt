@@ -1187,6 +1187,13 @@ model IngestVendaLinhaRaw {
   /// Null quando o produto não está em Stocks (data quality issue —
   /// agent reporta no dry-run e aqui fica registo permanente).
   produtoId          String?
+  /// Linha técnica/serviço sem produto operacional (Softreis:
+  /// Stocks.[Processa_Stocks] = 0). Inclui taxas (entrega ao
+  /// domicílio, serviço), administração de injectáveis,
+  /// rastreios Checksaude, etc. Marcado server-side quando o
+  /// agent envia `processaStocks=false` E o lookup ao Produto
+  /// falha. Excluído da agregação `VendaMensal`.
+  isNonStockService  Boolean  @default(false)
 
   quantidade         Decimal? @db.Decimal(14, 3)
   pvpUnitario        Decimal? @db.Decimal(12, 4)
@@ -1211,6 +1218,7 @@ model IngestVendaLinhaRaw {
   @@index([externalSaleId])
   @@index([tipoDocumento])
   @@index([produtoId])
+  @@index([isNonStockService])
 }
 
 /// Lookup de classificação semântica para `Atendimento.[Tipo Documento]`.
