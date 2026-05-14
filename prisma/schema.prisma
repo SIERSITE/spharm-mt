@@ -1261,11 +1261,19 @@ model PipelineRun {
   details      Json     @default("{}")
   /// "agent" | "operator" | "admin" | "scheduler"
   triggeredBy  String   @default("agent")
+  /// Chave determinística enviada pelo agent (ex:
+  /// `daily-pipeline:<farmaciaId>:<dateRef>:<startedAt-iso>`). Quando
+  /// presente, /api/admin/pipeline/record faz upsert por esta chave em
+  /// vez de criar nova row — defesa contra retries do agent que
+  /// duplicariam o audit log. Opcional para back-compat com agents
+  /// antigos que não enviam.
+  idempotencyKey String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
+  @@unique([idempotencyKey])
   @@index([farmaciaId, kind, startedAt])
   @@index([status, startedAt])
 }

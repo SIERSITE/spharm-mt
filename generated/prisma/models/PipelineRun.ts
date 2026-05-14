@@ -67,6 +67,7 @@ export type PipelineRunMinAggregateOutputType = {
   durationMs: number | null
   errorMessage: string | null
   triggeredBy: string | null
+  idempotencyKey: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -82,6 +83,7 @@ export type PipelineRunMaxAggregateOutputType = {
   durationMs: number | null
   errorMessage: string | null
   triggeredBy: string | null
+  idempotencyKey: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -98,6 +100,7 @@ export type PipelineRunCountAggregateOutputType = {
   errorMessage: number
   details: number
   triggeredBy: number
+  idempotencyKey: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -123,6 +126,7 @@ export type PipelineRunMinAggregateInputType = {
   durationMs?: true
   errorMessage?: true
   triggeredBy?: true
+  idempotencyKey?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -138,6 +142,7 @@ export type PipelineRunMaxAggregateInputType = {
   durationMs?: true
   errorMessage?: true
   triggeredBy?: true
+  idempotencyKey?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -154,6 +159,7 @@ export type PipelineRunCountAggregateInputType = {
   errorMessage?: true
   details?: true
   triggeredBy?: true
+  idempotencyKey?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -257,6 +263,7 @@ export type PipelineRunGroupByOutputType = {
   errorMessage: string | null
   details: runtime.JsonValue
   triggeredBy: string
+  idempotencyKey: string | null
   createdAt: Date
   updatedAt: Date
   _count: PipelineRunCountAggregateOutputType | null
@@ -296,6 +303,7 @@ export type PipelineRunWhereInput = {
   errorMessage?: Prisma.StringNullableFilter<"PipelineRun"> | string | null
   details?: Prisma.JsonFilter<"PipelineRun">
   triggeredBy?: Prisma.StringFilter<"PipelineRun"> | string
+  idempotencyKey?: Prisma.StringNullableFilter<"PipelineRun"> | string | null
   createdAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
@@ -313,6 +321,7 @@ export type PipelineRunOrderByWithRelationInput = {
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   details?: Prisma.SortOrder
   triggeredBy?: Prisma.SortOrder
+  idempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
@@ -320,6 +329,7 @@ export type PipelineRunOrderByWithRelationInput = {
 
 export type PipelineRunWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  idempotencyKey?: string
   AND?: Prisma.PipelineRunWhereInput | Prisma.PipelineRunWhereInput[]
   OR?: Prisma.PipelineRunWhereInput[]
   NOT?: Prisma.PipelineRunWhereInput | Prisma.PipelineRunWhereInput[]
@@ -336,7 +346,7 @@ export type PipelineRunWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
-}, "id">
+}, "id" | "idempotencyKey">
 
 export type PipelineRunOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -350,6 +360,7 @@ export type PipelineRunOrderByWithAggregationInput = {
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   details?: Prisma.SortOrder
   triggeredBy?: Prisma.SortOrder
+  idempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.PipelineRunCountOrderByAggregateInput
@@ -374,6 +385,7 @@ export type PipelineRunScalarWhereWithAggregatesInput = {
   errorMessage?: Prisma.StringNullableWithAggregatesFilter<"PipelineRun"> | string | null
   details?: Prisma.JsonWithAggregatesFilter<"PipelineRun">
   triggeredBy?: Prisma.StringWithAggregatesFilter<"PipelineRun"> | string
+  idempotencyKey?: Prisma.StringNullableWithAggregatesFilter<"PipelineRun"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"PipelineRun"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"PipelineRun"> | Date | string
 }
@@ -389,6 +401,7 @@ export type PipelineRunCreateInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutPipelineRunsInput
@@ -406,6 +419,7 @@ export type PipelineRunUncheckedCreateInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -421,6 +435,7 @@ export type PipelineRunUpdateInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutPipelineRunsNestedInput
@@ -438,6 +453,7 @@ export type PipelineRunUncheckedUpdateInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -454,6 +470,7 @@ export type PipelineRunCreateManyInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -469,6 +486,7 @@ export type PipelineRunUpdateManyMutationInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -485,6 +503,7 @@ export type PipelineRunUncheckedUpdateManyInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -511,6 +530,7 @@ export type PipelineRunCountOrderByAggregateInput = {
   errorMessage?: Prisma.SortOrder
   details?: Prisma.SortOrder
   triggeredBy?: Prisma.SortOrder
+  idempotencyKey?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -530,6 +550,7 @@ export type PipelineRunMaxOrderByAggregateInput = {
   durationMs?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
   triggeredBy?: Prisma.SortOrder
+  idempotencyKey?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -545,6 +566,7 @@ export type PipelineRunMinOrderByAggregateInput = {
   durationMs?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
   triggeredBy?: Prisma.SortOrder
+  idempotencyKey?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -606,6 +628,7 @@ export type PipelineRunCreateWithoutFarmaciaInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -621,6 +644,7 @@ export type PipelineRunUncheckedCreateWithoutFarmaciaInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -666,6 +690,7 @@ export type PipelineRunScalarWhereInput = {
   errorMessage?: Prisma.StringNullableFilter<"PipelineRun"> | string | null
   details?: Prisma.JsonFilter<"PipelineRun">
   triggeredBy?: Prisma.StringFilter<"PipelineRun"> | string
+  idempotencyKey?: Prisma.StringNullableFilter<"PipelineRun"> | string | null
   createdAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"PipelineRun"> | Date | string
 }
@@ -681,6 +706,7 @@ export type PipelineRunCreateManyFarmaciaInput = {
   errorMessage?: string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: string
+  idempotencyKey?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -696,6 +722,7 @@ export type PipelineRunUpdateWithoutFarmaciaInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -711,6 +738,7 @@ export type PipelineRunUncheckedUpdateWithoutFarmaciaInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -726,6 +754,7 @@ export type PipelineRunUncheckedUpdateManyWithoutFarmaciaInput = {
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   details?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   triggeredBy?: Prisma.StringFieldUpdateOperationsInput | string
+  idempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -744,6 +773,7 @@ export type PipelineRunSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   errorMessage?: boolean
   details?: boolean
   triggeredBy?: boolean
+  idempotencyKey?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -761,6 +791,7 @@ export type PipelineRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   errorMessage?: boolean
   details?: boolean
   triggeredBy?: boolean
+  idempotencyKey?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -778,6 +809,7 @@ export type PipelineRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   errorMessage?: boolean
   details?: boolean
   triggeredBy?: boolean
+  idempotencyKey?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -795,11 +827,12 @@ export type PipelineRunSelectScalar = {
   errorMessage?: boolean
   details?: boolean
   triggeredBy?: boolean
+  idempotencyKey?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type PipelineRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "kind" | "startedAt" | "finishedAt" | "status" | "dateRef" | "durationMs" | "errorMessage" | "details" | "triggeredBy" | "createdAt" | "updatedAt", ExtArgs["result"]["pipelineRun"]>
+export type PipelineRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "kind" | "startedAt" | "finishedAt" | "status" | "dateRef" | "durationMs" | "errorMessage" | "details" | "triggeredBy" | "idempotencyKey" | "createdAt" | "updatedAt", ExtArgs["result"]["pipelineRun"]>
 export type PipelineRunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
 }
@@ -839,6 +872,15 @@ export type $PipelineRunPayload<ExtArgs extends runtime.Types.Extensions.Interna
      * "agent" | "operator" | "admin" | "scheduler"
      */
     triggeredBy: string
+    /**
+     * Chave determinística enviada pelo agent (ex:
+     * `daily-pipeline:<farmaciaId>:<dateRef>:<startedAt-iso>`). Quando
+     * presente, /api/admin/pipeline/record faz upsert por esta chave em
+     * vez de criar nova row — defesa contra retries do agent que
+     * duplicariam o audit log. Opcional para back-compat com agents
+     * antigos que não enviam.
+     */
+    idempotencyKey: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["pipelineRun"]>
@@ -1276,6 +1318,7 @@ export interface PipelineRunFieldRefs {
   readonly errorMessage: Prisma.FieldRef<"PipelineRun", 'String'>
   readonly details: Prisma.FieldRef<"PipelineRun", 'Json'>
   readonly triggeredBy: Prisma.FieldRef<"PipelineRun", 'String'>
+  readonly idempotencyKey: Prisma.FieldRef<"PipelineRun", 'String'>
   readonly createdAt: Prisma.FieldRef<"PipelineRun", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"PipelineRun", 'DateTime'>
 }

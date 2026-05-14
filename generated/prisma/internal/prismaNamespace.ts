@@ -3816,6 +3816,7 @@ export const PipelineRunScalarFieldEnum = {
   errorMessage: 'errorMessage',
   details: 'details',
   triggeredBy: 'triggeredBy',
+  idempotencyKey: 'idempotencyKey',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

@@ -450,6 +450,11 @@ export async function dailyPipeline(): Promise<number> {
               }
             : undefined,
         };
+        // Idempotency key determinístico: retries da MESMA execução
+        // (mesmo startedAt) produzem a mesma key → upsert server-side.
+        // Mudança de qualquer componente (dia ou hora de arranque) gera
+        // key nova, preservando audit log para runs independentes.
+        const idempotencyKey = `daily-pipeline:${farmaciaId}:${parsedDate}:${startedAt.toISOString()}`;
         await client.pipelineRecord(
           {
             farmaciaId,
@@ -462,6 +467,7 @@ export async function dailyPipeline(): Promise<number> {
             errorMessage,
             details,
             triggeredBy: "agent",
+            idempotencyKey,
           },
           15_000
         );

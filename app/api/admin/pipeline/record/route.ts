@@ -98,22 +98,50 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const errorMessage = typeof obj.errorMessage === "string" ? obj.errorMessage.slice(0, 1000) : null;
   const triggeredBy = typeof obj.triggeredBy === "string" ? obj.triggeredBy : "agent";
   const detailsRaw = typeof obj.details === "object" && obj.details !== null ? obj.details : {};
+  const idempotencyKey =
+    typeof obj.idempotencyKey === "string" && obj.idempotencyKey.trim() !== ""
+      ? obj.idempotencyKey.trim().slice(0, 200)
+      : null;
 
-  const created = await ctx.prisma.pipelineRun.create({
-    data: {
-      farmaciaId,
-      kind,
-      status,
-      startedAt,
-      finishedAt,
-      durationMs,
-      dateRef,
-      errorMessage,
-      triggeredBy,
-      details: detailsRaw as Prisma.InputJsonValue,
-    },
-    select: { id: true },
-  });
+  // Quando o agent envia `idempotencyKey`, fazemos upsert por essa key —
+  // retries da mesma execução não duplicam audit rows. Sem key cai no
+  // path antigo (create) para back-compat com agents pré-rev14.
+  const data = {
+    farmaciaId,
+    kind,
+    status,
+    startedAt,
+    finishedAt,
+    durationMs,
+    dateRef,
+    errorMessage,
+    triggeredBy,
+    idempotencyKey,
+    details: detailsRaw as Prisma.InputJsonValue,
+  };
+  const result = idempotencyKey
+    ? await ctx.prisma.pipelineRun.upsert({
+        where: { idempotencyKey },
+        create: data,
+        update: {
+          // Em retry: actualizamos o estado final (status/errorMessage/...
+          // podem ter mudado entre tentativas). Não tocamos `idempotencyKey`
+          // nem `createdAt`.
+          status,
+          finishedAt,
+          durationMs,
+          errorMessage,
+          details: data.details,
+        },
+        select: { id: true, createdAt: true, updatedAt: true },
+      })
+    : await ctx.prisma.pipelineRun.create({
+        data,
+        select: { id: true, createdAt: true, updatedAt: true },
+      });
+  const deduped = idempotencyKey
+    ? result.updatedAt.getTime() !== result.createdAt.getTime()
+    : false;
 
   console.log(
     `[pipeline/record] ${JSON.stringify({
@@ -123,9 +151,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       status,
       dateRef,
       durationMs,
-      pipelineRunId: created.id,
+      idempotencyKey,
+      deduped,
+      pipelineRunId: result.id,
     })}`
   );
 
-  return NextResponse.json({ ok: true, pipelineRunId: created.id });
+  return NextResponse.json({ ok: true, pipelineRunId: result.id, deduped });
 });

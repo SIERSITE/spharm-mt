@@ -200,6 +200,10 @@ export type PipelineRecordBody = {
   errorMessage?: string;
   details?: Record<string, unknown>;
   triggeredBy?: string;
+  /// Chave determinística para dedup. Quando presente, o servidor faz
+  /// upsert em vez de create — retries da mesma execução não duplicam.
+  /// Convenção: `${kind}:${farmaciaId}:${dateRef ?? "_"}:${startedAt}`.
+  idempotencyKey?: string;
 };
 
 export type PipelineAggregateResponse = {
