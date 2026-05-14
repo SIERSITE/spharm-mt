@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ListOrdered,
   FilePlus,
+  Activity,
 } from "lucide-react";
 
 type AppShellProps = {
@@ -40,6 +41,7 @@ const navigation = [
     { label: "Stock", href: "/stock", icon: Boxes },
     { label: "Vendas", href: "/vendas", icon: FileText },
     { label: "Devoluções", href: "/devolucoes", icon: RotateCcw },
+    { label: "Análise operacional", href: "/analise-operacional", icon: Activity },
     { label: "Relatório mensal", href: "/relatorios/vendas-mensais", icon: LineChart },
   ],
 },

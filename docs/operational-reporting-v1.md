@@ -197,6 +197,19 @@ confirma idempotência.
 
 ---
 
+## Páginas disponíveis
+
+| Rota | Foco | Características |
+|---|---|---|
+| `/relatorios/vendas-mensais` | Reporting plano (o que aconteceu) | 8 tabelas compactas: totais, top valor, top qtd, devoluções, margem, vendeu sem stock, stock negativo, sem min/max |
+| `/analise-operacional` | Accionável (o que fazer agora) | Inclui as 8 anteriores + 3 novas: candidatos a ruptura, candidatos a excesso, cobertura de stock. Banners colorimétricos por urgência. |
+| `/admin/pipeline` | Estado do pipeline autónomo | Última execução, métricas, falhas recentes |
+
+Loaders correspondentes (server-only, dedicated, zero share entre si):
+- `lib/data/vendas-mensais-report.ts` → `/relatorios/vendas-mensais`
+- `lib/data/operational-intelligence.ts` → `/analise-operacional`
+- `lib/data/pipeline-status.ts` → `/admin/pipeline`
+
 ## Conteúdo do relatório
 
 8 secções por farmácia + mês:
