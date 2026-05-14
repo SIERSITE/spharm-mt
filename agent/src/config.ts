@@ -96,8 +96,18 @@ export type AgentConfig = {
   //     populado e SQL login com db_datawriter (ou INSERT grant) em
   //     dbo.Encomendas + dbo.Encomendas Detalhe.
   ordersWriteMode?: "stub" | "insert";
-  /** Obrigatório quando ordersWriteMode === "insert". */
+  /** Obrigatório quando ordersWriteMode === "insert". Apenas populado
+   *  se ordersWriteMode=insert E todos os campos passarem validação.
+   *  Caso contrário fica undefined e o motivo concreto vai para
+   *  `ordersInsertConfigError`. */
   ordersInsert?: OrdersInsertConfig;
+  /** Quando ordersWriteMode=insert mas a secção ordersInsert está
+   *  incompleta/inválida, contém a mensagem detalhada com a lista de
+   *  campos em falta. `loadConfig` NÃO atira — apenas guarda aqui.
+   *  Comandos read-only (`inspect-*`) podem ignorar; comandos de
+   *  escrita (`export-orders`, `test-order-write`) chamam
+   *  `assertOrdersWriteReady(cfg)` para falhar cedo com esta mensagem. */
+  ordersInsertConfigError?: string;
   // Misc
   agentVersion: string;
 };
@@ -315,7 +325,13 @@ export function loadConfig(scope: Scope): AgentConfig {
   const ordersWriteMode: "stub" | "insert" | undefined =
     rawOrdersMode === "stub" || rawOrdersMode === "insert" ? rawOrdersMode : undefined;
 
+  // ordersInsert: leitura defensiva. Em vez de atirar, populamos a
+  // struct se tudo OK, ou deixamos undefined + ordersInsertConfigError
+  // se há campos em falta/inválidos. A validação estrita só importa
+  // para comandos de escrita — comandos read-only (inspect-*) não
+  // devem falhar por causa de config destinada a escrever.
   let ordersInsert: OrdersInsertConfig | undefined;
+  let ordersInsertConfigError: string | undefined;
   if (ordersWriteMode === "insert") {
     const insertMissing: string[] = [];
     const userId = intOrMissing("SPHARMMT_ORDERS_USER_ID", insertMissing);
@@ -360,20 +376,21 @@ export function loadConfig(scope: Scope): AgentConfig {
 
     if (insertMissing.length > 0) {
       const labelled = insertMissing.map((m) => `  · ${m}`).join("\n");
-      throw new ConfigError(
-        `ordersWriteMode=insert exige config ordersInsert. ${insertMissing.length} campo(s) em falta ou inválido(s):\n${labelled}\n\nVer agent.config.example.json secção "ordersInsert".`,
-        insertMissing
-      );
+      ordersInsertConfigError =
+        `ordersWriteMode=insert exige config ordersInsert. ${insertMissing.length} campo(s) em falta ou inválido(s):\n${labelled}\n\nVer agent.config.example.json secção "ordersInsert".`;
+      // NÃO atira aqui — comandos read-only (inspect-*) precisam de
+      // continuar a funcionar. Comandos de escrita chamam
+      // assertOrdersWriteReady() para falhar cedo se necessário.
+    } else {
+      ordersInsert = {
+        userIdForInsert: userId,
+        fornecedorIdForOrders: fornecedorId,
+        armazemId,
+        tipoEncomendaId,
+        encomendaSituacaoInitial: situacaoInitial,
+        productLookupColumn,
+      };
     }
-
-    ordersInsert = {
-      userIdForInsert: userId,
-      fornecedorIdForOrders: fornecedorId,
-      armazemId,
-      tipoEncomendaId,
-      encomendaSituacaoInitial: situacaoInitial,
-      productLookupColumn,
-    };
   }
 
   return {
@@ -392,8 +409,32 @@ export function loadConfig(scope: Scope): AgentConfig {
     outputDir,
     ordersWriteMode,
     ordersInsert,
+    ordersInsertConfigError,
     agentVersion,
   };
+}
+
+/**
+ * Falha cedo se o config corrente NÃO está pronto para escrever
+ * encomendas. Chamado por `export-orders` e `test-order-write` antes
+ * de qualquer SQL. Comandos read-only (`inspect-*`, `setup-*`) NÃO
+ * devem chamar esta função — só precisam do scope SQL básico.
+ *
+ * Regras:
+ *   · ordersWriteMode=stub → OK em qualquer caso (writeStub é seguro)
+ *   · ordersWriteMode=insert + ordersInsert populado → OK
+ *   · ordersWriteMode=insert + ordersInsert undefined → atira com a
+ *     mensagem detalhada acumulada em ordersInsertConfigError
+ */
+export function assertOrdersWriteReady(cfg: AgentConfig): void {
+  const mode = cfg.ordersWriteMode ?? "stub";
+  if (mode !== "insert") return;
+  if (cfg.ordersInsert) return;
+  throw new ConfigError(
+    cfg.ordersInsertConfigError ??
+      "ordersWriteMode=insert mas secção ordersInsert ausente em agent.config.json.",
+    []
+  );
 }
 
 function intOrMissing(name: string, missing: string[]): number {

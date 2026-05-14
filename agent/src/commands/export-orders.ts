@@ -31,7 +31,7 @@
 
 import { parseArgs } from "node:util";
 import * as os from "node:os";
-import { loadConfig, ConfigError } from "../config.js";
+import { loadConfig, ConfigError, assertOrdersWriteReady } from "../config.js";
 import { SaasClient, type PendingOrder } from "../http-client.js";
 import { writeOrderToSpharm, WriteOrderError } from "../spharm-orders-writer.js";
 import { openPool } from "../sql-client.js";
@@ -85,6 +85,19 @@ export async function exportOrders(): Promise<number> {
   const args = parseCmd();
   const mode = cfg.ordersWriteMode ?? "stub";
   const agentInstance = `${cfg.tenantSlug}-${os.hostname()}`.slice(0, 100);
+
+  // Falha cedo se mode=insert mas ordersInsert incompleto.
+  // Em mode=stub, é no-op.
+  try {
+    assertOrdersWriteReady(cfg);
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error("✗ Config insuficiente para ordersWriteMode=insert:");
+      console.error(err.message);
+      return 1;
+    }
+    throw err;
+  }
 
   console.log("─".repeat(72));
   console.log("export-orders");

@@ -35,7 +35,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { loadConfig, ConfigError, type AgentConfig } from "../config.js";
+import { loadConfig, ConfigError, assertOrdersWriteReady, type AgentConfig } from "../config.js";
 import { openPool } from "../sql-client.js";
 import type { SqlPool } from "../sql-client.js";
 import {
@@ -205,6 +205,19 @@ export async function testOrderWrite(): Promise<number> {
   const effectiveCfg: AgentConfig = args.forceMode
     ? { ...cfg, ordersWriteMode: args.forceMode }
     : cfg;
+
+  // Falha cedo se modo efectivo for insert mas ordersInsert incompleto.
+  try {
+    assertOrdersWriteReady(effectiveCfg);
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error("✗ Config insuficiente para escrita:");
+      console.error(err.message);
+      return 1;
+    }
+    throw err;
+  }
+
   const description = describeOrdersWriteMode(effectiveCfg);
   if (description.configIssues.length > 0) {
     console.error("✗ Config insuficiente para modo escolhido:");
