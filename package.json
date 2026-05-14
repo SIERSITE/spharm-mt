@@ -23,6 +23,7 @@
     "ingest:classify-tipodoc": "tsx scripts/classify-tipodoc.ts",
     "ingest:reclassify-vendas": "tsx scripts/reclassify-ingest-vendas.ts",
     "aggregate:vendamensal": "tsx scripts/aggregate-vendamensal.ts",
+    "report:vendamensal": "tsx scripts/report-vendamensal.ts",
     "ingest:list-orphans": "tsx scripts/list-orphan-products.ts",
     "ingest:backfill-services": "tsx scripts/backfill-non-stock-services.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",

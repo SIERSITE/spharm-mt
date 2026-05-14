@@ -8,6 +8,7 @@ import {
   BookOpen,
   ClipboardList,
   FileText,
+  LineChart,
   LogOut,
   RotateCcw,
   ArrowLeftRight,
@@ -39,6 +40,7 @@ const navigation = [
     { label: "Stock", href: "/stock", icon: Boxes },
     { label: "Vendas", href: "/vendas", icon: FileText },
     { label: "Devoluções", href: "/devolucoes", icon: RotateCcw },
+    { label: "Relatório mensal", href: "/relatorios/vendas-mensais", icon: LineChart },
   ],
 },
   {
