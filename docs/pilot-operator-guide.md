@@ -108,7 +108,31 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev14 | Adicionado `run-inspect-orders-schema.bat` (probe read-only ao schema das encomendas SPharm; gera `inspection.md`). NÃO activa escrita real. |
 | 2026-05-14 | rev13 | Adicionado daily-pipeline + auto-bat para Task Scheduler |
 | 2026-05-14 | rev12 | Adicionado processaStocks no payload de vendas |
 | 2026-05-14 | rev11 | Adicionado inspect-codigoid para diagnose de orphans |
 | 2026-05-13 | rev9-10 | Bootstrap + daily-sync iniciais |
+
+## rev14 — inspecção do schema de encomendas
+
+Sequência obrigatória no PC da farmácia:
+
+1. Extrair `SPharmMT-Agent-2026-05-14-rev14.zip` para `C:\spharmmt\agent\`
+2. Copiar `agent.config.example.json` → `agent.config.json` e editar credenciais SQL Server
+3. **Duplo-clique em `run-test-connection.bat`** — confirma que o agent fala com o SQL Server + SaaS
+4. **Duplo-clique em `run-inspect-orders-schema.bat`** — probe read-only às tabelas de encomendas
+5. Enviar `output\orders-schema-<data>\inspection.md` ao admin SPharm.MT
+
+**O que o BAT faz:**
+- Lê metadata (colunas, PKs, FKs, índices, datas) de `dbo.Encomendas`, `dbo.Encomendas Detalhe`, `dbo.EncomendasFaltas`, `dbo.Encomendas_Prepara`, `dbo.Fornecedores`, `dbo.Stocks`
+- Lê TOP 5 amostras (read-only)
+- Auto-descobre variantes locais via `LIKE %encomenda%`
+- Gera `inspection.md` com a estrutura completa + uma proposta DRAFT de SQL INSERT transaccional
+
+**O que o BAT NÃO faz:**
+- Não escreve nada no SPharm
+- Não envia nada para a SaaS
+- Não activa o modo `insert` do agent (continua em `stub` por contracto)
+
+A escrita real de encomendas no SPharm só será implementada depois do admin analisar o `inspection.md` recebido.

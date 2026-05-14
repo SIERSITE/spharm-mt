@@ -293,6 +293,66 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-inspect-codigoid.bat"), inspectCodigoIdBat, "utf8");
 
+  // inspect-orders-schema — probe read-only às tabelas SPharm de encomendas.
+  // Sem args, sem prompts. Gera output/orders-schema-<data>/inspection.md.
+  // NUNCA escreve no SPharm. NUNCA chama a SaaS.
+  const inspectOrdersSchemaBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — inspect-orders-schema`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   inspect-orders-schema`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Probe READ-ONLY as tabelas de encomendas no SPharm local.`,
+    `echo NAO escreve nada no ERP. NAO envia nada para a SaaS.`,
+    `echo.`,
+    `echo Pre-requisito: run-test-connection.bat OK.`,
+    `echo.`,
+    `echo Tabelas-alvo (default):`,
+    `echo   - dbo.Encomendas`,
+    `echo   - dbo.Encomendas Detalhe`,
+    `echo   - dbo.EncomendasFaltas`,
+    `echo   - dbo.Encomendas_Prepara`,
+    `echo   - dbo.Fornecedores`,
+    `echo   - dbo.Stocks`,
+    `echo.`,
+    `node.exe agent.cjs inspect-orders-schema`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Ficheiro gerado em:`,
+    `  echo   output\\orders-schema-^<YYYY-MM-DD^>\\inspection.md`,
+    `  echo   ^(ver caminho exacto na linha "Markdown completo:" acima^)`,
+    `  echo.`,
+    `  echo IMPORTANTE: este comando NAO activa escrita real no SPharm.`,
+    `  echo A escrita real so sera implementada depois do operador SPharm`,
+    `  echo validar o conteudo de inspection.md.`,
+    `  echo.`,
+    `  echo Proximo passo: enviar inspection.md ao admin SPharm.MT.`,
+    `) else (`,
+    `  echo Falhou com exit code %EXIT%.`,
+    `  echo Verifica que o SQL Server esta acessivel:`,
+    `  echo   - run-test-connection.bat OK?`,
+    `  echo   - agent.config.json com host/user/password correctos?`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-inspect-orders-schema.bat"),
+    inspectOrdersSchemaBat,
+    "utf8"
+  );
+
   // Factory para wrappers que pedem --from/--to interactivamente
   const buildDatePromptBat = (command, intro) =>
     [
@@ -517,7 +577,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 7} wrappers (probe-table + datas + daily-sync x2 + bootstrap-upload com confirmacao)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 8} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -561,6 +621,7 @@ function writeReadme() {
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
+    `  run-inspect-orders-schema.bat   Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,
