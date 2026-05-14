@@ -27,6 +27,7 @@
     "ingest:list-orphans": "tsx scripts/list-orphan-products.ts",
     "ingest:backfill-services": "tsx scripts/backfill-non-stock-services.ts",
     "pipeline:health": "tsx scripts/pipeline-health.ts",
+    "pilot:precheck": "tsx scripts/pilot-precheck.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",
     "tenant:create": "tsx scripts/admin/create-client.ts",
     "env:doctor": "tsx scripts/env-doctor.ts",

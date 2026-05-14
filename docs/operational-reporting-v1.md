@@ -1,5 +1,14 @@
 # Operational Reporting v1
 
+> **Antes de go-live:** correr [pilot-go-live-checklist.md](pilot-go-live-checklist.md)
+> e `npm run pilot:precheck -- --tenant <slug>`. Em caso de problemas
+> consultar [pilot-support-runbook.md](pilot-support-runbook.md) e
+> [pilot-rollback-plan.md](pilot-rollback-plan.md). Documentação de
+> operador em [pilot-operator-guide.md](pilot-operator-guide.md).
+
+---
+
+
 Pipeline operacional ponta-a-ponta para relatórios mensais de vendas
 baseado em `VendaMensal`, alimentado pelo agent local SPharm.MT.
 
