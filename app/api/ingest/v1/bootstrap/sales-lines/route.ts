@@ -58,7 +58,18 @@ type SaleLinePayload = {
   entidadeId: unknown;
 };
 
-const KNOWN_CLASSES = new Set(["VENDA", "DEVOLUCAO_ANULACAO", "UNKNOWN"]);
+/**
+ * Classes válidas. Mantido em sync com `TipoDocumentoClassificacao.classe`
+ * (string, sem enum Prisma para reclassificação retroactiva flexível).
+ * Qualquer valor fora deste set — seja vindo do payload OU da lookup
+ * table — é forçado a "UNKNOWN" (conservador).
+ */
+const KNOWN_CLASSES = new Set([
+  "VENDA",
+  "DEVOLUCAO_ANULACAO",
+  "UNKNOWN",
+  "IGNORE_TECHNICAL",
+]);
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
   const t0 = Date.now();
@@ -80,6 +91,24 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       received: items.length,
     })}`
   );
+
+  // 0) Pre-fetch server-side classifier table. Lookup map por
+  //    tipoDocumento → classe. Lido em CADA request — alterações à
+  //    tabela são imediatas para uploads subsequentes.
+  //    Decisão arquitectural 2026-05-14 (mapping doc §10):
+  //    classificação centralizada server-side, agent envia tipoDocumento
+  //    raw; `tipoDocumentoClass` no payload é fallback legacy.
+  const classifications = await ctx.prisma.tipoDocumentoClassificacao.findMany({
+    select: { tipoDocumento: true, classe: true },
+  });
+  const classifierMap = new Map<number, string>();
+  for (const c of classifications) {
+    if (KNOWN_CLASSES.has(c.classe)) {
+      classifierMap.set(c.tipoDocumento, c.classe);
+    }
+    // Classes desconhecidas na tabela são silenciosamente ignoradas
+    // (cai no fallback). Logamos no fim p/ visibilidade.
+  }
 
   // 1) Coerce + validate.
   const skipped: BootstrapBatchResponse["skipped"] = [];
@@ -128,8 +157,16 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       });
       continue;
     }
-    const classRaw = asStringOrNull(raw.tipoDocumentoClass) ?? "UNKNOWN";
-    const tipoDocumentoClass = KNOWN_CLASSES.has(classRaw) ? classRaw : "UNKNOWN";
+    // Resolução de tipoDocumentoClass: classifier server-side > payload
+    // legacy > UNKNOWN.
+    const tipoRaw = asIntOrNull(raw.tipoDocumento);
+    let tipoDocumentoClass: string;
+    if (tipoRaw !== null && classifierMap.has(tipoRaw)) {
+      tipoDocumentoClass = classifierMap.get(tipoRaw)!;
+    } else {
+      const clientClass = asStringOrNull(raw.tipoDocumentoClass) ?? "UNKNOWN";
+      tipoDocumentoClass = KNOWN_CLASSES.has(clientClass) ? clientClass : "UNKNOWN";
+    }
 
     resolved.push({
       index: i,
@@ -217,6 +254,12 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     }
   }
 
+  // Distribuição por classe — observabilidade do classifier server-side
+  const classDist: Record<string, number> = {};
+  for (const r of resolved) {
+    classDist[r.tipoDocumentoClass] = (classDist[r.tipoDocumentoClass] ?? 0) + 1;
+  }
+
   const durationMs = Date.now() - t0;
   console.log(
     `[bootstrap/sales-lines] done ${JSON.stringify({
@@ -227,6 +270,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       orphanProductLines: orphanCount,
       skipped: skipped.length,
       errors: errors.length,
+      classDist,
+      classifierTableSize: classifierMap.size,
       durationMs,
     })}`
   );

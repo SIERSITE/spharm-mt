@@ -84,6 +84,7 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
 } as const
@@ -680,6 +681,19 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 } as const
 
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
+
+
+export const TipoDocumentoClassificacaoScalarFieldEnum = {
+  tipoDocumento: 'tipoDocumento',
+  classe: 'classe',
+  descricao: 'descricao',
+  notas: 'notas',
+  classifiedBy: 'classifiedBy',
+  classifiedAt: 'classifiedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TipoDocumentoClassificacaoScalarFieldEnum = (typeof TipoDocumentoClassificacaoScalarFieldEnum)[keyof typeof TipoDocumentoClassificacaoScalarFieldEnum]
 
 
 export const OrderOutboxScalarFieldEnum = {

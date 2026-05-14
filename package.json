@@ -20,6 +20,8 @@
     "tenancy:issue-ingest-key": "tsx scripts/tenancy/issue-ingest-key.ts",
     "tenancy:cleanup-failed": "tsx scripts/tenancy/cleanup-failed-tenant.ts",
     "tenancy:debug-ingest-auth": "tsx scripts/tenancy/debug-ingest-auth.ts",
+    "ingest:classify-tipodoc": "tsx scripts/classify-tipodoc.ts",
+    "ingest:reclassify-vendas": "tsx scripts/reclassify-ingest-vendas.ts",
     "tenant:onboard": "tsx scripts/tenancy/onboard-tenant.ts",
     "tenant:create": "tsx scripts/admin/create-client.ts",
     "env:doctor": "tsx scripts/env-doctor.ts",

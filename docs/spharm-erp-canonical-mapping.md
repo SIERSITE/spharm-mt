@@ -1,6 +1,6 @@
 # SPharm ERP → SPharm.MT — Canonical Mapping
 
-**Versão:** v0.6 · **Data:** 2026-05-13 · **Status:** endpoints `/api/ingest/v1/bootstrap/*` + comando `bootstrap-upload` entregues; feature-flag gated, idempotente, schema com staging `IngestVendaLinhaRaw`
+**Versão:** v0.9 · **Data:** 2026-05-14 · **Status:** classifier de TipoDocumento server-side (modelo `TipoDocumentoClassificacao` + scripts `classify-tipodoc` / `reclassify-ingest-vendas`); endpoint `/bootstrap/sales-lines` prefere lookup server-side, payload do agent fica como fallback
 
 Documento operacional que liga as tabelas observadas no **SPharm ERP
 (Softreis, SQL Server 2008 R2)** às entidades canónicas do **SPharm.MT**.
@@ -586,19 +586,25 @@ janela cmd com >=180 chars de largura — instrução em INSTALL_WINDOWS.
 4. ✅ Operador correu `sales-summary-preview` para caracterizar TipoDoc/EntidadeID
 5. ✅ Operador correu `bootstrap-dry-run` — payloads canónicos validados
 6. ✅ Endpoints SaaS `/api/ingest/v1/bootstrap/*` entregues (§8 abaixo)
-7. ⏳ Activar `ENABLE_AGENT_BOOTSTRAP=1` no SaaS (Vercel env var)
-8. ⏳ Operador corre `bootstrap-upload --from --to` (1ª ingestão real)
-9. ⏳ Validar contagens upserted vs. dry-run (devem bater)
-10. ⏳ Fechar mapping decoded:
-    - `[Tipo Documento]` → enum SPharm.MT `TipoVenda` + lista de tipos técnicos a excluir
-    - Semântica de `[Valor_EUR]` (pago utente vs. total linha)
-    - `[Generico]` / `[MNSRM_NCompart]` → flags canónicas SPharm.MT
-11. ⏳ Implementar agregação `IngestVendaLinhaRaw` → `VendaMensal` (server-side job)
-12. ⏳ Implementar `daily-sync` (incremental usando cursor server-side)
-13. ⏳ Refresh IPF + projections finais (lado SaaS, fora do agent)
+7. ✅ `ENABLE_AGENT_BOOTSTRAP=1` activo no SaaS (Vercel env var)
+8. ✅ Migration `20260513150000_add_agent_bootstrap_staging` aplicada em demo-neon
+9. ✅ `bootstrap-upload` 1-dia validado em demo-neon (rev8, batch 50/100/200)
+10. ✅ `daily-sync` + `daily-sync-dry-run` entregues (§9 acima)
+11. ⏳ Validar `daily-sync-dry-run` para o dia seguinte ao bootstrap inicial
+12. ⏳ Validar `daily-sync` real → verificar idempotência (counts não duplicam)
+13. ⏳ Agendar `daily-sync` automático via Task Scheduler (.bat com --date=ontem)
+14. ✅ Classifier server-side de TipoDocumento entregue (§10):
+    - Modelo `TipoDocumentoClassificacao` + migration 20260514100000
+    - Scripts `classify-tipodoc` + `reclassify-ingest-vendas`
+    - Endpoint `sales-lines` prefere server-side; payload do agent é fallback
+15. ⏳ Caracterizar TipoDoc 7 com `sales-summary-preview` para 2024-01-01
+16. ⏳ Caracterizar TipoDoc 2 (data ainda não vista)
+17. ⏳ Fechar semântica de `[Valor_EUR]` (pago utente vs. total linha)
+18. ⏳ Implementar agregação `IngestVendaLinhaRaw` → `VendaMensal` (script + idempotência)
+19. ⏳ Refresh IPF + projections finais (lado SaaS, fora do agent)
 
-Os passos 10-13 são **iterações posteriores** — nenhum tem código
-escrito ainda. Este documento lock-in os passos 1-8.
+Passos 15–19 são **iterações posteriores**. Este documento lock-in os
+passos 1–14.
 
 ## 8. Endpoints SaaS `/api/ingest/v1/bootstrap/*` (v0.6)
 
@@ -757,7 +763,347 @@ Reverse relations adicionadas a:
 Nenhum endpoint pré-existente foi alterado. Nenhum loader foi
 modificado. Dashboards não veem `IngestVendaLinhaRaw` (não tem queries).
 
-## 9. Referências cruzadas
+## 9. Sync incremental diário (v0.7)
+
+Após bootstrap inicial validado, o sync incremental diário usa os
+**mesmos** endpoints `/api/ingest/v1/bootstrap/*` mas com SQL filtrado
+para um único dia. Sem novos endpoints, sem novo modelo de dados,
+sem nova feature flag. Idempotência continua garantida pelos mesmos
+unique constraints.
+
+### 9.1 Granularidade incremental — filtros SQL
+
+**PRODUTOS** — Stocks alterados em `@date`:
+
+```sql
+WHERE s.[Retirado] = 0
+  AND s.[Processa_Stocks] <> 0
+  AND s.CodigoID > @lastId
+  AND (
+    CAST(s.[Data Ultima Venda] AS DATE) = @date
+    OR CAST(s.[Data Ultima Compra] AS DATE) = @date
+    OR CAST(s.[Data_Actualiz] AS DATE) = @date   -- opcional
+  )
+```
+
+`[Data_Actualiz]` é Softreis-version-dependent. O agent detecta em
+runtime via `sys.columns` e inclui no filtro só se existir. Se não
+existir, ficamos com `[Data Ultima Venda]` + `[Data Ultima Compra]`,
+que ainda é conservador: qualquer venda ou compra no dia → produto
+incluído.
+
+**STOCK** — produtos movimentados em `@date`, **uma linha por
+armazém** (snapshot actual). Agregação por `externalProductId` é
+feita server-side.
+
+```sql
+SELECT
+  ars.CodigoID                AS externalProductId,
+  ars.ArmazemID               AS externalWarehouseId,  -- preserva audit
+  ars.[Existencia Actual]     AS stockAtual,
+  ars.[Stock Minimo]          AS stockMinimo,
+  ars.[Stock Maximo/Reposicao] AS stockMaximo,
+  ars.[Existencia Encomenda]  AS stockEncomenda,
+  ars.[Existencia Reserva]    AS stockReserva
+FROM [dbo].[ArmazensStocks] ars
+INNER JOIN (
+  -- Pega nos próximos N CodigoIDs distintos com movimento no dia
+  SELECT DISTINCT TOP (@n) sub_ars.CodigoID
+  FROM [dbo].[ArmazensStocks] sub_ars
+  JOIN [dbo].[Stocks] s ON s.CodigoID = sub_ars.CodigoID
+  WHERE s.[Retirado] = 0
+    AND s.[Processa_Stocks] <> 0
+    AND sub_ars.CodigoID > @lastId
+    AND EXISTS (
+      SELECT 1 FROM [dbo].[StocksMov] sm
+      WHERE sm.CodigoID = sub_ars.CodigoID
+        AND CAST(sm.[DataMov] AS DATE) = @date
+    )
+  ORDER BY sub_ars.CodigoID
+) batch_codigos ON batch_codigos.CodigoID = ars.CodigoID
+JOIN [dbo].[Stocks] s ON s.CodigoID = ars.CodigoID
+WHERE s.[Retirado] = 0
+  AND s.[Processa_Stocks] <> 0
+ORDER BY ars.CodigoID, ars.ArmazemID
+```
+
+`StocksMov` é a tabela de movimentos individuais (vendas, compras,
+ajustes). Filtro por `DataMov` identifica os `CodigoID` movimentados;
+o snapshot retorna **TODAS** as linhas `ArmazensStocks` desses
+produtos (mesmo armazéns sem movimento próprio — para captar o
+estado completo). `dbo.StocksMov` é **obrigatório**.
+
+> **Crítico do batching:** a subquery `TOP N DISTINCT CodigoID` +
+> `JOIN` para expandir garante que **todos os armazéns do mesmo
+> CodigoID ficam no mesmo HTTP batch**. Se um produto fosse repartido
+> entre batches, o `SUM` server-side seria parcial e o último batch
+> sobrescreveria `stockAtual` com soma incompleta. `STOCK_BATCH=100`
+> conta produtos distintos; rows na resposta ≈ produtos ×
+> armazéns/produto (típico 100–300 rows/batch, dentro do limite
+> server de 1000).
+
+> **`externalWarehouseId`:** preservado no payload por traceability.
+> O endpoint server-side continua a agregar por `externalProductId`
+> via `SUM` (a granularidade canónica de `ProdutoFarmacia` é
+> `(produtoId, farmaciaId)`, sem dimensão de armazém). Resultado em
+> DB é o mesmo que com payload pre-agregado, mas o operador consegue
+> ver no Vercel logs / forensic JSON qual armazém contribuiu.
+
+> **Diferença vs. bootstrap-upload:** `bootstrap-upload` agrega
+> SQL-side (`GROUP BY CodigoID + SUM`) e envia `externalWarehouseId:
+> null`. Inconsistência conhecida — daily-sync ganhou traceability
+> per-armazém em rev10 mas bootstrap-upload manteve agregação inicial.
+> Se simetria for desejável, fixar em iteração futura (sem impacto
+> em dados já escritos, idempotência mantém-se).
+
+**SALES-LINES** — Atendimentos do dia:
+
+```sql
+WHERE a.[Fim Venda] = 'S'
+  AND a.[Data Venda] BETWEEN @date 00:00:00 AND @date 23:59:59
+  AND d.[Detalhe ID] > @lastId
+```
+
+Idêntico ao bootstrap-upload sales pipeline com `from=to=@date`.
+
+### 9.2 Idempotência transversal
+
+Re-correr `daily-sync --date X` é seguro independentemente do estado
+da BD:
+
+| Cenário | Comportamento |
+|---|---|
+| 1ª corrida (clean state) | upsert normal de todos os items |
+| 2ª corrida (mesmo dia) | re-upsert: rows existentes actualizam (`dataAtualizacao` muda, valores iguais), nada é duplicado |
+| Run parcial (abortado) | retry: rows escritos antes do abort são re-actualizados; restantes são inseridos |
+| Dia já processado pelo bootstrap | upsert: rows do bootstrap são re-confirmados; sem corrupção |
+
+A garantia vem dos unique constraints DB-side, não da lógica
+aplicacional. Mesmo bug no agent não pode causar duplicates.
+
+### 9.3 Trade-off do feature flag
+
+Reusamos `ENABLE_AGENT_BOOTSTRAP=1` para o daily-sync — sem flag
+separada. Justificação:
+
+- **Pró:** menos superfície (1 flag, 3 endpoints). Operacionalmente
+  mais simples.
+- **Pró:** auth e payload shape são idênticos — o servidor não
+  consegue (nem deve) distinguir.
+- **Con:** se quiseres pausar daily-sync sem pausar bootstrap, tens
+  que parar o Task Scheduler do agent (não o flag SaaS).
+
+Quando o operador quer **kill switch global**: pôr a flag a "0",
+todos os endpoints respondem 503. Ambos bootstrap-upload e
+daily-sync param. É o caminho honesto.
+
+Para pausar **apenas** daily-sync mantendo capacidade de retry
+bootstrap: parar o agendamento Windows / cron no PC da farmácia.
+Não há gate SaaS-side para isto e não precisa de existir.
+
+### 9.4 Comando agent — invocação
+
+```bash
+# Dry-run primeiro
+daily-sync-dry-run --date 2024-04-02
+
+# Se counts/amostras OK
+daily-sync --date 2024-04-02
+```
+
+Output do `daily-sync` mostra contagens por pipeline + erros
+individuais (até 3 por batch). Wall time típico para 1 dia de
+farmácia média: 30–90s.
+
+### 9.5 Não escreve `VendaMensal`
+
+Linhas continuam a entrar em `IngestVendaLinhaRaw` (staging). A
+agregação para `VendaMensal` é uma iteração subsequente (server-side
+job a correr depois de `[Tipo Documento]` estar caracterizado e a
+semântica de `[Valor_EUR]` consolidada). **Dashboards continuam
+intactos** — não há queries a `IngestVendaLinhaRaw` em loaders
+operacionais.
+
+### 9.6 Agendamento Windows (próxima iteração)
+
+Sugestão (NÃO implementado neste sprint):
+
+```
+Task Scheduler: SPharmMT-DailySync
+Trigger:        02:00 daily
+Action:         <pasta-do-zip>\run-daily-sync-auto.bat
+                (variante que calcula --date = ontem automaticamente)
+```
+
+O `.bat` actual (`run-daily-sync.bat`) pede `--date` interactivamente;
+para agendamento automático precisa-se de variante sem prompt que
+deriva a data do `Get-Date -Format yyyy-MM-dd` menos um dia. Está em
+backlog para próximo sprint.
+
+### 9.7 Boundary com bootstrap-upload
+
+| Comando | Quando |
+|---|---|
+| `bootstrap-upload` | **Uma única vez** por farmácia, no onboarding. Carrega histórico do intervalo `--from --to`. |
+| `daily-sync` | **Recorrente**. Carrega 1 dia (`--date`). Pode rodar agendado ou manual. |
+
+Os dois podem rodar em qualquer ordem — idempotência cross-comando:
+- bootstrap depois de daily-sync: bootstrap re-confirma o que daily-sync escreveu
+- daily-sync depois de bootstrap: daily-sync confirma rows do bootstrap; adiciona novos do dia se houver
+
+## 10. Classifier server-side de TipoDocumento (v0.9)
+
+Decisão arquitectural 2026-05-14: a classificação de
+`Atendimento.[Tipo Documento]` vive **server-side** numa tabela
+lookup (`TipoDocumentoClassificacao`), **não** hardcoded no agent.
+
+### 10.1 Razões
+
+| Pró server-side | Detalhe |
+|---|---|
+| Reclassificação retroactiva | UPDATE em `IngestVendaLinhaRaw` sem reupload do agent |
+| Sem rebuild ZIP por TipoDoc novo | Operador edita tabela; alteração imediata para uploads seguintes |
+| Centraliza regras | Mesma tabela seedada via migration em todos os tenants — política consistente |
+| Auditável | `classifiedBy` + `classifiedAt` rastreiam decisão |
+
+Trade-off: o agent continua a enviar `tipoDocumentoClass` no payload
+(legacy). O endpoint **prefere** a lookup server-side; o valor do
+agent só é usado quando o TipoDoc não está em
+`TipoDocumentoClassificacao`. Agent rev10 não precisa de update.
+
+### 10.2 Modelo `TipoDocumentoClassificacao`
+
+Tenant-DB (não control plane). Cada tenant tem a sua tabela; seeds
+idênticos via migration `20260514100000_add_tipo_documento_classificacao`.
+
+```typescript
+model TipoDocumentoClassificacao {
+  tipoDocumento Int      @id   // raw do ERP
+  classe        String         // "VENDA" | "DEVOLUCAO_ANULACAO"
+                               // | "UNKNOWN" | "IGNORE_TECHNICAL"
+  descricao     String?
+  notas         String?
+  classifiedBy  String?        // operator email | "system" | "cli"
+  classifiedAt  DateTime
+  updatedAt     DateTime
+  @@index([classe])
+}
+```
+
+Classes válidas:
+
+| Classe | Significado | Comportamento na agregação futura |
+|---|---|---|
+| `VENDA` | Venda comercial | Entra em `VendaMensal` com sinal positivo |
+| `DEVOLUCAO_ANULACAO` | Devolução / anulação | Entra com sinal negativo |
+| `UNKNOWN` | Caracterização pendente | Linha conservada em staging, **ignorada** na agregação |
+| `IGNORE_TECHNICAL` | Documento técnico (consulta, anulação interna) | Linha conservada, **ignorada** explicitamente |
+
+### 10.3 Seeds defaults (aplicados pela migration)
+
+```sql
+INSERT INTO "TipoDocumentoClassificacao" VALUES
+  (77,  'VENDA',              'Venda comercial (default Softreis)', ...),
+  (104, 'DEVOLUCAO_ANULACAO', 'Devolução / anulação (default Softreis)', ...),
+  (2,   'UNKNOWN',            'Caracterização pendente (default cautelar)', ...),
+  (7,   'UNKNOWN',            'Caracterização pendente — detectado 2024-01-01 sample', ...)
+ON CONFLICT ("tipoDocumento") DO NOTHING;
+```
+
+`ON CONFLICT DO NOTHING` protege contra over-write de classificações
+já editadas pelo operador. Re-correr a migration é seguro.
+
+### 10.4 Endpoint behaviour — `/api/ingest/v1/bootstrap/sales-lines`
+
+```typescript
+// 0) Pre-fetch (1 query por request)
+const classifierMap = new Map(...) // tipoDocumento → classe
+
+// Por item:
+const tipoRaw = asIntOrNull(item.tipoDocumento);
+let tipoDocumentoClass;
+if (tipoRaw && classifierMap.has(tipoRaw)) {
+  tipoDocumentoClass = classifierMap.get(tipoRaw)!;  // server wins
+} else {
+  // Fallback legacy — agent rev10 envia classe; se mapeada → usa.
+  const clientClass = item.tipoDocumentoClass ?? "UNKNOWN";
+  tipoDocumentoClass = KNOWN_CLASSES.has(clientClass) ? clientClass : "UNKNOWN";
+}
+```
+
+Log da distribuição por classe é emitido no `done` log de cada batch
+para observabilidade:
+
+```text
+[bootstrap/sales-lines] done {
+  "received":200, "upserted":200,
+  "classDist":{"VENDA":180,"UNKNOWN":15,"DEVOLUCAO_ANULACAO":5},
+  "classifierTableSize":4,
+  ...
+}
+```
+
+### 10.5 Workflow operacional
+
+Cenário típico: caracterização de novo TipoDoc.
+
+```bash
+# 1. Operador identifica TipoDoc desconhecido via sales-summary-preview
+#    ou via classDist nos logs Vercel
+
+# 2. Caracteriza com SQL ERP / sales-summary-preview (§5.6)
+
+# 3. Insere/actualiza classificação
+npm run ingest:classify-tipodoc -- \
+  --tenant demo-neon \
+  --tipo 7 \
+  --classe VENDA \
+  --descricao "Venda OTC sem receita" \
+  --by "bruno@spharm.mt"
+
+# 4. Propaga ao staging existente (dry-run primeiro)
+npm run ingest:reclassify-vendas -- --tenant demo-neon --dry-run
+npm run ingest:reclassify-vendas -- --tenant demo-neon
+
+# 5. Uploads subsequentes (daily-sync ou bootstrap-upload retry)
+#    automaticamente aplicam a nova regra — endpoint lê classifier
+#    em cada request.
+```
+
+### 10.6 Scripts entregues
+
+| Script | NPM script | Função |
+|---|---|---|
+| `scripts/classify-tipodoc.ts` | `npm run ingest:classify-tipodoc` | Upsert numa entrada `TipoDocumentoClassificacao`. Audit via `classifiedBy`. |
+| `scripts/reclassify-ingest-vendas.ts` | `npm run ingest:reclassify-vendas` | Aplica regras correntes ao staging. `--dry-run` para preview. Idempotente. |
+
+### 10.7 Boundary com Fase B (agregação `VendaMensal`)
+
+A agregação `IngestVendaLinhaRaw` → `VendaMensal` (ainda futura)
+filtra implicitamente por classe:
+
+```sql
+-- pseudocódigo da agregação futura
+SELECT
+  farmaciaId, produtoId, YEAR(dataVenda), MONTH(dataVenda),
+  SUM(CASE tipoDocumentoClass
+        WHEN 'VENDA' THEN quantidade
+        WHEN 'DEVOLUCAO_ANULACAO' THEN -quantidade
+        ELSE 0   -- UNKNOWN, IGNORE_TECHNICAL: ignorados
+      END) AS quantidade,
+  ...
+FROM "IngestVendaLinhaRaw"
+WHERE produtoId IS NOT NULL
+  AND tipoDocumentoClass IN ('VENDA', 'DEVOLUCAO_ANULACAO')
+GROUP BY 1,2,3,4
+```
+
+**Pré-requisito para correr a agregação:** `COUNT(*) WHERE
+tipoDocumentoClass IN ('UNKNOWN')` = 0, ou justificado. O classifier
+server-side é o gate disso — operador caracteriza cada TipoDoc
+desconhecido antes de avançar.
+
+## 11. Referências cruzadas
 
 - Plano de execução SQL Server: [`../notes/local-agent-sqlserver-plan.md`](../notes/local-agent-sqlserver-plan.md)
 - Arquitectura geral: [`../notes/local-agent-architecture.md`](../notes/local-agent-architecture.md)

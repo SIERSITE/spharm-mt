@@ -243,6 +243,29 @@ export type LoteIngestao = Prisma.LoteIngestaoModel
  */
 export type IngestVendaLinhaRaw = Prisma.IngestVendaLinhaRawModel
 /**
+ * Model TipoDocumentoClassificacao
+ * Lookup de classificação semântica para `Atendimento.[Tipo Documento]`.
+ * PK natural = valor raw do ERP (Int). Aplicado no endpoint
+ * `/api/ingest/v1/bootstrap/sales-lines` no momento do upsert; também
+ * usado pelo script `scripts/reclassify-ingest-vendas.ts` para
+ * reclassificar `IngestVendaLinhaRaw` já carregada.
+ * 
+ * Classes válidas (string, sem enum Prisma para flexibilidade de
+ * reclassificação retroactiva sem migration):
+ * · VENDA               — venda comercial; entra em VendaMensal
+ * · DEVOLUCAO_ANULACAO  — sinal negativo na agregação
+ * · UNKNOWN             — caracterização pendente; staging conserva
+ * a linha mas agregação ignora
+ * · IGNORE_TECHNICAL    — linha técnica (consulta, anulação interna);
+ * staging conserva mas agregação ignora
+ * 
+ * Editável via SQL directo OU script `scripts/classify-tipodoc.ts`.
+ * O endpoint lê esta tabela em cada batch — alteração é imediata
+ * para uploads futuros. Para staging existente, correr o reclassify
+ * script.
+ */
+export type TipoDocumentoClassificacao = Prisma.TipoDocumentoClassificacaoModel
+/**
  * Model OrderOutbox
  * Outbox de exportação de encomendas. 1:1 com ListaEncomenda.
  * Criado na mesma transacção via lib/ingest/orders.ts:createEncomendaWithOutbox.

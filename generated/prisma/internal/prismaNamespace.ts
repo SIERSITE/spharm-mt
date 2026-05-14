@@ -417,6 +417,7 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
 } as const
@@ -434,7 +435,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2880,6 +2881,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    TipoDocumentoClassificacao: {
+      payload: Prisma.$TipoDocumentoClassificacaoPayload<ExtArgs>
+      fields: Prisma.TipoDocumentoClassificacaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TipoDocumentoClassificacaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TipoDocumentoClassificacaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        findFirst: {
+          args: Prisma.TipoDocumentoClassificacaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TipoDocumentoClassificacaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        findMany: {
+          args: Prisma.TipoDocumentoClassificacaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>[]
+        }
+        create: {
+          args: Prisma.TipoDocumentoClassificacaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        createMany: {
+          args: Prisma.TipoDocumentoClassificacaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TipoDocumentoClassificacaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>[]
+        }
+        delete: {
+          args: Prisma.TipoDocumentoClassificacaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        update: {
+          args: Prisma.TipoDocumentoClassificacaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.TipoDocumentoClassificacaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TipoDocumentoClassificacaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TipoDocumentoClassificacaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.TipoDocumentoClassificacaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TipoDocumentoClassificacaoPayload>
+        }
+        aggregate: {
+          args: Prisma.TipoDocumentoClassificacaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTipoDocumentoClassificacao>
+        }
+        groupBy: {
+          args: Prisma.TipoDocumentoClassificacaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TipoDocumentoClassificacaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TipoDocumentoClassificacaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TipoDocumentoClassificacaoCountAggregateOutputType> | number
+        }
+      }
+    }
     OrderOutbox: {
       payload: Prisma.$OrderOutboxPayload<ExtArgs>
       fields: Prisma.OrderOutboxFieldRefs
@@ -3645,6 +3720,19 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
 
 
+export const TipoDocumentoClassificacaoScalarFieldEnum = {
+  tipoDocumento: 'tipoDocumento',
+  classe: 'classe',
+  descricao: 'descricao',
+  notas: 'notas',
+  classifiedBy: 'classifiedBy',
+  classifiedAt: 'classifiedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TipoDocumentoClassificacaoScalarFieldEnum = (typeof TipoDocumentoClassificacaoScalarFieldEnum)[keyof typeof TipoDocumentoClassificacaoScalarFieldEnum]
+
+
 export const OrderOutboxScalarFieldEnum = {
   id: 'id',
   listaEncomendaId: 'listaEncomendaId',
@@ -4277,6 +4365,7 @@ export type GlobalOmitConfig = {
   enriquecimentoFila?: Prisma.EnriquecimentoFilaOmit
   loteIngestao?: Prisma.LoteIngestaoOmit
   ingestVendaLinhaRaw?: Prisma.IngestVendaLinhaRawOmit
+  tipoDocumentoClassificacao?: Prisma.TipoDocumentoClassificacaoOmit
   orderOutbox?: Prisma.OrderOutboxOmit
   orderExportAudit?: Prisma.OrderExportAuditOmit
 }
