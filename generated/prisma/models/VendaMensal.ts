@@ -14,7 +14,20 @@ import type * as Prisma from "../internal/prismaNamespace"
 
 /**
  * Model VendaMensal
- * Vendas mensais agregadas.
+ * Vendas mensais agregadas. Granularidade canónica:
+ * `(farmaciaId, produtoId, ano, mes)`.
+ * 
+ * Fontes possíveis (campo `origemAgregacao`):
+ * · "agent-bootstrap-staging"  — agregação server-side de
+ * IngestVendaLinhaRaw via `scripts/aggregate-vendamensal.ts`
+ * · null / legado              — import Excel ou outras fontes
+ * pré-aggregation script (legacy)
+ * 
+ * Campos legados (`quantidade`, `valorTotal`, `mesCompleto`,
+ * `origemBootstrap`, `dataAtualizacao`, `loteIngestaoId`)
+ * preservados para compatibilidade com loaders e dashboards
+ * existentes — `aggregate-vendamensal.ts` populá-os a partir dos
+ * novos campos para que o dashboard continue intacto.
  */
 export type VendaMensalModel = runtime.Types.Result.DefaultSelection<Prisma.$VendaMensalPayload>
 
@@ -31,6 +44,12 @@ export type VendaMensalAvgAggregateOutputType = {
   mes: number | null
   quantidade: runtime.Decimal | null
   valorTotal: runtime.Decimal | null
+  quantidadeLiquida: runtime.Decimal | null
+  valorBruto: runtime.Decimal | null
+  valorPagoUtente: runtime.Decimal | null
+  valorComparticipado: runtime.Decimal | null
+  linhasVenda: number | null
+  atendimentos: number | null
 }
 
 export type VendaMensalSumAggregateOutputType = {
@@ -38,6 +57,12 @@ export type VendaMensalSumAggregateOutputType = {
   mes: number | null
   quantidade: runtime.Decimal | null
   valorTotal: runtime.Decimal | null
+  quantidadeLiquida: runtime.Decimal | null
+  valorBruto: runtime.Decimal | null
+  valorPagoUtente: runtime.Decimal | null
+  valorComparticipado: runtime.Decimal | null
+  linhasVenda: number | null
+  atendimentos: number | null
 }
 
 export type VendaMensalMinAggregateOutputType = {
@@ -52,6 +77,14 @@ export type VendaMensalMinAggregateOutputType = {
   origemBootstrap: boolean | null
   dataAtualizacao: Date | null
   loteIngestaoId: string | null
+  quantidadeLiquida: runtime.Decimal | null
+  valorBruto: runtime.Decimal | null
+  valorPagoUtente: runtime.Decimal | null
+  valorComparticipado: runtime.Decimal | null
+  linhasVenda: number | null
+  atendimentos: number | null
+  origemAgregacao: string | null
+  createdAt: Date | null
 }
 
 export type VendaMensalMaxAggregateOutputType = {
@@ -66,6 +99,14 @@ export type VendaMensalMaxAggregateOutputType = {
   origemBootstrap: boolean | null
   dataAtualizacao: Date | null
   loteIngestaoId: string | null
+  quantidadeLiquida: runtime.Decimal | null
+  valorBruto: runtime.Decimal | null
+  valorPagoUtente: runtime.Decimal | null
+  valorComparticipado: runtime.Decimal | null
+  linhasVenda: number | null
+  atendimentos: number | null
+  origemAgregacao: string | null
+  createdAt: Date | null
 }
 
 export type VendaMensalCountAggregateOutputType = {
@@ -80,6 +121,14 @@ export type VendaMensalCountAggregateOutputType = {
   origemBootstrap: number
   dataAtualizacao: number
   loteIngestaoId: number
+  quantidadeLiquida: number
+  valorBruto: number
+  valorPagoUtente: number
+  valorComparticipado: number
+  linhasVenda: number
+  atendimentos: number
+  origemAgregacao: number
+  createdAt: number
   _all: number
 }
 
@@ -89,6 +138,12 @@ export type VendaMensalAvgAggregateInputType = {
   mes?: true
   quantidade?: true
   valorTotal?: true
+  quantidadeLiquida?: true
+  valorBruto?: true
+  valorPagoUtente?: true
+  valorComparticipado?: true
+  linhasVenda?: true
+  atendimentos?: true
 }
 
 export type VendaMensalSumAggregateInputType = {
@@ -96,6 +151,12 @@ export type VendaMensalSumAggregateInputType = {
   mes?: true
   quantidade?: true
   valorTotal?: true
+  quantidadeLiquida?: true
+  valorBruto?: true
+  valorPagoUtente?: true
+  valorComparticipado?: true
+  linhasVenda?: true
+  atendimentos?: true
 }
 
 export type VendaMensalMinAggregateInputType = {
@@ -110,6 +171,14 @@ export type VendaMensalMinAggregateInputType = {
   origemBootstrap?: true
   dataAtualizacao?: true
   loteIngestaoId?: true
+  quantidadeLiquida?: true
+  valorBruto?: true
+  valorPagoUtente?: true
+  valorComparticipado?: true
+  linhasVenda?: true
+  atendimentos?: true
+  origemAgregacao?: true
+  createdAt?: true
 }
 
 export type VendaMensalMaxAggregateInputType = {
@@ -124,6 +193,14 @@ export type VendaMensalMaxAggregateInputType = {
   origemBootstrap?: true
   dataAtualizacao?: true
   loteIngestaoId?: true
+  quantidadeLiquida?: true
+  valorBruto?: true
+  valorPagoUtente?: true
+  valorComparticipado?: true
+  linhasVenda?: true
+  atendimentos?: true
+  origemAgregacao?: true
+  createdAt?: true
 }
 
 export type VendaMensalCountAggregateInputType = {
@@ -138,6 +215,14 @@ export type VendaMensalCountAggregateInputType = {
   origemBootstrap?: true
   dataAtualizacao?: true
   loteIngestaoId?: true
+  quantidadeLiquida?: true
+  valorBruto?: true
+  valorPagoUtente?: true
+  valorComparticipado?: true
+  linhasVenda?: true
+  atendimentos?: true
+  origemAgregacao?: true
+  createdAt?: true
   _all?: true
 }
 
@@ -239,6 +324,14 @@ export type VendaMensalGroupByOutputType = {
   origemBootstrap: boolean
   dataAtualizacao: Date
   loteIngestaoId: string | null
+  quantidadeLiquida: runtime.Decimal | null
+  valorBruto: runtime.Decimal | null
+  valorPagoUtente: runtime.Decimal | null
+  valorComparticipado: runtime.Decimal | null
+  linhasVenda: number | null
+  atendimentos: number | null
+  origemAgregacao: string | null
+  createdAt: Date
   _count: VendaMensalCountAggregateOutputType | null
   _avg: VendaMensalAvgAggregateOutputType | null
   _sum: VendaMensalSumAggregateOutputType | null
@@ -276,6 +369,14 @@ export type VendaMensalWhereInput = {
   origemBootstrap?: Prisma.BoolFilter<"VendaMensal"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  quantidadeLiquida?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
@@ -293,6 +394,14 @@ export type VendaMensalOrderByWithRelationInput = {
   origemBootstrap?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorBruto?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrderInput | Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrderInput | Prisma.SortOrder
+  atendimentos?: Prisma.SortOrderInput | Prisma.SortOrder
+  origemAgregacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
   loteIngestao?: Prisma.LoteIngestaoOrderByWithRelationInput
@@ -314,6 +423,14 @@ export type VendaMensalWhereUniqueInput = Prisma.AtLeast<{
   origemBootstrap?: Prisma.BoolFilter<"VendaMensal"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  quantidadeLiquida?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
@@ -331,6 +448,14 @@ export type VendaMensalOrderByWithAggregationInput = {
   origemBootstrap?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorBruto?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrderInput | Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrderInput | Prisma.SortOrder
+  atendimentos?: Prisma.SortOrderInput | Prisma.SortOrder
+  origemAgregacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   _count?: Prisma.VendaMensalCountOrderByAggregateInput
   _avg?: Prisma.VendaMensalAvgOrderByAggregateInput
   _max?: Prisma.VendaMensalMaxOrderByAggregateInput
@@ -353,6 +478,14 @@ export type VendaMensalScalarWhereWithAggregatesInput = {
   origemBootstrap?: Prisma.BoolWithAggregatesFilter<"VendaMensal"> | boolean
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"VendaMensal"> | Date | string
   loteIngestaoId?: Prisma.StringNullableWithAggregatesFilter<"VendaMensal"> | string | null
+  quantidadeLiquida?: Prisma.DecimalNullableWithAggregatesFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.DecimalNullableWithAggregatesFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.DecimalNullableWithAggregatesFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.DecimalNullableWithAggregatesFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.IntNullableWithAggregatesFilter<"VendaMensal"> | number | null
+  atendimentos?: Prisma.IntNullableWithAggregatesFilter<"VendaMensal"> | number | null
+  origemAgregacao?: Prisma.StringNullableWithAggregatesFilter<"VendaMensal"> | string | null
+  createdAt?: Prisma.DateTimeWithAggregatesFilter<"VendaMensal"> | Date | string
 }
 
 export type VendaMensalCreateInput = {
@@ -364,6 +497,14 @@ export type VendaMensalCreateInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
@@ -381,6 +522,14 @@ export type VendaMensalUncheckedCreateInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalUpdateInput = {
@@ -392,6 +541,14 @@ export type VendaMensalUpdateInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
@@ -409,6 +566,14 @@ export type VendaMensalUncheckedUpdateInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalCreateManyInput = {
@@ -423,6 +588,14 @@ export type VendaMensalCreateManyInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalUpdateManyMutationInput = {
@@ -434,6 +607,14 @@ export type VendaMensalUpdateManyMutationInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalUncheckedUpdateManyInput = {
@@ -448,6 +629,14 @@ export type VendaMensalUncheckedUpdateManyInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalListRelationFilter = {
@@ -479,6 +668,14 @@ export type VendaMensalCountOrderByAggregateInput = {
   origemBootstrap?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrder
+  valorBruto?: Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrder
+  atendimentos?: Prisma.SortOrder
+  origemAgregacao?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type VendaMensalAvgOrderByAggregateInput = {
@@ -486,6 +683,12 @@ export type VendaMensalAvgOrderByAggregateInput = {
   mes?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valorTotal?: Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrder
+  valorBruto?: Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrder
+  atendimentos?: Prisma.SortOrder
 }
 
 export type VendaMensalMaxOrderByAggregateInput = {
@@ -500,6 +703,14 @@ export type VendaMensalMaxOrderByAggregateInput = {
   origemBootstrap?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrder
+  valorBruto?: Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrder
+  atendimentos?: Prisma.SortOrder
+  origemAgregacao?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type VendaMensalMinOrderByAggregateInput = {
@@ -514,6 +725,14 @@ export type VendaMensalMinOrderByAggregateInput = {
   origemBootstrap?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrder
+  valorBruto?: Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrder
+  atendimentos?: Prisma.SortOrder
+  origemAgregacao?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type VendaMensalSumOrderByAggregateInput = {
@@ -521,6 +740,12 @@ export type VendaMensalSumOrderByAggregateInput = {
   mes?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valorTotal?: Prisma.SortOrder
+  quantidadeLiquida?: Prisma.SortOrder
+  valorBruto?: Prisma.SortOrder
+  valorPagoUtente?: Prisma.SortOrder
+  valorComparticipado?: Prisma.SortOrder
+  linhasVenda?: Prisma.SortOrder
+  atendimentos?: Prisma.SortOrder
 }
 
 export type VendaMensalCreateNestedManyWithoutProdutoInput = {
@@ -658,6 +883,14 @@ export type VendaMensalCreateWithoutProdutoInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -673,6 +906,14 @@ export type VendaMensalUncheckedCreateWithoutProdutoInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalCreateOrConnectWithoutProdutoInput = {
@@ -716,6 +957,14 @@ export type VendaMensalScalarWhereInput = {
   origemBootstrap?: Prisma.BoolFilter<"VendaMensal"> | boolean
   dataAtualizacao?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  quantidadeLiquida?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.DecimalNullableFilter<"VendaMensal"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
+  origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
+  createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
 }
 
 export type VendaMensalCreateWithoutFarmaciaInput = {
@@ -727,6 +976,14 @@ export type VendaMensalCreateWithoutFarmaciaInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -742,6 +999,14 @@ export type VendaMensalUncheckedCreateWithoutFarmaciaInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalCreateOrConnectWithoutFarmaciaInput = {
@@ -779,6 +1044,14 @@ export type VendaMensalCreateWithoutLoteIngestaoInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -794,6 +1067,14 @@ export type VendaMensalUncheckedCreateWithoutLoteIngestaoInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalCreateOrConnectWithoutLoteIngestaoInput = {
@@ -833,6 +1114,14 @@ export type VendaMensalCreateManyProdutoInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalUpdateWithoutProdutoInput = {
@@ -844,6 +1133,14 @@ export type VendaMensalUpdateWithoutProdutoInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
 }
@@ -859,6 +1156,14 @@ export type VendaMensalUncheckedUpdateWithoutProdutoInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutProdutoInput = {
@@ -872,6 +1177,14 @@ export type VendaMensalUncheckedUpdateManyWithoutProdutoInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalCreateManyFarmaciaInput = {
@@ -885,6 +1198,14 @@ export type VendaMensalCreateManyFarmaciaInput = {
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
   loteIngestaoId?: string | null
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalUpdateWithoutFarmaciaInput = {
@@ -896,6 +1217,14 @@ export type VendaMensalUpdateWithoutFarmaciaInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
 }
@@ -911,6 +1240,14 @@ export type VendaMensalUncheckedUpdateWithoutFarmaciaInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutFarmaciaInput = {
@@ -924,6 +1261,14 @@ export type VendaMensalUncheckedUpdateManyWithoutFarmaciaInput = {
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalCreateManyLoteIngestaoInput = {
@@ -937,6 +1282,14 @@ export type VendaMensalCreateManyLoteIngestaoInput = {
   mesCompleto?: boolean
   origemBootstrap?: boolean
   dataAtualizacao?: Date | string
+  quantidadeLiquida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: number | null
+  atendimentos?: number | null
+  origemAgregacao?: string | null
+  createdAt?: Date | string
 }
 
 export type VendaMensalUpdateWithoutLoteIngestaoInput = {
@@ -948,6 +1301,14 @@ export type VendaMensalUpdateWithoutLoteIngestaoInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
 }
@@ -963,6 +1324,14 @@ export type VendaMensalUncheckedUpdateWithoutLoteIngestaoInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutLoteIngestaoInput = {
@@ -976,6 +1345,14 @@ export type VendaMensalUncheckedUpdateManyWithoutLoteIngestaoInput = {
   mesCompleto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   origemBootstrap?: Prisma.BoolFieldUpdateOperationsInput | boolean
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  quantidadeLiquida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorBruto?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorPagoUtente?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorComparticipado?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  linhasVenda?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -992,6 +1369,14 @@ export type VendaMensalSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   origemBootstrap?: boolean
   dataAtualizacao?: boolean
   loteIngestaoId?: boolean
+  quantidadeLiquida?: boolean
+  valorBruto?: boolean
+  valorPagoUtente?: boolean
+  valorComparticipado?: boolean
+  linhasVenda?: boolean
+  atendimentos?: boolean
+  origemAgregacao?: boolean
+  createdAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1009,6 +1394,14 @@ export type VendaMensalSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   origemBootstrap?: boolean
   dataAtualizacao?: boolean
   loteIngestaoId?: boolean
+  quantidadeLiquida?: boolean
+  valorBruto?: boolean
+  valorPagoUtente?: boolean
+  valorComparticipado?: boolean
+  linhasVenda?: boolean
+  atendimentos?: boolean
+  origemAgregacao?: boolean
+  createdAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1026,6 +1419,14 @@ export type VendaMensalSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   origemBootstrap?: boolean
   dataAtualizacao?: boolean
   loteIngestaoId?: boolean
+  quantidadeLiquida?: boolean
+  valorBruto?: boolean
+  valorPagoUtente?: boolean
+  valorComparticipado?: boolean
+  linhasVenda?: boolean
+  atendimentos?: boolean
+  origemAgregacao?: boolean
+  createdAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1043,9 +1444,17 @@ export type VendaMensalSelectScalar = {
   origemBootstrap?: boolean
   dataAtualizacao?: boolean
   loteIngestaoId?: boolean
+  quantidadeLiquida?: boolean
+  valorBruto?: boolean
+  valorPagoUtente?: boolean
+  valorComparticipado?: boolean
+  linhasVenda?: boolean
+  atendimentos?: boolean
+  origemAgregacao?: boolean
+  createdAt?: boolean
 }
 
-export type VendaMensalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "ano" | "mes" | "quantidade" | "valorTotal" | "mesCompleto" | "origemBootstrap" | "dataAtualizacao" | "loteIngestaoId", ExtArgs["result"]["vendaMensal"]>
+export type VendaMensalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "ano" | "mes" | "quantidade" | "valorTotal" | "mesCompleto" | "origemBootstrap" | "dataAtualizacao" | "loteIngestaoId" | "quantidadeLiquida" | "valorBruto" | "valorPagoUtente" | "valorComparticipado" | "linhasVenda" | "atendimentos" | "origemAgregacao" | "createdAt", ExtArgs["result"]["vendaMensal"]>
 export type VendaMensalInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1081,6 +1490,39 @@ export type $VendaMensalPayload<ExtArgs extends runtime.Types.Extensions.Interna
     origemBootstrap: boolean
     dataAtualizacao: Date
     loteIngestaoId: string | null
+    /**
+     * SUM assinado de quantidade (VENDA=+, DEVOLUCAO_ANULACAO=−).
+     */
+    quantidadeLiquida: runtime.Decimal | null
+    /**
+     * SUM assinado de pvpUnitario × quantidade. "Bruto" = teto comercial.
+     */
+    valorBruto: runtime.Decimal | null
+    /**
+     * SUM assinado de valorLinha (semântica observada: pago utente).
+     */
+    valorPagoUtente: runtime.Decimal | null
+    /**
+     * SUM assinado de comparticipacao1 + comparticipacao2.
+     */
+    valorComparticipado: runtime.Decimal | null
+    /**
+     * COUNT(*) de linhas que compuseram a agregação.
+     */
+    linhasVenda: number | null
+    /**
+     * COUNT(DISTINCT externalSaleId) — número de atendimentos distintos.
+     */
+    atendimentos: number | null
+    /**
+     * Marcador da origem da agregação. Permite distinguir rows
+     * agregadas server-side de rows legadas Excel-import.
+     */
+    origemAgregacao: string | null
+    /**
+     * Timestamp da primeira escrita do row (separa criação de actualização).
+     */
+    createdAt: Date
   }, ExtArgs["result"]["vendaMensal"]>
   composites: {}
 }
@@ -1518,6 +1960,14 @@ export interface VendaMensalFieldRefs {
   readonly origemBootstrap: Prisma.FieldRef<"VendaMensal", 'Boolean'>
   readonly dataAtualizacao: Prisma.FieldRef<"VendaMensal", 'DateTime'>
   readonly loteIngestaoId: Prisma.FieldRef<"VendaMensal", 'String'>
+  readonly quantidadeLiquida: Prisma.FieldRef<"VendaMensal", 'Decimal'>
+  readonly valorBruto: Prisma.FieldRef<"VendaMensal", 'Decimal'>
+  readonly valorPagoUtente: Prisma.FieldRef<"VendaMensal", 'Decimal'>
+  readonly valorComparticipado: Prisma.FieldRef<"VendaMensal", 'Decimal'>
+  readonly linhasVenda: Prisma.FieldRef<"VendaMensal", 'Int'>
+  readonly atendimentos: Prisma.FieldRef<"VendaMensal", 'Int'>
+  readonly origemAgregacao: Prisma.FieldRef<"VendaMensal", 'String'>
+  readonly createdAt: Prisma.FieldRef<"VendaMensal", 'DateTime'>
 }
     
 

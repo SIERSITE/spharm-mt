@@ -196,7 +196,20 @@ export type ProdutoInterno = Prisma.ProdutoInternoModel
 export type Venda = Prisma.VendaModel
 /**
  * Model VendaMensal
- * Vendas mensais agregadas.
+ * Vendas mensais agregadas. Granularidade canónica:
+ * `(farmaciaId, produtoId, ano, mes)`.
+ * 
+ * Fontes possíveis (campo `origemAgregacao`):
+ * · "agent-bootstrap-staging"  — agregação server-side de
+ * IngestVendaLinhaRaw via `scripts/aggregate-vendamensal.ts`
+ * · null / legado              — import Excel ou outras fontes
+ * pré-aggregation script (legacy)
+ * 
+ * Campos legados (`quantidade`, `valorTotal`, `mesCompleto`,
+ * `origemBootstrap`, `dataAtualizacao`, `loteIngestaoId`)
+ * preservados para compatibilidade com loaders e dashboards
+ * existentes — `aggregate-vendamensal.ts` populá-os a partir dos
+ * novos campos para que o dashboard continue intacto.
  */
 export type VendaMensal = Prisma.VendaMensalModel
 /**

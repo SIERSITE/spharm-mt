@@ -787,19 +787,53 @@ model Venda {
   @@index([loteIngestaoId])
 }
 
-/// Vendas mensais agregadas.
+/// Vendas mensais agregadas. Granularidade canónica:
+/// `(farmaciaId, produtoId, ano, mes)`.
+///
+/// Fontes possíveis (campo `origemAgregacao`):
+///   · "agent-bootstrap-staging"  — agregação server-side de
+///     IngestVendaLinhaRaw via `scripts/aggregate-vendamensal.ts`
+///   · null / legado              — import Excel ou outras fontes
+///     pré-aggregation script (legacy)
+///
+/// Campos legados (`quantidade`, `valorTotal`, `mesCompleto`,
+/// `origemBootstrap`, `dataAtualizacao`, `loteIngestaoId`)
+/// preservados para compatibilidade com loaders e dashboards
+/// existentes — `aggregate-vendamensal.ts` populá-os a partir dos
+/// novos campos para que o dashboard continue intacto.
 model VendaMensal {
   id              String   @id @default(cuid())
   farmaciaId      String
   produtoId       String
   ano             Int
   mes             Int
+
+  // ── Campos legados (NOT NULL, populados por loaders Excel + agg script)
   quantidade      Decimal  @db.Decimal(14, 3)
   valorTotal      Decimal  @db.Decimal(14, 2)
   mesCompleto     Boolean  @default(true)
   origemBootstrap Boolean  @default(false)
   dataAtualizacao DateTime @updatedAt
   loteIngestaoId  String?
+
+  // ── Campos da agregação (nullable até script popular) ──────────────
+  /// SUM assinado de quantidade (VENDA=+, DEVOLUCAO_ANULACAO=−).
+  quantidadeLiquida    Decimal? @db.Decimal(14, 3)
+  /// SUM assinado de pvpUnitario × quantidade. "Bruto" = teto comercial.
+  valorBruto           Decimal? @db.Decimal(14, 2)
+  /// SUM assinado de valorLinha (semântica observada: pago utente).
+  valorPagoUtente      Decimal? @db.Decimal(14, 2)
+  /// SUM assinado de comparticipacao1 + comparticipacao2.
+  valorComparticipado  Decimal? @db.Decimal(14, 2)
+  /// COUNT(*) de linhas que compuseram a agregação.
+  linhasVenda          Int?
+  /// COUNT(DISTINCT externalSaleId) — número de atendimentos distintos.
+  atendimentos         Int?
+  /// Marcador da origem da agregação. Permite distinguir rows
+  /// agregadas server-side de rows legadas Excel-import.
+  origemAgregacao      String?
+  /// Timestamp da primeira escrita do row (separa criação de actualização).
+  createdAt            DateTime @default(now())
 
   farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
@@ -809,6 +843,7 @@ model VendaMensal {
   @@index([ano, mes])
   @@index([farmaciaId, ano, mes])
   @@index([produtoId, ano, mes])
+  @@index([origemAgregacao])
 }
 
 /// Compras diárias agregadas por produto-dia-farmácia-fornecedor.

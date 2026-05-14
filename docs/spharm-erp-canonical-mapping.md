@@ -1,6 +1,6 @@
 # SPharm ERP → SPharm.MT — Canonical Mapping
 
-**Versão:** v0.9 · **Data:** 2026-05-14 · **Status:** classifier de TipoDocumento server-side (modelo `TipoDocumentoClassificacao` + scripts `classify-tipodoc` / `reclassify-ingest-vendas`); endpoint `/bootstrap/sales-lines` prefere lookup server-side, payload do agent fica como fallback
+**Versão:** v0.10 · **Data:** 2026-05-14 · **Status:** agregação `IngestVendaLinhaRaw` → `VendaMensal` entregue (`aggregate-vendamensal` script idempotente, transactional, scoped delete + insertMany); fields novos em VendaMensal preservam legacy schema; dashboard intacto
 
 Documento operacional que liga as tabelas observadas no **SPharm ERP
 (Softreis, SQL Server 2008 R2)** às entidades canónicas do **SPharm.MT**.
@@ -597,14 +597,16 @@ janela cmd com >=180 chars de largura — instrução em INSTALL_WINDOWS.
     - Modelo `TipoDocumentoClassificacao` + migration 20260514100000
     - Scripts `classify-tipodoc` + `reclassify-ingest-vendas`
     - Endpoint `sales-lines` prefere server-side; payload do agent é fallback
-15. ⏳ Caracterizar TipoDoc 7 com `sales-summary-preview` para 2024-01-01
-16. ⏳ Caracterizar TipoDoc 2 (data ainda não vista)
-17. ⏳ Fechar semântica de `[Valor_EUR]` (pago utente vs. total linha)
-18. ⏳ Implementar agregação `IngestVendaLinhaRaw` → `VendaMensal` (script + idempotência)
-19. ⏳ Refresh IPF + projections finais (lado SaaS, fora do agent)
+15. ✅ TipoDoc 7 caracterizado como `VENDA` (validado 2024-01-01, comparticipação SNS)
+16. ✅ TipoDoc 2 caracterizado como `VENDA` (validado 2024-04-01, 31 rows reclassificadas)
+17. ✅ Script `aggregate-vendamensal` + migration `20260514120000` entregues (§11)
+18. ⏳ Decidir tratamento de orphans (3 em 2024-01 + 5 em 2024-04)
+19. ⏳ Autorizar write da agregação para 2024-04 + verificar dashboard intacto
+20. ⏳ Refresh IPF + projections finais (lado SaaS, fora do agent)
+21. ⏳ Agendar `daily-sync` automático + agregação mensal automática (cron)
 
-Passos 15–19 são **iterações posteriores**. Este documento lock-in os
-passos 1–14.
+Passos 18–21 são **iterações posteriores**. Este documento lock-in os
+passos 1–17.
 
 ## 8. Endpoints SaaS `/api/ingest/v1/bootstrap/*` (v0.6)
 
@@ -1103,7 +1105,162 @@ tipoDocumentoClass IN ('UNKNOWN')` = 0, ou justificado. O classifier
 server-side é o gate disso — operador caracteriza cada TipoDoc
 desconhecido antes de avançar.
 
-## 11. Referências cruzadas
+## 11. Agregação `IngestVendaLinhaRaw` → `VendaMensal` (v0.10)
+
+Fase B do pipeline. Script CLI idempotente que lê staging, agrega
+por mês × produto × farmácia e escreve em `VendaMensal`. **Não toca**
+em loaders existentes, dashboard, ou rows de outras origens.
+
+### 11.1 Modelo `VendaMensal` (esquema actualizado)
+
+Granularidade canónica: `(farmaciaId, produtoId, ano, mes)` — unique.
+
+Campos legados (mantidos para backward compat com dashboard/loaders):
+
+| Campo | Tipo | Origem |
+|---|---|---|
+| `quantidade` | `Decimal(14,3)` NOT NULL | aggregate-vendamensal escreve `= quantidadeLiquida`; Excel-loader escreve o seu valor |
+| `valorTotal` | `Decimal(14,2)` NOT NULL | aggregate-vendamensal escreve `= valorBruto`; Excel-loader idem |
+| `mesCompleto` | `Boolean` | aggregate-vendamensal escreve `true` |
+| `origemBootstrap` | `Boolean` | aggregate-vendamensal escreve `false` |
+| `dataAtualizacao` | `DateTime @updatedAt` | Prisma layer |
+| `loteIngestaoId` | `String?` | NULL para aggregate-vendamensal |
+
+Campos novos (nullable, populados pela agg):
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `quantidadeLiquida` | `Decimal(14,3)?` | SUM assinado de quantidade (VENDA=+, DEV=−) |
+| `valorBruto` | `Decimal(14,2)?` | SUM assinado de PVP × Qtd |
+| `valorPagoUtente` | `Decimal(14,2)?` | SUM assinado de `valorLinha` (semântica observada §10.4) |
+| `valorComparticipado` | `Decimal(14,2)?` | SUM assinado de PrComp_EUR + PrComp_EUR2 |
+| `linhasVenda` | `Int?` | COUNT(*) de linhas raw |
+| `atendimentos` | `Int?` | COUNT(DISTINCT externalSaleId) |
+| `origemAgregacao` | `String?` | `"agent-bootstrap-staging"` p/ rows da agg; NULL p/ legacy |
+| `createdAt` | `DateTime` default now() | Timestamp da 1ª escrita |
+
+Migration: `20260514120000_vendamensal_aggregation_fields`.
+
+### 11.2 Regras de agregação
+
+Fonte única: `IngestVendaLinhaRaw`.
+
+```sql
+SELECT
+  "farmaciaId",
+  "produtoId",
+  SUM(CASE "tipoDocumentoClass"
+        WHEN 'VENDA'              THEN  ABS(quantidade)
+        WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(quantidade)
+        ELSE 0
+      END) AS quantidadeLiquida,
+  -- idêntico para valorBruto (PVP × Qtd), valorPagoUtente (valorLinha),
+  -- valorComparticipado (PrComp_EUR + PrComp_EUR2)
+  COUNT(*)                        AS linhasVenda,
+  COUNT(DISTINCT "externalSaleId") AS atendimentos
+FROM "IngestVendaLinhaRaw"
+WHERE "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
+  AND "produtoId" IS NOT NULL
+  AND "dataVenda" >= @from
+  AND "dataVenda" <  @toExclusive
+GROUP BY "farmaciaId", "produtoId"
+```
+
+**`ABS()` aplicado** para garantir sinal correcto mesmo se o ERP
+gravar devoluções com valor já negativo (defensivo). VENDA sempre
++|x|, DEVOLUCAO sempre −|x|.
+
+Classes `UNKNOWN` e `IGNORE_TECHNICAL` **nunca entram** na agregação.
+
+### 11.3 Idempotência: delete-then-insertMany
+
+```typescript
+await prisma.$transaction(async (tx) => {
+  // DELETE escopado: ano × mes × farmacias afectadas × origem agg
+  await tx.vendaMensal.deleteMany({
+    where: {
+      ano, mes,
+      farmaciaId: { in: farmaciaIds },
+      origemAgregacao: 'agent-bootstrap-staging',  // preserva legacy
+    },
+  });
+  await tx.vendaMensal.createMany({ data: rows });
+});
+```
+
+Garantias:
+- **Re-run produz mesmo estado.** DELETE+INSERT scoped por (ano, mes,
+  farmaciaId, origemAgregacao) → 2 runs consecutivos resultam no
+  mesmo conteúdo final.
+- **Nunca apaga outros meses.** WHERE constraint estrita.
+- **Nunca apaga rows legacy** (Excel-loader: `origemAgregacao IS NULL`).
+- **Atomicidade.** Transaction garante que DELETE e INSERT são
+  visíveis em conjunto — dashboard nunca vê estado parcial.
+
+### 11.4 Validações pré-write
+
+Antes de qualquer escrita, o script aborta se:
+
+1. `COUNT(*) WHERE tipoDocumentoClass='UNKNOWN'` > 0 no mês.
+   - Razão: caracterização incompleta. Risco de excluir vendas reais.
+   - Fix: caracterizar via `classify-tipodoc` + `reclassify-vendas`.
+2. `COUNT(*) WHERE produtoId IS NULL` > 0 no mês (unless `--allow-orphans`).
+   - Razão: linhas referenciam produto não-existente em `Produto`.
+   - Fix: re-run `bootstrap-upload` products para alargar catálogo, OU
+     passar `--allow-orphans` para ignorar essas linhas.
+
+### 11.5 Output do dry-run
+
+- Preflight counts: raw lines, distincts (produto/atendimento/farmácia),
+  distribuição por classe, orfãos, unknowns
+- Totals agregados: Σ quantidadeLiquida, Σ valorBruto, Σ valorPagoUtente,
+  Σ valorComparticipado, Σ linhasVenda, Σ atendimentos
+- Top 20 produtos por `valorBruto DESC` (com cnp + designacao)
+- Sample 5 produtos raw-vs-agregado: counts raw por class + valores agg
+- Nº de rows que seriam escritas em `VendaMensal`
+
+### 11.6 Usage
+
+```bash
+# Default: dry-run
+npm run aggregate:vendamensal -- --tenant demo-neon --month 2024-04 --dry-run
+
+# Aplicar
+npm run aggregate:vendamensal -- --tenant demo-neon --month 2024-04 --write
+
+# Permitir orfãos (excluir do agg em vez de abortar)
+npm run aggregate:vendamensal -- --tenant demo-neon --month 2024-04 --write --allow-orphans
+```
+
+### 11.7 NÃO faz
+
+- Update incremental linha-a-linha
+- Alteração ao staging `IngestVendaLinhaRaw`
+- Alteração ao dashboard ou loaders existentes
+- Cron / agendamento automático
+- Calcular forecasts ou KPIs derivados
+- Limpar staging após agregação
+
+### 11.8 Estado da agregação em demo-neon (dry-run 2026-05-14)
+
+| Mês | Raw lines | VENDA | DEVOLUCAO | UNKNOWN | Orphans | Decisão |
+|---|---|---|---|---|---|---|
+| 2024-01 | 11 | 11 | 0 | 0 | 3 | abortou — orphans pendentes |
+| 2024-04 | 762 | 747 | 15 | 0 | 5 | abortou — orphans pendentes |
+
+Os orphans são produtos vendidos cujo `externalProductId` não está
+em `Produto`. Bootstrap-upload de products usou filtro operacional
+(`[Retirado]=0 AND [Processa_Stocks]<>0`); daily-sync usa filtro de
+data sobre `[Data Ultima Venda]/[Data Ultima Compra]`. Produtos
+descontinuados ou com `[Data Ultima Venda]` mais recente que o mês
+agregado não entram em nenhum filtro.
+
+**Decisão pendente** (próximo passo do user):
+- (a) `--allow-orphans` aceitando perda de 3+5=8 linhas raw (≈ 1% de 2024-04)
+- (b) Re-run bootstrap-upload products mais permissivo
+- (c) Investigar manualmente cada orphan
+
+## 12. Referências cruzadas
 
 - Plano de execução SQL Server: [`../notes/local-agent-sqlserver-plan.md`](../notes/local-agent-sqlserver-plan.md)
 - Arquitectura geral: [`../notes/local-agent-architecture.md`](../notes/local-agent-architecture.md)

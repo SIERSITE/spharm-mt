@@ -3493,7 +3493,15 @@ export const VendaMensalScalarFieldEnum = {
   mesCompleto: 'mesCompleto',
   origemBootstrap: 'origemBootstrap',
   dataAtualizacao: 'dataAtualizacao',
-  loteIngestaoId: 'loteIngestaoId'
+  loteIngestaoId: 'loteIngestaoId',
+  quantidadeLiquida: 'quantidadeLiquida',
+  valorBruto: 'valorBruto',
+  valorPagoUtente: 'valorPagoUtente',
+  valorComparticipado: 'valorComparticipado',
+  linhasVenda: 'linhasVenda',
+  atendimentos: 'atendimentos',
+  origemAgregacao: 'origemAgregacao',
+  createdAt: 'createdAt'
 } as const
 
 export type VendaMensalScalarFieldEnum = (typeof VendaMensalScalarFieldEnum)[keyof typeof VendaMensalScalarFieldEnum]
