@@ -600,6 +600,102 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // export-orders-auto — TASK SCHEDULER target.
+  // Sem prompts. Output redirigido para logs/export-orders-<YYYY-MM-DD>.log.
+  // Exit code do node propagado para que o Task Scheduler distinga sucesso/falha.
+  // A data é calculada via node.exe (independente do locale de %DATE%).
+  const exportOrdersAutoBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — export-orders AUTO (Task Scheduler)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    `cd /d "%~dp0"`,
+    `if not exist agent.config.json (`,
+    `  echo ERRO: agent.config.json nao encontrado em %~dp0.`,
+    `  exit /b 1`,
+    `)`,
+    `if not exist node.exe (`,
+    `  echo ERRO: node.exe nao encontrado em %~dp0.`,
+    `  exit /b 1`,
+    `)`,
+    `if not exist logs mkdir logs`,
+    ``,
+    `REM Data YYYY-MM-DD via node (sem dependencia de locale)`,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "TODAY=%%I"`,
+    `set "LOGFILE=logs\\export-orders-%TODAY%.log"`,
+    ``,
+    `echo. >> "%LOGFILE%"`,
+    `echo === [%DATE% %TIME%] export-orders-auto START === >> "%LOGFILE%"`,
+    `node.exe agent.cjs export-orders >> "%LOGFILE%" 2>&1`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo === [%DATE% %TIME%] export-orders-auto END (exit=%EXIT%) === >> "%LOGFILE%"`,
+    ``,
+    `if not "%EXIT%"=="0" (`,
+    `  echo ERROR: export-orders retornou %EXIT% — ver %LOGFILE%`,
+    `)`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-export-orders-auto.bat"),
+    exportOrdersAutoBat,
+    "utf8"
+  );
+
+  // export-orders-once — manual interactivo. Mostra output em tempo real
+  // + ainda assim escreve no log para forensics. pause no fim.
+  const exportOrdersOnceBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — export-orders ONCE (manual interactivo)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `if not exist logs mkdir logs`,
+    ``,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "TODAY=%%I"`,
+    `set "LOGFILE=logs\\export-orders-%TODAY%.log"`,
+    ``,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   export-orders — execucao manual (1 passagem)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai correr 1 ciclo de export-orders:`,
+    `echo   - GET pending no SaaS (lease atomico de ate 50)`,
+    `echo   - writeOrderToSpharm por encomenda`,
+    `echo   - ack/nack ao SaaS por resultado`,
+    `echo.`,
+    `echo Log gravado em: %LOGFILE%`,
+    `echo (a janela mostra output em tempo real)`,
+    `echo.`,
+    `pause`,
+    `echo.`,
+    `echo === [%DATE% %TIME%] export-orders-once START === >> "%LOGFILE%"`,
+    `node.exe agent.cjs export-orders`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo === [%DATE% %TIME%] export-orders-once END (exit=%EXIT%) === >> "%LOGFILE%"`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Exit code: 0 ^(OK^)`,
+    `) else (`,
+    `  echo Exit code: %EXIT% ^(erro^)`,
+    `)`,
+    `echo Log: %LOGFILE%`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-export-orders-once.bat"),
+    exportOrdersOnceBat,
+    "utf8"
+  );
+
   // daily-pipeline-auto — orquestrador autonomo (TASK SCHEDULER target).
   // Calcula ontem internamente. Sem prompt interactivo. Lockfile + logs locais.
   const dailyPipelineAutoBat = [
@@ -692,7 +788,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 9} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + test-order-write + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 11} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -738,6 +834,8 @@ function writeReadme() {
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat   Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
+    `  run-export-orders-auto.bat      Task Scheduler: 1 ciclo de export-orders. Log em logs\\export-orders-*.log.`,
+    `  run-export-orders-once.bat      Execucao manual interactiva (pause no fim).`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,

@@ -253,6 +253,33 @@ O dev vai entregar uma nova versão do agent com mais 2 ficheiros:
 
 Para o `daily-sync` ficar automático, na altura criamos uma **Task Scheduler** que dispara o `.bat` todos os dias às 3:00 AM. Documentação completa virá com essa entrega.
 
+### 8.4 Encomendas SaaS → SPharm local (rev16+)
+
+Quando o SaaS finalizar uma encomenda, fica em fila no outbox SaaS. O agent puxa periodicamente e escreve no SPharm local. **Não há comunicação directa SaaS → SQL Server.**
+
+Dois BATs para este fluxo:
+
+- **`run-export-orders-auto.bat`** — para Task Scheduler. Sem prompts, sem janela visível.
+  - Cada execução: GET pending → write SPharm (ou JSON em modo stub) → ack/nack SaaS.
+  - Log em `logs\export-orders-<YYYY-MM-DD>.log` (append, um ficheiro por dia).
+  - Exit code 0 = OK, ≠0 = falha (Task Scheduler regista no histórico).
+  - Resumo final no log: `pulled / inserted / idempotent / acked / failed`.
+  - Configurar no Task Scheduler para correr a cada 5-10 minutos.
+
+- **`run-export-orders-once.bat`** — execução manual interactiva. Pede `pause` antes de correr e no fim. Output visível em tempo real na janela. Útil para debug manual ou primeira validação.
+
+Modos (controlado por `options.ordersWriteMode` em `agent.config.json`):
+
+- `"stub"` (default): exporta JSON em `output\orders-export\<data>\<outboxId>.json` e ack a SaaS com docId STUB-*. **NÃO escreve no SPharm.** O log mostra aviso explícito.
+- `"insert"`: INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`. Requer secção `ordersInsert` preenchida e SQL login com `db_datawriter` (ou INSERT grant nas tabelas-alvo). Idempotente via `outboxId` em `[VVM_ID]`.
+
+**Antes de activar `ordersWriteMode=insert` em produção:**
+1. Validar schema com `run-inspect-orders-schema.bat`
+2. Smoke test com `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT)
+3. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
+
+Detalhes completos em [pilot-operator-guide.md](pilot-operator-guide.md#rev15).
+
 ### 8.3 Como parar / desinstalar
 
 Como o agent não é um serviço Windows na v0.1:

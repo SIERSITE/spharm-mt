@@ -108,6 +108,7 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev16 | Adicionado `run-export-orders-auto.bat` (Task Scheduler: log file + exit code, sem prompts) e `run-export-orders-once.bat` (manual com pause). Summary do `export-orders` enriquecido: `pulled / inserted / idempotent / acked / failed`. Aviso explícito quando `ordersWriteMode=stub`. |
 | 2026-05-14 | rev15 | `writeInsert` real implementado (INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`, idempotente via `VVM_ID`). Adicionado `run-test-order-write.bat` (smoke test com DRY-RUN default + opção COMMIT). Secção `ordersInsert` em `agent.config.json` exigida quando `ordersWriteMode=insert`. |
 | 2026-05-14 | rev14 | Adicionado `run-inspect-orders-schema.bat` (probe read-only ao schema das encomendas SPharm; gera `inspection.md`). NÃO activa escrita real. |
 | 2026-05-14 | rev13 | Adicionado daily-pipeline + auto-bat para Task Scheduler |
@@ -197,7 +198,7 @@ Depois de um `--commit` bem-sucedido, o operador SPharm valida:
 Depois da validação:
 
 1. `ordersWriteMode=insert` fica em produção (já está no config)
-2. Agendar `agent.cjs export-orders` no Task Scheduler (intervalo recomendado: a cada 5-10min) — análogo a `run-daily-pipeline-auto.bat`. **Nota:** v15 não inclui um `run-export-orders-auto.bat` dedicado; criar via Task Scheduler usando `node.exe agent.cjs export-orders` como comando
+2. Agendar **`run-export-orders-auto.bat`** no Task Scheduler (intervalo recomendado: a cada 5-10 min). Sem prompts, sem janela visível, log em `logs\export-orders-<YYYY-MM-DD>.log`, exit code propagado. Wrapper introduzido em **rev16** — não usar `node.exe agent.cjs export-orders` directamente.
 
 ### Rollback automático em erro
 
@@ -205,6 +206,58 @@ Qualquer falha no caminho de INSERT (CNP inexistente, FK violation, deadlock, ti
 
 - **retryable=true**: deadlock (1205), timeout (-2), network (ECONNRESET/ECONNREFUSED/ETIMEOUT/ESOCKET). A SaaS recoloca em PENDENTE com backoff.
 - **retryable=false**: CNP não encontrado, FK violation (fornecedor/user/armazém inexistente), schema mismatch. A SaaS marca FALHADO para triagem humana.
+
+## rev16 — wrappers operacionais do export-orders
+
+### `run-export-orders-auto.bat` (Task Scheduler)
+
+Sem prompts. Designed para `schtasks` ou Task Scheduler UI.
+
+Comportamento:
+1. Calcula `YYYY-MM-DD` via `node.exe` (independente do locale do Windows)
+2. Cria `logs/` se não existir
+3. Append `=== START ===` no `logs/export-orders-<data>.log`
+4. Corre `node.exe agent.cjs export-orders` com stdout+stderr → log
+5. Append `=== END (exit=N) ===`
+6. Se `EXIT != 0`, ecoa erro para stdout (Task Scheduler regista)
+7. `exit /b %EXIT%` — Task Scheduler vê o código real
+
+Configuração típica no Task Scheduler:
+- **Trigger**: At startup + every 5 minutes for 1 day, repeat indefinitely
+- **Action**: Start a program → `C:\spharmmt\agent\run-export-orders-auto.bat`
+- **Conditions**: desmarcar "Start the task only if the computer is on AC power"
+- **Settings**: "If the task is already running, then the following rule applies: Do not start a new instance"
+
+### `run-export-orders-once.bat` (manual)
+
+Interactivo. `pause` antes e depois. Output em tempo real. Log gravado mas só com markers de START/END (não duplica o output do agent — operador vê na janela).
+
+Quando usar:
+- Primeira validação após configurar `ordersWriteMode=insert`
+- Debug de uma encomenda que falhou na corrida automática
+- Verificar manualmente o output do summary antes de confiar no Task Scheduler
+
+### Summary impresso no fim de cada corrida
+
+```
+═══════════════════════════════════════════════════════════════
+Resumo
+═══════════════════════════════════════════════════════════════
+  mode         : insert
+  pulled       : 5
+  inserted     : 3     (writes novos no SPharm)
+  idempotent   : 1     (outboxId já existia — sem novo INSERT)
+  acked        : 4     (SaaS marcou EXPORTADO)
+  nacked       : 1     (SaaS marcou FALHADO ou re-queued)
+  failed       : 0     (erros sem nack — lease expira e reentrega)
+═══════════════════════════════════════════════════════════════
+```
+
+Em modo `stub`, aparece também:
+```
+⚠  ATENÇÃO: ordersWriteMode=stub — NADA foi escrito no SPharm.
+   Apenas ficheiros JSON em <outputDir>/orders-export/<YYYY-MM-DD>/.
+```
 
 ### Limitações conhecidas v1
 
