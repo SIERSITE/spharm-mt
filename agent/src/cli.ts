@@ -43,6 +43,7 @@ import { bootstrapUpload } from "./commands/bootstrap-upload.js";
 import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
+import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { health } from "./commands/health.js";
 
@@ -112,6 +113,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "export-orders": {
     run: exportOrders,
     desc: "Puxa encomendas pending do SaaS e escreve no SPharm local (stub|insert).",
+  },
+  "inspect-orders-schema": {
+    run: inspectOrdersSchema,
+    desc: "Probe read-only às tabelas SPharm de encomendas. Gera markdown para validação.",
   },
   "inspect-codigoid": {
     run: inspectCodigoId,
