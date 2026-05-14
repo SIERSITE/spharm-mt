@@ -252,6 +252,48 @@ function fmtEur(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/* ---------- Healthchecks.io ping ---------- */
+
+/**
+ * Posta um sinal ao endpoint configurado em `healthcheckUrl`. Convenção
+ * Healthchecks.io:
+ *   · POST `<url>/start`       — pipeline arrancou
+ *   · POST `<url>`             — sucesso (default endpoint)
+ *   · POST `<url>/fail`        — falha
+ *
+ * Best-effort: timeout curto (5s), excepções engolidas. Nunca afeta o
+ * exit code do pipeline. Quando `url` é null/empty, no-op silencioso.
+ */
+async function pingHealthcheck(
+  baseUrl: string | undefined,
+  variant: "start" | "ok" | "fail",
+  payload: string | null,
+  logger: TeeLogger
+): Promise<void> {
+  if (!baseUrl) return;
+  const suffix = variant === "start" ? "/start" : variant === "fail" ? "/fail" : "";
+  const url = `${baseUrl.replace(/\/+$/, "")}${suffix}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain", "User-Agent": "spharmmt-agent/healthcheck" },
+        body: payload?.slice(0, 10_000) ?? "",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    logger.log(`✓ healthcheck ping (${variant})`);
+  } catch (err) {
+    logger.log(
+      `⚠ healthcheck ping ${variant} falhou (best-effort): ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
 /* ---------- Entrypoint ---------- */
 
 export async function dailyPipeline(): Promise<number> {
@@ -312,7 +354,12 @@ export async function dailyPipeline(): Promise<number> {
   pipelineLog.log(`Dia               : ${parsedDate}`);
   pipelineLog.log(`Mês para agregar  : ${month}`);
   pipelineLog.log(`Skip aggregate    : ${args.skipAggregate ? "sim" : "não"}`);
+  pipelineLog.log(`Healthcheck URL   : ${cfg.healthcheckUrl ? "configurado" : "(não configurado)"}`);
   pipelineLog.log("");
+
+  // Ping /start ao endpoint Healthchecks.io (best-effort). Permite que o
+  // dead-man switch detecte quando o agent nunca arranca.
+  await pingHealthcheck(cfg.healthcheckUrl, "start", `daily-pipeline ${parsedDate}`, pipelineLog);
 
   let lockAcquired = false;
   let pipelineStatus: "OK" | "ERROR" | "ABORTED" = "OK";
@@ -514,6 +561,23 @@ export async function dailyPipeline(): Promise<number> {
         );
       }
     }
+
+    // Ping final ao Healthchecks.io. Endpoint variant baseado no
+    // status: OK → endpoint padrão; ERROR/ABORTED → /fail.
+    const summaryBody = [
+      `daily-pipeline ${pipelineStatus}`,
+      `date=${parsedDate}`,
+      `duration=${fmtDuration(wallMs)}`,
+      dailySyncCounts ? `sales=${dailySyncCounts.salesUpserted}` : null,
+      aggregateResp ? `agg_rows=${aggregateResp.rowsInserted}` : null,
+      errorMessage ? `error=${errorMessage.slice(0, 200)}` : null,
+    ].filter(Boolean).join("\n");
+    await pingHealthcheck(
+      cfg.healthcheckUrl,
+      pipelineStatus === "OK" ? "ok" : "fail",
+      summaryBody,
+      pipelineLog
+    );
 
     // Flush logs
     await Promise.allSettled([

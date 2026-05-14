@@ -39,6 +39,11 @@ export type AgentConfig = {
   tenantSlug: string;
   ingestKey: string;
   farmacia?: string;
+  // Healthchecks.io (optional external dead-man switch)
+  // Quando definido, o daily-pipeline POSTa ao endpoint no start e
+  // GET de sucesso/falha no fim. Best-effort — falha de ping nunca
+  // afecta o pipeline em si.
+  healthcheckUrl?: string;
   // SQL Server
   sqlHost: string;
   sqlPort: number;
@@ -155,6 +160,7 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_TENANT_SLUG", saas.tenantSlug);
   set("SPHARMMT_INGEST_KEY", saas.ingestKey);
   set("SPHARMMT_FARMACIA", saas.farmacia);
+  set("SPHARMMT_HEALTHCHECK_URL", saas.healthcheckUrl);
 
   set("ERP_SQLSERVER_HOST", sqlServer.host);
   set("ERP_SQLSERVER_PORT", sqlServer.port);
@@ -203,6 +209,7 @@ export function loadConfig(scope: Scope): AgentConfig {
     ? need("SPHARMMT_INGEST_KEY")
     : (optionalEnv("SPHARMMT_INGEST_KEY") ?? "");
   const farmacia = optionalEnv("SPHARMMT_FARMACIA");
+  const healthcheckUrl = optionalEnv("SPHARMMT_HEALTHCHECK_URL");
 
   const sqlHost = wantsSql
     ? need("ERP_SQLSERVER_HOST")
@@ -248,6 +255,7 @@ export function loadConfig(scope: Scope): AgentConfig {
     tenantSlug,
     ingestKey,
     farmacia,
+    healthcheckUrl,
     sqlHost,
     sqlPort,
     sqlDatabase,

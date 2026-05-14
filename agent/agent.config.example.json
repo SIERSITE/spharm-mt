@@ -4,7 +4,9 @@
     "endpoint": "https://app.spharmmt.app",
     "tenantSlug": "demo-neon",
     "ingestKey": "COLAR_KEY_64_HEX_DO_DEV",
-    "farmacia": "Farmácia Central"
+    "farmacia": "Farmácia Central",
+    "_healthcheckUrl_doc": "OPCIONAL — dead-man switch externo. URL base Healthchecks.io/cronitor. Agent posta /start, /fail e endpoint default. Recomendado em produção para detectar PC offline.",
+    "healthcheckUrl": ""
   },
   "sqlServer": {
     "host": "localhost",
