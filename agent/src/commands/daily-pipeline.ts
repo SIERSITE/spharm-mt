@@ -30,6 +30,7 @@
 import { parseArgs } from "node:util";
 import { promises as fs } from "node:fs";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
@@ -95,7 +96,7 @@ function monthOf(dateIso: string): string {
 
 /* ---------- Lockfile ---------- */
 
-const STALE_LOCK_MS = 6 * 60 * 60 * 1000; // 6 horas
+const STALE_LOCK_MS = 6 * 60 * 60 * 1000; // 6 horas — safety net
 
 type LockFileContent = {
   pid: number;
@@ -106,6 +107,33 @@ type LockFileContent = {
 
 function lockFilePath(): string {
   return path.join(process.cwd(), "run", "pipeline.lock");
+}
+
+/**
+ * Windows-specific: confirma se o PID está vivo via `tasklist`. Devolve
+ * `true` se vivo, `false` se morto, `null` se não conseguimos
+ * determinar (ex: tasklist indisponível, permissões). Em null, cai-se
+ * no path de timestamp-based stale detection.
+ */
+function isPidAlive(pid: number): boolean | null {
+  if (process.platform !== "win32") return null;
+  if (!Number.isFinite(pid) || pid <= 0) return null;
+  try {
+    const r = spawnSync(
+      "tasklist",
+      ["/FI", `PID eq ${pid}`, "/NH", "/FO", "CSV"],
+      { encoding: "utf8", timeout: 5_000 }
+    );
+    if (r.status !== 0 || !r.stdout) return null;
+    // "INFO: No tasks are running..." quando PID não existe; CSV row
+    // com o nome do processo quando vive.
+    const out = r.stdout.trim();
+    if (out.toLowerCase().includes("no tasks")) return false;
+    // CSV: a primeira coluna é o image name. Se tem aspas, o PID existe.
+    return out.startsWith('"');
+  } catch {
+    return null;
+  }
 }
 
 async function acquireLock(force: boolean, kind: string, date: string): Promise<void> {
@@ -120,11 +148,20 @@ async function acquireLock(force: boolean, kind: string, date: string): Promise<
       if (!Number.isFinite(ageMs) || ageMs < 0) {
         throw new Error(`Lock corrupted (startedAt=${data.startedAt})`);
       }
-      if (ageMs > STALE_LOCK_MS || force) {
+
+      // Liveness check: se o PID já não existe, lock está stale ainda
+      // que o timestamp seja recente. Evita esperar 6h após crash.
+      const alive = isPidAlive(data.pid);
+      if (alive === false) {
+        console.warn(
+          `⚠ Lockfile pid=${data.pid} já não está vivo (started=${data.startedAt}) — a reclamar.`
+        );
+      } else if (ageMs > STALE_LOCK_MS || force) {
         console.warn(
           `⚠ Lockfile stale (${(ageMs / 1000 / 60).toFixed(0)} min) ou --force — a reclamar.`
         );
       } else {
+        // PID vivo (ou indeterminável) E timestamp recente E sem --force.
         throw new Error(
           `Pipeline já corre (pid=${data.pid}, started=${data.startedAt}, kind=${data.kind}). Usa --force ou aguarda.`
         );
