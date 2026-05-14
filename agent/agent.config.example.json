@@ -20,7 +20,22 @@
   "options": {
     "outputDir": "output",
     "agentVersion": "0.1.0",
-    "_ordersWriteMode_doc": "Como escrever encomendas finalizadas no SPharm: 'stub' (default — escreve JSON no outputDir/orders-export/, ack com docId STUB-... para testar pipeline) ou 'insert' (INSERT real, requer schema SPharm mapeado — actualmente bloqueado).",
+    "_ordersWriteMode_doc": "Como escrever encomendas finalizadas no SPharm: 'stub' (default — escreve JSON no outputDir/orders-export/, ack com docId STUB-...) ou 'insert' (INSERT real em dbo.Encomendas + dbo.[Encomendas Detalhe], requer secção ordersInsert abaixo e SQL login com db_datawriter).",
     "ordersWriteMode": "stub"
+  },
+  "_ordersInsert_doc": "OBRIGATÓRIO quando ordersWriteMode=insert. Operador SPharm preenche depois de validar com run-test-order-write.bat em dry-run. Valores típicos sugeridos abaixo — confirmar localmente em cada farmácia.",
+  "ordersInsert": {
+    "_userIdForInsert_doc": "User ID SPharm (smallint) que aparece como 'criador' da encomenda. Usar um utilizador dedicado (criar via SPharm UI) ou um operacional existente.",
+    "userIdForInsert": 0,
+    "_fornecedorIdForOrders_doc": "Fornecedor ID SPharm default para encomendas vindas do SaaS. v1 limitation: 1 fornecedor por farmácia. Validar via SPharm UI a lista de fornecedores e escolher o pretendido.",
+    "fornecedorIdForOrders": 0,
+    "_armazemId_doc": "ArmazemID (tinyint). Default observado em todas as amostras = 1.",
+    "armazemId": 1,
+    "_tipoEncomendaId_doc": "TipoEncomendaID (tinyint). Default observado em todas as amostras = 2. Verificar em dbo.TipoEncomenda quais os valores válidos no SPharm local.",
+    "tipoEncomendaId": 2,
+    "_encomendaSituacaoInitial_doc": "EncomendaSituacaoID (char(1)) estado inicial. 'A' = Aberta (default). Operador pode usar outro valor — confirmar em dbo.[Enc_Situacao] ou equivalente.",
+    "encomendaSituacaoInitial": "A",
+    "_idempotencyColumn_doc": "Coluna em dbo.Encomendas onde guardar o outboxId SaaS (varchar(25)). Default VVM_ID (sempre NULL nas amostras observadas). Trocar se VVM_ID estiver em uso local.",
+    "idempotencyColumn": "VVM_ID"
   }
 }

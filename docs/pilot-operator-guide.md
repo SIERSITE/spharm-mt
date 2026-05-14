@@ -108,6 +108,7 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev15 | `writeInsert` real implementado (INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`, idempotente via `VVM_ID`). Adicionado `run-test-order-write.bat` (smoke test com DRY-RUN default + opção COMMIT). Secção `ordersInsert` em `agent.config.json` exigida quando `ordersWriteMode=insert`. |
 | 2026-05-14 | rev14 | Adicionado `run-inspect-orders-schema.bat` (probe read-only ao schema das encomendas SPharm; gera `inspection.md`). NÃO activa escrita real. |
 | 2026-05-14 | rev13 | Adicionado daily-pipeline + auto-bat para Task Scheduler |
 | 2026-05-14 | rev12 | Adicionado processaStocks no payload de vendas |
@@ -136,3 +137,78 @@ Sequência obrigatória no PC da farmácia:
 - Não activa o modo `insert` do agent (continua em `stub` por contracto)
 
 A escrita real de encomendas no SPharm só será implementada depois do admin analisar o `inspection.md` recebido.
+
+## rev15 — activação do modo insert (escrita real)
+
+Pré-requisito: `inspection.md` da rev14 validado pelo admin SPharm.
+
+### 1. Permissões SQL Server
+
+O SQL login usado pelo agent precisa de upgrade. Opções:
+
+- **Simples (não recomendado em produção)**: `ALTER ROLE db_datawriter ADD MEMBER [spharm_agent]`. Concede escrita em toda a BD.
+- **Granular (recomendado)**: conceder apenas INSERT + SELECT em duas tabelas:
+  ```sql
+  GRANT SELECT, INSERT ON [dbo].[Encomendas]          TO [spharm_agent];
+  GRANT SELECT, INSERT ON [dbo].[Encomendas Detalhe]  TO [spharm_agent];
+  GRANT SELECT          ON [dbo].[Stocks]             TO [spharm_agent];  -- já existe
+  GRANT VIEW DEFINITION ON SCHEMA::dbo                TO [spharm_agent];  -- para sys.columns probe
+  ```
+
+### 2. Editar `agent.config.json`
+
+Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
+
+```jsonc
+"options": {
+  "ordersWriteMode": "insert"
+},
+"ordersInsert": {
+  "userIdForInsert":         25,        // User ID SPharm existente
+  "fornecedorIdForOrders":   416,       // Fornecedor default (validar em SPharm UI)
+  "armazemId":               1,         // Default observado
+  "tipoEncomendaId":         2,         // Default observado
+  "encomendaSituacaoInitial": "A",      // 'A' = Aberta (confirmar localmente)
+  "idempotencyColumn":       "VVM_ID"   // Coluna para guardar outboxId (varchar(25))
+}
+```
+
+### 3. Smoke test (sem efeito permanente)
+
+`run-test-order-write.bat`:
+
+1. Operador escolhe CNP de um produto existente em `dbo.Stocks`
+2. Escolhe quantidade (inteiro)
+3. Escolhe modo:
+   - **1 = DRY-RUN** (default) → executa INSERT dentro de transacção e faz ROLLBACK. Nada visível em SPharm. Valida que o caminho funciona end-to-end.
+   - **2 = COMMIT** → escrita real, pede confirmação "CONFIRMO". Encomenda fica visível em SPharm UI imediatamente.
+
+### 4. Validação operacional
+
+Depois de um `--commit` bem-sucedido, o operador SPharm valida:
+
+- A encomenda aparece na lista de encomendas pendentes em SPharm UI
+- 1 linha presente com o CNP escolhido + quantidade
+- Estado inicial = `encomendaSituacaoInitial` da config
+- Re-run com mesmo `--outbox-id` devolve `source=idempotent` (mesma encomenda ID; sem duplicação)
+
+### 5. Activação em produção
+
+Depois da validação:
+
+1. `ordersWriteMode=insert` fica em produção (já está no config)
+2. Agendar `agent.cjs export-orders` no Task Scheduler (intervalo recomendado: a cada 5-10min) — análogo a `run-daily-pipeline-auto.bat`. **Nota:** v15 não inclui um `run-export-orders-auto.bat` dedicado; criar via Task Scheduler usando `node.exe agent.cjs export-orders` como comando
+
+### Rollback automático em erro
+
+Qualquer falha no caminho de INSERT (CNP inexistente, FK violation, deadlock, timeout, permission denied) aciona `tx.rollback()` antes da exception propagar. O outbox SaaS recebe `nack(retryable=true)` ou `nack(retryable=false)` consoante o tipo de erro:
+
+- **retryable=true**: deadlock (1205), timeout (-2), network (ECONNRESET/ECONNREFUSED/ETIMEOUT/ESOCKET). A SaaS recoloca em PENDENTE com backoff.
+- **retryable=false**: CNP não encontrado, FK violation (fornecedor/user/armazém inexistente), schema mismatch. A SaaS marca FALHADO para triagem humana.
+
+### Limitações conhecidas v1
+
+- **Mapeamento Fornecedor SaaS↔SPharm**: 1 fornecedor por farmácia via config. Encomendas multi-fornecedor exigirão uma tabela de mapping no SaaS (v2).
+- **NEncomenda**: calculado `MAX([NEncomenda]) + 1` sob `TABLOCKX HOLDLOCK`. Seguro para single-instance agent + operador concorrente em SPharm UI. NÃO suporta múltiplos agents a escrever simultaneamente para o mesmo SPharm.
+- **Sem stored procedure**: INSERT directo. Se o SPharm tiver SP `usp_CriarEncomenda` com regras de negócio, este caminho NÃO as dispara. Validar com admin SPharm no smoke test.
+- **`Encomenda ID` deve ser IDENTITY**: o agent verifica em runtime via `sys.columns`. Se não for, falha cedo com mensagem clara — não tenta inventar IDs.

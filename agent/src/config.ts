@@ -33,6 +33,32 @@ export type Scope =
   /** Comandos que precisam de ambos (test-connection, bootstrap, daily-sync). */
   | "both";
 
+/**
+ * Configuração obrigatória quando `ordersWriteMode === "insert"`.
+ *
+ * Todos os campos vêm do operador SPharm — não há defaults seguros
+ * sem o conhecimento local do ERP. Validação acontece no loadConfig
+ * (falha cedo se incompleta em modo insert).
+ *
+ * Mapeamento para colunas SPharm:
+ *   - userIdForInsert       → dbo.Encomendas.[User ID]               (smallint)
+ *   - fornecedorIdForOrders → dbo.Encomendas.[Fornecedor ID]         (int)
+ *   - armazemId             → dbo.Encomendas.[ArmazemID]             (tinyint)
+ *   - tipoEncomendaId       → dbo.Encomendas.[TipoEncomendaID]       (tinyint)
+ *   - encomendaSituacaoInitial → dbo.Encomendas.[EncomendaSituacaoID] (char(1))
+ *   - idempotencyColumn     → nome da coluna em dbo.Encomendas para guardar
+ *                              o outboxId SaaS (default "VVM_ID" — varchar(25),
+ *                              sempre NULL nas amostras observadas)
+ */
+export type OrdersInsertConfig = {
+  userIdForInsert: number;
+  fornecedorIdForOrders: number;
+  armazemId: number;
+  tipoEncomendaId: number;
+  encomendaSituacaoInitial: string;
+  idempotencyColumn: string;
+};
+
 export type AgentConfig = {
   // SaaS
   saasEndpoint: string;
@@ -58,9 +84,12 @@ export type AgentConfig = {
   // Como escrever encomendas finalizadas no SPharm:
   //   · stub   (default) — escreve um JSON por encomenda em
   //     `<outputDir>/orders-export/...` e ACK ao SaaS com docId STUB-...
-  //   · insert — INSERT real nas tabelas SPharm (bloqueado até schema
-  //     consolidado; ver agent/src/spharm-orders-writer.ts)
+  //   · insert — INSERT real nas tabelas SPharm. Requer `ordersInsert`
+  //     populado e SQL login com db_datawriter (ou INSERT grant) em
+  //     dbo.Encomendas + dbo.Encomendas Detalhe.
   ordersWriteMode?: "stub" | "insert";
+  /** Obrigatório quando ordersWriteMode === "insert". */
+  ordersInsert?: OrdersInsertConfig;
   // Misc
   agentVersion: string;
 };
@@ -183,6 +212,16 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_AGENT_VERSION", options.agentVersion);
   set("SPHARMMT_ORDERS_WRITE_MODE", options.ordersWriteMode);
 
+  // ordersInsert: secção dedicada no JSON. Cada campo mapeia para uma env
+  // SPHARMMT_ORDERS_* para que o código de validação seja uniforme.
+  const ordersInsert = (cfg.ordersInsert as Record<string, unknown> | undefined) ?? {};
+  set("SPHARMMT_ORDERS_USER_ID", ordersInsert.userIdForInsert);
+  set("SPHARMMT_ORDERS_FORNECEDOR_ID", ordersInsert.fornecedorIdForOrders);
+  set("SPHARMMT_ORDERS_ARMAZEM_ID", ordersInsert.armazemId);
+  set("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", ordersInsert.tipoEncomendaId);
+  set("SPHARMMT_ORDERS_SITUACAO_INITIAL", ordersInsert.encomendaSituacaoInitial);
+  set("SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN", ordersInsert.idempotencyColumn);
+
   return { source: "json", path: JSON_CONFIG_PATH };
 }
 
@@ -262,6 +301,45 @@ export function loadConfig(scope: Scope): AgentConfig {
   const ordersWriteMode: "stub" | "insert" | undefined =
     rawOrdersMode === "stub" || rawOrdersMode === "insert" ? rawOrdersMode : undefined;
 
+  let ordersInsert: OrdersInsertConfig | undefined;
+  if (ordersWriteMode === "insert") {
+    const insertMissing: string[] = [];
+    const userId = intOrMissing("SPHARMMT_ORDERS_USER_ID", insertMissing);
+    const fornecedorId = intOrMissing("SPHARMMT_ORDERS_FORNECEDOR_ID", insertMissing);
+    const armazemId = intOrMissing("SPHARMMT_ORDERS_ARMAZEM_ID", insertMissing);
+    const tipoEncomendaId = intOrMissing("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", insertMissing);
+    const situacaoInitial = optionalEnv("SPHARMMT_ORDERS_SITUACAO_INITIAL") ?? "A";
+    const idempotencyColumn = optionalEnv("SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN") ?? "VVM_ID";
+
+    if (situacaoInitial.length !== 1) {
+      insertMissing.push(
+        "SPHARMMT_ORDERS_SITUACAO_INITIAL (deve ser exactamente 1 char — schema é char(1))"
+      );
+    }
+    if (!/^[A-Za-z0-9_ ]{1,128}$/.test(idempotencyColumn)) {
+      insertMissing.push(
+        "SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN (nome inválido — caracteres permitidos A-Z a-z 0-9 _ espaço)"
+      );
+    }
+
+    if (insertMissing.length > 0) {
+      const labelled = insertMissing.map((m) => `  · ${m}`).join("\n");
+      throw new ConfigError(
+        `ordersWriteMode=insert exige config ordersInsert. ${insertMissing.length} campo(s) em falta ou inválido(s):\n${labelled}\n\nVer agent.config.example.json secção "ordersInsert".`,
+        insertMissing
+      );
+    }
+
+    ordersInsert = {
+      userIdForInsert: userId,
+      fornecedorIdForOrders: fornecedorId,
+      armazemId,
+      tipoEncomendaId,
+      encomendaSituacaoInitial: situacaoInitial,
+      idempotencyColumn,
+    };
+  }
+
   return {
     saasEndpoint: (process.env.SPHARMMT_ENDPOINT ?? saasEndpoint).replace(/\/+$/, ""),
     tenantSlug,
@@ -277,8 +355,23 @@ export function loadConfig(scope: Scope): AgentConfig {
     sqlTrustCert,
     outputDir,
     ordersWriteMode,
+    ordersInsert,
     agentVersion,
   };
+}
+
+function intOrMissing(name: string, missing: string[]): number {
+  const raw = process.env[name];
+  if (!raw || raw.trim() === "") {
+    missing.push(name);
+    return 0;
+  }
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) {
+    missing.push(`${name} (valor inválido: "${raw}" — esperado inteiro >= 0)`);
+    return 0;
+  }
+  return n;
 }
 
 /** Mascara um string sensível para logs: "xxxxxxx" → "x*****x". */

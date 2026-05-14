@@ -44,6 +44,7 @@ import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
 import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
+import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { health } from "./commands/health.js";
 
@@ -117,6 +118,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-orders-schema": {
     run: inspectOrdersSchema,
     desc: "Probe read-only às tabelas SPharm de encomendas. Gera markdown para validação.",
+  },
+  "test-order-write": {
+    run: testOrderWrite,
+    desc: "Smoke test do INSERT de encomenda em SPharm (dry-run default; --commit para escrita real).",
   },
   "inspect-codigoid": {
     run: inspectCodigoId,

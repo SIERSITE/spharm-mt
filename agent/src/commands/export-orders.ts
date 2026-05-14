@@ -140,10 +140,12 @@ export async function exportOrders(): Promise<number> {
     const label = summariseOrder(order);
     console.log(`▶ ${label}`);
     try {
-      const result = await writeOrderToSpharm(order, cfg, pool);
-      console.log(`  ✓ write: spharmDocumentId=${result.spharmDocumentId} (${fmtDuration(result.durationMs)})`);
+      // Em dry-run: o writer também faz rollback (em modo insert) e
+      // não escreve ficheiro (em modo stub). Sem dry-run, escrita real.
+      const result = await writeOrderToSpharm(order, cfg, pool, { dryRun: args.dryRun });
+      console.log(`  ✓ write: spharmDocumentId=${result.spharmDocumentId} source=${result.source} (${fmtDuration(result.durationMs)})`);
       if (args.dryRun) {
-        console.log(`  · dry-run: ack NÃO enviado`);
+        console.log(`  · dry-run: write não persistido + ack NÃO enviado`);
       } else {
         try {
           await saas.ackOrder(order.outboxId, {

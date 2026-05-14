@@ -353,6 +353,121 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // test-order-write — interactivo. DRY-RUN por defeito (rollback
+  // automático). Operador pode escolher --commit para escrita real.
+  // Pré-requisito: secção ordersInsert preenchida em agent.config.json
+  // se quiser correr em modo insert.
+  const testOrderWriteBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — test-order-write (interactivo)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   test-order-write — smoke test de INSERT de encomenda`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Cria UMA encomenda sintetica de teste no SPharm local.`,
+    `echo Modo DRY-RUN por defeito: rollback automatico, nada permanente.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-test-connection.bat OK`,
+    `echo   - run-inspect-orders-schema.bat correu e admin validou`,
+    `echo   - agent.config.json:`,
+    `echo       * ordersWriteMode = "insert"  (para testar caminho real)`,
+    `echo       * seccao ordersInsert preenchida com valores reais:`,
+    `echo           userIdForInsert, fornecedorIdForOrders,`,
+    `echo           armazemId, tipoEncomendaId,`,
+    `echo           encomendaSituacaoInitial, idempotencyColumn`,
+    `echo       * SQL login com db_datawriter ^(ou INSERT grant em`,
+    `echo         dbo.Encomendas + dbo.[Encomendas Detalhe]^)`,
+    `echo.`,
+    `echo Formato CNP: 7-8 digitos (numerico, ex: 5440987)`,
+    `echo.`,
+    `set "CNP="`,
+    `set /p "CNP=CNP de um produto existente em dbo.Stocks: "`,
+    `if "%CNP%"=="" (`,
+    `  echo CNP vazio. Aborta.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `set "QTD=1"`,
+    `set /p "QTD=Quantidade [1]: "`,
+    `if "%QTD%"=="" set "QTD=1"`,
+    `echo.`,
+    `echo --- Modo ---`,
+    `echo   1 ^) DRY-RUN  ^(default, rollback automatico, sem efeito permanente^)`,
+    `echo   2 ^) COMMIT   ^(escrita REAL — encomenda fica visivel em SPharm^)`,
+    `echo.`,
+    `set "MODE=1"`,
+    `set /p "MODE=Escolha [1]: "`,
+    `if "%MODE%"=="" set "MODE=1"`,
+    `set "FLAG=--dry-run"`,
+    `if not "%MODE%"=="2" goto :EXEC`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vais ESCREVER 1 encomenda REAL em SPharm:`,
+    `echo   CNP ^= %CNP%   Quantidade ^= %QTD%`,
+    `echo.`,
+    `echo Esta encomenda fica visivel imediatamente em SPharm UI`,
+    `echo na lista de encomendas pendentes. Idempotente: re-run com`,
+    `echo o mesmo outbox-id NAO duplica.`,
+    `echo.`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `set "FLAG=--commit"`,
+    ``,
+    `:EXEC`,
+    `echo.`,
+    `node.exe agent.cjs test-order-write --synthetic --cnp %CNP% --quantidade %QTD% %FLAG%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if not "%EXIT%"=="0" goto :FAIL`,
+    `if "%FLAG%"=="--commit" goto :OKCOMMIT`,
+    `echo DRY-RUN OK. Nada visivel em SPharm ^(rollback aplicado^).`,
+    `echo O caminho de INSERT funciona end-to-end.`,
+    `echo.`,
+    `echo Para escrita real: re-corre este BAT e escolhe opcao 2.`,
+    `goto :END`,
+    ``,
+    `:OKCOMMIT`,
+    `echo COMMIT OK. Verifica em SPharm UI:`,
+    `echo   - Lista de encomendas: nova entry com Encomenda ID mostrado acima`,
+    `echo   - 1 linha com o CNP %CNP% e quantidade %QTD%`,
+    `echo   - Estado = situacao inicial configurada em ordersInsert`,
+    `echo.`,
+    `echo Para validar idempotencia: re-run com --outbox-id mesmo id.`,
+    `goto :END`,
+    ``,
+    `:FAIL`,
+    `echo Falhou ^(exit code %EXIT%^). Verifica mensagens acima.`,
+    `echo Causas comuns:`,
+    `echo   - SQL login sem db_datawriter`,
+    `echo   - CNP nao existe em dbo.Stocks`,
+    `echo   - ordersInsert config incompleta`,
+    `echo   - fornecedorIdForOrders/userIdForInsert apontam para IDs inexistentes`,
+    ``,
+    `:END`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-test-order-write.bat"),
+    testOrderWriteBat,
+    "utf8"
+  );
+
   // Factory para wrappers que pedem --from/--to interactivamente
   const buildDatePromptBat = (command, intro) =>
     [
@@ -577,7 +692,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 8} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 9} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + test-order-write + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -622,6 +737,7 @@ function writeReadme() {
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat   Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
+    `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,
