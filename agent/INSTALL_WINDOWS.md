@@ -279,10 +279,12 @@ Modos (controlado por `options.ordersWriteMode` em `agent.config.json`):
 Idempotência é gerida em `dbo.SPharmMT_OrderWriteLog` (tabela **exclusivamente nossa** — não escrevemos em `VVM_ID` ou qualquer outra coluna operacional do SPharm).
 
 **Antes de activar `ordersWriteMode=insert` em produção:**
-1. `run-setup-orders-write-log.bat` — cria a tabela auxiliar de idempotência
-2. `run-inspect-orders-schema.bat` — valida schema das tabelas SPharm
-3. `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT) — smoke test
-4. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
+1. `run-inspect-orders-schema.bat` — valida schema das tabelas SPharm
+2. `run-inspect-product-identifiers.bat` — descobre a coluna real do CNP em `dbo.Stocks` (NÃO `CodCNPEM`)
+3. `run-setup-orders-write-log.bat` — cria a tabela auxiliar de idempotência
+4. Configurar `ordersInsert.productLookupColumn` em `agent.config.json` com base no probe (rev18+)
+5. `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT) — smoke test
+6. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
 
 Detalhes completos em [pilot-operator-guide.md](pilot-operator-guide.md#rev15).
 

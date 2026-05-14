@@ -36,9 +36,13 @@
  *
  * Mapping de produto: SaaS conhece `produtoId` (cuid) e
  * `enrichment.linhas[].cnp`. A escrita resolve CNP → CodigoID via
- * `SELECT TOP 1 [CodigoID] FROM [dbo].[Stocks] WHERE [CodCNPEM]=@cnp`.
- * Preços (`Preco Venda Publico_EUR`, `PMC_EUR`) são lidos no mesmo
- * SELECT — usamos o que o ERP conhece, não o que veio do SaaS.
+ * `SELECT TOP 1 [CodigoID] FROM [dbo].[Stocks] WHERE [<col>]=@cnp`
+ * onde `<col>` é `oc.productLookupColumn` (configurado pelo operador
+ * após `inspect-product-identifiers`). NUNCA `CodCNPEM` — é grupo
+ * homogéneo, identificaria produto errado. Match ambíguo (>1 row)
+ * é rejeitado defensivamente. Preços (`Preco Venda Publico_EUR`,
+ * `PMC_EUR`) são lidos no mesmo SELECT — usamos o que o ERP conhece,
+ * não o que veio do SaaS.
  */
 
 import * as fs from "node:fs";
@@ -180,10 +184,15 @@ async function writeStub(
 
 // ─── Insert: schema introspection (cache por execução) ───────────────
 
+type ProductLookupColumnFamily = "numeric" | "string";
+
 type InsertSchema = {
   encomendaIdIsIdentity: boolean;
   detalheIdIsIdentity: boolean;
   writeLogExists: boolean;
+  productLookupColumn: string;
+  productLookupTypeFamily: ProductLookupColumnFamily;
+  productLookupMaxLength: number;
 };
 
 let cachedInsertSchema: InsertSchema | null = null;
@@ -192,7 +201,24 @@ let cachedInsertSchema: InsertSchema | null = null;
  *  é uma tabela exclusivamente nossa, criada por setup-orders-write-log. */
 export const ORDER_WRITE_LOG_TABLE = "dbo.SPharmMT_OrderWriteLog";
 
-async function getInsertSchema(pool: SqlPool): Promise<InsertSchema> {
+const NUMERIC_TYPES = new Set([
+  "int",
+  "smallint",
+  "bigint",
+  "tinyint",
+  "numeric",
+  "decimal",
+  "money",
+  "smallmoney",
+]);
+const STRING_TYPES = new Set([
+  "char",
+  "varchar",
+  "nchar",
+  "nvarchar",
+]);
+
+async function getInsertSchema(pool: SqlPool, oc: OrdersInsertConfig): Promise<InsertSchema> {
   if (cachedInsertSchema) return cachedInsertSchema;
   // Probe 1: IDENTITY check em dbo.Encomendas + dbo.[Encomendas Detalhe]
   const r = await pool.request().query<{
@@ -251,7 +277,58 @@ async function getInsertSchema(pool: SqlPool): Promise<InsertSchema> {
     );
   }
 
-  cachedInsertSchema = { encomendaIdIsIdentity, detalheIdIsIdentity, writeLogExists };
+  // Probe 3: productLookupColumn existe em dbo.Stocks + descobrir tipo
+  //          + rejeitar CodCNPEM defensivamente (segunda linha de defesa
+  //          além da validação no loadConfig).
+  if (oc.productLookupColumn.toLowerCase() === "codcnpem") {
+    throw new WriteOrderError(
+      `productLookupColumn="CodCNPEM" REJEITADO defensivamente no writer. ` +
+        `CodCNPEM identifica o grupo homogéneo (Código Nacional Para Equivalência ` +
+        `Medicamentosa), não o produto individual. Múltiplos produtos partilham ` +
+        `o mesmo CodCNPEM — o lookup escolheria produto errado. ` +
+        `Correr 'run-inspect-product-identifiers.bat' para identificar a coluna real.`,
+      false
+    );
+  }
+  const plr = await pool
+    .request()
+    .input("col", sql.NVarChar(128), oc.productLookupColumn)
+    .query<{ dataType: string; max_length: number }>(`
+      SELECT ty.name AS dataType, c.max_length
+      FROM sys.columns c
+      JOIN sys.tables t ON c.object_id = t.object_id
+      JOIN sys.schemas s ON t.schema_id = s.schema_id
+      JOIN sys.types ty ON c.user_type_id = ty.user_type_id
+      WHERE s.name = 'dbo' AND t.name = 'Stocks' AND c.name = @col
+    `);
+  if (plr.recordset.length === 0) {
+    throw new WriteOrderError(
+      `productLookupColumn="${oc.productLookupColumn}" não existe em dbo.Stocks. ` +
+        `Correr 'run-inspect-product-identifiers.bat' para listar colunas válidas.`,
+      false
+    );
+  }
+  const plRow = plr.recordset[0]!;
+  const plTypeLower = plRow.dataType.toLowerCase();
+  let productLookupTypeFamily: ProductLookupColumnFamily;
+  if (NUMERIC_TYPES.has(plTypeLower)) productLookupTypeFamily = "numeric";
+  else if (STRING_TYPES.has(plTypeLower)) productLookupTypeFamily = "string";
+  else {
+    throw new WriteOrderError(
+      `productLookupColumn="${oc.productLookupColumn}" tem tipo ${plRow.dataType} ` +
+        `(família non-numérica + non-string). Não consigo construir lookup parametrizado seguro.`,
+      false
+    );
+  }
+
+  cachedInsertSchema = {
+    encomendaIdIsIdentity,
+    detalheIdIsIdentity,
+    writeLogExists,
+    productLookupColumn: oc.productLookupColumn,
+    productLookupTypeFamily,
+    productLookupMaxLength: plRow.max_length,
+  };
   return cachedInsertSchema;
 }
 
@@ -272,30 +349,62 @@ type StocksLookup = {
 
 async function lookupCodigoIdAndPrices(
   tx: sql.Transaction,
-  cnp: string
+  cnp: string,
+  schema: InsertSchema
 ): Promise<StocksLookup | null> {
-  const cnpNum = Number(cnp);
-  if (!Number.isFinite(cnpNum) || !Number.isInteger(cnpNum) || cnpNum <= 0) {
-    return null;
+  // A coluna alvo (e o tipo da coluna) vêm do schema introspeccionado
+  // depois de loadConfig validar productLookupColumn (CodCNPEM rejeitado
+  // em loadConfig + segunda linha de defesa em getInsertSchema).
+  const col = schema.productLookupColumn;
+  const req = new sql.Request(tx);
+
+  let whereClause: string;
+  if (schema.productLookupTypeFamily === "numeric") {
+    const cnpNum = Number(cnp);
+    if (!Number.isFinite(cnpNum) || !Number.isInteger(cnpNum) || cnpNum <= 0) {
+      return null;
+    }
+    // sql.Numeric(18,0) cobre int/bigint/smallint/numeric com folga
+    req.input("cnpNum", sql.Numeric(18, 0), cnpNum);
+    whereClause = `[${col}] = @cnpNum`;
+  } else {
+    // string: tentar match raw + zero-padded a 13 chars (variante
+    // típica de char(13) como "Codigo Externo")
+    const raw = cnp.trim();
+    const padded = raw.padStart(13, "0");
+    req.input("cnpRaw", sql.NVarChar(50), raw);
+    req.input("cnpPadded", sql.NVarChar(50), padded);
+    whereClause = `LTRIM(RTRIM(CAST([${col}] AS NVARCHAR(50)))) IN (@cnpRaw, @cnpPadded)`;
   }
-  const r = await new sql.Request(tx)
-    .input("cnp", sql.Numeric(8, 0), cnpNum)
-    .query<{
-      CodigoID: number;
-      PVP: number | string;
-      PMC: number | string;
-      PrecoUltCompra: number | string | null;
-    }>(`
-      SELECT TOP 1
-        [CodigoID]                       AS CodigoID,
-        [Preco Venda Publico_EUR]        AS PVP,
-        [Preco Medio Compra_EUR]         AS PMC,
-        [Preco Ultima Compra_EUR]        AS PrecoUltCompra
-      FROM   [dbo].[Stocks]
-      WHERE  [CodCNPEM] = @cnp
-    `);
+
+  const r = await req.query<{
+    CodigoID: number;
+    PVP: number | string;
+    PMC: number | string;
+    PrecoUltCompra: number | string | null;
+    cnt: number;
+  }>(`
+    SELECT TOP 1
+      s.[CodigoID]                          AS CodigoID,
+      s.[Preco Venda Publico_EUR]           AS PVP,
+      s.[Preco Medio Compra_EUR]            AS PMC,
+      s.[Preco Ultima Compra_EUR]           AS PrecoUltCompra,
+      (SELECT COUNT(*) FROM [dbo].[Stocks] WHERE ${whereClause}) AS cnt
+    FROM   [dbo].[Stocks] s
+    WHERE  ${whereClause.replace(/\[/g, "s.[")}
+  `);
   const row = r.recordset[0];
   if (!row) return null;
+  // Match ambíguo (>1 produto): defensivo — recusa para forçar
+  // operador a investigar (provavelmente coluna de grupo, não CNP).
+  if (Number(row.cnt) > 1) {
+    throw new WriteOrderError(
+      `Lookup ambíguo: CNP ${cnp} matchou ${row.cnt} produtos em [dbo].[Stocks].[${col}]. ` +
+        `A coluna escolhida não identifica produto individual — possivelmente grupo homogéneo ` +
+        `ou coluna não-única. Correr 'run-inspect-product-identifiers.bat' para revalidar.`,
+      false
+    );
+  }
   return {
     codigoId: Number(row.CodigoID),
     pvp: Number(row.PVP),
@@ -337,8 +446,10 @@ async function writeInsert(
     );
   }
 
-  // 1) Schema introspection (uma vez por execução do agent)
-  await getInsertSchema(pool);
+  // 1) Schema introspection (uma vez por execução do agent).
+  //    Valida IDENTITY em Encomendas + presença de SPharmMT_OrderWriteLog
+  //    + existência e tipo de oc.productLookupColumn (rejeita CodCNPEM).
+  const schema = await getInsertSchema(pool, oc);
 
   // 2) Pre-flight: merge + validate sem tocar na BD
   const merged = mergeLines(order.payload.linhas, order.enrichment.linhas);
@@ -397,13 +508,15 @@ async function writeInsert(
     }
 
     // 5) Resolver CodigoID + preços para cada linha (lookups serializados;
-    //    podiam ser paralelos mas o número de linhas é tipicamente <50)
+    //    podiam ser paralelos mas o número de linhas é tipicamente <50).
+    //    Usa coluna configurada (validada em getInsertSchema). Match
+    //    ambíguo (>1 produto) atira erro explícito.
     const resolved: Array<typeof lineSpecs[number] & StocksLookup> = [];
     for (const l of lineSpecs) {
-      const r = await lookupCodigoIdAndPrices(tx, l.cnp);
+      const r = await lookupCodigoIdAndPrices(tx, l.cnp, schema);
       if (!r) {
         throw new WriteOrderError(
-          `CNP ${l.cnp} (produto "${l.designacao ?? l.produtoId}") não encontrado em dbo.Stocks. Produto não existe no ERP local — sincronizar catálogo ou remover linha da encomenda.`,
+          `CNP ${l.cnp} (produto "${l.designacao ?? l.produtoId}") não encontrado em [dbo].[Stocks].[${schema.productLookupColumn}]. Produto não existe no ERP local — sincronizar catálogo ou remover linha da encomenda.`,
           false
         );
       }
@@ -545,6 +658,7 @@ async function writeInsert(
         armazemId: oc.armazemId,
         situacaoInitial: oc.encomendaSituacaoInitial,
         tipoEncomendaId: oc.tipoEncomendaId,
+        productLookupColumn: oc.productLookupColumn,
         writeLogTable: ORDER_WRITE_LOG_TABLE,
         dryRun: options.dryRun ?? false,
         resolvedLines: resolved.map((r) => ({

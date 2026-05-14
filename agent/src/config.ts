@@ -46,6 +46,12 @@ export type Scope =
  *   - armazemId             → dbo.Encomendas.[ArmazemID]              (tinyint)
  *   - tipoEncomendaId       → dbo.Encomendas.[TipoEncomendaID]        (tinyint)
  *   - encomendaSituacaoInitial → dbo.Encomendas.[EncomendaSituacaoID] (char(1))
+ *   - productLookupColumn   → nome da coluna em dbo.Stocks que contém
+ *                              o CNP individual do produto.
+ *                              **NÃO** `CodCNPEM` (grupo homogéneo —
+ *                              identifica grupos de produtos equivalentes,
+ *                              não o produto individual).
+ *                              Identificar via `inspect-product-identifiers`.
  *
  * Idempotência: gerida via tabela auxiliar `dbo.SPharmMT_OrderWriteLog`
  * (NÃO em nenhuma coluna operacional do SPharm). Tabela criada por
@@ -58,6 +64,7 @@ export type OrdersInsertConfig = {
   armazemId: number;
   tipoEncomendaId: number;
   encomendaSituacaoInitial: string;
+  productLookupColumn: string;
 };
 
 export type AgentConfig = {
@@ -221,6 +228,7 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_ORDERS_ARMAZEM_ID", ordersInsert.armazemId);
   set("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", ordersInsert.tipoEncomendaId);
   set("SPHARMMT_ORDERS_SITUACAO_INITIAL", ordersInsert.encomendaSituacaoInitial);
+  set("SPHARMMT_ORDERS_PRODUCT_LOOKUP_COLUMN", ordersInsert.productLookupColumn);
   if (ordersInsert.idempotencyColumn !== undefined) {
     // Compat: deprecated em rev17. Emite warning se presente (lemos no
     // loadConfig). Nenhuma escrita em coluna do SPharm — idempotência
@@ -315,10 +323,25 @@ export function loadConfig(scope: Scope): AgentConfig {
     const armazemId = intOrMissing("SPHARMMT_ORDERS_ARMAZEM_ID", insertMissing);
     const tipoEncomendaId = intOrMissing("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", insertMissing);
     const situacaoInitial = optionalEnv("SPHARMMT_ORDERS_SITUACAO_INITIAL") ?? "A";
+    const productLookupColumn = optionalEnv("SPHARMMT_ORDERS_PRODUCT_LOOKUP_COLUMN") ?? "";
 
     if (situacaoInitial.length !== 1) {
       insertMissing.push(
         "SPHARMMT_ORDERS_SITUACAO_INITIAL (deve ser exactamente 1 char — schema é char(1))"
+      );
+    }
+
+    if (productLookupColumn === "") {
+      insertMissing.push(
+        "ordersInsert.productLookupColumn (em falta — coluna de dbo.Stocks com o CNP individual; correr inspect-product-identifiers para identificar)"
+      );
+    } else if (!/^[A-Za-z0-9_ ]{1,128}$/.test(productLookupColumn)) {
+      insertMissing.push(
+        `ordersInsert.productLookupColumn ("${productLookupColumn}" inválido — caracteres permitidos A-Z a-z 0-9 _ espaço)`
+      );
+    } else if (productLookupColumn.toLowerCase() === "codcnpem") {
+      insertMissing.push(
+        `ordersInsert.productLookupColumn = "CodCNPEM" REJEITADO — é grupo homogéneo (Código Nacional Para Equivalência Medicamentosa), NÃO identifica produto individual. Correr inspect-product-identifiers para identificar a coluna real do CNP.`
       );
     }
 
@@ -349,6 +372,7 @@ export function loadConfig(scope: Scope): AgentConfig {
       armazemId,
       tipoEncomendaId,
       encomendaSituacaoInitial: situacaoInitial,
+      productLookupColumn,
     };
   }
 

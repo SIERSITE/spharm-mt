@@ -44,6 +44,7 @@ import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
 import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
+import { inspectProductIdentifiers } from "./commands/inspect-product-identifiers.js";
 import { setupOrdersWriteLog } from "./commands/setup-orders-write-log.js";
 import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
@@ -119,6 +120,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-orders-schema": {
     run: inspectOrdersSchema,
     desc: "Probe read-only às tabelas SPharm de encomendas. Gera markdown para validação.",
+  },
+  "inspect-product-identifiers": {
+    run: inspectProductIdentifiers,
+    desc: "Probe read-only às colunas de dbo.Stocks que podem ser o CNP individual. Testa CNPs conhecidos contra cada coluna candidata.",
   },
   "setup-orders-write-log": {
     run: setupOrdersWriteLog,

@@ -34,6 +34,8 @@
     "_tipoEncomendaId_doc": "TipoEncomendaID (tinyint). Default observado em todas as amostras = 2. Verificar em dbo.TipoEncomenda quais os valores válidos no SPharm local.",
     "tipoEncomendaId": 2,
     "_encomendaSituacaoInitial_doc": "EncomendaSituacaoID (char(1)) estado inicial. 'A' = Aberta (default). Operador pode usar outro valor — confirmar em dbo.[Enc_Situacao] ou equivalente.",
-    "encomendaSituacaoInitial": "A"
+    "encomendaSituacaoInitial": "A",
+    "_productLookupColumn_doc": "OBRIGATÓRIO. Nome da coluna em dbo.Stocks que contém o CNP INDIVIDUAL do produto. NUNCA 'CodCNPEM' (é grupo homogéneo, identifica conjuntos de produtos equivalentes — não produto individual). Correr 'run-inspect-product-identifiers.bat' para identificar a coluna real (provavelmente 'Codigo' ou 'Codigo Externo'). Valor vazio aqui bloqueia ordersWriteMode=insert com mensagem clara.",
+    "productLookupColumn": ""
   }
 }

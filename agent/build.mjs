@@ -353,6 +353,56 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // inspect-product-identifiers — probe read-only para identificar a
+  // coluna em dbo.Stocks que contém o CNP individual.
+  // CodCNPEM é grupo homogéneo — NÃO serve para mapear produto.
+  const inspectProductIdentifiersBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — inspect-product-identifiers`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   inspect-product-identifiers`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Probe READ-ONLY para identificar a coluna em dbo.Stocks`,
+    `echo que contem o CNP INDIVIDUAL ^(nao o grupo homogeneo CodCNPEM^).`,
+    `echo.`,
+    `echo Testa CNPs conhecidos contra colunas candidatas`,
+    `echo ^(LIKE %%cnp%%/%%codigo%%/%%cnpem%%/%%barras%%/%%ean%%^).`,
+    `echo.`,
+    `echo Para passar CNPs alternativos:`,
+    `echo   node.exe agent.cjs inspect-product-identifiers --cnps "6433359,5771464"`,
+    `echo.`,
+    `node.exe agent.cjs inspect-product-identifiers`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Ficheiro gerado em:`,
+    `  echo   output\\product-identifiers-^<YYYY-MM-DD^>\\inspection.md`,
+    `  echo.`,
+    `  echo IMPORTANTE: revalidar manualmente a coluna sugerida antes`,
+    `  echo de a configurar como productLookupColumn em agent.config.json.`,
+    `  echo NUNCA configurar CodCNPEM ^(grupo homogeneo^).`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Verifica mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-inspect-product-identifiers.bat"),
+    inspectProductIdentifiersBat,
+    "utf8"
+  );
+
   // setup-orders-write-log — cria (idempotente) a tabela auxiliar de
   // idempotência. Pré-requisito para ordersWriteMode=insert. SEM prompts.
   // Tabela é EXCLUSIVAMENTE nossa (dbo.SPharmMT_OrderWriteLog) — não
@@ -840,7 +890,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 12} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 13} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-product-identifiers + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -884,8 +934,9 @@ function writeReadme() {
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
-    `  run-inspect-orders-schema.bat   Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
-    `  run-setup-orders-write-log.bat  Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
+    `  run-inspect-orders-schema.bat       Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
+    `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
+    `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
     `  run-export-orders-auto.bat      Task Scheduler: 1 ciclo de export-orders. Log em logs\\export-orders-*.log.`,
     `  run-export-orders-once.bat      Execucao manual interactiva (pause no fim).`,

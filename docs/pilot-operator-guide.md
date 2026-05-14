@@ -108,6 +108,7 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev18 | **Correcção crítica**: removido uso de `CodCNPEM` para lookup de produto (é Código Nacional Para Equivalência Medicamentosa — grupo homogéneo, partilhado por múltiplos produtos). Novo probe `run-inspect-product-identifiers.bat` para identificar a coluna real do CNP em `dbo.Stocks`. Campo `productLookupColumn` agora obrigatório em `ordersInsert`; `CodCNPEM` é rejeitado em 3 camadas (config, schema probe, lookup). Match ambíguo (>1 produto) também bloqueia. Modo `insert` permanece bloqueado até operador validar a coluna correcta. |
 | 2026-05-14 | rev17 | **Correcção crítica**: removido uso de `VVM_ID` para idempotência (é Via Verde do Medicamento, escrever ali era semanticamente errado). Idempotência agora vive em tabela auxiliar `dbo.SPharmMT_OrderWriteLog` (criada pelo novo `run-setup-orders-write-log.bat`). Modo `insert` bloqueado até tabela existir. Campo `idempotencyColumn` removido do config. |
 | 2026-05-14 | rev16 | Adicionado `run-export-orders-auto.bat` (Task Scheduler: log file + exit code, sem prompts) e `run-export-orders-once.bat` (manual com pause). Summary do `export-orders` enriquecido: `pulled / inserted / idempotent / acked / failed`. Aviso explícito quando `ordersWriteMode=stub`. |
 | 2026-05-14 | rev15 | `writeInsert` real implementado (INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`, idempotente via coluna ERP — **substituído em rev17**). Adicionado `run-test-order-write.bat`. Secção `ordersInsert` em `agent.config.json` exigida quando `ordersWriteMode=insert`. |
@@ -157,7 +158,37 @@ O SQL login usado pelo agent precisa de upgrade. Opções:
   GRANT VIEW DEFINITION ON SCHEMA::dbo                TO [spharm_agent];  -- para sys.columns probe
   ```
 
-### 2. Criar tabela auxiliar de idempotência (rev17+)
+### 2. Identificar coluna do CNP em `dbo.Stocks` (rev18+)
+
+**OBRIGATÓRIO antes do primeiro INSERT.** `CodCNPEM` **NÃO é o CNP** — é Código Nacional Para Equivalência Medicamentosa (grupo homogéneo). Múltiplos produtos diferentes partilham o mesmo `CodCNPEM`. Usar essa coluna para lookup de linha de encomenda **matcha produto errado**.
+
+Duplo-clique em **`run-inspect-product-identifiers.bat`**:
+
+- Lista todas as colunas de `dbo.Stocks` cujo nome contém `cnp`, `codigo`, `cnpem`, `barras` ou `ean`
+- Para cada uma, testa 4 CNPs conhecidos (`6433359`, `5771464`, `9754119`, `8070409`)
+- Reporta match único / ambíguo / sem match por coluna
+- Sugere a coluna provável (match único em todos os CNPs)
+- Markdown em `output\product-identifiers-<data>\inspection.md`
+
+Para CNPs alternativos:
+```
+node.exe agent.cjs inspect-product-identifiers --cnps "1234567,8901234"
+```
+
+Operador **valida visualmente** a sugestão e configura em `agent.config.json`:
+```jsonc
+"ordersInsert": {
+  ...,
+  "productLookupColumn": "Codigo"   // exemplo — confirmar com inspect
+}
+```
+
+**Defesas em 3 camadas contra CodCNPEM:**
+1. `loadConfig` rejeita `productLookupColumn = "CodCNPEM"` (case-insensitive)
+2. `getInsertSchema` rejeita mesmo se passar pelo config (segunda linha)
+3. `lookupCodigoIdAndPrices` rejeita match ambíguo (>1 produto) — apanha qualquer outra coluna que seja agrupadora
+
+### 3. Criar tabela auxiliar de idempotência (rev17+)
 
 **OBRIGATÓRIO antes do primeiro INSERT.** O agent recusa correr em `ordersWriteMode=insert` se a tabela `dbo.SPharmMT_OrderWriteLog` não existir.
 
@@ -181,7 +212,7 @@ A tabela é **exclusivamente nossa** — não pertence ao schema SPharm e não i
 
 Se o SQL login não tiver permissão `CREATE TABLE`, o BAT imprime o SQL para o DBA executar manualmente via SSMS. Após criar, voltar a correr o BAT para confirmar.
 
-### 3. Editar `agent.config.json`
+### 4. Editar `agent.config.json`
 
 Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
 
@@ -194,13 +225,14 @@ Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
   "fornecedorIdForOrders":   416,       // Fornecedor default (validar em SPharm UI)
   "armazemId":               1,         // Default observado
   "tipoEncomendaId":         2,         // Default observado
-  "encomendaSituacaoInitial": "A"       // 'A' = Aberta (confirmar localmente)
+  "encomendaSituacaoInitial": "A",      // 'A' = Aberta (confirmar localmente)
+  "productLookupColumn":     "Codigo"   // CONFIRMAR com inspect-product-identifiers. NUNCA "CodCNPEM".
 }
 ```
 
 **Nota:** o campo `idempotencyColumn` foi REMOVIDO em rev17. Se ainda existir no config antigo, o agent emite warning mas ignora — idempotência vive na tabela auxiliar, não em nenhuma coluna do SPharm.
 
-### 4. Smoke test (sem efeito permanente)
+### 5. Smoke test (sem efeito permanente)
 
 `run-test-order-write.bat`:
 
@@ -212,7 +244,7 @@ Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
 
 Se `dbo.SPharmMT_OrderWriteLog` não existir, o teste falha com mensagem clara apontando para `run-setup-orders-write-log.bat`.
 
-### 5. Validação operacional
+### 6. Validação operacional
 
 Depois de um `--commit` bem-sucedido, o operador SPharm valida:
 
@@ -221,7 +253,7 @@ Depois de um `--commit` bem-sucedido, o operador SPharm valida:
 - Estado inicial = `encomendaSituacaoInitial` da config
 - Re-run com mesmo `--outbox-id` devolve `source=idempotent` (mesma encomenda ID; sem duplicação)
 
-### 6. Activação em produção
+### 7. Activação em produção
 
 Depois da validação:
 
