@@ -24,7 +24,7 @@ async function assertDraft(prisma: Awaited<ReturnType<typeof getPrisma>>, listaI
 
 function revalidateDetail(listaId: string) {
   revalidatePath(`/encomendas/${listaId}`);
-  revalidatePath("/encomendas/lista");
+  revalidatePath("/encomendas");
 }
 
 /**

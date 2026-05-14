@@ -29,7 +29,7 @@ export async function finalizeOrderAction(listaEncomendaId: string): Promise<Act
       entityId: listaEncomendaId,
       meta: { outboxId: result.outboxId },
     });
-    revalidatePath("/encomendas/lista");
+    revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
     return { ok: true, outboxId: result.outboxId };
   } catch (err) {
@@ -108,7 +108,7 @@ export async function simulateAckAction(outboxId: string): Promise<ActionResult>
       entity: "OrderOutbox",
       entityId: outboxId,
     });
-    revalidatePath("/encomendas/lista");
+    revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
     return { ok: true };
   } catch (err) {
@@ -177,7 +177,7 @@ export async function simulateNackAction(outboxId: string): Promise<ActionResult
       entity: "OrderOutbox",
       entityId: outboxId,
     });
-    revalidatePath("/encomendas/lista");
+    revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
     return { ok: true };
   } catch (err) {

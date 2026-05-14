@@ -42,6 +42,7 @@ import { bootstrapDryRun } from "./commands/bootstrap-dry-run.js";
 import { bootstrapUpload } from "./commands/bootstrap-upload.js";
 import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
+import { exportOrders } from "./commands/export-orders.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { health } from "./commands/health.js";
 
@@ -107,6 +108,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "daily-pipeline": {
     run: dailyPipeline,
     desc: "Orquestrador autónomo: daily-sync + aggregate. Lockfile + logs locais.",
+  },
+  "export-orders": {
+    run: exportOrders,
+    desc: "Puxa encomendas pending do SaaS e escreve no SPharm local (stub|insert).",
   },
   "inspect-codigoid": {
     run: inspectCodigoId,

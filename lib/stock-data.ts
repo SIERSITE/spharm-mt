@@ -99,8 +99,6 @@ export async function loadStockEnriched(
 
 // ─── Backwards-compat legacy shape para /stock client ────────────────────────
 
-const LEGACY_ROW_LIMIT = 300;
-
 function toLegacyRow(
   row: StockRowEnriched,
   peerCoverageMap: Map<
@@ -167,14 +165,69 @@ function toLegacyRow(
   };
 }
 
-export async function getStockData(
-  filter?: StockFilter,
-): Promise<{
+// ─── Search params + paginação server-side ──────────────────────────────────
+
+export const STOCK_COVERAGE_BUCKETS = ["0-5 dias", "6-15 dias", "16+ dias"] as const;
+export type StockCoverageBucket = (typeof STOCK_COVERAGE_BUCKETS)[number];
+
+export const STOCK_STATUS_VALUES: StockRow["status"][] = [
+  "Estável",
+  "Baixa cobertura",
+  "Parado",
+  "Transferência sugerida",
+];
+
+export const STOCK_DEFAULT_PAGE_SIZE = 50;
+export const STOCK_MAX_PAGE_SIZE = 200;
+
+export type StockSearchParams = {
+  q?: string;
+  pharmacies?: string[];
+  coverageBuckets?: StockCoverageBucket[];
+  statusBuckets?: StockRow["status"][];
+  filter?: StockFilter;
+  page: number;
+  pageSize: number;
+};
+
+export type StockPageData = {
   rows: StockRow[];
+  totalRows: number;
+  page: number;
+  pageSize: number;
   pharmacyNames: string[];
   metrics: StockMetrics;
   filter: StockFilter | null;
-}> {
+  params: StockSearchParams;
+};
+
+function getCoverageBucket(coverageStr: string): StockCoverageBucket | null {
+  const days = parseInt(coverageStr, 10);
+  if (Number.isNaN(days)) return null;
+  if (days <= 5) return "0-5 dias";
+  if (days <= 15) return "6-15 dias";
+  return "16+ dias";
+}
+
+export function clampStockPage(n: number): number {
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.floor(n);
+}
+
+export function clampStockPageSize(n: number): number {
+  if (!Number.isFinite(n) || n < 1) return STOCK_DEFAULT_PAGE_SIZE;
+  return Math.min(Math.floor(n), STOCK_MAX_PAGE_SIZE);
+}
+
+export function isStockCoverageBucket(v: string): v is StockCoverageBucket {
+  return (STOCK_COVERAGE_BUCKETS as readonly string[]).includes(v);
+}
+
+export function isStockStatus(v: string): v is StockRow["status"] {
+  return (STOCK_STATUS_VALUES as string[]).includes(v);
+}
+
+export async function getStockData(params: StockSearchParams): Promise<StockPageData> {
   const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
     where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
@@ -185,9 +238,13 @@ export async function getStockData(
   if (farmacias.length === 0) {
     return {
       rows: [],
+      totalRows: 0,
+      page: params.page,
+      pageSize: params.pageSize,
       pharmacyNames,
       metrics: { referencias: 0, baixaCobertura: 0, stockParado: 0, transferencias: 0 },
-      filter: filter ?? null,
+      filter: params.filter ?? null,
+      params,
     };
   }
 
@@ -204,25 +261,60 @@ export async function getStockData(
     peerCoverageMap.set(r.produtoId, list);
   }
 
-  const filtered = filter
-    ? enriched.filter((r) => matchStockFilter(r, filter))
-    : enriched;
+  const legacyAll: StockRow[] = enriched.map((r) => toLegacyRow(r, peerCoverageMap));
 
-  const sorted = filtered.slice().sort((a, b) => {
-    const av = a.stockAtual * (a.puc ?? a.pmc ?? 0);
-    const bv = b.stockAtual * (b.puc ?? b.pmc ?? 0);
-    return bv - av;
+  const normalizedQ = params.q?.trim().toLowerCase() ?? "";
+  const pharmaciesSet = new Set(params.pharmacies ?? []);
+  const coverageSet = new Set(params.coverageBuckets ?? []);
+  const statusSet = new Set(params.statusBuckets ?? []);
+
+  const filtered = legacyAll.filter((row, idx) => {
+    const enrichedRow = enriched[idx];
+    if (params.filter && !matchStockFilter(enrichedRow, params.filter)) return false;
+    if (normalizedQ.length > 0) {
+      const hay = `${row.product} ${row.cnp} ${row.pharmacy} ${row.dci ?? ""} ${row.codigoATC ?? ""}`.toLowerCase();
+      if (!hay.includes(normalizedQ)) return false;
+    }
+    if (pharmaciesSet.size > 0 && !pharmaciesSet.has(row.pharmacy)) return false;
+    if (coverageSet.size > 0) {
+      const bucket = getCoverageBucket(row.coverage);
+      if (!bucket || !coverageSet.has(bucket)) return false;
+    }
+    if (statusSet.size > 0 && !statusSet.has(row.status)) return false;
+    return true;
   });
 
-  const visible = filter ? sorted : sorted.slice(0, LEGACY_ROW_LIMIT);
-  const rows = visible.map((r) => toLegacyRow(r, peerCoverageMap));
+  filtered.sort((a, b) => {
+    // Stable, deterministic order: by product asc, then pharmacy asc.
+    if (a.product < b.product) return -1;
+    if (a.product > b.product) return 1;
+    if (a.pharmacy < b.pharmacy) return -1;
+    if (a.pharmacy > b.pharmacy) return 1;
+    return 0;
+  });
 
+  const totalRows = filtered.length;
+  const page = clampStockPage(params.page);
+  const pageSize = clampStockPageSize(params.pageSize);
+  const start = (page - 1) * pageSize;
+  const visible = filtered.slice(start, start + pageSize);
+
+  // Metrics from the FULL filtered set (not just current page).
   const metrics: StockMetrics = {
-    referencias: rows.length,
-    baixaCobertura: rows.filter((r) => r.status === "Baixa cobertura").length,
-    stockParado: rows.filter((r) => r.status === "Parado").length,
-    transferencias: rows.filter((r) => r.status === "Transferência sugerida").length,
+    referencias: totalRows,
+    baixaCobertura: filtered.filter((r) => r.status === "Baixa cobertura").length,
+    stockParado: filtered.filter((r) => r.status === "Parado").length,
+    transferencias: filtered.filter((r) => r.status === "Transferência sugerida").length,
   };
 
-  return { rows, pharmacyNames, metrics, filter: filter ?? null };
+  return {
+    rows: visible,
+    totalRows,
+    page,
+    pageSize,
+    pharmacyNames,
+    metrics,
+    filter: params.filter ?? null,
+    params: { ...params, page, pageSize },
+  };
 }

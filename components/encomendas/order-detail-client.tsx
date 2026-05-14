@@ -173,7 +173,7 @@ export function OrderDetailClient({ detail }: Props) {
       {/* Voltar + título */}
       <div className="flex items-center justify-between">
         <Link
-          href="/encomendas/lista"
+          href="/encomendas"
           className="inline-flex items-center gap-1.5 text-[13px] text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />

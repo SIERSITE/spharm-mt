@@ -7,7 +7,7 @@ import {
 } from "@/generated/prisma/client";
 
 /**
- * Data loader para a página de listagem de encomendas (/encomendas/lista).
+ * Data loader para a página de listagem de encomendas (/encomendas).
  * Read-only — mutações vão por server actions.
  *
  * Filtros suportados (todos opcionais):

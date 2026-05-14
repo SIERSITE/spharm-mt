@@ -187,7 +187,173 @@ export class SaasClient {
   ): Promise<{ ok: true; pipelineRunId: string }> {
     return this.request("POST", "/api/admin/pipeline/record", { body, timeoutMs });
   }
+
+  // ── Outbox (export agent: SaaS → SPharm local) ─────────────────────
+
+  /**
+   * GET /api/outbox/v1/orders/pending?limit=N
+   *
+   * Reclama atomicamente até N orders PENDENTE como EM_EXPORTACAO
+   * (lease 5min). O agent deve fazer ack/nack dentro da TTL ou perder
+   * o lease (próximo poll reclama de novo).
+   *
+   * O `payload` é o payloadJson congelado; `enrichment.linhas` traz CNP
+   * + designação por produtoId, resolvidos server-side a partir do
+   * catálogo SaaS para o agent não ter de fazer round-trips.
+   */
+  async pullPendingOrders(
+    options: { limit?: number; agentInstance?: string; timeoutMs?: number } = {}
+  ): Promise<PendingOrdersResponse> {
+    const limit = options.limit ?? 50;
+    const headers: Record<string, string> = {};
+    if (options.agentInstance) headers["x-agent-instance"] = options.agentInstance;
+    const url = `/api/outbox/v1/orders/pending?limit=${encodeURIComponent(String(limit))}`;
+    return this.requestWithHeaders<PendingOrdersResponse>(
+      "GET",
+      url,
+      headers,
+      { timeoutMs: options.timeoutMs }
+    );
+  }
+
+  /**
+   * POST /api/outbox/v1/orders/{outboxId}/ack
+   *
+   * Confirma exportação com sucesso. `spharmDocumentId` é o identificador
+   * que o ERP atribuiu ao documento criado, guardado para reconciliação.
+   */
+  async ackOrder(
+    outboxId: string,
+    body: { spharmDocumentId: string; durationMs?: number; details?: Record<string, unknown> },
+    timeoutMs?: number
+  ): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/outbox/v1/orders/${encodeURIComponent(outboxId)}/ack`,
+      { body, timeoutMs }
+    );
+  }
+
+  /**
+   * POST /api/outbox/v1/orders/{outboxId}/nack
+   *
+   * Reporta falha. `retryable=true` recoloca em PENDENTE para nova
+   * tentativa após backoff; `retryable=false` marca FALHADO para
+   * triagem humana.
+   */
+  async nackOrder(
+    outboxId: string,
+    body: {
+      retryable: boolean;
+      error: string;
+      sqlError?: { code?: string; number?: number; message?: string };
+      details?: Record<string, unknown>;
+    },
+    timeoutMs?: number
+  ): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/outbox/v1/orders/${encodeURIComponent(outboxId)}/nack`,
+      { body, timeoutMs }
+    );
+  }
+
+  /**
+   * Wrapper interno que permite passar headers extra (ex: x-agent-instance).
+   * Mantido privado para evitar exposição directa do fetch.
+   */
+  private async requestWithHeaders<T>(
+    method: "GET" | "POST",
+    path: string,
+    extraHeaders: Record<string, string>,
+    opts: { body?: unknown; timeoutMs?: number } = {}
+  ): Promise<T> {
+    const url = `${this.endpoint}${path.startsWith("/") ? path : "/" + path}`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.ingestKey}`,
+      "X-Tenant-Slug": this.tenantSlug,
+      Accept: "application/json",
+      "User-Agent": `spharmmt-agent/${this.agentVersion}`,
+      ...extraHeaders,
+    };
+    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`SaaS ${method} ${path} — falha de rede: ${msg}`);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!res.ok) {
+      let body = "";
+      try {
+        body = await res.text();
+      } catch {}
+      const snippet = body.slice(0, 500);
+      throw new SaasApiError(
+        `SaaS ${method} ${path} → HTTP ${res.status}: ${snippet || "(corpo vazio)"}`,
+        res.status,
+        path,
+        method,
+        snippet
+      );
+    }
+    return (await res.json()) as T;
+  }
 }
+
+export type PendingOrderLine = {
+  produtoId: string;
+  quantidadeSugerida: string | null;
+  quantidadeAjustada: string | null;
+  fornecedorSugeridoId: string | null;
+  notas: string | null;
+};
+
+export type PendingOrderPayload = {
+  version: 1;
+  tenantSlug: string;
+  listaEncomendaId: string;
+  farmaciaId: string;
+  nome: string;
+  criadoPorId: string;
+  criadoEm: string;
+  linhas: PendingOrderLine[];
+};
+
+export type PendingOrderEnrichmentLine = {
+  produtoId: string;
+  cnp: string | null;
+  designacao: string | null;
+};
+
+export type PendingOrder = {
+  outboxId: string;
+  listaEncomendaId: string;
+  farmaciaId: string;
+  idempotencyKey: string;
+  payloadHash: string;
+  attempt: number;
+  payload: PendingOrderPayload;
+  enrichment: { linhas: PendingOrderEnrichmentLine[] };
+};
+
+export type PendingOrdersResponse = {
+  leasedUntil: string;
+  count: number;
+  orders: PendingOrder[];
+};
 
 export type PipelineRecordBody = {
   farmaciaId: string;

@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { Search, Filter, ArrowRightLeft, AlertTriangle, X } from "lucide-react";
-import type { StockRow, StockMetrics, StockFilter } from "@/lib/stock-shared";
+import { Search, Filter, ArrowRightLeft, AlertTriangle, X, ChevronLeft, ChevronRight } from "lucide-react";
+import type { StockRow, StockPageData } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
 
-const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"];
+const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"] as const;
 const statusOptions: StockRow["status"][] = [
   "Estável",
   "Baixa cobertura",
@@ -53,64 +53,112 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   );
 }
 
-export function StockClient({
-  initialRows,
-  pharmacyNames,
-  metrics,
-  activeFilter,
-}: {
-  initialRows: StockRow[];
-  pharmacyNames: string[];
-  metrics: StockMetrics;
-  activeFilter?: StockFilter | null;
-}) {
-  const router = useRouter();
-  const [search, setSearch] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedPharmacies, setSelectedPharmacies] = useState<string[]>([]);
-  const [selectedCoverage, setSelectedCoverage] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<StockRow["status"][]>([]);
+type StockClientProps = {
+  data: StockPageData;
+};
 
-  const toggleSelection = <T extends string>(
-    value: T,
-    list: T[],
-    setter: React.Dispatch<React.SetStateAction<T[]>>
-  ) => {
-    setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
+export function StockClient({ data }: StockClientProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const serverQ = data.params.q ?? "";
+  // Padrão React "adjust state on prop change": guarda o último valor
+  // que veio do URL/server. Se mudar (ex: back/forward), sincroniza o
+  // input local de pesquisa sem useEffect (evita cascading renders).
+  const [lastServerQ, setLastServerQ] = useState(serverQ);
+  const [searchInput, setSearchInput] = useState<string>(serverQ);
+  if (lastServerQ !== serverQ) {
+    setLastServerQ(serverQ);
+    setSearchInput(serverQ);
+  }
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const selectedPharmacies = data.params.pharmacies ?? [];
+  const selectedCoverage = data.params.coverageBuckets ?? [];
+  const selectedStatus = data.params.statusBuckets ?? [];
+
+  const buildUrl = useCallback(
+    (mut: (params: URLSearchParams) => void) => {
+      const params = new URLSearchParams(sp.toString());
+      mut(params);
+      // Quando algo muda, voltar à página 1 (excepto se o caller mexer no `page`).
+      const qs = params.toString();
+      return qs ? `${pathname}?${qs}` : pathname;
+    },
+    [pathname, sp]
+  );
+
+  const push = useCallback(
+    (mut: (params: URLSearchParams) => void) => {
+      startTransition(() => {
+        router.push(buildUrl(mut), { scroll: false });
+      });
+    },
+    [router, buildUrl, startTransition]
+  );
+
+  const commitSearch = useCallback(
+    (value: string) => {
+      push((p) => {
+        if (value.trim() === "") p.delete("q");
+        else p.set("q", value.trim());
+        p.delete("page");
+      });
+    },
+    [push]
+  );
+
+  // Debounce do input de pesquisa — evita um navigation por keystroke.
+  const onSearchChange = (v: string) => {
+    setSearchInput(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      commitSearch(v);
+    }, 300);
+  };
+
+  const toggleMulti = (key: string, value: string) => {
+    push((p) => {
+      const existing = p.getAll(key);
+      if (existing.includes(value)) {
+        p.delete(key);
+        for (const v of existing.filter((x) => x !== value)) p.append(key, v);
+      } else {
+        p.append(key, value);
+      }
+      p.delete("page");
+    });
   };
 
   const clearAllFilters = () => {
-    setSelectedPharmacies([]);
-    setSelectedCoverage([]);
-    setSelectedStatus([]);
-  };
-
-  const getCoverageBucket = (coverage: string) => {
-    const days = parseInt(coverage, 10);
-    if (Number.isNaN(days)) return "";
-    if (days <= 5) return "0-5 dias";
-    if (days <= 15) return "6-15 dias";
-    return "16+ dias";
-  };
-
-  const filteredRows = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return initialRows.filter((row) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        row.product.toLowerCase().includes(normalizedSearch) ||
-        row.cnp.toLowerCase().includes(normalizedSearch) ||
-        row.pharmacy.toLowerCase().includes(normalizedSearch);
-      const matchesPharmacy =
-        selectedPharmacies.length === 0 || selectedPharmacies.includes(row.pharmacy);
-      const matchesCoverage =
-        selectedCoverage.length === 0 ||
-        selectedCoverage.includes(getCoverageBucket(row.coverage));
-      const matchesStatus =
-        selectedStatus.length === 0 || selectedStatus.includes(row.status);
-      return matchesSearch && matchesPharmacy && matchesCoverage && matchesStatus;
+    push((p) => {
+      p.delete("pharmacy");
+      p.delete("coverage");
+      p.delete("status");
+      p.delete("page");
     });
-  }, [search, selectedPharmacies, selectedCoverage, selectedStatus, initialRows]);
+  };
+
+  const setPage = (newPage: number) => {
+    push((p) => {
+      if (newPage <= 1) p.delete("page");
+      else p.set("page", String(newPage));
+    });
+  };
+
+  const totalPages = Math.max(1, Math.ceil(data.totalRows / data.pageSize));
+  const showingFrom = data.totalRows === 0 ? 0 : (data.page - 1) * data.pageSize + 1;
+  const showingTo = Math.min(data.totalRows, data.page * data.pageSize);
+
+  const hasActiveFilter =
+    selectedPharmacies.length > 0 ||
+    selectedCoverage.length > 0 ||
+    selectedStatus.length > 0;
+
+  const rows = useMemo(() => data.rows, [data.rows]);
 
   return (
     <AppShell>
@@ -122,12 +170,12 @@ export function StockClient({
           </p>
         </section>
 
-        {activeFilter && (
+        {data.filter && (
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-[12px] text-cyan-800">
             <span>
               <span className="font-semibold">Filtro activo:</span>{" "}
-              {STOCK_FILTER_LABELS[activeFilter]} · {initialRows.length.toLocaleString("pt-PT")} produto
-              {initialRows.length === 1 ? "" : "s"}
+              {STOCK_FILTER_LABELS[data.filter]} · {data.totalRows.toLocaleString("pt-PT")} produto
+              {data.totalRows === 1 ? "" : "s"}
             </span>
             <Link
               href="/stock"
@@ -141,86 +189,81 @@ export function StockClient({
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Metric
             label="Referências analisadas"
-            value={metrics.referencias.toLocaleString("pt-PT")}
+            value={data.metrics.referencias.toLocaleString("pt-PT")}
             helper="Universo atual em análise"
           />
           <Metric
             label="Baixa cobertura"
-            value={metrics.baixaCobertura.toLocaleString("pt-PT")}
+            value={data.metrics.baixaCobertura.toLocaleString("pt-PT")}
             helper="Produtos abaixo do limiar"
           />
           <Metric
             label="Stock parado"
-            value={metrics.stockParado.toLocaleString("pt-PT")}
+            value={data.metrics.stockParado.toLocaleString("pt-PT")}
             helper="Sem rotação relevante"
           />
           <Metric
             label="Transferências sugeridas"
-            value={metrics.transferencias.toLocaleString("pt-PT")}
+            value={data.metrics.transferencias.toLocaleString("pt-PT")}
             helper="Entre farmácias do grupo"
           />
         </section>
 
         <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-          <div className="grid gap-3 xl:grid-cols-[1.4fr_180px_180px_180px]">
+          <div className="grid gap-3 xl:grid-cols-[1.4fr_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Pesquisar produto, CNP ou referência"
-                className="h-10 w-full rounded-[12px] border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-emerald-200"
+                value={searchInput}
+                onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    commitSearch(searchInput);
+                  } else if (e.key === "Escape") {
+                    setSearchInput("");
+                    commitSearch("");
+                  }
+                }}
+                placeholder="Pesquisar produto, CNP, farmácia, DCI ou ATC (toda a BD)"
+                disabled={isPending}
+                className="h-10 w-full rounded-[12px] border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-emerald-200 disabled:opacity-60"
               />
             </div>
 
             <button
               type="button"
               onClick={() => setFiltersOpen((prev) => !prev)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-4 text-[12px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
             >
               <Filter className="h-4 w-4" />
-              Grupo
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
-            >
-              Cobertura
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
-            >
-              Estado
+              Filtros{hasActiveFilter ? ` (${selectedPharmacies.length + selectedCoverage.length + selectedStatus.length})` : ""}
             </button>
           </div>
 
-          {(selectedPharmacies.length > 0 || selectedCoverage.length > 0 || selectedStatus.length > 0) && (
+          {hasActiveFilter && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {selectedPharmacies.map((value) => (
                 <FilterChip
                   key={`pharmacy-${value}`}
                   label={value}
-                  onRemove={() => setSelectedPharmacies((prev) => prev.filter((item) => item !== value))}
+                  onRemove={() => toggleMulti("pharmacy", value)}
                 />
               ))}
               {selectedCoverage.map((value) => (
                 <FilterChip
                   key={`coverage-${value}`}
                   label={value}
-                  onRemove={() => setSelectedCoverage((prev) => prev.filter((item) => item !== value))}
+                  onRemove={() => toggleMulti("coverage", value)}
                 />
               ))}
               {selectedStatus.map((value) => (
                 <FilterChip
                   key={`status-${value}`}
                   label={value}
-                  onRemove={() => setSelectedStatus((prev) => prev.filter((item) => item !== value))}
+                  onRemove={() => toggleMulti("status", value)}
                 />
               ))}
               <button
@@ -237,15 +280,15 @@ export function StockClient({
             <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 xl:grid-cols-3">
               <div className="rounded-[12px] border border-slate-100 bg-white/70 p-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Grupo
+                  Farmácia
                 </div>
                 <div className="space-y-2">
-                  {pharmacyNames.map((option) => (
+                  {data.pharmacyNames.map((option) => (
                     <label key={option} className="flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
                       <input
                         type="checkbox"
                         checked={selectedPharmacies.includes(option)}
-                        onChange={() => toggleSelection(option, selectedPharmacies, setSelectedPharmacies)}
+                        onChange={() => toggleMulti("pharmacy", option)}
                         className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                       <span>{option}</span>
@@ -264,7 +307,7 @@ export function StockClient({
                       <input
                         type="checkbox"
                         checked={selectedCoverage.includes(option)}
-                        onChange={() => toggleSelection(option, selectedCoverage, setSelectedCoverage)}
+                        onChange={() => toggleMulti("coverage", option)}
                         className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                       <span>{option}</span>
@@ -283,7 +326,7 @@ export function StockClient({
                       <input
                         type="checkbox"
                         checked={selectedStatus.includes(option)}
-                        onChange={() => toggleSelection(option, selectedStatus, setSelectedStatus)}
+                        onChange={() => toggleMulti("status", option)}
                         className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                       <span>{option}</span>
@@ -308,7 +351,7 @@ export function StockClient({
           </div>
 
           <div className="divide-y divide-slate-100">
-            {filteredRows.map((row) => (
+            {rows.map((row) => (
               <div
                 key={`${row.cnp}-${row.pharmacy}`}
                 role="button"
@@ -377,11 +420,43 @@ export function StockClient({
               </div>
             ))}
 
-            {filteredRows.length === 0 && (
+            {rows.length === 0 && (
               <div className="py-8 text-center text-[12px] text-slate-500">
                 Sem artigos para os critérios selecionados.
               </div>
             )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+            <div>
+              {data.totalRows === 0
+                ? "0 produtos"
+                : `${showingFrom.toLocaleString("pt-PT")}–${showingTo.toLocaleString("pt-PT")} de ${data.totalRows.toLocaleString("pt-PT")} produtos`}
+              {isPending ? " · a carregar…" : ""}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage(data.page - 1)}
+                disabled={data.page <= 1 || isPending}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Anterior
+              </button>
+              <span>
+                Página {data.page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage(data.page + 1)}
+                disabled={data.page >= totalPages || isPending}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Próxima
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </section>
       </div>

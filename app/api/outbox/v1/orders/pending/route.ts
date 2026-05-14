@@ -92,17 +92,57 @@ export const GET = withIntegrationAuth(async (ctx, req) => {
     });
   }
 
+  // Enriquecimento server-side: o payloadJson é congelado e só tem
+  // produtoId. O agent precisa de CNP (e designação) para resolver
+  // CodigoArtigo no SPharm. Devolvido fora de `payload` para preservar
+  // a invariante payloadHash = sha256(payloadJson).
+  type PayloadShape = { linhas?: Array<{ produtoId: string }> };
+  const allProdutoIds = new Set<string>();
+  const parsedPayloads: PayloadShape[] = [];
+  for (const c of claimed) {
+    const parsed = JSON.parse(c.payloadJson) as PayloadShape;
+    parsedPayloads.push(parsed);
+    if (Array.isArray(parsed.linhas)) {
+      for (const l of parsed.linhas) {
+        if (typeof l.produtoId === "string") allProdutoIds.add(l.produtoId);
+      }
+    }
+  }
+  const produtos =
+    allProdutoIds.size > 0
+      ? await ctx.prisma.produto.findMany({
+          where: { id: { in: Array.from(allProdutoIds) } },
+          select: { id: true, cnp: true, designacao: true },
+        })
+      : [];
+  const produtoById = new Map(produtos.map((p) => [p.id, p]));
+
   return NextResponse.json({
     leasedUntil: leasedUntil.toISOString(),
     count: claimed.length,
-    orders: claimed.map((c) => ({
-      outboxId: c.id,
-      listaEncomendaId: c.listaEncomendaId,
-      farmaciaId: c.farmaciaId,
-      idempotencyKey: c.idempotencyKey,
-      payloadHash: c.payloadHash,
-      attempt: c.attemptCount,
-      payload: JSON.parse(c.payloadJson),
-    })),
+    orders: claimed.map((c, idx) => {
+      const payload = parsedPayloads[idx];
+      const enrichmentLines =
+        Array.isArray(payload.linhas)
+          ? payload.linhas.map((l) => {
+              const p = produtoById.get(l.produtoId);
+              return {
+                produtoId: l.produtoId,
+                cnp: p?.cnp ?? null,
+                designacao: p?.designacao ?? null,
+              };
+            })
+          : [];
+      return {
+        outboxId: c.id,
+        listaEncomendaId: c.listaEncomendaId,
+        farmaciaId: c.farmaciaId,
+        idempotencyKey: c.idempotencyKey,
+        payloadHash: c.payloadHash,
+        attempt: c.attemptCount,
+        payload,
+        enrichment: { linhas: enrichmentLines },
+      };
+    }),
   });
 });

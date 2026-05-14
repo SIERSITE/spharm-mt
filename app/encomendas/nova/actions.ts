@@ -75,7 +75,7 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       },
     });
 
-    revalidatePath("/encomendas/lista");
+    revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
     return { ok: true, ...result };
   } catch (err) {
@@ -235,7 +235,6 @@ export async function createInternalTransferAction(
       },
     });
 
-    revalidatePath("/encomendas/lista");
     revalidatePath("/encomendas");
     revalidatePath("/dashboard");
     return { ok: true, listaEncomendaId: result.listaEncomendaId };

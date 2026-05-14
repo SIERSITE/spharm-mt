@@ -17,8 +17,6 @@ import {
   Users,
   Plug,
   ShieldCheck,
-  ListOrdered,
-  FilePlus,
   Activity,
 } from "lucide-react";
 
@@ -49,8 +47,6 @@ const navigation = [
     section: "DECISÃO",
     items: [
       { label: "Encomendas", href: "/encomendas", icon: ClipboardList },
-      { label: "Lista encomendas", href: "/encomendas/lista", icon: ListOrdered },
-      { label: "Nova encomenda", href: "/encomendas/nova", icon: FilePlus },
       { label: "Transferências", href: "/transferencias", icon: ArrowLeftRight },
       { label: "Excessos", href: "/excessos", icon: PackageX },
     ],

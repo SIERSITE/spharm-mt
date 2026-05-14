@@ -32,6 +32,7 @@
     "tenant:create": "tsx scripts/admin/create-client.ts",
     "tenancy:create": "tsx scripts/admin/create-client.ts",
     "tenancy:add-farmacia": "tsx scripts/tenancy/add-farmacia.ts",
+    "tenancy:add-user": "tsx scripts/tenancy/add-user.ts",
     "tenancy:status": "tsx scripts/tenancy/status.ts",
     "admin:package-agent": "tsx scripts/admin/package-agent.ts",
     "env:doctor": "tsx scripts/env-doctor.ts",

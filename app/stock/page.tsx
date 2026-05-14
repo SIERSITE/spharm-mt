@@ -1,4 +1,16 @@
-import { getStockData, isStockFilter, type StockFilter } from "@/lib/stock-data";
+import {
+  getStockData,
+  isStockFilter,
+  isStockCoverageBucket,
+  isStockStatus,
+  clampStockPage,
+  clampStockPageSize,
+  STOCK_DEFAULT_PAGE_SIZE,
+  type StockFilter,
+  type StockSearchParams,
+  type StockCoverageBucket,
+  type StockRow,
+} from "@/lib/stock-data";
 import { StockClient } from "@/components/stock/stock-client";
 
 export const dynamic = "force-dynamic";
@@ -12,20 +24,39 @@ function asString(v: string | string[] | undefined): string | undefined {
   return v;
 }
 
+function asArray(v: string | string[] | undefined): string[] {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === "string" && x.length > 0);
+  if (typeof v === "string" && v.length > 0) {
+    return v.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  }
+  return [];
+}
+
+function parseParams(sp: Record<string, string | string[] | undefined>): StockSearchParams {
+  const rawFilter = asString(sp.filter);
+  const filter: StockFilter | undefined = isStockFilter(rawFilter) ? rawFilter : undefined;
+
+  const coverageRaw = asArray(sp.coverage);
+  const coverageBuckets: StockCoverageBucket[] = coverageRaw.filter(isStockCoverageBucket);
+
+  const statusRaw = asArray(sp.status);
+  const statusBuckets: StockRow["status"][] = statusRaw.filter(isStockStatus);
+
+  return {
+    q: asString(sp.q)?.trim() || undefined,
+    pharmacies: asArray(sp.pharmacy),
+    coverageBuckets,
+    statusBuckets,
+    filter,
+    page: clampStockPage(Number(asString(sp.page) ?? 1)),
+    pageSize: clampStockPageSize(Number(asString(sp.pageSize) ?? STOCK_DEFAULT_PAGE_SIZE)),
+  };
+}
+
 export default async function StockPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const raw = asString(sp.filter);
-  const filter: StockFilter | undefined = isStockFilter(raw) ? raw : undefined;
+  const params = parseParams(sp);
+  const data = await getStockData(params);
 
-  const { rows, pharmacyNames, metrics, filter: appliedFilter } =
-    await getStockData(filter);
-
-  return (
-    <StockClient
-      initialRows={rows}
-      pharmacyNames={pharmacyNames}
-      metrics={metrics}
-      activeFilter={appliedFilter}
-    />
-  );
+  return <StockClient data={data} />;
 }

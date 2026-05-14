@@ -54,6 +54,13 @@ export type AgentConfig = {
   sqlTrustCert: boolean;
   // Output
   outputDir: string;
+  // Outbox / orders export
+  // Como escrever encomendas finalizadas no SPharm:
+  //   · stub   (default) — escreve um JSON por encomenda em
+  //     `<outputDir>/orders-export/...` e ACK ao SaaS com docId STUB-...
+  //   · insert — INSERT real nas tabelas SPharm (bloqueado até schema
+  //     consolidado; ver agent/src/spharm-orders-writer.ts)
+  ordersWriteMode?: "stub" | "insert";
   // Misc
   agentVersion: string;
 };
@@ -174,6 +181,7 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
 
   set("SPHARMMT_AGENT_OUTPUT_DIR", options.outputDir);
   set("SPHARMMT_AGENT_VERSION", options.agentVersion);
+  set("SPHARMMT_ORDERS_WRITE_MODE", options.ordersWriteMode);
 
   return { source: "json", path: JSON_CONFIG_PATH };
 }
@@ -250,6 +258,10 @@ export function loadConfig(scope: Scope): AgentConfig {
 
   const agentVersion = optionalEnv("SPHARMMT_AGENT_VERSION") ?? "0.1.0";
 
+  const rawOrdersMode = optionalEnv("SPHARMMT_ORDERS_WRITE_MODE")?.toLowerCase();
+  const ordersWriteMode: "stub" | "insert" | undefined =
+    rawOrdersMode === "stub" || rawOrdersMode === "insert" ? rawOrdersMode : undefined;
+
   return {
     saasEndpoint: (process.env.SPHARMMT_ENDPOINT ?? saasEndpoint).replace(/\/+$/, ""),
     tenantSlug,
@@ -264,6 +276,7 @@ export function loadConfig(scope: Scope): AgentConfig {
     sqlEncrypt,
     sqlTrustCert,
     outputDir,
+    ordersWriteMode,
     agentVersion,
   };
 }

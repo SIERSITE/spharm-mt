@@ -19,6 +19,8 @@
   },
   "options": {
     "outputDir": "output",
-    "agentVersion": "0.1.0"
+    "agentVersion": "0.1.0",
+    "_ordersWriteMode_doc": "Como escrever encomendas finalizadas no SPharm: 'stub' (default — escreve JSON no outputDir/orders-export/, ack com docId STUB-... para testar pipeline) ou 'insert' (INSERT real, requer schema SPharm mapeado — actualmente bloqueado).",
+    "ordersWriteMode": "stub"
   }
 }
