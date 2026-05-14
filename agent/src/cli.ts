@@ -44,6 +44,7 @@ import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
 import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
+import { setupOrdersWriteLog } from "./commands/setup-orders-write-log.js";
 import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { health } from "./commands/health.js";
@@ -118,6 +119,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-orders-schema": {
     run: inspectOrdersSchema,
     desc: "Probe read-only às tabelas SPharm de encomendas. Gera markdown para validação.",
+  },
+  "setup-orders-write-log": {
+    run: setupOrdersWriteLog,
+    desc: "Cria/verifica dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotência). Pré-requisito para ordersWriteMode=insert.",
   },
   "test-order-write": {
     run: testOrderWrite,

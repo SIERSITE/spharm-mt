@@ -271,12 +271,18 @@ Dois BATs para este fluxo:
 Modos (controlado por `options.ordersWriteMode` em `agent.config.json`):
 
 - `"stub"` (default): exporta JSON em `output\orders-export\<data>\<outboxId>.json` e ack a SaaS com docId STUB-*. **NÃO escreve no SPharm.** O log mostra aviso explícito.
-- `"insert"`: INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`. Requer secção `ordersInsert` preenchida e SQL login com `db_datawriter` (ou INSERT grant nas tabelas-alvo). Idempotente via `outboxId` em `[VVM_ID]`.
+- `"insert"`: INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`. Requer:
+  - Tabela auxiliar `dbo.SPharmMT_OrderWriteLog` criada (ver passo 1 abaixo) — sem ela, o agent recusa qualquer INSERT
+  - Secção `ordersInsert` preenchida em `agent.config.json`
+  - SQL login com INSERT grant em `Encomendas`, `Encomendas Detalhe` e `SPharmMT_OrderWriteLog`
+
+Idempotência é gerida em `dbo.SPharmMT_OrderWriteLog` (tabela **exclusivamente nossa** — não escrevemos em `VVM_ID` ou qualquer outra coluna operacional do SPharm).
 
 **Antes de activar `ordersWriteMode=insert` em produção:**
-1. Validar schema com `run-inspect-orders-schema.bat`
-2. Smoke test com `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT)
-3. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
+1. `run-setup-orders-write-log.bat` — cria a tabela auxiliar de idempotência
+2. `run-inspect-orders-schema.bat` — valida schema das tabelas SPharm
+3. `run-test-order-write.bat` (modo 1 = DRY-RUN; modo 2 = COMMIT) — smoke test
+4. Só depois agendar `run-export-orders-auto.bat` no Task Scheduler
 
 Detalhes completos em [pilot-operator-guide.md](pilot-operator-guide.md#rev15).
 

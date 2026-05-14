@@ -128,9 +128,9 @@ function buildSyntheticOrder(args: Args, tenantSlug: string): PendingOrder {
     throw new Error("--cnp é obrigatório em modo --synthetic.");
   }
   const outboxId = args.outboxId ?? `test-${Date.now().toString(36)}`;
-  if (outboxId.length > 25) {
+  if (outboxId.length > 32) {
     throw new Error(
-      `outboxId "${outboxId}" tem ${outboxId.length} chars; coluna VVM_ID é varchar(25). Encurta o ID.`
+      `outboxId "${outboxId}" tem ${outboxId.length} chars; coluna outboxId em dbo.SPharmMT_OrderWriteLog é varchar(32). Encurta o ID.`
     );
   }
   return {
@@ -238,7 +238,7 @@ export async function testOrderWrite(): Promise<number> {
     console.log(`armazém ID     : ${oc.armazemId}`);
     console.log(`tipo enc. ID   : ${oc.tipoEncomendaId}`);
     console.log(`situação inic. : ${oc.encomendaSituacaoInitial}`);
-    console.log(`idem. column   : ${oc.idempotencyColumn}`);
+    console.log(`idempotência   : dbo.SPharmMT_OrderWriteLog (criada por setup-orders-write-log)`);
   }
   console.log("");
 

@@ -353,6 +353,58 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // setup-orders-write-log — cria (idempotente) a tabela auxiliar de
+  // idempotência. Pré-requisito para ordersWriteMode=insert. SEM prompts.
+  // Tabela é EXCLUSIVAMENTE nossa (dbo.SPharmMT_OrderWriteLog) — não
+  // toca em nenhuma coluna operacional do SPharm.
+  const setupOrdersWriteLogBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — setup-orders-write-log`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   setup-orders-write-log`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Cria ^(ou verifica^) a tabela auxiliar:`,
+    `echo   dbo.SPharmMT_OrderWriteLog`,
+    `echo.`,
+    `echo Esta tabela e EXCLUSIVAMENTE do agent SPharm.MT.`,
+    `echo NAO interfere com schema SPharm operacional.`,
+    `echo NAO escreve em colunas existentes do SPharm.`,
+    `echo.`,
+    `echo Guarda mapeamento outboxId ^(SaaS^) -^> Encomenda ID ^(SPharm^)`,
+    `echo para garantir idempotencia sem tocar em colunas como VVM_ID.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-test-connection.bat OK`,
+    `echo   - SQL login com permissao CREATE TABLE em dbo`,
+    `echo     ^(se nao tiver, o comando imprime SQL para o DBA executar^)`,
+    `echo.`,
+    `node.exe agent.cjs setup-orders-write-log`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Setup OK. Proximo passo: run-test-order-write.bat ^(dry-run^).`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `  echo Se CREATE TABLE foi negado, segue o SQL impresso para o DBA.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-setup-orders-write-log.bat"),
+    setupOrdersWriteLogBat,
+    "utf8"
+  );
+
   // test-order-write — interactivo. DRY-RUN por defeito (rollback
   // automático). Operador pode escolher --commit para escrita real.
   // Pré-requisito: secção ordersInsert preenchida em agent.config.json
@@ -788,7 +840,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 11} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 12} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -833,6 +885,7 @@ function writeReadme() {
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat   Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
+    `  run-setup-orders-write-log.bat  Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
     `  run-export-orders-auto.bat      Task Scheduler: 1 ciclo de export-orders. Log em logs\\export-orders-*.log.`,
     `  run-export-orders-once.bat      Execucao manual interactiva (pause no fim).`,

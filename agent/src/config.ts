@@ -41,14 +41,16 @@ export type Scope =
  * (falha cedo se incompleta em modo insert).
  *
  * Mapeamento para colunas SPharm:
- *   - userIdForInsert       → dbo.Encomendas.[User ID]               (smallint)
- *   - fornecedorIdForOrders → dbo.Encomendas.[Fornecedor ID]         (int)
- *   - armazemId             → dbo.Encomendas.[ArmazemID]             (tinyint)
- *   - tipoEncomendaId       → dbo.Encomendas.[TipoEncomendaID]       (tinyint)
+ *   - userIdForInsert       → dbo.Encomendas.[User ID]                (smallint)
+ *   - fornecedorIdForOrders → dbo.Encomendas.[Fornecedor ID]          (int)
+ *   - armazemId             → dbo.Encomendas.[ArmazemID]              (tinyint)
+ *   - tipoEncomendaId       → dbo.Encomendas.[TipoEncomendaID]        (tinyint)
  *   - encomendaSituacaoInitial → dbo.Encomendas.[EncomendaSituacaoID] (char(1))
- *   - idempotencyColumn     → nome da coluna em dbo.Encomendas para guardar
- *                              o outboxId SaaS (default "VVM_ID" — varchar(25),
- *                              sempre NULL nas amostras observadas)
+ *
+ * Idempotência: gerida via tabela auxiliar `dbo.SPharmMT_OrderWriteLog`
+ * (NÃO em nenhuma coluna operacional do SPharm). Tabela criada por
+ * `setup-orders-write-log`. Schema-only — nenhuma coluna do ERP é
+ * tocada para tracking. O writer falha cedo se a tabela não existir.
  */
 export type OrdersInsertConfig = {
   userIdForInsert: number;
@@ -56,7 +58,6 @@ export type OrdersInsertConfig = {
   armazemId: number;
   tipoEncomendaId: number;
   encomendaSituacaoInitial: string;
-  idempotencyColumn: string;
 };
 
 export type AgentConfig = {
@@ -220,7 +221,12 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_ORDERS_ARMAZEM_ID", ordersInsert.armazemId);
   set("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", ordersInsert.tipoEncomendaId);
   set("SPHARMMT_ORDERS_SITUACAO_INITIAL", ordersInsert.encomendaSituacaoInitial);
-  set("SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN", ordersInsert.idempotencyColumn);
+  if (ordersInsert.idempotencyColumn !== undefined) {
+    // Compat: deprecated em rev17. Emite warning se presente (lemos no
+    // loadConfig). Nenhuma escrita em coluna do SPharm — idempotência
+    // agora vive em dbo.SPharmMT_OrderWriteLog.
+    set("SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN_DEPRECATED", ordersInsert.idempotencyColumn);
+  }
 
   return { source: "json", path: JSON_CONFIG_PATH };
 }
@@ -309,16 +315,23 @@ export function loadConfig(scope: Scope): AgentConfig {
     const armazemId = intOrMissing("SPHARMMT_ORDERS_ARMAZEM_ID", insertMissing);
     const tipoEncomendaId = intOrMissing("SPHARMMT_ORDERS_TIPO_ENCOMENDA_ID", insertMissing);
     const situacaoInitial = optionalEnv("SPHARMMT_ORDERS_SITUACAO_INITIAL") ?? "A";
-    const idempotencyColumn = optionalEnv("SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN") ?? "VVM_ID";
 
     if (situacaoInitial.length !== 1) {
       insertMissing.push(
         "SPHARMMT_ORDERS_SITUACAO_INITIAL (deve ser exactamente 1 char — schema é char(1))"
       );
     }
-    if (!/^[A-Za-z0-9_ ]{1,128}$/.test(idempotencyColumn)) {
-      insertMissing.push(
-        "SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN (nome inválido — caracteres permitidos A-Z a-z 0-9 _ espaço)"
+
+    // Warning silencioso para configs antigas (pre-rev17) que ainda
+    // declaram idempotencyColumn. Não bloqueia, apenas avisa via stderr.
+    const deprecatedIdemColumn = optionalEnv(
+      "SPHARMMT_ORDERS_IDEMPOTENCY_COLUMN_DEPRECATED"
+    );
+    if (deprecatedIdemColumn) {
+      console.warn(
+        `[config] AVISO: ordersInsert.idempotencyColumn ("${deprecatedIdemColumn}") foi REMOVIDO em rev17. ` +
+          `Idempotência agora usa dbo.SPharmMT_OrderWriteLog (criada por setup-orders-write-log). ` +
+          `Remove o campo de agent.config.json — nenhuma coluna do SPharm é escrita.`
       );
     }
 
@@ -336,7 +349,6 @@ export function loadConfig(scope: Scope): AgentConfig {
       armazemId,
       tipoEncomendaId,
       encomendaSituacaoInitial: situacaoInitial,
-      idempotencyColumn,
     };
   }
 

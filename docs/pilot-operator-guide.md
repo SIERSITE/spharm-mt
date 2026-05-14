@@ -108,8 +108,9 @@ Em alternativa: pedir ao admin para fazer remoto via TeamViewer.
 
 | Data | Versão (rev) | Notas |
 |---|---|---|
+| 2026-05-14 | rev17 | **Correcção crítica**: removido uso de `VVM_ID` para idempotência (é Via Verde do Medicamento, escrever ali era semanticamente errado). Idempotência agora vive em tabela auxiliar `dbo.SPharmMT_OrderWriteLog` (criada pelo novo `run-setup-orders-write-log.bat`). Modo `insert` bloqueado até tabela existir. Campo `idempotencyColumn` removido do config. |
 | 2026-05-14 | rev16 | Adicionado `run-export-orders-auto.bat` (Task Scheduler: log file + exit code, sem prompts) e `run-export-orders-once.bat` (manual com pause). Summary do `export-orders` enriquecido: `pulled / inserted / idempotent / acked / failed`. Aviso explícito quando `ordersWriteMode=stub`. |
-| 2026-05-14 | rev15 | `writeInsert` real implementado (INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`, idempotente via `VVM_ID`). Adicionado `run-test-order-write.bat` (smoke test com DRY-RUN default + opção COMMIT). Secção `ordersInsert` em `agent.config.json` exigida quando `ordersWriteMode=insert`. |
+| 2026-05-14 | rev15 | `writeInsert` real implementado (INSERT transaccional em `dbo.Encomendas` + `dbo.[Encomendas Detalhe]`, idempotente via coluna ERP — **substituído em rev17**). Adicionado `run-test-order-write.bat`. Secção `ordersInsert` em `agent.config.json` exigida quando `ordersWriteMode=insert`. |
 | 2026-05-14 | rev14 | Adicionado `run-inspect-orders-schema.bat` (probe read-only ao schema das encomendas SPharm; gera `inspection.md`). NÃO activa escrita real. |
 | 2026-05-14 | rev13 | Adicionado daily-pipeline + auto-bat para Task Scheduler |
 | 2026-05-14 | rev12 | Adicionado processaStocks no payload de vendas |
@@ -156,7 +157,31 @@ O SQL login usado pelo agent precisa de upgrade. Opções:
   GRANT VIEW DEFINITION ON SCHEMA::dbo                TO [spharm_agent];  -- para sys.columns probe
   ```
 
-### 2. Editar `agent.config.json`
+### 2. Criar tabela auxiliar de idempotência (rev17+)
+
+**OBRIGATÓRIO antes do primeiro INSERT.** O agent recusa correr em `ordersWriteMode=insert` se a tabela `dbo.SPharmMT_OrderWriteLog` não existir.
+
+Duplo-clique em **`run-setup-orders-write-log.bat`**. SQL idempotente:
+
+```sql
+IF OBJECT_ID('dbo.SPharmMT_OrderWriteLog', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SPharmMT_OrderWriteLog (
+        outboxId    varchar(32) NOT NULL,
+        encomendaId int         NOT NULL,
+        createdAt   datetime    NOT NULL DEFAULT GETDATE(),
+        payloadHash varchar(64) NULL,
+        status      varchar(20) NOT NULL DEFAULT 'created',
+        CONSTRAINT PK_SPharmMT_OrderWriteLog PRIMARY KEY CLUSTERED (outboxId)
+    );
+END
+```
+
+A tabela é **exclusivamente nossa** — não pertence ao schema SPharm e não interfere com nenhum fluxo existente (incluindo Via Verde do Medicamento / `VVM_ID`, que **NÃO** é tocada por este caminho).
+
+Se o SQL login não tiver permissão `CREATE TABLE`, o BAT imprime o SQL para o DBA executar manualmente via SSMS. Após criar, voltar a correr o BAT para confirmar.
+
+### 3. Editar `agent.config.json`
 
 Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
 
@@ -169,12 +194,13 @@ Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
   "fornecedorIdForOrders":   416,       // Fornecedor default (validar em SPharm UI)
   "armazemId":               1,         // Default observado
   "tipoEncomendaId":         2,         // Default observado
-  "encomendaSituacaoInitial": "A",      // 'A' = Aberta (confirmar localmente)
-  "idempotencyColumn":       "VVM_ID"   // Coluna para guardar outboxId (varchar(25))
+  "encomendaSituacaoInitial": "A"       // 'A' = Aberta (confirmar localmente)
 }
 ```
 
-### 3. Smoke test (sem efeito permanente)
+**Nota:** o campo `idempotencyColumn` foi REMOVIDO em rev17. Se ainda existir no config antigo, o agent emite warning mas ignora — idempotência vive na tabela auxiliar, não em nenhuma coluna do SPharm.
+
+### 4. Smoke test (sem efeito permanente)
 
 `run-test-order-write.bat`:
 
@@ -184,7 +210,9 @@ Mudar `ordersWriteMode` para `"insert"` e preencher secção `ordersInsert`:
    - **1 = DRY-RUN** (default) → executa INSERT dentro de transacção e faz ROLLBACK. Nada visível em SPharm. Valida que o caminho funciona end-to-end.
    - **2 = COMMIT** → escrita real, pede confirmação "CONFIRMO". Encomenda fica visível em SPharm UI imediatamente.
 
-### 4. Validação operacional
+Se `dbo.SPharmMT_OrderWriteLog` não existir, o teste falha com mensagem clara apontando para `run-setup-orders-write-log.bat`.
+
+### 5. Validação operacional
 
 Depois de um `--commit` bem-sucedido, o operador SPharm valida:
 
@@ -193,7 +221,7 @@ Depois de um `--commit` bem-sucedido, o operador SPharm valida:
 - Estado inicial = `encomendaSituacaoInitial` da config
 - Re-run com mesmo `--outbox-id` devolve `source=idempotent` (mesma encomenda ID; sem duplicação)
 
-### 5. Activação em produção
+### 6. Activação em produção
 
 Depois da validação:
 
@@ -265,3 +293,4 @@ Em modo `stub`, aparece também:
 - **NEncomenda**: calculado `MAX([NEncomenda]) + 1` sob `TABLOCKX HOLDLOCK`. Seguro para single-instance agent + operador concorrente em SPharm UI. NÃO suporta múltiplos agents a escrever simultaneamente para o mesmo SPharm.
 - **Sem stored procedure**: INSERT directo. Se o SPharm tiver SP `usp_CriarEncomenda` com regras de negócio, este caminho NÃO as dispara. Validar com admin SPharm no smoke test.
 - **`Encomenda ID` deve ser IDENTITY**: o agent verifica em runtime via `sys.columns`. Se não for, falha cedo com mensagem clara — não tenta inventar IDs.
+- **Idempotência: tabela auxiliar separada**: `dbo.SPharmMT_OrderWriteLog` tem de existir antes do primeiro INSERT (criada por `run-setup-orders-write-log.bat`). NENHUMA coluna do SPharm é usada para tracking — `VVM_ID` (Via Verde do Medicamento), `Observacoes`, ou qualquer outra coluna operacional ficam intactas.

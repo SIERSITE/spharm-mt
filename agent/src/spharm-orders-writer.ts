@@ -12,14 +12,20 @@
  *     um `spharmDocumentId` sintético prefixado com `STUB-`.
  *
  *   · insert — modo real. INSERT directo em dbo.Encomendas +
- *     dbo.Encomendas Detalhe, transaccional, idempotente via outboxId
- *     guardado em coluna configurável (default VVM_ID). Schema-alvo
- *     mapeado a partir de notes/inspection.md gerado por
- *     `inspect-orders-schema`.
+ *     dbo.Encomendas Detalhe, transaccional, idempotente via tabela
+ *     auxiliar `dbo.SPharmMT_OrderWriteLog`. NÃO escreve em nenhuma
+ *     coluna operacional do SPharm para tracking (ex: VVM_ID, que é
+ *     Via Verde do Medicamento — encomendas SaaS NÃO são VVM).
+ *     Schema-alvo mapeado em notes/inspection.md (gerado por
+ *     `inspect-orders-schema`).
  *
  * Idempotência (modo insert):
- *   - Antes do INSERT: SELECT [Encomenda ID] WHERE [VVM_ID]=@outboxId.
- *     Se já existir, devolve esse ID sem novo INSERT.
+ *   - Pré-requisito: tabela `dbo.SPharmMT_OrderWriteLog` existe (criada
+ *     por `setup-orders-write-log`). Writer falha cedo se faltar.
+ *   - Antes do INSERT: SELECT encomendaId FROM SPharmMT_OrderWriteLog
+ *     WHERE outboxId=@outboxId. Se existir, devolve esse ID.
+ *   - Após INSERT bem-sucedido: INSERT no write-log dentro da MESMA
+ *     transacção. PK (outboxId) garante unicidade mesmo sob race.
  *   - Re-run da mesma outboxId é seguro — não duplica.
  *
  * dryRun (modo insert):
@@ -177,12 +183,18 @@ async function writeStub(
 type InsertSchema = {
   encomendaIdIsIdentity: boolean;
   detalheIdIsIdentity: boolean;
+  writeLogExists: boolean;
 };
 
 let cachedInsertSchema: InsertSchema | null = null;
 
+/** Nome canónico da tabela auxiliar de idempotência. Não configurável —
+ *  é uma tabela exclusivamente nossa, criada por setup-orders-write-log. */
+export const ORDER_WRITE_LOG_TABLE = "dbo.SPharmMT_OrderWriteLog";
+
 async function getInsertSchema(pool: SqlPool): Promise<InsertSchema> {
   if (cachedInsertSchema) return cachedInsertSchema;
+  // Probe 1: IDENTITY check em dbo.Encomendas + dbo.[Encomendas Detalhe]
   const r = await pool.request().query<{
     tableName: string;
     columnName: string;
@@ -222,8 +234,31 @@ async function getInsertSchema(pool: SqlPool): Promise<InsertSchema> {
       false
     );
   }
-  cachedInsertSchema = { encomendaIdIsIdentity, detalheIdIsIdentity };
+
+  // Probe 2: tabela auxiliar de idempotência existe?
+  const wlr = await pool.request().query<{ oid: number | null }>(
+    `SELECT OBJECT_ID('${ORDER_WRITE_LOG_TABLE}', 'U') AS oid`
+  );
+  const writeLogExists = wlr.recordset[0]?.oid != null;
+  if (!writeLogExists) {
+    throw new WriteOrderError(
+      `Tabela auxiliar ${ORDER_WRITE_LOG_TABLE} não existe. ` +
+        `Esta tabela é OBRIGATÓRIA em modo insert — guarda o mapeamento outboxId→encomendaId ` +
+        `para garantir idempotência sem tocar em colunas operacionais do SPharm (ex: VVM_ID, ` +
+        `que é Via Verde do Medicamento e não deve ser usado). ` +
+        `Correr 'run-setup-orders-write-log.bat' antes de qualquer escrita real.`,
+      false
+    );
+  }
+
+  cachedInsertSchema = { encomendaIdIsIdentity, detalheIdIsIdentity, writeLogExists };
   return cachedInsertSchema;
+}
+
+/** Limpa o cache de schema introspection — usado por testes e pelo
+ *  setup-orders-write-log após criar a tabela. */
+export function resetInsertSchemaCache(): void {
+  cachedInsertSchema = null;
 }
 
 // ─── Insert: lookup CNP → CodigoID + preços ──────────────────────────
@@ -333,14 +368,16 @@ async function writeInsert(
   await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
 
   try {
-    // 4) Idempotency check — outboxId já gravado?
+    // 4) Idempotency check — outboxId já registado no write-log auxiliar?
+    //    A tabela é EXCLUSIVAMENTE nossa (criada pelo setup); nenhuma
+    //    coluna do SPharm é tocada para tracking.
     const idemReq = new sql.Request(tx);
-    idemReq.input("outboxId", sql.VarChar(25), order.outboxId);
-    const existing = await idemReq.query<{ id: number }>(
-      `SELECT TOP 1 [Encomenda ID] AS id FROM [dbo].[Encomendas] WHERE [${oc.idempotencyColumn}] = @outboxId`
+    idemReq.input("outboxId", sql.VarChar(32), order.outboxId);
+    const existing = await idemReq.query<{ encomendaId: number }>(
+      `SELECT TOP 1 encomendaId FROM ${ORDER_WRITE_LOG_TABLE} WHERE outboxId = @outboxId`
     );
     if (existing.recordset.length > 0) {
-      const existingId = Number(existing.recordset[0].id);
+      const existingId = Number(existing.recordset[0].encomendaId);
       // Em dryRun ou commit normal: nada para escrever — rollback é equivalente
       await tx.rollback();
       return {
@@ -353,7 +390,7 @@ async function writeInsert(
           encomendaId: existingId,
           lineCount: lineSpecs.length,
           dryRun: options.dryRun ?? false,
-          note: "outboxId já existia em SPharm — retorno do mesmo Encomenda ID.",
+          note: "outboxId já existia em SPharmMT_OrderWriteLog — retorno do mesmo Encomenda ID.",
         },
         source: "idempotent",
       };
@@ -383,6 +420,9 @@ async function writeInsert(
     // 7) INSERT header. Encomenda ID é IDENTITY (validado em getInsertSchema).
     //    Defaults hardcoded — EncNegociada=0, EncAprovacaoSitID=1,
     //    EncCentralCompras=0 — consistente com TOP 5 amostras observadas.
+    //    NENHUMA coluna operacional do SPharm é tocada para tracking
+    //    de origem SaaS (VVM_ID continua NULL — Via Verde do Medicamento
+    //    não é este fluxo). Tracking vive em SPharmMT_OrderWriteLog.
     const hReq = new sql.Request(tx);
     hReq.input("fornecedorId", sql.Int, oc.fornecedorIdForOrders);
     hReq.input("nEncomenda", sql.Int, nEncomenda);
@@ -390,10 +430,7 @@ async function writeInsert(
     hReq.input("situacao", sql.Char(1), oc.encomendaSituacaoInitial);
     hReq.input("armazemId", sql.TinyInt, oc.armazemId);
     hReq.input("tipoEncomendaId", sql.TinyInt, oc.tipoEncomendaId);
-    hReq.input("outboxId", sql.VarChar(25), order.outboxId);
 
-    // Nota: column name `[${oc.idempotencyColumn}]` é interpolado após
-    // validação regex no loadConfig — apenas A-Z, a-z, 0-9, _, espaço.
     const hRes = await hReq.query<{ id: number }>(`
       INSERT INTO [dbo].[Encomendas] (
         [Fornecedor ID],
@@ -404,7 +441,6 @@ async function writeInsert(
         [ArmazemID],
         [EncNegociada],
         [EncAprovacaoSitID],
-        [${oc.idempotencyColumn}],
         [EncCentralCompras],
         [TipoEncomendaID]
       ) VALUES (
@@ -416,7 +452,6 @@ async function writeInsert(
         @armazemId,
         0,
         1,
-        @outboxId,
         0,
         @tipoEncomendaId
       );
@@ -470,7 +505,24 @@ async function writeInsert(
       insertedLineIds.push(detalheId);
     }
 
-    // 9) Commit OU rollback (dry-run)
+    // 9) INSERT no write-log auxiliar — DENTRO DA MESMA transacção.
+    //    O PRIMARY KEY (outboxId) garante unicidade mesmo sob race;
+    //    se outro processo inseriu o mesmo outboxId entre o SELECT
+    //    inicial e este INSERT, esta query falha com PK violation e
+    //    a transacção inteira faz rollback (header + linhas incluídos).
+    const wlReq = new sql.Request(tx);
+    wlReq.input("outboxId", sql.VarChar(32), order.outboxId);
+    wlReq.input("encomendaId", sql.Int, encomendaId);
+    wlReq.input("payloadHash", sql.VarChar(64), order.payloadHash);
+    wlReq.input("status", sql.VarChar(20), "created");
+    await wlReq.query(`
+      INSERT INTO ${ORDER_WRITE_LOG_TABLE}
+        (outboxId, encomendaId, payloadHash, status)
+      VALUES
+        (@outboxId, @encomendaId, @payloadHash, @status)
+    `);
+
+    // 10) Commit OU rollback (dry-run)
     if (options.dryRun) {
       await tx.rollback();
     } else {
@@ -493,7 +545,7 @@ async function writeInsert(
         armazemId: oc.armazemId,
         situacaoInitial: oc.encomendaSituacaoInitial,
         tipoEncomendaId: oc.tipoEncomendaId,
-        idempotencyColumn: oc.idempotencyColumn,
+        writeLogTable: ORDER_WRITE_LOG_TABLE,
         dryRun: options.dryRun ?? false,
         resolvedLines: resolved.map((r) => ({
           produtoId: r.produtoId,
