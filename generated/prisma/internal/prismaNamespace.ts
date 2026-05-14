@@ -417,6 +417,7 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
@@ -435,7 +436,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2881,6 +2882,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PipelineRun: {
+      payload: Prisma.$PipelineRunPayload<ExtArgs>
+      fields: Prisma.PipelineRunFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PipelineRunFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PipelineRunFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        findFirst: {
+          args: Prisma.PipelineRunFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PipelineRunFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        findMany: {
+          args: Prisma.PipelineRunFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>[]
+        }
+        create: {
+          args: Prisma.PipelineRunCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        createMany: {
+          args: Prisma.PipelineRunCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PipelineRunCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>[]
+        }
+        delete: {
+          args: Prisma.PipelineRunDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        update: {
+          args: Prisma.PipelineRunUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        deleteMany: {
+          args: Prisma.PipelineRunDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PipelineRunUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PipelineRunUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>[]
+        }
+        upsert: {
+          args: Prisma.PipelineRunUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PipelineRunPayload>
+        }
+        aggregate: {
+          args: Prisma.PipelineRunAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePipelineRun>
+        }
+        groupBy: {
+          args: Prisma.PipelineRunGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PipelineRunGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PipelineRunCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PipelineRunCountAggregateOutputType> | number
+        }
+      }
+    }
     TipoDocumentoClassificacao: {
       payload: Prisma.$TipoDocumentoClassificacaoPayload<ExtArgs>
       fields: Prisma.TipoDocumentoClassificacaoFieldRefs
@@ -3729,6 +3804,25 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
 
 
+export const PipelineRunScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  kind: 'kind',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  status: 'status',
+  dateRef: 'dateRef',
+  durationMs: 'durationMs',
+  errorMessage: 'errorMessage',
+  details: 'details',
+  triggeredBy: 'triggeredBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PipelineRunScalarFieldEnum = (typeof PipelineRunScalarFieldEnum)[keyof typeof PipelineRunScalarFieldEnum]
+
+
 export const TipoDocumentoClassificacaoScalarFieldEnum = {
   tipoDocumento: 'tipoDocumento',
   classe: 'classe',
@@ -4374,6 +4468,7 @@ export type GlobalOmitConfig = {
   enriquecimentoFila?: Prisma.EnriquecimentoFilaOmit
   loteIngestao?: Prisma.LoteIngestaoOmit
   ingestVendaLinhaRaw?: Prisma.IngestVendaLinhaRawOmit
+  pipelineRun?: Prisma.PipelineRunOmit
   tipoDocumentoClassificacao?: Prisma.TipoDocumentoClassificacaoOmit
   orderOutbox?: Prisma.OrderOutboxOmit
   orderExportAudit?: Prisma.OrderExportAuditOmit

@@ -84,6 +84,7 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit'
@@ -690,6 +691,25 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 } as const
 
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
+
+
+export const PipelineRunScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  kind: 'kind',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  status: 'status',
+  dateRef: 'dateRef',
+  durationMs: 'durationMs',
+  errorMessage: 'errorMessage',
+  details: 'details',
+  triggeredBy: 'triggeredBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PipelineRunScalarFieldEnum = (typeof PipelineRunScalarFieldEnum)[keyof typeof PipelineRunScalarFieldEnum]
 
 
 export const TipoDocumentoClassificacaoScalarFieldEnum = {

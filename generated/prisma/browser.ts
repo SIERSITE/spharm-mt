@@ -256,6 +256,33 @@ export type LoteIngestao = Prisma.LoteIngestaoModel
  */
 export type IngestVendaLinhaRaw = Prisma.IngestVendaLinhaRawModel
 /**
+ * Model PipelineRun
+ * Registo de cada execução do pipeline autónomo daily-sync → aggregate
+ * → reports. Auditoria + base do health check + página /admin/pipeline.
+ * 
+ * Modelo single-shot: o agent (ou o endpoint server-side) POSTa **uma**
+ * row com `status='RUNNING'` quando arranca, e faz UPDATE para
+ * `OK`/`ERROR`/`ABORTED` no fim. Não é uma máquina de estados com
+ * transições intermédias — apenas marca início e fim com payload
+ * estruturado em `details`.
+ * 
+ * Kinds suportados (string livre, sem enum Prisma para flexibilidade):
+ * · "daily-pipeline"    — orquestrador completo do agent on-prem
+ * · "daily-sync"        — sub-passo (raro: o orquestrador agrega)
+ * · "aggregate-month"   — agregação VendaMensal server-side
+ * 
+ * `details` é JSON com counts/timings/IDs operacionais. Estrutura
+ * canónica documentada em `lib/pipeline/types.ts`.
+ * 
+ * Garantias de leitura:
+ * · `[farmaciaId, kind, startedAt]` indexado → última execução por
+ * tipo num único query
+ * · `[status, startedAt]` indexado → listagem de falhas recentes
+ * · Sem retenção automática — opera com 1 row por dia × kind, ou
+ * seja ~3 rows/dia × tenant. 12 meses = ~1k rows. Append-only.
+ */
+export type PipelineRun = Prisma.PipelineRunModel
+/**
  * Model TipoDocumentoClassificacao
  * Lookup de classificação semântica para `Atendimento.[Tipo Documento]`.
  * PK natural = valor raw do ERP (Int). Aplicado no endpoint

@@ -9,15 +9,40 @@
  * Comandos disponíveis (v0.1):
  *   · test-connection
  *   · discover
+ *   · discover-products  (probe TOP 5, sem persistência)
+ *   · discover-stock     (probe TOP 5, sem persistência)
+ *   · discover-sales     (probe TOP 5, sem persistência)
+ *   · probe-table        (probe genérico dirigido por --table)
+ *   · products-preview   (TOP 20 com JOINs — Stocks/ArmazensStocks/Fornecedores)
+ *   · stock-preview      (TOP 20 com JOINs — Stocks/ArmazensStocks/Armazens)
+ *   · sales-preview      (TOP 20 com JOINs + filtros datas/Fim Venda)
+ *   · sales-summary-preview (GROUP BY TipoDoc+EntidadeID + TOP 10 docs)
+ *   · bootstrap-dry-run  (preview canónico da 1ª ingestão — sem escrita)
+ *   · bootstrap-upload   (1ª ingestão REAL, idempotente, gated por feature flag)
+ *   · daily-sync        (sync incremental diário, reusa endpoints bootstrap)
+ *   · daily-sync-dry-run (preview do daily-sync sem POST)
  *   · health
  *
- * Planeados (próxima iteração, após mapping ERP→SPharm.MT):
+ * Planeados (próxima iteração, após mapping ERP→SPharm.MT consolidado):
  *   · bootstrap
  *   · daily-sync
  */
 
 import { testConnection } from "./commands/test-connection.js";
 import { discover } from "./commands/discover.js";
+import { discoverProducts } from "./commands/discover-products.js";
+import { discoverStock } from "./commands/discover-stock.js";
+import { discoverSales } from "./commands/discover-sales.js";
+import { probeTable } from "./commands/probe-table.js";
+import { productsPreview } from "./commands/products-preview.js";
+import { stockPreview } from "./commands/stock-preview.js";
+import { salesPreview } from "./commands/sales-preview.js";
+import { salesSummaryPreview } from "./commands/sales-summary-preview.js";
+import { bootstrapDryRun } from "./commands/bootstrap-dry-run.js";
+import { bootstrapUpload } from "./commands/bootstrap-upload.js";
+import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
+import { dailyPipeline } from "./commands/daily-pipeline.js";
+import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -30,6 +55,62 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   discover: {
     run: discover,
     desc: "Lê metadata do ERP SQL Server (read-only). Output em output/.",
+  },
+  "discover-products": {
+    run: discoverProducts,
+    desc: "Probe TOP 5 na tabela mestre de artigos. Sem persistência.",
+  },
+  "discover-stock": {
+    run: discoverStock,
+    desc: "Probe TOP 5 + sumário de stock corrente. Sem persistência.",
+  },
+  "discover-sales": {
+    run: discoverSales,
+    desc: "Probe TOP 5 em linhas de venda + dias top. Sem persistência.",
+  },
+  "probe-table": {
+    run: probeTable,
+    desc: "Probe genérico (PK/FKs/datas/TOP 5) — --table obrigatório.",
+  },
+  "products-preview": {
+    run: productsPreview,
+    desc: "Preview TOP 20: Stocks + ArmazensStocks + Fornecedores. Read-only.",
+  },
+  "stock-preview": {
+    run: stockPreview,
+    desc: "Preview TOP 20: Stocks + ArmazensStocks + Armazens. Read-only.",
+  },
+  "sales-preview": {
+    run: salesPreview,
+    desc: "Preview TOP 20: Atendimento + Detalhe + Stocks. --from/--to obrigatórios.",
+  },
+  "sales-summary-preview": {
+    run: salesSummaryPreview,
+    desc: "Agregado por TipoDoc+EntidadeID + TOP 10 docs. Caracteriza Valor_EUR.",
+  },
+  "bootstrap-dry-run": {
+    run: bootstrapDryRun,
+    desc: "Preview da 1ª ingestão: payloads canónicos + counts + alerts. SEM escrita.",
+  },
+  "bootstrap-upload": {
+    run: bootstrapUpload,
+    desc: "1ª ingestão REAL para a SaaS. Idempotente. Requer ENABLE_AGENT_BOOTSTRAP=1.",
+  },
+  "daily-sync": {
+    run: dailySync,
+    desc: "Sync incremental diário (--date). Reusa endpoints bootstrap. Idempotente.",
+  },
+  "daily-sync-dry-run": {
+    run: dailySyncDryRun,
+    desc: "Dry-run do daily-sync — preview SQL + amostras sem POST.",
+  },
+  "daily-pipeline": {
+    run: dailyPipeline,
+    desc: "Orquestrador autónomo: daily-sync + aggregate. Lockfile + logs locais.",
+  },
+  "inspect-codigoid": {
+    run: inspectCodigoId,
+    desc: "Probe dbo.Stocks read-only para lista de CodigoIDs (--ids).",
   },
   health: {
     run: health,

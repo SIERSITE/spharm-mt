@@ -116,4 +116,125 @@ export class SaasClient {
   }> {
     return this.request("GET", "/api/ingest/v1/farmacias", { timeoutMs });
   }
+
+  // ── Bootstrap (1ª ingestão controlada, feature-flag gated) ────────
+
+  /**
+   * POST /api/ingest/v1/bootstrap/products
+   * Batch upsert de produtos (catálogo + ProdutoFarmacia per-farmacia).
+   * Body: { farmaciaId, items: ProductPayload[] }. Idempotente.
+   */
+  async bootstrapProducts(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<BootstrapBatchResponse> {
+    return this.request("POST", "/api/ingest/v1/bootstrap/products", { body, timeoutMs });
+  }
+
+  /**
+   * POST /api/ingest/v1/bootstrap/stock
+   * Batch upsert de stock (per-armazém → agregado server-side por
+   * externalProductId). Body: { farmaciaId, items: StockPayload[] }.
+   * Idempotente.
+   */
+  async bootstrapStock(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<BootstrapBatchResponse & { aggregated?: number }> {
+    return this.request("POST", "/api/ingest/v1/bootstrap/stock", { body, timeoutMs });
+  }
+
+  /**
+   * POST /api/ingest/v1/bootstrap/sales-lines
+   * Insert/update das linhas de venda raw em staging
+   * `IngestVendaLinhaRaw`. Body: { farmaciaId, items: SaleLinePayload[] }.
+   * Idempotente via (farmaciaId, externalSaleLineId).
+   */
+  async bootstrapSalesLines(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<BootstrapBatchResponse & { orphanProductLines?: number; nonStockServiceLines?: number; operationalOrphans?: number }> {
+    return this.request("POST", "/api/ingest/v1/bootstrap/sales-lines", { body, timeoutMs });
+  }
+
+  // ── Pipeline (autonomous daily pipeline endpoints) ─────────────────
+
+  /**
+   * POST /api/admin/pipeline/aggregate-month
+   * Trigger server-side da agregação `IngestVendaLinhaRaw → VendaMensal`
+   * para o mês dado. Cria um PipelineRun no SaaS com status final.
+   * Devolve o pipelineRunId + counts para o agent agregar no resumo
+   * do daily-pipeline.
+   */
+  async pipelineAggregateMonth(
+    body: { month: string; write?: boolean; allowOrphans?: boolean; allowNegativeTotals?: boolean },
+    timeoutMs?: number
+  ): Promise<PipelineAggregateResponse> {
+    return this.request("POST", "/api/admin/pipeline/aggregate-month", {
+      body,
+      timeoutMs: timeoutMs ?? 60_000,
+    });
+  }
+
+  /**
+   * POST /api/admin/pipeline/record
+   * Cria uma PipelineRun no SaaS com status final (OK/ERROR/ABORTED).
+   * Usado pelo agent para registar o orquestrador daily-pipeline.
+   */
+  async pipelineRecord(
+    body: PipelineRecordBody,
+    timeoutMs?: number
+  ): Promise<{ ok: true; pipelineRunId: string }> {
+    return this.request("POST", "/api/admin/pipeline/record", { body, timeoutMs });
+  }
 }
+
+export type PipelineRecordBody = {
+  farmaciaId: string;
+  kind: "daily-pipeline" | "daily-sync" | "aggregate-month";
+  status: "OK" | "ERROR" | "ABORTED";
+  startedAt: string;
+  finishedAt: string;
+  dateRef?: string;
+  durationMs?: number;
+  errorMessage?: string;
+  details?: Record<string, unknown>;
+  triggeredBy?: string;
+};
+
+export type PipelineAggregateResponse = {
+  ok: true;
+  pipelineRunId: string;
+  preflight: {
+    rawLines: number;
+    produtosDistinct: number;
+    atendimentosDistinct: number;
+    farmaciasDistinct: number;
+    byClass: Record<string, number>;
+    orphans: number;
+    nonStockServices: number;
+    operationalOrphans: number;
+    unknowns: number;
+  };
+  totals: {
+    quantidadeLiquida: number;
+    valorBruto: number;
+    valorPagoUtente: number;
+    valorComparticipado: number;
+    linhasVenda: number;
+    atendimentos: number;
+  };
+  rowsInserted: number;
+  rowsDeleted: number;
+  rowCount: number;
+  durationMs: number;
+};
+
+export type BootstrapBatchResponse = {
+  ok: true;
+  accepted: number;
+  upserted: number;
+  skipped: Array<{ index: number; reason: string; externalId?: number }>;
+  errors: Array<{ index: number; reason: string; externalId?: number; message: string }>;
+  durationMs: number;
+};

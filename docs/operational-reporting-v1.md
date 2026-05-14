@@ -5,6 +5,91 @@ baseado em `VendaMensal`, alimentado pelo agent local SPharm.MT.
 
 Estado: **produção** (demo-neon validado com 2024-01 + 2024-04).
 
+A partir desta iteração, o ciclo daily-sync → aggregate → reports é
+autónomo via **daily-pipeline** (agent on-prem disparado por Windows
+Task Scheduler). Ver §"Pipeline autónomo" abaixo.
+
+---
+
+## Pipeline autónomo (daily-pipeline)
+
+Um único comando, disparado em Windows Task Scheduler:
+
+```
+run-daily-pipeline-auto.bat
+```
+
+Fluxo:
+
+1. Calcula `ontem` (UTC) automaticamente
+2. Adquire lockfile (`run/pipeline.lock`) — abort se já corre
+3. Corre **daily-sync** (ERP → SaaS staging)
+4. Corre **aggregate-month** server-side via `/api/admin/pipeline/aggregate-month`
+5. Valida safety conditions (UNKNOWN=0, operationalOrphans=0, valorBruto≥0)
+6. Grava resumo em `PipelineRun` (SaaS) + logs locais
+7. Release lockfile
+
+Logs locais (relativos ao directorio do agent):
+
+```
+logs/
+  pipeline-YYYY-MM-DD.log    # resumo do orquestrador
+  daily-sync-YYYY-MM-DD.log  # output dos 3 pipelines
+  aggregate-YYYY-MM.log      # resposta da agregação server-side
+```
+
+Resumo operacional impresso no fim de cada run:
+
+```
+DAILY PIPELINE OK
+Date: 2024-04-02
+
+Products synced: X
+Stock rows synced: Y
+Sales lines synced: Z
+
+VendaMensal:
+  rows inserted: N
+  valorBruto: EUR
+  devoluções: M
+
+Unknown TipoDocs: 0
+Operational orphans: 0
+
+Duration total: 00:01:42
+```
+
+### Safety aborts
+
+O daily-pipeline aborta sem escrever resultados quando:
+
+- Lockfile presente (outro pipeline ainda a correr)
+- Tenant não resolvível
+- daily-sync HTTP error (qualquer batch falha)
+- `UNKNOWN > 0` em staging do mês (classifier incompleto)
+- `operationalOrphans > 0` (produtos legítimos sem upsert)
+- Total `valorBruto` agregado é negativo (provavelmente data quality)
+
+Cada aborto regista `status='ABORTED'` em `PipelineRun.details` com o
+`abortCode` específico — visível em `/admin/pipeline` e `pipeline:health`.
+
+### Observabilidade
+
+**Health check via terminal:**
+
+```
+npm run pipeline:health -- --tenant <slug>
+```
+
+Exit codes semânticos: 0=OK, 2=último run não OK, 3=UNKNOWN presente,
+4=orphans presentes. Útil para watchdog externo.
+
+**UI:** `/admin/pipeline` (platform admin only). Mostra:
+- Últimas execuções (daily-pipeline, aggregate, daily-sync)
+- Métricas: rows VendaMensal, UNKNOWN, orphans, services
+- 10 últimas execuções
+- Últimas falhas (ERROR + ABORTED)
+
 ---
 
 ## Pipeline em três fases

@@ -24,6 +24,7 @@
     "bootstrap-upload": "tsx src/cli.ts bootstrap-upload",
     "daily-sync": "tsx src/cli.ts daily-sync",
     "daily-sync-dry-run": "tsx src/cli.ts daily-sync-dry-run",
+    "daily-pipeline": "tsx src/cli.ts daily-pipeline",
     "inspect-codigoid": "tsx src/cli.ts inspect-codigoid",
     "health": "tsx src/cli.ts health"
   },
