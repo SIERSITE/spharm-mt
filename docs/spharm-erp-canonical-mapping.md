@@ -1,6 +1,6 @@
 # SPharm ERP → SPharm.MT — Canonical Mapping
 
-**Versão:** v0.10 · **Data:** 2026-05-14 · **Status:** agregação `IngestVendaLinhaRaw` → `VendaMensal` entregue (`aggregate-vendamensal` script idempotente, transactional, scoped delete + insertMany); fields novos em VendaMensal preservam legacy schema; dashboard intacto
+**Versão:** v0.11 · **Data:** 2026-05-14 · **Status:** tools de diagnose de orphans entregues — `ingest:list-orphans` (SaaS-side, listar externalProductIds órfãos) + `inspect-codigoid` (agent-side, query dbo.Stocks por CodigoIDs com schema detection)
 
 Documento operacional que liga as tabelas observadas no **SPharm ERP
 (Softreis, SQL Server 2008 R2)** às entidades canónicas do **SPharm.MT**.
@@ -1260,7 +1260,93 @@ agregado não entram em nenhum filtro.
 - (b) Re-run bootstrap-upload products mais permissivo
 - (c) Investigar manualmente cada orphan
 
-## 12. Referências cruzadas
+## 12. Diagnose de produtos órfãos (v0.11)
+
+Quando `aggregate-vendamensal` aborta com `produtoId IS NULL`, há
+linhas de venda cujo `externalProductId` não tem correspondente em
+`Produto`. Antes de aceitar perda via `--allow-orphans`, investigar:
+
+### 12.1 `npm run ingest:list-orphans` (SaaS-side)
+
+Lista distinct `externalProductId` órfãos em `IngestVendaLinhaRaw`
+para um tenant. Output inclui: count de rows, primeira/última venda,
+classes envolvidas.
+
+```bash
+# Todos os meses
+npm run ingest:list-orphans -- --tenant demo-neon
+
+# Filtrar mês específico
+npm run ingest:list-orphans -- --tenant demo-neon --month 2024-04
+```
+
+Output:
+```
+6 externalProductId órfãos:
+  externalProductId  rows  primeira_venda          ultima_venda            classes
+  35023              3     2024-01-01T01:37:11     2024-01-01T04:32:42     VENDA
+  12551              1     2024-04-01T16:22:17     2024-04-01T16:22:17     VENDA
+  ...
+```
+
+### 12.2 Agent `inspect-codigoid --ids X,Y,Z` (ERP-side)
+
+Corre no PC da farmácia (rev11+) — consulta `dbo.Stocks` para a lista
+de IDs órfãos e mostra flags operacionais, datas, PVP.
+
+```bash
+# Via .bat interactivo
+run-inspect-codigoid.bat
+→ CodigoIDs: 35023,12551,34972,34993,38555,41905
+
+# Ou via cmd directo
+node.exe agent.cjs inspect-codigoid --ids 35023,12551,34972
+```
+
+Output por CodigoID:
+```
+─── CodigoID 35023 ───
+  CodigoID                     35023
+  Codigo                       1234567
+  Nome Comercial               Aspirina 500mg
+  Retirado                     1                  ← orphan cause
+  Processa_Stocks              0
+  Data Ultima Venda            2024-01-01T...Z
+  Data Ultima Compra           2023-12-15T...Z
+  Preco Venda Publico_EUR      3.50
+
+Análise (causa provável de orphan):
+   35023  Retirado=1 AND Processa_Stocks=0
+```
+
+Schema detection: `[Codigo Externo]` e `[Data_Actualiz]` incluídos só
+se existirem em `dbo.Stocks`.
+
+### 12.3 Decisão tree
+
+Para cada CodigoID órfão:
+
+| Cenário | Decisão |
+|---|---|
+| `Retirado=1 AND Processa_Stocks=0` | Produto descontinuado mas com vendas no passado. **Legítimo**. Re-bootstrap permissivo ou patch agent para incluir retirados. |
+| `Retirado=0 AND Processa_Stocks<>0` (satisfaz filtro) | Filtro não foi a causa. Diagnóstico mais profundo: porque é que daily-sync products não o trouxe? Provavelmente `[Data Ultima Venda]` ≠ dia do daily-sync. |
+| Produto não-encontrado em `dbo.Stocks` | Foi apagado do ERP depois da venda. Histórico genuinamente perdido. `--allow-orphans` justificado. |
+| Linhas técnicas sem produto operacional | TipoDoc deve ser reclassificado para `IGNORE_TECHNICAL`. |
+
+### 12.4 Workflow recomendado
+
+```
+1. (SaaS dev)  npm run ingest:list-orphans -- --tenant demo-neon
+               → captura lista de IDs
+2. (Farmácia)  run-inspect-codigoid.bat → cola os IDs
+               → output: flags + datas + classificação automática da causa
+3. (Decisão)   Caso a caso conforme tabela 12.3:
+               - Patch agent (próxima rev) p/ casos legítimos
+               - --allow-orphans para casos perdidos
+4. (SaaS)      aggregate-vendamensal --write (com ou sem --allow-orphans)
+```
+
+## 13. Referências cruzadas
 
 - Plano de execução SQL Server: [`../notes/local-agent-sqlserver-plan.md`](../notes/local-agent-sqlserver-plan.md)
 - Arquitectura geral: [`../notes/local-agent-architecture.md`](../notes/local-agent-architecture.md)
