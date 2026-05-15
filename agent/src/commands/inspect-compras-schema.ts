@@ -63,35 +63,37 @@ import {
   type DateRange,
 } from "./probe-helpers.js";
 
-// Lista default de candidatos. Inclui as variantes mais comuns em
-// instalações Softreis observadas até hoje. Operador pode override
-// com --tables se a versão dele usar nomes diferentes.
+// Lista default de candidatos. Após rev22 ter corrido contra um
+// Softreis real (Cotovia, 2026-05-15), confirmámos os nomes reais
+// das tabelas — singulares portugueses, não plurais. O FK declarado
+// `dbo.Recepcao(Fornecedor ID) → dbo.Fornecedores(Fornecedor ID)` e
+// `dbo.Devolucao(Fornecedor ID) → dbo.Fornecedores(Fornecedor ID)`
+// validam que estas são as tabelas operacionais.
+//
+// Operador pode override com --tables se a versão dele usar nomes
+// diferentes.
 const DEFAULT_CANDIDATES = [
-  // Compras / recepções / entradas
-  "dbo.Compras",
-  "dbo.Compras Detalhe",
-  "dbo.ComprasMov",
-  "dbo.Recepcoes",
-  "dbo.RecepcoesDetalhe",
-  "dbo.NotasEntrada",
-  "dbo.GuiasEntrada",
-  "dbo.FacturasCompra",
-  "dbo.FaturasCompra",
-  "dbo.Aquisicoes",
-  "dbo.DocumentosCompra",
-  "dbo.MovimentosEntrada",
-  "dbo.EntradasMercadoria",
-  // Devoluções
-  "dbo.Devolucoes",
-  "dbo.DevolucoesFornecedor",
-  "dbo.DevolFornec",
-  "dbo.NotasDevolucao",
-  "dbo.GuiasDevolucao",
-  // Suporte
-  "dbo.Fornecedores",
-  "dbo.Stocks",
-  "dbo.StocksMov",
-  "dbo.TiposDocumento",
+  // ─── Compras / Recepção (header + linhas + satélites) ──────────────
+  "dbo.Recepcao",                              // header da recepção (FK → Fornecedores)
+  "dbo.Recepcao Detalhe",                      // linhas (pattern Softreis: nome com espaço)
+  "dbo.Recepcao Detalhe_Precos",               // satélite: detalhe de preços/PVP por linha
+  "dbo.Recepcao Detalhe_DeliveryNoteDetail",   // satélite: link a guia de remessa
+  "dbo.Recepcao DetalheDescN",                 // satélite: descontos tipo N
+  "dbo.Recepcao_Anulados",                     // recepções canceladas (filtrar para excluir)
+  "dbo.RecepcaoSituacao",                      // lookup de estados da recepção
+  "dbo.Recepcao_Encomenda",                    // link: recepção ↔ encomenda originária
+
+  // ─── Devoluções a fornecedor (header + linhas + workflow) ──────────
+  "dbo.Devolucao",                             // header (FK → Fornecedores) — SEMPRE a fornecedor
+  "dbo.Devolucao Detalhe",                     // linhas (FK CodigoID → Stocks)
+  "dbo.Devolucao Detalhe_Recepcao Detalhe",    // link: linha devolução ↔ linha recepção origem
+  "dbo.Devolucao_Anulados",                    // devoluções canceladas (filtrar para excluir)
+  "dbo.Devolucao_Situacao",                    // lookup de estados da devolução
+  "dbo.Devolucao_Resolucao",                   // workflow: resolução pelo fornecedor (NC recebida)
+
+  // ─── Lookups ────────────────────────────────────────────────────────
+  "dbo.MotivosDevolucaoRec",                   // códigos de motivo de devolução
+  "dbo.Tbl_Tipo_Fornecedores",                 // categorias de fornecedor
 ];
 
 // Patterns para auto-discovery em sys.tables. Cada pattern é uma

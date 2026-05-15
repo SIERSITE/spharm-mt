@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "22";
+const AGENT_REV = "23";
 
 function readGitShortCommit() {
   try {
@@ -408,9 +408,10 @@ function writeBatchWrappers() {
     `echo.`,
     `echo Pre-requisito: run-test-connection.bat OK.`,
     `echo.`,
-    `echo Tabelas-alvo default ^(20+ candidatas: Compras, Recepcoes,`,
-    `echo NotasEntrada, FacturasCompra, Aquisicoes, Devolucoes*, Fornecedores,`,
-    `echo Stocks, StocksMov, etc.^) + auto-discovery sys.tables com patterns:`,
+    `echo Tabelas-alvo default ^(16 candidatas reais Softreis confirmadas em rev22:`,
+    `echo Recepcao + Recepcao Detalhe + satelites + Recepcao_Anulados/Situacao/Encomenda;`,
+    `echo Devolucao + Devolucao Detalhe + Anulados/Situacao/Resolucao + link a Recepcao;`,
+    `echo MotivosDevolucaoRec + Tbl_Tipo_Fornecedores^) + auto-discovery sys.tables:`,
     `echo   compra, recep, entrada, devol, fornec, fact, nota, aquisi, moviment`,
     `echo.`,
     `node.exe agent.cjs inspect-compras-schema`,
