@@ -24,32 +24,159 @@ $ErrorActionPreference = "Stop"
 
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new() } catch {}
 
-# Resolve repo root. Em dev: $PSScriptRoot = admin-wizard/. Em ps2exe
-# (.exe extraido para dist-admin/): pasta-mae do exe.
-$ScriptDir = $PSScriptRoot
-if (-not $ScriptDir) { $ScriptDir = Split-Path -Parent ([System.Reflection.Assembly]::GetExecutingAssembly().Location) }
-if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+# Bootstrap robusto: resolve a pasta da app de forma que funcione em
+# .ps1 directo (PSScriptRoot ok), .bat fallback (idem), e .exe compilado
+# por ps2exe (onde PSScriptRoot vem null porque o script e executado a
+# partir de uma assembly carregada em memoria; GetExecutingAssembly().Location
+# pode tambem vir vazio nesses casos -- usar o caminho do processo e o
+# argv[0] que sao sempre validos para a .exe host).
+#
+# Devolve sempre algo (worst case: cwd). Cada candidato e testado com
+# Test-Path para confirmar que aponta para um directorio real.
 
-# Heuristica: o repo root contem package.json. Sobe ate encontrar (max 3 niveis).
-$RepoRoot = $ScriptDir
-for ($i = 0; $i -lt 4; $i++) {
-  if (Test-Path (Join-Path $RepoRoot "package.json")) { break }
-  $parent = Split-Path -Parent $RepoRoot
-  if ($parent -eq $RepoRoot) { break }
-  $RepoRoot = $parent
-}
-if (-not (Test-Path (Join-Path $RepoRoot "package.json"))) {
-  Add-Type -AssemblyName System.Windows.Forms
-  [System.Windows.Forms.MessageBox]::Show(
-    "Nao consegui localizar o repo SPharm.MT (package.json) acima de $ScriptDir.`r`n`r`nO wizard deve correr a partir da pasta do projecto ou de uma copia que mantenha a arvore.",
-    "SPharm.MT Admin Wizard", "OK", "Error") | Out-Null
-  exit 2
-}
-Set-Location $RepoRoot
+function Get-AppRoot {
+  # Sequencia de tentativas + diagnostico para o log. Devolve hashtable
+  # @{ Path = <string>; Source = <nome do detector que ganhou> }.
+  $candidates = @()
 
-$LogDir = Join-Path $RepoRoot "logs"
-if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
-$LogFile = Join-Path $LogDir ("admin-wizard-" + (Get-Date -Format "yyyy-MM-dd") + ".log")
+  try {
+    if ($PSScriptRoot -and (Test-Path $PSScriptRoot)) {
+      return @{ Path = $PSScriptRoot; Source = "PSScriptRoot" }
+    }
+    $candidates += "PSScriptRoot=null/missing"
+  } catch { $candidates += "PSScriptRoot threw: $($_.Exception.Message)" }
+
+  try {
+    if ($PSCommandPath) {
+      $p = Split-Path -Parent $PSCommandPath -ErrorAction Stop
+      if ($p -and (Test-Path $p)) { return @{ Path = $p; Source = "PSCommandPath" } }
+    }
+    $candidates += "PSCommandPath=null/missing"
+  } catch { $candidates += "PSCommandPath threw: $($_.Exception.Message)" }
+
+  try {
+    if ($MyInvocation -and $MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) {
+      $p = Split-Path -Parent $MyInvocation.MyCommand.Path -ErrorAction Stop
+      if ($p -and (Test-Path $p)) { return @{ Path = $p; Source = "MyInvocation.MyCommand.Path" } }
+    }
+    $candidates += "MyInvocation.MyCommand.Path=null/missing"
+  } catch { $candidates += "MyInvocation threw: $($_.Exception.Message)" }
+
+  # ps2exe: argv[0] e' o caminho da .exe (mais fiavel que GetExecutingAssembly)
+  try {
+    $argv = [Environment]::GetCommandLineArgs()
+    if ($argv -and $argv.Length -gt 0 -and $argv[0]) {
+      $p = Split-Path -Parent $argv[0] -ErrorAction Stop
+      if ($p -and (Test-Path $p)) { return @{ Path = $p; Source = "Environment.GetCommandLineArgs[0]" } }
+    }
+    $candidates += "GetCommandLineArgs[0]=null/empty"
+  } catch { $candidates += "GetCommandLineArgs threw: $($_.Exception.Message)" }
+
+  # Process main module: pasta da .exe host (npm.exe ou powershell.exe ou wizard.exe)
+  try {
+    $proc = [System.Diagnostics.Process]::GetCurrentProcess()
+    if ($proc -and $proc.MainModule -and $proc.MainModule.FileName) {
+      $p = Split-Path -Parent $proc.MainModule.FileName -ErrorAction Stop
+      if ($p -and (Test-Path $p)) { return @{ Path = $p; Source = "Process.MainModule.FileName" } }
+    }
+    $candidates += "MainModule.FileName=null/empty"
+  } catch { $candidates += "MainModule threw: $($_.Exception.Message)" }
+
+  # Fallback final: cwd. Quase sempre util mas pode estar errado em
+  # shortcuts mal configurados.
+  try {
+    $cwd = (Get-Location).Path
+    if ($cwd -and (Test-Path $cwd)) {
+      return @{ Path = $cwd; Source = "Get-Location (fallback)"; Diagnostics = ($candidates -join "; ") }
+    }
+  } catch { $candidates += "Get-Location threw: $($_.Exception.Message)" }
+
+  return @{ Path = $null; Source = "NONE"; Diagnostics = ($candidates -join "; ") }
+}
+
+function Find-RepoRoot {
+  # Procura package.json a partir de $startDir, subindo no maximo $MaxLevels
+  # niveis. Devolve string ou $null.
+  param([string]$StartDir, [int]$MaxLevels = 6)
+  if (-not $StartDir -or -not (Test-Path $StartDir)) { return $null }
+  $current = $StartDir
+  for ($i = 0; $i -le $MaxLevels; $i++) {
+    try {
+      $pkg = Join-Path $current "package.json" -ErrorAction Stop
+      if (Test-Path $pkg) { return $current }
+    } catch { return $null }
+    try {
+      $parent = Split-Path -Parent $current -ErrorAction Stop
+    } catch { return $null }
+    if (-not $parent -or $parent -eq $current) { break }
+    $current = $parent
+  }
+  return $null
+}
+
+# Wrap o bootstrap inteiro num try/catch que mostra dialogo de
+# diagnostico em vez de stacktrace bruto se algo falhar.
+$ScriptDir = $null
+$RepoRoot = $null
+$BootstrapDiagnostics = $null
+
+try {
+  $rootInfo = Get-AppRoot
+  $ScriptDir = $rootInfo.Path
+  $BootstrapDiagnostics = "AppRoot=$ScriptDir (via $($rootInfo.Source))"
+  if ($rootInfo.Diagnostics) { $BootstrapDiagnostics += " | candidates: $($rootInfo.Diagnostics)" }
+
+  if (-not $ScriptDir) {
+    throw "Get-AppRoot nao conseguiu resolver qualquer caminho. Diagnostico: $($rootInfo.Diagnostics)"
+  }
+
+  # Override via env var (util para shortcuts ou execucao a partir de
+  # locais nao-standard). Tem precedencia sobre a deteccao automatica.
+  if ($env:SPHARMMT_REPO_ROOT -and (Test-Path $env:SPHARMMT_REPO_ROOT)) {
+    if (Test-Path (Join-Path $env:SPHARMMT_REPO_ROOT "package.json")) {
+      $RepoRoot = $env:SPHARMMT_REPO_ROOT
+      $BootstrapDiagnostics += " | override SPHARMMT_REPO_ROOT=$RepoRoot"
+    }
+  }
+
+  if (-not $RepoRoot) {
+    $RepoRoot = Find-RepoRoot -StartDir $ScriptDir -MaxLevels 6
+  }
+
+  if (-not $RepoRoot) {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    $msg = "Nao consegui localizar o repo SPharm.MT (package.json) a partir de:`r`n  $ScriptDir`r`n`r`n"
+    $msg += "O wizard precisa de estar dentro da arvore do projecto.`r`n`r`n"
+    $msg += "Opcoes:`r`n"
+    $msg += "  1. Mover a .exe para dist-admin/ dentro do repo`r`n"
+    $msg += "  2. Definir variavel de ambiente SPHARMMT_REPO_ROOT=<caminho do repo>`r`n     antes de arrancar o wizard`r`n`r`n"
+    $msg += "Diagnostico: $BootstrapDiagnostics"
+    [System.Windows.Forms.MessageBox]::Show($msg, "SPharm.MT Admin Wizard -- repo nao encontrado", "OK", "Error") | Out-Null
+    exit 2
+  }
+
+  Set-Location $RepoRoot
+
+  $LogDir = Join-Path $RepoRoot "logs"
+  if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
+  $LogFile = Join-Path $LogDir ("admin-wizard-" + (Get-Date -Format "yyyy-MM-dd") + ".log")
+} catch {
+  # Bootstrap catastrofico. Mostra dialogo amigavel + dump completo.
+  $err = $_
+  $stack = if ($err.ScriptStackTrace) { $err.ScriptStackTrace } else { "(sem stack)" }
+  $msg = "Erro no arranque do wizard:`r`n`r`n"
+  $msg += "  $($err.Exception.Message)`r`n`r`n"
+  $msg += "Diagnostico de bootstrap:`r`n  $BootstrapDiagnostics`r`n`r`n"
+  $msg += "Stack:`r`n$stack"
+  try {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show($msg, "SPharm.MT Admin Wizard -- erro de arranque", "OK", "Error") | Out-Null
+  } catch {
+    # Sem WinForms: ultimo recurso, escreve no Application event log (silencioso)
+    try { Write-EventLog -LogName Application -Source "Windows PowerShell" -EventId 999 -EntryType Error -Message $msg -ErrorAction SilentlyContinue } catch {}
+  }
+  exit 3
+}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -1039,6 +1166,12 @@ $eLogsBtn.Add_Click({
 # --- Arrancar ----------------------------------------------------
 
 Write-WizardLog "wizard arrancado (repo=$RepoRoot)"
+Write-WizardLog "bootstrap: $BootstrapDiagnostics"
+Write-WizardLog ("runtime: PSVersion={0} PSEdition={1} HostName={2} CompiledExe={3}" -f `
+  $PSVersionTable.PSVersion, `
+  $PSVersionTable.PSEdition, `
+  $Host.Name, `
+  [bool]([Environment]::GetCommandLineArgs()[0] -match '\.exe$'))
 $form.Add_Shown({
   $form.Activate()
   try { Refresh-Tenants } catch { Set-Status "Erro a carregar tenants: $($_.Exception.Message)" ([System.Drawing.Color]::DarkRed) }
