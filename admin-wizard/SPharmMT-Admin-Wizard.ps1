@@ -191,13 +191,19 @@ function Write-WizardLog {
   try { $line | Add-Content -Path $LogFile -Encoding UTF8 } catch {}
 }
 
-function Sanitize-LogArgs {
-  # Remove valores apos = de flags sensiveis antes de escrever no log.
-  param([string[]]$Args)
+function Sanitize-CommandArgs {
+  # Redact values after = for sensitive flags before writing to log.
+  # IMPORTANT: param renamed from $Args (clashes with PowerShell's
+  # automatic $Args variable; binding would silently fail and the
+  # function received nothing -- that was the root cause of empty
+  # "npm" lines in the log).
+  param([string[]]$CmdArgs)
+  if ($null -eq $CmdArgs) { return @() }
   $sensitive = @("--admin-password", "--password", "--key")
   $out = @()
-  foreach ($a in $Args) {
-    $kept = $a
+  foreach ($a in $CmdArgs) {
+    if ($null -eq $a) { continue }
+    $kept = [string]$a
     foreach ($s in $sensitive) {
       if ($a -like "$s=*") { $kept = "$s=[REDACTED]"; break }
     }
@@ -206,96 +212,253 @@ function Sanitize-LogArgs {
   return $out
 }
 
+function Format-ArgumentString {
+  # Build a Windows command-line arguments string from an array.
+  # Each arg is quoted only if it contains whitespace, tab, or quote.
+  # Internal quotes are escaped as \" (Microsoft C runtime convention,
+  # which Node.js/npm follow). Used instead of ProcessStartInfo.ArgumentList
+  # because the latter does NOT exist in .NET Framework 4.x (Windows
+  # PowerShell 5.1 + ps2exe runtime).
+  param([string[]]$CmdArgs)
+  if ($null -eq $CmdArgs -or $CmdArgs.Length -eq 0) { return "" }
+  $parts = foreach ($a in $CmdArgs) {
+    if ([string]::IsNullOrEmpty($a)) {
+      '""'
+    } elseif ($a -match '[\s"]') {
+      '"' + ($a -replace '"', '\"') + '"'
+    } else {
+      $a
+    }
+  }
+  return ($parts -join " ")
+}
+
+function Find-NpmCommand {
+  # Locate npm in PATH. Returns full path or $null. Prefers npm.cmd on
+  # Windows (the shim) since npm itself is a JS file there.
+  foreach ($name in @("npm.cmd", "npm")) {
+    try {
+      $c = Get-Command $name -ErrorAction SilentlyContinue
+      if ($c -and $c.Source) { return [string]$c.Source }
+    } catch {}
+  }
+  return $null
+}
+
 # --- Process runner ----------------------------------------------
 
-# Executa `npm run <script> -- <args>` capturando stdout/stderr linha a
-# linha. Chama -OnLine ao receber cada linha (UI thread via Form.Invoke
-# se necessario). Devolve hashtable @{ ExitCode; Stdout (full text) }.
+# Unified executor used by every command this wizard runs.
 #
-# Async: corre numa Process com OutputDataReceived/ErrorDataReceived
-# para nao bloquear UI thread. Espera por WaitForExit no caller via
-# polling de DoEvents.
-function Invoke-NpmAsync {
+# Returns a structured pscustomobject with Success/ExitCode/StdOut/StdErr/
+# ParsedJson/Exception/ElapsedMs/CommandLine -- never null-valued fields.
+# Logs START + DONE + (truncated) stdout/stderr at every call.
+#
+# Async approach: uses Register-ObjectEvent to enqueue lines into a
+# thread-safe ConcurrentQueue; the main loop drains the queue while
+# pumping DoEvents() so the UI stays responsive. This pattern avoids
+# the .NET Framework 4.x trap that broke v1 (ProcessStartInfo.ArgumentList
+# does not exist there).
+function Invoke-AdminCommand {
   param(
-    [Parameter(Mandatory)][string]$Script,
-    [string[]]$ScriptArgs = @(),
-    [Parameter(Mandatory)][scriptblock]$OnLine,
-    [scriptblock]$OnExit
+    [Parameter(Mandatory)][string]$Command,
+    [string[]]$CmdArgs = @(),
+    [string]$WorkDir = $null,
+    [string]$Label = "(no-label)",
+    [bool]$ExpectJson = $false,
+    [scriptblock]$OnLine = $null
   )
 
-  $allArgs = @("run", "--silent", $Script, "--") + $ScriptArgs
-  $sanitized = Sanitize-LogArgs -Args $allArgs
-  Write-WizardLog ("npm " + ($sanitized -join " "))
+  # Null-safety on inputs
+  if ($null -eq $CmdArgs) { $CmdArgs = @() }
+  if (-not $WorkDir -or -not (Test-Path $WorkDir)) {
+    try { $WorkDir = (Get-Location).Path } catch { $WorkDir = "." }
+  }
 
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = "npm.cmd"
-  foreach ($a in $allArgs) { $psi.ArgumentList.Add($a) | Out-Null }
-  $psi.WorkingDirectory = $RepoRoot
-  $psi.UseShellExecute = $false
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  $psi.CreateNoWindow = $true
-  $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-  $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+  $sanitized = Sanitize-CommandArgs -CmdArgs $CmdArgs
+  $cmdLineSan = "$Command " + (($sanitized) -join " ")
 
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
-  $proc.EnableRaisingEvents = $true
+  Write-WizardLog "[$Label] START cwd=$WorkDir cmd=$cmdLineSan"
 
-  $script:_npmStdout = New-Object System.Text.StringBuilder
-  $stdoutHandler = {
-    param($s, $e)
-    if ($null -ne $e.Data) {
-      [void]$script:_npmStdout.AppendLine($e.Data)
-      $line = $e.Data
-      try { & $OnLine $line } catch {}
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $result = [pscustomobject]@{
+    Success     = $false
+    ExitCode    = -1
+    StdOut      = ""
+    StdErr      = ""
+    ParsedJson  = $null
+    Exception   = $null
+    ElapsedMs   = 0L
+    CommandLine = $cmdLineSan
+  }
+
+  $stdoutSb = New-Object System.Text.StringBuilder
+  $stderrSb = New-Object System.Text.StringBuilder
+  $outQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+  $errQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+  $eventSubIds = @()
+  $proc = $null
+
+  try {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Command
+    # .NET Framework 4.x: ArgumentList does NOT exist. MUST use Arguments string.
+    $psi.Arguments = Format-ArgumentString -CmdArgs $CmdArgs
+    $psi.WorkingDirectory = $WorkDir
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    try { $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8 } catch {}
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    $proc.EnableRaisingEvents = $true
+
+    # Event handlers: only enqueue (minimal work, thread-safe). The main
+    # loop dequeues in the caller's scope where $OnLine is accessible.
+    $sid1 = "wiz_out_$([guid]::NewGuid().ToString('N'))"
+    $sid2 = "wiz_err_$([guid]::NewGuid().ToString('N'))"
+    Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -SourceIdentifier $sid1 -MessageData $outQueue -Action {
+      if ($null -ne $EventArgs.Data) { $Event.MessageData.Enqueue([string]$EventArgs.Data) }
+    } | Out-Null
+    Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -SourceIdentifier $sid2 -MessageData $errQueue -Action {
+      if ($null -ne $EventArgs.Data) { $Event.MessageData.Enqueue([string]$EventArgs.Data) }
+    } | Out-Null
+    $eventSubIds = @($sid1, $sid2)
+
+    $started = $proc.Start()
+    if (-not $started) {
+      throw "Process.Start retornou false sem excepcao."
+    }
+    $proc.BeginOutputReadLine()
+    $proc.BeginErrorReadLine()
+
+    while (-not $proc.HasExited) {
+      $line = $null
+      while ($outQueue.TryDequeue([ref]$line)) {
+        [void]$stdoutSb.AppendLine($line)
+        if ($OnLine) { try { & $OnLine $line $false } catch {} }
+      }
+      while ($errQueue.TryDequeue([ref]$line)) {
+        [void]$stderrSb.AppendLine($line)
+        if ($OnLine) { try { & $OnLine $line $true } catch {} }
+      }
+      [System.Windows.Forms.Application]::DoEvents()
+      Start-Sleep -Milliseconds 40
+    }
+    $proc.WaitForExit()
+    Start-Sleep -Milliseconds 120  # let trailing events arrive
+
+    # Drain remaining buffered lines
+    $line = $null
+    while ($outQueue.TryDequeue([ref]$line)) {
+      [void]$stdoutSb.AppendLine($line)
+      if ($OnLine) { try { & $OnLine $line $false } catch {} }
+    }
+    while ($errQueue.TryDequeue([ref]$line)) {
+      [void]$stderrSb.AppendLine($line)
+      if ($OnLine) { try { & $OnLine $line $true } catch {} }
+    }
+
+    $result.ExitCode = $proc.ExitCode
+  } catch {
+    $result.Exception = $_
+    Write-WizardLog ("[$Label] EXCEPTION: " + $_.Exception.Message + " | stack: " + $_.ScriptStackTrace) "ERROR"
+  } finally {
+    foreach ($sid in $eventSubIds) {
+      try { Unregister-Event -SourceIdentifier $sid -ErrorAction SilentlyContinue } catch {}
+      try { Get-Job -Name $sid -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    if ($proc) { try { $proc.Dispose() } catch {} }
+  }
+
+  $sw.Stop()
+  $result.ElapsedMs = $sw.ElapsedMilliseconds
+
+  # Null-safety on outputs
+  $stdoutText = $stdoutSb.ToString()
+  if ($null -eq $stdoutText) { $stdoutText = "" }
+  $stderrText = $stderrSb.ToString()
+  if ($null -eq $stderrText) { $stderrText = "" }
+  $result.StdOut = $stdoutText
+  $result.StdErr = $stderrText
+
+  Write-WizardLog ("[$Label] DONE exit={0} elapsed={1}ms stdout={2}B stderr={3}B" -f $result.ExitCode, $result.ElapsedMs, $stdoutText.Length, $stderrText.Length)
+  if ($stdoutText.Length -gt 0) {
+    $clip = $stdoutText.Substring(0, [Math]::Min(2000, $stdoutText.Length))
+    Write-WizardLog ("[$Label] STDOUT[0..2000]:`n$clip")
+  }
+  if ($stderrText.Length -gt 0) {
+    $clip = $stderrText.Substring(0, [Math]::Min(2000, $stderrText.Length))
+    Write-WizardLog ("[$Label] STDERR[0..2000]:`n$clip")
+  }
+
+  if ($ExpectJson -and $stdoutText.Length -gt 0 -and $null -eq $result.Exception) {
+    try {
+      $result.ParsedJson = Extract-Json -Text $stdoutText
+      if ($null -eq $result.ParsedJson) {
+        Write-WizardLog ("[$Label] JSON parse: extracted no valid object/array from stdout") "WARN"
+      }
+    } catch {
+      Write-WizardLog ("[$Label] JSON parse threw: " + $_.Exception.Message) "WARN"
     }
   }
-  $stderrHandler = {
-    param($s, $e)
-    if ($null -ne $e.Data) {
-      [void]$script:_npmStdout.AppendLine($e.Data)
-      $line = "[stderr] " + $e.Data
-      try { & $OnLine $line } catch {}
-    }
-  }
-  $null = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -Action $stdoutHandler -SourceIdentifier "npm_stdout_$([guid]::NewGuid().ToString('N'))"
-  $stdoutSrcId = (Get-EventSubscriber | Where-Object Action.Id -eq $null | Select-Object -Last 1).SourceIdentifier
-  $null = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -Action $stderrHandler -SourceIdentifier "npm_stderr_$([guid]::NewGuid().ToString('N'))"
 
-  $proc.Start() | Out-Null
-  $proc.BeginOutputReadLine()
-  $proc.BeginErrorReadLine()
-
-  while (-not $proc.HasExited) {
-    [System.Windows.Forms.Application]::DoEvents()
-    Start-Sleep -Milliseconds 50
-  }
-  # Drenar buffers restantes
-  $proc.WaitForExit()
-  Start-Sleep -Milliseconds 100
-  [System.Windows.Forms.Application]::DoEvents()
-
-  $exit = $proc.ExitCode
-  Get-EventSubscriber | Where-Object { $_.SourceObject -eq $proc } | Unregister-Event
-  $proc.Dispose()
-
-  $stdoutText = $script:_npmStdout.ToString()
-  if ($OnExit) { try { & $OnExit $exit $stdoutText } catch {} }
-
-  return @{ ExitCode = $exit; Stdout = $stdoutText }
+  $result.Success = ($result.ExitCode -eq 0 -and $null -eq $result.Exception)
+  return $result
 }
 
 function Extract-Json {
-  # Tenta parse de JSON num bloco de stdout. Procura primeiro `{`
-  # e ultimo `}` que casem.
+  # Tolerant JSON extractor. Handles both object ({...}) and array ([...])
+  # at the top level. Returns $null if neither parses cleanly.
   param([string]$Text)
-  if (-not $Text) { return $null }
-  $start = $Text.IndexOf("{")
-  $end = $Text.LastIndexOf("}")
-  if ($start -lt 0 -or $end -le $start) { return $null }
-  $candidate = $Text.Substring($start, $end - $start + 1)
-  try { return $candidate | ConvertFrom-Json } catch { return $null }
+  if ([string]::IsNullOrEmpty($Text)) { return $null }
+
+  $startO = $Text.IndexOf("{")
+  $endO = $Text.LastIndexOf("}")
+  $startA = $Text.IndexOf("[")
+  $endA = $Text.LastIndexOf("]")
+
+  # Decide top-level: whichever opening char appears first in the stream.
+  $tryArrayFirst = ($startA -ge 0) -and (($startO -lt 0) -or ($startA -lt $startO))
+
+  if ($tryArrayFirst -and $startA -ge 0 -and $endA -gt $startA) {
+    $cand = $Text.Substring($startA, $endA - $startA + 1)
+    try { return ($cand | ConvertFrom-Json) } catch {}
+  }
+  if ($startO -ge 0 -and $endO -gt $startO) {
+    $cand = $Text.Substring($startO, $endO - $startO + 1)
+    try { return ($cand | ConvertFrom-Json) } catch {}
+  }
+  if ($startA -ge 0 -and $endA -gt $startA) {
+    $cand = $Text.Substring($startA, $endA - $startA + 1)
+    try { return ($cand | ConvertFrom-Json) } catch {}
+  }
+  return $null
+}
+
+# Resolve npm once at startup; null means PATH miss.
+$script:NpmCommand = Find-NpmCommand
+
+function Show-HandlerError {
+  # Unified error path for UI event handlers: log + friendly dialog,
+  # never let a raw PowerShell exception bubble to a Watson dialog.
+  param($Err, [string]$Label = "(handler)")
+  $msg = "(sem mensagem)"
+  $stack = ""
+  try {
+    if ($Err -and $Err.Exception) { $msg = $Err.Exception.Message }
+    elseif ($Err) { $msg = [string]$Err }
+    if ($Err -and $Err.ScriptStackTrace) { $stack = $Err.ScriptStackTrace }
+  } catch {}
+  try { Write-WizardLog ("[$Label] HANDLER EXCEPTION: $msg | stack: $stack") "ERROR" } catch {}
+  try {
+    [System.Windows.Forms.MessageBox]::Show(
+      "Falhou: $msg`r`n`r`nVer logs\admin-wizard-$(Get-Date -Format 'yyyy-MM-dd').log para detalhes.",
+      "SPharm.MT Admin Wizard -- erro", "OK", "Error") | Out-Null
+  } catch {}
+  try { Set-AllButtonsEnabled $true } catch {}
 }
 
 # --- UI helpers ---------------------------------------------------
@@ -865,24 +1028,36 @@ function Refresh-Tenants {
   Set-Status "A carregar tenants..." ([System.Drawing.Color]::DarkBlue)
   Set-AllButtonsEnabled $false
   try {
-    $r = Invoke-NpmAsync -Script "tenancy:list" -ScriptArgs @("--json") -OnLine { param($l) }
-    if ($r.ExitCode -ne 0) {
-      [System.Windows.Forms.MessageBox]::Show("tenancy:list falhou (exit=$($r.ExitCode))", "Erro", "OK", "Error") | Out-Null
+    if (-not $script:NpmCommand) {
+      Set-Status "npm nao encontrado no PATH" ([System.Drawing.Color]::DarkRed)
+      [System.Windows.Forms.MessageBox]::Show(
+        "Nao foi possivel encontrar 'npm' no PATH do sistema.`r`n`r`nInstala o Node.js (https://nodejs.org/) ou verifica que o PATH contem o directorio onde 'npm.cmd' esta. Depois reinicia o wizard.",
+        "SPharm.MT Admin Wizard -- npm em falta", "OK", "Error") | Out-Null
       return
     }
-    $combined = $r.Stdout
-    $startIdx = $combined.IndexOf("[")
-    $endIdx = $combined.LastIndexOf("]")
+    $r = Invoke-AdminCommand -Command $script:NpmCommand -CmdArgs @("run","--silent","tenancy:list","--","--json") -WorkDir $RepoRoot -Label "tenancy:list" -ExpectJson $true
+    if (-not $r.Success) {
+      $msg = "tenancy:list falhou (exit=$($r.ExitCode))."
+      if ($r.Exception) { $msg += " Excepcao: $($r.Exception.Exception.Message)" }
+      $msg += "`r`n`r`nVer logs\admin-wizard-$(Get-Date -Format 'yyyy-MM-dd').log para detalhes."
+      [System.Windows.Forms.MessageBox]::Show($msg, "Erro a carregar tenants", "OK", "Error") | Out-Null
+      Set-Status "Falhou a carregar tenants." ([System.Drawing.Color]::DarkRed)
+      return
+    }
     $list = @()
-    if ($startIdx -ge 0 -and $endIdx -gt $startIdx) {
-      $candidate = $combined.Substring($startIdx, $endIdx - $startIdx + 1)
-      try { $list = $candidate | ConvertFrom-Json } catch { $list = @() }
+    if ($r.ParsedJson -is [System.Collections.IEnumerable] -and $r.ParsedJson -isnot [string]) {
+      $list = @($r.ParsedJson)
     }
     $tenantCb.Items.Clear()
-    foreach ($t in $list) { [void]$tenantCb.Items.Add($t.slug) }
+    foreach ($t in $list) {
+      if ($t -and $t.slug) { [void]$tenantCb.Items.Add([string]$t.slug) }
+    }
     if ($tenantCb.Items.Count -gt 0) { $tenantCb.SelectedIndex = 0 }
     Sync-TenantLabels
     Set-Status ("$($tenantCb.Items.Count) tenant(s) carregados.")
+  } catch {
+    Write-WizardLog ("Refresh-Tenants threw: " + $_.Exception.Message + " | " + $_.ScriptStackTrace) "ERROR"
+    Set-Status "Erro a carregar tenants -- ver log." ([System.Drawing.Color]::DarkRed)
   } finally {
     Set-AllButtonsEnabled $true
   }
@@ -902,48 +1077,72 @@ function Get-SelectedTenant {
 }
 
 function Run-NpmInTab {
-  # Wrapper unificado: corre npm, escreve linhas no output box do tab,
-  # actualiza statusbar, desactiva botoes durante a execucao.
+  # Unified UI wrapper around Invoke-AdminCommand for npm scripts.
+  # IMPORTANT: param renamed from $Args (clashes with automatic var).
   param(
     [string]$Script,
-    [string[]]$Args,
+    [string[]]$CmdArgs,
     [System.Windows.Forms.RichTextBox]$Box,
-    [string]$Label
+    [string]$Label,
+    [bool]$ExpectJson = $false
   )
+  if ($null -eq $CmdArgs) { $CmdArgs = @() }
+
   Set-Status "A correr: $Label" ([System.Drawing.Color]::DarkBlue)
   Set-AllButtonsEnabled $false
   Append-Output $Box ">>> $Label" ([System.Drawing.Color]::Cyan)
-  $cmdSanitized = "npm run $Script -- " + ((Sanitize-LogArgs -Args $Args) -join " ")
-  Append-Output $Box ("    " + $cmdSanitized) ([System.Drawing.Color]::DarkGray)
+
+  if (-not $script:NpmCommand) {
+    Append-Output $Box "[X] npm nao encontrado no PATH" ([System.Drawing.Color]::IndianRed)
+    Set-Status "npm em falta -- ver log." ([System.Drawing.Color]::DarkRed)
+    Write-WizardLog "[$Label] ABORTED: NpmCommand=null" "ERROR"
+    [System.Windows.Forms.MessageBox]::Show(
+      "Nao foi possivel encontrar 'npm' no PATH do sistema.",
+      "npm em falta", "OK", "Error") | Out-Null
+    Set-AllButtonsEnabled $true
+    return $null
+  }
+
+  $allArgs = @("run","--silent",$Script,"--") + ($CmdArgs)
+  $sanitized = Sanitize-CommandArgs -CmdArgs $allArgs
+  Append-Output $Box ("    " + ([System.IO.Path]::GetFileName($script:NpmCommand)) + " " + (($sanitized) -join " ")) ([System.Drawing.Color]::DarkGray)
+
   $r = $null
   try {
-    $r = Invoke-NpmAsync -Script $Script -ScriptArgs $Args -OnLine {
-      param($line)
-      $color = [System.Drawing.Color]::Gainsboro
-      if ($line -like "*[stderr]*") { $color = [System.Drawing.Color]::Salmon }
-      elseif ($line -like "*[X]*" -or $line -like "*FAIL*" -or $line -like "*Erro*") { $color = [System.Drawing.Color]::IndianRed }
-      elseif ($line -like "*[OK]*" -or $line -like "*Status: *OK*" -or $line -like "*[v]*") { $color = [System.Drawing.Color]::LightGreen }
+    $r = Invoke-AdminCommand -Command $script:NpmCommand -CmdArgs $allArgs -WorkDir $RepoRoot -Label $Label -ExpectJson $ExpectJson -OnLine {
+      param($line, $isErr)
+      if ($null -eq $line) { return }
+      $color = if ($isErr) { [System.Drawing.Color]::Salmon }
+        elseif ($line -like "*[X]*" -or $line -like "*FAIL*" -or $line -like "*Erro*") { [System.Drawing.Color]::IndianRed }
+        elseif ($line -like "*[OK]*" -or $line -like "*Status: *OK*" -or $line -like "*[v]*" -or $line -like "*[ok]*") { [System.Drawing.Color]::LightGreen }
+        else { [System.Drawing.Color]::Gainsboro }
       Append-Output $Box $line $color
     }
+  } catch {
+    Write-WizardLog ("[$Label] Run-NpmInTab threw: " + $_.Exception.Message + " | " + $_.ScriptStackTrace) "ERROR"
+    Append-Output $Box ("[X] EXCEPTION: " + $_.Exception.Message) ([System.Drawing.Color]::IndianRed)
   } finally {
     Set-AllButtonsEnabled $true
   }
+
   if ($null -eq $r) {
-    Set-Status "Erro: processo nao retornou." ([System.Drawing.Color]::DarkRed)
+    Set-Status "Erro -- ver log." ([System.Drawing.Color]::DarkRed)
     return $null
   }
-  if ($r.ExitCode -eq 0) {
-    Append-Output $Box "<<< OK (exit=0)" ([System.Drawing.Color]::LightGreen)
-    Set-Status "OK." ([System.Drawing.Color]::DarkGreen)
+  if ($r.Success) {
+    Append-Output $Box ("<<< OK (exit=0, {0}ms)" -f $r.ElapsedMs) ([System.Drawing.Color]::LightGreen)
+    Set-Status ("OK ({0}ms)." -f $r.ElapsedMs) ([System.Drawing.Color]::DarkGreen)
   } else {
-    Append-Output $Box "<<< FAIL (exit=$($r.ExitCode))" ([System.Drawing.Color]::IndianRed)
-    Set-Status "Falhou (exit=$($r.ExitCode))." ([System.Drawing.Color]::DarkRed)
+    $tail = if ($r.Exception) { "EXCEPTION: " + $r.Exception.Exception.Message } else { "exit=$($r.ExitCode)" }
+    Append-Output $Box ("<<< FAIL ({0}, {1}ms)" -f $tail, $r.ElapsedMs) ([System.Drawing.Color]::IndianRed)
+    Set-Status ("Falhou ({0}) -- ver log." -f $tail) ([System.Drawing.Color]::DarkRed)
   }
   return $r
 }
 
 # A. Criar tenant
 $aBtn.Add_Click({
+  try {
   $slug = $aSlug.Text.Trim()
   $nome = $aNome.Text.Trim()
   $email = $aEmail.Text.Trim()
@@ -977,17 +1176,17 @@ $aBtn.Add_Click({
     }
   }
 
-  $args = @("--slug=$slug", "--name=$nome", "--admin-email=$email", "--provider=$provider", "--json", "--quiet")
-  if ($region) { $args += "--region=$region" }
-  if ($farmacias) { $args += "--farmacias=$farmacias" }
-  if ($provider -eq "manual" -and $dbUrl) { $args += "--database-url=$dbUrl" }
-  if ($dryRun) { $args += "--dry-run" }
+  $cmdArgs = @("--slug=$slug", "--name=$nome", "--admin-email=$email", "--provider=$provider", "--json", "--quiet")
+  if ($region) { $cmdArgs += "--region=$region" }
+  if ($farmacias) { $cmdArgs += "--farmacias=$farmacias" }
+  if ($provider -eq "manual" -and $dbUrl) { $cmdArgs += "--database-url=$dbUrl" }
+  if ($dryRun) { $cmdArgs += "--dry-run" }
 
-  $r = Run-NpmInTab -Script "tenancy:create" -Args $args -Box $aOut -Label "tenancy:create $slug"
+  $r = Run-NpmInTab -Script "tenancy:create" -CmdArgs $cmdArgs -Box $aOut -Label "tenancy:create $slug" -ExpectJson $true
   if (-not $r) { return }
-  if ($r.ExitCode -ne 0) { return }
+  if (-not $r.Success) { return }
 
-  $j = Extract-Json -Text $r.Stdout
+  $j = $r.ParsedJson
   if ($j -and $j.ok -and $j.step -eq "done") {
     $fields = [ordered]@{
       "Admin email"    = [string]$j.adminEmail
@@ -1002,46 +1201,52 @@ $aBtn.Add_Click({
       if ([string]$tenantCb.Items[$i] -eq $slug) { $tenantCb.SelectedIndex = $i; break }
     }
   }
+  } catch { Show-HandlerError $_ "tab-A-criar-tenant" }
 })
 
 # B. Adicionar farmacia
 $bAddBtn.Add_Click({
+  try {
   $t = Get-SelectedTenant
   if (-not $t) { return }
   $nome = $bNome.Text.Trim()
   if (-not $nome) { [System.Windows.Forms.MessageBox]::Show("Nome da farmacia em falta.", "Validacao", "OK", "Warning") | Out-Null; return }
 
-  $args = @("--tenant=$t", "--nome=$nome")
-  if ($bCodigo.Text.Trim()) { $args += "--codigo=$($bCodigo.Text.Trim())" }
-  if ($bMorada.Text.Trim()) { $args += "--morada=$($bMorada.Text.Trim())" }
-  if ($bContacto.Text.Trim()) { $args += "--contacto=$($bContacto.Text.Trim())" }
+  $cmdArgs = @("--tenant=$t", "--nome=$nome")
+  if ($bCodigo.Text.Trim()) { $cmdArgs += "--codigo=$($bCodigo.Text.Trim())" }
+  if ($bMorada.Text.Trim()) { $cmdArgs += "--morada=$($bMorada.Text.Trim())" }
+  if ($bContacto.Text.Trim()) { $cmdArgs += "--contacto=$($bContacto.Text.Trim())" }
 
   $body = "Adicionar farmacia '$nome' ao tenant '$t'?"
   if (-not (Show-Confirm -Title "Confirmar adicao" -Body $body)) {
     Append-Output $bOut "Abortado." ([System.Drawing.Color]::Yellow)
     return
   }
-  $r = Run-NpmInTab -Script "tenancy:add-farmacia" -Args $args -Box $bOut -Label "add-farmacia $t / $nome"
-  if ($r -and $r.ExitCode -eq 0) {
+  $r = Run-NpmInTab -Script "tenancy:add-farmacia" -CmdArgs $cmdArgs -Box $bOut -Label "add-farmacia $t / $nome"
+  if ($r -and $r.Success) {
     $bNome.Text = ""; $bCodigo.Text = ""; $bMorada.Text = ""; $bContacto.Text = ""
   }
+  } catch { Show-HandlerError $_ "tab-B-add-farmacia" }
 })
 
 $bListBtn.Add_Click({
-  $t = Get-SelectedTenant
-  if (-not $t) { return }
-  Run-NpmInTab -Script "tenancy:status" -Args @("--tenant=$t") -Box $bOut -Label "status $t" | Out-Null
+  try {
+    $t = Get-SelectedTenant
+    if (-not $t) { return }
+    Run-NpmInTab -Script "tenancy:status" -CmdArgs @("--tenant=$t") -Box $bOut -Label "status $t" | Out-Null
+  } catch { Show-HandlerError $_ "tab-B-list" }
 })
 
 # C. Criar utilizador
 $cAddBtn.Add_Click({
+  try {
   $t = Get-SelectedTenant
   if (-not $t) { return }
   $email = $cEmail.Text.Trim().ToLower()
   $nome = $cNome.Text.Trim()
   $role = [string]$cRole.SelectedItem
   $farm = $cFarmacia.Text.Trim()
-  $pwd = $cPassword.Text.Trim()
+  $userPwd = $cPassword.Text.Trim()  # renamed: $pwd is an automatic var ($PWD)
 
   if (-not $email -or $email -notmatch '@') { [System.Windows.Forms.MessageBox]::Show("Email invalido.", "Validacao", "OK", "Warning") | Out-Null; return }
   if (-not $nome) { [System.Windows.Forms.MessageBox]::Show("Nome em falta.", "Validacao", "OK", "Warning") | Out-Null; return }
@@ -1050,21 +1255,21 @@ $cAddBtn.Add_Click({
     return
   }
 
-  $args = @("--tenant=$t", "--email=$email", "--nome=$nome", "--role=$role")
-  if ($farm) { $args += "--farmacia=$farm" }
-  if ($pwd) { $args += "--password=$pwd" }
+  $cmdArgs = @("--tenant=$t", "--email=$email", "--nome=$nome", "--role=$role")
+  if ($farm) { $cmdArgs += "--farmacia=$farm" }
+  if ($userPwd) { $cmdArgs += "--password=$userPwd" }
 
   $body = "Criar utilizador '$email' ($role) no tenant '$t'?"
-  if ($pwd) { $body += "`r`nPassword: fornecida manualmente." } else { $body += "`r`nPassword: vai ser GERADA (mostrada uma vez)." }
+  if ($userPwd) { $body += "`r`nPassword: fornecida manualmente." } else { $body += "`r`nPassword: vai ser GERADA (mostrada uma vez)." }
   if (-not (Show-Confirm -Title "Confirmar criacao de utilizador" -Body $body)) {
     Append-Output $cOut "Abortado." ([System.Drawing.Color]::Yellow)
     return
   }
-  $r = Run-NpmInTab -Script "tenancy:add-user" -Args $args -Box $cOut -Label "add-user $t / $email"
-  if ($r -and $r.ExitCode -eq 0 -and -not $pwd) {
+  $r = Run-NpmInTab -Script "tenancy:add-user" -CmdArgs $cmdArgs -Box $cOut -Label "add-user $t / $email"
+  if ($r -and $r.Success -and -not $userPwd) {
     # add-user imprime "Password (anotar AGORA...):" seguido da linha com a password.
     # Extrair com regex tolerante.
-    $stdout = $r.Stdout
+    $stdout = $r.StdOut
     $m = [regex]::Match($stdout, "Password \(anotar AGORA[^)]*\):\s*\r?\n\s+([^\r\n]+)")
     if ($m.Success) {
       $genPwd = $m.Groups[1].Value.Trim()
@@ -1075,13 +1280,15 @@ $cAddBtn.Add_Click({
       Show-Secrets -Title "Password gerada" -Header "Utilizador '$email' criado.`r`nCopia a password AGORA -- nao e recuperavel.`r`nO utilizador vai ser obrigado a trocar no primeiro login." -Fields $fields
     }
   }
-  if ($r -and $r.ExitCode -eq 0) {
+  if ($r -and $r.Success) {
     $cEmail.Text = ""; $cNome.Text = ""; $cFarmacia.Text = ""; $cPassword.Text = ""
   }
+  } catch { Show-HandlerError $_ "tab-C-add-user" }
 })
 
 # D. Gerar ZIP agent
 $dPkgBtn.Add_Click({
+  try {
   $t = Get-SelectedTenant
   if (-not $t) { return }
   $farm = $dFarmacia.Text.Trim()
@@ -1116,18 +1323,18 @@ $dPkgBtn.Add_Click({
     }
   }
 
-  $args = @("--tenant=$t", "--farmacia=$farm", "--endpoint=$endpoint")
-  if ($health) { $args += "--healthcheck-url=$health" }
-  if ($rotate) { $args += "--rotate" } else { $args += "--key=$key" }
-  if ($dSqlHost.Text.Trim()) { $args += "--sql-host=$($dSqlHost.Text.Trim())" }
-  if ($dSqlPort.Text.Trim()) { $args += "--sql-port=$($dSqlPort.Text.Trim())" }
-  if ($dSqlDatabase.Text.Trim()) { $args += "--sql-database=$($dSqlDatabase.Text.Trim())" }
-  if ($dSqlUser.Text.Trim()) { $args += "--sql-user=$($dSqlUser.Text.Trim())" }
+  $cmdArgs = @("--tenant=$t", "--farmacia=$farm", "--endpoint=$endpoint")
+  if ($health) { $cmdArgs += "--healthcheck-url=$health" }
+  if ($rotate) { $cmdArgs += "--rotate" } else { $cmdArgs += "--key=$key" }
+  if ($dSqlHost.Text.Trim()) { $cmdArgs += "--sql-host=$($dSqlHost.Text.Trim())" }
+  if ($dSqlPort.Text.Trim()) { $cmdArgs += "--sql-port=$($dSqlPort.Text.Trim())" }
+  if ($dSqlDatabase.Text.Trim()) { $cmdArgs += "--sql-database=$($dSqlDatabase.Text.Trim())" }
+  if ($dSqlUser.Text.Trim()) { $cmdArgs += "--sql-user=$($dSqlUser.Text.Trim())" }
 
-  $r = Run-NpmInTab -Script "admin:package-agent" -Args $args -Box $dOut -Label "package-agent $t / $farm"
-  if ($r -and $r.ExitCode -eq 0 -and $rotate) {
+  $r = Run-NpmInTab -Script "admin:package-agent" -CmdArgs $cmdArgs -Box $dOut -Label "package-agent $t / $farm"
+  if ($r -and $r.Success -and $rotate) {
     # Extrair a nova key do stdout
-    $stdout = $r.Stdout
+    $stdout = $r.StdOut
     $m = [regex]::Match($stdout, "INGEST KEY (?:ROTATED|ISSUED)[^\r\n]*\r?\n[-]+\r?\n\s+([0-9a-fA-F]{64})")
     if ($m.Success) {
       $newKey = $m.Groups[1].Value
@@ -1135,32 +1342,43 @@ $dPkgBtn.Add_Click({
       Show-Secrets -Title "Ingest key rotacionada" -Header "Tenant '$t': nova key emitida.`r`nA key anterior foi INVALIDADA.`r`nGuarda esta nova key -- vai precisar dela para outras farmacias do mesmo tenant." -Fields $fields
     }
   }
+  } catch { Show-HandlerError $_ "tab-D-package-agent" }
 })
 
 $dOpenBtn.Add_Click({
-  $p = Join-Path $RepoRoot "dist-agent\clients"
-  if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
-  Start-Process explorer.exe -ArgumentList $p
+  try {
+    $p = Join-Path $RepoRoot "dist-agent\clients"
+    if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
+    Start-Process explorer.exe -ArgumentList $p
+  } catch { Show-HandlerError $_ "tab-D-open-folder" }
 })
 
 # E. Status / precheck / abrir pastas
 $eStatusBtn.Add_Click({
-  $t = Get-SelectedTenant
-  if (-not $t) { return }
-  Run-NpmInTab -Script "tenancy:status" -Args @("--tenant=$t") -Box $eOut -Label "status $t" | Out-Null
+  try {
+    $t = Get-SelectedTenant
+    if (-not $t) { return }
+    Run-NpmInTab -Script "tenancy:status" -CmdArgs @("--tenant=$t") -Box $eOut -Label "status $t" | Out-Null
+  } catch { Show-HandlerError $_ "tab-E-status" }
 })
 $ePrecheckBtn.Add_Click({
-  $t = Get-SelectedTenant
-  if (-not $t) { return }
-  Run-NpmInTab -Script "pilot:precheck" -Args @("--tenant=$t") -Box $eOut -Label "pilot:precheck $t" | Out-Null
+  try {
+    $t = Get-SelectedTenant
+    if (-not $t) { return }
+    Run-NpmInTab -Script "pilot:precheck" -CmdArgs @("--tenant=$t") -Box $eOut -Label "pilot:precheck $t" | Out-Null
+  } catch { Show-HandlerError $_ "tab-E-precheck" }
 })
 $eZipsBtn.Add_Click({
-  $p = Join-Path $RepoRoot "dist-agent\clients"
-  if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
-  Start-Process explorer.exe -ArgumentList $p
+  try {
+    $p = Join-Path $RepoRoot "dist-agent\clients"
+    if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
+    Start-Process explorer.exe -ArgumentList $p
+  } catch { Show-HandlerError $_ "tab-E-open-zips" }
 })
 $eLogsBtn.Add_Click({
-  Start-Process explorer.exe -ArgumentList $LogDir
+  try {
+    Start-Process explorer.exe -ArgumentList $LogDir
+  } catch { Show-HandlerError $_ "tab-E-open-logs" }
 })
 
 # --- Arrancar ----------------------------------------------------
@@ -1172,6 +1390,7 @@ Write-WizardLog ("runtime: PSVersion={0} PSEdition={1} HostName={2} CompiledExe=
   $PSVersionTable.PSEdition, `
   $Host.Name, `
   [bool]([Environment]::GetCommandLineArgs()[0] -match '\.exe$'))
+Write-WizardLog ("npm: " + $(if ($script:NpmCommand) { $script:NpmCommand } else { "NOT FOUND in PATH" }))
 $form.Add_Shown({
   $form.Activate()
   try { Refresh-Tenants } catch { Set-Status "Erro a carregar tenants: $($_.Exception.Message)" ([System.Drawing.Color]::DarkRed) }
