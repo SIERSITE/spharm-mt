@@ -35,6 +35,8 @@
     "tenancy:add-user": "tsx scripts/tenancy/add-user.ts",
     "tenancy:status": "tsx scripts/tenancy/status.ts",
     "admin:package-agent": "tsx scripts/admin/package-agent.ts",
+    "admin-wizard:run": "powershell -NoProfile -ExecutionPolicy Bypass -File admin-wizard/SPharmMT-Admin-Wizard.ps1",
+    "admin-wizard:build": "powershell -NoProfile -ExecutionPolicy Bypass -File admin-wizard/build.ps1",
     "env:doctor": "tsx scripts/env-doctor.ts",
     "agent:ingest-folder": "tsx scripts/agent/ingest-folder.ts",
     "agent": "tsx agent/src/cli.ts",

@@ -128,6 +128,56 @@ Para corte rápido sem necessidade de deploy:
 | Desligar feature flag | `FEATURE_<NAME>=0` no ambiente SaaS + redeploy | Ver `lib/feature-flags.ts` |
 | Desactivar tenant | `npm run tenancy:deactivate -- --tenant <slug>` | Bloqueia logins + ingestão no tenant; agent perde auth |
 
+## Excepções autorizadas ao freeze
+
+Lista append-only de excepções aprovadas. Cada entrada inclui motivo,
+escopo autorizado e limites.
+
+### 2026-05-15 — SPharm.MT Admin Wizard v1
+
+**Motivo:** o onboarding/admin operacional não está fechado enquanto
+depender de comandos `npm` em terminal, BATs dispersos e fluxo técnico
+manual. Não é nova funcionalidade — é fechar operacionalmente o piloto
+para onboarding real de farmácias por não-developers.
+
+**Escopo autorizado:**
+- Substituir `onboarding-wizard.bat` por executável gráfico único
+  (`SPharmMT-Admin-Wizard.exe`)
+- Encapsular os scripts existentes (`tenancy:create`,
+  `tenancy:add-farmacia`, `tenancy:add-user`, `tenancy:status`,
+  `pilot:precheck`, `admin:package-agent`) numa UI WinForms
+- Apenas camada operacional/UI admin
+
+**Não autorizado (mesmo dentro desta excepção):**
+- Alterações ao pipeline ingest
+- Alterações ao dashboard
+- Alterações ao agent runtime
+- Novas features SaaS
+- Refactors de arquitectura
+- Queues/workers/websockets
+- Alterações multi-tenant profundas
+
+**Regras adicionais:**
+1. Reutilizar scripts existentes internamente (shell-out, sem duplicar lógica)
+2. Zero alterações ao contract agent↔SaaS
+3. Zero alterações ao schema Prisma
+4. Sem novas migrations
+5. Sem alterar fluxo de dados
+6. Apenas camada operacional/UI admin
+
+**Ficheiros entregues:**
+- `admin-wizard/SPharmMT-Admin-Wizard.ps1` — UI WinForms
+- `admin-wizard/build.ps1` — empacotador via ps2exe
+- `dist-admin/SPharmMT-Admin-Wizard.exe` (após build) +
+  `dist-admin/SPharmMT-Admin-Wizard.bat` (fallback)
+- `SPharmMT-Admin-Wizard.bat` (launcher de topo)
+- `docs/admin-wizard.md`
+- Scripts npm: `admin-wizard:run`, `admin-wizard:build`
+
+**Rollback:** apagar `dist-admin/`, `admin-wizard/` e o launcher de topo;
+remover as duas linhas em `package.json`. O `onboarding-wizard.bat`
+antigo continua a funcionar como fallback técnico.
+
 ## Revisão deste documento
 
 Revisão obrigatória ao fim de:
@@ -135,4 +185,4 @@ Revisão obrigatória ao fim de:
 - Qualquer incident de produção que envolva alteração ao freeze
 - Decisão de transitar para fase pós-piloto
 
-Última actualização: 2026-05-14 (rev21 freeze)
+Última actualização: 2026-05-15 (rev21 freeze + excepção Admin Wizard v1)

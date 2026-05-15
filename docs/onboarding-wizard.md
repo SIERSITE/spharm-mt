@@ -1,5 +1,11 @@
 # Onboarding Wizard v1 — guia rápido
 
+> **Nota (2026-05-15):** este wizard CLI foi **substituído** pelo
+> **[Admin Wizard gráfico](admin-wizard.md)** como ponto de entrada oficial.
+> Duplo-click em `SPharmMT-Admin-Wizard.bat` na raiz do repo (ou no
+> `.exe` em `dist-admin/`). Este documento descreve o `onboarding-wizard.bat`
+> que continua a funcionar como **fallback técnico** para o developer.
+
 Wrapper interactivo Windows para onboarding completo de grupos/farmácias.
 Operador **não precisa de decorar comandos npm**. Tudo via menu.
 
