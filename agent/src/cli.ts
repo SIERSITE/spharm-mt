@@ -44,6 +44,7 @@ import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
 import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
+import { inspectComprasSchema } from "./commands/inspect-compras-schema.js";
 import { inspectProductIdentifiers } from "./commands/inspect-product-identifiers.js";
 import { setupOrdersWriteLog } from "./commands/setup-orders-write-log.js";
 import { testOrderWrite } from "./commands/test-order-write.js";
@@ -120,6 +121,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-orders-schema": {
     run: inspectOrdersSchema,
     desc: "Probe read-only às tabelas SPharm de encomendas. Gera markdown para validação.",
+  },
+  "inspect-compras-schema": {
+    run: inspectComprasSchema,
+    desc: "Probe read-only às tabelas SPharm de compras/recepções + devoluções a fornecedor. Gera markdown com hipótese de mapping.",
   },
   "inspect-product-identifiers": {
     run: inspectProductIdentifiers,

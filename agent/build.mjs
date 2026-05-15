@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "21";
+const AGENT_REV = "22";
 
 function readGitShortCommit() {
   try {
@@ -378,6 +378,71 @@ function writeBatchWrappers() {
   fs.writeFileSync(
     path.join(DIST_ROOT, "run-inspect-orders-schema.bat"),
     inspectOrdersSchemaBat,
+    "utf8"
+  );
+
+  // inspect-compras-schema — probe read-only às tabelas de compras +
+  // devoluções a fornecedor. Análogo a inspect-orders-schema mas para
+  // o outro lado do fluxo (SPharm → SaaS, leitura de mercadoria recebida).
+  // NUNCA escreve no SPharm. NUNCA chama a SaaS.
+  const inspectComprasSchemaBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — inspect-compras-schema`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   inspect-compras-schema`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Probe READ-ONLY ao schema de compras + devolucoes a fornecedor`,
+    `echo no SPharm local.`,
+    `echo NAO escreve nada no ERP. NAO envia nada para a SaaS.`,
+    `echo.`,
+    `echo Domios cobertos:`,
+    `echo   - compras / recepcoes / facturas de compra / notas de entrada`,
+    `echo   - devolucoes a fornecedor / notas de devolucao`,
+    `echo   - fornecedores (master)`,
+    `echo.`,
+    `echo Pre-requisito: run-test-connection.bat OK.`,
+    `echo.`,
+    `echo Tabelas-alvo default ^(20+ candidatas: Compras, Recepcoes,`,
+    `echo NotasEntrada, FacturasCompra, Aquisicoes, Devolucoes*, Fornecedores,`,
+    `echo Stocks, StocksMov, etc.^) + auto-discovery sys.tables com patterns:`,
+    `echo   compra, recep, entrada, devol, fornec, fact, nota, aquisi, moviment`,
+    `echo.`,
+    `node.exe agent.cjs inspect-compras-schema`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Ficheiro gerado em:`,
+    `  echo   output\\compras-schema-^<YYYY-MM-DD^>\\inspection.md`,
+    `  echo   ^(ver caminho exacto na linha "Markdown completo:" acima^)`,
+    `  echo.`,
+    `  echo IMPORTANTE: este comando e' apenas DISCOVERY.`,
+    `  echo NAO activa qualquer ingestao de compras/devolucoes para a SaaS.`,
+    `  echo A Fase 1 ^(staging + ingest endpoints + agent extract^) so e'`,
+    `  echo desenhada depois do operador SPharm validar o inspection.md.`,
+    `  echo.`,
+    `  echo Proximo passo: enviar inspection.md + respostas ao admin SPharm.MT.`,
+    `) else (`,
+    `  echo Falhou com exit code %EXIT%.`,
+    `  echo Verifica que o SQL Server esta acessivel:`,
+    `  echo   - run-test-connection.bat OK?`,
+    `  echo   - agent.config.json com host/user/password correctos?`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-inspect-compras-schema.bat"),
+    inspectComprasSchemaBat,
     "utf8"
   );
 
@@ -918,7 +983,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 13} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-product-identifiers + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 14} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-product-identifiers + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -963,6 +1028,7 @@ function writeReadme() {
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat       Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
+    `  run-inspect-compras-schema.bat      Probe READ-ONLY ao schema de compras/recepcoes + devolucoes fornec. Gera inspection.md.`,
     `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
     `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
