@@ -60,6 +60,17 @@ export type NeonRetryInfo = {
   lastError: string;
 };
 
+/** Info por tentativa do retry do SELECT 1 (eventual consistency). */
+export type NeonSmokeRetryInfo = {
+  attempt: number;            // 1-based, tentativa que acabou de falhar
+  maxAttempts: number;
+  nextDelayMs: number;
+  totalElapsedMs: number;
+  lastError: string;
+  /** Código sqlstate se conhecido (3D000 = undefined_database). */
+  sqlState?: string;
+};
+
 export type NeonProviderConfig = {
   apiKey: string;
   projectId: string;
@@ -86,6 +97,26 @@ export type NeonProviderConfig = {
   onRetry?: (info: NeonRetryInfo) => void;
   /** Sleep injectável. Default = setTimeout. Tests passam async () => {}. */
   sleep?: SleepLike;
+
+  // ── Smoke (SELECT 1) retry — eventual consistency Neon ─────────
+  /**
+   * Sequência de delays entre tentativas do SELECT 1 contra a DB
+   * recém-criada. Length = (maxAttempts - 1) porque a primeira tentativa
+   * é imediata. Default: [1000, 2000, 3000, 5000, 8000, 8000, 8000, 8000,
+   * 8000] → 10 tentativas, ≤ 51s total.
+   *
+   * Motivo: a API Neon devolve OK ao CREATE DATABASE mas o pooler
+   * endpoint demora alguns segundos a ter routing para a nova DB; até
+   * lá, SELECT 1 falha com sqlstate 3D000 ("database does not exist").
+   */
+  smokeRetryDelaysMs?: number[];
+  /** Hook por tentativa. Default = console.warn com mensagem. */
+  onSmokeRetry?: (info: NeonSmokeRetryInfo) => void;
+  /**
+   * Helper de connectivity injectável. Default = testTenantDbReachable.
+   * Útil para tests simularem falhas/transient na sequência.
+   */
+  smokeReachable?: (connectionUrl: string) => Promise<void>;
 };
 
 type NeonRoleResponse = {
@@ -116,6 +147,59 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 1500;
 const DEFAULT_RETRY_MAX_DELAY_MS = 15000;
 const DEFAULT_RETRY_MAX_TOTAL_MS = 90_000;
 
+// 10 tentativas, ≤ 51s total. Cobre janela típica de propagação Neon
+// (5-15s) com folga; primeira tentativa imediata, depois 1+2+3+5+8+8+8+8+8s.
+const DEFAULT_SMOKE_RETRY_DELAYS_MS = [1000, 2000, 3000, 5000, 8000, 8000, 8000, 8000, 8000];
+
+/** sqlstate 3D000 = undefined_database (Postgres). */
+const SQLSTATE_UNDEFINED_DATABASE = "3D000";
+
+/**
+ * Decide se um erro de smoke connectivity merece retry — i.e. se é
+ * transiente (eventual consistency, ECONNRESET, etc.) e não um problema
+ * permanente (auth errada, sslmode em falta, host indevidamente formado).
+ *
+ * Retryable:
+ *   · sqlstate 3D000 (database does not exist) — DB ainda não propagou
+ *     ao pooler/serverless endpoint
+ *   · ECONNRESET, ETIMEDOUT, ECONNREFUSED, ENOTFOUND, EPIPE — network
+ *     blips comuns durante warm-up Neon
+ *   · "Connection terminated unexpectedly" — Neon serverless a inicializar
+ *
+ * Não retryable: auth (28P01), sslmode (28000), permission (42501),
+ * sintaxe de URL inválida.
+ */
+export function isRetryableSmokeError(err: unknown): { retryable: boolean; sqlState?: string } {
+  if (!err) return { retryable: false };
+  const msg = err instanceof Error ? err.message : String(err);
+
+  // Extrair sqlstate quando presente (Prisma/pg costuma incluir "code: 3D000")
+  const codeMatch = msg.match(/\bCode\s+([0-9A-Z]{5})\b/i) ?? msg.match(/\bcode:\s*['"]?([0-9A-Z]{5})['"]?/i);
+  const sqlState = codeMatch ? codeMatch[1].toUpperCase() : undefined;
+
+  if (sqlState === SQLSTATE_UNDEFINED_DATABASE) return { retryable: true, sqlState };
+
+  // Network errors — match-case relativamente conservadores
+  const lower = msg.toLowerCase();
+  const networkSignals = [
+    "econnreset",
+    "etimedout",
+    "econnrefused",
+    "enotfound",
+    "epipe",
+    "connection terminated unexpectedly",
+    "connection terminated",
+    "socket hang up",
+    "timeout expired",
+    "read econn",
+  ];
+  if (networkSignals.some((s) => lower.includes(s))) {
+    return { retryable: true, sqlState };
+  }
+
+  return { retryable: false, sqlState };
+}
+
 /** Erro tipado da API Neon — caller pode discriminar via statusCode. */
 export class NeonApiError extends Error {
   constructor(
@@ -134,6 +218,15 @@ function defaultOnRetry(info: NeonRetryInfo): void {
     `[neon] ${info.label}: HTTP 423 (operação concorrente no project), ` +
       `retry ${info.attempt}/${info.maxAttempts} em ${info.nextDelayMs}ms ` +
       `(elapsed ${Math.floor(info.totalElapsedMs / 1000)}s)`
+  );
+}
+
+function defaultOnSmokeRetry(info: NeonSmokeRetryInfo): void {
+  const sqlBit = info.sqlState ? ` sqlstate=${info.sqlState}` : "";
+  console.warn(
+    `[neon] smoke SELECT 1 falhou${sqlBit}, retry ${info.attempt}/${info.maxAttempts} ` +
+      `em ${info.nextDelayMs}ms (elapsed ${Math.floor(info.totalElapsedMs / 1000)}s) — ` +
+      `${info.lastError.slice(0, 160)}`
   );
 }
 
@@ -168,13 +261,18 @@ export class NeonProvider implements DatabaseProvider {
   private readonly fetcher: FetchLike;
   private readonly defaultRegion: string;
 
-  // Retry config
+  // Retry config (HTTP 423)
   private readonly retryMaxAttempts: number;
   private readonly retryBaseDelayMs: number;
   private readonly retryMaxDelayMs: number;
   private readonly retryMaxTotalMs: number;
   private readonly onRetry: (info: NeonRetryInfo) => void;
   private readonly sleep: SleepLike;
+
+  // Smoke (SELECT 1) retry config
+  private readonly smokeRetryDelaysMs: number[];
+  private readonly onSmokeRetry: (info: NeonSmokeRetryInfo) => void;
+  private readonly smokeReachable: (connectionUrl: string) => Promise<void>;
 
   private cachedBranchId: string | null = null;
 
@@ -197,6 +295,56 @@ export class NeonProvider implements DatabaseProvider {
     this.retryMaxTotalMs = cfg.retryMaxTotalMs ?? DEFAULT_RETRY_MAX_TOTAL_MS;
     this.onRetry = cfg.onRetry ?? defaultOnRetry;
     this.sleep = cfg.sleep ?? defaultSleep;
+
+    this.smokeRetryDelaysMs = cfg.smokeRetryDelaysMs ?? DEFAULT_SMOKE_RETRY_DELAYS_MS;
+    this.onSmokeRetry = cfg.onSmokeRetry ?? defaultOnSmokeRetry;
+    this.smokeReachable = cfg.smokeReachable ?? testTenantDbReachable;
+  }
+
+  /**
+   * SELECT 1 com retry para a janela de propagação Neon (eventual
+   * consistency entre o control plane API e o pooler endpoint).
+   *
+   * Estratégia: primeira tentativa imediata; em caso de erro retryable
+   * (3D000 / network), espera `smokeRetryDelaysMs[i]` antes da próxima.
+   * Total = 1 + len(delays) tentativas.
+   *
+   * Não-retryable (auth, sslmode, syntax) → throw imediato.
+   */
+  private async smokeConnectivityWithRetry(connectionUrl: string): Promise<void> {
+    const maxAttempts = this.smokeRetryDelaysMs.length + 1;
+    const start = Date.now();
+    let lastErr: unknown = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.smokeReachable(connectionUrl);
+        return;
+      } catch (err) {
+        lastErr = err;
+        const { retryable, sqlState } = isRetryableSmokeError(err);
+        if (!retryable) throw err;
+        if (attempt >= maxAttempts) break;
+
+        const nextDelayMs = this.smokeRetryDelaysMs[attempt - 1];
+        this.onSmokeRetry({
+          attempt,
+          maxAttempts,
+          nextDelayMs,
+          totalElapsedMs: Date.now() - start,
+          lastError: err instanceof Error ? err.message : String(err),
+          sqlState,
+        });
+        await this.sleep(nextDelayMs);
+      }
+    }
+
+    const totalSec = Math.floor((Date.now() - start) / 1000);
+    const lastMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    throw new Error(
+      `Neon: DB criada mas SELECT 1 falhou após ${maxAttempts} tentativas em ${totalSec}s. ` +
+        `Último erro: ${lastMsg}`
+    );
   }
 
   // ── HTTP helpers ─────────────────────────────────────────────────────
@@ -382,28 +530,38 @@ export class NeonProvider implements DatabaseProvider {
 
   /**
    * DELETE best-effort sem retry — quando estamos em rollback queremos
-   * tentar e seguir. Se a operação concorrente bloqueia o DELETE,
-   * surge na mensagem do caller (que pode pedir limpeza manual).
+   * tentar e seguir. Devolve `{ ok, error? }` para que o caller possa
+   * compor mensagem accionável: se o cleanup falhar e o tenant não
+   * existir no control plane, o operador precisa de saber que tem de
+   * remover manualmente no dashboard Neon.
    */
-  private async deleteRoleSafe(branchId: string, roleName: string): Promise<void> {
+  private async deleteRoleSafe(
+    branchId: string,
+    roleName: string
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
       await this.request(
         `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/roles/${encodeURIComponent(roleName)}`,
         { method: "DELETE", expectJson: false }
       );
-    } catch {
-      // best-effort
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
-  private async deleteDatabaseSafe(branchId: string, dbName: string): Promise<void> {
+  private async deleteDatabaseSafe(
+    branchId: string,
+    dbName: string
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
       await this.request(
         `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/databases/${encodeURIComponent(dbName)}`,
         { method: "DELETE", expectJson: false }
       );
-    } catch {
-      // best-effort
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
 
@@ -442,16 +600,37 @@ export class NeonProvider implements DatabaseProvider {
       throw new Error(reraseNeonError(err, "connection_uri", `${dbName}@${dbUser}`));
     }
 
-    // Smoke connectivity — não retry (problema na URL é determinístico,
-    // não transitório).
+    // Smoke connectivity — retry para a janela de propagação Neon
+    // (eventual consistency entre control plane API e pooler endpoint).
+    // Erros permanentes (auth, sslmode, syntax) lançam imediatamente
+    // via isRetryableSmokeError.
     try {
-      await testTenantDbReachable(connectionUrl);
+      await this.smokeConnectivityWithRetry(connectionUrl);
     } catch (err) {
-      await this.deleteDatabaseSafe(branchId, dbName);
-      await this.deleteRoleSafe(branchId, dbUser);
-      throw new Error(
-        `Neon: DB criada mas SELECT 1 falhou — ${err instanceof Error ? err.message : err}`
+      const dbCleanup = await this.deleteDatabaseSafe(branchId, dbName);
+      const roleCleanup = await this.deleteRoleSafe(branchId, dbUser);
+
+      const parts: string[] = [];
+      parts.push(err instanceof Error ? err.message : String(err));
+      parts.push("");
+      parts.push(`Cleanup automático:`);
+      parts.push(`  DB    ${dbName}: ${dbCleanup.ok ? "removida" : "FALHOU (" + (dbCleanup.error ?? "?") + ")"}`);
+      parts.push(`  role  ${dbUser}: ${roleCleanup.ok ? "removida" : "FALHOU (" + (roleCleanup.error ?? "?") + ")"}`);
+      if (!dbCleanup.ok || !roleCleanup.ok) {
+        parts.push("");
+        parts.push(
+          `AVISO: recursos Neon podem ter ficado ghost — remove manualmente no ` +
+            `dashboard https://console.neon.tech/ → projecto → Databases/Roles ` +
+            `antes de re-tentar criar tenant "${slug}".`
+        );
+      }
+      parts.push("");
+      parts.push(
+        `Para limpar control plane se ficou registo PROVISIONING/FAILED: ` +
+          `npm run tenancy:cleanup-failed -- --slug ${slug} --confirm`
       );
+
+      throw new Error(parts.join("\n"));
     }
 
     const parsed = new URL(connectionUrl);

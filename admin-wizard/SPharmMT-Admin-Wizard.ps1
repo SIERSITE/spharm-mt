@@ -1184,9 +1184,30 @@ $aBtn.Add_Click({
 
   $r = Run-NpmInTab -Script "tenancy:create" -CmdArgs $cmdArgs -Box $aOut -Label "tenancy:create $slug" -ExpectJson $true
   if (-not $r) { return }
-  if (-not $r.Success) { return }
 
   $j = $r.ParsedJson
+  if (-not $r.Success) {
+    # Failure path: surface accionable dialog. Workflow returns structured
+    # error in ParsedJson (step + error string). Cleanup hint includes
+    # the slug already-known. The output box has the full stderr/stdout.
+    $step = if ($j -and $j.step) { [string]$j.step } else { "(?)" }
+    $errTxt = if ($j -and $j.error) { [string]$j.error } else { "(ver output do tab e log)" }
+    $dlg = "Criar tenant '$slug' FALHOU.`r`n`r`n"
+    $dlg += "Step: $step`r`n"
+    $dlg += "Erro: $errTxt`r`n"
+    if ($errTxt -match "Cleanup autom" -or $errTxt -match "tenancy:cleanup-failed") {
+      $dlg += "`r`nO erro indica que recursos Neon podem ter ficado em estado parcial. `r`n"
+      $dlg += "Le a seccao 'Cleanup automatico' acima -- se algum cleanup FALHOU, `r`n"
+      $dlg += "remove DB/role manualmente em https://console.neon.tech/ antes de re-tentar.`r`n`r`n"
+      $dlg += "Antes de re-tentar com o mesmo slug, corre:`r`n"
+      $dlg += "  npm run tenancy:cleanup-failed -- --slug $slug --confirm`r`n"
+    } else {
+      $dlg += "`r`nVer o output do tab e logs\admin-wizard-$(Get-Date -Format 'yyyy-MM-dd').log para detalhes."
+    }
+    [System.Windows.Forms.MessageBox]::Show($dlg, "Criar tenant falhou", "OK", "Error") | Out-Null
+    return
+  }
+
   if ($j -and $j.ok -and $j.step -eq "done") {
     $fields = [ordered]@{
       "Admin email"    = [string]$j.adminEmail
