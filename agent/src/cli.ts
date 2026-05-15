@@ -143,6 +143,22 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   },
 };
 
+/**
+ * Banner de versão impresso no início de cada execução do agent.
+ * Os valores são injectados em build-time por esbuild define (ver
+ * agent/build.mjs). Em dev (tsx) ficam undefined → "dev".
+ *
+ * Aparece em stdout do BAT, que o auto-export redirige para
+ * logs/export-orders-<data>.log. Útil para correlacionar logs com
+ * versão exacta do ZIP em farmácias distintas.
+ */
+function printVersionBanner(): void {
+  const rev = process.env.AGENT_REV || "dev";
+  const commit = process.env.AGENT_COMMIT || "unknown";
+  const buildTs = process.env.AGENT_BUILD_TS || "-";
+  console.log(`Agent: rev${rev} commit ${commit} built ${buildTs}`);
+}
+
 function printHelp(): void {
   console.log("spharmmt-agent — SPharm.MT local agent (SQL Server)");
   console.log("");
@@ -163,6 +179,15 @@ function printHelp(): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cmd = args[0];
+
+  // Banner antes do help/comando — fica no topo de cada log file. Para
+  // `--version`/`-v` imprime e sai imediatamente.
+  if (cmd === "--version" || cmd === "-v") {
+    printVersionBanner();
+    process.exit(0);
+    return;
+  }
+  printVersionBanner();
 
   if (!cmd || cmd === "--help" || cmd === "-h" || cmd === "help") {
     printHelp();

@@ -31,6 +31,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as https from "node:https";
+import { execSync } from "node:child_process";
 import * as esbuild from "esbuild";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,25 @@ const NODE_VERSION = "v20.18.0"; // pinned — actualizar com critério
 const NODE_PLATFORM = "win-x64";
 const NODE_URL = `https://nodejs.org/dist/${NODE_VERSION}/${NODE_PLATFORM}/node.exe`;
 const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem check
+
+// AGENT_REV: versão do ZIP/distribuição. Bumpar manualmente a cada rev
+// que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
+// (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
+// banner que o cli.ts imprime no arranque de qualquer comando.
+const AGENT_REV = "21";
+
+function readGitShortCommit() {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 const DIST_NAME = "SPharmMT-Agent";
 const DIST_ROOT = path.join(REPO_ROOT, "dist-agent", DIST_NAME);
@@ -124,7 +144,10 @@ function cleanDist() {
 async function bundle() {
   const entryPoint = path.join(AGENT_ROOT, "src", "cli.ts");
   const outfile = path.join(DIST_ROOT, "agent.cjs");
+  const commit = readGitShortCommit();
+  const buildTs = new Date().toISOString();
   log(`A bundlar src/cli.ts → ${path.relative(REPO_ROOT, outfile)}…`);
+  log(`  rev=${AGENT_REV} commit=${commit} buildTs=${buildTs}`);
   const result = await esbuild.build({
     entryPoints: [entryPoint],
     outfile,
@@ -135,7 +158,12 @@ async function bundle() {
     minify: false,
     sourcemap: false,
     logLevel: "warning",
-    define: { "process.env.AGENT_BUILD_BUNDLED": '"1"' },
+    define: {
+      "process.env.AGENT_BUILD_BUNDLED": '"1"',
+      "process.env.AGENT_REV": JSON.stringify(AGENT_REV),
+      "process.env.AGENT_COMMIT": JSON.stringify(commit),
+      "process.env.AGENT_BUILD_TS": JSON.stringify(buildTs),
+    },
     // Externals: vazio — bundle tudo. mssql usa tedious (pure-JS),
     // não há native deps a externalizar.
     external: [],

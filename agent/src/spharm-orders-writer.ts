@@ -43,6 +43,71 @@
  * é rejeitado defensivamente. Preços (`Preco Venda Publico_EUR`,
  * `PMC_EUR`) são lidos no mesmo SELECT — usamos o que o ERP conhece,
  * não o que veio do SaaS.
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * SPHARM WRITE CONTRACT — campos que o agent NÃO toca
+ * ─────────────────────────────────────────────────────────────────
+ *
+ * O INSERT em `dbo.Encomendas` popula APENAS o subconjunto mínimo
+ * documentado abaixo. As seguintes colunas/conceitos ficam intactas
+ * por design — alteração exige discussão com o operador SPharm e
+ * actualização explícita deste contrato:
+ *
+ *   `VVM_ID` (varchar 25)
+ *     Via Verde do Medicamento. É um identificador de um fluxo
+ *     operacional SPharm completamente diferente (encomendas via
+ *     plataforma central VVM). NÃO escrever — leva a confusão
+ *     semântica e potencial duplicação de tracking. Idempotência
+ *     vive em `dbo.SPharmMT_OrderWriteLog` (tabela nossa, separada).
+ *
+ *   Observações (qualquer campo livre)
+ *     A tabela `dbo.Encomendas` não tem coluna Observações directa;
+ *     existe `dbo.Encomendas_Obs` separada para anotações livres.
+ *     O agent NÃO escreve em `Encomendas_Obs` — anotações são
+ *     atribuídas pelo operador via SPharm UI.
+ *
+ *   `Confirmado_UserID` + `Confirmado_Data`
+ *     Marcam que um operador SPharm validou manualmente a encomenda
+ *     antes de a enviar ao fornecedor. O agent insere encomenda em
+ *     estado inicial (configurável via `encomendaSituacaoInitial`,
+ *     tipicamente 'A' = Aberta) e deixa ambas as colunas NULL —
+ *     operador confirma no fluxo normal do SPharm.
+ *
+ *   `Data Entrega`
+ *     Preenchida pelo módulo de Recepção quando o fornecedor entrega
+ *     fisicamente os produtos. Agent não tem informação sobre
+ *     entregas — fica NULL.
+ *
+ *   Campos financeiros recalculáveis
+ *     `PrecoCusto` em `Encomendas Detalhe` é populado com o último
+ *     preço de compra conhecido (`Preco Ultima Compra_EUR` de
+ *     `Stocks`); pode ser NULL se não houver histórico. NÃO tentar
+ *     calcular margens, descontos, IVA — esses cálculos vivem nas
+ *     ferramentas SPharm que conhecem as regras do ERP.
+ *
+ *   Estados operacionais avançados
+ *     `EncomendaSituacaoID` aceita vários valores (A, R, …) que
+ *     correspondem a fases do workflow SPharm. O agent escreve
+ *     apenas o estado inicial. Transições subsequentes (recebida,
+ *     facturada, fechada, cancelada) são geridas pelo SPharm UI.
+ *
+ *   Subsistema B2B
+ *     `dbo.B2B_EncomendaFT*` (envios para fornecedores via B2B,
+ *     mensagens, IVA, PDFs) NÃO é tocado. Encomendas geradas pelo
+ *     SaaS ficam no fluxo "manual" do SPharm — operador decide se
+ *     as envia via B2B depois.
+ *
+ *   `dbo.EncomendasFaltas`, `dbo.Encomendas_Prepara*`
+ *     Workflows internos do SPharm para gestão de faltas e preparação
+ *     de pedidos. Agent não interage.
+ *
+ * Qualquer alteração ao conjunto de colunas escritas DEVE:
+ *   1. Confirmar com operador SPharm que a nova coluna é segura
+ *   2. Actualizar este comentário
+ *   3. Actualizar `notes/inspection.md` se aplicável
+ *   4. Smoke test em DRY-RUN antes de re-activar COMMIT
+ *
+ * Ver docs/production-freeze.md para o procedimento operacional.
  */
 
 import * as fs from "node:fs";

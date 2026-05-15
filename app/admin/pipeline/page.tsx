@@ -57,13 +57,27 @@ function StatusBadge({ status }: { status: string }) {
 export default async function AdminPipelinePage() {
   const data = await getPipelineStatus();
 
+  const build = {
+    commit:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ??
+      process.env.SAAS_GIT_COMMIT?.slice(0, 7) ??
+      "dev",
+    env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "dev",
+  };
+
   return (
     <div className="space-y-6">
-      <section>
-        <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">Pipeline operacional</h1>
-        <p className="mt-1 text-[12px] text-slate-500">
-          Estado do ciclo daily-sync → aggregate. Read-only. Dados do tenant resolvido pelo subdomínio.
-        </p>
+      <section className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">Pipeline operacional</h1>
+          <p className="mt-1 text-[12px] text-slate-500">
+            Estado do ciclo daily-sync → aggregate. Read-only. Dados do tenant resolvido pelo subdomínio.
+          </p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-right font-mono text-[10px] text-slate-500">
+          <div>SaaS build {build.commit}</div>
+          <div className="text-[9px] uppercase tracking-[0.15em] text-slate-400">{build.env}</div>
+        </div>
       </section>
 
       <Metrics data={data} />
