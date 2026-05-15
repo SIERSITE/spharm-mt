@@ -173,11 +173,25 @@ export function isRetryableSmokeError(err: unknown): { retryable: boolean; sqlSt
   if (!err) return { retryable: false };
   const msg = err instanceof Error ? err.message : String(err);
 
-  // Extrair sqlstate quando presente (Prisma/pg costuma incluir "code: 3D000")
-  const codeMatch = msg.match(/\bCode\s+([0-9A-Z]{5})\b/i) ?? msg.match(/\bcode:\s*['"]?([0-9A-Z]{5})['"]?/i);
+  // Extrair sqlstate. Formatos vistos em produção:
+  //   · pg raw:    "code: '3D000'" / "code: \"3D000\""
+  //   · Prisma:    "Code: `3D000`"            ← com backticks (PrismaClientKnownRequestError)
+  //   · genérico:  "Code 3D000" / "sqlstate 3D000"
+  //
+  // O regex cobre os três: separador `:` opcional, qualquer delimitador
+  // antes do código (', ", `, espaço, sem nada), 5 hex/digits.
+  const codeMatch =
+    msg.match(/\b(?:Code|sqlstate)[:\s]+[`'"]?([0-9A-Z]{5})[`'"]?/i) ??
+    msg.match(/\bcode:\s*[`'"]?([0-9A-Z]{5})[`'"]?/i);
   const sqlState = codeMatch ? codeMatch[1].toUpperCase() : undefined;
 
   if (sqlState === SQLSTATE_UNDEFINED_DATABASE) return { retryable: true, sqlState };
+
+  // "database X does not exist" — fallback caso o sqlstate não venha
+  // por algum motivo (mensagem em PT, wrapper externo, etc.).
+  if (/database\s+["`']?[^"`'\s]+["`']?\s+does not exist/i.test(msg)) {
+    return { retryable: true, sqlState: sqlState ?? "3D000" };
+  }
 
   // Network errors — match-case relativamente conservadores
   const lower = msg.toLowerCase();
@@ -223,10 +237,11 @@ function defaultOnRetry(info: NeonRetryInfo): void {
 
 function defaultOnSmokeRetry(info: NeonSmokeRetryInfo): void {
   const sqlBit = info.sqlState ? ` sqlstate=${info.sqlState}` : "";
+  // Prefixo `[neon smoke]` consistente — permite grep no log do wizard.
   console.warn(
-    `[neon] smoke SELECT 1 falhou${sqlBit}, retry ${info.attempt}/${info.maxAttempts} ` +
-      `em ${info.nextDelayMs}ms (elapsed ${Math.floor(info.totalElapsedMs / 1000)}s) — ` +
-      `${info.lastError.slice(0, 160)}`
+    `[neon smoke] attempt ${info.attempt}/${info.maxAttempts} falhou${sqlBit} ` +
+      `apos ${Math.floor(info.totalElapsedMs / 1000)}s, sleep ${info.nextDelayMs}ms ` +
+      `antes da proxima -- ${info.lastError.slice(0, 160)}`
   );
 }
 
@@ -302,12 +317,64 @@ export class NeonProvider implements DatabaseProvider {
   }
 
   /**
+   * Espera que o project Neon não tenha operações activas. Cobre o caso
+   * em que a API devolve OK ao CREATE DATABASE mas a operação async
+   * subjacente continua a correr — ROLES/DBs ainda não propagaram ao
+   * pooler, DELETE seguinte apanha 423. Poll a `/projects/{id}/operations`
+   * filtrando status=running|scheduling até estar vazio ou timeout.
+   *
+   * Best-effort: se o endpoint não responder ou falhar, retorna sem
+   * throw — a falha aqui não bloqueia o fluxo principal, apenas
+   * remove o benefício de "esperar pelo settling".
+   */
+  private async waitForProjectQuiet(maxMs: number, label: string): Promise<void> {
+    const start = Date.now();
+    const pollIntervalMs = 2000;
+    let lastReport = -1;
+    while (Date.now() - start < maxMs) {
+      try {
+        const resp = await this.fetcher(
+          `${this.apiBaseUrl}/projects/${encodeURIComponent(this.projectId)}/operations?limit=50`,
+          { headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json" } }
+        );
+        if (!resp.ok) return; // endpoint indisponível; abdica do wait
+        const body = (await resp.json()) as { operations?: Array<{ status?: string }> };
+        const running = (body.operations ?? []).filter(
+          (o) => o.status === "running" || o.status === "scheduling"
+        );
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        if (running.length === 0) {
+          if (elapsed > 0) {
+            console.warn(`[neon ${label}] project quiet apos ${elapsed}s`);
+          }
+          return;
+        }
+        // Log cada 4s para nao spammar
+        if (elapsed - lastReport >= 4 || lastReport < 0) {
+          console.warn(
+            `[neon ${label}] aguardando project quiet: ${running.length} op(s) activa(s) ` +
+              `(elapsed ${elapsed}s/${Math.floor(maxMs / 1000)}s)`
+          );
+          lastReport = elapsed;
+        }
+      } catch {
+        return; // best-effort
+      }
+      await this.sleep(pollIntervalMs);
+    }
+    console.warn(
+      `[neon ${label}] timeout aguardando quiet apos ${Math.floor(maxMs / 1000)}s -- prossigo`
+    );
+  }
+
+  /**
    * SELECT 1 com retry para a janela de propagação Neon (eventual
    * consistency entre o control plane API e o pooler endpoint).
    *
-   * Estratégia: primeira tentativa imediata; em caso de erro retryable
-   * (3D000 / network), espera `smokeRetryDelaysMs[i]` antes da próxima.
-   * Total = 1 + len(delays) tentativas.
+   * Estratégia: primeiro espera o project ficar quiet (operações
+   * async terminadas); depois primeira tentativa imediata; em caso
+   * de erro retryable (3D000 / network), espera `smokeRetryDelaysMs[i]`
+   * antes da próxima. Total = 1 + len(delays) tentativas após o quiet.
    *
    * Não-retryable (auth, sslmode, syntax) → throw imediato.
    */
@@ -316,14 +383,28 @@ export class NeonProvider implements DatabaseProvider {
     const start = Date.now();
     let lastErr: unknown = null;
 
+    // Phase 0: esperar que o project esteja quiet. Tipicamente 0-15s
+    // depois de createDatabase. Max 60s — após isso, mesmo se ainda houver
+    // ops activas, prosseguimos para o retry SELECT 1 (que tem o seu próprio
+    // backoff). Total worst-case = 60s wait + 51s retry = 111s.
+    await this.waitForProjectQuiet(60_000, "smoke");
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Log de tentativa visível (stderr, via console.warn) -- pode ser
+      // grep'd no log do wizard com prefixo [neon smoke].
+      console.warn(`[neon smoke] attempt ${attempt}/${maxAttempts} -- SELECT 1 ${connectionUrl.replace(/:[^@]+@/, ":***@").slice(0, 100)}`);
       try {
         await this.smokeReachable(connectionUrl);
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        console.warn(`[neon smoke] OK na attempt ${attempt} (total ${elapsed}s)`);
         return;
       } catch (err) {
         lastErr = err;
         const { retryable, sqlState } = isRetryableSmokeError(err);
-        if (!retryable) throw err;
+        if (!retryable) {
+          console.warn(`[neon smoke] erro NAO-retryable na attempt ${attempt}: ${err instanceof Error ? err.message.slice(0, 200) : err}`);
+          throw err;
+        }
         if (attempt >= maxAttempts) break;
 
         const nextDelayMs = this.smokeRetryDelaysMs[attempt - 1];
@@ -342,9 +423,113 @@ export class NeonProvider implements DatabaseProvider {
     const totalSec = Math.floor((Date.now() - start) / 1000);
     const lastMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
     throw new Error(
-      `Neon: DB criada mas SELECT 1 falhou após ${maxAttempts} tentativas em ${totalSec}s. ` +
-        `Último erro: ${lastMsg}`
+      `Neon: DB criada mas SELECT 1 falhou apos ${maxAttempts} tentativas em ${totalSec}s. ` +
+        `Ultimo erro: ${lastMsg}`
     );
+  }
+
+  /**
+   * Cleanup robusto após smoke falhar: DELETE database com retry 423,
+   * poll até a DB sumir, depois DELETE role com retry 423. Ordem
+   * obrigatória (Neon rejeita DROP ROLE enquanto a role for owner).
+   *
+   * Não throws — devolve relatório estruturado para o caller compor
+   * a mensagem accionável.
+   */
+  private async cleanupAfterSmokeFailure(
+    branchId: string,
+    dbName: string,
+    roleName: string
+  ): Promise<{ dbOk: boolean; dbError?: string; roleOk: boolean; roleError?: string }> {
+    // 1. Aguardar quiet antes de tentar (evita 423 imediato após createDatabase)
+    await this.waitForProjectQuiet(60_000, "cleanup");
+
+    // 2. DELETE database with 423 retry, até ~60s
+    let dbOk = false;
+    let dbError: string | undefined;
+    const deleteDelays = [3000, 5000, 10000, 15000, 20000];
+    for (let attempt = 1; attempt <= deleteDelays.length + 1; attempt++) {
+      try {
+        await this.request(
+          `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/databases/${encodeURIComponent(dbName)}`,
+          { method: "DELETE", expectJson: false }
+        );
+        dbOk = true;
+        console.warn(`[neon cleanup] DELETE DB ${dbName}: OK na attempt ${attempt}`);
+        break;
+      } catch (err) {
+        const is423 = err instanceof NeonApiError && err.statusCode === 423;
+        const is404 = err instanceof NeonApiError && err.statusCode === 404;
+        if (is404) { dbOk = true; break; } // já não existe
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!is423 || attempt > deleteDelays.length) {
+          dbError = msg;
+          break;
+        }
+        const d = deleteDelays[attempt - 1];
+        console.warn(`[neon cleanup] DELETE DB ${dbName} attempt ${attempt}: 423, sleep ${d}ms`);
+        await this.sleep(d);
+      }
+    }
+
+    // 3. Poll até DB sumir da listagem (Neon API é eventually-consistent
+    //    aqui também). Necessário antes do DROP ROLE.
+    if (dbOk) {
+      const pollStart = Date.now();
+      const pollMax = 60_000;
+      while (Date.now() - pollStart < pollMax) {
+        try {
+          const resp = await this.fetcher(
+            `${this.apiBaseUrl}/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/databases`,
+            { headers: { Authorization: `Bearer ${this.apiKey}`, Accept: "application/json" } }
+          );
+          if (resp.ok) {
+            const body = (await resp.json()) as { databases?: Array<{ name: string }> };
+            const stillThere = (body.databases ?? []).some((d) => d.name === dbName);
+            if (!stillThere) {
+              console.warn(`[neon cleanup] DB ${dbName} sumiu da listagem apos ${Math.floor((Date.now() - pollStart) / 1000)}s`);
+              break;
+            }
+          }
+        } catch {}
+        await this.sleep(3000);
+      }
+    }
+
+    // 4. DELETE role with 423 retry (só depois da DB confirmada removida).
+    let roleOk = false;
+    let roleError: string | undefined;
+    if (!dbOk) {
+      roleError = "skipped — DB ainda nao removida (role-owns-objects garantido)";
+    } else {
+      // Aguardar quiet antes — o DROP DATABASE pode ter aberto uma op assíncrona.
+      await this.waitForProjectQuiet(60_000, "cleanup");
+      for (let attempt = 1; attempt <= deleteDelays.length + 1; attempt++) {
+        try {
+          await this.request(
+            `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/roles/${encodeURIComponent(roleName)}`,
+            { method: "DELETE", expectJson: false }
+          );
+          roleOk = true;
+          console.warn(`[neon cleanup] DELETE role ${roleName}: OK na attempt ${attempt}`);
+          break;
+        } catch (err) {
+          const is423 = err instanceof NeonApiError && err.statusCode === 423;
+          const is404 = err instanceof NeonApiError && err.statusCode === 404;
+          if (is404) { roleOk = true; break; }
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!is423 || attempt > deleteDelays.length) {
+            roleError = msg;
+            break;
+          }
+          const d = deleteDelays[attempt - 1];
+          console.warn(`[neon cleanup] DELETE role ${roleName} attempt ${attempt}: 423, sleep ${d}ms`);
+          await this.sleep(d);
+        }
+      }
+    }
+
+    return { dbOk, dbError, roleOk, roleError };
   }
 
   // ── HTTP helpers ─────────────────────────────────────────────────────
@@ -607,20 +792,22 @@ export class NeonProvider implements DatabaseProvider {
     try {
       await this.smokeConnectivityWithRetry(connectionUrl);
     } catch (err) {
-      const dbCleanup = await this.deleteDatabaseSafe(branchId, dbName);
-      const roleCleanup = await this.deleteRoleSafe(branchId, dbUser);
+      // Cleanup robusto: DELETE DB com retry 423 + poll-until-gone +
+      // DELETE role só depois. Não dá throw — devolve estado para a
+      // mensagem final.
+      const cleanup = await this.cleanupAfterSmokeFailure(branchId, dbName, dbUser);
 
       const parts: string[] = [];
       parts.push(err instanceof Error ? err.message : String(err));
       parts.push("");
-      parts.push(`Cleanup automático:`);
-      parts.push(`  DB    ${dbName}: ${dbCleanup.ok ? "removida" : "FALHOU (" + (dbCleanup.error ?? "?") + ")"}`);
-      parts.push(`  role  ${dbUser}: ${roleCleanup.ok ? "removida" : "FALHOU (" + (roleCleanup.error ?? "?") + ")"}`);
-      if (!dbCleanup.ok || !roleCleanup.ok) {
+      parts.push(`Cleanup automatico:`);
+      parts.push(`  DB    ${dbName}: ${cleanup.dbOk ? "removida" : "FALHOU (" + (cleanup.dbError ?? "?") + ")"}`);
+      parts.push(`  role  ${dbUser}: ${cleanup.roleOk ? "removida" : "FALHOU (" + (cleanup.roleError ?? "?") + ")"}`);
+      if (!cleanup.dbOk || !cleanup.roleOk) {
         parts.push("");
         parts.push(
-          `AVISO: recursos Neon podem ter ficado ghost — remove manualmente no ` +
-            `dashboard https://console.neon.tech/ → projecto → Databases/Roles ` +
+          `AVISO: recursos Neon podem ter ficado ghost -- remove manualmente no ` +
+            `dashboard https://console.neon.tech/ -> projecto -> Databases/Roles ` +
             `antes de re-tentar criar tenant "${slug}".`
         );
       }
@@ -655,23 +842,13 @@ export class NeonProvider implements DatabaseProvider {
     dbUser: string;
   }): Promise<void> {
     const branchId = await this.getDefaultBranchId();
+    // Reusa o cleanup ordenado (espera quiet, DELETE DB com retry 423,
+    // poll até sumir, depois DELETE role). Garantia: DROP ROLE nunca
+    // tenta antes de DROP DATABASE confirmado.
+    const r = await this.cleanupAfterSmokeFailure(branchId, dbName, dbUser);
     const errors: string[] = [];
-    try {
-      await this.request(
-        `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/databases/${encodeURIComponent(dbName)}`,
-        { method: "DELETE", expectJson: false }
-      );
-    } catch (err) {
-      errors.push(`DB ${dbName}: ${err instanceof Error ? err.message : err}`);
-    }
-    try {
-      await this.request(
-        `/projects/${encodeURIComponent(this.projectId)}/branches/${encodeURIComponent(branchId)}/roles/${encodeURIComponent(dbUser)}`,
-        { method: "DELETE", expectJson: false }
-      );
-    } catch (err) {
-      errors.push(`role ${dbUser}: ${err instanceof Error ? err.message : err}`);
-    }
+    if (!r.dbOk) errors.push(`DB ${dbName}: ${r.dbError ?? "?"}`);
+    if (!r.roleOk) errors.push(`role ${dbUser}: ${r.roleError ?? "?"}`);
     if (errors.length > 0) {
       throw new Error(`Neon destroy parcial: ${errors.join("; ")}`);
     }

@@ -291,12 +291,18 @@ function Invoke-AdminCommand {
     CommandLine = $cmdLineSan
   }
 
-  $stdoutSb = New-Object System.Text.StringBuilder
-  $stderrSb = New-Object System.Text.StringBuilder
-  $outQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-  $errQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-  $eventSubIds = @()
+  # Order-preserving streams: use ReadToEndAsync (single reader per stream
+  # internally; .NET guarantees in-order reads). Previous version used
+  # Register-ObjectEvent which dispatches -Action on the PS engine event
+  # queue; with high event frequency, multiple PSEventJob runs could
+  # enqueue out of order, scrambling JSON output. ReadToEndAsync removes
+  # the ambiguity. Trade-off: no real-time streaming output -- the
+  # OnLine callback is invoked AFTER process exit, replaying the
+  # captured lines in order. Acceptable for admin operations (typical
+  # workflow is 1-10s and the user gets the full transcript at end).
   $proc = $null
+  $stdoutText = ""
+  $stderrText = ""
 
   try {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -313,52 +319,40 @@ function Invoke-AdminCommand {
 
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
-    $proc.EnableRaisingEvents = $true
-
-    # Event handlers: only enqueue (minimal work, thread-safe). The main
-    # loop dequeues in the caller's scope where $OnLine is accessible.
-    $sid1 = "wiz_out_$([guid]::NewGuid().ToString('N'))"
-    $sid2 = "wiz_err_$([guid]::NewGuid().ToString('N'))"
-    Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -SourceIdentifier $sid1 -MessageData $outQueue -Action {
-      if ($null -ne $EventArgs.Data) { $Event.MessageData.Enqueue([string]$EventArgs.Data) }
-    } | Out-Null
-    Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -SourceIdentifier $sid2 -MessageData $errQueue -Action {
-      if ($null -ne $EventArgs.Data) { $Event.MessageData.Enqueue([string]$EventArgs.Data) }
-    } | Out-Null
-    $eventSubIds = @($sid1, $sid2)
 
     $started = $proc.Start()
     if (-not $started) {
       throw "Process.Start retornou false sem excepcao."
     }
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
 
+    # Kick off async readers IMMEDIATELY after Start to drain pipes
+    # continuously (avoids deadlock if child writes > 64KB to either stream).
+    $soTask = $proc.StandardOutput.ReadToEndAsync()
+    $seTask = $proc.StandardError.ReadToEndAsync()
+
+    # Pump UI while child runs
     while (-not $proc.HasExited) {
-      $line = $null
-      while ($outQueue.TryDequeue([ref]$line)) {
-        [void]$stdoutSb.AppendLine($line)
-        if ($OnLine) { try { & $OnLine $line $false } catch {} }
-      }
-      while ($errQueue.TryDequeue([ref]$line)) {
-        [void]$stderrSb.AppendLine($line)
-        if ($OnLine) { try { & $OnLine $line $true } catch {} }
-      }
       [System.Windows.Forms.Application]::DoEvents()
-      Start-Sleep -Milliseconds 40
+      Start-Sleep -Milliseconds 50
     }
     $proc.WaitForExit()
-    Start-Sleep -Milliseconds 120  # let trailing events arrive
 
-    # Drain remaining buffered lines
-    $line = $null
-    while ($outQueue.TryDequeue([ref]$line)) {
-      [void]$stdoutSb.AppendLine($line)
-      if ($OnLine) { try { & $OnLine $line $false } catch {} }
-    }
-    while ($errQueue.TryDequeue([ref]$line)) {
-      [void]$stderrSb.AppendLine($line)
-      if ($OnLine) { try { & $OnLine $line $true } catch {} }
+    # Esperar pelos readers terminarem (geralmente já terminaram quando
+    # HasExited é true porque .NET fecha as pipes)
+    $soTask.Wait(5000) | Out-Null
+    $seTask.Wait(5000) | Out-Null
+
+    $stdoutText = if ($soTask.IsCompleted -and $null -ne $soTask.Result) { [string]$soTask.Result } else { "" }
+    $stderrText = if ($seTask.IsCompleted -and $null -ne $seTask.Result) { [string]$seTask.Result } else { "" }
+
+    # Invocar OnLine retrospectivamente (mantém API compatível)
+    if ($OnLine) {
+      foreach ($line in ($stdoutText -split "`r?`n")) {
+        if ($null -ne $line -and $line.Length -gt 0) { try { & $OnLine $line $false } catch {} }
+      }
+      foreach ($line in ($stderrText -split "`r?`n")) {
+        if ($null -ne $line -and $line.Length -gt 0) { try { & $OnLine $line $true } catch {} }
+      }
     }
 
     $result.ExitCode = $proc.ExitCode
@@ -366,10 +360,6 @@ function Invoke-AdminCommand {
     $result.Exception = $_
     Write-WizardLog ("[$Label] EXCEPTION: " + $_.Exception.Message + " | stack: " + $_.ScriptStackTrace) "ERROR"
   } finally {
-    foreach ($sid in $eventSubIds) {
-      try { Unregister-Event -SourceIdentifier $sid -ErrorAction SilentlyContinue } catch {}
-      try { Get-Job -Name $sid -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue } catch {}
-    }
     if ($proc) { try { $proc.Dispose() } catch {} }
   }
 
@@ -377,9 +367,7 @@ function Invoke-AdminCommand {
   $result.ElapsedMs = $sw.ElapsedMilliseconds
 
   # Null-safety on outputs
-  $stdoutText = $stdoutSb.ToString()
   if ($null -eq $stdoutText) { $stdoutText = "" }
-  $stderrText = $stderrSb.ToString()
   if ($null -eq $stderrText) { $stderrText = "" }
   $result.StdOut = $stdoutText
   $result.StdErr = $stderrText
