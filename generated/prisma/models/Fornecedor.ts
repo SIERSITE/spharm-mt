@@ -15,6 +15,16 @@ import type * as Prisma from "../internal/prismaNamespace"
 /**
  * Model Fornecedor
  * Fornecedor normalizado.
+ * 
+ * `nomeNormalizado` é canónico GLOBAL no tenant (uma row por fornecedor real).
+ * Várias farmácias do mesmo tenant partilham a mesma row de Fornecedor via
+ * `FornecedorErpRef` — cada farmácia tem o seu próprio `Fornecedor ID` interno
+ * no SPharm local, mas mapeiam para o mesmo Fornecedor canónico SaaS.
+ * 
+ * Campos `nome` e `nif` são metadados derivados do ERP (Fornecedores.[Nome
+ * Fornecedor] e [Numero Contribuinte]), populados pelo bootstrap de
+ * fornecedores. Nullable porque pré-existem rows de Fornecedor criadas por
+ * outros fluxos (encomendas, vendas históricas) sem este detalhe.
  */
 export type FornecedorModel = runtime.Types.Result.DefaultSelection<Prisma.$FornecedorPayload>
 
@@ -27,6 +37,8 @@ export type AggregateFornecedor = {
 export type FornecedorMinAggregateOutputType = {
   id: string | null
   nomeNormalizado: string | null
+  nome: string | null
+  nif: string | null
   tipo: $Enums.FornecedorTipo | null
   estado: $Enums.EntidadeEstado | null
   dataCriacao: Date | null
@@ -36,6 +48,8 @@ export type FornecedorMinAggregateOutputType = {
 export type FornecedorMaxAggregateOutputType = {
   id: string | null
   nomeNormalizado: string | null
+  nome: string | null
+  nif: string | null
   tipo: $Enums.FornecedorTipo | null
   estado: $Enums.EntidadeEstado | null
   dataCriacao: Date | null
@@ -45,6 +59,8 @@ export type FornecedorMaxAggregateOutputType = {
 export type FornecedorCountAggregateOutputType = {
   id: number
   nomeNormalizado: number
+  nome: number
+  nif: number
   tipo: number
   estado: number
   dataCriacao: number
@@ -56,6 +72,8 @@ export type FornecedorCountAggregateOutputType = {
 export type FornecedorMinAggregateInputType = {
   id?: true
   nomeNormalizado?: true
+  nome?: true
+  nif?: true
   tipo?: true
   estado?: true
   dataCriacao?: true
@@ -65,6 +83,8 @@ export type FornecedorMinAggregateInputType = {
 export type FornecedorMaxAggregateInputType = {
   id?: true
   nomeNormalizado?: true
+  nome?: true
+  nif?: true
   tipo?: true
   estado?: true
   dataCriacao?: true
@@ -74,6 +94,8 @@ export type FornecedorMaxAggregateInputType = {
 export type FornecedorCountAggregateInputType = {
   id?: true
   nomeNormalizado?: true
+  nome?: true
+  nif?: true
   tipo?: true
   estado?: true
   dataCriacao?: true
@@ -156,6 +178,8 @@ export type FornecedorGroupByArgs<ExtArgs extends runtime.Types.Extensions.Inter
 export type FornecedorGroupByOutputType = {
   id: string
   nomeNormalizado: string
+  nome: string | null
+  nif: string | null
   tipo: $Enums.FornecedorTipo
   estado: $Enums.EntidadeEstado
   dataCriacao: Date
@@ -186,11 +210,14 @@ export type FornecedorWhereInput = {
   NOT?: Prisma.FornecedorWhereInput | Prisma.FornecedorWhereInput[]
   id?: Prisma.StringFilter<"Fornecedor"> | string
   nomeNormalizado?: Prisma.StringFilter<"Fornecedor"> | string
+  nome?: Prisma.StringNullableFilter<"Fornecedor"> | string | null
+  nif?: Prisma.StringNullableFilter<"Fornecedor"> | string | null
   tipo?: Prisma.EnumFornecedorTipoFilter<"Fornecedor"> | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFilter<"Fornecedor"> | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFilter<"Fornecedor"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Fornecedor"> | Date | string
   aliases?: Prisma.FornecedorAliasListRelationFilter
+  erpRefs?: Prisma.FornecedorErpRefListRelationFilter
   produtosFarmacia?: Prisma.ProdutoFarmaciaListRelationFilter
   compras?: Prisma.CompraListRelationFilter
   devolucoesDestino?: Prisma.DevolucaoListRelationFilter
@@ -201,11 +228,14 @@ export type FornecedorWhereInput = {
 export type FornecedorOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   nomeNormalizado?: Prisma.SortOrder
+  nome?: Prisma.SortOrderInput | Prisma.SortOrder
+  nif?: Prisma.SortOrderInput | Prisma.SortOrder
   tipo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   aliases?: Prisma.FornecedorAliasOrderByRelationAggregateInput
+  erpRefs?: Prisma.FornecedorErpRefOrderByRelationAggregateInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaOrderByRelationAggregateInput
   compras?: Prisma.CompraOrderByRelationAggregateInput
   devolucoesDestino?: Prisma.DevolucaoOrderByRelationAggregateInput
@@ -219,11 +249,14 @@ export type FornecedorWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.FornecedorWhereInput | Prisma.FornecedorWhereInput[]
   OR?: Prisma.FornecedorWhereInput[]
   NOT?: Prisma.FornecedorWhereInput | Prisma.FornecedorWhereInput[]
+  nome?: Prisma.StringNullableFilter<"Fornecedor"> | string | null
+  nif?: Prisma.StringNullableFilter<"Fornecedor"> | string | null
   tipo?: Prisma.EnumFornecedorTipoFilter<"Fornecedor"> | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFilter<"Fornecedor"> | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFilter<"Fornecedor"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Fornecedor"> | Date | string
   aliases?: Prisma.FornecedorAliasListRelationFilter
+  erpRefs?: Prisma.FornecedorErpRefListRelationFilter
   produtosFarmacia?: Prisma.ProdutoFarmaciaListRelationFilter
   compras?: Prisma.CompraListRelationFilter
   devolucoesDestino?: Prisma.DevolucaoListRelationFilter
@@ -234,6 +267,8 @@ export type FornecedorWhereUniqueInput = Prisma.AtLeast<{
 export type FornecedorOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   nomeNormalizado?: Prisma.SortOrder
+  nome?: Prisma.SortOrderInput | Prisma.SortOrder
+  nif?: Prisma.SortOrderInput | Prisma.SortOrder
   tipo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -249,6 +284,8 @@ export type FornecedorScalarWhereWithAggregatesInput = {
   NOT?: Prisma.FornecedorScalarWhereWithAggregatesInput | Prisma.FornecedorScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Fornecedor"> | string
   nomeNormalizado?: Prisma.StringWithAggregatesFilter<"Fornecedor"> | string
+  nome?: Prisma.StringNullableWithAggregatesFilter<"Fornecedor"> | string | null
+  nif?: Prisma.StringNullableWithAggregatesFilter<"Fornecedor"> | string | null
   tipo?: Prisma.EnumFornecedorTipoWithAggregatesFilter<"Fornecedor"> | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoWithAggregatesFilter<"Fornecedor"> | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"Fornecedor"> | Date | string
@@ -258,11 +295,14 @@ export type FornecedorScalarWhereWithAggregatesInput = {
 export type FornecedorCreateInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
@@ -273,11 +313,14 @@ export type FornecedorCreateInput = {
 export type FornecedorUncheckedCreateInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
@@ -288,11 +331,14 @@ export type FornecedorUncheckedCreateInput = {
 export type FornecedorUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
@@ -303,11 +349,14 @@ export type FornecedorUpdateInput = {
 export type FornecedorUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
@@ -318,6 +367,8 @@ export type FornecedorUncheckedUpdateInput = {
 export type FornecedorCreateManyInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
@@ -327,6 +378,8 @@ export type FornecedorCreateManyInput = {
 export type FornecedorUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -336,6 +389,8 @@ export type FornecedorUpdateManyMutationInput = {
 export type FornecedorUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -345,6 +400,8 @@ export type FornecedorUncheckedUpdateManyInput = {
 export type FornecedorCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   nomeNormalizado?: Prisma.SortOrder
+  nome?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   tipo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -354,6 +411,8 @@ export type FornecedorCountOrderByAggregateInput = {
 export type FornecedorMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   nomeNormalizado?: Prisma.SortOrder
+  nome?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   tipo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -363,6 +422,8 @@ export type FornecedorMaxOrderByAggregateInput = {
 export type FornecedorMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   nomeNormalizado?: Prisma.SortOrder
+  nome?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   tipo?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -395,6 +456,20 @@ export type FornecedorUpdateOneRequiredWithoutAliasesNestedInput = {
   upsert?: Prisma.FornecedorUpsertWithoutAliasesInput
   connect?: Prisma.FornecedorWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.FornecedorUpdateToOneWithWhereWithoutAliasesInput, Prisma.FornecedorUpdateWithoutAliasesInput>, Prisma.FornecedorUncheckedUpdateWithoutAliasesInput>
+}
+
+export type FornecedorCreateNestedOneWithoutErpRefsInput = {
+  create?: Prisma.XOR<Prisma.FornecedorCreateWithoutErpRefsInput, Prisma.FornecedorUncheckedCreateWithoutErpRefsInput>
+  connectOrCreate?: Prisma.FornecedorCreateOrConnectWithoutErpRefsInput
+  connect?: Prisma.FornecedorWhereUniqueInput
+}
+
+export type FornecedorUpdateOneRequiredWithoutErpRefsNestedInput = {
+  create?: Prisma.XOR<Prisma.FornecedorCreateWithoutErpRefsInput, Prisma.FornecedorUncheckedCreateWithoutErpRefsInput>
+  connectOrCreate?: Prisma.FornecedorCreateOrConnectWithoutErpRefsInput
+  upsert?: Prisma.FornecedorUpsertWithoutErpRefsInput
+  connect?: Prisma.FornecedorWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FornecedorUpdateToOneWithWhereWithoutErpRefsInput, Prisma.FornecedorUpdateWithoutErpRefsInput>, Prisma.FornecedorUncheckedUpdateWithoutErpRefsInput>
 }
 
 export type FornecedorCreateNestedOneWithoutProdutosFarmaciaInput = {
@@ -480,10 +555,13 @@ export type FornecedorUpdateOneWithoutLinhasEncomendaNestedInput = {
 export type FornecedorCreateWithoutAliasesInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
@@ -494,10 +572,13 @@ export type FornecedorCreateWithoutAliasesInput = {
 export type FornecedorUncheckedCreateWithoutAliasesInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
@@ -524,10 +605,13 @@ export type FornecedorUpdateToOneWithWhereWithoutAliasesInput = {
 export type FornecedorUpdateWithoutAliasesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
@@ -538,10 +622,97 @@ export type FornecedorUpdateWithoutAliasesInput = {
 export type FornecedorUncheckedUpdateWithoutAliasesInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
+  devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
+  indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutUltimoFornecedorNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutFornecedorSugeridoNestedInput
+}
+
+export type FornecedorCreateWithoutErpRefsInput = {
+  id?: string
+  nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
+  tipo?: $Enums.FornecedorTipo
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
+  compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
+  devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
+  indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutUltimoFornecedorInput
+  linhasEncomenda?: Prisma.LinhaEncomendaCreateNestedManyWithoutFornecedorSugeridoInput
+}
+
+export type FornecedorUncheckedCreateWithoutErpRefsInput = {
+  id?: string
+  nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
+  tipo?: $Enums.FornecedorTipo
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
+  devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
+  indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutUltimoFornecedorInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutFornecedorSugeridoInput
+}
+
+export type FornecedorCreateOrConnectWithoutErpRefsInput = {
+  where: Prisma.FornecedorWhereUniqueInput
+  create: Prisma.XOR<Prisma.FornecedorCreateWithoutErpRefsInput, Prisma.FornecedorUncheckedCreateWithoutErpRefsInput>
+}
+
+export type FornecedorUpsertWithoutErpRefsInput = {
+  update: Prisma.XOR<Prisma.FornecedorUpdateWithoutErpRefsInput, Prisma.FornecedorUncheckedUpdateWithoutErpRefsInput>
+  create: Prisma.XOR<Prisma.FornecedorCreateWithoutErpRefsInput, Prisma.FornecedorUncheckedCreateWithoutErpRefsInput>
+  where?: Prisma.FornecedorWhereInput
+}
+
+export type FornecedorUpdateToOneWithWhereWithoutErpRefsInput = {
+  where?: Prisma.FornecedorWhereInput
+  data: Prisma.XOR<Prisma.FornecedorUpdateWithoutErpRefsInput, Prisma.FornecedorUncheckedUpdateWithoutErpRefsInput>
+}
+
+export type FornecedorUpdateWithoutErpRefsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
+  devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
+  indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutUltimoFornecedorNestedInput
+  linhasEncomenda?: Prisma.LinhaEncomendaUpdateManyWithoutFornecedorSugeridoNestedInput
+}
+
+export type FornecedorUncheckedUpdateWithoutErpRefsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
@@ -552,11 +723,14 @@ export type FornecedorUncheckedUpdateWithoutAliasesInput = {
 export type FornecedorCreateWithoutProdutosFarmaciaInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutUltimoFornecedorInput
@@ -566,11 +740,14 @@ export type FornecedorCreateWithoutProdutosFarmaciaInput = {
 export type FornecedorUncheckedCreateWithoutProdutosFarmaciaInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutUltimoFornecedorInput
@@ -596,11 +773,14 @@ export type FornecedorUpdateToOneWithWhereWithoutProdutosFarmaciaInput = {
 export type FornecedorUpdateWithoutProdutosFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutUltimoFornecedorNestedInput
@@ -610,11 +790,14 @@ export type FornecedorUpdateWithoutProdutosFarmaciaInput = {
 export type FornecedorUncheckedUpdateWithoutProdutosFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutUltimoFornecedorNestedInput
@@ -624,11 +807,14 @@ export type FornecedorUncheckedUpdateWithoutProdutosFarmaciaInput = {
 export type FornecedorCreateWithoutComprasInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutUltimoFornecedorInput
@@ -638,11 +824,14 @@ export type FornecedorCreateWithoutComprasInput = {
 export type FornecedorUncheckedCreateWithoutComprasInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutUltimoFornecedorInput
@@ -668,11 +857,14 @@ export type FornecedorUpdateToOneWithWhereWithoutComprasInput = {
 export type FornecedorUpdateWithoutComprasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutUltimoFornecedorNestedInput
@@ -682,11 +874,14 @@ export type FornecedorUpdateWithoutComprasInput = {
 export type FornecedorUncheckedUpdateWithoutComprasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutUltimoFornecedorNestedInput
@@ -696,11 +891,14 @@ export type FornecedorUncheckedUpdateWithoutComprasInput = {
 export type FornecedorCreateWithoutDevolucoesDestinoInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutUltimoFornecedorInput
@@ -710,11 +908,14 @@ export type FornecedorCreateWithoutDevolucoesDestinoInput = {
 export type FornecedorUncheckedCreateWithoutDevolucoesDestinoInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutUltimoFornecedorInput
@@ -740,11 +941,14 @@ export type FornecedorUpdateToOneWithWhereWithoutDevolucoesDestinoInput = {
 export type FornecedorUpdateWithoutDevolucoesDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutUltimoFornecedorNestedInput
@@ -754,11 +958,14 @@ export type FornecedorUpdateWithoutDevolucoesDestinoInput = {
 export type FornecedorUncheckedUpdateWithoutDevolucoesDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   indicadoresUltimoFornecedor?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutUltimoFornecedorNestedInput
@@ -768,11 +975,14 @@ export type FornecedorUncheckedUpdateWithoutDevolucoesDestinoInput = {
 export type FornecedorCreateWithoutIndicadoresUltimoFornecedorInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
@@ -782,11 +992,14 @@ export type FornecedorCreateWithoutIndicadoresUltimoFornecedorInput = {
 export type FornecedorUncheckedCreateWithoutIndicadoresUltimoFornecedorInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
@@ -812,11 +1025,14 @@ export type FornecedorUpdateToOneWithWhereWithoutIndicadoresUltimoFornecedorInpu
 export type FornecedorUpdateWithoutIndicadoresUltimoFornecedorInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
@@ -826,11 +1042,14 @@ export type FornecedorUpdateWithoutIndicadoresUltimoFornecedorInput = {
 export type FornecedorUncheckedUpdateWithoutIndicadoresUltimoFornecedorInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
@@ -840,11 +1059,14 @@ export type FornecedorUncheckedUpdateWithoutIndicadoresUltimoFornecedorInput = {
 export type FornecedorCreateWithoutLinhasEncomendaInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoCreateNestedManyWithoutFornecedorDestinoInput
@@ -854,11 +1076,14 @@ export type FornecedorCreateWithoutLinhasEncomendaInput = {
 export type FornecedorUncheckedCreateWithoutLinhasEncomendaInput = {
   id?: string
   nomeNormalizado: string
+  nome?: string | null
+  nif?: string | null
   tipo?: $Enums.FornecedorTipo
   estado?: $Enums.EntidadeEstado
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FornecedorAliasUncheckedCreateNestedManyWithoutFornecedorInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFornecedorInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFornecedorHabitualInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFornecedorInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFornecedorDestinoInput
@@ -884,11 +1109,14 @@ export type FornecedorUpdateToOneWithWhereWithoutLinhasEncomendaInput = {
 export type FornecedorUpdateWithoutLinhasEncomendaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUpdateManyWithoutFornecedorDestinoNestedInput
@@ -898,11 +1126,14 @@ export type FornecedorUpdateWithoutLinhasEncomendaInput = {
 export type FornecedorUncheckedUpdateWithoutLinhasEncomendaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   tipo?: Prisma.EnumFornecedorTipoFieldUpdateOperationsInput | $Enums.FornecedorTipo
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FornecedorAliasUncheckedUpdateManyWithoutFornecedorNestedInput
+  erpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFornecedorNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFornecedorNestedInput
   devolucoesDestino?: Prisma.DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoNestedInput
@@ -916,6 +1147,7 @@ export type FornecedorUncheckedUpdateWithoutLinhasEncomendaInput = {
 
 export type FornecedorCountOutputType = {
   aliases: number
+  erpRefs: number
   produtosFarmacia: number
   compras: number
   devolucoesDestino: number
@@ -925,6 +1157,7 @@ export type FornecedorCountOutputType = {
 
 export type FornecedorCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   aliases?: boolean | FornecedorCountOutputTypeCountAliasesArgs
+  erpRefs?: boolean | FornecedorCountOutputTypeCountErpRefsArgs
   produtosFarmacia?: boolean | FornecedorCountOutputTypeCountProdutosFarmaciaArgs
   compras?: boolean | FornecedorCountOutputTypeCountComprasArgs
   devolucoesDestino?: boolean | FornecedorCountOutputTypeCountDevolucoesDestinoArgs
@@ -947,6 +1180,13 @@ export type FornecedorCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.E
  */
 export type FornecedorCountOutputTypeCountAliasesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.FornecedorAliasWhereInput
+}
+
+/**
+ * FornecedorCountOutputType without action
+ */
+export type FornecedorCountOutputTypeCountErpRefsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.FornecedorErpRefWhereInput
 }
 
 /**
@@ -988,11 +1228,14 @@ export type FornecedorCountOutputTypeCountLinhasEncomendaArgs<ExtArgs extends ru
 export type FornecedorSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   nomeNormalizado?: boolean
+  nome?: boolean
+  nif?: boolean
   tipo?: boolean
   estado?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
   aliases?: boolean | Prisma.Fornecedor$aliasesArgs<ExtArgs>
+  erpRefs?: boolean | Prisma.Fornecedor$erpRefsArgs<ExtArgs>
   produtosFarmacia?: boolean | Prisma.Fornecedor$produtosFarmaciaArgs<ExtArgs>
   compras?: boolean | Prisma.Fornecedor$comprasArgs<ExtArgs>
   devolucoesDestino?: boolean | Prisma.Fornecedor$devolucoesDestinoArgs<ExtArgs>
@@ -1004,6 +1247,8 @@ export type FornecedorSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
 export type FornecedorSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   nomeNormalizado?: boolean
+  nome?: boolean
+  nif?: boolean
   tipo?: boolean
   estado?: boolean
   dataCriacao?: boolean
@@ -1013,6 +1258,8 @@ export type FornecedorSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ex
 export type FornecedorSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   nomeNormalizado?: boolean
+  nome?: boolean
+  nif?: boolean
   tipo?: boolean
   estado?: boolean
   dataCriacao?: boolean
@@ -1022,15 +1269,18 @@ export type FornecedorSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ex
 export type FornecedorSelectScalar = {
   id?: boolean
   nomeNormalizado?: boolean
+  nome?: boolean
+  nif?: boolean
   tipo?: boolean
   estado?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
 }
 
-export type FornecedorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nomeNormalizado" | "tipo" | "estado" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["fornecedor"]>
+export type FornecedorOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nomeNormalizado" | "nome" | "nif" | "tipo" | "estado" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["fornecedor"]>
 export type FornecedorInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   aliases?: boolean | Prisma.Fornecedor$aliasesArgs<ExtArgs>
+  erpRefs?: boolean | Prisma.Fornecedor$erpRefsArgs<ExtArgs>
   produtosFarmacia?: boolean | Prisma.Fornecedor$produtosFarmaciaArgs<ExtArgs>
   compras?: boolean | Prisma.Fornecedor$comprasArgs<ExtArgs>
   devolucoesDestino?: boolean | Prisma.Fornecedor$devolucoesDestinoArgs<ExtArgs>
@@ -1045,6 +1295,7 @@ export type $FornecedorPayload<ExtArgs extends runtime.Types.Extensions.Internal
   name: "Fornecedor"
   objects: {
     aliases: Prisma.$FornecedorAliasPayload<ExtArgs>[]
+    erpRefs: Prisma.$FornecedorErpRefPayload<ExtArgs>[]
     produtosFarmacia: Prisma.$ProdutoFarmaciaPayload<ExtArgs>[]
     compras: Prisma.$CompraPayload<ExtArgs>[]
     devolucoesDestino: Prisma.$DevolucaoPayload<ExtArgs>[]
@@ -1054,6 +1305,17 @@ export type $FornecedorPayload<ExtArgs extends runtime.Types.Extensions.Internal
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     nomeNormalizado: string
+    /**
+     * Nome completo do fornecedor (ex: "MEPHA - INV. DESEN. FAB. F LDA"),
+     * derivado de dbo.Fornecedores.[Nome Fornecedor]. Pode ser igual a
+     * `nomeNormalizado` quando o ERP só tem nome abreviado.
+     */
+    nome: string | null
+    /**
+     * NIF / Número Contribuinte. Pode ficar NULL — no SPharm Cotovia ~50%
+     * dos fornecedores não têm NIF preenchido. Não usar como chave natural.
+     */
+    nif: string | null
     tipo: $Enums.FornecedorTipo
     estado: $Enums.EntidadeEstado
     dataCriacao: Date
@@ -1453,6 +1715,7 @@ readonly fields: FornecedorFieldRefs;
 export interface Prisma__FornecedorClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   aliases<T extends Prisma.Fornecedor$aliasesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fornecedor$aliasesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FornecedorAliasPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  erpRefs<T extends Prisma.Fornecedor$erpRefsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fornecedor$erpRefsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FornecedorErpRefPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   produtosFarmacia<T extends Prisma.Fornecedor$produtosFarmaciaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fornecedor$produtosFarmaciaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoFarmaciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   compras<T extends Prisma.Fornecedor$comprasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fornecedor$comprasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CompraPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   devolucoesDestino<T extends Prisma.Fornecedor$devolucoesDestinoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fornecedor$devolucoesDestinoArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DevolucaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -1489,6 +1752,8 @@ export interface Prisma__FornecedorClient<T, Null = never, ExtArgs extends runti
 export interface FornecedorFieldRefs {
   readonly id: Prisma.FieldRef<"Fornecedor", 'String'>
   readonly nomeNormalizado: Prisma.FieldRef<"Fornecedor", 'String'>
+  readonly nome: Prisma.FieldRef<"Fornecedor", 'String'>
+  readonly nif: Prisma.FieldRef<"Fornecedor", 'String'>
   readonly tipo: Prisma.FieldRef<"Fornecedor", 'FornecedorTipo'>
   readonly estado: Prisma.FieldRef<"Fornecedor", 'EntidadeEstado'>
   readonly dataCriacao: Prisma.FieldRef<"Fornecedor", 'DateTime'>
@@ -1907,6 +2172,30 @@ export type Fornecedor$aliasesArgs<ExtArgs extends runtime.Types.Extensions.Inte
   take?: number
   skip?: number
   distinct?: Prisma.FornecedorAliasScalarFieldEnum | Prisma.FornecedorAliasScalarFieldEnum[]
+}
+
+/**
+ * Fornecedor.erpRefs
+ */
+export type Fornecedor$erpRefsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the FornecedorErpRef
+   */
+  select?: Prisma.FornecedorErpRefSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the FornecedorErpRef
+   */
+  omit?: Prisma.FornecedorErpRefOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FornecedorErpRefInclude<ExtArgs> | null
+  where?: Prisma.FornecedorErpRefWhereInput
+  orderBy?: Prisma.FornecedorErpRefOrderByWithRelationInput | Prisma.FornecedorErpRefOrderByWithRelationInput[]
+  cursor?: Prisma.FornecedorErpRefWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.FornecedorErpRefScalarFieldEnum | Prisma.FornecedorErpRefScalarFieldEnum[]
 }
 
 /**

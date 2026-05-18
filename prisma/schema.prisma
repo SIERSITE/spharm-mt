@@ -517,15 +517,33 @@ enum EnrichmentSourceStatus {
 }
 
 /// Fornecedor normalizado.
+///
+/// `nomeNormalizado` é canónico GLOBAL no tenant (uma row por fornecedor real).
+/// Várias farmácias do mesmo tenant partilham a mesma row de Fornecedor via
+/// `FornecedorErpRef` — cada farmácia tem o seu próprio `Fornecedor ID` interno
+/// no SPharm local, mas mapeiam para o mesmo Fornecedor canónico SaaS.
+///
+/// Campos `nome` e `nif` são metadados derivados do ERP (Fornecedores.[Nome
+/// Fornecedor] e [Numero Contribuinte]), populados pelo bootstrap de
+/// fornecedores. Nullable porque pré-existem rows de Fornecedor criadas por
+/// outros fluxos (encomendas, vendas históricas) sem este detalhe.
 model Fornecedor {
   id              String         @id @default(cuid())
   nomeNormalizado String         @unique
+  /// Nome completo do fornecedor (ex: "MEPHA - INV. DESEN. FAB. F LDA"),
+  /// derivado de dbo.Fornecedores.[Nome Fornecedor]. Pode ser igual a
+  /// `nomeNormalizado` quando o ERP só tem nome abreviado.
+  nome            String?
+  /// NIF / Número Contribuinte. Pode ficar NULL — no SPharm Cotovia ~50%
+  /// dos fornecedores não têm NIF preenchido. Não usar como chave natural.
+  nif             String?
   tipo            FornecedorTipo @default(OUTRO)
   estado          EntidadeEstado @default(ATIVO)
   dataCriacao     DateTime       @default(now())
   dataAtualizacao DateTime       @updatedAt
 
   aliases                     FornecedorAlias[]
+  erpRefs                     FornecedorErpRef[]
   produtosFarmacia            ProdutoFarmacia[]
   compras                     Compra[]                     @relation("CompraFornecedor")
   devolucoesDestino           Devolucao[]                  @relation("DevolucaoFornecedorDestino")
@@ -543,6 +561,41 @@ model FornecedorAlias {
 
   @@unique([fornecedorId, aliasNome])
   @@index([aliasNome])
+}
+
+/// Link per-farmácia ↔ Fornecedor canónico, com snapshot dos metadados do
+/// ERP local no momento da última sync. Permite idempotência
+/// `(farmaciaId, externalFornecedorId)` mantendo o `Fornecedor` canónico
+/// partilhável entre farmácias do mesmo tenant.
+///
+/// Source: dbo.Fornecedores (Softreis) + LEFT JOIN a Tbl_Tipo_Fornecedores
+/// para denormalizar a descrição do tipo.
+model FornecedorErpRef {
+  id                    String   @id @default(cuid())
+  fornecedorId          String
+  farmaciaId            String
+  /// Valor de dbo.Fornecedores.[Fornecedor ID] no SPharm local desta farmácia.
+  externalFornecedorId  Int
+  /// Snapshot dos campos do ERP (auditoria + re-derivação).
+  nomeAbreviadoErp      String
+  nomeFornecedorErp     String?
+  nifErp                String?
+  tipoFornecedorErpId   Int?
+  tipoFornecedorErpDesc String?
+  inactivoErp           Boolean  @default(false)
+  /// Última vez que esta ref foi tocada pelo agent (UPSERT).
+  lastSyncedAt          DateTime @default(now()) @updatedAt
+  /// Batch ULID emitido pelo agent na sync. Útil para reconciliação de
+  /// "que linhas vieram nesta passagem?".
+  ingestBatchId         String?
+
+  fornecedor Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  farmacia   Farmacia   @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([farmaciaId, externalFornecedorId])
+  @@index([fornecedorId])
+  @@index([farmaciaId, inactivoErp])
+  @@index([farmaciaId, lastSyncedAt])
 }
 
 //////////////////////////////////////////////////////
@@ -577,6 +630,7 @@ model Farmacia {
   emailConfig       EmailConfig?
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
   pipelineRuns          PipelineRun[]
+  fornecedorErpRefs     FornecedorErpRef[]
 
   @@unique([nome])
   @@index([codigoANF])

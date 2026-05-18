@@ -141,6 +141,16 @@ export type EnrichmentSourceLog = Prisma.EnrichmentSourceLogModel
 /**
  * Model Fornecedor
  * Fornecedor normalizado.
+ * 
+ * `nomeNormalizado` é canónico GLOBAL no tenant (uma row por fornecedor real).
+ * Várias farmácias do mesmo tenant partilham a mesma row de Fornecedor via
+ * `FornecedorErpRef` — cada farmácia tem o seu próprio `Fornecedor ID` interno
+ * no SPharm local, mas mapeiam para o mesmo Fornecedor canónico SaaS.
+ * 
+ * Campos `nome` e `nif` são metadados derivados do ERP (Fornecedores.[Nome
+ * Fornecedor] e [Numero Contribuinte]), populados pelo bootstrap de
+ * fornecedores. Nullable porque pré-existem rows de Fornecedor criadas por
+ * outros fluxos (encomendas, vendas históricas) sem este detalhe.
  */
 export type Fornecedor = Prisma.FornecedorModel
 /**
@@ -148,6 +158,17 @@ export type Fornecedor = Prisma.FornecedorModel
  * Variantes de nomes de fornecedor.
  */
 export type FornecedorAlias = Prisma.FornecedorAliasModel
+/**
+ * Model FornecedorErpRef
+ * Link per-farmácia ↔ Fornecedor canónico, com snapshot dos metadados do
+ * ERP local no momento da última sync. Permite idempotência
+ * `(farmaciaId, externalFornecedorId)` mantendo o `Fornecedor` canónico
+ * partilhável entre farmácias do mesmo tenant.
+ * 
+ * Source: dbo.Fornecedores (Softreis) + LEFT JOIN a Tbl_Tipo_Fornecedores
+ * para denormalizar a descrição do tipo.
+ */
+export type FornecedorErpRef = Prisma.FornecedorErpRefModel
 /**
  * Model Farmacia
  * 

@@ -62,6 +62,7 @@ export const ModelName = {
   EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
   FornecedorAlias: 'FornecedorAlias',
+  FornecedorErpRef: 'FornecedorErpRef',
   Farmacia: 'Farmacia',
   EmailConfig: 'EmailConfig',
   Utilizador: 'Utilizador',
@@ -278,6 +279,8 @@ export type EnrichmentSourceLogScalarFieldEnum = (typeof EnrichmentSourceLogScal
 export const FornecedorScalarFieldEnum = {
   id: 'id',
   nomeNormalizado: 'nomeNormalizado',
+  nome: 'nome',
+  nif: 'nif',
   tipo: 'tipo',
   estado: 'estado',
   dataCriacao: 'dataCriacao',
@@ -294,6 +297,24 @@ export const FornecedorAliasScalarFieldEnum = {
 } as const
 
 export type FornecedorAliasScalarFieldEnum = (typeof FornecedorAliasScalarFieldEnum)[keyof typeof FornecedorAliasScalarFieldEnum]
+
+
+export const FornecedorErpRefScalarFieldEnum = {
+  id: 'id',
+  fornecedorId: 'fornecedorId',
+  farmaciaId: 'farmaciaId',
+  externalFornecedorId: 'externalFornecedorId',
+  nomeAbreviadoErp: 'nomeAbreviadoErp',
+  nomeFornecedorErp: 'nomeFornecedorErp',
+  nifErp: 'nifErp',
+  tipoFornecedorErpId: 'tipoFornecedorErpId',
+  tipoFornecedorErpDesc: 'tipoFornecedorErpDesc',
+  inactivoErp: 'inactivoErp',
+  lastSyncedAt: 'lastSyncedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type FornecedorErpRefScalarFieldEnum = (typeof FornecedorErpRefScalarFieldEnum)[keyof typeof FornecedorErpRefScalarFieldEnum]
 
 
 export const FarmaciaScalarFieldEnum = {

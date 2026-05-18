@@ -157,6 +157,31 @@ export class SaasClient {
     return this.request("POST", "/api/ingest/v1/bootstrap/sales-lines", { body, timeoutMs });
   }
 
+  /**
+   * POST /api/ingest/v1/bootstrap/fornecedores
+   * Upsert per-farmacia de fornecedores derivados de dbo.Fornecedores.
+   * Body: { farmaciaId, items: FornecedorPayload[] }. Idempotente via
+   * `(farmaciaId, externalFornecedorId)`. Fase 1a do pipeline compras
+   * — pré-requisito antes de qualquer ingestão de compras/devoluções.
+   */
+  async bootstrapFornecedores(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<
+    BootstrapBatchResponse & {
+      fornecedoresCreated: number;
+      fornecedoresUpdated: number;
+      refsCreated: number;
+      refsUpdated: number;
+      aliasesAdded: number;
+    }
+  > {
+    return this.request("POST", "/api/ingest/v1/bootstrap/fornecedores", {
+      body,
+      timeoutMs,
+    });
+  }
+
   // ── Pipeline (autonomous daily pipeline endpoints) ─────────────────
 
   /**

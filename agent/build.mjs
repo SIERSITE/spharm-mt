@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "23";
+const AGENT_REV = "25";
 
 function readGitShortCommit() {
   try {
@@ -444,6 +444,184 @@ function writeBatchWrappers() {
   fs.writeFileSync(
     path.join(DIST_ROOT, "run-inspect-compras-schema.bat"),
     inspectComprasSchemaBat,
+    "utf8"
+  );
+
+  // inspect-compras-lookups — probe read-only focado em Fornecedores +
+  // Tipo Documento + amostras pós-data-corte + fórmulas + estados +
+  // orphans. Complementa inspect-compras-schema (que mapeia tabelas) com
+  // o detalhe operacional necessário para desenhar a Fase 1.
+  // NUNCA escreve no SPharm. NUNCA chama a SaaS.
+  const inspectComprasLookupsBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — inspect-compras-lookups`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   inspect-compras-lookups`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Probe READ-ONLY focado nos lookups + amostras reais.`,
+    `echo Complementa inspect-compras-schema com detalhe operacional.`,
+    `echo NAO escreve nada no ERP. NAO envia nada para a SaaS.`,
+    `echo.`,
+    `echo Cobre:`,
+    `echo   1. dbo.Fornecedores      schema + TOP 20 activos`,
+    `echo   2. dbo.Tipo Documento    schema + cross-ref Recepcao/Devolucao`,
+    `echo   3. Amostras reais pos data-corte ^(default 2024-01-01^)`,
+    `echo   4. Validacao formulas Quantidade x preco`,
+    `echo   5. Contagens por estado ^(RecepcaoSituacaoID, DevolucaoSituacaoID^)`,
+    `echo   6. Orphans: linhas sem header/Stocks/Fornecedor`,
+    `echo.`,
+    `echo Pre-requisito: run-inspect-compras-schema.bat ja correu e admin`,
+    `echo validou as tabelas reais ^(rev22/rev23^).`,
+    `echo.`,
+    `echo Para passar data-corte alternativa:`,
+    `echo   node.exe agent.cjs inspect-compras-lookups --data-corte 2023-01-01`,
+    `echo.`,
+    `node.exe agent.cjs inspect-compras-lookups`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Ficheiro gerado em:`,
+    `  echo   output\\compras-lookups-^<YYYY-MM-DD^>\\inspection.md`,
+    `  echo   ^(ver caminho exacto na linha "Markdown completo:" acima^)`,
+    `  echo.`,
+    `  echo IMPORTANTE: este comando e' DISCOVERY focado.`,
+    `  echo NAO activa qualquer ingestao de compras/devolucoes para a SaaS.`,
+    `  echo Fase 1 ^(staging + endpoints + agent extract^) so e' desenhada`,
+    `  echo depois do operador validar este inspection.md.`,
+    `  echo.`,
+    `  echo Proximo passo: enviar inspection.md ao admin SPharm.MT.`,
+    `) else (`,
+    `  echo Falhou com exit code %EXIT%.`,
+    `  echo Verifica que o SQL Server esta acessivel:`,
+    `  echo   - run-test-connection.bat OK?`,
+    `  echo   - agent.config.json com host/user/password correctos?`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-inspect-compras-lookups.bat"),
+    inspectComprasLookupsBat,
+    "utf8"
+  );
+
+  // fornecedores-dry-run — read-only, sem POST.
+  // Lê dbo.Fornecedores + LEFT JOIN Tbl_Tipo_Fornecedores e imprime
+  // sumário + TOP 10 amostra. Não faz qualquer chamada à SaaS.
+  const fornecedoresDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — fornecedores-dry-run`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   fornecedores-dry-run`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Fase 1a do pipeline compras/devolucoes:`,
+    `echo Le dbo.Fornecedores + LEFT JOIN dbo.Tbl_Tipo_Fornecedores`,
+    `echo read-only. Imprime sumario + TOP 10 amostra. SEM POST.`,
+    `echo.`,
+    `echo Pre-requisito: run-test-connection.bat OK.`,
+    `echo.`,
+    `echo Apos validar o output, corre run-fornecedores-upload.bat.`,
+    `echo.`,
+    `node.exe agent.cjs fornecedores-dry-run`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Nada escrito no ERP. Nada enviado para a SaaS.`,
+    `  echo.`,
+    `  echo Proximo passo: run-fornecedores-upload.bat`,
+    `) else (`,
+    `  echo Falhou com exit code %EXIT%. Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-fornecedores-dry-run.bat"),
+    fornecedoresDryRunBat,
+    "utf8"
+  );
+
+  // fornecedores-upload — POST batched a /api/ingest/v1/bootstrap/fornecedores.
+  // Idempotente: (farmaciaId, externalFornecedorId) único. Re-run seguro.
+  // Confirmação explícita porque escreve para a SaaS.
+  const fornecedoresUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — fornecedores-upload (interactivo, com confirmacao)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   fornecedores-upload — Fase 1a INGEST REAL`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar fornecedores para a SaaS SPharm.MT:`,
+    `echo   - UPSERT Fornecedor canonico ^(por nomeNormalizado^)`,
+    `echo   - UPSERT FornecedorErpRef ^(por farmaciaId+externalFornecedorId^)`,
+    `echo   - ADD aliases ^(nunca apaga^)`,
+    `echo   - Mapeia [Inactivo]=1 em Fornecedor.estado=INATIVO`,
+    `echo.`,
+    `echo Idempotente: re-run produz mesmo estado, sem duplicacao.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-test-connection.bat OK ^(SQL + SaaS^)`,
+    `echo   - run-fornecedores-dry-run.bat OK e revisto`,
+    `echo   - SPHARMMT_FARMACIA configurado em agent.config.json`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever nada.`,
+    `  echo.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs fornecedores-upload`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente: re-run nao duplica.`,
+    `  echo.`,
+    `  echo Validacao recomendada ^(do admin SPharm.MT^):`,
+    `  echo   SELECT COUNT^(*^) FROM "FornecedorErpRef" WHERE "farmaciaId"=...`,
+    `) else (`,
+    `  echo Falhou com exit code %EXIT%. Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-fornecedores-upload.bat"),
+    fornecedoresUploadBat,
     "utf8"
   );
 
@@ -984,7 +1162,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 14} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-product-identifiers + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 17} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores-dry-run + fornecedores-upload + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -1030,6 +1208,9 @@ function writeReadme() {
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat       Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,
     `  run-inspect-compras-schema.bat      Probe READ-ONLY ao schema de compras/recepcoes + devolucoes fornec. Gera inspection.md.`,
+    `  run-inspect-compras-lookups.bat     Probe READ-ONLY focado: Fornecedores + Tipo Documento + amostras pos-corte + formulas + orphans.`,
+    `  run-fornecedores-dry-run.bat        Fase 1a: le dbo.Fornecedores + LEFT JOIN Tbl_Tipo_Fornecedores. Sumario + TOP 10. SEM POST.`,
+    `  run-fornecedores-upload.bat         Fase 1a: POST a /api/ingest/v1/bootstrap/fornecedores. Idempotente. Confirmacao explicita.`,
     `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
     `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,

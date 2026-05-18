@@ -45,10 +45,12 @@ import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
 import { inspectOrdersSchema } from "./commands/inspect-orders-schema.js";
 import { inspectComprasSchema } from "./commands/inspect-compras-schema.js";
+import { inspectComprasLookups } from "./commands/inspect-compras-lookups.js";
 import { inspectProductIdentifiers } from "./commands/inspect-product-identifiers.js";
 import { setupOrdersWriteLog } from "./commands/setup-orders-write-log.js";
 import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
+import { fornecedoresDryRun, fornecedoresUpload } from "./commands/fornecedores.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -126,6 +128,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
     run: inspectComprasSchema,
     desc: "Probe read-only às tabelas SPharm de compras/recepções + devoluções a fornecedor. Gera markdown com hipótese de mapping.",
   },
+  "inspect-compras-lookups": {
+    run: inspectComprasLookups,
+    desc: "Probe read-only focado: Fornecedores + Tipo Documento + amostras pós-data-corte + validação fórmulas + orphans.",
+  },
   "inspect-product-identifiers": {
     run: inspectProductIdentifiers,
     desc: "Probe read-only às colunas de dbo.Stocks que podem ser o CNP individual. Testa CNPs conhecidos contra cada coluna candidata.",
@@ -141,6 +147,14 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-codigoid": {
     run: inspectCodigoId,
     desc: "Probe dbo.Stocks read-only para lista de CodigoIDs (--ids).",
+  },
+  "fornecedores-dry-run": {
+    run: fornecedoresDryRun,
+    desc: "Fase 1a: lê dbo.Fornecedores + LEFT JOIN Tbl_Tipo_Fornecedores. Sumário + TOP 10. SEM POST.",
+  },
+  "fornecedores-upload": {
+    run: fornecedoresUpload,
+    desc: "Fase 1a: POST /api/ingest/v1/bootstrap/fornecedores. Idempotente por (farmaciaId, externalFornecedorId).",
   },
   health: {
     run: health,

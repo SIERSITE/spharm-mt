@@ -395,6 +395,7 @@ export const ModelName = {
   EnrichmentSourceLog: 'EnrichmentSourceLog',
   Fornecedor: 'Fornecedor',
   FornecedorAlias: 'FornecedorAlias',
+  FornecedorErpRef: 'FornecedorErpRef',
   Farmacia: 'Farmacia',
   EmailConfig: 'EmailConfig',
   Utilizador: 'Utilizador',
@@ -436,7 +437,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1251,6 +1252,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.FornecedorAliasCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.FornecedorAliasCountAggregateOutputType> | number
+        }
+      }
+    }
+    FornecedorErpRef: {
+      payload: Prisma.$FornecedorErpRefPayload<ExtArgs>
+      fields: Prisma.FornecedorErpRefFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.FornecedorErpRefFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.FornecedorErpRefFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        findFirst: {
+          args: Prisma.FornecedorErpRefFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.FornecedorErpRefFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        findMany: {
+          args: Prisma.FornecedorErpRefFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>[]
+        }
+        create: {
+          args: Prisma.FornecedorErpRefCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        createMany: {
+          args: Prisma.FornecedorErpRefCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.FornecedorErpRefCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>[]
+        }
+        delete: {
+          args: Prisma.FornecedorErpRefDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        update: {
+          args: Prisma.FornecedorErpRefUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        deleteMany: {
+          args: Prisma.FornecedorErpRefDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.FornecedorErpRefUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.FornecedorErpRefUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>[]
+        }
+        upsert: {
+          args: Prisma.FornecedorErpRefUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FornecedorErpRefPayload>
+        }
+        aggregate: {
+          args: Prisma.FornecedorErpRefAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateFornecedorErpRef>
+        }
+        groupBy: {
+          args: Prisma.FornecedorErpRefGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FornecedorErpRefGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.FornecedorErpRefCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FornecedorErpRefCountAggregateOutputType> | number
         }
       }
     }
@@ -3389,6 +3464,8 @@ export type EnrichmentSourceLogScalarFieldEnum = (typeof EnrichmentSourceLogScal
 export const FornecedorScalarFieldEnum = {
   id: 'id',
   nomeNormalizado: 'nomeNormalizado',
+  nome: 'nome',
+  nif: 'nif',
   tipo: 'tipo',
   estado: 'estado',
   dataCriacao: 'dataCriacao',
@@ -3405,6 +3482,24 @@ export const FornecedorAliasScalarFieldEnum = {
 } as const
 
 export type FornecedorAliasScalarFieldEnum = (typeof FornecedorAliasScalarFieldEnum)[keyof typeof FornecedorAliasScalarFieldEnum]
+
+
+export const FornecedorErpRefScalarFieldEnum = {
+  id: 'id',
+  fornecedorId: 'fornecedorId',
+  farmaciaId: 'farmaciaId',
+  externalFornecedorId: 'externalFornecedorId',
+  nomeAbreviadoErp: 'nomeAbreviadoErp',
+  nomeFornecedorErp: 'nomeFornecedorErp',
+  nifErp: 'nifErp',
+  tipoFornecedorErpId: 'tipoFornecedorErpId',
+  tipoFornecedorErpDesc: 'tipoFornecedorErpDesc',
+  inactivoErp: 'inactivoErp',
+  lastSyncedAt: 'lastSyncedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type FornecedorErpRefScalarFieldEnum = (typeof FornecedorErpRefScalarFieldEnum)[keyof typeof FornecedorErpRefScalarFieldEnum]
 
 
 export const FarmaciaScalarFieldEnum = {
@@ -4447,6 +4542,7 @@ export type GlobalOmitConfig = {
   enrichmentSourceLog?: Prisma.EnrichmentSourceLogOmit
   fornecedor?: Prisma.FornecedorOmit
   fornecedorAlias?: Prisma.FornecedorAliasOmit
+  fornecedorErpRef?: Prisma.FornecedorErpRefOmit
   farmacia?: Prisma.FarmaciaOmit
   emailConfig?: Prisma.EmailConfigOmit
   utilizador?: Prisma.UtilizadorOmit
