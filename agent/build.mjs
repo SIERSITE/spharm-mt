@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "25";
+const AGENT_REV = "26";
 
 function readGitShortCommit() {
   try {
@@ -625,6 +625,227 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // ── Fase 1b.5/1b.6 — staging compras + devoluções fornecedor ─────
+  // Quatro BATs. Pedem --from / --to interactivamente. dry-runs sem
+  // confirmação. uploads pedem CONFIRMO (escrita real ao SaaS).
+
+  const comprasDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — compras-dry-run (interactivo)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   compras-dry-run`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Fase 1b: le dbo.Recepcao + dbo.[Recepcao Detalhe] read-only.`,
+    `echo Imprime: contagens, estados, reconciliacao per-header,`,
+    `echo orphans locais (dbo.Stocks + dbo.Fornecedores), TOP 10. SEM POST.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-test-connection.bat OK`,
+    `echo   - run-fornecedores-upload.bat ja correu`,
+    `echo.`,
+    `echo Formato datas: YYYY-MM-DD`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. Aborta. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. Aborta. & pause & exit /b 1 )`,
+    `echo.`,
+    `node.exe agent.cjs compras-dry-run --from %FROM% --to %TO%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Nada escrito ERP. Nada enviado SaaS.`,
+    `  echo Proximo passo: run-compras-upload.bat ^(mesmo intervalo^)`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-compras-dry-run.bat"),
+    comprasDryRunBat,
+    "utf8"
+  );
+
+  const comprasUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — compras-upload (interactivo + CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   compras-upload — Fase 1b.5 INGEST REAL (staging)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar linhas de compra para a SaaS SPharm.MT:`,
+    `echo   - UPSERT StagingCompraRawLine ^(staging-only, sem aggregation^)`,
+    `echo   - Idempotente por ^(farmaciaId, externalLineId^)`,
+    `echo   - HTTP timeout 120s ^(rev26 alinha com bootstrap-upload^)`,
+    `echo.`,
+    `echo NAO toca em Compra final, dashboard, vendas, export-orders.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-compras-dry-run.bat OK e revisto`,
+    `echo   - run-fornecedores-upload.bat concluido`,
+    `echo   - SPHARMMT_FARMACIA configurado`,
+    `echo.`,
+    `echo Formato datas: YYYY-MM-DD`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. & pause & exit /b 1 )`,
+    `set "BATCH=200"`,
+    `set /p "BATCH=Batch size [200]: "`,
+    `if "%BATCH%"=="" set "BATCH=200"`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vai escrever em StagingCompraRawLine ^(SaaS^).`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs compras-upload --from %FROM% --to %TO% --batch-size %BATCH%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente: re-run nao duplica.`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-compras-upload.bat"),
+    comprasUploadBat,
+    "utf8"
+  );
+
+  const devolucoesDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — devolucoes-fornecedor-dry-run`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   devolucoes-fornecedor-dry-run`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Fase 1b: le dbo.Devolucao + dbo.[Devolucao Detalhe] read-only.`,
+    `echo Imprime: contagens, estados P/E/R/X, reconciliacao,`,
+    `echo orphans locais, TOP 10. SEM POST.`,
+    `echo Filtro: DevolucaoSituacaoID^<^>'A' (anuladas excluidas no SQL).`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. & pause & exit /b 1 )`,
+    `echo.`,
+    `node.exe agent.cjs devolucoes-fornecedor-dry-run --from %FROM% --to %TO%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Proximo passo: run-devolucoes-fornecedor-upload.bat`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^).`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-devolucoes-fornecedor-dry-run.bat"),
+    devolucoesDryRunBat,
+    "utf8"
+  );
+
+  const devolucoesUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — devolucoes-fornecedor-upload (CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   devolucoes-fornecedor-upload — Fase 1b.6 INGEST REAL`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar linhas de devolucao AO fornecedor para a SaaS:`,
+    `echo   - UPSERT StagingDevolucaoFornecedorRawLine ^(staging-only^)`,
+    `echo   - Idempotente, captura transicao P -^> R`,
+    `echo.`,
+    `echo NAO toca em Devolucao final, dashboard, vendas, export-orders.`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. & pause & exit /b 1 )`,
+    `set "BATCH=200"`,
+    `set /p "BATCH=Batch size [200]: "`,
+    `if "%BATCH%"=="" set "BATCH=200"`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo Confirmacao invalida. Aborta. & pause & exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs devolucoes-fornecedor-upload --from %FROM% --to %TO% --batch-size %BATCH%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente.`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^).`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-devolucoes-fornecedor-upload.bat"),
+    devolucoesUploadBat,
+    "utf8"
+  );
+
   // inspect-product-identifiers — probe read-only para identificar a
   // coluna em dbo.Stocks que contém o CNP individual.
   // CodCNPEM é grupo homogéneo — NÃO serve para mapear produto.
@@ -1162,7 +1383,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 17} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores-dry-run + fornecedores-upload + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 21} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores x2 + compras x2 + devolucoes-fornecedor x2 + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -1211,6 +1432,10 @@ function writeReadme() {
     `  run-inspect-compras-lookups.bat     Probe READ-ONLY focado: Fornecedores + Tipo Documento + amostras pos-corte + formulas + orphans.`,
     `  run-fornecedores-dry-run.bat        Fase 1a: le dbo.Fornecedores + LEFT JOIN Tbl_Tipo_Fornecedores. Sumario + TOP 10. SEM POST.`,
     `  run-fornecedores-upload.bat         Fase 1a: POST a /api/ingest/v1/bootstrap/fornecedores. Idempotente. Confirmacao explicita.`,
+    `  run-compras-dry-run.bat             Fase 1b: le dbo.Recepcao + dbo.[Recepcao Detalhe]. Reconciliacao + orphans. SEM POST.`,
+    `  run-compras-upload.bat              Fase 1b: POST a /api/ingest/v1/bootstrap/compras (StagingCompraRawLine). CONFIRMO.`,
+    `  run-devolucoes-fornecedor-dry-run.bat  Fase 1b: le dbo.Devolucao + dbo.[Devolucao Detalhe]. Estados P/E/R/X. SEM POST.`,
+    `  run-devolucoes-fornecedor-upload.bat   Fase 1b: POST a /api/ingest/v1/bootstrap/devolucoes-fornecedor. CONFIRMO.`,
     `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
     `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
