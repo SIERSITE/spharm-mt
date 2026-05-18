@@ -1,25 +1,32 @@
 /**
  * app/api/admin/pipeline/aggregate-compras/route.ts
  *
- * POST /api/admin/pipeline/aggregate-compras    (DRY-RUN only — Phase 1c.1)
+ * POST /api/admin/pipeline/aggregate-compras
  *
  * Lê `StagingCompraRawLine` no intervalo [from, to), resolve produtos via
  * `ProdutoFarmacia.externalProductId` e fornecedores via
  * `FornecedorErpRef.externalFornecedorId`, agrega por
- * `(produtoId, dataRecepcao, fornecedorId)` e devolve preview operacional
- * SEM escrever em `Compra`.
+ * `(produtoId, dataRecepcao, fornecedorId)` e (Phase 1c.4) opcionalmente
+ * faz UPSERT em `Compra` quando `write=true`.
  *
- * Exclusões hard-coded nesta fase (decisão Phase 1c):
+ * Modos:
+ *   · `write=false` (default)  — DRY-RUN. Não escreve. Devolve preview.
+ *   · `write=true`             — UPSERT em `Compra` usando o unique
+ *                                 `Compra_aggregation_key (farmaciaId,
+ *                                 produtoId, fornecedorId, data)`.
+ *                                 Idempotente: re-run da mesma janela
+ *                                 actualiza `quantidade`/`valorTotal`/
+ *                                 `precoUnitario`/`ingestBatchId`/
+ *                                 `aggregatedAt` em vez de duplicar.
+ *
+ * Exclusões hard-coded (decisão Phase 1c):
  *   · `externalTipoDocumentoId IN (4, 17)`  → NC, V/Crédito-VD
+ *   · Linhas sem produto resolvido          → orphanProducts (reportadas)
+ *   · Linhas sem fornecedor resolvido       → orphanFornecedores (reportadas)
  *
  * Concorrência:
  *   · `pg_try_advisory_xact_lock` por `(pipelineName, farmaciaId)`.
- *     Outro caller paralelo recebe 409 `acquire_lock_failed`.
- *
- * Writes:
- *   · APENAS dry-run nesta fase. `write=true` → 400 `not_enabled_yet`.
- *   · Quando habilitado, futura sub-fase fará UPSERT em `Compra` usando
- *     o unique `Compra_aggregation_key`.
+ *     Caller paralelo recebe 409 `acquire_lock_failed`.
  *
  * Auth: `withIntegrationAuth` (Bearer + X-Tenant-Slug).
  * Feature flag: `ENABLE_AGENT_BOOTSTRAP` (mesmo gate operacional dos
@@ -30,10 +37,10 @@
  *     farmaciaId: string,
  *     from: "YYYY-MM-DD",     // inclusive
  *     to:   "YYYY-MM-DD",     // exclusive
- *     write?: boolean         // default false; true rejeitado
+ *     write?: boolean         // default false
  *   }
  *
- * Response 200 (dry-run):
+ * Response 200 (dry-run, write=false):
  *   {
  *     ok: true,
  *     dryRun: true,
@@ -51,9 +58,19 @@
  *     durationMs: number
  *   }
  *
+ * Response 200 (write mode, write=true) — extra-fields:
+ *   {
+ *     ...all dry-run fields...,
+ *     dryRun: false,
+ *     aggregationBatchId: "agg-compra-<ts36>-<8hex>",
+ *     created: number,
+ *     updated: number,
+ *     aggregated: number   // = created + updated
+ *   }
+ *
  * Response 400 (validation):
  *   { ok:false, error: "invalid_json" | "invalid_body" | "missing_farmacia_id" |
- *                       "invalid_window" | "not_enabled_yet", message: string }
+ *                       "invalid_window", message }
  *
  * Response 404 (assertFarmaciaInTenant):
  *   { ok:false, error: "farmacia_not_found", message }
@@ -65,7 +82,9 @@
  *   { ok:false, error: "feature_disabled", message }
  */
 
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { withIntegrationAuth } from "@/lib/integracao/auth";
 import {
   assertBootstrapEnabled,
@@ -101,6 +120,17 @@ function toIsoDay(d: Date): string {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Gera o batchId server-side da run de aggregation. Server-emitted (não
+ * agent-emitted) para garantir unicidade entre operadores e correlação
+ * 1:1 com a row PipelineRun futura. Formato:
+ *   agg-compra-<base36 timestamp>-<8 hex>
+ * Ex: agg-compra-mpbe5xj0-9c2f1e30
+ */
+function genAggregationBatchId(): string {
+  return `agg-compra-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
 }
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -159,19 +189,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     );
   }
 
-  // Phase 1c.1 hard-gate: writes ainda não estão habilitados.
-  if (obj.write === true) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "not_enabled_yet",
-        message:
-          "aggregate-compras está em DRY-RUN only nesta fase (1c.1). " +
-          "Writes a Compra ficam diferidos para sub-fase posterior.",
-      },
-      { status: 400 }
-    );
-  }
+  const write = obj.write === true;
+  const aggregationBatchId = write ? genAggregationBatchId() : null;
 
   // 3. Farmácia existe no tenant
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
@@ -183,7 +202,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       farmaciaId,
       from: toIsoDay(from),
       to: toIsoDay(to),
-      dryRun: true,
+      write,
+      aggregationBatchId,
       excludedTipoDocumentoIds: EXCLUDED_TIPO_DOCUMENTO_IDS,
     })}`
   );
@@ -275,6 +295,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           fornecedorId: string;
           fornecedorNome: string;
           dataKey: string;
+          dataDate: Date;
           quantidade: number;
           valorTotal: number;
           lineCount: number;
@@ -296,7 +317,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           const tipoKey = l.externalTipoDocumentoId;
           docTypeCounts.set(tipoKey, (docTypeCounts.get(tipoKey) ?? 0) + 1);
 
-          // exclusão por tipoDoc
+          // exclusão por tipoDoc — line never reaches group-building
           if (
             l.externalTipoDocumentoId !== null &&
             EXCLUDED_TIPO_DOCUMENTO_SET.has(l.externalTipoDocumentoId)
@@ -330,11 +351,17 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             existing.valorTotal += valorLinha;
             existing.lineCount++;
           } else {
+            // dataDate canónica = start of day UTC do dataRecepcao.
+            // Normalizado para garantir que múltiplas linhas do mesmo dia
+            // mas com timestamps diferentes (ex: 09h vs 17h) caem no mesmo
+            // grupo e produzem a mesma `Compra.data`.
+            const dataDate = new Date(`${dataKey}T00:00:00.000Z`);
             groups.set(groupKey, {
               produtoId,
               fornecedorId: forn.id,
               fornecedorNome: forn.nome,
               dataKey,
+              dataDate,
               quantidade: l.quantidade,
               valorTotal: valorLinha,
               lineCount: 1,
@@ -384,6 +411,66 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           .map(([id, count]) => ({ externalTipoDocumentoId: id, count }))
           .sort((a, b) => b.count - a.count);
 
+        // ── 7. WRITE MODE — UPSERT em Compra ────────────────────────
+        let created = 0;
+        let updated = 0;
+        if (write && aggregationBatchId !== null) {
+          const aggregatedAt = new Date();
+
+          for (const g of groups.values()) {
+            // Aritmética é em Number → arredondar para a precisão real
+            // da column Compra.valorTotal (Decimal 14,2). Decisão
+            // documentada como risco residual (precision em janelas
+            // grandes); migração para Decimal.js deferida.
+            const valorTotal2 = round2(g.valorTotal);
+            const precoUnitario =
+              g.quantidade > 0 ? Math.round((g.valorTotal / g.quantidade) * 10000) / 10000 : null;
+
+            // findFirst + create/update — espelha o padrão do
+            // bootstrap/compras endpoint. Compound unique com nullable
+            // `fornecedorId` (Compra_aggregation_key) é tratado aqui só
+            // por valores não-null (orphanFornecedores fica fora do write
+            // por construção — branch acima).
+            const existing = await tx.compra.findFirst({
+              where: {
+                farmaciaId,
+                produtoId: g.produtoId,
+                fornecedorId: g.fornecedorId,
+                data: g.dataDate,
+              },
+              select: { id: true },
+            });
+
+            const writeFields = {
+              quantidade: new Prisma.Decimal(g.quantidade),
+              valorTotal: new Prisma.Decimal(valorTotal2),
+              precoUnitario:
+                precoUnitario !== null ? new Prisma.Decimal(precoUnitario) : null,
+              ingestBatchId: aggregationBatchId,
+              aggregatedAt,
+            };
+
+            if (existing) {
+              await tx.compra.update({
+                where: { id: existing.id },
+                data: writeFields,
+              });
+              updated++;
+            } else {
+              await tx.compra.create({
+                data: {
+                  farmaciaId,
+                  produtoId: g.produtoId,
+                  fornecedorId: g.fornecedorId,
+                  data: g.dataDate,
+                  ...writeFields,
+                },
+              });
+              created++;
+            }
+          }
+        }
+
         return {
           rawLinesRead: rawLines.length,
           excludedLineCount: {
@@ -403,6 +490,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           projectedQuantidade,
           topSuppliers,
           docTypeDistribution,
+          created,
+          updated,
         };
       },
       { timeout: TX_TIMEOUT_MS, maxWait: TX_MAX_WAIT_MS }
@@ -416,6 +505,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         farmaciaId,
         from: toIsoDay(from),
         to: toIsoDay(to),
+        write,
+        aggregationBatchId,
         rawLinesRead: result.rawLinesRead,
         candidateGroups: result.candidateGroups,
         excludedTotal: result.excludedLineCount.total,
@@ -423,16 +514,49 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         orphanFornecedoresCount: result.orphanFornecedores.count,
         projectedValorTotal: result.projectedValorTotal,
         projectedQuantidade: result.projectedQuantidade,
+        created: result.created,
+        updated: result.updated,
         durationMs,
       })}`
     );
+
+    if (write) {
+      return NextResponse.json({
+        ok: true,
+        dryRun: false,
+        aggregationBatchId,
+        window: { from: toIsoDay(from), to: toIsoDay(to) },
+        excludedTipoDocumentoIds: [...EXCLUDED_TIPO_DOCUMENTO_IDS],
+        rawLinesRead: result.rawLinesRead,
+        excludedLineCount: result.excludedLineCount,
+        candidateGroups: result.candidateGroups,
+        orphanProducts: result.orphanProducts,
+        orphanFornecedores: result.orphanFornecedores,
+        projectedValorTotal: result.projectedValorTotal,
+        projectedQuantidade: result.projectedQuantidade,
+        topSuppliers: result.topSuppliers,
+        docTypeDistribution: result.docTypeDistribution,
+        created: result.created,
+        updated: result.updated,
+        aggregated: result.created + result.updated,
+        durationMs,
+      });
+    }
 
     return NextResponse.json({
       ok: true,
       dryRun: true,
       window: { from: toIsoDay(from), to: toIsoDay(to) },
       excludedTipoDocumentoIds: [...EXCLUDED_TIPO_DOCUMENTO_IDS],
-      ...result,
+      rawLinesRead: result.rawLinesRead,
+      excludedLineCount: result.excludedLineCount,
+      candidateGroups: result.candidateGroups,
+      orphanProducts: result.orphanProducts,
+      orphanFornecedores: result.orphanFornecedores,
+      projectedValorTotal: result.projectedValorTotal,
+      projectedQuantidade: result.projectedQuantidade,
+      topSuppliers: result.topSuppliers,
+      docTypeDistribution: result.docTypeDistribution,
       durationMs,
     });
   } catch (err) {
@@ -465,6 +589,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       `[pipeline/aggregate-compras] error ${JSON.stringify({
         tenant: ctx.tenant.slug,
         farmaciaId,
+        write,
+        aggregationBatchId,
         msg,
         durationMs,
       })}`
