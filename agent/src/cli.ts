@@ -52,6 +52,10 @@ import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { fornecedoresDryRun, fornecedoresUpload } from "./commands/fornecedores.js";
 import { comprasDryRun, comprasUpload } from "./commands/compras.js";
+import {
+  devolucoesFornecedorDryRun,
+  devolucoesFornecedorUpload,
+} from "./commands/devolucoes-fornecedor.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -164,6 +168,14 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "compras-upload": {
     run: comprasUpload,
     desc: "Fase 1b: POST /api/ingest/v1/bootstrap/compras (StagingCompraRawLine). Idempotente por (farmaciaId, externalLineId).",
+  },
+  "devolucoes-fornecedor-dry-run": {
+    run: devolucoesFornecedorDryRun,
+    desc: "Fase 1b: lê dbo.Devolucao + dbo.[Devolucao Detalhe]. Sumário P/E/R/X + reconciliação + orphans. SEM POST.",
+  },
+  "devolucoes-fornecedor-upload": {
+    run: devolucoesFornecedorUpload,
+    desc: "Fase 1b: POST /api/ingest/v1/bootstrap/devolucoes-fornecedor. Captura P→R via UPSERT idempotente.",
   },
   health: {
     run: health,
