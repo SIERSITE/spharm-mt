@@ -204,10 +204,13 @@ model Produto {
   id                        String             @id @default(cuid())
   cnp                       Int                @unique
   /// Identificador do produto no ERP da farmácia (Softreis: Stocks.CodigoID).
-  /// Mantido como referência cross-tenant para o agent bootstrap-upload
-  /// fazer upsert por externalProductId quando o cnp não está disponível.
-  /// Único na BD do tenant para idempotência forte.
-  externalProductId         Int?               @unique
+  /// Mantido como referência cross-tenant — útil para o agent fazer
+  /// lookup rápido sem JOIN, MAS não é chave canónica: o ERP pode
+  /// reciclar CodigoIDs e produtos diferentes em farmácias diferentes
+  /// do mesmo tenant podem partilhar valores (são namespaces locais).
+  /// Identidade real do catálogo vive em `cnp @unique`. Index
+  /// não-unique para preservar perf de lookups.
+  externalProductId         Int?
   designacao                String
   fabricanteId              String?
   classificacaoNivel1Id     String?
@@ -270,6 +273,7 @@ model Produto {
   @@index([verificationStatus])
   @@index([productType])
   @@index([lastVerifiedAt])
+  @@index([externalProductId])
 }
 
 /// Fabricante normalizado.
