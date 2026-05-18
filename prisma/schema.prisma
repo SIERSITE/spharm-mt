@@ -904,6 +904,16 @@ model VendaMensal {
 }
 
 /// Compras diárias agregadas por produto-dia-farmácia-fornecedor.
+///
+/// Granularidade: 1 row por (farmaciaId, produtoId, fornecedorId, data).
+/// A aggregation Phase 1c soma todas as linhas de `StagingCompraRawLine`
+/// resolvidas (produto + fornecedor) que caem no mesmo dia e produz/UPSERTa
+/// esta row. O unique `Compra_aggregation_key` garante idempotência da
+/// re-aggregation — re-correr a mesma janela actualiza valores em vez de
+/// duplicar.
+///
+/// Campos `ingestBatchId` e `aggregatedAt` ficam `null` em rows legacy
+/// (excel import, etc.) — não tocadas pelo aggregation pipeline nesta fase.
 model Compra {
   id                  String   @id @default(cuid())
   farmaciaId          String
@@ -917,24 +927,48 @@ model Compra {
   numeroDocumento     String?
   dataIngestao        DateTime @default(now())
   loteIngestaoId      String?
+  /// Batch ULID emitido pela aggregation. Permite cleanup direccionado
+  /// (`DELETE WHERE ingestBatchId = ?`) e auditoria "que run produziu esta row?".
+  ingestBatchId       String?
+  /// Quando a row foi (re)produzida pela aggregation. NULL → row legacy
+  /// não tocada pelo pipeline 1c.
+  aggregatedAt        DateTime?
 
   farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   fornecedor   Fornecedor?   @relation("CompraFornecedor", fields: [fornecedorId], references: [id])
   loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
+  /// Idempotência da aggregation (granularidade produto-dia-fornecedor-farmácia).
+  /// fornecedorId é nullable → Postgres aceita múltiplos NULLs no unique.
+  /// Mitigação: aggregation nunca produz rows com fornecedorId NULL (são
+  /// orphans e ficam fora do write).
+  @@unique([farmaciaId, produtoId, fornecedorId, data], name: "Compra_aggregation_key")
   @@index([farmaciaId, data])
   @@index([produtoId, data])
   @@index([fornecedorId])
   @@index([farmaciaId, produtoId, data])
   @@index([loteIngestaoId])
+  @@index([ingestBatchId])
+  @@index([aggregatedAt])
 }
 
 /// Devoluções diárias.
+///
+/// Granularidade: 1 row por linha do staging (`StagingDevolucaoFornecedorRawLine`).
+/// `externalLineId` é a chave natural (dbo.[Devolucao Detalhe].[Devolucao
+/// Detalhe ID]); idempotência da aggregation via UPSERT em
+/// `(farmaciaId, externalLineId)`. Estado P→R muda `quantidadeRecebida`
+/// no staging e a aggregation re-produz a row sem duplicar.
+///
+/// `externalLineId`/`ingestBatchId`/`aggregatedAt` ficam `null` em rows
+/// legacy (excel import, etc.).
 model Devolucao {
   id                  String        @id @default(cuid())
   farmaciaId          String
   produtoId           String
+  /// dbo.[Devolucao Detalhe].[Devolucao Detalhe ID]. NULL em rows legacy.
+  externalLineId      Int?
   data                DateTime
   quantidade          Decimal       @db.Decimal(14, 3)
   valor               Decimal       @db.Decimal(14, 2)
@@ -943,17 +977,24 @@ model Devolucao {
   fornecedorDestinoId String?
   dataIngestao        DateTime      @default(now())
   loteIngestaoId      String?
+  ingestBatchId       String?
+  aggregatedAt        DateTime?
 
   farmacia          Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto           Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   fornecedorDestino Fornecedor?   @relation("DevolucaoFornecedorDestino", fields: [fornecedorDestinoId], references: [id])
   loteIngestao      LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
+  /// Idempotência da aggregation Phase 1c (granularidade linha).
+  /// Múltiplos NULLs permitidos (rows legacy não conflitam).
+  @@unique([farmaciaId, externalLineId])
   @@index([farmaciaId, data])
   @@index([produtoId, data])
   @@index([tipo])
   @@index([fornecedorDestinoId])
   @@index([loteIngestaoId])
+  @@index([ingestBatchId])
+  @@index([aggregatedAt])
 }
 
 /// Histórico periódico de stock por produto-farmácia.
