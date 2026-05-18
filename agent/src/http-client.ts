@@ -182,6 +182,53 @@ export class SaasClient {
     });
   }
 
+  /**
+   * POST /api/ingest/v1/bootstrap/compras
+   * UPSERT idempotente de linhas de compra em StagingCompraRawLine.
+   * Body: { farmaciaId, items: CompraLinePayload[] } (max 500).
+   * Idempotente via `(farmaciaId, externalLineId)`. Fase 1b.2 —
+   * STAGING-ONLY (Compra final aggregation acontece em Fase 1c+).
+   */
+  async bootstrapCompras(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<
+    BootstrapBatchResponse & {
+      created: number;
+      updated: number;
+      reconciliationWarnings: number;
+    }
+  > {
+    return this.request("POST", "/api/ingest/v1/bootstrap/compras", {
+      body,
+      timeoutMs,
+    });
+  }
+
+  /**
+   * POST /api/ingest/v1/bootstrap/devolucoes-fornecedor
+   * UPSERT idempotente de linhas de devolução AO fornecedor em
+   * StagingDevolucaoFornecedorRawLine. Body: { farmaciaId, items[] }
+   * (max 500). Idempotente via `(farmaciaId, externalLineId)`. Fase 1b.3.
+   * STAGING-ONLY. Transição P→R capturada via UPDATE.
+   */
+  async bootstrapDevolucoesFornecedor(
+    body: { farmaciaId: string; items: unknown[] },
+    timeoutMs?: number
+  ): Promise<
+    BootstrapBatchResponse & {
+      created: number;
+      updated: number;
+      reconciliationWarnings: number;
+      byEstado: { P: number; E: number; R: number; X: number };
+    }
+  > {
+    return this.request("POST", "/api/ingest/v1/bootstrap/devolucoes-fornecedor", {
+      body,
+      timeoutMs,
+    });
+  }
+
   // ── Pipeline (autonomous daily pipeline endpoints) ─────────────────
 
   /**

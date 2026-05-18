@@ -51,6 +51,7 @@ import { setupOrdersWriteLog } from "./commands/setup-orders-write-log.js";
 import { testOrderWrite } from "./commands/test-order-write.js";
 import { inspectCodigoId } from "./commands/inspect-codigoid.js";
 import { fornecedoresDryRun, fornecedoresUpload } from "./commands/fornecedores.js";
+import { comprasDryRun, comprasUpload } from "./commands/compras.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -155,6 +156,14 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "fornecedores-upload": {
     run: fornecedoresUpload,
     desc: "Fase 1a: POST /api/ingest/v1/bootstrap/fornecedores. Idempotente por (farmaciaId, externalFornecedorId).",
+  },
+  "compras-dry-run": {
+    run: comprasDryRun,
+    desc: "Fase 1b: lê dbo.Recepcao + dbo.[Recepcao Detalhe]. Sumário + reconciliação + orphans locais. SEM POST.",
+  },
+  "compras-upload": {
+    run: comprasUpload,
+    desc: "Fase 1b: POST /api/ingest/v1/bootstrap/compras (StagingCompraRawLine). Idempotente por (farmaciaId, externalLineId).",
   },
   health: {
     run: health,
