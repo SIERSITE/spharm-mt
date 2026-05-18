@@ -277,6 +277,28 @@ export type LoteIngestao = Prisma.LoteIngestaoModel
  */
 export type IngestVendaLinhaRaw = Prisma.IngestVendaLinhaRawModel
 /**
+ * Model StagingCompraRawLine
+ * Linhas de compra (recepção de mercadoria) raw vindas do SPharm ERP
+ * local. 1 row por linha de dbo.[Recepcao Detalhe]. Header denormalizado
+ * em cada linha para reconciliação `SUM(qt × valorEurUnit) ≈ headerTotalIncidenciaEur`
+ * sem JOIN. Esta tabela é APENAS staging — Fase 1b não tem agregação.
+ */
+export type StagingCompraRawLine = Prisma.StagingCompraRawLineModel
+/**
+ * Model StagingDevolucaoFornecedorRawLine
+ * Linhas de devolução a fornecedor raw vindas do SPharm ERP local.
+ * 1 row por linha de dbo.[Devolucao Detalhe]. dbo.Devolucao é SEMPRE
+ * AO fornecedor — FK declarada a dbo.Fornecedores garante. Devoluções
+ * de cliente (raras) fluem por Atendimento Detalhe com TipoDocumento=104,
+ * não entram aqui.
+ * 
+ * Estados capturados: P (Pendente), E (Parcialmente Resolvida),
+ * R (Resolvida), X (Pend.Emissão). Anuladas (A) excluídas no SQL.
+ * Transição P→R muda `quantidadeRecebida` (0 → >0) sem alterar PK;
+ * re-sync via UPSERT captura.
+ */
+export type StagingDevolucaoFornecedorRawLine = Prisma.StagingDevolucaoFornecedorRawLineModel
+/**
  * Model PipelineRun
  * Registo de cada execução do pipeline autónomo daily-sync → aggregate
  * → reports. Auditoria + base do health check + página /admin/pipeline.

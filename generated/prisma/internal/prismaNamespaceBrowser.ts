@@ -85,6 +85,8 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  StagingCompraRawLine: 'StagingCompraRawLine',
+  StagingDevolucaoFornecedorRawLine: 'StagingDevolucaoFornecedorRawLine',
   PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
@@ -712,6 +714,77 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 } as const
 
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
+
+
+export const StagingCompraRawLineScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalReceptionId: 'externalReceptionId',
+  externalLineId: 'externalLineId',
+  sequencia: 'sequencia',
+  externalNRecepcao: 'externalNRecepcao',
+  externalFornecedorId: 'externalFornecedorId',
+  externalTipoDocumentoId: 'externalTipoDocumentoId',
+  externalFornecedorNDoc: 'externalFornecedorNDoc',
+  dataRecepcao: 'dataRecepcao',
+  fornecedorData: 'fornecedorData',
+  armazemId: 'armazemId',
+  recepcaoSituacaoId: 'recepcaoSituacaoId',
+  headerTotalBrutoEur: 'headerTotalBrutoEur',
+  headerTotalIvaEur: 'headerTotalIvaEur',
+  headerTotalIncidenciaEur: 'headerTotalIncidenciaEur',
+  externalCodigoId: 'externalCodigoId',
+  quantidade: 'quantidade',
+  bonus: 'bonus',
+  iva: 'iva',
+  desconto: 'desconto',
+  precoVendaPublicoEur: 'precoVendaPublicoEur',
+  valorEurUnit: 'valorEurUnit',
+  validade: 'validade',
+  ingestedAt: 'ingestedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type StagingCompraRawLineScalarFieldEnum = (typeof StagingCompraRawLineScalarFieldEnum)[keyof typeof StagingCompraRawLineScalarFieldEnum]
+
+
+export const StagingDevolucaoFornecedorRawLineScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalDevolucaoId: 'externalDevolucaoId',
+  externalLineId: 'externalLineId',
+  sequencia: 'sequencia',
+  externalNDevolucao: 'externalNDevolucao',
+  externalFornecedorId: 'externalFornecedorId',
+  dataDevolucao: 'dataDevolucao',
+  devolucaoSituacaoId: 'devolucaoSituacaoId',
+  armazemId: 'armazemId',
+  observacoes: 'observacoes',
+  serieFacturacao: 'serieFacturacao',
+  atcud: 'atcud',
+  ncertAt: 'ncertAt',
+  systemEntryDate: 'systemEntryDate',
+  headerTotalDocumento: 'headerTotalDocumento',
+  headerTotalIvaEur: 'headerTotalIvaEur',
+  headerTotalIncidenciaEur: 'headerTotalIncidenciaEur',
+  externalCodigoId: 'externalCodigoId',
+  quantidadeEnviada: 'quantidadeEnviada',
+  quantidadeRecebida: 'quantidadeRecebida',
+  bonus: 'bonus',
+  motivoId: 'motivoId',
+  iva: 'iva',
+  precoVendaPublicoEur: 'precoVendaPublicoEur',
+  pvfEurUnit: 'pvfEurUnit',
+  valorEurTotal: 'valorEurTotal',
+  validade: 'validade',
+  lote: 'lote',
+  recepcaoOrigemText: 'recepcaoOrigemText',
+  recepcaoOrigemData: 'recepcaoOrigemData',
+  ingestedAt: 'ingestedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type StagingDevolucaoFornecedorRawLineScalarFieldEnum = (typeof StagingDevolucaoFornecedorRawLineScalarFieldEnum)[keyof typeof StagingDevolucaoFornecedorRawLineScalarFieldEnum]
 
 
 export const PipelineRunScalarFieldEnum = {

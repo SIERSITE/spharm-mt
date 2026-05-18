@@ -631,6 +631,8 @@ model Farmacia {
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
   pipelineRuns          PipelineRun[]
   fornecedorErpRefs     FornecedorErpRef[]
+  stagingComprasRawLines              StagingCompraRawLine[]
+  stagingDevolucoesFornecedorRawLines StagingDevolucaoFornecedorRawLine[]
 
   @@unique([nome])
   @@index([codigoANF])
@@ -1274,6 +1276,180 @@ model IngestVendaLinhaRaw {
   @@index([tipoDocumento])
   @@index([produtoId])
   @@index([isNonStockService])
+}
+
+//////////////////////////////////////////////////////
+// STAGING — COMPRAS + DEVOLUÇÕES A FORNECEDOR (Fase 1b.1)
+//////////////////////////////////////////////////////
+//
+// Tabelas de staging WRITE-ONLY nesta fase. Zero consumidores
+// downstream: dashboard, vendas, encomendas, export-orders e
+// `Compra`/`Devolucao` finais não tocam aqui. Fase 1c+ adicionará o
+// aggregator que escreve em `Compra`/`Devolucao`.
+//
+// Mapping validado (rev24 inspection.md):
+//   Compras   = dbo.Recepcao (header) + dbo.[Recepcao Detalhe] (linhas)
+//               · PK linha = [Detalhe  Recp ID] (DOIS espaços, quirk Softreis)
+//               · Filtro válido: RecepcaoSituacaoID = 'N'
+//               · Valor_EUR é UNITÁRIO; total linha = Quantidade × Valor_EUR
+//   Devoluções = dbo.Devolucao + dbo.[Devolucao Detalhe]
+//               · Sempre AO fornecedor (FK declarada a Fornecedores)
+//               · Filtro válido: DevolucaoSituacaoID <> 'A'
+//               · Valor em Devolucao Detalhe é TOTAL DA LINHA (Qt × PVF_EUR)
+//
+// Idempotência: `@@unique([farmaciaId, externalLineId])` em ambas.
+// Re-run do mesmo intervalo UPSERTa — devoluções P→R transition é
+// capturada via update de `devolucaoSituacaoId` + `quantidadeRecebida`.
+
+/// Linhas de compra (recepção de mercadoria) raw vindas do SPharm ERP
+/// local. 1 row por linha de dbo.[Recepcao Detalhe]. Header denormalizado
+/// em cada linha para reconciliação `SUM(qt × valorEurUnit) ≈ headerTotalIncidenciaEur`
+/// sem JOIN. Esta tabela é APENAS staging — Fase 1b não tem agregação.
+model StagingCompraRawLine {
+  id                          BigInt   @id @default(autoincrement())
+  farmaciaId                  String
+
+  // ── Identidade ERP ────────────────────────────────────────────
+  /// dbo.Recepcao.[Recepcao ID]. Header.
+  externalReceptionId         Int
+  /// dbo.[Recepcao Detalhe].[Detalhe  Recp ID] (dois espaços no nome
+  /// do campo no SPharm — quirk Softreis preservado server-side).
+  /// PK natural da linha; base da idempotência.
+  externalLineId              Int
+  sequencia                   Int?
+
+  // ── Header (denormalizado para reconciliação sem JOIN) ────────
+  /// dbo.Recepcao.[NRecepcao]. Numerador interno sequencial.
+  externalNRecepcao           Int
+  /// dbo.Recepcao.[Fornecedor ID]. Resolução para Fornecedor canónico
+  /// faz-se a jusante via FornecedorErpRef — não materializada aqui.
+  externalFornecedorId        Int
+  /// dbo.Recepcao.[FornecedorTipoDocumentoID] (Tipo Documento).
+  /// 99% Factura (2); resto: G/Remessa, G/Transporte, NC, NULL.
+  externalTipoDocumentoId     Int?
+  /// dbo.Recepcao.[Fornecedor_NDoc]. Nº documento externo do fornecedor.
+  externalFornecedorNDoc      String?
+  /// dbo.Recepcao.[Data Recepcao] — canónica para data de operação.
+  dataRecepcao                DateTime
+  /// dbo.Recepcao.[Fornecedor_Data] — data da factura externa.
+  fornecedorData              DateTime?
+  /// dbo.Recepcao.[ArmazemID]. v1 assume single-warehouse por farmácia.
+  armazemId                   Int
+  /// dbo.Recepcao.[RecepcaoSituacaoID]. Filtrado a 'N' no SQL; capturado
+  /// para auditoria + safety net.
+  recepcaoSituacaoId          String
+  headerTotalBrutoEur         Decimal  @db.Decimal(12, 2)
+  headerTotalIvaEur           Decimal  @db.Decimal(12, 2)
+  headerTotalIncidenciaEur    Decimal  @db.Decimal(12, 2)
+
+  // ── Linha (raw, NÃO agregada) ────────────────────────────────
+  /// dbo.[Recepcao Detalhe].CodigoID → resolvido para Produto via
+  /// ProdutoFarmacia.externalProductId a jusante (fora desta fase).
+  externalCodigoId            Int
+  quantidade                  Int
+  bonus                       Int
+  iva                         Decimal  @db.Decimal(4, 2)
+  desconto                    Decimal? @db.Decimal(7, 2)
+  /// dbo.[Recepcao Detalhe].[Preco Venda Publico_EUR].
+  precoVendaPublicoEur        Decimal  @db.Decimal(8, 2)
+  /// dbo.[Recepcao Detalhe].[Valor_EUR]. **UNITÁRIO** (PVF c/ desconto,
+  /// sem IVA). Total linha = quantidade × valorEurUnit. Validado rev24
+  /// pelas amostras 4.1. Naming explícito para impedir confusão.
+  valorEurUnit                Decimal  @db.Decimal(10, 2)
+  validade                    DateTime?
+
+  ingestedAt                  DateTime @default(now())
+  /// Batch ULID emitido pelo agent. Permite cleanup direccionado:
+  /// `DELETE WHERE ingestBatchId = ?` para reverter passagem específica.
+  ingestBatchId               String
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([farmaciaId, externalLineId])
+  @@index([farmaciaId, dataRecepcao])
+  @@index([farmaciaId, externalCodigoId, dataRecepcao])
+  @@index([farmaciaId, externalFornecedorId, dataRecepcao])
+  @@index([farmaciaId, ingestBatchId])
+}
+
+/// Linhas de devolução a fornecedor raw vindas do SPharm ERP local.
+/// 1 row por linha de dbo.[Devolucao Detalhe]. dbo.Devolucao é SEMPRE
+/// AO fornecedor — FK declarada a dbo.Fornecedores garante. Devoluções
+/// de cliente (raras) fluem por Atendimento Detalhe com TipoDocumento=104,
+/// não entram aqui.
+///
+/// Estados capturados: P (Pendente), E (Parcialmente Resolvida),
+/// R (Resolvida), X (Pend.Emissão). Anuladas (A) excluídas no SQL.
+/// Transição P→R muda `quantidadeRecebida` (0 → >0) sem alterar PK;
+/// re-sync via UPSERT captura.
+model StagingDevolucaoFornecedorRawLine {
+  id                          BigInt   @id @default(autoincrement())
+  farmaciaId                  String
+
+  // ── Identidade ERP ────────────────────────────────────────────
+  /// dbo.Devolucao.[Devolucao ID]. Header.
+  externalDevolucaoId         Int
+  /// dbo.[Devolucao Detalhe].[Devolucao Detalhe ID]. PK natural da linha.
+  externalLineId              Int
+  sequencia                   Int?
+
+  // ── Header (denormalizado) ────────────────────────────────────
+  externalNDevolucao          Int
+  externalFornecedorId        Int
+  dataDevolucao               DateTime
+  /// 'P' | 'E' | 'R' | 'X'. NUNCA 'A' (filtrado no SQL).
+  devolucaoSituacaoId         String
+  armazemId                   Int
+  /// dbo.Devolucao.[Observacoes]. Texto livre operador.
+  observacoes                 String?
+
+  // ── SAFT compliance (auditoria fiscal PT) ────────────────────
+  serieFacturacao             String?
+  atcud                       String?
+  ncertAt                     Int?
+  systemEntryDate             DateTime?
+
+  headerTotalDocumento        Decimal  @db.Decimal(9, 2)
+  headerTotalIvaEur           Decimal  @db.Decimal(12, 2)
+  headerTotalIncidenciaEur    Decimal  @db.Decimal(12, 2)
+
+  // ── Linha ─────────────────────────────────────────────────────
+  externalCodigoId            Int
+  /// Qt enviada ao fornecedor (decisão operacional, momento da emissão).
+  quantidadeEnviada           Int
+  /// Qt aceite pelo fornecedor após resolução. = 0 enquanto estado='P'.
+  quantidadeRecebida          Int
+  bonus                       Int?
+  /// dbo.[Devolucao Detalhe].[Motivo] → dbo.Motivos (FK declarada).
+  motivoId                    Int?
+  iva                         Decimal  @db.Decimal(4, 2)
+  /// dbo.[Devolucao Detalhe].[PVP_EUR].
+  precoVendaPublicoEur        Decimal? @db.Decimal(8, 2)
+  /// dbo.[Devolucao Detalhe].[PVF_EUR]. UNITÁRIO (PVF c/ desconto).
+  pvfEurUnit                  Decimal? @db.Decimal(8, 2)
+  /// dbo.[Devolucao Detalhe].[Valor]. **TOTAL DA LINHA**
+  /// (Qt Enviada × PVF_EUR). Validado rev24 pelas amostras 4.2.
+  /// Atenção: semântica diferente de StagingCompraRawLine.valorEurUnit.
+  valorEurTotal               Decimal? @db.Decimal(9, 2)
+  validade                    DateTime?
+  lote                        String?
+  /// dbo.[Devolucao Detalhe].[Recepcao_Origem]. Texto livre não-estruturado
+  /// (ex: "Factura 26385870"). Captura mas não permite JOIN à recepção
+  /// original. Auditoria de custo-de-origem ficaria deferida para outra fase.
+  recepcaoOrigemText          String?
+  recepcaoOrigemData          DateTime?
+
+  ingestedAt                  DateTime @default(now())
+  ingestBatchId               String
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([farmaciaId, externalLineId])
+  @@index([farmaciaId, dataDevolucao])
+  @@index([farmaciaId, externalCodigoId, dataDevolucao])
+  @@index([farmaciaId, externalFornecedorId, dataDevolucao])
+  @@index([farmaciaId, devolucaoSituacaoId])
+  @@index([farmaciaId, ingestBatchId])
 }
 
 /// Registo de cada execução do pipeline autónomo daily-sync → aggregate

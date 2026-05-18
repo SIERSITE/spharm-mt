@@ -418,6 +418,8 @@ export const ModelName = {
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
   IngestVendaLinhaRaw: 'IngestVendaLinhaRaw',
+  StagingCompraRawLine: 'StagingCompraRawLine',
+  StagingDevolucaoFornecedorRawLine: 'StagingDevolucaoFornecedorRawLine',
   PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
@@ -437,7 +439,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2957,6 +2959,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    StagingCompraRawLine: {
+      payload: Prisma.$StagingCompraRawLinePayload<ExtArgs>
+      fields: Prisma.StagingCompraRawLineFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StagingCompraRawLineFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StagingCompraRawLineFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        findFirst: {
+          args: Prisma.StagingCompraRawLineFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StagingCompraRawLineFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        findMany: {
+          args: Prisma.StagingCompraRawLineFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>[]
+        }
+        create: {
+          args: Prisma.StagingCompraRawLineCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        createMany: {
+          args: Prisma.StagingCompraRawLineCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StagingCompraRawLineCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>[]
+        }
+        delete: {
+          args: Prisma.StagingCompraRawLineDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        update: {
+          args: Prisma.StagingCompraRawLineUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        deleteMany: {
+          args: Prisma.StagingCompraRawLineDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StagingCompraRawLineUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StagingCompraRawLineUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>[]
+        }
+        upsert: {
+          args: Prisma.StagingCompraRawLineUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingCompraRawLinePayload>
+        }
+        aggregate: {
+          args: Prisma.StagingCompraRawLineAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStagingCompraRawLine>
+        }
+        groupBy: {
+          args: Prisma.StagingCompraRawLineGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StagingCompraRawLineGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StagingCompraRawLineCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StagingCompraRawLineCountAggregateOutputType> | number
+        }
+      }
+    }
+    StagingDevolucaoFornecedorRawLine: {
+      payload: Prisma.$StagingDevolucaoFornecedorRawLinePayload<ExtArgs>
+      fields: Prisma.StagingDevolucaoFornecedorRawLineFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        findFirst: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        findMany: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>[]
+        }
+        create: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        createMany: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>[]
+        }
+        delete: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        update: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        deleteMany: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>[]
+        }
+        upsert: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$StagingDevolucaoFornecedorRawLinePayload>
+        }
+        aggregate: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateStagingDevolucaoFornecedorRawLine>
+        }
+        groupBy: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StagingDevolucaoFornecedorRawLineGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.StagingDevolucaoFornecedorRawLineCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.StagingDevolucaoFornecedorRawLineCountAggregateOutputType> | number
+        }
+      }
+    }
     PipelineRun: {
       payload: Prisma.$PipelineRunPayload<ExtArgs>
       fields: Prisma.PipelineRunFieldRefs
@@ -3899,6 +4049,77 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
 export type IngestVendaLinhaRawScalarFieldEnum = (typeof IngestVendaLinhaRawScalarFieldEnum)[keyof typeof IngestVendaLinhaRawScalarFieldEnum]
 
 
+export const StagingCompraRawLineScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalReceptionId: 'externalReceptionId',
+  externalLineId: 'externalLineId',
+  sequencia: 'sequencia',
+  externalNRecepcao: 'externalNRecepcao',
+  externalFornecedorId: 'externalFornecedorId',
+  externalTipoDocumentoId: 'externalTipoDocumentoId',
+  externalFornecedorNDoc: 'externalFornecedorNDoc',
+  dataRecepcao: 'dataRecepcao',
+  fornecedorData: 'fornecedorData',
+  armazemId: 'armazemId',
+  recepcaoSituacaoId: 'recepcaoSituacaoId',
+  headerTotalBrutoEur: 'headerTotalBrutoEur',
+  headerTotalIvaEur: 'headerTotalIvaEur',
+  headerTotalIncidenciaEur: 'headerTotalIncidenciaEur',
+  externalCodigoId: 'externalCodigoId',
+  quantidade: 'quantidade',
+  bonus: 'bonus',
+  iva: 'iva',
+  desconto: 'desconto',
+  precoVendaPublicoEur: 'precoVendaPublicoEur',
+  valorEurUnit: 'valorEurUnit',
+  validade: 'validade',
+  ingestedAt: 'ingestedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type StagingCompraRawLineScalarFieldEnum = (typeof StagingCompraRawLineScalarFieldEnum)[keyof typeof StagingCompraRawLineScalarFieldEnum]
+
+
+export const StagingDevolucaoFornecedorRawLineScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalDevolucaoId: 'externalDevolucaoId',
+  externalLineId: 'externalLineId',
+  sequencia: 'sequencia',
+  externalNDevolucao: 'externalNDevolucao',
+  externalFornecedorId: 'externalFornecedorId',
+  dataDevolucao: 'dataDevolucao',
+  devolucaoSituacaoId: 'devolucaoSituacaoId',
+  armazemId: 'armazemId',
+  observacoes: 'observacoes',
+  serieFacturacao: 'serieFacturacao',
+  atcud: 'atcud',
+  ncertAt: 'ncertAt',
+  systemEntryDate: 'systemEntryDate',
+  headerTotalDocumento: 'headerTotalDocumento',
+  headerTotalIvaEur: 'headerTotalIvaEur',
+  headerTotalIncidenciaEur: 'headerTotalIncidenciaEur',
+  externalCodigoId: 'externalCodigoId',
+  quantidadeEnviada: 'quantidadeEnviada',
+  quantidadeRecebida: 'quantidadeRecebida',
+  bonus: 'bonus',
+  motivoId: 'motivoId',
+  iva: 'iva',
+  precoVendaPublicoEur: 'precoVendaPublicoEur',
+  pvfEurUnit: 'pvfEurUnit',
+  valorEurTotal: 'valorEurTotal',
+  validade: 'validade',
+  lote: 'lote',
+  recepcaoOrigemText: 'recepcaoOrigemText',
+  recepcaoOrigemData: 'recepcaoOrigemData',
+  ingestedAt: 'ingestedAt',
+  ingestBatchId: 'ingestBatchId'
+} as const
+
+export type StagingDevolucaoFornecedorRawLineScalarFieldEnum = (typeof StagingDevolucaoFornecedorRawLineScalarFieldEnum)[keyof typeof StagingDevolucaoFornecedorRawLineScalarFieldEnum]
+
+
 export const PipelineRunScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
@@ -4436,6 +4657,20 @@ export type EnumEstadoLoteIngestaoFieldRefInput<$PrismaModel> = FieldRefInputTyp
 export type ListEnumEstadoLoteIngestaoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EstadoLoteIngestao[]'>
     
 
+
+/**
+ * Reference to a field of type 'BigInt'
+ */
+export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt'>
+    
+
+
+/**
+ * Reference to a field of type 'BigInt[]'
+ */
+export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
+    
+
 /**
  * Batch Payload for updateMany & deleteMany & createMany
  */
@@ -4565,6 +4800,8 @@ export type GlobalOmitConfig = {
   enriquecimentoFila?: Prisma.EnriquecimentoFilaOmit
   loteIngestao?: Prisma.LoteIngestaoOmit
   ingestVendaLinhaRaw?: Prisma.IngestVendaLinhaRawOmit
+  stagingCompraRawLine?: Prisma.StagingCompraRawLineOmit
+  stagingDevolucaoFornecedorRawLine?: Prisma.StagingDevolucaoFornecedorRawLineOmit
   pipelineRun?: Prisma.PipelineRunOmit
   tipoDocumentoClassificacao?: Prisma.TipoDocumentoClassificacaoOmit
   orderOutbox?: Prisma.OrderOutboxOmit
