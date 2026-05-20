@@ -95,12 +95,26 @@ Pré-requisitos no **servidor** (Vercel) — variáveis de ambiente:
 | `AGENT_BASE_ZIP_URL` | URL (object storage: Vercel Blob / S3 / estática) do ZIP **base** do agente. O wizard descarrega daqui para montar o ZIP por-farmácia. |
 | `SPHARMMT_PUBLIC_ENDPOINT` | (opcional) endpoint default do agente no `agent.config.json`. |
 
-Publicar o ZIP base do agente uma vez por build do agente:
+Publicar o **artefacto base único** da release (uma vez por release):
 
 ```powershell
-npm run agent:package      # gera dist-agent/SPharmMT-Agent/
-# zipar a pasta e enviar para o object storage; usar esse URL em AGENT_BASE_ZIP_URL
+npm run agent:package
 ```
+
+Isto produz, além da pasta `dist-agent/SPharmMT-Agent/`, o ZIP base:
+
+```
+dist-agent/spharmmt-agent-base-rev<N>.zip      # <N> = AGENT_REV (ex.: 26)
+```
+
+Esse ZIP contém **apenas** o runtime/template comum do agent (node.exe,
+agent.cjs, wrappers .bat, `agent.config.example.json`) — **sem** dados de
+tenant/farmácia, sem `agent.config.json` real. É o único artefacto a
+publicar em storage por release.
+
+**Onde configurar `AGENT_BASE_ZIP_URL`:** Vercel → projeto SPharm.MT →
+**Settings → Environment Variables** → adicionar
+`AGENT_BASE_ZIP_URL = <url público do zip>` → **Redeploy**.
 
 No **PC de instalação**:
 1. Copiar **apenas** a pasta `dist-admin/` para qualquer sítio (ex.:
@@ -112,6 +126,36 @@ No **PC de instalação**:
 Não é preciso repo, Node, npm nem Git no PC. Para mudar de servidor/token
 mais tarde: clicar **Refresh** com credenciais inválidas → o wizard
 oferece reconfigurar (ou apagar o `config.json`).
+
+## Agent ZIP standalone — fluxo e teste
+
+Geração de um ZIP por farmácia, **sem dev/Claude** envolvido:
+
+1. O wizard faz `POST /api/admin/v1/tenants/{slug}/agent-package` com a
+   farmácia, endpoint, key (existente ou `rotate`) e pré-fill SQL.
+2. O servidor **resolve a farmácia** na BD do tenant, **emite/rotaciona**
+   a ingest key (control plane) e devolve:
+   - `baseAgentUrl` (do `AGENT_BASE_ZIP_URL`)
+   - `tenantSlug`, `farmaciaId`, `farmaciaNome`, `endpoint`
+   - `key` (em claro, se emitida/rotacionada) + `keyAction`
+   - `config` (o `agent.config.json` pronto) + `suggestedName`
+3. O wizard **descarrega** o `baseAgentUrl`, **injecta** o
+   `agent.config.json` da farmácia e **zipa** localmente em
+   `%APPDATA%\SPharmMT\AdminWizard\output\<slug>-<data>-<rand>.zip`.
+
+O ZIP base é descarregado tal-e-qual; só o `agent.config.json` é
+gerado/injectado por farmácia. O `node.exe`/runtime nunca passa pela
+função Vercel.
+
+**Como testar pelo wizard:**
+1. Garantir no Vercel: `ADMIN_API_TOKENS` + `AGENT_BASE_ZIP_URL` (apontar
+   para o `spharmmt-agent-base-rev<N>.zip` publicado) + redeploy.
+2. Abrir `dist-admin\SPharmMT-Admin-Wizard.exe` (fora do repo). Configurar
+   endpoint SaaS + admin token (1.ª vez).
+3. Seleccionar o tenant → Tab **Agent ZIP** → indicar a farmácia (nome
+   exacto, tem de existir no tenant) + endpoint + key/rotate → **Gerar**.
+4. Confirmar no painel: farmácia resolvida + caminho do ZIP. Abrir a
+   pasta com **Abrir pasta dos ZIPs**.
 
 ## Endpoints admin do SaaS (`/api/admin/v1/*`)
 

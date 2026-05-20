@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { controlPrisma, logTenantEvent } from "@/lib/control-plane";
+import { getTenantPrismaForAdmin } from "@/lib/admin/tenant-client";
 import { AdminApiError, resolveActiveTenant } from "@/lib/admin/ops/_shared";
 
 /**
@@ -60,7 +61,12 @@ export type AgentConfig = {
 
 export type AgentPackageResult = {
   tenantSlug: string;
+  /** Nome (string) tal como vai no config — canonico vindo da BD. */
   farmacia: string;
+  /** cuid da farmácia resolvida na BD do tenant. */
+  farmaciaId: string;
+  /** Nome canonico da farmácia (igual a `farmacia`). */
+  farmaciaNome: string;
   endpoint: string;
   keyAction: "rotated" | "issued" | "provided";
   /** Plain key — só quando issued/rotated. Não recuperável depois. */
@@ -99,6 +105,23 @@ export async function prepareAgentPackage(
   }
 
   const tenant = await resolveActiveTenant(input.slug);
+
+  // ── Resolver a farmácia na BD do tenant (id + nome canonico) ──────
+  // O wizard envia o nome (ou id) que o admin escolheu; validamos que
+  // existe e usamos o nome canonico no agent.config.json para casar com
+  // o que o agent resolve depois via /api/ingest/v1/farmacias.
+  const prisma = getTenantPrismaForAdmin(tenant);
+  const farmaciaRow = await prisma.farmacia.findFirst({
+    where: { OR: [{ id: farmacia }, { nome: farmacia }] },
+    select: { id: true, nome: true },
+  });
+  if (!farmaciaRow) {
+    throw new AdminApiError(
+      404,
+      `farmácia "${farmacia}" não encontrada no tenant "${tenant.slug}"`,
+      "farmacia_not_found"
+    );
+  }
 
   // ── Resolver ingest key ───────────────────────────────────────────
   let plainKey: string;
@@ -142,7 +165,7 @@ export async function prepareAgentPackage(
       endpoint,
       tenantSlug: tenant.slug,
       ingestKey: plainKey,
-      farmacia,
+      farmacia: farmaciaRow.nome,
       ...(input.healthcheckUrl?.trim()
         ? { healthcheckUrl: input.healthcheckUrl.trim() }
         : {}),
@@ -164,7 +187,9 @@ export async function prepareAgentPackage(
 
   return {
     tenantSlug: tenant.slug,
-    farmacia,
+    farmacia: farmaciaRow.nome,
+    farmaciaId: farmaciaRow.id,
+    farmaciaNome: farmaciaRow.nome,
     endpoint,
     keyAction,
     key: keyAction === "provided" ? null : plainKey,

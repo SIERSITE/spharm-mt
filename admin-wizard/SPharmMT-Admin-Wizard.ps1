@@ -1884,6 +1884,7 @@ $dPkgBtn.Add_Click({
     $r = Run-ApiInTab -Method POST -Path "/api/admin/v1/tenants/$t/agent-package" -Body $reqBody -Box $dOut -Label "agent-package $t / $farm"
     if ($r -and $r.Success) {
       $j = $r.Json
+      Append-Output $dOut ("  v farmacia: " + $j.farmaciaNome + " (id=" + $j.farmaciaId + ")") ([System.Drawing.Color]::Gainsboro)
       $zip = New-AgentZipLocal -Config $j.config -BaseUrl $j.baseAgentUrl -SuggestedName $j.suggestedName -Box $dOut
       if ($zip) {
         Append-Output $dOut ("  v ZIP criado: " + $zip) ([System.Drawing.Color]::LightGreen)

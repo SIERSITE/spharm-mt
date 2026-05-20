@@ -1479,6 +1479,37 @@ function writeReadme() {
   fs.writeFileSync(path.join(DIST_ROOT, "README.txt"), readme, "utf8");
 }
 
+// ── Artefacto base único da release ──────────────────────────────────
+// Zipa dist-agent/SPharmMT-Agent/ num único spharmmt-agent-base-rev<N>.zip.
+// Este é o ÚNICO artefacto a publicar em storage por release; o Admin
+// Wizard (STANDALONE) descarrega-o e injecta o agent.config.json por
+// farmácia localmente. NÃO contém dados de tenant/farmácia — só o
+// runtime/template comum (inclui agent.config.example.json, não o real).
+function zipBase() {
+  const zipName = `spharmmt-agent-base-rev${AGENT_REV}.zip`;
+  const zipPath = path.join(REPO_ROOT, "dist-agent", zipName);
+  // Defensivo: o artefacto base NUNCA pode conter config real de tenant.
+  const stray = path.join(DIST_ROOT, "agent.config.json");
+  if (fs.existsSync(stray)) fs.rmSync(stray);
+  if (fs.existsSync(zipPath)) fs.rmSync(zipPath);
+  log(`A criar artefacto base da release → dist-agent/${zipName}…`);
+  if (process.platform === "win32") {
+    const psCmd = `Compress-Archive -Path '${DIST_ROOT}\\*' -DestinationPath '${zipPath}' -Force`;
+    execSync(`powershell -NoProfile -NonInteractive -Command "${psCmd}"`, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } else {
+    // Unix: zip -r com conteudo na raiz do zip.
+    execSync(`zip -r ${JSON.stringify(zipPath)} .`, {
+      cwd: DIST_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  }
+  const stat = fs.statSync(zipPath);
+  log(`  ✓ ${zipName} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+  return { zipName, zipPath };
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1491,6 +1522,7 @@ async function main() {
     copyResources();
     writeBatchWrappers();
     writeReadme();
+    const base = zipBase();
     const dur = ((Date.now() - t0) / 1000).toFixed(1);
     log("─".repeat(60));
     log(`✓ Build concluído em ${dur}s`);
@@ -1504,7 +1536,12 @@ async function main() {
       log(`    · ${e}${size}`);
     }
     log("");
-    log("Próximo passo: zip dist-agent/SPharmMT-Agent/ e envia ao operador.");
+    log(`✓ Artefacto base da release: dist-agent/${base.zipName}`);
+    log("Próximos passos (uma vez por release):");
+    log(`  1. Upload de dist-agent/${base.zipName} para object storage`);
+    log(`     (Vercel Blob / S3 / URL estática).`);
+    log(`  2. Definir AGENT_BASE_ZIP_URL=<url do zip> no Vercel + redeploy.`);
+    log(`  3. O Admin Wizard (STANDALONE) gera os ZIPs por farmácia sozinho.`);
   } catch (err) {
     logErr(err instanceof Error ? err.message : String(err));
     process.exit(1);
