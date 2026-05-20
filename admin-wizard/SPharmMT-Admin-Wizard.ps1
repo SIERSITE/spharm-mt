@@ -1022,9 +1022,20 @@ $dTenant.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.Fo
 $tabD.Controls.Add($dTenant)
 
 $tabD.Controls.Add((New-Label "Farmacia:" 12 48 120))
-$dFarmacia = New-TextBox 140 46 460
+$dFarmacia = New-Object System.Windows.Forms.ComboBox
+$dFarmacia.Location = New-Object System.Drawing.Point(140, 46)
+$dFarmacia.Size = New-Object System.Drawing.Size(360, 24)
+$dFarmacia.DropDownStyle = "DropDown"   # editavel: lista + escrita livre (fallback)
 $tabD.Controls.Add($dFarmacia)
-$tabD.Controls.Add((New-Label "(nome exacto, igual ao de B)" 610 48 300))
+$dFarmLoadBtn = New-Object System.Windows.Forms.Button
+$dFarmLoadBtn.Text = "Carregar"
+$dFarmLoadBtn.Location = New-Object System.Drawing.Point(505, 45)
+$dFarmLoadBtn.Size = New-Object System.Drawing.Size(95, 26)
+$tabD.Controls.Add($dFarmLoadBtn)
+$tabD.Controls.Add((New-Label "(escolher da lista; envia por ID)" 610 48 300))
+# Mapa nome -> id das farmacias do tenant carregado (selecao por ID,
+# imune a encoding de acentos). Vazio = envia por nome (fallback).
+$script:dFarmaciaMap = @{}
 
 $tabD.Controls.Add((New-Label "Endpoint SaaS:" 12 80 120))
 $dEndpoint = New-TextBox 140 78 460 "https://app.spharmmt.app"
@@ -1327,9 +1338,26 @@ function Run-NpmInTab {
 # /api/admin/v1/* do SaaS. PowerShell faz HTTPS nativamente, logo o PC
 # de instalacao nao precisa de repo/Node/npm/Git.
 
+function Read-ResponseUtf8 {
+  # Le o corpo de uma resposta Invoke-WebRequest SEMPRE como UTF-8,
+  # independentemente do charset que o servidor declarou (Next pode omitir
+  # charset; o default do PS 5.1 corromperia acentos).
+  param($Resp)
+  try {
+    if ($Resp.RawContentStream) {
+      $ms = $Resp.RawContentStream
+      try { $ms.Position = 0 } catch {}
+      $sr = New-Object System.IO.StreamReader($ms, [System.Text.Encoding]::UTF8)
+      return $sr.ReadToEnd()
+    }
+  } catch {}
+  try { if ($Resp.Content) { return [string]$Resp.Content } } catch {}
+  return $null
+}
+
 function Invoke-AdminApi {
-  # Devolve pscustomobject @{ Success; StatusCode; Json; Error; ElapsedMs }.
-  # Nunca lanca.
+  # UTF-8 end-to-end. Devolve pscustomobject
+  # @{ Success; StatusCode; Json; Error; ElapsedMs }. Nunca lanca.
   param(
     [string]$Method = "GET",
     [Parameter(Mandatory)][string]$Path,
@@ -1344,7 +1372,7 @@ function Invoke-AdminApi {
     return $res
   }
   $uri = ($script:SaasBaseUrl.TrimEnd('/')) + $Path
-  $headers = @{ Authorization = "Bearer $($script:AdminToken)" }
+  $headers = @{ Authorization = "Bearer $($script:AdminToken)"; Accept = "application/json" }
   Write-WizardLog "[$Label] API $Method $uri"
   try {
     $params = @{
@@ -1355,33 +1383,35 @@ function Invoke-AdminApi {
       UseBasicParsing = $true
     }
     if ($null -ne $Body) {
-      $params["Body"] = ($Body | ConvertTo-Json -Depth 8)
-      $params["ContentType"] = "application/json"
+      # CRUCIAL: enviar o corpo como BYTES UTF-8. Uma string -Body iria, no
+      # PS 5.1, em Latin-1/ASCII e corromper acentos (ex.: "Farmácia" ->
+      # "Farm?cia"/"Farm�cia"). charset explicito no Content-Type.
+      $json = $Body | ConvertTo-Json -Depth 8
+      $params["Body"] = [System.Text.Encoding]::UTF8.GetBytes($json)
+      $params["ContentType"] = "application/json; charset=utf-8"
     }
-    $resp = Invoke-RestMethod @params
-    $res.Json = $resp
-    $res.StatusCode = 200
-    $res.Success = $true
+    $resp = Invoke-WebRequest @params
+    $res.StatusCode = [int]$resp.StatusCode
+    $text = Read-ResponseUtf8 $resp
+    if ($text) { try { $res.Json = $text | ConvertFrom-Json } catch {} }
+    $res.Success = ($res.StatusCode -ge 200 -and $res.StatusCode -lt 300)
   } catch {
     $res.Error = $_.Exception.Message
-    try {
-      $httpResp = $_.Exception.Response
-      if ($httpResp) { try { $res.StatusCode = [int]$httpResp.StatusCode } catch {} }
-    } catch {}
-    # Corpo do erro: no PS 5.1 o Invoke-RestMethod ja consumiu o stream e
-    # guarda o body em $_.ErrorDetails.Message. Fallback: ler o stream.
+    $httpResp = $null
+    try { $httpResp = $_.Exception.Response } catch {}
+    if ($httpResp) { try { $res.StatusCode = [int]$httpResp.StatusCode } catch {} }
+    # Corpo do erro em UTF-8: ler o stream da resposta; fallback ErrorDetails.
     $bodyText = $null
-    try { if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $bodyText = [string]$_.ErrorDetails.Message } } catch {}
+    try {
+      if ($httpResp) {
+        $stream = $httpResp.GetResponseStream()
+        $sr = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+        $bodyText = $sr.ReadToEnd()
+        $sr.Close()
+      }
+    } catch {}
     if (-not $bodyText) {
-      try {
-        $httpResp = $_.Exception.Response
-        if ($httpResp) {
-          $stream = $httpResp.GetResponseStream()
-          $reader = New-Object System.IO.StreamReader($stream)
-          $bodyText = $reader.ReadToEnd()
-          $reader.Close()
-        }
-      } catch {}
+      try { if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $bodyText = [string]$_.ErrorDetails.Message } } catch {}
     }
     if ($bodyText) {
       try {
@@ -1569,8 +1599,11 @@ function New-AgentZipLocal {
     $agentRoot = $stage
     if ($top.Count -eq 1 -and $top[0].PSIsContainer) { $agentRoot = $top[0].FullName }
     $cfgPath = Join-Path $agentRoot "agent.config.json"
-    ($Config | ConvertTo-Json -Depth 8) | Set-Content -Path $cfgPath -Encoding UTF8
-    Append-Output $Box "  v Escrever agent.config.json" ([System.Drawing.Color]::Gainsboro)
+    # UTF-8 SEM BOM: o agent (Node) faz JSON.parse e um BOM inicial parte-o.
+    # Set-Content -Encoding UTF8 (PS 5.1) escreveria COM BOM.
+    $cfgJson = ($Config | ConvertTo-Json -Depth 8)
+    [System.IO.File]::WriteAllText($cfgPath, $cfgJson, (New-Object System.Text.UTF8Encoding($false)))
+    Append-Output $Box "  v Escrever agent.config.json (UTF-8)" ([System.Drawing.Color]::Gainsboro)
     $zipOut = Join-Path $script:OutputDir ("$SuggestedName.zip")
     if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
     Append-Output $Box "  v Zipar pacote final..." ([System.Drawing.Color]::Gainsboro)
@@ -1828,6 +1861,34 @@ $cAddBtn.Add_Click({
   } catch { Show-HandlerError $_ "tab-C-add-user" }
 })
 
+# D. Carregar farmacias do tenant (popula dropdown + mapa nome->id)
+$dFarmLoadBtn.Add_Click({
+  try {
+    $t = Get-SelectedTenant
+    if (-not $t) { return }
+    $script:dFarmaciaMap = @{}
+    $dFarmacia.Items.Clear()
+    if ($script:Mode -ne "STANDALONE") {
+      Append-Output $dOut "Carregar farmacias so em STANDALONE; em DEV escreve o nome." ([System.Drawing.Color]::Khaki)
+      return
+    }
+    $r = Invoke-AdminApi -Method GET -Path "/api/admin/v1/tenants/$t/status" -Label "farmacias $t"
+    if ($r.Success -and $r.Json.tenantDb -and $r.Json.tenantDb.farmacias) {
+      foreach ($f in @($r.Json.tenantDb.farmacias)) {
+        if ($f.nome) {
+          [void]$dFarmacia.Items.Add([string]$f.nome)
+          if ($f.id) { $script:dFarmaciaMap[[string]$f.nome] = [string]$f.id }
+        }
+      }
+      Append-Output $dOut ("Farmacias carregadas: " + $dFarmacia.Items.Count + " (selecao envia por ID)") ([System.Drawing.Color]::Gainsboro)
+      if ($dFarmacia.Items.Count -gt 0) { $dFarmacia.SelectedIndex = 0 }
+    } else {
+      $em = if ($r.Error) { $r.Error } else { "status=$($r.StatusCode)" }
+      Append-Output $dOut ("Nao foi possivel carregar farmacias: $em") ([System.Drawing.Color]::Khaki)
+    }
+  } catch { Show-HandlerError $_ "tab-D-load-farmacias" }
+})
+
 # D. Gerar ZIP agent
 $dPkgBtn.Add_Click({
   try {
@@ -1874,7 +1935,16 @@ $dPkgBtn.Add_Click({
   if ($dSqlUser.Text.Trim()) { $cmdArgs += "--sql-user=$($dSqlUser.Text.Trim())" }
 
   if ($script:Mode -eq "STANDALONE") {
-    $reqBody = @{ farmacia = $farm; endpoint = $endpoint }
+    $reqBody = @{ endpoint = $endpoint }
+    # Preferir ID (imune a encoding); fallback para nome livre.
+    $fid = $null
+    if ($script:dFarmaciaMap -and $script:dFarmaciaMap.ContainsKey($farm)) { $fid = $script:dFarmaciaMap[$farm] }
+    if ($fid) {
+      $reqBody["farmaciaId"] = $fid
+      Append-Output $dOut ("  v farmacia por ID: $fid") ([System.Drawing.Color]::Gainsboro)
+    } else {
+      $reqBody["farmacia"] = $farm
+    }
     if ($health) { $reqBody["healthcheckUrl"] = $health }
     if ($rotate) { $reqBody["rotate"] = $true } else { $reqBody["key"] = $key }
     if ($dSqlHost.Text.Trim()) { $reqBody["sqlHost"] = $dSqlHost.Text.Trim() }

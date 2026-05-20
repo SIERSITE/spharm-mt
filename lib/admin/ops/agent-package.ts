@@ -24,7 +24,10 @@ const HEX_KEY_RE = /^[0-9a-f]{64}$/i;
 
 export type AgentPackageInput = {
   slug: string;
-  farmacia: string;
+  /** Chave primária preferida (cuid da farmácia). Tem precedência. */
+  farmaciaId?: string | null;
+  /** Nome (ou id) da farmácia. Usado se farmaciaId não vier. Compat. */
+  farmacia?: string | null;
   endpoint?: string | null;
   /** Key existente em claro (64 hex). Mutuamente exclusiva com rotate. */
   key?: string | null;
@@ -85,9 +88,10 @@ const SQL_PASSWORD_PLACEHOLDER = "COMPLETAR_PASSWORD_NO_PC_DA_FARMACIA";
 export async function prepareAgentPackage(
   input: AgentPackageInput
 ): Promise<AgentPackageResult> {
+  const farmaciaId = (input.farmaciaId ?? "").trim();
   const farmacia = (input.farmacia ?? "").trim();
-  if (farmacia === "") {
-    throw new AdminApiError(400, "farmacia é obrigatória", "bad_request");
+  if (farmaciaId === "" && farmacia === "") {
+    throw new AdminApiError(400, "farmaciaId ou farmacia é obrigatório", "bad_request");
   }
   if (input.key && input.rotate) {
     throw new AdminApiError(400, "key e rotate são mutuamente exclusivos", "bad_request");
@@ -107,18 +111,24 @@ export async function prepareAgentPackage(
   const tenant = await resolveActiveTenant(input.slug);
 
   // ── Resolver a farmácia na BD do tenant (id + nome canonico) ──────
-  // O wizard envia o nome (ou id) que o admin escolheu; validamos que
-  // existe e usamos o nome canonico no agent.config.json para casar com
-  // o que o agent resolve depois via /api/ingest/v1/farmacias.
+  // Preferir farmaciaId (chave primária, imune a acentos/encoding); cair
+  // para nome-ou-id (compat). Usamos o nome canonico da BD no
+  // agent.config.json para casar com o /api/ingest/v1/farmacias do agent.
   const prisma = getTenantPrismaForAdmin(tenant);
-  const farmaciaRow = await prisma.farmacia.findFirst({
-    where: { OR: [{ id: farmacia }, { nome: farmacia }] },
-    select: { id: true, nome: true },
-  });
+  const farmaciaRow = farmaciaId
+    ? await prisma.farmacia.findUnique({
+        where: { id: farmaciaId },
+        select: { id: true, nome: true },
+      })
+    : await prisma.farmacia.findFirst({
+        where: { OR: [{ id: farmacia }, { nome: farmacia }] },
+        select: { id: true, nome: true },
+      });
   if (!farmaciaRow) {
+    const ref = farmaciaId ? `id "${farmaciaId}"` : `"${farmacia}"`;
     throw new AdminApiError(
       404,
-      `farmácia "${farmacia}" não encontrada no tenant "${tenant.slug}"`,
+      `farmácia ${ref} não encontrada no tenant "${tenant.slug}"`,
       "farmacia_not_found"
     );
   }

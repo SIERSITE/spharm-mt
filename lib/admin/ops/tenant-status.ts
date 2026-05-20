@@ -45,6 +45,7 @@ export type TenantStatusResult = {
     farmaciasAtivas: number;
     farmaciasTotal: number;
     farmacias: Array<{
+      id: string;
       nome: string;
       codigoANF: string | null;
       estado: string;
@@ -159,7 +160,7 @@ export async function getTenantStatus(slug: string): Promise<TenantStatusResult>
   }
 
   const farmacias = await prisma.farmacia.findMany({
-    select: { nome: true, codigoANF: true, estado: true },
+    select: { id: true, nome: true, codigoANF: true, estado: true },
     orderBy: { nome: "asc" },
   });
   const farmaciasAtivas = farmacias.filter((f) => f.estado === "ATIVO").length;

@@ -31,7 +31,8 @@ export const POST = withAdminApiAuthParams<RouteCtx>(async (req: NextRequest, ct
   }
   const result = await prepareAgentPackage({
     slug,
-    farmacia: String(body.farmacia ?? ""),
+    farmaciaId: body.farmaciaId == null ? null : String(body.farmaciaId),
+    farmacia: body.farmacia == null ? null : String(body.farmacia),
     endpoint: body.endpoint == null ? null : String(body.endpoint),
     key: body.key == null ? null : String(body.key),
     rotate: body.rotate === true || body.rotate === "true",

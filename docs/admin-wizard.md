@@ -173,10 +173,15 @@ função Vercel.
    para o `spharmmt-agent-base-rev<N>.zip` publicado) + redeploy.
 2. Abrir `dist-admin\SPharmMT-Admin-Wizard.exe` (fora do repo). Configurar
    endpoint SaaS + admin token (1.ª vez).
-3. Seleccionar o tenant → Tab **Agent ZIP** → indicar a farmácia (nome
-   exacto, tem de existir no tenant) + endpoint + key/rotate → **Gerar**.
-4. Confirmar no painel: farmácia resolvida + caminho do ZIP. Abrir a
-   pasta com **Abrir pasta dos ZIPs**.
+3. Seleccionar o tenant → Tab **Agent ZIP** → **Carregar** (popula o
+   dropdown com as farmácias do tenant; a selecção envia por **ID**,
+   imune a acentos) → escolher a farmácia + endpoint + key/rotate →
+   **Gerar**. (Se escrever o nome à mão em vez de escolher da lista, é
+   enviado por nome — agora em UTF-8 correcto.)
+4. Confirmar no painel: farmácia resolvida (por ID) + caminho do ZIP.
+   Abrir a pasta com **Abrir pasta dos ZIPs**.
+5. Testar com nomes acentuados (ex.: **Farmácia Silveirense**, **Farmácia
+   Segurado**) — o `agent.config.json` é gravado em UTF-8 sem BOM.
 
 ## Endpoints admin do SaaS (`/api/admin/v1/*`)
 
