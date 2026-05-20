@@ -149,18 +149,10 @@ function Save-RepoRoot {
   # execucoes. Best-effort: se falhar (sem permissoes, disco cheio) nao
   # bloqueia o arranque -- o caminho ja esta resolvido em memoria.
   param([string]$Path)
-  try {
-    $cfgPath = Get-WizardConfigPath
-    if (-not $cfgPath) { return }
-    $cfgDir = Split-Path -Parent $cfgPath
-    if (-not (Test-Path $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
-    $obj = [PSCustomObject]@{
-      repoRoot = $Path
-      savedAt  = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss")
-      savedBy  = "SPharmMT-Admin-Wizard"
-    }
-    $obj | ConvertTo-Json | Set-Content -Path $cfgPath -Encoding UTF8
-  } catch {}
+  # Merge: preserva saasBaseUrl/adminToken se existirem (ver Save-Saas).
+  $c = Read-WizardConfig
+  $c["repoRoot"] = $Path
+  [void](Write-WizardConfig -Config $c)
 }
 
 function Select-RepoRootDialog {
@@ -188,6 +180,57 @@ function Select-RepoRootDialog {
   }
 }
 
+# --- Config persistente (merge-aware) -----------------------------
+# O config.json em %APPDATA%\SPharmMT\AdminWizard guarda tanto a escolha
+# de repo (DEV) como o endpoint SaaS + admin token (STANDALONE). Ler e
+# escrever fazem merge para nao apagar campos de outro modo.
+
+function Read-WizardConfig {
+  # Devolve hashtable com o conteudo do config.json (ou vazia). Nunca lanca.
+  $h = @{}
+  try {
+    $cfgPath = Get-WizardConfigPath
+    if (-not $cfgPath -or -not (Test-Path $cfgPath)) { return $h }
+    $raw = Get-Content -Path $cfgPath -Raw -ErrorAction Stop
+    if (-not $raw) { return $h }
+    $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+    foreach ($p in $obj.PSObject.Properties) { $h[$p.Name] = $p.Value }
+  } catch {}
+  return $h
+}
+
+function Write-WizardConfig {
+  # Merge-write. Best-effort: falha silenciosa nao bloqueia o arranque.
+  param([hashtable]$Config)
+  try {
+    $cfgPath = Get-WizardConfigPath
+    if (-not $cfgPath) { return $false }
+    $cfgDir = Split-Path -Parent $cfgPath
+    if (-not (Test-Path $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
+    $Config["savedAt"] = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss")
+    $Config["savedBy"] = "SPharmMT-Admin-Wizard"
+    ([PSCustomObject]$Config) | ConvertTo-Json | Set-Content -Path $cfgPath -Encoding UTF8
+    return $true
+  } catch { return $false }
+}
+
+function Get-SavedSaas {
+  # @{ BaseUrl; Token } do config persistido. Campos null se ausentes.
+  $c = Read-WizardConfig
+  return @{
+    BaseUrl = $(if ($c.ContainsKey("saasBaseUrl")) { [string]$c["saasBaseUrl"] } else { $null })
+    Token   = $(if ($c.ContainsKey("adminToken")) { [string]$c["adminToken"] } else { $null })
+  }
+}
+
+function Save-Saas {
+  param([string]$BaseUrl, [string]$Token)
+  $c = Read-WizardConfig
+  $c["saasBaseUrl"] = $BaseUrl
+  $c["adminToken"] = $Token
+  return (Write-WizardConfig -Config $c)
+}
+
 # Wrap o bootstrap inteiro num try/catch que mostra dialogo de
 # diagnostico em vez de stacktrace bruto se algo falhar.
 $ScriptDir = $null
@@ -204,74 +247,69 @@ try {
     throw "Get-AppRoot nao conseguiu resolver qualquer caminho. Diagnostico: $($rootInfo.Diagnostics)"
   }
 
-  # Override via env var (util para shortcuts ou execucao a partir de
-  # locais nao-standard). Tem precedencia sobre a deteccao automatica.
-  if ($env:SPHARMMT_REPO_ROOT -and (Test-Path $env:SPHARMMT_REPO_ROOT)) {
-    if (Test-Path (Join-Path $env:SPHARMMT_REPO_ROOT "package.json")) {
-      $RepoRoot = $env:SPHARMMT_REPO_ROOT
-      $BootstrapDiagnostics += " | override SPHARMMT_REPO_ROOT=$RepoRoot"
-    }
+  # ─── Resolver repo root (so para detectar DEV) ────────────────────
+  # Em STANDALONE nao precisamos do repo. So o procuramos para perceber
+  # se estamos a correr a partir da arvore de desenvolvimento. SEM dialogo.
+  if ($env:SPHARMMT_REPO_ROOT -and (Test-Path $env:SPHARMMT_REPO_ROOT) `
+      -and (Test-Path (Join-Path $env:SPHARMMT_REPO_ROOT "package.json"))) {
+    $RepoRoot = $env:SPHARMMT_REPO_ROOT
+    $BootstrapDiagnostics += " | SPHARMMT_REPO_ROOT=$RepoRoot"
   }
-
-  # 2. Auto-deteccao: subir directorios a partir da pasta do exe/script.
-  #    Resolve o caso comum (.exe dentro da arvore do repo).
   if (-not $RepoRoot) {
     $RepoRoot = Find-RepoRoot -StartDir $ScriptDir -MaxLevels 6
-    if ($RepoRoot) { $BootstrapDiagnostics += " | autodetect (walk-up) RepoRoot=$RepoRoot" }
+    if ($RepoRoot) { $BootstrapDiagnostics += " | walk-up RepoRoot=$RepoRoot" }
   }
 
-  # 3. Escolha persistida de uma execucao anterior
-  #    (%APPDATA%\SPharmMT\AdminWizard\config.json). Permite arrancar a
-  #    .exe a partir de qualquer pasta sem voltar a perguntar, desde que o
-  #    caminho guardado ainda seja valido.
-  if (-not $RepoRoot) {
-    $saved = Get-SavedRepoRoot
-    if ($saved) {
-      $RepoRoot = $saved
-      $BootstrapDiagnostics += " | config persistida RepoRoot=$RepoRoot"
-    }
-  }
+  # ─── Determinar o modo ────────────────────────────────────────────
+  # STANDALONE (default no .exe distribuido): cliente HTTPS contra o SaaS.
+  #   Nao exige repo/package.json/Node/npm/Git. NUNCA pede a pasta do repo.
+  # DEV: shell-out aos scripts npm. So quando ha repo (ou forcado).
+  # Override explicito: SPHARMMT_WIZARD_MODE = dev | standalone.
+  $forcedMode = ""
+  if ($env:SPHARMMT_WIZARD_MODE) { $forcedMode = ([string]$env:SPHARMMT_WIZARD_MODE).Trim().ToLower() }
+  if ($forcedMode -eq "dev") { $script:Mode = "DEV" }
+  elseif ($forcedMode -eq "standalone") { $script:Mode = "STANDALONE" }
+  elseif ($RepoRoot) { $script:Mode = "DEV" }
+  else { $script:Mode = "STANDALONE" }
+  $BootstrapDiagnostics += " | mode=$($script:Mode)"
 
-  # 4. Nada automatico resolveu: pedir ao utilizador para escolher a pasta
-  #    do repo (dialogo grafico). Valida package.json e persiste a escolha
-  #    para as proximas execucoes.
-  if (-not $RepoRoot) {
+  # DEV forcado sem repo: oferecer escolher a pasta (util ao developer).
+  # Se recusar, cai para STANDALONE em vez de abortar. Em STANDALONE puro
+  # este ramo nunca corre -> nenhum dialogo de repo aparece.
+  if ($script:Mode -eq "DEV" -and -not $RepoRoot) {
     $chosen = Select-RepoRootDialog -InitialDir $ScriptDir
     if ($chosen) {
       $RepoRoot = $chosen
       Save-RepoRoot -Path $RepoRoot
-      $BootstrapDiagnostics += " | escolha manual RepoRoot=$RepoRoot (persistida)"
+      $BootstrapDiagnostics += " | escolha manual RepoRoot=$RepoRoot"
+    } else {
+      $script:Mode = "STANDALONE"
+      $BootstrapDiagnostics += " | DEV sem repo -> fallback STANDALONE"
     }
   }
 
-  # 5. Falha final: erro claro com botao para escolher a pasta (nao apenas
-  #    abortar). [Repetir] reabre o dialogo de escolha; [Cancelar] termina.
-  if (-not $RepoRoot) {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-    $msg = "Nao consegui localizar o repo SPharm.MT (package.json).`r`n`r`n"
-    $msg += "Procurei a partir de:`r`n  $ScriptDir`r`n`r`n"
-    $msg += "Opcoes:`r`n"
-    $msg += "  1. Clicar [Repetir] e escolher a pasta do repo (a que contem package.json)`r`n"
-    $msg += "  2. Definir a variavel de ambiente SPHARMMT_REPO_ROOT=<caminho do repo>`r`n     antes de arrancar o wizard`r`n`r`n"
-    $msg += "Diagnostico: $BootstrapDiagnostics"
-    $resp = [System.Windows.Forms.MessageBox]::Show($msg, "SPharm.MT Admin Wizard -- repo nao encontrado", "RetryCancel", "Error")
-    if ($resp -eq [System.Windows.Forms.DialogResult]::Retry) {
-      $chosen = Select-RepoRootDialog -InitialDir $ScriptDir
-      if ($chosen) {
-        $RepoRoot = $chosen
-        Save-RepoRoot -Path $RepoRoot
-        $BootstrapDiagnostics += " | escolha manual (retry) RepoRoot=$RepoRoot (persistida)"
-      }
-    }
+  # ─── Directorios de dados + logs (mode-aware) ─────────────────────
+  if ($script:Mode -eq "DEV") {
+    Set-Location $RepoRoot
+    $script:DataDir = $RepoRoot
+    $LogDir = Join-Path $RepoRoot "logs"
+    $script:OutputDir = Join-Path $RepoRoot "dist-agent\clients"
+  } else {
+    # STANDALONE: tudo sob %APPDATA%\SPharmMT\AdminWizard (sem repo).
+    $cfgPath = Get-WizardConfigPath
+    $base = if ($cfgPath) { Split-Path -Parent $cfgPath } else { Join-Path $env:TEMP "SPharmMT-AdminWizard" }
+    $script:DataDir = $base
+    $LogDir = Join-Path $base "logs"
+    $script:OutputDir = Join-Path $base "output"
+    $saas = Get-SavedSaas
+    $script:SaasBaseUrl = $saas.BaseUrl
+    $script:AdminToken = $saas.Token
+    # TLS 1.2 para Invoke-RestMethod/Invoke-WebRequest contra SaaS moderno.
+    try {
+      [Net.ServicePointManager]::SecurityProtocol =
+        [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    } catch {}
   }
-
-  if (-not $RepoRoot) {
-    exit 2
-  }
-
-  Set-Location $RepoRoot
-
-  $LogDir = Join-Path $RepoRoot "logs"
   if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
   $LogFile = Join-Path $LogDir ("admin-wizard-" + (Get-Date -Format "yyyy-MM-dd") + ".log")
 } catch {
@@ -721,11 +759,23 @@ $titleLbl.Size = New-Object System.Drawing.Size(260, 26)
 $header.Controls.Add($titleLbl)
 
 $repoLbl = New-Object System.Windows.Forms.Label
-$repoLbl.Text = "repo: $RepoRoot"
+$repoLbl.Text = $(if ($script:Mode -eq "DEV") {
+    "modo: DEV (npm) | repo: $RepoRoot"
+  } else {
+    "modo: STANDALONE (HTTPS) | SaaS: " + $(if ($script:SaasBaseUrl) { $script:SaasBaseUrl } else { "(nao configurado)" })
+  })
 $repoLbl.Location = New-Object System.Drawing.Point(12, 34)
-$repoLbl.Size = New-Object System.Drawing.Size(700, 16)
+$repoLbl.Size = New-Object System.Drawing.Size(680, 16)
 $repoLbl.ForeColor = [System.Drawing.Color]::Gray
 $header.Controls.Add($repoLbl)
+
+function Sync-HeaderLabel {
+  $repoLbl.Text = $(if ($script:Mode -eq "DEV") {
+      "modo: DEV (npm) | repo: $RepoRoot"
+    } else {
+      "modo: STANDALONE (HTTPS) | SaaS: " + $(if ($script:SaasBaseUrl) { $script:SaasBaseUrl } else { "(nao configurado)" })
+    })
+}
 
 $tenantLbl = New-Object System.Windows.Forms.Label
 $tenantLbl.Text = "Tenant activo:"
@@ -1116,6 +1166,8 @@ function Set-AllButtonsEnabled {
   foreach ($b in @($aBtn, $bAddBtn, $bListBtn, $cAddBtn, $dPkgBtn, $eStatusBtn, $ePrecheckBtn, $refreshBtn)) {
     $b.Enabled = $Enabled
   }
+  # Criar tenant nao existe em STANDALONE (provisioning fica em dev/trusted).
+  if ($script:Mode -eq "STANDALONE") { $aBtn.Enabled = $false }
 }
 
 function Set-Status {
@@ -1130,6 +1182,34 @@ function Refresh-Tenants {
   Set-Status "A carregar tenants..." ([System.Drawing.Color]::DarkBlue)
   Set-AllButtonsEnabled $false
   try {
+    if ($script:Mode -eq "STANDALONE") {
+      if (-not (Ensure-SaasConfigured)) {
+        Set-Status "SaaS nao configurado." ([System.Drawing.Color]::DarkRed)
+        return
+      }
+      $r = Invoke-AdminApi -Method GET -Path "/api/admin/v1/tenants" -Label "tenants"
+      if (-not $r.Success) {
+        $em = if ($r.Error) { $r.Error } else { "status=$($r.StatusCode)" }
+        Set-Status ("Falhou a carregar tenants: $em") ([System.Drawing.Color]::DarkRed)
+        $ask = [System.Windows.Forms.MessageBox]::Show(
+          ("Falhou a ligar ao SaaS:`r`n  $em`r`n`r`nReconfigurar endpoint/token?"),
+          "SaaS -- erro de ligacao", "YesNo", "Warning")
+        if ($ask -eq [System.Windows.Forms.DialogResult]::Yes) {
+          if (Show-SaasConfigDialog -InitialUrl $script:SaasBaseUrl -InitialToken $script:AdminToken) {
+            $r = Invoke-AdminApi -Method GET -Path "/api/admin/v1/tenants" -Label "tenants-retry"
+          }
+        }
+        if (-not $r.Success) { return }
+      }
+      $tenantCb.Items.Clear()
+      $arr = @()
+      if ($r.Json -and $r.Json.tenants) { $arr = @($r.Json.tenants) }
+      foreach ($t in $arr) { if ($t -and $t.slug) { [void]$tenantCb.Items.Add([string]$t.slug) } }
+      if ($tenantCb.Items.Count -gt 0) { $tenantCb.SelectedIndex = 0 }
+      Sync-TenantLabels
+      Set-Status ("$($tenantCb.Items.Count) tenant(s) carregados.")
+      return
+    }
     if (-not $script:NpmCommand) {
       Set-Status "npm nao encontrado no PATH" ([System.Drawing.Color]::DarkRed)
       [System.Windows.Forms.MessageBox]::Show(
@@ -1242,9 +1322,316 @@ function Run-NpmInTab {
   return $r
 }
 
+# --- STANDALONE (HTTPS) transport ---------------------------------
+# Em STANDALONE o wizard nao corre npm: fala HTTPS com os endpoints
+# /api/admin/v1/* do SaaS. PowerShell faz HTTPS nativamente, logo o PC
+# de instalacao nao precisa de repo/Node/npm/Git.
+
+function Invoke-AdminApi {
+  # Devolve pscustomobject @{ Success; StatusCode; Json; Error; ElapsedMs }.
+  # Nunca lanca.
+  param(
+    [string]$Method = "GET",
+    [Parameter(Mandatory)][string]$Path,
+    $Body = $null,
+    [string]$Label = "(api)",
+    [int]$TimeoutSec = 180
+  )
+  $res = [pscustomobject]@{ Success = $false; StatusCode = 0; Json = $null; Error = $null; ElapsedMs = 0L }
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  if (-not $script:SaasBaseUrl -or -not $script:AdminToken) {
+    $res.Error = "SaaS endpoint/token nao configurados"
+    return $res
+  }
+  $uri = ($script:SaasBaseUrl.TrimEnd('/')) + $Path
+  $headers = @{ Authorization = "Bearer $($script:AdminToken)" }
+  Write-WizardLog "[$Label] API $Method $uri"
+  try {
+    $params = @{
+      Method          = $Method
+      Uri             = $uri
+      Headers         = $headers
+      TimeoutSec      = $TimeoutSec
+      UseBasicParsing = $true
+    }
+    if ($null -ne $Body) {
+      $params["Body"] = ($Body | ConvertTo-Json -Depth 8)
+      $params["ContentType"] = "application/json"
+    }
+    $resp = Invoke-RestMethod @params
+    $res.Json = $resp
+    $res.StatusCode = 200
+    $res.Success = $true
+  } catch {
+    $res.Error = $_.Exception.Message
+    try {
+      $httpResp = $_.Exception.Response
+      if ($httpResp) { try { $res.StatusCode = [int]$httpResp.StatusCode } catch {} }
+    } catch {}
+    # Corpo do erro: no PS 5.1 o Invoke-RestMethod ja consumiu o stream e
+    # guarda o body em $_.ErrorDetails.Message. Fallback: ler o stream.
+    $bodyText = $null
+    try { if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $bodyText = [string]$_.ErrorDetails.Message } } catch {}
+    if (-not $bodyText) {
+      try {
+        $httpResp = $_.Exception.Response
+        if ($httpResp) {
+          $stream = $httpResp.GetResponseStream()
+          $reader = New-Object System.IO.StreamReader($stream)
+          $bodyText = $reader.ReadToEnd()
+          $reader.Close()
+        }
+      } catch {}
+    }
+    if ($bodyText) {
+      try {
+        $parsed = $bodyText | ConvertFrom-Json
+        $res.Json = $parsed
+        if ($parsed.message) { $res.Error = [string]$parsed.message }
+      } catch {}
+    }
+    Write-WizardLog ("[$Label] API ERROR status=$($res.StatusCode): $($res.Error)") "ERROR"
+  }
+  $sw.Stop(); $res.ElapsedMs = $sw.ElapsedMilliseconds
+  Write-WizardLog ("[$Label] API DONE status={0} ok={1} {2}ms" -f $res.StatusCode, $res.Success, $res.ElapsedMs)
+  return $res
+}
+
+function Run-ApiInTab {
+  # Wrapper UI para Invoke-AdminApi (analogo a Run-NpmInTab). Devolve $r.
+  param(
+    [string]$Method = "GET",
+    [Parameter(Mandatory)][string]$Path,
+    $Body = $null,
+    [System.Windows.Forms.RichTextBox]$Box,
+    [string]$Label
+  )
+  Set-Status "A correr: $Label" ([System.Drawing.Color]::DarkBlue)
+  Set-AllButtonsEnabled $false
+  Append-Output $Box ">>> $Label" ([System.Drawing.Color]::Cyan)
+  Append-Output $Box ("    $Method $Path") ([System.Drawing.Color]::DarkGray)
+  $r = $null
+  try {
+    $r = Invoke-AdminApi -Method $Method -Path $Path -Body $Body -Label $Label
+  } catch {
+    Write-WizardLog ("[$Label] Run-ApiInTab threw: " + $_.Exception.Message) "ERROR"
+  } finally {
+    Set-AllButtonsEnabled $true
+  }
+  if ($null -eq $r) {
+    Set-Status "Erro -- ver log." ([System.Drawing.Color]::DarkRed)
+    return $null
+  }
+  if ($r.Success) {
+    Append-Output $Box ("<<< OK ({0}ms)" -f $r.ElapsedMs) ([System.Drawing.Color]::LightGreen)
+    Set-Status ("OK ({0}ms)." -f $r.ElapsedMs) ([System.Drawing.Color]::DarkGreen)
+  } else {
+    $msg = if ($r.Error) { $r.Error } else { "status=$($r.StatusCode)" }
+    Append-Output $Box ("<<< FALHOU ($msg)") ([System.Drawing.Color]::IndianRed)
+    Set-Status ("Falhou ($msg) -- ver log.") ([System.Drawing.Color]::DarkRed)
+  }
+  return $r
+}
+
+function Show-SaasConfigDialog {
+  # Pede endpoint SaaS + admin token. Testa via /ping antes de guardar.
+  # Em sucesso actualiza $script:SaasBaseUrl/$script:AdminToken + persiste.
+  # Devolve $true se configurado e validado.
+  param([string]$InitialUrl, [string]$InitialToken)
+  $dlg = New-Object System.Windows.Forms.Form
+  $dlg.Text = "SPharm.MT Admin Wizard -- ligacao ao SaaS"
+  $dlg.Size = New-Object System.Drawing.Size(620, 280)
+  $dlg.StartPosition = "CenterParent"
+  $dlg.FormBorderStyle = "FixedDialog"
+  $dlg.MinimizeBox = $false
+  $dlg.MaximizeBox = $false
+
+  $info = New-Object System.Windows.Forms.Label
+  $info.Text = "Configura o endpoint do SaaS e o admin token. O wizard testa a ligacao antes de guardar. Token: ADMIN_API_TOKENS definido no servidor."
+  $info.Location = New-Object System.Drawing.Point(12, 12)
+  $info.Size = New-Object System.Drawing.Size(580, 44)
+  $dlg.Controls.Add($info)
+
+  $lblU = New-Object System.Windows.Forms.Label
+  $lblU.Text = "SaaS endpoint:"
+  $lblU.Location = New-Object System.Drawing.Point(12, 66)
+  $lblU.Size = New-Object System.Drawing.Size(110, 22)
+  $dlg.Controls.Add($lblU)
+  $txtU = New-Object System.Windows.Forms.TextBox
+  $txtU.Location = New-Object System.Drawing.Point(125, 64)
+  $txtU.Size = New-Object System.Drawing.Size(465, 24)
+  $txtU.Text = $(if ($InitialUrl) { $InitialUrl } else { "https://app.spharmmt.app" })
+  $dlg.Controls.Add($txtU)
+
+  $lblT = New-Object System.Windows.Forms.Label
+  $lblT.Text = "Admin token:"
+  $lblT.Location = New-Object System.Drawing.Point(12, 100)
+  $lblT.Size = New-Object System.Drawing.Size(110, 22)
+  $dlg.Controls.Add($lblT)
+  $txtT = New-Object System.Windows.Forms.TextBox
+  $txtT.Location = New-Object System.Drawing.Point(125, 98)
+  $txtT.Size = New-Object System.Drawing.Size(465, 24)
+  $txtT.UseSystemPasswordChar = $true
+  $txtT.Text = $(if ($InitialToken) { $InitialToken } else { "" })
+  $dlg.Controls.Add($txtT)
+
+  $statusDlg = New-Object System.Windows.Forms.Label
+  $statusDlg.Text = ""
+  $statusDlg.Location = New-Object System.Drawing.Point(12, 134)
+  $statusDlg.Size = New-Object System.Drawing.Size(580, 40)
+  $dlg.Controls.Add($statusDlg)
+
+  $btnTest = New-Object System.Windows.Forms.Button
+  $btnTest.Text = "Testar e guardar"
+  $btnTest.Location = New-Object System.Drawing.Point(360, 200)
+  $btnTest.Size = New-Object System.Drawing.Size(130, 28)
+  $dlg.Controls.Add($btnTest)
+  $btnTest.Add_Click({
+    $u = $txtU.Text.Trim()
+    $tk = $txtT.Text.Trim()
+    if (-not $u -or $u -notmatch '^https?://') {
+      $statusDlg.Text = "Endpoint invalido (https://...)."
+      $statusDlg.ForeColor = [System.Drawing.Color]::DarkRed
+      return
+    }
+    if (-not $tk) {
+      $statusDlg.Text = "Token em falta."
+      $statusDlg.ForeColor = [System.Drawing.Color]::DarkRed
+      return
+    }
+    $statusDlg.Text = "A testar ligacao..."
+    $statusDlg.ForeColor = [System.Drawing.Color]::DarkBlue
+    $dlg.Refresh()
+    $prevUrl = $script:SaasBaseUrl; $prevTok = $script:AdminToken
+    $script:SaasBaseUrl = $u
+    $script:AdminToken = $tk
+    $ping = Invoke-AdminApi -Method GET -Path "/api/admin/v1/ping" -Label "ping" -TimeoutSec 30
+    if ($ping.Success) {
+      Save-Saas -BaseUrl $u -Token $tk | Out-Null
+      $dlg.DialogResult = "OK"
+      $dlg.Close()
+    } else {
+      # Restaurar valores anteriores: nao deixar credenciais invalidas "activas".
+      $script:SaasBaseUrl = $prevUrl; $script:AdminToken = $prevTok
+      $msg = if ($ping.Error) { $ping.Error } else { "status=$($ping.StatusCode)" }
+      $statusDlg.Text = "Falhou: $msg"
+      $statusDlg.ForeColor = [System.Drawing.Color]::DarkRed
+    }
+  })
+
+  $btnCancel = New-Object System.Windows.Forms.Button
+  $btnCancel.Text = "Cancelar"
+  $btnCancel.Location = New-Object System.Drawing.Point(500, 200)
+  $btnCancel.Size = New-Object System.Drawing.Size(90, 28)
+  $btnCancel.DialogResult = "Cancel"
+  $dlg.CancelButton = $btnCancel
+  $dlg.Controls.Add($btnCancel)
+
+  $result = $dlg.ShowDialog()
+  $dlg.Dispose()
+  $okSaved = ($result -eq "OK")
+  if ($okSaved) { Sync-HeaderLabel }
+  return $okSaved
+}
+
+function Ensure-SaasConfigured {
+  # Garante endpoint+token validos. Abre o dialogo se preciso.
+  if ($script:SaasBaseUrl -and $script:AdminToken) { return $true }
+  return (Show-SaasConfigDialog -InitialUrl $script:SaasBaseUrl -InitialToken $script:AdminToken)
+}
+
+function New-AgentZipLocal {
+  # Monta o Agent ZIP final localmente: descarrega o template base (object
+  # storage), injecta agent.config.json e zipa para $script:OutputDir.
+  # Devolve o caminho do .zip ou $null.
+  param(
+    $Config,
+    [string]$BaseUrl,
+    [string]$SuggestedName,
+    [System.Windows.Forms.RichTextBox]$Box
+  )
+  if (-not $BaseUrl) {
+    Append-Output $Box "[X] Servidor nao devolveu baseAgentUrl (AGENT_BASE_ZIP_URL nao configurado no SaaS)." ([System.Drawing.Color]::IndianRed)
+    return $null
+  }
+  if (-not (Test-Path $script:OutputDir)) { New-Item -ItemType Directory -Path $script:OutputDir -Force | Out-Null }
+  $work = Join-Path $env:TEMP ("spharmmt-agent-" + [guid]::NewGuid().ToString('N'))
+  $baseZip = "$work.zip"
+  $stage = Join-Path $work "pkg"
+  try {
+    Append-Output $Box "  v Descarregar template base do agente..." ([System.Drawing.Color]::Gainsboro)
+    Invoke-WebRequest -Uri $BaseUrl -OutFile $baseZip -UseBasicParsing -TimeoutSec 600
+    Append-Output $Box "  v Extrair template..." ([System.Drawing.Color]::Gainsboro)
+    New-Item -ItemType Directory -Path $stage -Force | Out-Null
+    Expand-Archive -Path $baseZip -DestinationPath $stage -Force
+    # Se o zip tiver uma unica pasta de topo, usar essa como raiz do agente.
+    $top = @(Get-ChildItem -Path $stage)
+    $agentRoot = $stage
+    if ($top.Count -eq 1 -and $top[0].PSIsContainer) { $agentRoot = $top[0].FullName }
+    $cfgPath = Join-Path $agentRoot "agent.config.json"
+    ($Config | ConvertTo-Json -Depth 8) | Set-Content -Path $cfgPath -Encoding UTF8
+    Append-Output $Box "  v Escrever agent.config.json" ([System.Drawing.Color]::Gainsboro)
+    $zipOut = Join-Path $script:OutputDir ("$SuggestedName.zip")
+    if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
+    Append-Output $Box "  v Zipar pacote final..." ([System.Drawing.Color]::Gainsboro)
+    Compress-Archive -Path (Join-Path $agentRoot "*") -DestinationPath $zipOut -Force
+    return $zipOut
+  } catch {
+    Append-Output $Box ("[X] Falha a montar o ZIP: " + $_.Exception.Message) ([System.Drawing.Color]::IndianRed)
+    Write-WizardLog ("[agent-zip] " + $_.Exception.Message + " | " + $_.ScriptStackTrace) "ERROR"
+    return $null
+  } finally {
+    try { if (Test-Path $baseZip) { Remove-Item $baseZip -Force -ErrorAction SilentlyContinue } } catch {}
+    try { if (Test-Path $work) { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
+  }
+}
+
+function Render-StatusJson {
+  param($J, [System.Windows.Forms.RichTextBox]$Box)
+  if (-not $J) { return }
+  $cp = $J.controlPlane
+  Append-Output $Box ("Tenant: " + $J.slug + "  estado=" + $cp.estado) ([System.Drawing.Color]::Cyan)
+  Append-Output $Box ("  nome       : " + $cp.nome) ([System.Drawing.Color]::Gainsboro)
+  Append-Output $Box ("  DB         : " + $cp.dbName + "@" + $cp.dbHost) ([System.Drawing.Color]::Gainsboro)
+  Append-Output $Box ("  ingest key : " + $(if ($cp.ingestKeyIssued) { "emitida" } else { "(nao emitida)" })) ([System.Drawing.Color]::Gainsboro)
+  $db = $J.tenantDb
+  if (-not $db) { Append-Output $Box "  (tenant nao ACTIVE -- sem dados de BD)" ([System.Drawing.Color]::Khaki); return }
+  if (-not $db.reachable) { Append-Output $Box ("  BD inacessivel: " + $db.error) ([System.Drawing.Color]::IndianRed); return }
+  Append-Output $Box ("  migrations : " + $db.migrationsTotal + " (ultima: " + $db.lastMigration + ")") ([System.Drawing.Color]::Gainsboro)
+  Append-Output $Box ("  farmacias  : " + $db.farmaciasAtivas + " ATIVO / " + $db.farmaciasTotal + " total") ([System.Drawing.Color]::Gainsboro)
+  foreach ($f in @($db.farmacias)) { Append-Output $Box ("     - " + $f.nome + " [" + $f.estado + "]") ([System.Drawing.Color]::DarkGray) }
+  Append-Output $Box ("  VendaMensal: " + $db.vendaMensalRows + " rows (ultimo mes: " + $db.vendaMensalLastMonth + ")") ([System.Drawing.Color]::Gainsboro)
+  Append-Output $Box ("  staging    : UNKNOWN=" + $db.stagingUnknowns + " orphans=" + $db.stagingOperationalOrphans) ([System.Drawing.Color]::Gainsboro)
+}
+
+function Render-PrecheckJson {
+  param($J, [System.Windows.Forms.RichTextBox]$Box)
+  if (-not $J) { return }
+  foreach ($c in @($J.checks)) {
+    $g = switch ($c.status) { "ok" { "[v]" } "warn" { "[!]" } default { "[X]" } }
+    $color = switch ($c.status) {
+      "ok" { [System.Drawing.Color]::LightGreen }
+      "warn" { [System.Drawing.Color]::Khaki }
+      default { [System.Drawing.Color]::IndianRed }
+    }
+    $line = "  $g " + $c.label
+    if ($c.detail) { $line += " -- " + $c.detail }
+    Append-Output $Box $line $color
+  }
+  if ($J.summary) {
+    Append-Output $Box ("Resumo: " + $J.summary.oks + " ok, " + $J.summary.warns + " warn, " + $J.summary.fails + " fail  ->  " + $J.status) ([System.Drawing.Color]::Gainsboro)
+  }
+}
+
 # A. Criar tenant
 $aBtn.Add_Click({
   try {
+  if ($script:Mode -eq "STANDALONE") {
+    [System.Windows.Forms.MessageBox]::Show(
+      "Criar tenant nao esta disponivel em modo STANDALONE.`r`n`r`nO provisionamento de um tenant novo (BD + migrations + Neon) corre apenas no ambiente de desenvolvimento/trusted. As restantes tabs (farmacias, utilizadores, agent ZIP, status, precheck) funcionam normalmente.",
+      "Criar tenant -- so em DEV", "OK", "Information") | Out-Null
+    return
+  }
   $slug = $aSlug.Text.Trim()
   $nome = $aNome.Text.Trim()
   $email = $aEmail.Text.Trim()
@@ -1345,6 +1732,19 @@ $bAddBtn.Add_Click({
     Append-Output $bOut "Abortado." ([System.Drawing.Color]::Yellow)
     return
   }
+  if ($script:Mode -eq "STANDALONE") {
+    $reqBody = @{ nome = $nome }
+    if ($bCodigo.Text.Trim()) { $reqBody["codigo"] = $bCodigo.Text.Trim() }
+    if ($bMorada.Text.Trim()) { $reqBody["morada"] = $bMorada.Text.Trim() }
+    if ($bContacto.Text.Trim()) { $reqBody["contacto"] = $bContacto.Text.Trim() }
+    $r = Run-ApiInTab -Method POST -Path "/api/admin/v1/tenants/$t/farmacias" -Body $reqBody -Box $bOut -Label "add-farmacia $t / $nome"
+    if ($r -and $r.Success) {
+      Append-Output $bOut ("  v farmacia criada: " + $r.Json.created.nome) ([System.Drawing.Color]::LightGreen)
+      if ($r.Json.farmacias) { Append-Output $bOut ("  farmacias no tenant: " + @($r.Json.farmacias).Count) ([System.Drawing.Color]::Gainsboro) }
+      $bNome.Text = ""; $bCodigo.Text = ""; $bMorada.Text = ""; $bContacto.Text = ""
+    }
+    return
+  }
   $r = Run-NpmInTab -Script "tenancy:add-farmacia" -CmdArgs $cmdArgs -Box $bOut -Label "add-farmacia $t / $nome"
   if ($r -and $r.Success) {
     $bNome.Text = ""; $bCodigo.Text = ""; $bMorada.Text = ""; $bContacto.Text = ""
@@ -1356,6 +1756,11 @@ $bListBtn.Add_Click({
   try {
     $t = Get-SelectedTenant
     if (-not $t) { return }
+    if ($script:Mode -eq "STANDALONE") {
+      $r = Run-ApiInTab -Method GET -Path "/api/admin/v1/tenants/$t/status" -Box $bOut -Label "status $t"
+      if ($r -and $r.Success) { Render-StatusJson -J $r.Json -Box $bOut }
+      return
+    }
     Run-NpmInTab -Script "tenancy:status" -CmdArgs @("--tenant=$t") -Box $bOut -Label "status $t" | Out-Null
   } catch { Show-HandlerError $_ "tab-B-list" }
 })
@@ -1386,6 +1791,20 @@ $cAddBtn.Add_Click({
   if ($userPwd) { $body += "`r`nPassword: fornecida manualmente." } else { $body += "`r`nPassword: vai ser GERADA (mostrada uma vez)." }
   if (-not (Show-Confirm -Title "Confirmar criacao de utilizador" -Body $body)) {
     Append-Output $cOut "Abortado." ([System.Drawing.Color]::Yellow)
+    return
+  }
+  if ($script:Mode -eq "STANDALONE") {
+    $reqBody = @{ email = $email; nome = $nome; role = $role }
+    if ($farm) { $reqBody["farmacia"] = $farm }
+    if ($userPwd) { $reqBody["password"] = $userPwd }
+    $r = Run-ApiInTab -Method POST -Path "/api/admin/v1/tenants/$t/users" -Body $reqBody -Box $cOut -Label "add-user $t / $email"
+    if ($r -and $r.Success) {
+      if ($r.Json.passwordGenerated -and $r.Json.password) {
+        $fields = [ordered]@{ "Email" = $email; "Password" = [string]$r.Json.password }
+        Show-Secrets -Title "Password gerada" -Header "Utilizador '$email' criado.`r`nCopia a password AGORA -- nao e recuperavel.`r`nO utilizador vai ser obrigado a trocar no primeiro login." -Fields $fields
+      }
+      $cEmail.Text = ""; $cNome.Text = ""; $cFarmacia.Text = ""; $cPassword.Text = ""
+    }
     return
   }
   $r = Run-NpmInTab -Script "tenancy:add-user" -CmdArgs $cmdArgs -Box $cOut -Label "add-user $t / $email"
@@ -1454,6 +1873,30 @@ $dPkgBtn.Add_Click({
   if ($dSqlDatabase.Text.Trim()) { $cmdArgs += "--sql-database=$($dSqlDatabase.Text.Trim())" }
   if ($dSqlUser.Text.Trim()) { $cmdArgs += "--sql-user=$($dSqlUser.Text.Trim())" }
 
+  if ($script:Mode -eq "STANDALONE") {
+    $reqBody = @{ farmacia = $farm; endpoint = $endpoint }
+    if ($health) { $reqBody["healthcheckUrl"] = $health }
+    if ($rotate) { $reqBody["rotate"] = $true } else { $reqBody["key"] = $key }
+    if ($dSqlHost.Text.Trim()) { $reqBody["sqlHost"] = $dSqlHost.Text.Trim() }
+    if ($dSqlPort.Text.Trim()) { $reqBody["sqlPort"] = $dSqlPort.Text.Trim() }
+    if ($dSqlDatabase.Text.Trim()) { $reqBody["sqlDatabase"] = $dSqlDatabase.Text.Trim() }
+    if ($dSqlUser.Text.Trim()) { $reqBody["sqlUser"] = $dSqlUser.Text.Trim() }
+    $r = Run-ApiInTab -Method POST -Path "/api/admin/v1/tenants/$t/agent-package" -Body $reqBody -Box $dOut -Label "agent-package $t / $farm"
+    if ($r -and $r.Success) {
+      $j = $r.Json
+      $zip = New-AgentZipLocal -Config $j.config -BaseUrl $j.baseAgentUrl -SuggestedName $j.suggestedName -Box $dOut
+      if ($zip) {
+        Append-Output $dOut ("  v ZIP criado: " + $zip) ([System.Drawing.Color]::LightGreen)
+        if ($j.sqlPasswordIsPlaceholder) { Append-Output $dOut "  ! password SQL placeholder -- operador completa no PC da farmacia" ([System.Drawing.Color]::Khaki) }
+      }
+      if ($j.keyAction -ne "provided" -and $j.key) {
+        $fields = [ordered]@{ "Nova ingest key" = [string]$j.key }
+        $hdr = if ($j.keyAction -eq "rotated") { "Tenant '$t': key ROTACIONADA (a anterior foi INVALIDADA)." } else { "Tenant '$t': nova ingest key emitida." }
+        Show-Secrets -Title "Ingest key" -Header ($hdr + "`r`nGuarda esta key -- nao e recuperavel.") -Fields $fields
+      }
+    }
+    return
+  }
   $r = Run-NpmInTab -Script "admin:package-agent" -CmdArgs $cmdArgs -Box $dOut -Label "package-agent $t / $farm"
   if ($r -and $r.Success -and $rotate) {
     # Extrair a nova key do stdout
@@ -1470,7 +1913,7 @@ $dPkgBtn.Add_Click({
 
 $dOpenBtn.Add_Click({
   try {
-    $p = Join-Path $RepoRoot "dist-agent\clients"
+    $p = $script:OutputDir
     if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
     Start-Process explorer.exe -ArgumentList $p
   } catch { Show-HandlerError $_ "tab-D-open-folder" }
@@ -1481,6 +1924,11 @@ $eStatusBtn.Add_Click({
   try {
     $t = Get-SelectedTenant
     if (-not $t) { return }
+    if ($script:Mode -eq "STANDALONE") {
+      $r = Run-ApiInTab -Method GET -Path "/api/admin/v1/tenants/$t/status" -Box $eOut -Label "status $t"
+      if ($r -and $r.Success) { Render-StatusJson -J $r.Json -Box $eOut }
+      return
+    }
     Run-NpmInTab -Script "tenancy:status" -CmdArgs @("--tenant=$t") -Box $eOut -Label "status $t" | Out-Null
   } catch { Show-HandlerError $_ "tab-E-status" }
 })
@@ -1488,12 +1936,17 @@ $ePrecheckBtn.Add_Click({
   try {
     $t = Get-SelectedTenant
     if (-not $t) { return }
+    if ($script:Mode -eq "STANDALONE") {
+      $r = Run-ApiInTab -Method GET -Path "/api/admin/v1/tenants/$t/precheck" -Box $eOut -Label "precheck $t"
+      if ($r -and $r.Success) { Render-PrecheckJson -J $r.Json -Box $eOut }
+      return
+    }
     Run-NpmInTab -Script "pilot:precheck" -CmdArgs @("--tenant=$t") -Box $eOut -Label "pilot:precheck $t" | Out-Null
   } catch { Show-HandlerError $_ "tab-E-precheck" }
 })
 $eZipsBtn.Add_Click({
   try {
-    $p = Join-Path $RepoRoot "dist-agent\clients"
+    $p = $script:OutputDir
     if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
     Start-Process explorer.exe -ArgumentList $p
   } catch { Show-HandlerError $_ "tab-E-open-zips" }
@@ -1506,7 +1959,7 @@ $eLogsBtn.Add_Click({
 
 # --- Arrancar ----------------------------------------------------
 
-Write-WizardLog "wizard arrancado (repo=$RepoRoot)"
+Write-WizardLog "wizard arrancado (mode=$($script:Mode) repo=$RepoRoot saas=$($script:SaasBaseUrl))"
 Write-WizardLog "bootstrap: $BootstrapDiagnostics"
 Write-WizardLog ("runtime: PSVersion={0} PSEdition={1} HostName={2} CompiledExe={3}" -f `
   $PSVersionTable.PSVersion, `
@@ -1514,9 +1967,33 @@ Write-WizardLog ("runtime: PSVersion={0} PSEdition={1} HostName={2} CompiledExe=
   $Host.Name, `
   [bool]([Environment]::GetCommandLineArgs()[0] -match '\.exe$'))
 Write-WizardLog ("npm: " + $(if ($script:NpmCommand) { $script:NpmCommand } else { "NOT FOUND in PATH" }))
+
+# Em STANDALONE: Criar tenant nao se aplica (provisioning fica em dev).
+if ($script:Mode -eq "STANDALONE") {
+  $aBtn.Enabled = $false
+  try {
+    Append-Output $aOut "Criar tenant nao esta disponivel em modo STANDALONE." ([System.Drawing.Color]::Khaki)
+    Append-Output $aOut "O provisionamento de tenants novos corre no ambiente dev/trusted." ([System.Drawing.Color]::Gainsboro)
+    Append-Output $aOut "Usa as tabs B-E (farmacias, utilizadores, agent ZIP, status, precheck)." ([System.Drawing.Color]::Gainsboro)
+  } catch {}
+}
+
 $form.Add_Shown({
   $form.Activate()
-  try { Refresh-Tenants } catch { Set-Status "Erro a carregar tenants: $($_.Exception.Message)" ([System.Drawing.Color]::DarkRed) }
+  try {
+    if ($script:Mode -eq "STANDALONE") {
+      # Garantir endpoint+token antes de carregar tenants. Se o utilizador
+      # cancelar, o wizard abre na mesma (pode configurar depois via Refresh).
+      if (-not (Ensure-SaasConfigured)) {
+        Set-Status "SaaS nao configurado -- usa Refresh apos configurar." ([System.Drawing.Color]::DarkRed)
+        return
+      }
+      Sync-HeaderLabel
+    }
+    Refresh-Tenants
+  } catch {
+    Set-Status "Erro a carregar tenants: $($_.Exception.Message)" ([System.Drawing.Color]::DarkRed)
+  }
 })
 $form.Add_FormClosing({ Write-WizardLog "wizard terminado" })
 

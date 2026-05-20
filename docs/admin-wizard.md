@@ -43,33 +43,102 @@ Este `.bat` usa o `.exe` em `dist-admin/` se existir; senão arranca o
 C:\projetos\spharm-mt\dist-admin\SPharmMT-Admin-Wizard.exe
 ```
 
-## Resolução do repo root (arrancar de qualquer pasta)
+## Dois modos: STANDALONE e DEV
 
-O `.exe` é replicável: pode ser copiado para qualquer pasta (ex.:
-`C:\SPHARMMT\Criar_BD`) e arranca na mesma. No arranque, resolve a raiz
-do repo (a pasta com `package.json`) por esta ordem:
+O wizard funciona em dois modos, detectados automaticamente no arranque:
 
-1. **Variável `SPHARMMT_REPO_ROOT`** — se definida e contiver
-   `package.json`, tem precedência sobre tudo.
-2. **Auto-detecção** — sobe directórios a partir da pasta do `.exe`/`.ps1`
-   (até 6 níveis). Resolve o caso do `.exe` dentro da árvore do repo.
-3. **Escolha persistida** — caminho guardado numa execução anterior em
-   `%APPDATA%\SPharmMT\AdminWizard\config.json`, se ainda for válido.
-4. **Diálogo de escolha** — se nada automático resolver, abre um selector
-   de pasta. Valida que a pasta contém `package.json` e **guarda** a
-   escolha no `config.json` para as próximas execuções.
-5. **Erro com retry** — se o utilizador cancelar, mostra erro claro com
-   botão **[Repetir]** para reabrir o selector (não falha em silêncio).
+| | **STANDALONE** | **DEV** |
+|---|---|---|
+| Para quem | PC de instalação/cliente | developer |
+| Como faz o trabalho | HTTPS → endpoints admin do SaaS | shell-out `npm run ...` |
+| Precisa de repo/Node/npm/Git | **NÃO** | sim |
+| Criar tenant | não (fica em dev) | sim |
+| Default | `.exe` fora do repo | `.exe`/`.ps1` dentro do repo |
 
-Para forçar uma raiz fixa (ex.: shortcut, ambiente partilhado), definir
-a variável de ambiente antes de arrancar:
+**Detecção de modo** (no arranque):
+1. `SPHARMMT_WIZARD_MODE = dev | standalone` força o modo (override).
+2. Senão, se encontrar um repo (`SPHARMMT_REPO_ROOT` ou `package.json`
+   subindo da pasta do `.exe`) → **DEV**.
+3. Senão → **STANDALONE**.
+
+Em STANDALONE **nunca** aparece diálogo a pedir o repo/`package.json`.
+
+### STANDALONE — porque é replicável
+
+O `.exe` é um cliente HTTPS fino. Os segredos (BD control-plane, chave de
+encriptação, Neon) **ficam no servidor** — nunca no PC de instalação. O
+PowerShell faz HTTPS nativamente, por isso o PC só precisa do `.exe`.
+
+Operações suportadas em STANDALONE (via `/api/admin/v1/*`):
+- listar tenants, ver **status**, **precheck**
+- adicionar **farmácias**, criar **utilizadores**
+- gerar **Agent ZIP** (o servidor emite/rotaciona a ingest key e devolve
+  o `agent.config.json` + a URL do template base; o wizard descarrega o
+  base, injecta o config e zipa localmente)
+
+**Criar tenant não está em STANDALONE**: o provisionamento (BD novo +
+migrations + Neon) é pesado/privilegiado e corre apenas no ambiente
+dev/trusted.
+
+A 1.ª execução pede o **endpoint SaaS** + **admin token**; testa via
+`/api/admin/v1/ping` e guarda em
+`%APPDATA%\SPharmMT\AdminWizard\config.json`. Os ZIPs gerados e os logs
+ficam em `%APPDATA%\SPharmMT\AdminWizard\{output,logs}`.
+
+## Como distribuir para outro PC (STANDALONE)
+
+Pré-requisitos no **servidor** (Vercel) — variáveis de ambiente:
+
+| Variável | Para quê |
+|---|---|
+| `ADMIN_API_TOKENS` | tokens admin do wizard, separados por vírgula (rotação: adicionar novo, remover antigo). Gerar p.ex. com `openssl rand -hex 32`. |
+| `AGENT_BASE_ZIP_URL` | URL (object storage: Vercel Blob / S3 / estática) do ZIP **base** do agente. O wizard descarrega daqui para montar o ZIP por-farmácia. |
+| `SPHARMMT_PUBLIC_ENDPOINT` | (opcional) endpoint default do agente no `agent.config.json`. |
+
+Publicar o ZIP base do agente uma vez por build do agente:
+
+```powershell
+npm run agent:package      # gera dist-agent/SPharmMT-Agent/
+# zipar a pasta e enviar para o object storage; usar esse URL em AGENT_BASE_ZIP_URL
+```
+
+No **PC de instalação**:
+1. Copiar **apenas** a pasta `dist-admin/` para qualquer sítio (ex.:
+   `C:\SPHARMMT\`).
+2. Duplo-click em `SPharmMT-Admin-Wizard.exe`.
+3. Na 1.ª vez, introduzir o **endpoint SaaS** e o **admin token**. O
+   wizard testa e guarda. Pronto a usar.
+
+Não é preciso repo, Node, npm nem Git no PC. Para mudar de servidor/token
+mais tarde: clicar **Refresh** com credenciais inválidas → o wizard
+oferece reconfigurar (ou apagar o `config.json`).
+
+## Endpoints admin do SaaS (`/api/admin/v1/*`)
+
+Auth: `Authorization: Bearer <token de ADMIN_API_TOKENS>`.
+
+| Método | Rota | Operação |
+|---|---|---|
+| GET | `/ping` | teste de ligação/auth |
+| GET | `/tenants` | listar tenants |
+| GET | `/tenants/{slug}/status` | status do tenant |
+| GET | `/tenants/{slug}/precheck` | precheck go-live |
+| POST | `/tenants/{slug}/farmacias` | adicionar farmácia |
+| POST | `/tenants/{slug}/users` | criar utilizador |
+| POST | `/tenants/{slug}/agent-package` | emitir/rotar key + config do agente |
+
+A lógica reutiliza os mesmos libs privilegiados dos scripts CLI
+(`lib/control-plane`, `lib/admin/*`) — sem duplicar provisionamento.
+
+## Modo DEV (developer) — repo root
+
+Em DEV o wizard resolve a raiz do repo por: `SPHARMMT_REPO_ROOT` →
+auto-detecção (sobe da pasta do `.exe`/`.ps1`) → selector de pasta se
+forçado a DEV sem repo. Para forçar uma raiz fixa:
 
 ```powershell
 $env:SPHARMMT_REPO_ROOT = "C:\projetos\spharm-mt"
 ```
-
-Para repor a escolha persistida, apagar
-`%APPDATA%\SPharmMT\AdminWizard\config.json`.
 
 ## Como compilar o `.exe` (developer)
 
