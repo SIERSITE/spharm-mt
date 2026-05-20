@@ -114,6 +114,80 @@ function Find-RepoRoot {
   return $null
 }
 
+function Get-WizardConfigPath {
+  # Caminho da config persistente local:
+  #   %APPDATA%\SPharmMT\AdminWizard\config.json
+  # Devolve string ou $null (se nem APPDATA estiver disponivel).
+  $base = $env:APPDATA
+  if (-not $base) {
+    try { $base = [Environment]::GetFolderPath('ApplicationData') } catch {}
+  }
+  if (-not $base) { return $null }
+  return (Join-Path (Join-Path (Join-Path $base "SPharmMT") "AdminWizard") "config.json")
+}
+
+function Get-SavedRepoRoot {
+  # Le repoRoot guardado em config.json de uma execucao anterior.
+  # So devolve o caminho se ainda for valido (existe e contem package.json);
+  # caso contrario $null. Best-effort: nunca lanca.
+  try {
+    $cfgPath = Get-WizardConfigPath
+    if (-not $cfgPath -or -not (Test-Path $cfgPath)) { return $null }
+    $raw = Get-Content -Path $cfgPath -Raw -ErrorAction Stop
+    if (-not $raw) { return $null }
+    $cfg = $raw | ConvertFrom-Json -ErrorAction Stop
+    $saved = $cfg.repoRoot
+    if ($saved -and (Test-Path $saved) -and (Test-Path (Join-Path $saved "package.json"))) {
+      return $saved
+    }
+  } catch {}
+  return $null
+}
+
+function Save-RepoRoot {
+  # Persiste a escolha do utilizador em config.json para as proximas
+  # execucoes. Best-effort: se falhar (sem permissoes, disco cheio) nao
+  # bloqueia o arranque -- o caminho ja esta resolvido em memoria.
+  param([string]$Path)
+  try {
+    $cfgPath = Get-WizardConfigPath
+    if (-not $cfgPath) { return }
+    $cfgDir = Split-Path -Parent $cfgPath
+    if (-not (Test-Path $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
+    $obj = [PSCustomObject]@{
+      repoRoot = $Path
+      savedAt  = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss")
+      savedBy  = "SPharmMT-Admin-Wizard"
+    }
+    $obj | ConvertTo-Json | Set-Content -Path $cfgPath -Encoding UTF8
+  } catch {}
+}
+
+function Select-RepoRootDialog {
+  # Abre um FolderBrowserDialog para o utilizador escolher a pasta raiz do
+  # repo. Valida que contem package.json; se nao, oferece repetir. Devolve
+  # uma pasta valida ou $null (utilizador cancelou).
+  param([string]$InitialDir)
+  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+  while ($true) {
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = "Escolha a pasta raiz do repo SPharm.MT (a que contem package.json)"
+    $dlg.ShowNewFolderButton = $false
+    if ($InitialDir -and (Test-Path $InitialDir)) { $dlg.SelectedPath = $InitialDir }
+    $result = $dlg.ShowDialog()
+    if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
+    $chosen = $dlg.SelectedPath
+    if ($chosen -and (Test-Path (Join-Path $chosen "package.json"))) {
+      return $chosen
+    }
+    $retry = [System.Windows.Forms.MessageBox]::Show(
+      ("A pasta escolhida nao contem package.json:`r`n  {0}`r`n`r`nTentar de novo?" -f $chosen),
+      "SPharm.MT Admin Wizard -- pasta invalida",
+      "RetryCancel", "Warning")
+    if ($retry -ne [System.Windows.Forms.DialogResult]::Retry) { return $null }
+  }
+}
+
 # Wrap o bootstrap inteiro num try/catch que mostra dialogo de
 # diagnostico em vez de stacktrace bruto se algo falhar.
 $ScriptDir = $null
@@ -139,19 +213,59 @@ try {
     }
   }
 
+  # 2. Auto-deteccao: subir directorios a partir da pasta do exe/script.
+  #    Resolve o caso comum (.exe dentro da arvore do repo).
   if (-not $RepoRoot) {
     $RepoRoot = Find-RepoRoot -StartDir $ScriptDir -MaxLevels 6
+    if ($RepoRoot) { $BootstrapDiagnostics += " | autodetect (walk-up) RepoRoot=$RepoRoot" }
+  }
+
+  # 3. Escolha persistida de uma execucao anterior
+  #    (%APPDATA%\SPharmMT\AdminWizard\config.json). Permite arrancar a
+  #    .exe a partir de qualquer pasta sem voltar a perguntar, desde que o
+  #    caminho guardado ainda seja valido.
+  if (-not $RepoRoot) {
+    $saved = Get-SavedRepoRoot
+    if ($saved) {
+      $RepoRoot = $saved
+      $BootstrapDiagnostics += " | config persistida RepoRoot=$RepoRoot"
+    }
+  }
+
+  # 4. Nada automatico resolveu: pedir ao utilizador para escolher a pasta
+  #    do repo (dialogo grafico). Valida package.json e persiste a escolha
+  #    para as proximas execucoes.
+  if (-not $RepoRoot) {
+    $chosen = Select-RepoRootDialog -InitialDir $ScriptDir
+    if ($chosen) {
+      $RepoRoot = $chosen
+      Save-RepoRoot -Path $RepoRoot
+      $BootstrapDiagnostics += " | escolha manual RepoRoot=$RepoRoot (persistida)"
+    }
+  }
+
+  # 5. Falha final: erro claro com botao para escolher a pasta (nao apenas
+  #    abortar). [Repetir] reabre o dialogo de escolha; [Cancelar] termina.
+  if (-not $RepoRoot) {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    $msg = "Nao consegui localizar o repo SPharm.MT (package.json).`r`n`r`n"
+    $msg += "Procurei a partir de:`r`n  $ScriptDir`r`n`r`n"
+    $msg += "Opcoes:`r`n"
+    $msg += "  1. Clicar [Repetir] e escolher a pasta do repo (a que contem package.json)`r`n"
+    $msg += "  2. Definir a variavel de ambiente SPHARMMT_REPO_ROOT=<caminho do repo>`r`n     antes de arrancar o wizard`r`n`r`n"
+    $msg += "Diagnostico: $BootstrapDiagnostics"
+    $resp = [System.Windows.Forms.MessageBox]::Show($msg, "SPharm.MT Admin Wizard -- repo nao encontrado", "RetryCancel", "Error")
+    if ($resp -eq [System.Windows.Forms.DialogResult]::Retry) {
+      $chosen = Select-RepoRootDialog -InitialDir $ScriptDir
+      if ($chosen) {
+        $RepoRoot = $chosen
+        Save-RepoRoot -Path $RepoRoot
+        $BootstrapDiagnostics += " | escolha manual (retry) RepoRoot=$RepoRoot (persistida)"
+      }
+    }
   }
 
   if (-not $RepoRoot) {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-    $msg = "Nao consegui localizar o repo SPharm.MT (package.json) a partir de:`r`n  $ScriptDir`r`n`r`n"
-    $msg += "O wizard precisa de estar dentro da arvore do projecto.`r`n`r`n"
-    $msg += "Opcoes:`r`n"
-    $msg += "  1. Mover a .exe para dist-admin/ dentro do repo`r`n"
-    $msg += "  2. Definir variavel de ambiente SPHARMMT_REPO_ROOT=<caminho do repo>`r`n     antes de arrancar o wizard`r`n`r`n"
-    $msg += "Diagnostico: $BootstrapDiagnostics"
-    [System.Windows.Forms.MessageBox]::Show($msg, "SPharm.MT Admin Wizard -- repo nao encontrado", "OK", "Error") | Out-Null
     exit 2
   }
 

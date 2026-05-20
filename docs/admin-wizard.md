@@ -43,6 +43,34 @@ Este `.bat` usa o `.exe` em `dist-admin/` se existir; senão arranca o
 C:\projetos\spharm-mt\dist-admin\SPharmMT-Admin-Wizard.exe
 ```
 
+## Resolução do repo root (arrancar de qualquer pasta)
+
+O `.exe` é replicável: pode ser copiado para qualquer pasta (ex.:
+`C:\SPHARMMT\Criar_BD`) e arranca na mesma. No arranque, resolve a raiz
+do repo (a pasta com `package.json`) por esta ordem:
+
+1. **Variável `SPHARMMT_REPO_ROOT`** — se definida e contiver
+   `package.json`, tem precedência sobre tudo.
+2. **Auto-detecção** — sobe directórios a partir da pasta do `.exe`/`.ps1`
+   (até 6 níveis). Resolve o caso do `.exe` dentro da árvore do repo.
+3. **Escolha persistida** — caminho guardado numa execução anterior em
+   `%APPDATA%\SPharmMT\AdminWizard\config.json`, se ainda for válido.
+4. **Diálogo de escolha** — se nada automático resolver, abre um selector
+   de pasta. Valida que a pasta contém `package.json` e **guarda** a
+   escolha no `config.json` para as próximas execuções.
+5. **Erro com retry** — se o utilizador cancelar, mostra erro claro com
+   botão **[Repetir]** para reabrir o selector (não falha em silêncio).
+
+Para forçar uma raiz fixa (ex.: shortcut, ambiente partilhado), definir
+a variável de ambiente antes de arrancar:
+
+```powershell
+$env:SPHARMMT_REPO_ROOT = "C:\projetos\spharm-mt"
+```
+
+Para repor a escolha persistida, apagar
+`%APPDATA%\SPharmMT\AdminWizard\config.json`.
+
 ## Como compilar o `.exe` (developer)
 
 ```powershell
