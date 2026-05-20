@@ -43,7 +43,8 @@
     "agent:test-connection": "tsx agent/src/cli.ts test-connection",
     "agent:discover": "tsx agent/src/cli.ts discover",
     "agent:health": "tsx agent/src/cli.ts health",
-    "agent:package": "node agent/build.mjs"
+    "agent:package": "node agent/build.mjs",
+    "agent:publish-base": "tsx scripts/admin/upload-agent-base.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
@@ -70,6 +71,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vercel/blob": "^2.4.0",
     "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",

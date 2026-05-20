@@ -112,9 +112,30 @@ agent.cjs, wrappers .bat, `agent.config.example.json`) — **sem** dados de
 tenant/farmácia, sem `agent.config.json` real. É o único artefacto a
 publicar em storage por release.
 
+**Publicar em Vercel Blob** (storage oficial; sem o limite de 25 MB do
+GitHub Releases):
+
+```powershell
+# 1. criar/abrir um Blob store no Vercel e obter o token RW:
+#    Vercel → Storage → Blob → Connect/Create  →  `vercel env pull .env.local`
+#    (ou copiar BLOB_READ_WRITE_TOKEN=vercel_blob_rw_... para o .env)
+# 2. upload (auto-deteta dist-agent/spharmmt-agent-base-rev*.zip):
+npm run agent:publish-base
+```
+
+Upload directo Node → Blob (não passa por função serverless, sem limite
+de 4.5 MB; multipart). Imprime a **URL pública** final, do tipo:
+
+```
+https://<store-id>.public.blob.vercel-storage.com/agent-base/spharmmt-agent-base-rev26.zip
+```
+
+A URL é estável (mesmo nome → mesma URL; re-publicar a mesma rev
+sobrescreve).
+
 **Onde configurar `AGENT_BASE_ZIP_URL`:** Vercel → projeto SPharm.MT →
 **Settings → Environment Variables** → adicionar
-`AGENT_BASE_ZIP_URL = <url público do zip>` → **Redeploy**.
+`AGENT_BASE_ZIP_URL = <URL pública impressa acima>` → **Redeploy**.
 
 No **PC de instalação**:
 1. Copiar **apenas** a pasta `dist-admin/` para qualquer sítio (ex.:
