@@ -332,6 +332,11 @@ try {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+# ZIP via .NET (sem o modulo opcional Microsoft.PowerShell.Archive). Usado
+# pelo Agent ZIP standalone (New-AgentZipLocal). Best-effort aqui; a funcao
+# volta a tentar carregar antes de usar.
+Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
+Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 # --- Logging ------------------------------------------------------
@@ -1589,25 +1594,38 @@ function New-AgentZipLocal {
   $baseZip = "$work.zip"
   $stage = Join-Path $work "pkg"
   try {
+    # ZIP via .NET (System.IO.Compression.ZipFile) — NÃO depende do modulo
+    # opcional Microsoft.PowerShell.Archive (Expand-Archive/Compress-Archive
+    # falham com "module could not be loaded" em ambientes restritos/exe).
+    Add-Type -AssemblyName System.IO.Compression -ErrorAction SilentlyContinue
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
     Append-Output $Box "  v Descarregar template base do agente..." ([System.Drawing.Color]::Gainsboro)
     Invoke-WebRequest -Uri $BaseUrl -OutFile $baseZip -UseBasicParsing -TimeoutSec 600
-    Append-Output $Box "  v Extrair template..." ([System.Drawing.Color]::Gainsboro)
-    New-Item -ItemType Directory -Path $stage -Force | Out-Null
-    Expand-Archive -Path $baseZip -DestinationPath $stage -Force
+
+    Append-Output $Box "  v Extrair template (.NET ZipFile)..." ([System.Drawing.Color]::Gainsboro)
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($baseZip, $stage)
+
     # Se o zip tiver uma unica pasta de topo, usar essa como raiz do agente.
     $top = @(Get-ChildItem -Path $stage)
     $agentRoot = $stage
     if ($top.Count -eq 1 -and $top[0].PSIsContainer) { $agentRoot = $top[0].FullName }
+
     $cfgPath = Join-Path $agentRoot "agent.config.json"
     # UTF-8 SEM BOM: o agent (Node) faz JSON.parse e um BOM inicial parte-o.
-    # Set-Content -Encoding UTF8 (PS 5.1) escreveria COM BOM.
     $cfgJson = ($Config | ConvertTo-Json -Depth 8)
     [System.IO.File]::WriteAllText($cfgPath, $cfgJson, (New-Object System.Text.UTF8Encoding($false)))
     Append-Output $Box "  v Escrever agent.config.json (UTF-8)" ([System.Drawing.Color]::Gainsboro)
+
     $zipOut = Join-Path $script:OutputDir ("$SuggestedName.zip")
     if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
-    Append-Output $Box "  v Zipar pacote final..." ([System.Drawing.Color]::Gainsboro)
-    Compress-Archive -Path (Join-Path $agentRoot "*") -DestinationPath $zipOut -Force
+    Append-Output $Box "  v Zipar pacote final (.NET ZipFile)..." ([System.Drawing.Color]::Gainsboro)
+    # includeBaseDirectory=$false → conteudo de $agentRoot na RAIZ do zip
+    # (mesmo layout do template base; node.exe/agent.cjs no topo).
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+      $agentRoot, $zipOut,
+      [System.IO.Compression.CompressionLevel]::Optimal, $false)
     return $zipOut
   } catch {
     Append-Output $Box ("[X] Falha a montar o ZIP: " + $_.Exception.Message) ([System.Drawing.Color]::IndianRed)
