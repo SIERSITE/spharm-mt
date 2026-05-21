@@ -1,22 +1,37 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Middleware de resolução de tenant (Fase 1 do Commit 3).
+ * Middleware de resolução de tenant.
  *
  * Corre em Edge runtime — NÃO pode importar Prisma, control plane,
- * nem nada Node-only. Só trata de parsing de URL e Host, e escreve
+ * nem nada Node-only. Só trata de parsing de URL/Host/cookies e escreve
  * o header `x-tenant-slug` no pedido reencaminhado. A validação e
  * resolução do cliente DB acontecem mais tarde em lib/tenant-registry.ts.
  *
  * Estratégias de resolução (pela ordem):
- *   1. Query param ?__tenant=slug   (só em dev — override prático)
- *   2. Subdomain do Host             (prod + lvh.me + /etc/hosts)
+ *   1. Subdomain do Host             (CANÓNICO — prod + lvh.me + /etc/hosts)
+ *   2. Cookie `__tenant`             (fallback piloto — só se TENANT_FALLBACK_ENABLED)
+ *   3. Query param ?__tenant=slug    (fallback piloto se TENANT_FALLBACK_ENABLED;
+ *                                      senão só em dev, como override prático)
+ *
+ * Fallback piloto (sem wildcard DNS): quando `TENANT_FALLBACK_ENABLED=1`,
+ * o tenant pode ser escolhido por `?__tenant=<slug>` (bootstrap/switch) e
+ * fica PERSISTIDO num cookie httpOnly seguro, para que os requests
+ * seguintes (sem query) resolvam o mesmo tenant. O subdomínio mantém-se
+ * SEMPRE prioritário e canónico. Migração futura → ver docs/tenant-fallback.md.
+ *
+ * Segurança: o fallback muda apenas COMO se escolhe o tenant, não a auth.
+ * O login continua a validar credenciais na BD do tenant e a sessão fica
+ * vinculada ao slug (getSession compara com o tenant resolvido). Apontar
+ * ?__tenant a outro tenant só mostra o login desse tenant — sem
+ * credenciais válidas não há acesso, e a consola admin exige
+ * LEGACY_TENANT (logo o fallback não dá escalonamento de privilégios).
  *
  * Labels reservadas que NUNCA são tratadas como tenant:
  *   www, admin, api, spharmmt, localhost, 127
  *
  * Se nenhuma estratégia resolver, o header fica por escrever e o
- * getPrisma() cai no legacy fallback (BD de dev actual).
+ * getPrisma() cai no legacy fallback.
  */
 
 const RESERVED_LABELS = new Set([
@@ -30,39 +45,90 @@ const RESERVED_LABELS = new Set([
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/;
 
-function resolveSlug(req: NextRequest): string | null {
-  // 1. Query param override (dev only)
-  if (process.env.NODE_ENV !== "production") {
-    const qp = req.nextUrl.searchParams.get("__tenant");
-    if (qp && SLUG_REGEX.test(qp)) return qp;
-  }
+const TENANT_COOKIE = "__tenant";
+const TENANT_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
 
-  // 2. Subdomain
+function fallbackEnabled(): boolean {
+  return (
+    process.env.TENANT_FALLBACK_ENABLED === "1" ||
+    process.env.TENANT_FALLBACK_ENABLED === "true"
+  );
+}
+
+/** Valida + normaliza um slug candidato. Rejeita reservados e formato inválido. */
+function validSlug(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const s = value.toLowerCase();
+  if (RESERVED_LABELS.has(s)) return null;
+  if (!SLUG_REGEX.test(s)) return null;
+  return s;
+}
+
+/** 1. Subdomain do Host (canónico). */
+function subdomainSlug(req: NextRequest): string | null {
   const host = req.headers.get("host") ?? "";
-  // Strip porto (":3000") antes de partir por pontos
-  const hostname = host.split(":")[0].toLowerCase();
+  const hostname = host.split(":")[0].toLowerCase(); // strip porto
   const labels = hostname.split(".");
   if (labels.length < 2) return null; // "localhost" isolado
-  const first = labels[0];
-  if (RESERVED_LABELS.has(first)) return null;
-  if (!SLUG_REGEX.test(first)) return null;
-  return first;
+  return validSlug(labels[0]);
+}
+
+type Resolution = {
+  slug: string | null;
+  source: "subdomain" | "cookie" | "query" | "none";
+};
+
+function resolveSlug(req: NextRequest): Resolution {
+  // 1. Subdomain — sempre prioritário e canónico.
+  const sub = subdomainSlug(req);
+  if (sub) return { slug: sub, source: "subdomain" };
+
+  const allowFallback = fallbackEnabled();
+
+  // 2. Cookie (persistência do fallback piloto).
+  if (allowFallback) {
+    const ck = validSlug(req.cookies.get(TENANT_COOKIE)?.value);
+    if (ck) return { slug: ck, source: "cookie" };
+  }
+
+  // 3. Query param ?__tenant — fallback piloto (prod se enabled) OU
+  //    override de dev (comportamento existente preservado).
+  if (allowFallback || process.env.NODE_ENV !== "production") {
+    const qp = validSlug(req.nextUrl.searchParams.get("__tenant"));
+    if (qp) return { slug: qp, source: "query" };
+  }
+
+  return { slug: null, source: "none" };
 }
 
 export function middleware(req: NextRequest): NextResponse {
-  const slug = resolveSlug(req);
+  const { slug, source } = resolveSlug(req);
   if (!slug) {
     return NextResponse.next();
   }
 
-  // Reescreve os headers para injectar x-tenant-slug no pedido
-  // forwarded aos server components / route handlers.
+  // Injecta x-tenant-slug no pedido forwarded aos server components /
+  // route handlers (single source of truth: lib/tenant-context.ts lê este
+  // header).
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
 
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+
+  // Persistir no cookie quando o tenant veio do query param (bootstrap ou
+  // switch) e o fallback está activo. O subdomínio é canónico e NÃO
+  // escreve cookie. httpOnly + secure (prod): só o servidor lê.
+  if (source === "query" && fallbackEnabled()) {
+    res.cookies.set(TENANT_COOKIE, slug, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: TENANT_COOKIE_MAX_AGE,
+    });
+  }
+
+  return res;
 }
 
 /**
