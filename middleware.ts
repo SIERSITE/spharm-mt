@@ -28,7 +28,14 @@ import { NextResponse, type NextRequest } from "next/server";
  * LEGACY_TENANT (logo o fallback não dá escalonamento de privilégios).
  *
  * Labels reservadas que NUNCA são tratadas como tenant:
- *   www, admin, api, spharmmt, localhost, 127
+ *   www, admin, api, spharmmt, spharm-mt, localhost, 127
+ *
+ * CRÍTICO: o host de produção é `spharm-mt.vercel.app`, cujo PRIMEIRO
+ * label é `spharm-mt` (COM hífen). Sem o reservar, o subdomínio (que é
+ * prioritário) resolvia sempre slug="spharm-mt" → cache miss → legacy,
+ * curto-circuitando o fallback de query/cookie (o login do piloto nunca
+ * chegava a ser consultado). Reservá-lo faz o apex devolver null no
+ * subdomínio e deixa o fallback (?__tenant → cookie) entrar em acção.
  *
  * Se nenhuma estratégia resolver, o header fica por escrever e o
  * getPrisma() cai no legacy fallback.
@@ -39,6 +46,7 @@ const RESERVED_LABELS = new Set([
   "admin",
   "api",
   "spharmmt",
+  "spharm-mt", // host da própria plataforma (spharm-mt.vercel.app) — não é tenant
   "localhost",
   "127",
 ]);
