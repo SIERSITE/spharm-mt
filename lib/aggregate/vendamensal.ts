@@ -294,6 +294,13 @@ export async function writeAggregation(
     }));
     const ins = await tx.vendaMensal.createMany({ data });
     return { deleted: del.count, inserted: ins.count };
+  }, {
+    // DELETE scoped + createMany de milhares de rows numa transação
+    // interactiva excede o default de 5s sobre Neon (ex: ~4.4k rows/mês
+    // do grupo-silveira → ~9.5s). Elevar o timeout (e o maxWait de
+    // aquisição) evita P2028 sem partir a atomicidade DELETE+INSERT.
+    maxWait: 15_000,
+    timeout: 120_000,
   });
 }
 
