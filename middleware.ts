@@ -101,10 +101,38 @@ function resolveSlug(req: NextRequest): Resolution {
   return { slug: null, source: "none" };
 }
 
+/**
+ * Versão do middleware. A presença do header `x-tenant-mw` na resposta
+ * PROVA que este build (415b252+) está realmente no deployment activo.
+ */
+const MW_VERSION = "fallback-v1";
+
+/**
+ * Anexa headers de diagnóstico (NÃO-sensíveis) à resposta. Permitem
+ * confirmar via `curl -I` qual o elo da cadeia que falha SEM acesso live:
+ *   x-tenant-mw       → versão do middleware (deployment inclui o fallback?)
+ *   x-tenant-fallback → on|off (estado RUNTIME de TENANT_FALLBACK_ENABLED)
+ *   x-tenant-resolved → slug resolvido (ou "-")
+ *   x-tenant-source   → subdomain|cookie|query|none
+ * Nenhum valor é segredo: o slug já está no URL/Host; source/fallback são
+ * sinais operacionais. Remover quando o piloto estabilizar.
+ */
+function withDebug(
+  res: NextResponse,
+  slug: string | null,
+  source: Resolution["source"]
+): NextResponse {
+  res.headers.set("x-tenant-mw", MW_VERSION);
+  res.headers.set("x-tenant-fallback", fallbackEnabled() ? "on" : "off");
+  res.headers.set("x-tenant-resolved", slug ?? "-");
+  res.headers.set("x-tenant-source", source);
+  return res;
+}
+
 export function middleware(req: NextRequest): NextResponse {
   const { slug, source } = resolveSlug(req);
   if (!slug) {
-    return NextResponse.next();
+    return withDebug(NextResponse.next(), null, source);
   }
 
   // Injecta x-tenant-slug no pedido forwarded aos server components /
@@ -128,7 +156,7 @@ export function middleware(req: NextRequest): NextResponse {
     });
   }
 
-  return res;
+  return withDebug(res, slug, source);
 }
 
 /**
