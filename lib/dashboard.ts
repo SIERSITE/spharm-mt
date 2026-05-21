@@ -98,8 +98,10 @@ export type PerPharmacyData = {
   name: string;
   sales: number;
   salesPrev: number;
-  margin: number;
-  marginPrev: number;
+  /** % margem. null quando o custo não cobre o valor vendido o suficiente
+   *  para ser fiável (ver MARGIN_MIN_COST_COVERAGE) — a UI mostra "—". */
+  margin: number | null;
+  marginPrev: number | null;
   stoppedStockValue: number;
   stoppedStockCount: number;
   alerts: number;
@@ -178,6 +180,14 @@ function toNum(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+
+/**
+ * Fração mínima do valor vendido que tem de ter custo (pf.pmc/puc > 0)
+ * para a margem ser considerada fiável. Abaixo disto a margem é null
+ * (não se mostra uma % falsa). Conservador por defeito; baixar quando a
+ * cobertura de custo no catálogo melhorar.
+ */
+const MARGIN_MIN_COST_COVERAGE = 0.9;
 
 const MONTH_LABELS_PT = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -267,12 +277,13 @@ async function loadPerPharmacy(): Promise<{
     }),
 
     prisma.$queryRaw<
-      Array<{ farmaciaId: string; totalVendas: string; totalCusto: string }>
+      Array<{ farmaciaId: string; totalVendas: string; totalCusto: string; vendasComCusto: string }>
     >(Prisma.sql`
       SELECT
         vm."farmaciaId",
         SUM(vm."valorTotal")::text                                              AS "totalVendas",
-        SUM(vm."quantidade" * COALESCE(pf."pmc", pf."puc", 0))::text           AS "totalCusto"
+        SUM(vm."quantidade" * COALESCE(pf."pmc", pf."puc", 0))::text           AS "totalCusto",
+        (SUM(vm."valorTotal") FILTER (WHERE COALESCE(pf."pmc", pf."puc", 0) > 0))::text AS "vendasComCusto"
       FROM "VendaMensal" vm
       LEFT JOIN "ProdutoFarmacia" pf
         ON pf."produtoId" = vm."produtoId"
@@ -282,12 +293,13 @@ async function loadPerPharmacy(): Promise<{
     `),
 
     prisma.$queryRaw<
-      Array<{ farmaciaId: string; totalVendas: string; totalCusto: string }>
+      Array<{ farmaciaId: string; totalVendas: string; totalCusto: string; vendasComCusto: string }>
     >(Prisma.sql`
       SELECT
         vm."farmaciaId",
         SUM(vm."valorTotal")::text                                              AS "totalVendas",
-        SUM(vm."quantidade" * COALESCE(pf."pmc", pf."puc", 0))::text           AS "totalCusto"
+        SUM(vm."quantidade" * COALESCE(pf."pmc", pf."puc", 0))::text           AS "totalCusto",
+        (SUM(vm."valorTotal") FILTER (WHERE COALESCE(pf."pmc", pf."puc", 0) > 0))::text AS "vendasComCusto"
       FROM "VendaMensal" vm
       LEFT JOIN "ProdutoFarmacia" pf
         ON pf."produtoId" = vm."produtoId"
@@ -340,13 +352,13 @@ async function loadPerPharmacy(): Promise<{
   const margemAtualMap = new Map(
     margemAtual.map((m) => [
       m.farmaciaId,
-      { tv: toNum(m.totalVendas), tc: toNum(m.totalCusto) },
+      { tv: toNum(m.totalVendas), tc: toNum(m.totalCusto), vc: toNum(m.vendasComCusto) },
     ]),
   );
   const margemPrevMap = new Map(
     margemPrev.map((m) => [
       m.farmaciaId,
-      { tv: toNum(m.totalVendas), tc: toNum(m.totalCusto) },
+      { tv: toNum(m.totalVendas), tc: toNum(m.totalCusto), vc: toNum(m.vendasComCusto) },
     ]),
   );
   const stockParadoMap = new Map(
@@ -359,22 +371,31 @@ async function loadPerPharmacy(): Promise<{
     alertasMinRaw.map((a) => [a.farmaciaId, toNum(a.count)]),
   );
 
-  const calcMargem = (tv: number, tc: number): number =>
-    tv > 0 ? ((tv - tc) / tv) * 100 : 0;
+  // Margem só é fiável se o CUSTO cobrir a maior parte do valor vendido.
+  // O custo vem de pf.pmc/puc (COALESCE→0); produtos sem custo no catálogo
+  // entram com custo 0 e inflacionam a margem (ex: grupo-silveira tinha
+  // farmácias com ~22% do valor com custo → margem "85%" impossível).
+  // Quando a cobertura de custo < MARGIN_MIN_COST_COVERAGE devolvemos null
+  // (a UI mostra "—" / "Sem dados" em vez de uma margem falsa).
+  const calcMargem = (tv: number, tc: number, vc: number): number | null => {
+    if (tv <= 0) return null;
+    if (vc / tv < MARGIN_MIN_COST_COVERAGE) return null; // custo não fiável
+    return ((tv - tc) / tv) * 100;
+  };
 
   const perPharmacy: PerPharmacyData[] = farmacias.map((f) => {
     const sales = vendasAtualMap.get(f.id) ?? 0;
     const salesPrev = vendasPrevMap.get(f.id) ?? 0;
-    const ma = margemAtualMap.get(f.id) ?? { tv: 0, tc: 0 };
-    const mp = margemPrevMap.get(f.id) ?? { tv: 0, tc: 0 };
+    const ma = margemAtualMap.get(f.id) ?? { tv: 0, tc: 0, vc: 0 };
+    const mp = margemPrevMap.get(f.id) ?? { tv: 0, tc: 0, vc: 0 };
     const stopped = stockParadoMap.get(f.id) ?? { value: 0, count: 0 };
     return {
       id: f.id,
       name: f.nome,
       sales,
       salesPrev,
-      margin: calcMargem(ma.tv, ma.tc),
-      marginPrev: calcMargem(mp.tv, mp.tc),
+      margin: calcMargem(ma.tv, ma.tc, ma.vc),
+      marginPrev: calcMargem(mp.tv, mp.tc, mp.vc),
       stoppedStockValue: stopped.value,
       stoppedStockCount: Math.round(stopped.count),
       alerts: Math.round(alertasMinMap.get(f.id) ?? 0),

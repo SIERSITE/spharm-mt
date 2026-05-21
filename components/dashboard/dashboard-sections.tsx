@@ -725,7 +725,13 @@ export function PerPharmacyDetail({
                     {fmtEur(p.sales)}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
-                    {p.margin.toFixed(1)}%
+                    {p.margin === null ? (
+                      <span className="text-slate-400" title="Custo incompleto no catálogo — margem não fiável">
+                        —
+                      </span>
+                    ) : (
+                      `${p.margin.toFixed(1)}%`
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">
                     {fmtEur(p.stoppedStockValue)}
