@@ -132,8 +132,12 @@ async function main() {
     }
 
     console.log("Login:");
-    console.log(`  1. Abrir o SaaS no contexto do tenant "${tenant.slug}"`);
-    console.log(`     (subdomínio do tenant ou ?__tenant=${tenant.slug}, conforme o setup).`);
+    console.log(`  1. Abrir o SaaS NO SUBDOMÍNIO do tenant:`);
+    console.log(`       https://${tenant.slug}.<dominio-base>/login`);
+    console.log(`     O tenant é resolvido pelo SUBDOMÍNIO do Host (middleware.ts).`);
+    console.log(`     NÃO usar o URL base/app — resolve para a BD legacy e dá`);
+    console.log(`     "Credenciais inválidas" mesmo com a password correcta.`);
+    console.log(`     (?__tenant=${tenant.slug} só funciona em DEV, NODE_ENV!=production.)`);
     console.log(`  2. Email: ${updated.email}`);
     console.log(`  3. Password: a temporária acima.`);
     console.log(`  4. Será forçado a definir nova password (mustChangePassword=true).`);
