@@ -28,7 +28,7 @@
  */
 
 import { getPrisma } from "@/lib/prisma";
-import type { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 
 export type MovimentoTipo =
   | "VENDA"
@@ -84,7 +84,31 @@ export type MovimentosFilters = {
   to?: string;
   /** Se vazio/omitido, devolve todos os tipos. */
   tipos?: MovimentoTipo[];
+  /**
+   * Granularidade das vendas:
+   *   · "diaria" → agregado por dia a partir de IngestVendaLinhaRaw (vista
+   *      operacional recente; readonly sobre staging, NUNCA expõe o schema raw).
+   *   · "mensal" → VendaMensal (histórico longo).
+   * Se omitido, é auto-decidida pela janela (`from` nos últimos ~62 dias →
+   * "diaria"; senão "mensal"). As duas fontes NUNCA são misturadas na mesma
+   * vista, para não duplicar a mesma venda.
+   */
+  salesGranularity?: "diaria" | "mensal";
 };
+
+/** Janela máx. (dias) em que se serve a granularidade diária a partir do raw. */
+const DAILY_WINDOW_MAX_DAYS = 62;
+
+function decideGranularity(filters: MovimentosFilters): "diaria" | "mensal" {
+  if (filters.salesGranularity) return filters.salesGranularity;
+  if (filters.from) {
+    const fromMs = new Date(filters.from).getTime();
+    if (Number.isFinite(fromMs) && Date.now() - fromMs <= DAILY_WINDOW_MAX_DAYS * 86_400_000) {
+      return "diaria";
+    }
+  }
+  return "mensal";
+}
 
 function toF(v: unknown): number {
   const n = Number(v);
@@ -224,7 +248,7 @@ export async function getMovimentosProduto(
     ];
   }
 
-  const [vendas, compras, devolucoes, ajustes, linhasInventario, vendasMensais] = await Promise.all([
+  const [vendas, compras, devolucoes, ajustes, linhasInventario] = await Promise.all([
     prisma.venda.findMany({
       where: commonWhere,
       select: {
@@ -293,20 +317,54 @@ export async function getMovimentosProduto(
         },
       },
     }),
+  ]);
+
+  // Vendas: granularidade DIÁRIA (raw, janela recente) OU MENSAL
+  // (VendaMensal, histórico longo) — nunca as duas na mesma vista, para não
+  // duplicar a mesma venda. Auto-decidida pela janela.
+  const granularity = decideGranularity(filters);
+
+  type VendaMensalRow = {
+    id: string;
+    farmaciaId: string;
+    ano: number;
+    mes: number;
+    quantidade: unknown;
+  };
+  let vendasMensais: VendaMensalRow[] = [];
+  let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number }> = [];
+
+  if (granularity === "diaria") {
+    // Readonly sobre IngestVendaLinhaRaw, agregado por dia. Mesma convenção
+    // de sinal que a agregação VendaMensal (VENDA=+ABS, DEVOLUCAO=−ABS).
+    const fromD = filters.from ? new Date(filters.from) : new Date(Date.now() - 30 * 86_400_000);
+    const toD = filters.to ? new Date(filters.to) : new Date();
+    toD.setHours(23, 59, 59, 999);
+    vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number }>>(
+      Prisma.sql`
+        SELECT date_trunc('day', "dataVenda") AS dia, "farmaciaId",
+          SUM(CASE "tipoDocumentoClass"
+            WHEN 'VENDA'              THEN  ABS(COALESCE("quantidade", 0))
+            WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("quantidade", 0))
+            ELSE 0 END)::float AS qtd
+        FROM "IngestVendaLinhaRaw"
+        WHERE "produtoId" = ${produto.id}
+          AND "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
+          AND "dataVenda" >= ${fromD} AND "dataVenda" <= ${toD}
+          AND "farmaciaId" = ANY(${farmaciaIds})
+        GROUP BY 1, 2
+        ORDER BY 1 DESC
+      `,
+    );
+  } else {
     // Fonte sintética: vendas mensais agregadas. Uma linha por
     // (produto, farmácia, ano, mes). Não é transacional — é soma.
-    prisma.vendaMensal.findMany({
+    vendasMensais = await prisma.vendaMensal.findMany({
       where: vmWhere,
-      select: {
-        id: true,
-        farmaciaId: true,
-        ano: true,
-        mes: true,
-        quantidade: true,
-      },
+      select: { id: true, farmaciaId: true, ano: true, mes: true, quantidade: true },
       orderBy: [{ ano: "desc" }, { mes: "desc" }],
-    }),
-  ]);
+    });
+  }
 
   // 5. Normalizar tudo num único shape
   const rows: MovimentoRow[] = [];
@@ -449,6 +507,29 @@ export async function getMovimentosProduto(
       utilizador: null,
       observacao: "Total do mês — agregado, não venda-a-venda",
       agregado: true,
+    });
+  }
+
+  // Vendas diárias (raw agregado por dia) — vista operacional recente.
+  // net = vendas − devoluções do dia; net<0 (devoluções > vendas) → ENTRADA.
+  for (const d of vendasDiarias) {
+    const net = Math.round(toF(d.qtd));
+    if (net === 0) continue;
+    rows.push({
+      key: `vd:${d.farmaciaId}:${d.dia.toISOString().slice(0, 10)}`,
+      data: d.dia.toISOString(),
+      farmaciaId: d.farmaciaId,
+      farmacia: nomeById.get(d.farmaciaId) ?? "—",
+      tipo: "VENDA",
+      tipoLabel: "Venda (diária)",
+      direcao: net >= 0 ? "SAIDA" : "ENTRADA",
+      documento: null,
+      quantidade: Math.abs(net),
+      stockAntes: null,
+      stockDepois: null,
+      utilizador: null,
+      observacao: "Total do dia (vendas − devoluções)",
+      agregado: false,
     });
   }
 

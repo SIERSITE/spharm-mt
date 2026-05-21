@@ -17,6 +17,9 @@ type Props = {
   /** Carregado server-side no page open. A UI começa já com estes
    *  movimentos visíveis — o botão "Atualizar" só refresca em cima. */
   initialRows: MovimentoRow[];
+  /** Data "Desde" inicial (ISO yyyy-mm-dd) — alinha o input com a janela
+   *  por defeito (últimos 30 dias) com que a ficha foi carregada. */
+  defaultFrom?: string;
 };
 
 function formatDateTime(iso: string): string {
@@ -51,6 +54,7 @@ export function ExtratoMovimentos({
   farmacias,
   tiposDisponiveis,
   initialRows,
+  defaultFrom,
 }: Props) {
   // O extrato carrega imediatamente via server component — o user já
   // escolheu o artigo, não faz sentido pedir um "Gerar" inicial. O
@@ -60,7 +64,7 @@ export function ExtratoMovimentos({
   const [error, setError] = useState<string | null>(null);
 
   const [farmaciaIds, setFarmaciaIds] = useState<string[]>(farmacias.map((f) => f.id));
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState(defaultFrom ?? "");
   const [to, setTo] = useState("");
   const [tipos, setTipos] = useState<MovimentoTipo[]>([]);
 
@@ -98,8 +102,10 @@ export function ExtratoMovimentos({
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
             Entradas e saídas do artigo por farmácia, ordenado do mais recente para o mais antigo.
-            Linhas marcadas como <span className="font-semibold text-amber-700">mensal</span> são
-            totais mensais agregados, não movimentos venda-a-venda.
+            Por defeito mostra os últimos 30 dias, com totais <span className="font-semibold text-slate-700">diários</span> de
+            vendas. Recue a data <span className="font-semibold text-slate-700">Desde</span> para ver
+            histórico — acima de ~2 meses passa a totais{" "}
+            <span className="font-semibold text-amber-700">mensais</span> agregados (VendaMensal).
           </p>
         </div>
         <button
