@@ -305,6 +305,16 @@ export type AggregateOptions = {
   allowOrphans?: boolean;
   /** Quando true, ignora a safety check de valorBruto negativo. */
   allowNegativeTotals?: boolean;
+  /**
+   * Quando true, ignora o gate de `unknowns` em vez de abortar. As linhas
+   * UNKNOWN NUNCA entram na agregação (a query soma só VENDA/DEVOLUCAO e
+   * filtra `tipoDocumentoClass IN (...)`), por isso o gate é apenas uma
+   * salvaguarda que força caracterização. Bypass explícito + auditado:
+   * usar quando há um TipoDoc residual por caracterizar (ex: 27) que se
+   * quer deixar de fora sem bloquear os meses inteiros. Re-agregar após
+   * classificar é idempotente.
+   */
+  allowUnknowns?: boolean;
   /** Quando true, escreve em VendaMensal. False = preview-only. */
   write: boolean;
 };
@@ -318,11 +328,17 @@ export async function aggregateMonth(
   prisma: PrismaClient,
   opts: AggregateOptions
 ): Promise<AggregateOutcome> {
-  const { range, write, allowOrphans = false, allowNegativeTotals = false } = opts;
+  const {
+    range,
+    write,
+    allowOrphans = false,
+    allowNegativeTotals = false,
+    allowUnknowns = false,
+  } = opts;
 
   const preflight = await runPreflight(prisma, range);
 
-  if (preflight.unknowns > 0) {
+  if (preflight.unknowns > 0 && !allowUnknowns) {
     throw new AggregateAbortError(
       "unknowns_present",
       { unknowns: preflight.unknowns },

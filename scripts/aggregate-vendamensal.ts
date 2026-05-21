@@ -42,6 +42,7 @@ type Args = {
   dryRun: boolean;
   write: boolean;
   allowOrphans: boolean;
+  allowUnknowns: boolean;
 };
 
 function parseCmdArgs(): Args {
@@ -52,6 +53,7 @@ function parseCmdArgs(): Args {
       "dry-run": { type: "boolean", default: false },
       write: { type: "boolean", default: false },
       "allow-orphans": { type: "boolean", default: false },
+      "allow-unknowns": { type: "boolean", default: false },
     },
     strict: true,
   });
@@ -61,6 +63,7 @@ function parseCmdArgs(): Args {
     dryRun: values["dry-run"] ?? false,
     write: values.write ?? false,
     allowOrphans: values["allow-orphans"] ?? false,
+    allowUnknowns: values["allow-unknowns"] ?? false,
   };
 }
 
@@ -283,6 +286,7 @@ async function main() {
         range,
         write: mode === "write",
         allowOrphans: args.allowOrphans,
+        allowUnknowns: args.allowUnknowns,
       });
     } catch (err) {
       if (err instanceof AggregateAbortError) {
@@ -308,6 +312,9 @@ async function main() {
 
     await renderPreflight(prisma, range, outcome.preflight);
 
+    if (outcome.preflight.unknowns > 0 && args.allowUnknowns) {
+      console.log(`⚠ --allow-unknowns: ${outcome.preflight.unknowns} linhas UNKNOWN ficam FORA da agregação (não somadas). Caracterizar e re-agregar depois.`);
+    }
     if (outcome.preflight.nonStockServices > 0) {
       console.log(`ℹ ${outcome.preflight.nonStockServices} linhas non-stock services excluídas auto da agregação.`);
     }
