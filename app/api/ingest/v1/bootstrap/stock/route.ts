@@ -30,6 +30,11 @@ import {
   asDecimalOrNull,
   type BootstrapBatchResponse,
 } from "@/lib/ingest/bootstrap";
+import {
+  bulkUpsertProdutoFarmaciaStock,
+  dedupeByKey,
+  type ProdutoFarmaciaStockRow,
+} from "@/lib/ingest/bulk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,47 +153,80 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // products primeiro).
   const errors: BootstrapBatchResponse["errors"] = [];
   let upserted = 0;
+
+  // Resolver produtoId por agg; sem produto → skipped (não erro).
+  const stockRows: ProdutoFarmaciaStockRow[] = [];
   for (const agg of aggMap.values()) {
     const produtoId = produtoIdByExternal.get(agg.externalProductId);
     if (!produtoId) {
       skipped.push({
-        index: -1, // não corresponde a um único índice (foi agregado de N)
+        index: -1, // foi agregado de N linhas — sem índice único
         reason: "produto_not_found",
         externalId: agg.externalProductId,
       });
       continue;
     }
-    try {
-      const data: Prisma.ProdutoFarmaciaUncheckedUpdateInput = {
-        externalProductId: agg.externalProductId,
-        stockAtual: agg.stockAtual ?? undefined,
-        stockMinimo: agg.stockMinimo ?? undefined,
-        stockMaximo: agg.stockMaximo ?? undefined,
-        stockEncomenda: agg.stockEncomenda ?? undefined,
-        stockReserva: agg.stockReserva ?? undefined,
-      };
-      await ctx.prisma.produtoFarmacia.upsert({
-        where: { produtoId_farmaciaId: { produtoId, farmaciaId } },
-        create: {
-          produtoId,
-          farmaciaId,
-          externalProductId: agg.externalProductId,
-          stockAtual: agg.stockAtual ?? null,
-          stockMinimo: agg.stockMinimo ?? null,
-          stockMaximo: agg.stockMaximo ?? null,
-          stockEncomenda: agg.stockEncomenda ?? null,
-          stockReserva: agg.stockReserva ?? null,
-        },
-        update: data,
-      });
-      upserted++;
-    } catch (err) {
-      errors.push({
-        index: -1,
-        reason: "upsert_failed",
-        externalId: agg.externalProductId,
-        message: err instanceof Error ? err.message : String(err),
-      });
+    stockRows.push({
+      produtoId,
+      farmaciaId,
+      externalProductId: agg.externalProductId,
+      stockAtual: agg.stockAtual,
+      stockMinimo: agg.stockMinimo,
+      stockMaximo: agg.stockMaximo,
+      stockEncomenda: agg.stockEncomenda,
+      stockReserva: agg.stockReserva,
+    });
+  }
+  const stockDedup = dedupeByKey(stockRows, (r) => `${r.produtoId} ${r.farmaciaId}`);
+
+  // Bulk upsert num único INSERT ... ON CONFLICT (campos de stock, COALESCE
+  // preserva existentes). Fallback per-row se o bulk falhar.
+  try {
+    await bulkUpsertProdutoFarmaciaStock(ctx.prisma, stockDedup);
+    upserted = stockDedup.length;
+  } catch (bulkErr) {
+    console.warn(
+      `[bootstrap/stock] bulk_failed_fallback_per_row ${JSON.stringify({
+        tenant: ctx.tenant.slug,
+        farmaciaId,
+        rows: stockDedup.length,
+        message: (bulkErr instanceof Error ? bulkErr.message : String(bulkErr)).slice(0, 200),
+      })}`
+    );
+    upserted = 0;
+    for (const r of stockDedup) {
+      try {
+        const data: Prisma.ProdutoFarmaciaUncheckedUpdateInput = {
+          externalProductId: r.externalProductId,
+          stockAtual: r.stockAtual ?? undefined,
+          stockMinimo: r.stockMinimo ?? undefined,
+          stockMaximo: r.stockMaximo ?? undefined,
+          stockEncomenda: r.stockEncomenda ?? undefined,
+          stockReserva: r.stockReserva ?? undefined,
+        };
+        await ctx.prisma.produtoFarmacia.upsert({
+          where: { produtoId_farmaciaId: { produtoId: r.produtoId, farmaciaId } },
+          create: {
+            produtoId: r.produtoId,
+            farmaciaId,
+            externalProductId: r.externalProductId,
+            stockAtual: r.stockAtual ?? null,
+            stockMinimo: r.stockMinimo ?? null,
+            stockMaximo: r.stockMaximo ?? null,
+            stockEncomenda: r.stockEncomenda ?? null,
+            stockReserva: r.stockReserva ?? null,
+          },
+          update: data,
+        });
+        upserted++;
+      } catch (err) {
+        errors.push({
+          index: -1,
+          reason: "upsert_failed",
+          externalId: r.externalProductId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
 

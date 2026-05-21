@@ -47,6 +47,12 @@ import {
   asIsoDateOrNull,
   type BootstrapBatchResponse,
 } from "@/lib/ingest/bootstrap";
+import {
+  bulkUpsertProdutosByCnp,
+  bulkUpsertProdutoFarmaciaProducts,
+  dedupeByKey,
+  type ProdutoFarmaciaProductRow,
+} from "@/lib/ingest/bulk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,105 +112,160 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const errors: BootstrapBatchResponse["errors"] = [];
   let upserted = 0;
 
+  type Accepted = {
+    index: number;
+    cnp: number;
+    externalProductId: number | null;
+    designacao: string;
+    flagGenerico: boolean;
+    flagMnsrmNCompart: boolean;
+    pvp: number | null;
+    pmc: number | null;
+    puc: number | null;
+    dataUltimaVenda: Date | null;
+    dataUltimaCompra: Date | null;
+    flagRetirado: boolean;
+    fornecedorExternalId: number | null;
+    fornecedorOrigem: string | null;
+  };
+
+  // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
+  //    sem CNP o produto não entra no catálogo.
+  const accepted: Accepted[] = [];
   for (let i = 0; i < items.length; i++) {
     const raw = items[i] ?? ({} as ProductPayload);
     const externalProductId = asIntOrNull(raw.externalProductId);
     const cnp = asIntOrNull(raw.cnp);
     const designacao = asStringOrNull(raw.designacao);
-
-    // CNP é a chave canónica do catálogo (Produto.cnp @unique).
-    // Sem CNP, o produto não pode entrar na tabela Produto.
     if (cnp === null) {
-      skipped.push({
-        index: i,
-        reason: "missing_cnp",
-        externalId: externalProductId ?? undefined,
-      });
+      skipped.push({ index: i, reason: "missing_cnp", externalId: externalProductId ?? undefined });
       continue;
     }
     if (designacao === null) {
-      skipped.push({
-        index: i,
-        reason: "missing_designacao",
-        externalId: externalProductId ?? undefined,
-      });
+      skipped.push({ index: i, reason: "missing_designacao", externalId: externalProductId ?? undefined });
       continue;
     }
+    accepted.push({
+      index: i,
+      cnp,
+      externalProductId,
+      designacao,
+      flagGenerico: asBoolOrFalse(raw.generico),
+      flagMnsrmNCompart: asBoolOrFalse(raw.mnsrmNCompart),
+      pvp: asDecimalOrNull(raw.pvp),
+      pmc: asDecimalOrNull(raw.pmc),
+      puc: asDecimalOrNull(raw.puc),
+      dataUltimaVenda: asIsoDateOrNull(raw.dataUltimaVenda),
+      dataUltimaCompra: asIsoDateOrNull(raw.dataUltimaCompra),
+      flagRetirado: asBoolOrFalse(raw.retirado),
+      fornecedorExternalId: asIntOrNull(raw.fornecedorHabitualId),
+      fornecedorOrigem: asStringOrNull(raw.fornecedorHabitualNome),
+    });
+  }
 
-    const pvp = asDecimalOrNull(raw.pvp);
-    const pmc = asDecimalOrNull(raw.pmc);
-    const puc = asDecimalOrNull(raw.puc);
-    const dataUltimaVenda = asIsoDateOrNull(raw.dataUltimaVenda);
-    const dataUltimaCompra = asIsoDateOrNull(raw.dataUltimaCompra);
-    const flagRetirado = asBoolOrFalse(raw.retirado);
-    const flagGenerico = asBoolOrFalse(raw.generico);
-    const flagMnsrmNCompart = asBoolOrFalse(raw.mnsrmNCompart);
-    const fornecedorExternalId = asIntOrNull(raw.fornecedorHabitualId);
-    const fornecedorOrigem = asStringOrNull(raw.fornecedorHabitualNome);
+  // Dedupe por cnp (last wins) — evita o ON CONFLICT recusar a mesma
+  // chave duas vezes no bulk e iguala a semântica de upserts sequenciais.
+  const dedup = dedupeByKey(accepted, (a) => String(a.cnp));
 
-    try {
-      // 4.1 Upsert Produto por cnp. Additive — campos populados por
-      // outras fontes (dci, codigoATC, fabricanteId) NÃO são tocados.
-      const produto = await ctx.prisma.produto.upsert({
-        where: { cnp },
-        create: {
-          cnp,
-          externalProductId: externalProductId ?? null,
-          designacao,
-          flagGenerico,
-          flagMnsrmNCompart,
-          origemDados: "FARMACIA",
-        },
-        update: {
-          externalProductId: externalProductId ?? undefined,
-          designacao,
-          flagGenerico,
-          flagMnsrmNCompart,
-        },
+  // 2) Bulk: Produto por cnp (RETURNING id) → mapa cnp→id → ProdutoFarmacia.
+  //    Update aditivo: campos fortes do catálogo (dci, codigoATC, etc.) e
+  //    campos de stock NÃO são tocados. Fallback per-row se o bulk falhar.
+  try {
+    const cnpToId = await bulkUpsertProdutosByCnp(
+      ctx.prisma,
+      dedup.map((a) => ({
+        cnp: a.cnp,
+        externalProductId: a.externalProductId,
+        designacao: a.designacao,
+        flagGenerico: a.flagGenerico,
+        flagMnsrmNCompart: a.flagMnsrmNCompart,
+      }))
+    );
+    const pfRows: ProdutoFarmaciaProductRow[] = [];
+    for (const a of dedup) {
+      const produtoId = cnpToId.get(a.cnp);
+      if (!produtoId) continue;
+      pfRows.push({
+        produtoId,
+        farmaciaId,
+        externalProductId: a.externalProductId,
+        pvp: a.pvp,
+        pmc: a.pmc,
+        puc: a.puc,
+        dataUltimaVenda: a.dataUltimaVenda,
+        dataUltimaCompra: a.dataUltimaCompra,
+        flagRetirado: a.flagRetirado,
+        fornecedorExternalId: a.fornecedorExternalId,
+        fornecedorOrigem: a.fornecedorOrigem,
       });
-
-      // 4.2 Upsert ProdutoFarmacia (produtoId, farmaciaId). NÃO toca em
-      // stockAtual/Minimo/Maximo — esses vêm do endpoint /stock.
-      await ctx.prisma.produtoFarmacia.upsert({
-        where: {
-          produtoId_farmaciaId: {
+    }
+    await bulkUpsertProdutoFarmaciaProducts(ctx.prisma, pfRows);
+    upserted = dedup.length;
+  } catch (bulkErr) {
+    console.warn(
+      `[bootstrap/products] bulk_failed_fallback_per_row ${JSON.stringify({
+        tenant: ctx.tenant.slug,
+        farmaciaId,
+        rows: dedup.length,
+        message: (bulkErr instanceof Error ? bulkErr.message : String(bulkErr)).slice(0, 200),
+      })}`
+    );
+    upserted = 0;
+    for (const a of dedup) {
+      try {
+        const produto = await ctx.prisma.produto.upsert({
+          where: { cnp: a.cnp },
+          create: {
+            cnp: a.cnp,
+            externalProductId: a.externalProductId ?? null,
+            designacao: a.designacao,
+            flagGenerico: a.flagGenerico,
+            flagMnsrmNCompart: a.flagMnsrmNCompart,
+            origemDados: "FARMACIA",
+          },
+          update: {
+            externalProductId: a.externalProductId ?? undefined,
+            designacao: a.designacao,
+            flagGenerico: a.flagGenerico,
+            flagMnsrmNCompart: a.flagMnsrmNCompart,
+          },
+        });
+        await ctx.prisma.produtoFarmacia.upsert({
+          where: { produtoId_farmaciaId: { produtoId: produto.id, farmaciaId } },
+          create: {
             produtoId: produto.id,
             farmaciaId,
+            externalProductId: a.externalProductId ?? null,
+            pvp: a.pvp ?? null,
+            pmc: a.pmc ?? null,
+            puc: a.puc ?? null,
+            dataUltimaVenda: a.dataUltimaVenda,
+            dataUltimaCompra: a.dataUltimaCompra,
+            flagRetirado: a.flagRetirado,
+            fornecedorExternalId: a.fornecedorExternalId ?? null,
+            fornecedorOrigem: a.fornecedorOrigem ?? null,
           },
-        },
-        create: {
-          produtoId: produto.id,
-          farmaciaId,
-          externalProductId: externalProductId ?? null,
-          pvp: pvp ?? null,
-          pmc: pmc ?? null,
-          puc: puc ?? null,
-          dataUltimaVenda,
-          dataUltimaCompra,
-          flagRetirado,
-          fornecedorExternalId: fornecedorExternalId ?? null,
-          fornecedorOrigem: fornecedorOrigem ?? null,
-        },
-        update: {
-          externalProductId: externalProductId ?? undefined,
-          pvp: pvp ?? undefined,
-          pmc: pmc ?? undefined,
-          puc: puc ?? undefined,
-          dataUltimaVenda: dataUltimaVenda ?? undefined,
-          dataUltimaCompra: dataUltimaCompra ?? undefined,
-          flagRetirado,
-          fornecedorExternalId: fornecedorExternalId ?? undefined,
-          fornecedorOrigem: fornecedorOrigem ?? undefined,
-        },
-      });
-      upserted++;
-    } catch (err) {
-      errors.push({
-        index: i,
-        reason: "upsert_failed",
-        externalId: externalProductId ?? undefined,
-        message: err instanceof Error ? err.message : String(err),
-      });
+          update: {
+            externalProductId: a.externalProductId ?? undefined,
+            pvp: a.pvp ?? undefined,
+            pmc: a.pmc ?? undefined,
+            puc: a.puc ?? undefined,
+            dataUltimaVenda: a.dataUltimaVenda ?? undefined,
+            dataUltimaCompra: a.dataUltimaCompra ?? undefined,
+            flagRetirado: a.flagRetirado,
+            fornecedorExternalId: a.fornecedorExternalId ?? undefined,
+            fornecedorOrigem: a.fornecedorOrigem ?? undefined,
+          },
+        });
+        upserted++;
+      } catch (err) {
+        errors.push({
+          index: a.index,
+          reason: "upsert_failed",
+          externalId: a.externalProductId ?? undefined,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
 

@@ -105,3 +105,153 @@ export async function bulkUpsertSalesLines(
       "rawJson"            = EXCLUDED."rawJson"
   `;
 }
+
+// ─── Produtos (catálogo, chave canónica cnp) ─────────────────────────
+
+export type ProdutoRow = {
+  cnp: number;
+  externalProductId: number | null;
+  designacao: string;
+  flagGenerico: boolean;
+  flagMnsrmNCompart: boolean;
+};
+
+/**
+ * Bulk upsert de `Produto` por `cnp`. Update ADITIVO: só mexe em
+ * designacao + flags + externalProductId (COALESCE: não apaga o existente
+ * se vier null). NUNCA toca campos fortes do catálogo (dci, codigoATC,
+ * fabricanteId, estado, verificationStatus, etc.). Devolve mapa cnp→id
+ * (via RETURNING) para encadear o upsert de ProdutoFarmacia.
+ */
+export async function bulkUpsertProdutosByCnp(
+  db: DbClient,
+  rows: ProdutoRow[]
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (rows.length === 0) return map;
+  const values = rows.map(
+    (r) => Prisma.sql`(
+      ${randomUUID()}, ${r.cnp}, ${r.externalProductId}, ${r.designacao},
+      ${r.flagGenerico}, ${r.flagMnsrmNCompart}, 'FARMACIA'::"ProdutoOrigemDados", now()
+    )`
+  );
+  const ret = await db.$queryRaw<Array<{ id: string; cnp: number }>>`
+    INSERT INTO "Produto" (
+      "id", "cnp", "externalProductId", "designacao",
+      "flagGenerico", "flagMnsrmNCompart", "origemDados", "dataAtualizacao"
+    )
+    VALUES ${Prisma.join(values)}
+    ON CONFLICT ("cnp") DO UPDATE SET
+      "externalProductId" = COALESCE(EXCLUDED."externalProductId", "Produto"."externalProductId"),
+      "designacao"        = EXCLUDED."designacao",
+      "flagGenerico"      = EXCLUDED."flagGenerico",
+      "flagMnsrmNCompart" = EXCLUDED."flagMnsrmNCompart",
+      "dataAtualizacao"   = now()
+    RETURNING "id", "cnp"
+  `;
+  for (const r of ret) map.set(Number(r.cnp), r.id);
+  return map;
+}
+
+// ─── ProdutoFarmacia: campos de PRODUTO (endpoint /products) ─────────
+
+export type ProdutoFarmaciaProductRow = {
+  produtoId: string;
+  farmaciaId: string;
+  externalProductId: number | null;
+  pvp: number | null;
+  pmc: number | null;
+  puc: number | null;
+  dataUltimaVenda: Date | null;
+  dataUltimaCompra: Date | null;
+  flagRetirado: boolean;
+  fornecedorExternalId: number | null;
+  fornecedorOrigem: string | null;
+};
+
+/**
+ * Bulk upsert de `ProdutoFarmacia` por (produtoId, farmaciaId) — campos
+ * do endpoint /products. NÃO toca nos campos de stock (esses vêm de
+ * /stock). COALESCE preserva valores existentes quando o novo é null
+ * (igual ao `?? undefined` do upsert per-row). flagRetirado é
+ * incondicional (o ERP é a verdade no momento).
+ */
+export async function bulkUpsertProdutoFarmaciaProducts(
+  db: DbClient,
+  rows: ProdutoFarmaciaProductRow[]
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const values = rows.map(
+    (r) => Prisma.sql`(
+      ${randomUUID()}, ${r.produtoId}, ${r.farmaciaId}, ${r.externalProductId},
+      ${r.pvp}, ${r.pmc}, ${r.puc}, ${r.dataUltimaVenda}, ${r.dataUltimaCompra},
+      ${r.flagRetirado}, ${r.fornecedorExternalId}, ${r.fornecedorOrigem}, now()
+    )`
+  );
+  return db.$executeRaw`
+    INSERT INTO "ProdutoFarmacia" (
+      "id", "produtoId", "farmaciaId", "externalProductId",
+      "pvp", "pmc", "puc", "dataUltimaVenda", "dataUltimaCompra",
+      "flagRetirado", "fornecedorExternalId", "fornecedorOrigem", "dataAtualizacao"
+    )
+    VALUES ${Prisma.join(values)}
+    ON CONFLICT ("produtoId", "farmaciaId") DO UPDATE SET
+      "externalProductId"    = COALESCE(EXCLUDED."externalProductId", "ProdutoFarmacia"."externalProductId"),
+      "pvp"                  = COALESCE(EXCLUDED."pvp", "ProdutoFarmacia"."pvp"),
+      "pmc"                  = COALESCE(EXCLUDED."pmc", "ProdutoFarmacia"."pmc"),
+      "puc"                  = COALESCE(EXCLUDED."puc", "ProdutoFarmacia"."puc"),
+      "dataUltimaVenda"      = COALESCE(EXCLUDED."dataUltimaVenda", "ProdutoFarmacia"."dataUltimaVenda"),
+      "dataUltimaCompra"     = COALESCE(EXCLUDED."dataUltimaCompra", "ProdutoFarmacia"."dataUltimaCompra"),
+      "flagRetirado"         = EXCLUDED."flagRetirado",
+      "fornecedorExternalId" = COALESCE(EXCLUDED."fornecedorExternalId", "ProdutoFarmacia"."fornecedorExternalId"),
+      "fornecedorOrigem"     = COALESCE(EXCLUDED."fornecedorOrigem", "ProdutoFarmacia"."fornecedorOrigem"),
+      "dataAtualizacao"      = now()
+  `;
+}
+
+// ─── ProdutoFarmacia: campos de STOCK (endpoint /stock) ──────────────
+
+export type ProdutoFarmaciaStockRow = {
+  produtoId: string;
+  farmaciaId: string;
+  externalProductId: number;
+  stockAtual: number | null;
+  stockMinimo: number | null;
+  stockMaximo: number | null;
+  stockEncomenda: number | null;
+  stockReserva: number | null;
+};
+
+/**
+ * Bulk upsert de `ProdutoFarmacia` por (produtoId, farmaciaId) — campos
+ * de STOCK. NÃO toca em pvp/datas/fornecedor (esses vêm de /products).
+ * COALESCE preserva stock existente quando o novo é null (additive, igual
+ * ao `?? undefined` per-row).
+ */
+export async function bulkUpsertProdutoFarmaciaStock(
+  db: DbClient,
+  rows: ProdutoFarmaciaStockRow[]
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const values = rows.map(
+    (r) => Prisma.sql`(
+      ${randomUUID()}, ${r.produtoId}, ${r.farmaciaId}, ${r.externalProductId},
+      ${r.stockAtual}, ${r.stockMinimo}, ${r.stockMaximo}, ${r.stockEncomenda}, ${r.stockReserva}, now()
+    )`
+  );
+  return db.$executeRaw`
+    INSERT INTO "ProdutoFarmacia" (
+      "id", "produtoId", "farmaciaId", "externalProductId",
+      "stockAtual", "stockMinimo", "stockMaximo", "stockEncomenda", "stockReserva", "dataAtualizacao"
+    )
+    VALUES ${Prisma.join(values)}
+    ON CONFLICT ("produtoId", "farmaciaId") DO UPDATE SET
+      "externalProductId" = COALESCE(EXCLUDED."externalProductId", "ProdutoFarmacia"."externalProductId"),
+      "stockAtual"        = COALESCE(EXCLUDED."stockAtual", "ProdutoFarmacia"."stockAtual"),
+      "stockMinimo"       = COALESCE(EXCLUDED."stockMinimo", "ProdutoFarmacia"."stockMinimo"),
+      "stockMaximo"       = COALESCE(EXCLUDED."stockMaximo", "ProdutoFarmacia"."stockMaximo"),
+      "stockEncomenda"    = COALESCE(EXCLUDED."stockEncomenda", "ProdutoFarmacia"."stockEncomenda"),
+      "stockReserva"      = COALESCE(EXCLUDED."stockReserva", "ProdutoFarmacia"."stockReserva"),
+      "dataAtualizacao"   = now()
+  `;
+}
