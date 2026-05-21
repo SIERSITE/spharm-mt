@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
@@ -74,7 +74,6 @@ export function StockClient({ data }: StockClientProps) {
     setSearchInput(serverQ);
   }
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedPharmacies = data.params.pharmacies ?? [];
   const selectedCoverage = data.params.coverageBuckets ?? [];
@@ -111,14 +110,11 @@ export function StockClient({ data }: StockClientProps) {
     [push]
   );
 
-  // Debounce do input de pesquisa — evita um navigation por keystroke.
-  const onSearchChange = (v: string) => {
-    setSearchInput(v);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      commitSearch(v);
-    }, 300);
-  };
+  // A pesquisa só dispara ao SUBMETER (Enter ou botão "Pesquisar") — nunca
+  // onChange. O input mantém o texto localmente; só commitSearch toca no URL.
+  // commitSearch já apaga `page` (reset à página 1) e preserva os restantes
+  // params (farmácia/cobertura/estado). Limpar o input + submeter → apaga `q`.
+  const submitSearch = () => commitSearch(searchInput);
 
   const toggleMulti = (key: string, value: string) => {
     push((p) => {
@@ -210,28 +206,34 @@ export function StockClient({ data }: StockClientProps) {
         </section>
 
         <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-          <div className="grid gap-3 xl:grid-cols-[1.4fr_auto]">
+          <div className="grid gap-3 xl:grid-cols-[1fr_auto_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchInput}
-                onChange={(e) => onSearchChange(e.target.value)}
+                onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    if (debounceRef.current) clearTimeout(debounceRef.current);
-                    commitSearch(searchInput);
-                  } else if (e.key === "Escape") {
-                    setSearchInput("");
-                    commitSearch("");
+                    submitSearch();
                   }
                 }}
-                placeholder="Pesquisar produto, CNP, farmácia, DCI ou ATC (toda a BD)"
+                placeholder="Pesquisar produto, CNP, farmácia, DCI ou ATC — Enter ou Pesquisar"
                 disabled={isPending}
                 className="h-10 w-full rounded-[12px] border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-emerald-200 disabled:opacity-60"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={submitSearch}
+              disabled={isPending}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-emerald-300 bg-emerald-50 px-4 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Search className="h-4 w-4" />
+              Pesquisar
+            </button>
 
             <button
               type="button"
