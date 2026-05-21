@@ -36,6 +36,11 @@ import {
   asBoolOrNull,
   type BootstrapBatchResponse,
 } from "@/lib/ingest/bootstrap";
+import {
+  bulkUpsertSalesLines,
+  dedupeByKey,
+  type SalesLineRow,
+} from "@/lib/ingest/bulk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -233,52 +238,84 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   let upserted = 0;
   let orphanCount = 0;
   let nonStockServiceCount = 0;
-  for (const r of resolved) {
+
+  // Construir as linhas (resolve produtoId + isNonStockService).
+  const rows: SalesLineRow[] = resolved.map((r) => {
     const produtoId = produtoIdByExternal.get(r.externalProductId) ?? null;
     const isNonStockService = produtoId === null && r.processaStocks === false;
     if (produtoId === null) orphanCount++;
     if (isNonStockService) nonStockServiceCount++;
+    return {
+      farmaciaId,
+      externalSaleId: r.externalSaleId,
+      externalSaleLineId: r.externalSaleLineId,
+      sequencia: r.sequencia,
+      dataVenda: r.dataVenda,
+      tipoDocumento: r.tipoDocumento,
+      tipoDocumentoClass: r.tipoDocumentoClass,
+      externalProductId: r.externalProductId,
+      produtoId,
+      isNonStockService,
+      quantidade: r.quantidade,
+      pvpUnitario: r.pvpUnitario,
+      valorLinha: r.valorLinha,
+      ivaValor: r.ivaValor,
+      descontoValor: r.descontoValor,
+      comparticipacao1: r.comparticipacao1,
+      comparticipacao2: r.comparticipacao2,
+      entidadeId: r.entidadeId,
+      rawJson: r.raw,
+    };
+  });
 
-    try {
-      const data = {
+  // Dedupe intra-batch por (farmaciaId, externalSaleLineId) — last wins —
+  // para o ON CONFLICT bulk não recusar a mesma chave duas vezes.
+  const deduped = dedupeByKey(
+    rows,
+    (r) => `${r.farmaciaId} ${r.externalSaleLineId}`
+  );
+
+  // Bulk upsert num único INSERT ... ON CONFLICT (1 round-trip ao Neon,
+  // vs N upserts linha-a-linha). Fallback per-row se o bulk falhar, para
+  // isolar a linha problemática e manter o reporting por-item.
+  try {
+    await bulkUpsertSalesLines(ctx.prisma, deduped);
+    upserted = deduped.length;
+  } catch (bulkErr) {
+    console.warn(
+      `[bootstrap/sales-lines] bulk_failed_fallback_per_row ${JSON.stringify({
+        tenant: ctx.tenant.slug,
         farmaciaId,
-        externalSaleId: r.externalSaleId,
-        externalSaleLineId: r.externalSaleLineId,
-        sequencia: r.sequencia,
-        dataVenda: r.dataVenda,
-        tipoDocumento: r.tipoDocumento,
-        tipoDocumentoClass: r.tipoDocumentoClass,
-        externalProductId: r.externalProductId,
-        produtoId,
-        isNonStockService,
-        quantidade: r.quantidade,
-        pvpUnitario: r.pvpUnitario,
-        valorLinha: r.valorLinha,
-        ivaValor: r.ivaValor,
-        descontoValor: r.descontoValor,
-        comparticipacao1: r.comparticipacao1,
-        comparticipacao2: r.comparticipacao2,
-        entidadeId: r.entidadeId,
-        rawJson: r.raw as unknown as Prisma.InputJsonValue,
-      };
-      await ctx.prisma.ingestVendaLinhaRaw.upsert({
-        where: {
-          farmaciaId_externalSaleLineId: {
-            farmaciaId,
-            externalSaleLineId: r.externalSaleLineId,
+        rows: deduped.length,
+        message: (bulkErr instanceof Error ? bulkErr.message : String(bulkErr)).slice(0, 200),
+      })}`
+    );
+    upserted = 0;
+    for (const row of deduped) {
+      try {
+        const data = {
+          ...row,
+          rawJson: row.rawJson as unknown as Prisma.InputJsonValue,
+        };
+        await ctx.prisma.ingestVendaLinhaRaw.upsert({
+          where: {
+            farmaciaId_externalSaleLineId: {
+              farmaciaId,
+              externalSaleLineId: row.externalSaleLineId,
+            },
           },
-        },
-        create: data,
-        update: data,
-      });
-      upserted++;
-    } catch (err) {
-      errors.push({
-        index: r.index,
-        reason: "upsert_failed",
-        externalId: r.externalSaleLineId,
-        message: err instanceof Error ? err.message : String(err),
-      });
+          create: data,
+          update: data,
+        });
+        upserted++;
+      } catch (err) {
+        errors.push({
+          index: -1,
+          reason: "upsert_failed",
+          externalId: row.externalSaleLineId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
   const operationalOrphans = orphanCount - nonStockServiceCount;
