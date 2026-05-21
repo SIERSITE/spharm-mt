@@ -40,6 +40,7 @@ import { salesPreview } from "./commands/sales-preview.js";
 import { salesSummaryPreview } from "./commands/sales-summary-preview.js";
 import { bootstrapDryRun } from "./commands/bootstrap-dry-run.js";
 import { bootstrapUpload } from "./commands/bootstrap-upload.js";
+import { stockUpload } from "./commands/stock-upload.js";
 import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
@@ -108,6 +109,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "bootstrap-upload": {
     run: bootstrapUpload,
     desc: "1ª ingestão REAL para a SaaS. Idempotente. Requer ENABLE_AGENT_BOOTSTRAP=1.",
+  },
+  "stock-upload": {
+    run: stockUpload,
+    desc: "Upload SÓ de stock (snapshot) → /bootstrap/stock. NÃO envia products/sales. Idempotente.",
   },
   "daily-sync": {
     run: dailySync,

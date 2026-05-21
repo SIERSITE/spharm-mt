@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "26";
+const AGENT_REV = "27";
 
 function readGitShortCommit() {
   try {
@@ -747,6 +747,60 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // stock-upload — upload SÓ de stock (snapshot), CONFIRMO, SEM datas.
+  // Para repor/atualizar o stock de uma farmácia sem re-bootstrap completo.
+  const stockUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — stock-upload (interactivo + CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   stock-upload — UPLOAD SO DE STOCK (snapshot corrente)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar SO o stock para a SaaS SPharm.MT:`,
+    `echo   - UPSERT ProdutoFarmacia ^(campos de stock^) por ^(produtoId, farmaciaId^)`,
+    `echo   - Idempotente: re-run produz o mesmo estado`,
+    `echo   - NAO envia products nem sales-lines`,
+    `echo.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo Pre-requisito: /bootstrap/products ja correu ^(resolucao produtoId^).`,
+    `echo Usa a config actual do agent ^(SPHARMMT_FARMACIA^).`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vai escrever campos de stock em ProdutoFarmacia ^(SaaS^).`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs stock-upload`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente: re-run nao duplica.`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-stock-upload.bat"),
+    stockUploadBat,
+    "utf8"
+  );
+
   const devolucoesDryRunBat = [
     `@echo off`,
     `REM SPharm.MT agent — devolucoes-fornecedor-dry-run`,
@@ -1425,6 +1479,7 @@ function writeReadme() {
     `  run-sales-summary-preview.bat   PREVIEW agregado por TipoDoc+EntidadeID + TOP 10 docs. Pergunta datas.`,
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
+    `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat       Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,

@@ -218,7 +218,7 @@ function accumulate(t: PipelineTotals, r: BootstrapBatchResponse): void {
   t.durationMs += r.durationMs;
 }
 
-function renderTotals(label: string, t: PipelineTotals): void {
+export function renderTotals(label: string, t: PipelineTotals): void {
   console.log(`  Batches enviados   : ${t.batches}`);
   console.log(`  Linhas ERP lidas   : ${t.read}`);
   console.log(`  Aceites pelo SaaS  : ${t.accepted}`);
@@ -336,7 +336,7 @@ async function runProductsPipeline(
 // Pipeline 2: STOCK — SUM SQL-side agregado por CodigoID, keyset
 // ─────────────────────────────────────────────────────────────────────
 
-async function runStockPipeline(
+export async function runStockPipeline(
   pool: SqlPool,
   client: SaasClient,
   farmaciaId: string
@@ -525,7 +525,7 @@ async function runSalesPipeline(
 // Resolver farmaciaId via SaaS /api/ingest/v1/farmacias
 // ─────────────────────────────────────────────────────────────────────
 
-async function resolveFarmaciaId(client: SaasClient, hint: string): Promise<string> {
+export async function resolveFarmaciaId(client: SaasClient, hint: string): Promise<string> {
   const r = await client.listFarmacias(15_000);
   const isCuid = /^c[a-z0-9]{20,}$/i.test(hint);
   const match = isCuid
