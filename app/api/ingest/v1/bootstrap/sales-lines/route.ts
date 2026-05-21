@@ -9,7 +9,8 @@
  * `@@unique(farmaciaId, externalSaleLineId)` — reupload da mesma
  * linha actualiza-a em vez de duplicar.
  *
- * `produtoId` é resolvido server-side via `Produto.externalProductId`.
+ * `produtoId` é resolvido server-side via `ProdutoFarmacia(farmaciaId,
+ * externalProductId)` — o CodigoID é namespace POR-FARMÁCIA, NÃO global.
  * Se não houver match, fica null — a linha continua a entrar como
  * staging para forensic + reprocessamento futuro.
  *
@@ -207,17 +208,23 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   }
 
   // 2) Resolver externalProductId → produtoId em lote.
+  // CRÍTICO: resolve via ProdutoFarmacia SCOPED por (farmaciaId,
+  // externalProductId), NÃO via Produto.externalProductId global. O CodigoID
+  // é um namespace POR-FARMÁCIA; resolver pelo valor global (last-writer)
+  // orfaniza ou MIS-ATRIBUI as vendas da farmácia cujo CodigoID não é o
+  // guardado. A ProdutoFarmacia (gravada pelo /products) tem o CodigoID
+  // correcto da farmácia. Pré-condição: /products correu antes.
   const externalIds = Array.from(new Set(resolved.map((r) => r.externalProductId)));
-  const produtos = externalIds.length
-    ? await ctx.prisma.produto.findMany({
-        where: { externalProductId: { in: externalIds } },
-        select: { id: true, externalProductId: true },
+  const pfRows = externalIds.length
+    ? await ctx.prisma.produtoFarmacia.findMany({
+        where: { farmaciaId, externalProductId: { in: externalIds } },
+        select: { produtoId: true, externalProductId: true },
       })
     : [];
   const produtoIdByExternal = new Map<number, string>();
-  for (const p of produtos) {
-    if (p.externalProductId !== null) {
-      produtoIdByExternal.set(p.externalProductId, p.id);
+  for (const pf of pfRows) {
+    if (pf.externalProductId !== null) {
+      produtoIdByExternal.set(pf.externalProductId, pf.produtoId);
     }
   }
 

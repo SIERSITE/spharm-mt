@@ -132,19 +132,26 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   }
 
   // 2) Resolver externalProductId → produtoId em lote (1 query).
-  // Necessário porque ProdutoFarmacia.produtoId não é nullable e
-  // referencia Produto.id (não externalProductId).
+  // CRÍTICO: resolve via ProdutoFarmacia SCOPED por (farmaciaId,
+  // externalProductId), NÃO via Produto.externalProductId global. O
+  // CodigoID/externalProductId é um NAMESPACE POR-FARMÁCIA (o ERP recicla
+  // CodigoIDs entre farmácias do mesmo tenant — ver Produto.externalProductId
+  // docstring e migration drop_produto_external_product_id_unique). O
+  // Produto.externalProductId guarda só UM valor (last-writer), portanto
+  // resolver por ele atribui o stock à farmácia errada ou a nenhum produto
+  // (stockAtual fica NULL). A ProdutoFarmacia tem o CodigoID correcto da
+  // farmácia (gravado pelo /products). Pré-condição: /products correu antes.
   const externalIds = Array.from(aggMap.keys());
-  const produtos = externalIds.length
-    ? await ctx.prisma.produto.findMany({
-        where: { externalProductId: { in: externalIds } },
-        select: { id: true, externalProductId: true },
+  const pfRows = externalIds.length
+    ? await ctx.prisma.produtoFarmacia.findMany({
+        where: { farmaciaId, externalProductId: { in: externalIds } },
+        select: { produtoId: true, externalProductId: true },
       })
     : [];
   const produtoIdByExternal = new Map<number, string>();
-  for (const p of produtos) {
-    if (p.externalProductId !== null) {
-      produtoIdByExternal.set(p.externalProductId, p.id);
+  for (const pf of pfRows) {
+    if (pf.externalProductId !== null) {
+      produtoIdByExternal.set(pf.externalProductId, pf.produtoId);
     }
   }
 
