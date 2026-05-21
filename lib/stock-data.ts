@@ -491,7 +491,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
 
     const pageRows = await prisma.$queryRaw<StockSqlFull[]>(
       Prisma.sql`${STOCK_FULL_SELECT} ${fromWhere}
-        ORDER BY p.designacao ASC, f.nome ASC
+        ORDER BY p.designacao ASC, f.nome ASC, pf."produtoId" ASC
         LIMIT ${pageSize} OFFSET ${offset}`,
     );
     const rows = pageRows.map((b) => toLegacyRow(enrichFull(b), peerMap));
