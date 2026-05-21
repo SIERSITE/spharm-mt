@@ -239,6 +239,18 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   let orphanCount = 0;
   let nonStockServiceCount = 0;
 
+  // `rawJson` é forense e NÃO é lido por nenhum processo (a agregação
+  // VendaMensal usa as colunas estruturadas). Por defeito guardamos apenas
+  // um stub — as colunas estruturadas preservam o conceito funcional e a
+  // idempotência (chave (farmaciaId, externalSaleLineId) é independente do
+  // rawJson). Isto trava o crescimento de storage do staging. Activar
+  // `INGEST_STORE_RAW_JSON=1` para guardar o payload completo (auditoria/
+  // reprocessamento sem re-query ao ERP).
+  const keepRawJson =
+    process.env.INGEST_STORE_RAW_JSON === "1" ||
+    process.env.INGEST_STORE_RAW_JSON === "true";
+  const RAW_STUB = { _omitted: true } as const;
+
   // Construir as linhas (resolve produtoId + isNonStockService).
   const rows: SalesLineRow[] = resolved.map((r) => {
     const produtoId = produtoIdByExternal.get(r.externalProductId) ?? null;
@@ -264,7 +276,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       comparticipacao1: r.comparticipacao1,
       comparticipacao2: r.comparticipacao2,
       entidadeId: r.entidadeId,
-      rawJson: r.raw,
+      rawJson: keepRawJson ? r.raw : RAW_STUB,
     };
   });
 
