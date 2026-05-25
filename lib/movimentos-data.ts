@@ -57,10 +57,14 @@ export type MovimentoRow = {
   /** Label legível, já em português. */
   tipoLabel: string;
   direcao: MovimentoDirecao;
-  /** Número de documento/origem quando existe (Compra.numeroDocumento, etc). */
+  /** Número de documento individual quando existe (raro: fontes são agregadas). */
   documento: string | null;
   /** Quantidade ABSOLUTA. A direção é lida de `direcao`. */
   quantidade: number;
+  /** Valor monetário (EUR) magnitude quando a fonte o tem; null caso contrário. */
+  valor: number | null;
+  /** Origem/Fornecedor (compra/devolução). null para vendas/ajustes. */
+  origem: string | null;
   /** Sempre null nesta fase — nenhuma fonte persiste. */
   stockAntes: number | null;
   stockDepois: number | null;
@@ -272,6 +276,7 @@ export async function getMovimentosProduto(
         data: true,
         farmaciaId: true,
         quantidade: true,
+        valorTotal: true,
         numeroDocumento: true,
         fornecedor: { select: { nomeNormalizado: true } },
       },
@@ -284,6 +289,7 @@ export async function getMovimentosProduto(
         data: true,
         farmaciaId: true,
         quantidade: true,
+        valor: true,
         tipo: true,
         motivo: true,
         fornecedorDestino: { select: { nomeNormalizado: true } },
@@ -297,6 +303,7 @@ export async function getMovimentosProduto(
         data: true,
         farmaciaId: true,
         quantidade: true,
+        valor: true,
         tipo: true,
         motivo: true,
         observacoes: true,
@@ -316,6 +323,7 @@ export async function getMovimentosProduto(
         stockSistema: true,
         stockContado: true,
         diferenca: true,
+        valorDiferenca: true,
         observacoes: true,
         inventario: {
           select: { dataInventario: true, farmaciaId: true, nome: true },
@@ -335,9 +343,11 @@ export async function getMovimentosProduto(
     ano: number;
     mes: number;
     quantidade: unknown;
+    valorBruto: unknown;
+    valorTotal: unknown;
   };
   let vendasMensais: VendaMensalRow[] = [];
-  let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number }> = [];
+  let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }> = [];
 
   if (granularity === "diaria") {
     // Readonly sobre IngestVendaLinhaRaw, agregado por dia. Mesma convenção
@@ -345,13 +355,17 @@ export async function getMovimentosProduto(
     const fromD = filters.from ? new Date(filters.from) : new Date(Date.now() - 30 * 86_400_000);
     const toD = filters.to ? new Date(filters.to) : new Date();
     toD.setHours(23, 59, 59, 999);
-    vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number }>>(
+    vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }>>(
       Prisma.sql`
         SELECT date_trunc('day', "dataVenda") AS dia, "farmaciaId",
           SUM(CASE "tipoDocumentoClass"
             WHEN 'VENDA'              THEN  ABS(COALESCE("quantidade", 0))
             WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("quantidade", 0))
-            ELSE 0 END)::float AS qtd
+            ELSE 0 END)::float AS qtd,
+          SUM(CASE "tipoDocumentoClass"
+            WHEN 'VENDA'              THEN  ABS(COALESCE("valorLinha", 0))
+            WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("valorLinha", 0))
+            ELSE 0 END)::float AS valor
         FROM "IngestVendaLinhaRaw"
         WHERE "produtoId" = ${produto.id}
           AND "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
@@ -366,7 +380,7 @@ export async function getMovimentosProduto(
     // (produto, farmácia, ano, mes). Não é transacional — é soma.
     vendasMensais = await prisma.vendaMensal.findMany({
       where: vmWhere,
-      select: { id: true, farmaciaId: true, ano: true, mes: true, quantidade: true },
+      select: { id: true, farmaciaId: true, ano: true, mes: true, quantidade: true, valorBruto: true, valorTotal: true },
       orderBy: [{ ano: "desc" }, { mes: "desc" }],
     });
   }
@@ -385,6 +399,8 @@ export async function getMovimentosProduto(
       direcao: TIPO_DIRECAO.VENDA,
       documento: v.tipoVenda ? `Tipo: ${v.tipoVenda}` : null,
       quantidade: Math.abs(Math.round(toF(v.quantidade))),
+      valor: null,
+      origem: null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
@@ -406,10 +422,12 @@ export async function getMovimentosProduto(
       // fornecedor) não têm nº de documento individual → "—" na UI.
       documento: c.numeroDocumento ?? null,
       quantidade: Math.abs(Math.round(toF(c.quantidade))),
+      valor: c.valorTotal != null ? Math.abs(toF(c.valorTotal)) : null,
+      origem: c.fornecedor?.nomeNormalizado ?? null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao: c.fornecedor?.nomeNormalizado ?? null,
+      observacao: null,
       // Sem documento individual = linha agregada (dia × fornecedor). Marcada
       // para a UI sinalizar "agregado" e não a confundir com documento real.
       agregado: c.numeroDocumento == null,
@@ -436,11 +454,12 @@ export async function getMovimentosProduto(
       // um "documento" a partir do nome do fornecedor).
       documento: null,
       quantidade: Math.abs(Math.round(toF(d.quantidade))),
+      valor: d.valor != null ? Math.abs(toF(d.valor)) : null,
+      origem: d.fornecedorDestino?.nomeNormalizado ?? null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao:
-        [d.fornecedorDestino?.nomeNormalizado, d.motivo].filter(Boolean).join(" · ") || null,
+      observacao: d.motivo ?? null,
       agregado: false,
     });
   }
@@ -468,6 +487,8 @@ export async function getMovimentosProduto(
       direcao: TIPO_DIRECAO[tipo],
       documento: null,
       quantidade: Math.abs(Math.round(toF(a.quantidade))),
+      valor: a.valor != null ? Math.abs(toF(a.valor)) : null,
+      origem: null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
@@ -489,6 +510,8 @@ export async function getMovimentosProduto(
         diferenca > 0 ? "ENTRADA" : diferenca < 0 ? "SAIDA" : "NEUTRO",
       documento: li.inventario.nome ?? null,
       quantidade: Math.abs(Math.round(diferenca)),
+      valor: li.valorDiferenca != null ? Math.abs(toF(li.valorDiferenca)) : null,
+      origem: null,
       stockAntes: li.stockSistema !== null ? Math.round(toF(li.stockSistema)) : null,
       stockDepois: Math.round(toF(li.stockContado)),
       utilizador: null,
@@ -515,6 +538,8 @@ export async function getMovimentosProduto(
       direcao: "SAIDA",
       documento: null,
       quantidade: qty,
+      valor: vm.valorBruto != null ? Math.abs(toF(vm.valorBruto)) : (vm.valorTotal != null ? Math.abs(toF(vm.valorTotal)) : null),
+      origem: null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
@@ -538,6 +563,8 @@ export async function getMovimentosProduto(
       direcao: net >= 0 ? "SAIDA" : "ENTRADA",
       documento: null,
       quantidade: Math.abs(net),
+      valor: Math.abs(Math.round(toF(d.valor) * 100) / 100),
+      origem: null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,

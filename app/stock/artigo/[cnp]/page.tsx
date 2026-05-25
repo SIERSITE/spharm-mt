@@ -5,7 +5,7 @@ import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
-import { getMovimentosProduto, getTiposDisponiveis } from "@/lib/movimentos-data";
+import { getMovimentosProduto } from "@/lib/movimentos-data";
 import {
   ArrowLeft,
   Package,
@@ -363,7 +363,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             .filter(
               (v, i, a) => a.findIndex((x) => x.id === v.id) === i
             )}
-          tiposDisponiveis={getTiposDisponiveis()}
           initialRows={movimentosIniciais}
           defaultFrom=""
         />
