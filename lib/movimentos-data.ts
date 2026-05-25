@@ -102,21 +102,19 @@ export type MovimentosFilters = {
 
 /** Janela máx. (dias) em que se serve a granularidade diária a partir do raw. */
 const DAILY_WINDOW_MAX_DAYS = 62;
+/** Janela por defeito (dias) quando o utilizador não define `Desde`/`Até`. */
+const DEFAULT_WINDOW_DAYS = 30;
 
-function decideGranularity(filters: MovimentosFilters): "diaria" | "mensal" {
+/**
+ * Granularidade das vendas decidida pela janela EFECTIVA (já com o default
+ * de 30 dias aplicado). Janela curta (≤62d) → diária a partir do raw; janela
+ * longa → mensal (VendaMensal). As duas fontes nunca se misturam.
+ */
+function decideGranularity(filters: MovimentosFilters, effFrom: Date): "diaria" | "mensal" {
   if (filters.salesGranularity) return filters.salesGranularity;
-  if (filters.from) {
-    const fromMs = new Date(filters.from).getTime();
-    if (Number.isFinite(fromMs) && Date.now() - fromMs <= DAILY_WINDOW_MAX_DAYS * 86_400_000) {
-      return "diaria";
-    }
-    return "mensal";
-  }
-  // Sem janela explícita = vista por defeito: vendas DIÁRIAS recentes (últimos
-  // 30 dias). As compras/devoluções/ajustes/inventário carregam TODO o
-  // histórico (ver getMovimentosProduto: o filtro de data só se aplica quando
-  // o utilizador define `from`/`to`), para não esconder compras antigas.
-  return "diaria";
+  return Date.now() - effFrom.getTime() <= DAILY_WINDOW_MAX_DAYS * 86_400_000
+    ? "diaria"
+    : "mensal";
 }
 
 function toF(v: unknown): number {
@@ -153,6 +151,20 @@ const TIPO_DIRECAO: Record<MovimentoTipo, MovimentoDirecao> = {
   AJUSTE_OUTRO: "NEUTRO",
   INVENTARIO: "NEUTRO",
 };
+
+/**
+ * Janela por defeito do extrato (últimos 30 dias) em ISO yyyy-mm-dd.
+ * Vive aqui (e não no render do server component) para a página passar a
+ * mesma janela ao loader e aos inputs sem chamar `Date.now()` no render
+ * (regra de pureza do React/Next).
+ */
+export function getDefaultMovimentosWindow(): { from: string; to: string } {
+  const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    from: isoDay(new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000)),
+    to: isoDay(new Date()),
+  };
+}
 
 /** Lista estática usada pelo dropdown "Tipo de movimento" na UI. */
 export function getTiposDisponiveis(): Array<{ value: MovimentoTipo; label: string }> {
@@ -206,56 +218,50 @@ export async function getMovimentosProduto(
   const { ids: farmaciaIds, nomeById } = await resolveFarmaciaIds(prisma, filters);
   if (farmaciaIds.length === 0) return [];
 
-  // 3. Janela temporal (opcional)
-  const dateFilter: { gte?: Date; lte?: Date } = {};
-  if (filters.from) dateFilter.gte = new Date(filters.from);
-  if (filters.to) dateFilter.lte = new Date(filters.to);
-  const hasDateFilter = dateFilter.gte !== undefined || dateFilter.lte !== undefined;
+  // 3. Janela temporal EFECTIVA — aplicada a TODOS os tipos de movimento.
+  // Decisão operacional: por defeito o extrato mostra APENAS os últimos 30
+  // dias (vendas, compras, devoluções, ajustes, inventário). Não se mistura
+  // histórico antigo por defeito — uma receção de 2024 só aparece quando o
+  // utilizador alarga `Desde`/`Até`. Sem `from` explícito ⇒ today−30d;
+  // sem `to` ⇒ agora (fim do dia).
+  const effFrom = filters.from
+    ? new Date(filters.from)
+    : new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000);
+  const effTo = filters.to ? new Date(filters.to) : new Date();
+  effTo.setHours(23, 59, 59, 999);
+  const dateFilter = { gte: effFrom, lte: effTo };
 
-  // 4. Queries em paralelo — só para o produto em questão
+  // 4. Queries em paralelo — só para o produto em questão, dentro da janela.
   const commonWhere = {
     produtoId: produto.id,
     farmaciaId: { in: farmaciaIds },
-    ...(hasDateFilter ? { data: dateFilter } : {}),
+    data: dateFilter,
   };
 
-  // VendaMensal tem o seu próprio filtro temporal (por ano/mes, não
-   // por DateTime), logo constrói-se separadamente a partir de
-  // filters.from/to. Se o user não passou datas, traz tudo.
+  // VendaMensal filtra por (ano, mes) e não por DateTime — traduz-se a mesma
+  // janela efectiva para o par ano/mês, inclusivo nas duas pontas.
   const vmWhere: {
     produtoId: string;
     farmaciaId: { in: string[] };
-    AND?: Array<Record<string, unknown>>;
+    AND: Array<Record<string, unknown>>;
   } = {
     produtoId: produto.id,
     farmaciaId: { in: farmaciaIds },
+    AND: [
+      {
+        OR: [
+          { ano: { gt: effFrom.getFullYear() } },
+          { ano: effFrom.getFullYear(), mes: { gte: effFrom.getMonth() + 1 } },
+        ],
+      },
+      {
+        OR: [
+          { ano: { lt: effTo.getFullYear() } },
+          { ano: effTo.getFullYear(), mes: { lte: effTo.getMonth() + 1 } },
+        ],
+      },
+    ],
   };
-  if (filters.from) {
-    const d = new Date(filters.from);
-    const key = d.getFullYear() * 12 + (d.getMonth() + 1);
-    vmWhere.AND = [
-      ...(vmWhere.AND ?? []),
-      {
-        OR: [
-          { ano: { gt: d.getFullYear() } },
-          { ano: d.getFullYear(), mes: { gte: d.getMonth() + 1 } },
-        ],
-      },
-    ];
-    void key;
-  }
-  if (filters.to) {
-    const d = new Date(filters.to);
-    vmWhere.AND = [
-      ...(vmWhere.AND ?? []),
-      {
-        OR: [
-          { ano: { lt: d.getFullYear() } },
-          { ano: d.getFullYear(), mes: { lte: d.getMonth() + 1 } },
-        ],
-      },
-    ];
-  }
 
   const [vendas, compras, devolucoes, ajustes, linhasInventario] = await Promise.all([
     prisma.venda.findMany({
@@ -315,7 +321,7 @@ export async function getMovimentosProduto(
         produtoId: produto.id,
         inventario: {
           farmaciaId: { in: farmaciaIds },
-          ...(hasDateFilter ? { dataInventario: dateFilter } : {}),
+          dataInventario: dateFilter,
         },
       },
       select: {
@@ -335,7 +341,7 @@ export async function getMovimentosProduto(
   // Vendas: granularidade DIÁRIA (raw, janela recente) OU MENSAL
   // (VendaMensal, histórico longo) — nunca as duas na mesma vista, para não
   // duplicar a mesma venda. Auto-decidida pela janela.
-  const granularity = decideGranularity(filters);
+  const granularity = decideGranularity(filters, effFrom);
 
   type VendaMensalRow = {
     id: string;
@@ -350,11 +356,9 @@ export async function getMovimentosProduto(
   let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }> = [];
 
   if (granularity === "diaria") {
-    // Readonly sobre IngestVendaLinhaRaw, agregado por dia. Mesma convenção
-    // de sinal que a agregação VendaMensal (VENDA=+ABS, DEVOLUCAO=−ABS).
-    const fromD = filters.from ? new Date(filters.from) : new Date(Date.now() - 30 * 86_400_000);
-    const toD = filters.to ? new Date(filters.to) : new Date();
-    toD.setHours(23, 59, 59, 999);
+    // Readonly sobre IngestVendaLinhaRaw, agregado por dia, dentro da MESMA
+    // janela efectiva dos restantes movimentos. Mesma convenção de sinal que a
+    // agregação VendaMensal (VENDA=+ABS, DEVOLUCAO=−ABS).
     vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }>>(
       Prisma.sql`
         SELECT date_trunc('day', "dataVenda") AS dia, "farmaciaId",
@@ -369,7 +373,7 @@ export async function getMovimentosProduto(
         FROM "IngestVendaLinhaRaw"
         WHERE "produtoId" = ${produto.id}
           AND "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
-          AND "dataVenda" >= ${fromD} AND "dataVenda" <= ${toD}
+          AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
           AND "farmaciaId" = ANY(${farmaciaIds})
         GROUP BY 1, 2
         ORDER BY 1 DESC

@@ -12,8 +12,9 @@ type Props = {
   farmacias: FarmaciaOpt[];
   /** Carregado server-side no page open. */
   initialRows: MovimentoRow[];
-  /** Data "Desde" inicial (ISO yyyy-mm-dd). Vazio = vista por defeito. */
+  /** Janela inicial (ISO yyyy-mm-dd) — reflecte o default de 30 dias. */
   defaultFrom?: string;
+  defaultTo?: string;
 };
 
 type QuickFilter = "todos" | "vendas" | "compras" | "devolucoes" | "outros";
@@ -67,14 +68,14 @@ function hasRealDetail(r: MovimentoRow): boolean {
   return r.documento !== null || r.stockAntes !== null || r.stockDepois !== null || r.utilizador !== null;
 }
 
-export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom }: Props) {
+export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, defaultTo }: Props) {
   const [rows, setRows] = useState<MovimentoRow[]>(initialRows);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [farmaciaIds, setFarmaciaIds] = useState<string[]>(farmacias.map((f) => f.id));
   const [from, setFrom] = useState(defaultFrom ?? "");
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState(defaultTo ?? "");
   const [quick, setQuick] = useState<QuickFilter>("todos");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -133,10 +134,12 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom }: 
         <div>
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Vendas em totais <span className="font-semibold text-slate-700">diários</span> (últimos 30 dias)
-            e <span className="font-semibold text-slate-700">todo o histórico</span> de compras/devoluções.
-            Linhas <span className="font-semibold text-amber-700">agregado</span> são somas (sem documento/
-            utilizador/stock individual). Define datas para filtrar; acima de ~2 meses as vendas passam a mensais.
+            Por defeito mostra os <span className="font-semibold text-slate-700">últimos 30 dias</span> —
+            a mesma janela para <span className="font-semibold text-slate-700">todos os tipos</span>
+            {" "}(vendas, compras, devoluções, ajustes). Altera <span className="font-semibold text-slate-700">Desde</span>/
+            <span className="font-semibold text-slate-700">Até</span> para ver histórico (ex: receções de 2024);
+            acima de ~2 meses as vendas passam a mensais. Linhas{" "}
+            <span className="font-semibold text-amber-700">agregado</span> são somas (sem documento/utilizador/stock individual).
           </p>
         </div>
         <button
@@ -220,7 +223,9 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom }: 
       <div className="mt-4 overflow-x-auto">
         {visibleRows.length === 0 ? (
           <div className="rounded-[12px] border border-dashed border-slate-200 bg-white/60 px-4 py-8 text-center text-[12px] text-slate-500">
-            Sem movimentos para os critérios seleccionados.
+            {rows.length === 0
+              ? "Sem movimentos neste período."
+              : "Sem movimentos deste tipo neste período. Vê todos os tipos no filtro acima ou alarga as datas."}
           </div>
         ) : (
           <table className="min-w-full text-left text-[12px]">

@@ -5,7 +5,7 @@ import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
-import { getMovimentosProduto } from "@/lib/movimentos-data";
+import { getMovimentosProduto, getDefaultMovimentosWindow } from "@/lib/movimentos-data";
 import {
   ArrowLeft,
   Package,
@@ -120,12 +120,18 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // recebe-o como initialRows e só volta ao server quando o user clica
   // "Atualizar" após mudar filtros.
   //
-  // Por defeito a ficha mostra as VENDAS em totais DIÁRIOS dos últimos 30 dias
-  // E TODO o histórico de compras/devoluções/ajustes (sem filtro de data — para
-  // não esconder compras antigas, ex: receções de 2024). O utilizador filtra
-  // tudo definindo "Desde"/"Até" (acima de ~62 dias as vendas passam a mensais).
-  // Não passamos `from` aqui: o filtro de data só se aplica quando explícito.
-  const movimentosIniciais = await getMovimentosProduto(produto.cnp, {});
+  // Decisão operacional: por defeito a ficha mostra apenas os ÚLTIMOS 30 DIAS,
+  // e a mesma janela aplica-se a TODOS os tipos (vendas, compras, devoluções,
+  // ajustes, inventário). Não se mistura histórico antigo por defeito — uma
+  // receção de 2024 só aparece quando o utilizador alarga "Desde"/"Até".
+  // A janela é calculada por um helper do loader (fonte única) e passada quer
+  // ao loader quer ao componente, para os inputs reflectirem exactamente o que
+  // está a ser mostrado.
+  const { from: defaultFrom, to: defaultTo } = getDefaultMovimentosWindow();
+  const movimentosIniciais = await getMovimentosProduto(produto.cnp, {
+    from: defaultFrom,
+    to: defaultTo,
+  });
 
   const fabricante = fmt(produto.fabricante?.nomeNormalizado);
   const principioAtivo = fmt(produto.dci);
@@ -364,7 +370,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               (v, i, a) => a.findIndex((x) => x.id === v.id) === i
             )}
           initialRows={movimentosIniciais}
-          defaultFrom=""
+          defaultFrom={defaultFrom}
+          defaultTo={defaultTo}
         />
 
         {/*
