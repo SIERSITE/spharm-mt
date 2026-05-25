@@ -16,13 +16,46 @@ const statusOptions: StockRow["status"][] = [
   "Transferência sugerida",
 ];
 
-function Metric({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-[14px] border border-white/70 bg-white/78 px-3 py-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.035)]">
+function Metric({
+  label,
+  value,
+  helper,
+  onClick,
+  active,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  onClick?: () => void;
+  active?: boolean;
+}) {
+  const inner = (
+    <>
       <div className="text-[9px] uppercase tracking-[0.14em] text-slate-400">{label}</div>
       <div className="mt-1 text-[15px] font-semibold leading-tight text-slate-900">{value}</div>
       <div className="mt-1 text-[10px] text-slate-500">{helper}</div>
-    </div>
+    </>
+  );
+  if (!onClick) {
+    return (
+      <div className="rounded-[14px] border border-white/70 bg-white/78 px-3 py-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.035)]">
+        {inner}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-[14px] border px-3 py-2.5 text-left shadow-[0_8px_20px_rgba(15,23,42,0.035)] transition hover:border-emerald-300 hover:bg-white ${
+        active
+          ? "border-emerald-300 bg-emerald-50/70 ring-1 ring-emerald-200"
+          : "border-white/70 bg-white/78"
+      }`}
+    >
+      {inner}
+    </button>
   );
 }
 
@@ -138,6 +171,30 @@ export function StockClient({ data }: StockClientProps) {
     });
   };
 
+  // Cartões-KPI operacionais como atalho: aplicam o filtro de estado
+  // correspondente (carrega a tabela). Se já é o único filtro activo,
+  // voltar a clicar limpa-o (regressa ao estado inicial). Os outros
+  // params (q/farmácia/cobertura) são limpos para focar só este estado.
+  const isOnlyStatus = (status: StockRow["status"]) =>
+    selectedStatus.length === 1 &&
+    selectedStatus[0] === status &&
+    selectedCoverage.length === 0 &&
+    selectedPharmacies.length === 0 &&
+    !data.params.q &&
+    !data.filter;
+
+  const focusStatus = (status: StockRow["status"]) => {
+    const turnOff = isOnlyStatus(status);
+    push((p) => {
+      p.delete("status");
+      p.delete("coverage");
+      p.delete("pharmacy");
+      p.delete("q");
+      p.delete("page");
+      if (!turnOff) p.append("status", status);
+    });
+  };
+
   const setPage = (newPage: number) => {
     push((p) => {
       if (newPage <= 1) p.delete("page");
@@ -186,22 +243,28 @@ export function StockClient({ data }: StockClientProps) {
           <Metric
             label="Referências analisadas"
             value={data.metrics.referencias.toLocaleString("pt-PT")}
-            helper="Universo atual em análise"
+            helper={data.tableLoaded ? "Universo atual em análise" : "Catálogo total (sem carregar lista)"}
           />
           <Metric
             label="Baixa cobertura"
             value={data.metrics.baixaCobertura.toLocaleString("pt-PT")}
-            helper="Produtos abaixo do limiar"
+            helper="Produtos abaixo do limiar · ver"
+            onClick={() => focusStatus("Baixa cobertura")}
+            active={isOnlyStatus("Baixa cobertura")}
           />
           <Metric
             label="Stock parado"
             value={data.metrics.stockParado.toLocaleString("pt-PT")}
-            helper="Sem rotação relevante"
+            helper="Sem rotação relevante · ver"
+            onClick={() => focusStatus("Parado")}
+            active={isOnlyStatus("Parado")}
           />
           <Metric
             label="Transferências sugeridas"
             value={data.metrics.transferencias.toLocaleString("pt-PT")}
-            helper="Entre farmácias do grupo"
+            helper="Entre farmácias do grupo · ver"
+            onClick={() => focusStatus("Transferência sugerida")}
+            active={isOnlyStatus("Transferência sugerida")}
           />
         </section>
 
@@ -340,6 +403,22 @@ export function StockClient({ data }: StockClientProps) {
           )}
         </section>
 
+        {!data.tableLoaded ? (
+          <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-12 text-center shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Search className="h-5 w-5" />
+            </div>
+            <p className="mt-3 text-[14px] font-semibold text-slate-800">
+              Pesquise ou filtre para ver os artigos
+            </p>
+            <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-slate-500">
+              O catálogo completo não é carregado por defeito para manter a página
+              rápida. Pesquise por produto, CNP, farmácia, DCI ou ATC, ou use um dos
+              cartões operacionais (baixa cobertura, stock parado, transferências) ou
+              os filtros acima.
+            </p>
+          </section>
+        ) : (
         <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
           <div className="grid grid-cols-[2.2fr_0.8fr_1fr_0.8fr_0.9fr_0.9fr_1.1fr_1.2fr] gap-4 border-b border-slate-200 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             <div>Produto</div>
@@ -461,6 +540,7 @@ export function StockClient({ data }: StockClientProps) {
             </div>
           </div>
         </section>
+        )}
       </div>
     </AppShell>
   );

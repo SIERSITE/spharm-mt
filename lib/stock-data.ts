@@ -237,6 +237,13 @@ export type StockPageData = {
   metrics: StockMetrics;
   filter: StockFilter | null;
   params: StockSearchParams;
+  /**
+   * `false` no estado inicial (sem pesquisa nem filtro operacional): a
+   * tabela NÃO é carregada — só os KPIs. O cliente mostra um prompt a
+   * pedir pesquisa/filtro em vez da lista. `true` quando há `q` ou um
+   * filtro computado e a página de artigos foi efectivamente carregada.
+   */
+  tableLoaded: boolean;
 };
 
 function getCoverageBucket(coverageStr: string): StockCoverageBucket | null {
@@ -422,6 +429,93 @@ function enrichLean(b: StockSqlLean, nomeById: Map<string, string>): StockLite {
   };
 }
 
+/**
+ * KPIs do /stock via agregação SQL pura (COUNT + FILTER + window function),
+ * SEM materializar o catálogo inteiro em JS. Replica EXACTAMENTE a cascata
+ * de `computeStatusAndSuggestion` + `coverageDays`/`resolveAvg`:
+ *
+ *   ad  = hasIpf ? max(ipfAvg90d,0) : (sales>0 ? sales/90 : 0)
+ *   cov = stock<=0 ? 0 : ad=0 ? NULL : stock/ad
+ *   Parado      ⟸ sales<=0
+ *   Baixa cob.  ⟸ (smin>0 e stock<=smin) OU (cov<7)            [só se sales>0]
+ *   Transfer.   ⟸ cov>30 E existe peer (mesmo produto) com cov<14 finita
+ *   Estável     ⟸ resto
+ *
+ * O peer-check usa MIN(cov) OVER (PARTITION BY produtoId): como a própria
+ * linha tem cov>30, nunca é o mínimo <14, logo MIN<14 ⟺ existe OUTRA
+ * farmácia com cobertura finita <14 — idêntico ao loop JS (null→Infinity,
+ * ignorado por MIN). Usado APENAS no estado inicial (sem q/filtro); as
+ * rotas com tabela carregada mantêm o cálculo JS canónico intacto.
+ */
+async function computeStockMetricsSql(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  effFarmaciaIds: string[],
+  periodStart: number,
+  periodEnd: number,
+): Promise<StockMetrics> {
+  const fromWhere = stockFromWhere(effFarmaciaIds, undefined, periodStart, periodEnd);
+  const rows = await prisma.$queryRaw<
+    Array<{
+      referencias: number;
+      baixaCobertura: number;
+      stockParado: number;
+      transferencias: number;
+    }>
+  >(Prisma.sql`
+    WITH base AS (
+      SELECT
+        pf."produtoId" AS "produtoId",
+        pf."stockAtual"::float  AS stock,
+        pf."stockMinimo"::float AS smin,
+        COALESCE(vm."salesQty90d", 0)::float AS sales,
+        GREATEST(
+          CASE
+            WHEN i."produtoId" IS NOT NULL THEN COALESCE(i."mediaVendasDiarias90d", 0)::float
+            WHEN COALESCE(vm."salesQty90d", 0) > 0 THEN COALESCE(vm."salesQty90d", 0)::float / 90.0
+            ELSE 0
+          END,
+          0
+        ) AS ad
+      ${fromWhere}
+    ),
+    cov AS (
+      SELECT base.*,
+        CASE WHEN stock <= 0 THEN 0 WHEN ad = 0 THEN NULL ELSE stock / ad END AS coverage
+      FROM base
+    ),
+    peer AS (
+      SELECT cov.*,
+        MIN(coverage) OVER (PARTITION BY "produtoId") AS min_peer_cov
+      FROM cov
+    ),
+    classified AS (
+      SELECT
+        CASE
+          WHEN sales <= 0 THEN 'parado'
+          WHEN (smin IS NOT NULL AND smin > 0 AND stock <= smin)
+               OR (coverage IS NOT NULL AND coverage < 7) THEN 'baixa'
+          WHEN coverage IS NOT NULL AND coverage > 30
+               AND min_peer_cov IS NOT NULL AND min_peer_cov < 14 THEN 'transfer'
+          ELSE 'estavel'
+        END AS status
+      FROM peer
+    )
+    SELECT
+      COUNT(*)::int                                      AS "referencias",
+      COUNT(*) FILTER (WHERE status = 'baixa')::int      AS "baixaCobertura",
+      COUNT(*) FILTER (WHERE status = 'parado')::int     AS "stockParado",
+      COUNT(*) FILTER (WHERE status = 'transfer')::int   AS "transferencias"
+    FROM classified
+  `);
+  const r = rows[0];
+  return {
+    referencias: Number(r?.referencias ?? 0),
+    baixaCobertura: Number(r?.baixaCobertura ?? 0),
+    stockParado: Number(r?.stockParado ?? 0),
+    transferencias: Number(r?.transferencias ?? 0),
+  };
+}
+
 export async function getStockData(params: StockSearchParams): Promise<StockPageData> {
   const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
@@ -443,6 +537,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     metrics: { referencias: 0, baixaCobertura: 0, stockParado: 0, transferencias: 0 },
     filter: params.filter ?? null,
     params: { ...params, page, pageSize },
+    tableLoaded: false,
   });
 
   if (farmacias.length === 0) return empty();
@@ -465,6 +560,33 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
   const statusSet = new Set(params.statusBuckets ?? []);
   const hasComputedFilter =
     !!params.filter || coverageSet.size > 0 || statusSet.size > 0;
+
+  // ── EMPTY STATE ────────────────────────────────────────────────────────
+  // Sem pesquisa (`q`) e sem filtro operacional: NÃO carregar a tabela. O
+  // catálogo pode ter dezenas de milhares de linhas — materializá-lo só para
+  // mostrar a primeira página é o que tornava o /stock lento ao abrir. Aqui
+  // só calculamos os KPIs (agregação SQL, sem trazer linhas para JS) e o
+  // cliente mostra um prompt a pedir pesquisa/filtro em vez da listagem.
+  const shouldLoadTable = !!q || hasComputedFilter;
+  if (!shouldLoadTable) {
+    const metrics = await computeStockMetricsSql(
+      prisma,
+      effFarmaciaIds,
+      periodStart,
+      periodEnd,
+    );
+    return {
+      rows: [],
+      totalRows: metrics.referencias,
+      page,
+      pageSize,
+      pharmacyNames,
+      metrics,
+      filter: null,
+      params: { ...params, page, pageSize },
+      tableLoaded: false,
+    };
+  }
 
   // ── FAST PATH ──────────────────────────────────────────────────────────
   // Sem filtros computados (browse + pesquisa texto/farmácia): métricas via
@@ -505,6 +627,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
       metrics: { referencias: totalRows, baixaCobertura, stockParado, transferencias },
       filter: params.filter ?? null,
       params: { ...params, page, pageSize },
+      tableLoaded: true,
     };
   }
 
@@ -559,5 +682,6 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     metrics,
     filter: params.filter ?? null,
     params: { ...params, page, pageSize },
+    tableLoaded: true,
   };
 }
