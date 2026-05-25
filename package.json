@@ -24,6 +24,7 @@
     "ingest:classify-tipodoc": "tsx scripts/classify-tipodoc.ts",
     "ingest:reclassify-vendas": "tsx scripts/reclassify-ingest-vendas.ts",
     "ingest:reprocess-produto-mapping": "tsx scripts/reprocess-ingest-produto-mapping.ts",
+    "ingest:cleanup-noncanonical-stock": "tsx scripts/cleanup-noncanonical-stock.ts",
     "catalog:copy-enriched": "tsx scripts/copy-enriched-catalog-to-tenant.ts",
     "aggregate:vendamensal": "tsx scripts/aggregate-vendamensal.ts",
     "report:vendamensal": "tsx scripts/report-vendamensal.ts",
