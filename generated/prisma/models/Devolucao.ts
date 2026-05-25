@@ -15,6 +15,15 @@ import type * as Prisma from "../internal/prismaNamespace"
 /**
  * Model Devolucao
  * Devoluções diárias.
+ * 
+ * Granularidade: 1 row por linha do staging (`StagingDevolucaoFornecedorRawLine`).
+ * `externalLineId` é a chave natural (dbo.[Devolucao Detalhe].[Devolucao
+ * Detalhe ID]); idempotência da aggregation via UPSERT em
+ * `(farmaciaId, externalLineId)`. Estado P→R muda `quantidadeRecebida`
+ * no staging e a aggregation re-produz a row sem duplicar.
+ * 
+ * `externalLineId`/`ingestBatchId`/`aggregatedAt` ficam `null` em rows
+ * legacy (excel import, etc.).
  */
 export type DevolucaoModel = runtime.Types.Result.DefaultSelection<Prisma.$DevolucaoPayload>
 
@@ -27,11 +36,13 @@ export type AggregateDevolucao = {
 }
 
 export type DevolucaoAvgAggregateOutputType = {
+  externalLineId: number | null
   quantidade: runtime.Decimal | null
   valor: runtime.Decimal | null
 }
 
 export type DevolucaoSumAggregateOutputType = {
+  externalLineId: number | null
   quantidade: runtime.Decimal | null
   valor: runtime.Decimal | null
 }
@@ -40,6 +51,7 @@ export type DevolucaoMinAggregateOutputType = {
   id: string | null
   farmaciaId: string | null
   produtoId: string | null
+  externalLineId: number | null
   data: Date | null
   quantidade: runtime.Decimal | null
   valor: runtime.Decimal | null
@@ -48,12 +60,15 @@ export type DevolucaoMinAggregateOutputType = {
   fornecedorDestinoId: string | null
   dataIngestao: Date | null
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
 }
 
 export type DevolucaoMaxAggregateOutputType = {
   id: string | null
   farmaciaId: string | null
   produtoId: string | null
+  externalLineId: number | null
   data: Date | null
   quantidade: runtime.Decimal | null
   valor: runtime.Decimal | null
@@ -62,12 +77,15 @@ export type DevolucaoMaxAggregateOutputType = {
   fornecedorDestinoId: string | null
   dataIngestao: Date | null
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
 }
 
 export type DevolucaoCountAggregateOutputType = {
   id: number
   farmaciaId: number
   produtoId: number
+  externalLineId: number
   data: number
   quantidade: number
   valor: number
@@ -76,16 +94,20 @@ export type DevolucaoCountAggregateOutputType = {
   fornecedorDestinoId: number
   dataIngestao: number
   loteIngestaoId: number
+  ingestBatchId: number
+  aggregatedAt: number
   _all: number
 }
 
 
 export type DevolucaoAvgAggregateInputType = {
+  externalLineId?: true
   quantidade?: true
   valor?: true
 }
 
 export type DevolucaoSumAggregateInputType = {
+  externalLineId?: true
   quantidade?: true
   valor?: true
 }
@@ -94,6 +116,7 @@ export type DevolucaoMinAggregateInputType = {
   id?: true
   farmaciaId?: true
   produtoId?: true
+  externalLineId?: true
   data?: true
   quantidade?: true
   valor?: true
@@ -102,12 +125,15 @@ export type DevolucaoMinAggregateInputType = {
   fornecedorDestinoId?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
 }
 
 export type DevolucaoMaxAggregateInputType = {
   id?: true
   farmaciaId?: true
   produtoId?: true
+  externalLineId?: true
   data?: true
   quantidade?: true
   valor?: true
@@ -116,12 +142,15 @@ export type DevolucaoMaxAggregateInputType = {
   fornecedorDestinoId?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
 }
 
 export type DevolucaoCountAggregateInputType = {
   id?: true
   farmaciaId?: true
   produtoId?: true
+  externalLineId?: true
   data?: true
   quantidade?: true
   valor?: true
@@ -130,6 +159,8 @@ export type DevolucaoCountAggregateInputType = {
   fornecedorDestinoId?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
   _all?: true
 }
 
@@ -223,6 +254,7 @@ export type DevolucaoGroupByOutputType = {
   id: string
   farmaciaId: string
   produtoId: string
+  externalLineId: number | null
   data: Date
   quantidade: runtime.Decimal
   valor: runtime.Decimal
@@ -231,6 +263,8 @@ export type DevolucaoGroupByOutputType = {
   fornecedorDestinoId: string | null
   dataIngestao: Date
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
   _count: DevolucaoCountAggregateOutputType | null
   _avg: DevolucaoAvgAggregateOutputType | null
   _sum: DevolucaoSumAggregateOutputType | null
@@ -260,6 +294,7 @@ export type DevolucaoWhereInput = {
   id?: Prisma.StringFilter<"Devolucao"> | string
   farmaciaId?: Prisma.StringFilter<"Devolucao"> | string
   produtoId?: Prisma.StringFilter<"Devolucao"> | string
+  externalLineId?: Prisma.IntNullableFilter<"Devolucao"> | number | null
   data?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   quantidade?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -268,6 +303,8 @@ export type DevolucaoWhereInput = {
   fornecedorDestinoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Devolucao"> | Date | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedorDestino?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
@@ -278,6 +315,7 @@ export type DevolucaoOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  externalLineId?: Prisma.SortOrderInput | Prisma.SortOrder
   data?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
@@ -286,6 +324,8 @@ export type DevolucaoOrderByWithRelationInput = {
   fornecedorDestinoId?: Prisma.SortOrderInput | Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrderInput | Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
   fornecedorDestino?: Prisma.FornecedorOrderByWithRelationInput
@@ -294,11 +334,13 @@ export type DevolucaoOrderByWithRelationInput = {
 
 export type DevolucaoWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  farmaciaId_externalLineId?: Prisma.DevolucaoFarmaciaIdExternalLineIdCompoundUniqueInput
   AND?: Prisma.DevolucaoWhereInput | Prisma.DevolucaoWhereInput[]
   OR?: Prisma.DevolucaoWhereInput[]
   NOT?: Prisma.DevolucaoWhereInput | Prisma.DevolucaoWhereInput[]
   farmaciaId?: Prisma.StringFilter<"Devolucao"> | string
   produtoId?: Prisma.StringFilter<"Devolucao"> | string
+  externalLineId?: Prisma.IntNullableFilter<"Devolucao"> | number | null
   data?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   quantidade?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -307,16 +349,19 @@ export type DevolucaoWhereUniqueInput = Prisma.AtLeast<{
   fornecedorDestinoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Devolucao"> | Date | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedorDestino?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
-}, "id">
+}, "id" | "farmaciaId_externalLineId">
 
 export type DevolucaoOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  externalLineId?: Prisma.SortOrderInput | Prisma.SortOrder
   data?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
@@ -325,6 +370,8 @@ export type DevolucaoOrderByWithAggregationInput = {
   fornecedorDestinoId?: Prisma.SortOrderInput | Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrderInput | Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.DevolucaoCountOrderByAggregateInput
   _avg?: Prisma.DevolucaoAvgOrderByAggregateInput
   _max?: Prisma.DevolucaoMaxOrderByAggregateInput
@@ -339,6 +386,7 @@ export type DevolucaoScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"Devolucao"> | string
   farmaciaId?: Prisma.StringWithAggregatesFilter<"Devolucao"> | string
   produtoId?: Prisma.StringWithAggregatesFilter<"Devolucao"> | string
+  externalLineId?: Prisma.IntNullableWithAggregatesFilter<"Devolucao"> | number | null
   data?: Prisma.DateTimeWithAggregatesFilter<"Devolucao"> | Date | string
   quantidade?: Prisma.DecimalWithAggregatesFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalWithAggregatesFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -347,16 +395,21 @@ export type DevolucaoScalarWhereWithAggregatesInput = {
   fornecedorDestinoId?: Prisma.StringNullableWithAggregatesFilter<"Devolucao"> | string | null
   dataIngestao?: Prisma.DateTimeWithAggregatesFilter<"Devolucao"> | Date | string
   loteIngestaoId?: Prisma.StringNullableWithAggregatesFilter<"Devolucao"> | string | null
+  ingestBatchId?: Prisma.StringNullableWithAggregatesFilter<"Devolucao"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Devolucao"> | Date | string | null
 }
 
 export type DevolucaoCreateInput = {
   id?: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo: $Enums.TipoDevolucao
   motivo?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutDevolucoesInput
   produto: Prisma.ProdutoCreateNestedOneWithoutDevolucoesInput
   fornecedorDestino?: Prisma.FornecedorCreateNestedOneWithoutDevolucoesDestinoInput
@@ -367,6 +420,7 @@ export type DevolucaoUncheckedCreateInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -375,16 +429,21 @@ export type DevolucaoUncheckedCreateInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutDevolucoesNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutDevolucoesNestedInput
   fornecedorDestino?: Prisma.FornecedorUpdateOneWithoutDevolucoesDestinoNestedInput
@@ -395,6 +454,7 @@ export type DevolucaoUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -403,12 +463,15 @@ export type DevolucaoUncheckedUpdateInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoCreateManyInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -417,22 +480,28 @@ export type DevolucaoCreateManyInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -441,6 +510,8 @@ export type DevolucaoUncheckedUpdateManyInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoListRelationFilter = {
@@ -453,10 +524,16 @@ export type DevolucaoOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
+export type DevolucaoFarmaciaIdExternalLineIdCompoundUniqueInput = {
+  farmaciaId: string
+  externalLineId: number
+}
+
 export type DevolucaoCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  externalLineId?: Prisma.SortOrder
   data?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
@@ -465,9 +542,12 @@ export type DevolucaoCountOrderByAggregateInput = {
   fornecedorDestinoId?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type DevolucaoAvgOrderByAggregateInput = {
+  externalLineId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
 }
@@ -476,6 +556,7 @@ export type DevolucaoMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  externalLineId?: Prisma.SortOrder
   data?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
@@ -484,12 +565,15 @@ export type DevolucaoMaxOrderByAggregateInput = {
   fornecedorDestinoId?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type DevolucaoMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
+  externalLineId?: Prisma.SortOrder
   data?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
@@ -498,9 +582,12 @@ export type DevolucaoMinOrderByAggregateInput = {
   fornecedorDestinoId?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type DevolucaoSumOrderByAggregateInput = {
+  externalLineId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   valor?: Prisma.SortOrder
 }
@@ -679,12 +766,15 @@ export type DevolucaoUncheckedUpdateManyWithoutLoteIngestaoNestedInput = {
 
 export type DevolucaoCreateWithoutProdutoInput = {
   id?: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo: $Enums.TipoDevolucao
   motivo?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutDevolucoesInput
   fornecedorDestino?: Prisma.FornecedorCreateNestedOneWithoutDevolucoesDestinoInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutDevolucoesInput
@@ -693,6 +783,7 @@ export type DevolucaoCreateWithoutProdutoInput = {
 export type DevolucaoUncheckedCreateWithoutProdutoInput = {
   id?: string
   farmaciaId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -701,6 +792,8 @@ export type DevolucaoUncheckedCreateWithoutProdutoInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoCreateOrConnectWithoutProdutoInput = {
@@ -736,6 +829,7 @@ export type DevolucaoScalarWhereInput = {
   id?: Prisma.StringFilter<"Devolucao"> | string
   farmaciaId?: Prisma.StringFilter<"Devolucao"> | string
   produtoId?: Prisma.StringFilter<"Devolucao"> | string
+  externalLineId?: Prisma.IntNullableFilter<"Devolucao"> | number | null
   data?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   quantidade?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFilter<"Devolucao"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -744,16 +838,21 @@ export type DevolucaoScalarWhereInput = {
   fornecedorDestinoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Devolucao"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Devolucao"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Devolucao"> | Date | string | null
 }
 
 export type DevolucaoCreateWithoutFornecedorDestinoInput = {
   id?: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo: $Enums.TipoDevolucao
   motivo?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutDevolucoesInput
   produto: Prisma.ProdutoCreateNestedOneWithoutDevolucoesInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutDevolucoesInput
@@ -763,6 +862,7 @@ export type DevolucaoUncheckedCreateWithoutFornecedorDestinoInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -770,6 +870,8 @@ export type DevolucaoUncheckedCreateWithoutFornecedorDestinoInput = {
   motivo?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoCreateOrConnectWithoutFornecedorDestinoInput = {
@@ -800,12 +902,15 @@ export type DevolucaoUpdateManyWithWhereWithoutFornecedorDestinoInput = {
 
 export type DevolucaoCreateWithoutFarmaciaInput = {
   id?: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo: $Enums.TipoDevolucao
   motivo?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   produto: Prisma.ProdutoCreateNestedOneWithoutDevolucoesInput
   fornecedorDestino?: Prisma.FornecedorCreateNestedOneWithoutDevolucoesDestinoInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutDevolucoesInput
@@ -814,6 +919,7 @@ export type DevolucaoCreateWithoutFarmaciaInput = {
 export type DevolucaoUncheckedCreateWithoutFarmaciaInput = {
   id?: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -822,6 +928,8 @@ export type DevolucaoUncheckedCreateWithoutFarmaciaInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoCreateOrConnectWithoutFarmaciaInput = {
@@ -852,12 +960,15 @@ export type DevolucaoUpdateManyWithWhereWithoutFarmaciaInput = {
 
 export type DevolucaoCreateWithoutLoteIngestaoInput = {
   id?: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo: $Enums.TipoDevolucao
   motivo?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutDevolucoesInput
   produto: Prisma.ProdutoCreateNestedOneWithoutDevolucoesInput
   fornecedorDestino?: Prisma.FornecedorCreateNestedOneWithoutDevolucoesDestinoInput
@@ -867,6 +978,7 @@ export type DevolucaoUncheckedCreateWithoutLoteIngestaoInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -874,6 +986,8 @@ export type DevolucaoUncheckedCreateWithoutLoteIngestaoInput = {
   motivo?: string | null
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoCreateOrConnectWithoutLoteIngestaoInput = {
@@ -905,6 +1019,7 @@ export type DevolucaoUpdateManyWithWhereWithoutLoteIngestaoInput = {
 export type DevolucaoCreateManyProdutoInput = {
   id?: string
   farmaciaId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -913,16 +1028,21 @@ export type DevolucaoCreateManyProdutoInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutDevolucoesNestedInput
   fornecedorDestino?: Prisma.FornecedorUpdateOneWithoutDevolucoesDestinoNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutDevolucoesNestedInput
@@ -931,6 +1051,7 @@ export type DevolucaoUpdateWithoutProdutoInput = {
 export type DevolucaoUncheckedUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -939,11 +1060,14 @@ export type DevolucaoUncheckedUpdateWithoutProdutoInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoUncheckedUpdateManyWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -952,12 +1076,15 @@ export type DevolucaoUncheckedUpdateManyWithoutProdutoInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoCreateManyFornecedorDestinoInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -965,16 +1092,21 @@ export type DevolucaoCreateManyFornecedorDestinoInput = {
   motivo?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateWithoutFornecedorDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutDevolucoesNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutDevolucoesNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutDevolucoesNestedInput
@@ -984,6 +1116,7 @@ export type DevolucaoUncheckedUpdateWithoutFornecedorDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -991,12 +1124,15 @@ export type DevolucaoUncheckedUpdateWithoutFornecedorDestinoInput = {
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1004,11 +1140,14 @@ export type DevolucaoUncheckedUpdateManyWithoutFornecedorDestinoInput = {
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoCreateManyFarmaciaInput = {
   id?: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1017,16 +1156,21 @@ export type DevolucaoCreateManyFarmaciaInput = {
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutDevolucoesNestedInput
   fornecedorDestino?: Prisma.FornecedorUpdateOneWithoutDevolucoesDestinoNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutDevolucoesNestedInput
@@ -1035,6 +1179,7 @@ export type DevolucaoUpdateWithoutFarmaciaInput = {
 export type DevolucaoUncheckedUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1043,11 +1188,14 @@ export type DevolucaoUncheckedUpdateWithoutFarmaciaInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoUncheckedUpdateManyWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1056,12 +1204,15 @@ export type DevolucaoUncheckedUpdateManyWithoutFarmaciaInput = {
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoCreateManyLoteIngestaoInput = {
   id?: string
   farmaciaId: string
   produtoId: string
+  externalLineId?: number | null
   data: Date | string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   valor: runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1069,16 +1220,21 @@ export type DevolucaoCreateManyLoteIngestaoInput = {
   motivo?: string | null
   fornecedorDestinoId?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type DevolucaoUpdateWithoutLoteIngestaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   tipo?: Prisma.EnumTipoDevolucaoFieldUpdateOperationsInput | $Enums.TipoDevolucao
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutDevolucoesNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutDevolucoesNestedInput
   fornecedorDestino?: Prisma.FornecedorUpdateOneWithoutDevolucoesDestinoNestedInput
@@ -1088,6 +1244,7 @@ export type DevolucaoUncheckedUpdateWithoutLoteIngestaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1095,12 +1252,15 @@ export type DevolucaoUncheckedUpdateWithoutLoteIngestaoInput = {
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type DevolucaoUncheckedUpdateManyWithoutLoteIngestaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalLineId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   data?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   valor?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -1108,6 +1268,8 @@ export type DevolucaoUncheckedUpdateManyWithoutLoteIngestaoInput = {
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   fornecedorDestinoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -1116,6 +1278,7 @@ export type DevolucaoSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   id?: boolean
   farmaciaId?: boolean
   produtoId?: boolean
+  externalLineId?: boolean
   data?: boolean
   quantidade?: boolean
   valor?: boolean
@@ -1124,6 +1287,8 @@ export type DevolucaoSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   fornecedorDestinoId?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorDestino?: boolean | Prisma.Devolucao$fornecedorDestinoArgs<ExtArgs>
@@ -1134,6 +1299,7 @@ export type DevolucaoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   farmaciaId?: boolean
   produtoId?: boolean
+  externalLineId?: boolean
   data?: boolean
   quantidade?: boolean
   valor?: boolean
@@ -1142,6 +1308,8 @@ export type DevolucaoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   fornecedorDestinoId?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorDestino?: boolean | Prisma.Devolucao$fornecedorDestinoArgs<ExtArgs>
@@ -1152,6 +1320,7 @@ export type DevolucaoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   farmaciaId?: boolean
   produtoId?: boolean
+  externalLineId?: boolean
   data?: boolean
   quantidade?: boolean
   valor?: boolean
@@ -1160,6 +1329,8 @@ export type DevolucaoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   fornecedorDestinoId?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorDestino?: boolean | Prisma.Devolucao$fornecedorDestinoArgs<ExtArgs>
@@ -1170,6 +1341,7 @@ export type DevolucaoSelectScalar = {
   id?: boolean
   farmaciaId?: boolean
   produtoId?: boolean
+  externalLineId?: boolean
   data?: boolean
   quantidade?: boolean
   valor?: boolean
@@ -1178,9 +1350,11 @@ export type DevolucaoSelectScalar = {
   fornecedorDestinoId?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
 }
 
-export type DevolucaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "data" | "quantidade" | "valor" | "tipo" | "motivo" | "fornecedorDestinoId" | "dataIngestao" | "loteIngestaoId", ExtArgs["result"]["devolucao"]>
+export type DevolucaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "externalLineId" | "data" | "quantidade" | "valor" | "tipo" | "motivo" | "fornecedorDestinoId" | "dataIngestao" | "loteIngestaoId" | "ingestBatchId" | "aggregatedAt", ExtArgs["result"]["devolucao"]>
 export type DevolucaoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1212,6 +1386,10 @@ export type $DevolucaoPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     id: string
     farmaciaId: string
     produtoId: string
+    /**
+     * dbo.[Devolucao Detalhe].[Devolucao Detalhe ID]. NULL em rows legacy.
+     */
+    externalLineId: number | null
     data: Date
     quantidade: runtime.Decimal
     valor: runtime.Decimal
@@ -1220,6 +1398,8 @@ export type $DevolucaoPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     fornecedorDestinoId: string | null
     dataIngestao: Date
     loteIngestaoId: string | null
+    ingestBatchId: string | null
+    aggregatedAt: Date | null
   }, ExtArgs["result"]["devolucao"]>
   composites: {}
 }
@@ -1650,6 +1830,7 @@ export interface DevolucaoFieldRefs {
   readonly id: Prisma.FieldRef<"Devolucao", 'String'>
   readonly farmaciaId: Prisma.FieldRef<"Devolucao", 'String'>
   readonly produtoId: Prisma.FieldRef<"Devolucao", 'String'>
+  readonly externalLineId: Prisma.FieldRef<"Devolucao", 'Int'>
   readonly data: Prisma.FieldRef<"Devolucao", 'DateTime'>
   readonly quantidade: Prisma.FieldRef<"Devolucao", 'Decimal'>
   readonly valor: Prisma.FieldRef<"Devolucao", 'Decimal'>
@@ -1658,6 +1839,8 @@ export interface DevolucaoFieldRefs {
   readonly fornecedorDestinoId: Prisma.FieldRef<"Devolucao", 'String'>
   readonly dataIngestao: Prisma.FieldRef<"Devolucao", 'DateTime'>
   readonly loteIngestaoId: Prisma.FieldRef<"Devolucao", 'String'>
+  readonly ingestBatchId: Prisma.FieldRef<"Devolucao", 'String'>
+  readonly aggregatedAt: Prisma.FieldRef<"Devolucao", 'DateTime'>
 }
     
 

@@ -534,10 +534,10 @@ export type ProdutoOrderByWithRelationInput = {
 export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   cnp?: number
-  externalProductId?: number
   AND?: Prisma.ProdutoWhereInput | Prisma.ProdutoWhereInput[]
   OR?: Prisma.ProdutoWhereInput[]
   NOT?: Prisma.ProdutoWhereInput | Prisma.ProdutoWhereInput[]
+  externalProductId?: Prisma.IntNullableFilter<"Produto"> | number | null
   designacao?: Prisma.StringFilter<"Produto"> | string
   fabricanteId?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificacaoNivel1Id?: Prisma.StringNullableFilter<"Produto"> | string | null
@@ -587,7 +587,7 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   verificacaoHistorico?: Prisma.ProdutoVerificacaoHistoricoListRelationFilter
   enrichmentSourceLogs?: Prisma.EnrichmentSourceLogListRelationFilter
   ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawListRelationFilter
-}, "id" | "cnp" | "externalProductId">
+}, "id" | "cnp">
 
 export type ProdutoOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -6164,9 +6164,12 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     cnp: number
     /**
      * Identificador do produto no ERP da farmácia (Softreis: Stocks.CodigoID).
-     * Mantido como referência cross-tenant para o agent bootstrap-upload
-     * fazer upsert por externalProductId quando o cnp não está disponível.
-     * Único na BD do tenant para idempotência forte.
+     * Mantido como referência cross-tenant — útil para o agent fazer
+     * lookup rápido sem JOIN, MAS não é chave canónica: o ERP pode
+     * reciclar CodigoIDs e produtos diferentes em farmácias diferentes
+     * do mesmo tenant podem partilhar valores (são namespaces locais).
+     * Identidade real do catálogo vive em `cnp @unique`. Index
+     * não-unique para preservar perf de lookups.
      */
     externalProductId: number | null
     designacao: string

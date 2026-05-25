@@ -15,6 +15,16 @@ import type * as Prisma from "../internal/prismaNamespace"
 /**
  * Model Compra
  * Compras diárias agregadas por produto-dia-farmácia-fornecedor.
+ * 
+ * Granularidade: 1 row por (farmaciaId, produtoId, fornecedorId, data).
+ * A aggregation Phase 1c soma todas as linhas de `StagingCompraRawLine`
+ * resolvidas (produto + fornecedor) que caem no mesmo dia e produz/UPSERTa
+ * esta row. O unique `Compra_aggregation_key` garante idempotência da
+ * re-aggregation — re-correr a mesma janela actualiza valores em vez de
+ * duplicar.
+ * 
+ * Campos `ingestBatchId` e `aggregatedAt` ficam `null` em rows legacy
+ * (excel import, etc.) — não tocadas pelo aggregation pipeline nesta fase.
  */
 export type CompraModel = runtime.Types.Result.DefaultSelection<Prisma.$CompraPayload>
 
@@ -53,6 +63,8 @@ export type CompraMinAggregateOutputType = {
   numeroDocumento: string | null
   dataIngestao: Date | null
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
 }
 
 export type CompraMaxAggregateOutputType = {
@@ -68,6 +80,8 @@ export type CompraMaxAggregateOutputType = {
   numeroDocumento: string | null
   dataIngestao: Date | null
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
 }
 
 export type CompraCountAggregateOutputType = {
@@ -83,6 +97,8 @@ export type CompraCountAggregateOutputType = {
   numeroDocumento: number
   dataIngestao: number
   loteIngestaoId: number
+  ingestBatchId: number
+  aggregatedAt: number
   _all: number
 }
 
@@ -114,6 +130,8 @@ export type CompraMinAggregateInputType = {
   numeroDocumento?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
 }
 
 export type CompraMaxAggregateInputType = {
@@ -129,6 +147,8 @@ export type CompraMaxAggregateInputType = {
   numeroDocumento?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
 }
 
 export type CompraCountAggregateInputType = {
@@ -144,6 +164,8 @@ export type CompraCountAggregateInputType = {
   numeroDocumento?: true
   dataIngestao?: true
   loteIngestaoId?: true
+  ingestBatchId?: true
+  aggregatedAt?: true
   _all?: true
 }
 
@@ -246,6 +268,8 @@ export type CompraGroupByOutputType = {
   numeroDocumento: string | null
   dataIngestao: Date
   loteIngestaoId: string | null
+  ingestBatchId: string | null
+  aggregatedAt: Date | null
   _count: CompraCountAggregateOutputType | null
   _avg: CompraAvgAggregateOutputType | null
   _sum: CompraSumAggregateOutputType | null
@@ -284,6 +308,8 @@ export type CompraWhereInput = {
   numeroDocumento?: Prisma.StringNullableFilter<"Compra"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Compra"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Compra"> | Date | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedor?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
@@ -303,6 +329,8 @@ export type CompraOrderByWithRelationInput = {
   numeroDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrderInput | Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
   fornecedor?: Prisma.FornecedorOrderByWithRelationInput
@@ -311,6 +339,7 @@ export type CompraOrderByWithRelationInput = {
 
 export type CompraWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  Compra_aggregation_key?: Prisma.CompraCompra_aggregation_keyCompoundUniqueInput
   AND?: Prisma.CompraWhereInput | Prisma.CompraWhereInput[]
   OR?: Prisma.CompraWhereInput[]
   NOT?: Prisma.CompraWhereInput | Prisma.CompraWhereInput[]
@@ -325,11 +354,13 @@ export type CompraWhereUniqueInput = Prisma.AtLeast<{
   numeroDocumento?: Prisma.StringNullableFilter<"Compra"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Compra"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Compra"> | Date | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedor?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
-}, "id">
+}, "id" | "Compra_aggregation_key">
 
 export type CompraOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -344,6 +375,8 @@ export type CompraOrderByWithAggregationInput = {
   numeroDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrderInput | Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.CompraCountOrderByAggregateInput
   _avg?: Prisma.CompraAvgOrderByAggregateInput
   _max?: Prisma.CompraMaxOrderByAggregateInput
@@ -367,6 +400,8 @@ export type CompraScalarWhereWithAggregatesInput = {
   numeroDocumento?: Prisma.StringNullableWithAggregatesFilter<"Compra"> | string | null
   dataIngestao?: Prisma.DateTimeWithAggregatesFilter<"Compra"> | Date | string
   loteIngestaoId?: Prisma.StringNullableWithAggregatesFilter<"Compra"> | string | null
+  ingestBatchId?: Prisma.StringNullableWithAggregatesFilter<"Compra"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Compra"> | Date | string | null
 }
 
 export type CompraCreateInput = {
@@ -378,6 +413,8 @@ export type CompraCreateInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutComprasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutComprasInput
   fornecedor?: Prisma.FornecedorCreateNestedOneWithoutComprasInput
@@ -397,6 +434,8 @@ export type CompraUncheckedCreateInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateInput = {
@@ -408,6 +447,8 @@ export type CompraUpdateInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutComprasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutComprasNestedInput
   fornecedor?: Prisma.FornecedorUpdateOneWithoutComprasNestedInput
@@ -427,6 +468,8 @@ export type CompraUncheckedUpdateInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraCreateManyInput = {
@@ -442,6 +485,8 @@ export type CompraCreateManyInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateManyMutationInput = {
@@ -453,6 +498,8 @@ export type CompraUpdateManyMutationInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraUncheckedUpdateManyInput = {
@@ -468,6 +515,8 @@ export type CompraUncheckedUpdateManyInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraListRelationFilter = {
@@ -478,6 +527,13 @@ export type CompraListRelationFilter = {
 
 export type CompraOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
+}
+
+export type CompraCompra_aggregation_keyCompoundUniqueInput = {
+  farmaciaId: string
+  produtoId: string
+  fornecedorId: string
+  data: Date | string
 }
 
 export type CompraCountOrderByAggregateInput = {
@@ -493,6 +549,8 @@ export type CompraCountOrderByAggregateInput = {
   numeroDocumento?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type CompraAvgOrderByAggregateInput = {
@@ -515,6 +573,8 @@ export type CompraMaxOrderByAggregateInput = {
   numeroDocumento?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type CompraMinOrderByAggregateInput = {
@@ -530,6 +590,8 @@ export type CompraMinOrderByAggregateInput = {
   numeroDocumento?: Prisma.SortOrder
   dataIngestao?: Prisma.SortOrder
   loteIngestaoId?: Prisma.SortOrder
+  ingestBatchId?: Prisma.SortOrder
+  aggregatedAt?: Prisma.SortOrder
 }
 
 export type CompraSumOrderByAggregateInput = {
@@ -716,6 +778,8 @@ export type CompraCreateWithoutProdutoInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutComprasInput
   fornecedor?: Prisma.FornecedorCreateNestedOneWithoutComprasInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutComprasInput
@@ -733,6 +797,8 @@ export type CompraUncheckedCreateWithoutProdutoInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraCreateOrConnectWithoutProdutoInput = {
@@ -777,6 +843,8 @@ export type CompraScalarWhereInput = {
   numeroDocumento?: Prisma.StringNullableFilter<"Compra"> | string | null
   dataIngestao?: Prisma.DateTimeFilter<"Compra"> | Date | string
   loteIngestaoId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  ingestBatchId?: Prisma.StringNullableFilter<"Compra"> | string | null
+  aggregatedAt?: Prisma.DateTimeNullableFilter<"Compra"> | Date | string | null
 }
 
 export type CompraCreateWithoutFornecedorInput = {
@@ -788,6 +856,8 @@ export type CompraCreateWithoutFornecedorInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutComprasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutComprasInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutComprasInput
@@ -805,6 +875,8 @@ export type CompraUncheckedCreateWithoutFornecedorInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraCreateOrConnectWithoutFornecedorInput = {
@@ -842,6 +914,8 @@ export type CompraCreateWithoutFarmaciaInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   produto: Prisma.ProdutoCreateNestedOneWithoutComprasInput
   fornecedor?: Prisma.FornecedorCreateNestedOneWithoutComprasInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutComprasInput
@@ -859,6 +933,8 @@ export type CompraUncheckedCreateWithoutFarmaciaInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraCreateOrConnectWithoutFarmaciaInput = {
@@ -896,6 +972,8 @@ export type CompraCreateWithoutLoteIngestaoInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutComprasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutComprasInput
   fornecedor?: Prisma.FornecedorCreateNestedOneWithoutComprasInput
@@ -913,6 +991,8 @@ export type CompraUncheckedCreateWithoutLoteIngestaoInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraCreateOrConnectWithoutLoteIngestaoInput = {
@@ -953,6 +1033,8 @@ export type CompraCreateManyProdutoInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateWithoutProdutoInput = {
@@ -964,6 +1046,8 @@ export type CompraUpdateWithoutProdutoInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutComprasNestedInput
   fornecedor?: Prisma.FornecedorUpdateOneWithoutComprasNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutComprasNestedInput
@@ -981,6 +1065,8 @@ export type CompraUncheckedUpdateWithoutProdutoInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraUncheckedUpdateManyWithoutProdutoInput = {
@@ -995,6 +1081,8 @@ export type CompraUncheckedUpdateManyWithoutProdutoInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraCreateManyFornecedorInput = {
@@ -1009,6 +1097,8 @@ export type CompraCreateManyFornecedorInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateWithoutFornecedorInput = {
@@ -1020,6 +1110,8 @@ export type CompraUpdateWithoutFornecedorInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutComprasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutComprasNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutComprasNestedInput
@@ -1037,6 +1129,8 @@ export type CompraUncheckedUpdateWithoutFornecedorInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraUncheckedUpdateManyWithoutFornecedorInput = {
@@ -1051,6 +1145,8 @@ export type CompraUncheckedUpdateManyWithoutFornecedorInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraCreateManyFarmaciaInput = {
@@ -1065,6 +1161,8 @@ export type CompraCreateManyFarmaciaInput = {
   numeroDocumento?: string | null
   dataIngestao?: Date | string
   loteIngestaoId?: string | null
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateWithoutFarmaciaInput = {
@@ -1076,6 +1174,8 @@ export type CompraUpdateWithoutFarmaciaInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutComprasNestedInput
   fornecedor?: Prisma.FornecedorUpdateOneWithoutComprasNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutComprasNestedInput
@@ -1093,6 +1193,8 @@ export type CompraUncheckedUpdateWithoutFarmaciaInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraUncheckedUpdateManyWithoutFarmaciaInput = {
@@ -1107,6 +1209,8 @@ export type CompraUncheckedUpdateManyWithoutFarmaciaInput = {
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   loteIngestaoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraCreateManyLoteIngestaoInput = {
@@ -1121,6 +1225,8 @@ export type CompraCreateManyLoteIngestaoInput = {
   descontoBonificacao?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: string | null
   dataIngestao?: Date | string
+  ingestBatchId?: string | null
+  aggregatedAt?: Date | string | null
 }
 
 export type CompraUpdateWithoutLoteIngestaoInput = {
@@ -1132,6 +1238,8 @@ export type CompraUpdateWithoutLoteIngestaoInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutComprasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutComprasNestedInput
   fornecedor?: Prisma.FornecedorUpdateOneWithoutComprasNestedInput
@@ -1149,6 +1257,8 @@ export type CompraUncheckedUpdateWithoutLoteIngestaoInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type CompraUncheckedUpdateManyWithoutLoteIngestaoInput = {
@@ -1163,6 +1273,8 @@ export type CompraUncheckedUpdateManyWithoutLoteIngestaoInput = {
   descontoBonificacao?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   numeroDocumento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataIngestao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  ingestBatchId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  aggregatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -1180,6 +1292,8 @@ export type CompraSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   numeroDocumento?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedor?: boolean | Prisma.Compra$fornecedorArgs<ExtArgs>
@@ -1199,6 +1313,8 @@ export type CompraSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extens
   numeroDocumento?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedor?: boolean | Prisma.Compra$fornecedorArgs<ExtArgs>
@@ -1218,6 +1334,8 @@ export type CompraSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extens
   numeroDocumento?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedor?: boolean | Prisma.Compra$fornecedorArgs<ExtArgs>
@@ -1237,9 +1355,11 @@ export type CompraSelectScalar = {
   numeroDocumento?: boolean
   dataIngestao?: boolean
   loteIngestaoId?: boolean
+  ingestBatchId?: boolean
+  aggregatedAt?: boolean
 }
 
-export type CompraOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "fornecedorId" | "data" | "quantidade" | "valorTotal" | "precoUnitario" | "descontoBonificacao" | "numeroDocumento" | "dataIngestao" | "loteIngestaoId", ExtArgs["result"]["compra"]>
+export type CompraOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "fornecedorId" | "data" | "quantidade" | "valorTotal" | "precoUnitario" | "descontoBonificacao" | "numeroDocumento" | "dataIngestao" | "loteIngestaoId" | "ingestBatchId" | "aggregatedAt", ExtArgs["result"]["compra"]>
 export type CompraInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1280,6 +1400,16 @@ export type $CompraPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
     numeroDocumento: string | null
     dataIngestao: Date
     loteIngestaoId: string | null
+    /**
+     * Batch ULID emitido pela aggregation. Permite cleanup direccionado
+     * (`DELETE WHERE ingestBatchId = ?`) e auditoria "que run produziu esta row?".
+     */
+    ingestBatchId: string | null
+    /**
+     * Quando a row foi (re)produzida pela aggregation. NULL → row legacy
+     * não tocada pelo pipeline 1c.
+     */
+    aggregatedAt: Date | null
   }, ExtArgs["result"]["compra"]>
   composites: {}
 }
@@ -1719,6 +1849,8 @@ export interface CompraFieldRefs {
   readonly numeroDocumento: Prisma.FieldRef<"Compra", 'String'>
   readonly dataIngestao: Prisma.FieldRef<"Compra", 'DateTime'>
   readonly loteIngestaoId: Prisma.FieldRef<"Compra", 'String'>
+  readonly ingestBatchId: Prisma.FieldRef<"Compra", 'String'>
+  readonly aggregatedAt: Prisma.FieldRef<"Compra", 'DateTime'>
 }
     
 

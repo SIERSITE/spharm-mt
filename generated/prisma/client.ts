@@ -236,11 +236,30 @@ export type VendaMensal = Prisma.VendaMensalModel
 /**
  * Model Compra
  * Compras diárias agregadas por produto-dia-farmácia-fornecedor.
+ * 
+ * Granularidade: 1 row por (farmaciaId, produtoId, fornecedorId, data).
+ * A aggregation Phase 1c soma todas as linhas de `StagingCompraRawLine`
+ * resolvidas (produto + fornecedor) que caem no mesmo dia e produz/UPSERTa
+ * esta row. O unique `Compra_aggregation_key` garante idempotência da
+ * re-aggregation — re-correr a mesma janela actualiza valores em vez de
+ * duplicar.
+ * 
+ * Campos `ingestBatchId` e `aggregatedAt` ficam `null` em rows legacy
+ * (excel import, etc.) — não tocadas pelo aggregation pipeline nesta fase.
  */
 export type Compra = Prisma.CompraModel
 /**
  * Model Devolucao
  * Devoluções diárias.
+ * 
+ * Granularidade: 1 row por linha do staging (`StagingDevolucaoFornecedorRawLine`).
+ * `externalLineId` é a chave natural (dbo.[Devolucao Detalhe].[Devolucao
+ * Detalhe ID]); idempotência da aggregation via UPSERT em
+ * `(farmaciaId, externalLineId)`. Estado P→R muda `quantidadeRecebida`
+ * no staging e a aggregation re-produz a row sem duplicar.
+ * 
+ * `externalLineId`/`ingestBatchId`/`aggregatedAt` ficam `null` em rows
+ * legacy (excel import, etc.).
  */
 export type Devolucao = Prisma.DevolucaoModel
 /**

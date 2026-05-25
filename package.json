@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "control:generate": "tsx scripts/control/generate.ts",
     "control:migrate:deploy": "tsx scripts/control/migrate-deploy.ts",
     "control:migrate:status": "tsx scripts/control/migrate-status.ts",

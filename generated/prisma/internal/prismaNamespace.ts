@@ -3839,7 +3839,9 @@ export const CompraScalarFieldEnum = {
   descontoBonificacao: 'descontoBonificacao',
   numeroDocumento: 'numeroDocumento',
   dataIngestao: 'dataIngestao',
-  loteIngestaoId: 'loteIngestaoId'
+  loteIngestaoId: 'loteIngestaoId',
+  ingestBatchId: 'ingestBatchId',
+  aggregatedAt: 'aggregatedAt'
 } as const
 
 export type CompraScalarFieldEnum = (typeof CompraScalarFieldEnum)[keyof typeof CompraScalarFieldEnum]
@@ -3849,6 +3851,7 @@ export const DevolucaoScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
   produtoId: 'produtoId',
+  externalLineId: 'externalLineId',
   data: 'data',
   quantidade: 'quantidade',
   valor: 'valor',
@@ -3856,7 +3859,9 @@ export const DevolucaoScalarFieldEnum = {
   motivo: 'motivo',
   fornecedorDestinoId: 'fornecedorDestinoId',
   dataIngestao: 'dataIngestao',
-  loteIngestaoId: 'loteIngestaoId'
+  loteIngestaoId: 'loteIngestaoId',
+  ingestBatchId: 'ingestBatchId',
+  aggregatedAt: 'aggregatedAt'
 } as const
 
 export type DevolucaoScalarFieldEnum = (typeof DevolucaoScalarFieldEnum)[keyof typeof DevolucaoScalarFieldEnum]
