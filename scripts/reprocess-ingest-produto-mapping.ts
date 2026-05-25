@@ -34,6 +34,7 @@ import {
 } from "@/lib/control-plane";
 import { PrismaClient, Prisma } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { resolvedPfCteAll } from "@/lib/aggregate/resolve-produto";
 
 async function main() {
   const { values } = parseArgs({
@@ -72,9 +73,10 @@ async function main() {
 
     // Quantas linhas mudariam na passagem 1 (resolve/corrige via PF)?
     const willFix = await prisma.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`
+      WITH ${resolvedPfCteAll()}
       SELECT COUNT(*) AS n
       FROM "IngestVendaLinhaRaw" r
-      JOIN "ProdutoFarmacia" pf
+      JOIN resolved_pf pf
         ON pf."farmaciaId" = r."farmaciaId" AND pf."externalProductId" = r."externalProductId"
       WHERE r."produtoId" IS DISTINCT FROM pf."produtoId"`);
     // Quantas seriam des-atribuídas na passagem 2 (sem PF na farmácia)?
@@ -95,9 +97,10 @@ async function main() {
     }
 
     const r1 = await prisma.$executeRaw(Prisma.sql`
+      WITH ${resolvedPfCteAll()}
       UPDATE "IngestVendaLinhaRaw" r
       SET "produtoId" = pf."produtoId"
-      FROM "ProdutoFarmacia" pf
+      FROM resolved_pf pf
       WHERE pf."farmaciaId" = r."farmaciaId" AND pf."externalProductId" = r."externalProductId"
         AND r."produtoId" IS DISTINCT FROM pf."produtoId"`);
     console.log(`  ✓ passagem 1: ${r1} linhas resolvidas/corrigidas`);

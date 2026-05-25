@@ -35,6 +35,7 @@ import {
   dedupeByKey,
   type ProdutoFarmaciaStockRow,
 } from "@/lib/ingest/bulk";
+import { resolveProdutoIdMap } from "@/lib/aggregate/resolve-produto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -141,19 +142,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // resolver por ele atribui o stock à farmácia errada ou a nenhum produto
   // (stockAtual fica NULL). A ProdutoFarmacia tem o CodigoID correcto da
   // farmácia (gravado pelo /products). Pré-condição: /products correu antes.
+  // Resolução DETERMINÍSTICA (regra canónica): para os CodigoID que mapeiam
+  // ≥1 produto, escolhe UM por (flagRetirado, dataUltimaVenda, stockAtual,
+  // produtoId). Substitui o Map last-wins (não-determinístico em colisões).
   const externalIds = Array.from(aggMap.keys());
-  const pfRows = externalIds.length
-    ? await ctx.prisma.produtoFarmacia.findMany({
-        where: { farmaciaId, externalProductId: { in: externalIds } },
-        select: { produtoId: true, externalProductId: true },
-      })
-    : [];
-  const produtoIdByExternal = new Map<number, string>();
-  for (const pf of pfRows) {
-    if (pf.externalProductId !== null) {
-      produtoIdByExternal.set(pf.externalProductId, pf.produtoId);
-    }
-  }
+  const produtoIdByExternal = await resolveProdutoIdMap(ctx.prisma, farmaciaId, externalIds);
 
   // 3) Upsert ProdutoFarmacia por agg. Sem produto correspondente →
   // skipped (não erro — operador pode re-executar bootstrap-upload

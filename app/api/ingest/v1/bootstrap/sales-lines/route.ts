@@ -42,6 +42,7 @@ import {
   dedupeByKey,
   type SalesLineRow,
 } from "@/lib/ingest/bulk";
+import { resolveProdutoIdMap } from "@/lib/aggregate/resolve-produto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -214,19 +215,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // orfaniza ou MIS-ATRIBUI as vendas da farmácia cujo CodigoID não é o
   // guardado. A ProdutoFarmacia (gravada pelo /products) tem o CodigoID
   // correcto da farmácia. Pré-condição: /products correu antes.
+  // Resolução DETERMINÍSTICA (regra canónica) — desambigua os CodigoID
+  // reciclados (colisões) por (flagRetirado, dataUltimaVenda, stockAtual,
+  // produtoId). Substitui o Map last-wins (não-determinístico).
   const externalIds = Array.from(new Set(resolved.map((r) => r.externalProductId)));
-  const pfRows = externalIds.length
-    ? await ctx.prisma.produtoFarmacia.findMany({
-        where: { farmaciaId, externalProductId: { in: externalIds } },
-        select: { produtoId: true, externalProductId: true },
-      })
-    : [];
-  const produtoIdByExternal = new Map<number, string>();
-  for (const pf of pfRows) {
-    if (pf.externalProductId !== null) {
-      produtoIdByExternal.set(pf.externalProductId, pf.produtoId);
-    }
-  }
+  const produtoIdByExternal = await resolveProdutoIdMap(ctx.prisma, farmaciaId, externalIds);
 
   // 3) Upsert each line. Idempotente via @@unique(farmaciaId,
   // externalSaleLineId).
