@@ -106,8 +106,13 @@ function decideGranularity(filters: MovimentosFilters): "diaria" | "mensal" {
     if (Number.isFinite(fromMs) && Date.now() - fromMs <= DAILY_WINDOW_MAX_DAYS * 86_400_000) {
       return "diaria";
     }
+    return "mensal";
   }
-  return "mensal";
+  // Sem janela explícita = vista por defeito: vendas DIÁRIAS recentes (últimos
+  // 30 dias). As compras/devoluções/ajustes/inventário carregam TODO o
+  // histórico (ver getMovimentosProduto: o filtro de data só se aplica quando
+  // o utilizador define `from`/`to`), para não esconder compras antigas.
+  return "diaria";
 }
 
 function toF(v: unknown): number {
@@ -397,13 +402,17 @@ export async function getMovimentosProduto(
       tipo: "COMPRA",
       tipoLabel: TIPO_LABELS.COMPRA,
       direcao: TIPO_DIRECAO.COMPRA,
+      // Documento real só quando existe; as compras agregadas (produto-dia-
+      // fornecedor) não têm nº de documento individual → "—" na UI.
       documento: c.numeroDocumento ?? null,
       quantidade: Math.abs(Math.round(toF(c.quantidade))),
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
       observacao: c.fornecedor?.nomeNormalizado ?? null,
-      agregado: false,
+      // Sem documento individual = linha agregada (dia × fornecedor). Marcada
+      // para a UI sinalizar "agregado" e não a confundir com documento real.
+      agregado: c.numeroDocumento == null,
     });
   }
 
@@ -422,12 +431,16 @@ export async function getMovimentosProduto(
       tipo,
       tipoLabel: TIPO_LABELS[tipo],
       direcao: TIPO_DIRECAO[tipo],
-      documento: d.fornecedorDestino?.nomeNormalizado ?? null,
+      // Devolução não tem nº de documento individual nesta fase → "—".
+      // O fornecedor (destino) e o motivo vão para Observação (não inventamos
+      // um "documento" a partir do nome do fornecedor).
+      documento: null,
       quantidade: Math.abs(Math.round(toF(d.quantidade))),
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao: d.motivo ?? null,
+      observacao:
+        [d.fornecedorDestino?.nomeNormalizado, d.motivo].filter(Boolean).join(" · ") || null,
       agregado: false,
     });
   }
@@ -528,8 +541,10 @@ export async function getMovimentosProduto(
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao: "Total do dia (vendas − devoluções)",
-      agregado: false,
+      observacao: "Total diário de vendas líquidas",
+      // É um agregado (soma do dia), não venda-a-venda → badge "agregado" + UI
+      // mostra documento/utilizador/stock como "—" (não inventa).
+      agregado: true,
     });
   }
 

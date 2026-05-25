@@ -102,10 +102,12 @@ export function ExtratoMovimentos({
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
             Entradas e saídas do artigo por farmácia, ordenado do mais recente para o mais antigo.
-            Por defeito mostra os últimos 30 dias, com totais <span className="font-semibold text-slate-700">diários</span> de
-            vendas. Recue a data <span className="font-semibold text-slate-700">Desde</span> para ver
-            histórico — acima de ~2 meses passa a totais{" "}
-            <span className="font-semibold text-amber-700">mensais</span> agregados (VendaMensal).
+            Por defeito: vendas em totais <span className="font-semibold text-slate-700">diários</span> dos
+            últimos 30 dias <span className="font-semibold text-slate-700">e todo o histórico de compras/devoluções</span>.
+            Define <span className="font-semibold text-slate-700">Desde</span>/<span className="font-semibold text-slate-700">Até</span> para
+            filtrar tudo por data — acima de ~2 meses as vendas passam a totais{" "}
+            <span className="font-semibold text-amber-700">mensais</span> agregados. Linhas marcadas{" "}
+            <span className="font-semibold text-amber-700">agregado</span> são somas (sem documento/utilizador/stock individual).
           </p>
         </div>
         <button
@@ -233,9 +235,9 @@ export function ExtratoMovimentos({
                       {row.agregado && (
                         <span
                           className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700"
-                          title="Total mensal agregado (não é venda-a-venda)"
+                          title="Total agregado — não é movimento individual (sem documento/utilizador/stock antes-depois)"
                         >
-                          mensal
+                          agregado
                         </span>
                       )}
                     </div>

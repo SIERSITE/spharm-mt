@@ -120,11 +120,12 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // recebe-o como initialRows e só volta ao server quando o user clica
   // "Atualizar" após mudar filtros.
   //
-  // Por defeito a ficha abre nos ÚLTIMOS 30 DIAS com granularidade DIÁRIA
-  // (não 29 meses). Histórico longo fica acessível recuando a data "Desde"
-  // (a partir de ~62 dias passa automaticamente a mensal/VendaMensal).
-  const desde = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const movimentosIniciais = await getMovimentosProduto(produto.cnp, { from: desde });
+  // Por defeito a ficha mostra as VENDAS em totais DIÁRIOS dos últimos 30 dias
+  // E TODO o histórico de compras/devoluções/ajustes (sem filtro de data — para
+  // não esconder compras antigas, ex: receções de 2024). O utilizador filtra
+  // tudo definindo "Desde"/"Até" (acima de ~62 dias as vendas passam a mensais).
+  // Não passamos `from` aqui: o filtro de data só se aplica quando explícito.
+  const movimentosIniciais = await getMovimentosProduto(produto.cnp, {});
 
   const fabricante = fmt(produto.fabricante?.nomeNormalizado);
   const principioAtivo = fmt(produto.dci);
@@ -364,7 +365,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             )}
           tiposDisponiveis={getTiposDisponiveis()}
           initialRows={movimentosIniciais}
-          defaultFrom={desde}
+          defaultFrom=""
         />
 
         {/*
