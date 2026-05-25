@@ -233,15 +233,17 @@ export function renderTotals(label: string, t: PipelineTotals): void {
 // Pipeline 1: PRODUTOS — keyset por CodigoID
 // ─────────────────────────────────────────────────────────────────────
 
-async function runProductsPipeline(
+export async function runProductsPipeline(
   pool: SqlPool,
   client: SaasClient,
-  farmaciaId: string
+  farmaciaId: string,
+  opts?: { dryRun?: boolean }
 ): Promise<PipelineTotals> {
+  const dryRun = opts?.dryRun === true;
   const totals = emptyTotals();
   let lastCodigoId = -1;
   console.log(DOUBLE_RULE);
-  console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})`);
+  console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
   while (true) {
@@ -311,14 +313,19 @@ async function runProductsPipeline(
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
     }));
 
-    const response = await client.bootstrapProducts({ farmaciaId, items }, BATCH_TIMEOUT_MS);
-    accumulate(totals, response);
-    console.log(
-      `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length}`
-    );
-    if (response.errors.length > 0) {
-      for (const e of response.errors.slice(0, 3)) {
-        console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+    if (dryRun) {
+      totals.batches++;
+      console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
+    } else {
+      const response = await client.bootstrapProducts({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+      accumulate(totals, response);
+      console.log(
+        `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length}`
+      );
+      if (response.errors.length > 0) {
+        for (const e of response.errors.slice(0, 3)) {
+          console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+        }
       }
     }
 
@@ -339,12 +346,14 @@ async function runProductsPipeline(
 export async function runStockPipeline(
   pool: SqlPool,
   client: SaasClient,
-  farmaciaId: string
+  farmaciaId: string,
+  opts?: { dryRun?: boolean }
 ): Promise<PipelineTotals> {
+  const dryRun = opts?.dryRun === true;
   const totals = emptyTotals();
   let lastCodigoId = -1;
   console.log(DOUBLE_RULE);
-  console.log(`▶ Pipeline 2: STOCK (batch=${STOCK_BATCH}, SUM por CodigoID)`);
+  console.log(`▶ Pipeline 2: STOCK (batch=${STOCK_BATCH}, SUM por CodigoID)${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
   while (true) {
@@ -389,14 +398,19 @@ export async function runStockPipeline(
       stockReserva: numOrNull(r.stockReserva),
     }));
 
-    const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS);
-    accumulate(totals, response);
-    console.log(
-      `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length}`
-    );
-    if (response.errors.length > 0) {
-      for (const e of response.errors.slice(0, 3)) {
-        console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+    if (dryRun) {
+      totals.batches++;
+      console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
+    } else {
+      const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+      accumulate(totals, response);
+      console.log(
+        `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length}`
+      );
+      if (response.errors.length > 0) {
+        for (const e of response.errors.slice(0, 3)) {
+          console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+        }
       }
     }
 
@@ -413,17 +427,19 @@ export async function runStockPipeline(
 // Pipeline 3: SALES-LINES — keyset por [Detalhe ID]
 // ─────────────────────────────────────────────────────────────────────
 
-async function runSalesPipeline(
+export async function runSalesPipeline(
   pool: SqlPool,
   client: SaasClient,
   farmaciaId: string,
   fromDate: string,
-  toDate: string
+  toDate: string,
+  opts?: { dryRun?: boolean }
 ): Promise<PipelineTotals> {
+  const dryRun = opts?.dryRun === true;
   const totals = emptyTotals();
   let lastDetalheId = -1;
   console.log(DOUBLE_RULE);
-  console.log(`▶ Pipeline 3: SALES-LINES (batch=${SALES_BATCH}, intervalo ${fromDate} → ${toDate})`);
+  console.log(`▶ Pipeline 3: SALES-LINES (batch=${SALES_BATCH}, intervalo ${fromDate} → ${toDate})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
   while (true) {
@@ -500,15 +516,20 @@ async function runSalesPipeline(
       };
     });
 
-    const response = await client.bootstrapSalesLines({ farmaciaId, items }, BATCH_TIMEOUT_MS);
-    accumulate(totals, response);
-    const orphan = response.orphanProductLines ?? 0;
-    console.log(
-      `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} orphans=${orphan} skipped=${response.skipped.length} errors=${response.errors.length}`
-    );
-    if (response.errors.length > 0) {
-      for (const e of response.errors.slice(0, 3)) {
-        console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+    if (dryRun) {
+      totals.batches++;
+      console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
+    } else {
+      const response = await client.bootstrapSalesLines({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+      accumulate(totals, response);
+      const orphan = response.orphanProductLines ?? 0;
+      console.log(
+        `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} orphans=${orphan} skipped=${response.skipped.length} errors=${response.errors.length}`
+      );
+      if (response.errors.length > 0) {
+        for (const e of response.errors.slice(0, 3)) {
+          console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+        }
       }
     }
 

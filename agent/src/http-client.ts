@@ -239,12 +239,53 @@ export class SaasClient {
    * do daily-pipeline.
    */
   async pipelineAggregateMonth(
-    body: { month: string; write?: boolean; allowOrphans?: boolean; allowNegativeTotals?: boolean },
+    body: {
+      month: string;
+      write?: boolean;
+      allowOrphans?: boolean;
+      allowNegativeTotals?: boolean;
+      allowUnknowns?: boolean;
+    },
     timeoutMs?: number
   ): Promise<PipelineAggregateResponse> {
     return this.request("POST", "/api/admin/pipeline/aggregate-month", {
       body,
       timeoutMs: timeoutMs ?? 60_000,
+    });
+  }
+
+  /**
+   * POST /api/admin/pipeline/aggregate-compras
+   * Agrega `StagingCompraRawLine [from,to)` → `Compra` (UPSERT por
+   * `(farmaciaId, produtoId, fornecedorId, data)`). `write=false` (default
+   * server-side) = dry-run preview; `write=true` escreve. Resolve produtos
+   * via ProdutoFarmacia + fornecedores via FornecedorErpRef. Idempotente.
+   */
+  async pipelineAggregateCompras(
+    body: { farmaciaId: string; from: string; to: string; write?: boolean },
+    timeoutMs?: number
+  ): Promise<PipelineAggregateComprasResponse> {
+    return this.request("POST", "/api/admin/pipeline/aggregate-compras", {
+      body,
+      timeoutMs: timeoutMs ?? 90_000,
+    });
+  }
+
+  /**
+   * POST /api/admin/pipeline/aggregate-devolucoes
+   * Agrega `StagingDevolucaoFornecedorRawLine [from,to)` → `Devolucao`
+   * (UPSERT por linha em `(farmaciaId, externalLineId)`, quantidade =
+   * quantidadeRecebida). `write=false` = dry-run; `write=true` escreve.
+   * Pode devolver 404 `not_implemented` se o endpoint não existir no SaaS
+   * (deploy mais antigo) — o full-sync trata isso como NOT_IMPLEMENTED.
+   */
+  async pipelineAggregateDevolucoes(
+    body: { farmaciaId: string; from: string; to: string; write?: boolean },
+    timeoutMs?: number
+  ): Promise<PipelineAggregateDevolucoesResponse> {
+    return this.request("POST", "/api/admin/pipeline/aggregate-devolucoes", {
+      body,
+      timeoutMs: timeoutMs ?? 90_000,
     });
   }
 
@@ -469,6 +510,61 @@ export type PipelineAggregateResponse = {
   rowsInserted: number;
   rowsDeleted: number;
   rowCount: number;
+  durationMs: number;
+};
+
+export type PipelineAggregateComprasResponse = {
+  ok: true;
+  dryRun: boolean;
+  aggregationBatchId?: string | null;
+  window: { from: string; to: string };
+  rawLinesRead: number;
+  excludedLineCount: {
+    total: number;
+    byTipoDocumentoId: Array<{ externalTipoDocumentoId: number; count: number }>;
+  };
+  candidateGroups: number;
+  orphanProducts: { count: number; sampleExternalCodigoIds: number[] };
+  orphanFornecedores: { count: number; sampleExternalFornecedorIds: number[] };
+  projectedValorTotal: number;
+  projectedQuantidade: number;
+  topSuppliers: Array<{
+    fornecedorId: string;
+    fornecedorNome: string;
+    valorTotal: number;
+    quantidade: number;
+    groupCount: number;
+  }>;
+  /** Presente só em write mode. */
+  created?: number;
+  updated?: number;
+  aggregated?: number;
+  durationMs: number;
+};
+
+export type PipelineAggregateDevolucoesResponse = {
+  ok: true;
+  dryRun: boolean;
+  aggregationBatchId?: string | null;
+  window: { from: string; to: string };
+  /** Campo de quantidade usado para o UPSERT (decisão: quantidadeRecebida). */
+  quantityField: "quantidadeRecebida" | "quantidadeEnviada";
+  rawLinesRead: number;
+  excludedLineCount: { total: number; byEstado: Array<{ estado: string; count: number }> };
+  /** Linhas que resolvem produto+fornecedor e entram no UPSERT. */
+  candidateLines: number;
+  orphanProducts: { count: number; sampleExternalCodigoIds: number[] };
+  orphanFornecedores: { count: number; sampleExternalFornecedorIds: number[] };
+  projectedValor: number;
+  /** Soma do campo escolhido (recebida). */
+  projectedQuantidade: number;
+  /** Ambas reportadas para comparação/auditoria. */
+  projectedQuantidadeRecebida: number;
+  projectedQuantidadeEnviada: number;
+  estadoDistribution: Array<{ estado: string; count: number }>;
+  created?: number;
+  updated?: number;
+  aggregated?: number;
   durationMs: number;
 };
 

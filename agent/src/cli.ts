@@ -41,6 +41,7 @@ import { salesSummaryPreview } from "./commands/sales-summary-preview.js";
 import { bootstrapDryRun } from "./commands/bootstrap-dry-run.js";
 import { bootstrapUpload } from "./commands/bootstrap-upload.js";
 import { stockUpload } from "./commands/stock-upload.js";
+import { fullSync } from "./commands/full-sync.js";
 import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
 import { dailyPipeline } from "./commands/daily-pipeline.js";
 import { exportOrders } from "./commands/export-orders.js";
@@ -113,6 +114,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "stock-upload": {
     run: stockUpload,
     desc: "Upload SÓ de stock (snapshot) → /bootstrap/stock. NÃO envia products/sales. Idempotente.",
+  },
+  "full-sync": {
+    run: fullSync,
+    desc: "Sync COMPLETA inicial (onboarding): produtos→stock→vendas→fornecedores→compras→devoluções→agregações. Idempotente, retomável por fase. --from/--to, --dry-run, --force.",
   },
   "daily-sync": {
     run: dailySync,

@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "27";
+const AGENT_REV = "28";
 
 function readGitShortCommit() {
   try {
@@ -801,6 +801,121 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // full-sync — onboarding completo (produtos→...→agregações) numa execução.
+  // Idempotente, retomável por fase. Pergunta --from/--to + flags de
+  // agregação. UPLOAD pede CONFIRMO; DRY-RUN não escreve nada.
+  const fullSyncDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — full-sync --dry-run (onboarding preview)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   full-sync DRY-RUN — onboarding completo ^(preview^)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Corre TODAS as fases em modo preview ^(NAO escreve nada^):`,
+    `echo   1 produtos  2 stock  3 vendas  4 fornecedores  5 compras`,
+    `echo   6 devolucoes  7 agg VendaMensal  8 agg Compra  9 agg Devolucao`,
+    `echo Ingest le o ERP sem POST; agregacoes correm com write=false.`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from YYYY-MM-DD): "`,
+    `if "%FROM%"=="" ( echo --from vazio. Aborta. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to   YYYY-MM-DD): "`,
+    `if "%TO%"=="" ( echo --to vazio. Aborta. & pause & exit /b 1 )`,
+    `set "ALLOW="`,
+    `set /p "ALLOW=Permitir UNKNOWN/orphans na agregacao VendaMensal? (SIM/nao): "`,
+    `set "AGGFLAGS="`,
+    `if /I "%ALLOW%"=="SIM" set "AGGFLAGS=--allow-unknowns --allow-orphans"`,
+    `echo.`,
+    `node.exe agent.cjs full-sync --dry-run --from %FROM% --to %TO% %AGGFLAGS%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Revê o relatorio acima. Depois: run-full-sync-upload.bat`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver relatorio acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-full-sync-dry-run.bat"),
+    fullSyncDryRunBat,
+    "utf8"
+  );
+
+  const fullSyncUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — full-sync (onboarding REAL, CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   full-sync UPLOAD — onboarding completo ^(ESCREVE no SaaS^)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Corre TODAS as fases por ordem, idempotente, retomavel por fase:`,
+    `echo   1 produtos  2 stock  3 vendas  4 fornecedores  5 compras`,
+    `echo   6 devolucoes  7 agg VendaMensal  8 agg Compra  9 agg Devolucao`,
+    `echo Fases ja concluidas sao saltadas ^(estado em run\\full-sync-state.json^).`,
+    `echo Para repetir tudo: corre com --force a partir de uma janela cmd.`,
+    `echo.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo NAO toca dashboard, export-orders nem workers.`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from YYYY-MM-DD): "`,
+    `if "%FROM%"=="" ( echo --from vazio. Aborta. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to   YYYY-MM-DD): "`,
+    `if "%TO%"=="" ( echo --to vazio. Aborta. & pause & exit /b 1 )`,
+    `set "ALLOW="`,
+    `set /p "ALLOW=Permitir UNKNOWN/orphans na agregacao VendaMensal? (SIM/nao): "`,
+    `set "AGGFLAGS="`,
+    `if /I "%ALLOW%"=="SIM" set "AGGFLAGS=--allow-unknowns --allow-orphans"`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vai ESCREVER produtos/stock/vendas/fornecedores/compras/devolucoes`,
+    `echo e agregar VendaMensal/Compra/Devolucao no SaaS ^(%FROM% a %TO%^).`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs full-sync --from %FROM% --to %TO% %AGGFLAGS%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Full-sync OK. Idempotente: re-run salta fases DONE.`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Corrige e re-corre — retoma a partir da fase que falhou.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-full-sync-upload.bat"),
+    fullSyncUploadBat,
+    "utf8"
+  );
+
   const devolucoesDryRunBat = [
     `@echo off`,
     `REM SPharm.MT agent — devolucoes-fornecedor-dry-run`,
@@ -1480,6 +1595,8 @@ function writeReadme() {
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
     `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
+    `  run-full-sync-dry-run.bat       ONBOARDING preview: corre TODAS as fases sem escrever. Pergunta datas.`,
+    `  run-full-sync-upload.bat        ONBOARDING completo REAL: produtos->...->agregacoes. Idempotente, retomavel. CONFIRMO.`,
     `  run-daily-sync-dry-run.bat      Dry-run incremental para 1 dia. Sem POST.`,
     `  run-daily-sync.bat              Sync incremental diario — ESCREVE no SaaS. Pergunta --date.`,
     `  run-inspect-orders-schema.bat       Probe READ-ONLY ao schema das encomendas SPharm. Gera inspection.md.`,

@@ -90,6 +90,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const write = obj.write !== false; // default true
   const allowOrphans = obj.allowOrphans === true;
   const allowNegativeTotals = obj.allowNegativeTotals === true;
+  // UNKNOWN TipoDoc gate (ex: TipoDoc 27 ainda não classificado). Default
+  // false = aborta se houver unknowns. Onboarding histórico passa true via
+  // full-sync para não bloquear (o UNKNOWN nunca entra na soma; o gate é só
+  // safety). Espelha o flag que a CLI aggregate-vendamensal já expõe.
+  const allowUnknowns = obj.allowUnknowns === true;
 
   // Resolve farmaciaId — quando o tenant tem só uma farmácia activa,
   // a row PipelineRun fica associada a ela. Aggregate cobre todas as
@@ -115,6 +120,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       write,
       allowOrphans,
       allowNegativeTotals,
+      allowUnknowns,
     })}`
   );
 
@@ -126,6 +132,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       write,
       allowOrphans,
       allowNegativeTotals,
+      allowUnknowns,
     });
   } catch (err) {
     if (err instanceof AggregateAbortError) {
@@ -228,6 +235,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         atendimentosSum: outcome.totals.atendimentos,
         write,
         allowOrphans,
+        allowUnknowns,
       } as Prisma.InputJsonValue,
     },
     select: { id: true },
