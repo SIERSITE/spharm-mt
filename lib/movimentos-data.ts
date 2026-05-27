@@ -125,8 +125,8 @@ function toF(v: unknown): number {
 const TIPO_LABELS: Record<MovimentoTipo, string> = {
   VENDA: "Venda",
   COMPRA: "Compra / Receção",
-  DEVOLUCAO_FORNECEDOR: "Devolução a fornecedor",
-  DEVOLUCAO_CLIENTE: "Devolução de cliente",
+  DEVOLUCAO_FORNECEDOR: "Devolução fornecedor",
+  DEVOLUCAO_CLIENTE: "Devolução cliente",
   DEVOLUCAO_OUTRA: "Devolução",
   AJUSTE_POSITIVO: "Ajuste positivo",
   AJUSTE_NEGATIVO: "Ajuste negativo",
@@ -238,31 +238,6 @@ export async function getMovimentosProduto(
     data: dateFilter,
   };
 
-  // VendaMensal filtra por (ano, mes) e não por DateTime — traduz-se a mesma
-  // janela efectiva para o par ano/mês, inclusivo nas duas pontas.
-  const vmWhere: {
-    produtoId: string;
-    farmaciaId: { in: string[] };
-    AND: Array<Record<string, unknown>>;
-  } = {
-    produtoId: produto.id,
-    farmaciaId: { in: farmaciaIds },
-    AND: [
-      {
-        OR: [
-          { ano: { gt: effFrom.getFullYear() } },
-          { ano: effFrom.getFullYear(), mes: { gte: effFrom.getMonth() + 1 } },
-        ],
-      },
-      {
-        OR: [
-          { ano: { lt: effTo.getFullYear() } },
-          { ano: effTo.getFullYear(), mes: { lte: effTo.getMonth() + 1 } },
-        ],
-      },
-    ],
-  };
-
   const [vendas, compras, devolucoes, ajustes, linhasInventario] = await Promise.all([
     prisma.venda.findMany({
       where: commonWhere,
@@ -356,23 +331,17 @@ export async function getMovimentosProduto(
   let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }> = [];
 
   if (granularity === "diaria") {
-    // Readonly sobre IngestVendaLinhaRaw, agregado por dia, dentro da MESMA
-    // janela efectiva dos restantes movimentos. Mesma convenção de sinal que a
-    // agregação VendaMensal (VENDA=+ABS, DEVOLUCAO=−ABS).
+    // Vendas PURAS por dia × farmácia (apenas class='VENDA'). As devoluções
+    // cliente saem como linhas autónomas via stream `devolucoesCliente`
+    // (per-documento) — nunca mais misturadas em "net diário".
     vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }>>(
       Prisma.sql`
         SELECT date_trunc('day', "dataVenda") AS dia, "farmaciaId",
-          SUM(CASE "tipoDocumentoClass"
-            WHEN 'VENDA'              THEN  ABS(COALESCE("quantidade", 0))
-            WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("quantidade", 0))
-            ELSE 0 END)::float AS qtd,
-          SUM(CASE "tipoDocumentoClass"
-            WHEN 'VENDA'              THEN  ABS(COALESCE("valorLinha", 0))
-            WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("valorLinha", 0))
-            ELSE 0 END)::float AS valor
+          SUM(ABS(COALESCE("quantidade", 0)))::float AS qtd,
+          SUM(ABS(COALESCE("valorLinha", 0)))::float AS valor
         FROM "IngestVendaLinhaRaw"
         WHERE "produtoId" = ${produto.id}
-          AND "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
+          AND "tipoDocumentoClass" = 'VENDA'
           AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
           AND "farmaciaId" = ANY(${farmaciaIds})
         GROUP BY 1, 2
@@ -380,14 +349,51 @@ export async function getMovimentosProduto(
       `,
     );
   } else {
-    // Fonte sintética: vendas mensais agregadas. Uma linha por
-    // (produto, farmácia, ano, mes). Não é transacional — é soma.
-    vendasMensais = await prisma.vendaMensal.findMany({
-      where: vmWhere,
-      select: { id: true, farmaciaId: true, ano: true, mes: true, quantidade: true, valorBruto: true, valorTotal: true },
-      orderBy: [{ ano: "desc" }, { mes: "desc" }],
-    });
+    // Vendas PURAS por mês × farmácia (apenas class='VENDA') — agregado
+    // directamente do raw, NÃO de VendaMensal (que é net e mascara as NCs).
+    // As devoluções cliente continuam per-documento abaixo.
+    vendasMensais = await prisma.$queryRaw<VendaMensalRow[]>(Prisma.sql`
+      SELECT MIN("externalSaleLineId")::text AS id,
+             "farmaciaId",
+             EXTRACT(YEAR FROM "dataVenda")::int AS ano,
+             EXTRACT(MONTH FROM "dataVenda")::int AS mes,
+             SUM(ABS(COALESCE("quantidade", 0)))::float AS quantidade,
+             SUM(ABS(COALESCE("valorLinha", 0)))::float AS "valorBruto",
+             SUM(ABS(COALESCE("valorLinha", 0)))::float AS "valorTotal"
+      FROM "IngestVendaLinhaRaw"
+      WHERE "produtoId" = ${produto.id}
+        AND "tipoDocumentoClass" = 'VENDA'
+        AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
+        AND "farmaciaId" = ANY(${farmaciaIds})
+      GROUP BY 2, 3, 4
+      ORDER BY 3 DESC, 4 DESC
+    `);
   }
+
+  // Devoluções cliente per-documento (sempre, independentemente da
+  // granularidade das vendas). Volumetria baixa (~10/dia max), per-doc é
+  // legível operacionalmente. Vem da MESMA tabela IngestVendaLinhaRaw mas
+  // com `tipoDocumentoClass='DEVOLUCAO_ANULACAO'` — agrupa-se por
+  // externalSaleId+farmácia porque um Atendimento pode ter várias linhas
+  // do mesmo produto (raro).
+  const devolucoesCliente = await prisma.$queryRaw<Array<{
+    saleId: number; farmaciaId: string; data: Date; qt: number; valor: number;
+    entId: number | null; lines: number;
+  }>>(Prisma.sql`
+    SELECT "externalSaleId" AS "saleId", "farmaciaId",
+           MIN("dataVenda") AS data,
+           SUM(ABS(COALESCE("quantidade", 0)))::float AS qt,
+           SUM(ABS(COALESCE("valorLinha", 0)))::float AS valor,
+           MIN("entidadeId") AS "entId",
+           COUNT(*)::int AS lines
+    FROM "IngestVendaLinhaRaw"
+    WHERE "produtoId" = ${produto.id}
+      AND "tipoDocumentoClass" = 'DEVOLUCAO_ANULACAO'
+      AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
+      AND "farmaciaId" = ANY(${farmaciaIds})
+    GROUP BY 1, 2
+    ORDER BY 3 DESC
+  `);
 
   // 5. Normalizar tudo num único shape
   const rows: MovimentoRow[] = [];
@@ -524,16 +530,15 @@ export async function getMovimentosProduto(
     });
   }
 
-  // VendaMensal → uma linha sintética por mês/farmácia. Data = último
-  // dia do mês (para ordenação cronológica junto com os transacionais
-  // quando existirem). Marcada como `agregado: true` para a UI sinalizar.
+  // Vendas mensais (a partir do raw, só class='VENDA' — devoluções cliente
+  // ficam fora e aparecem em linhas próprias). Uma linha sintética por
+  // mês × farmácia. Data = último dia do mês (ordenação cronológica).
   for (const vm of vendasMensais) {
     const qty = Math.round(toF(vm.quantidade));
     if (qty <= 0) continue;
-    // new Date(year, monthIndex1based, 0) = último dia do monthIndex1based
     const endOfMonth = new Date(vm.ano, vm.mes, 0, 23, 59, 59);
     rows.push({
-      key: `vm:${vm.id}`,
+      key: `vm:${vm.farmaciaId}:${vm.ano}-${String(vm.mes).padStart(2, "0")}`,
       data: endOfMonth.toISOString(),
       farmaciaId: vm.farmaciaId,
       farmacia: nomeById.get(vm.farmaciaId) ?? "—",
@@ -547,16 +552,43 @@ export async function getMovimentosProduto(
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao: "Total do mês — agregado, não venda-a-venda",
+      observacao: "Total mensal de VENDAs (Devoluções cliente em linha própria)",
       agregado: true,
     });
   }
 
-  // Vendas diárias (raw agregado por dia) — vista operacional recente.
-  // net = vendas − devoluções do dia; net<0 (devoluções > vendas) → ENTRADA.
+  // Devolução Cliente per-documento: 1 linha por (Atendimento × farmácia).
+  // documento mostra `#${externalSaleId}` para auditoria operacional;
+  // origem resume a entidade (público vs comparticipada). NÃO é agregado
+  // diário/mensal — é o documento real do refund.
+  for (const d of devolucoesCliente) {
+    const qty = Math.round(toF(d.qt));
+    if (qty <= 0) continue;
+    rows.push({
+      key: `dc:${d.farmaciaId}:${d.saleId}`,
+      data: d.data.toISOString(),
+      farmaciaId: d.farmaciaId,
+      farmacia: nomeById.get(d.farmaciaId) ?? "—",
+      tipo: "DEVOLUCAO_CLIENTE",
+      tipoLabel: TIPO_LABELS.DEVOLUCAO_CLIENTE,
+      direcao: TIPO_DIRECAO.DEVOLUCAO_CLIENTE,
+      documento: `#${d.saleId}`,
+      quantidade: qty,
+      valor: Math.round(toF(d.valor) * 100) / 100,
+      origem: d.entId === 1 ? "Público" : d.entId == null ? null : "Comparticipada",
+      stockAntes: null,
+      stockDepois: null,
+      utilizador: null,
+      observacao: d.lines > 1 ? `${d.lines} linhas neste documento` : null,
+      agregado: false, // é um documento real, não agregado
+    });
+  }
+
+  // Vendas diárias (raw agregado por dia) — só class='VENDA'. Devoluções
+  // cliente saem em linhas próprias acima. Já não há "net diário" mascarado.
   for (const d of vendasDiarias) {
-    const net = Math.round(toF(d.qtd));
-    if (net === 0) continue;
+    const qty = Math.round(toF(d.qtd));
+    if (qty <= 0) continue;
     rows.push({
       key: `vd:${d.farmaciaId}:${d.dia.toISOString().slice(0, 10)}`,
       data: d.dia.toISOString(),
@@ -564,17 +596,15 @@ export async function getMovimentosProduto(
       farmacia: nomeById.get(d.farmaciaId) ?? "—",
       tipo: "VENDA",
       tipoLabel: "Venda (diária)",
-      direcao: net >= 0 ? "SAIDA" : "ENTRADA",
+      direcao: "SAIDA",
       documento: null,
-      quantidade: Math.abs(net),
-      valor: Math.abs(Math.round(toF(d.valor) * 100) / 100),
+      quantidade: qty,
+      valor: Math.round(toF(d.valor) * 100) / 100,
       origem: null,
       stockAntes: null,
       stockDepois: null,
       utilizador: null,
-      observacao: "Total diário de vendas líquidas",
-      // É um agregado (soma do dia), não venda-a-venda → badge "agregado" + UI
-      // mostra documento/utilizador/stock como "—" (não inventa).
+      observacao: "Total diário de VENDAs (Devoluções cliente em linha própria)",
       agregado: true,
     });
   }

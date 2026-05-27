@@ -17,20 +17,28 @@ type Props = {
   defaultTo?: string;
 };
 
-type QuickFilter = "todos" | "vendas" | "compras" | "devolucoes" | "outros";
+type QuickFilter =
+  | "todos"
+  | "vendas"
+  | "devolucoes-cliente"
+  | "compras"
+  | "devolucoes-fornecedor"
+  | "outros";
 
 function categoria(tipo: MovimentoTipo): Exclude<QuickFilter, "todos"> {
   if (tipo === "VENDA") return "vendas";
+  if (tipo === "DEVOLUCAO_CLIENTE" || tipo === "DEVOLUCAO_OUTRA") return "devolucoes-cliente";
   if (tipo === "COMPRA") return "compras";
-  if (tipo.startsWith("DEVOLUCAO")) return "devolucoes";
+  if (tipo === "DEVOLUCAO_FORNECEDOR") return "devolucoes-fornecedor";
   return "outros";
 }
 
 /** Estilo do badge de tipo por categoria — distinção visual clara. */
 const CAT_BADGE: Record<Exclude<QuickFilter, "todos">, string> = {
   vendas: "border-sky-200 bg-sky-50 text-sky-700",
+  "devolucoes-cliente": "border-rose-200 bg-rose-50 text-rose-700",
   compras: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  devolucoes: "border-rose-200 bg-rose-50 text-rose-700",
+  "devolucoes-fornecedor": "border-amber-200 bg-amber-50 text-amber-700",
   outros: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
@@ -107,10 +115,19 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
     });
   };
 
-  // Contagens por categoria (sobre TODAS as linhas carregadas) — surgem nos
-  // chips para que as compras antigas não fiquem escondidas: "Compras (6)".
+  // Contagens por categoria (sobre TODAS as linhas carregadas) — aparecem
+  // nos chips para distinção operacional. As 5 categorias canónicas estão
+  // sempre visíveis; "Outros" só se houver pelo menos uma linha (ajustes/
+  // inventário, quando StocksMov entrar em C5).
   const counts = useMemo(() => {
-    const c = { todos: rows.length, vendas: 0, compras: 0, devolucoes: 0, outros: 0 };
+    const c = {
+      todos: rows.length,
+      vendas: 0,
+      "devolucoes-cliente": 0,
+      compras: 0,
+      "devolucoes-fornecedor": 0,
+      outros: 0,
+    };
     for (const r of rows) c[categoria(r.tipo)]++;
     return c;
   }, [rows]);
@@ -122,9 +139,10 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
 
   const chips: Array<{ key: QuickFilter; label: string; n: number }> = [
     { key: "todos", label: "Todos", n: counts.todos },
-    { key: "vendas", label: "Vendas", n: counts.vendas },
-    { key: "compras", label: "Compras", n: counts.compras },
-    { key: "devolucoes", label: "Devoluções", n: counts.devolucoes },
+    { key: "vendas", label: "Venda", n: counts.vendas },
+    { key: "devolucoes-cliente", label: "Devolução Cliente", n: counts["devolucoes-cliente"] },
+    { key: "compras", label: "Compra", n: counts.compras },
+    { key: "devolucoes-fornecedor", label: "Devolução Fornecedor", n: counts["devolucoes-fornecedor"] },
     ...(counts.outros > 0 ? [{ key: "outros" as QuickFilter, label: "Outros", n: counts.outros }] : []),
   ];
 
@@ -134,12 +152,12 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
         <div>
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Por defeito mostra os <span className="font-semibold text-slate-700">últimos 30 dias</span> —
-            a mesma janela para <span className="font-semibold text-slate-700">todos os tipos</span>
-            {" "}(vendas, compras, devoluções, ajustes). Altera <span className="font-semibold text-slate-700">Desde</span>/
-            <span className="font-semibold text-slate-700">Até</span> para ver histórico (ex: receções de 2024);
-            acima de ~2 meses as vendas passam a mensais. Linhas{" "}
-            <span className="font-semibold text-amber-700">agregado</span> são somas (sem documento/utilizador/stock individual).
+            <span className="font-semibold text-slate-700">Categorias separadas</span>: Venda · Devolução
+            Cliente · Compra · Devolução Fornecedor. Por defeito mostra os{" "}
+            <span className="font-semibold text-slate-700">últimos 30 dias</span> em todos os tipos; altera
+            Desde/Até para ver histórico (acima de ~2 meses as vendas passam a mensais). Linhas{" "}
+            <span className="font-semibold text-amber-700">agregado</span> são totais diários/mensais de Vendas
+            puras; Devolução Cliente é per-documento (#Atendimento).
           </p>
         </div>
         <button
