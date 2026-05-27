@@ -1,35 +1,50 @@
 /**
  * agent/src/commands/movimentos-audit.ts
  *
- * Auditoria ÚNICA do universo de movimentos no ERP SPharm/Softreis.
- * Read-only. Produz UM relatório (markdown + JSON) para o operador enviar
- * de volta. Substitui a sequência de 6 probes manuais que estavam a ser
- * pedidas — corre tudo num único comando, ~30s contra o ERP local.
+ * Auditoria ÚNICA do universo de movimentos no ERP SPharm/Softreis (rev31).
+ * Read-only. Produz UM relatório (.md + .json) com tudo o que é preciso
+ * para fechar o domínio "Movimentos de Artigo" sem qualquer query manual.
+ *
+ * Conceitos chave (descobertos em rev30):
+ *   · `dbo.StocksMov` NÃO tem coluna TipoMov. O tipo deduz-se por FK:
+ *       [Detalhe ID]                    → Atendimento (Venda ou DevCliente)
+ *       [Atendimento Susp Detalhe ID]   → reserva
+ *       [Atendimento Credito Detalhe ID]→ venda a crédito
+ *       [Detalhe  Recp ID]              → Compra/Receção (DOIS ESPAÇOS)
+ *       [Devolucao Detalhe ID]          → Devolução a Fornecedor
+ *       [MovStocksDetID]                → movimento interno (Inventário/
+ *                                          Quebra/Ajuste/Transferência),
+ *                                          sub-tipo via MovStocksCab.Motivo
+ *
+ * Esta v2 substitui a heurística TipoMov da v1 (que era um modelo errado)
+ * por classificação FK-pattern + dump completo do mapa de motivos para
+ * suportar mapping explícito MovStocksCabMotivoID → TipoMovimentoArtigo
+ * no SaaS.
  *
  * Output:
  *   ./run/movimentos-audit-<timestamp>.md
  *   ./run/movimentos-audit-<timestamp>.json
  *
- * Cobertura:
- *   1. Schema completo de dbo.StocksMov + detecção heurística da coluna
- *      "TipoMov" (varia entre instalações Softreis).
- *   2. Volumetria 24m por TipoMov.
- *   3. TOP 10 amostras vertical por tipo.
- *   4. Discovery de tabelas relacionadas (inventário/ajuste/quebra/
- *      perda/transferência/regularização/anulação) via sys.tables.
- *   5. Para cada candidata: schema + row count + 3 sample rows.
- *   6. Lookups: [Tipo Documento] completo + qualquer tabela TipoMov*
- *      encontrada.
- *   7. Correlação 7 dias: StocksMov × Atendimento × Recepcao × Devolucao
- *      por dia. Identifica dias onde StocksMov >> outros (= ajustes/
- *      inventários puros sem documento).
+ * Cobertura completa num único run (~60s contra ERP local):
+ *   1. dbo.StocksMov: schema + índices + row count + date range
+ *   2. Volumetria por origem (FK-pattern, 24m)
+ *   3. Sub-classificação VENDA vs Devolução Cliente (via Atendimento.[Tipo Documento])
+ *   4. Movimentos internos (MovStocksDetID populated):
+ *      4.1 dbo.MovStocks_Det — schema
+ *      4.2 dbo.MovStocksCab — schema
+ *      4.3 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO
+ *      4.4 Volumetria por motivo (24m)
+ *      4.5 Amostras TOP N por motivo
+ *   5. Lookup [Tipo Documento] discovery (tenta múltiplos nomes)
+ *   6. Tabelas relacionadas (sys.tables LIKE patterns)
+ *   7. Correlação 7 dias (StocksMov × Atendimento × Recepcao × Devolucao)
  *
- * Não escreve no ERP. Não comunica com o SaaS. 100% local + ficheiro.
+ * NÃO comunica com SaaS. NÃO escreve em ERP. NÃO requer SSMS.
  *
  * Uso:
- *   agent movimentos-audit                         # default 24m, 10 samples
- *   agent movimentos-audit --months 12 --samples 5 # override
- *   agent movimentos-audit --out-dir C:\temp       # output dir custom
+ *   agent movimentos-audit                         # default 24m, 5 samples/motivo
+ *   agent movimentos-audit --months 12 --samples 10
+ *   agent movimentos-audit --out-dir C:\temp
  */
 
 import { parseArgs } from "node:util";
@@ -42,56 +57,89 @@ import { tableExists, listColumns, type ColumnMeta } from "./probe-helpers.js";
 
 const RULE = "═".repeat(72);
 const DEFAULT_MONTHS = 24;
-const DEFAULT_SAMPLES = 10;
+const DEFAULT_SAMPLES = 5;
 
 // ── Types ────────────────────────────────────────────────────────────
 
 type SampleRow = Record<string, unknown>;
 
-type RelatedTable = {
-  name: string;
+type TableProbe = {
   schema: string;
+  name: string;
+  exists: boolean;
   rowCount: number;
   columns: ColumnMeta[];
+  primaryKey: string[];
+  indexes: Array<{ name: string; columns: string[]; isUnique: boolean }>;
+  dateRange: { column: string; min: string | null; max: string | null } | null;
   sample: SampleRow[];
-  matchedPattern: string;
+};
+
+type RelatedTable = TableProbe & { matchedPattern: string };
+
+type VolumetriaOrigem = {
+  origem: string;
+  rows: number;
+  qtSum: number;
+  qtPos: number;
+  qtNeg: number;
+  dataMin: string | null;
+  dataMax: string | null;
+};
+
+type VolumetriaTipoDoc = {
+  tipoDoc: number | null;
+  inferred: "VENDA" | "DEVOLUCAO_CLIENTE" | "OUTROS";
+  rows: number;
+  qtSum: number;
+  dataMin: string | null;
+  dataMax: string | null;
+};
+
+type VolumetriaMotivo = {
+  motivoId: number | null;
+  motivoDesc: string | null;
+  motivoInactivo: boolean | null;
+  rows: number;
+  qtSum: number;
+  qtPos: number;
+  qtNeg: number;
+  dataMin: string | null;
+  dataMax: string | null;
+};
+
+type SamplesPerMotivo = {
+  motivoId: number | null;
+  motivoDesc: string | null;
+  rows: SampleRow[];
 };
 
 type AuditReport = {
   meta: {
     timestamp: string;
     agentRev: string;
+    auditVersion: 2;
     erp: { host: string; port: number; database: string };
     paramsMonths: number;
     paramsSamples: number;
   };
-  stocksMov: {
-    exists: boolean;
-    rowCountEstimate: number;
-    columns: ColumnMeta[];
-    primaryKey: string[];
-    indexes: Array<{ name: string; columns: string[]; isUnique: boolean }>;
-    dateRangeAll: { column: string; min: string | null; max: string | null } | null;
-    tipoColumnDetected: string | null;
-    tipoColumnScore: number;
-    tipoColumnAllCandidates: Array<{ name: string; score: number }>;
+  stocksMov: TableProbe & { fkColumnsDetected: string[] };
+  volumetriaPorOrigem: VolumetriaOrigem[];
+  volumetriaPorTipoDoc: VolumetriaTipoDoc[];
+  movInterno: {
+    movStocksDet: TableProbe;
+    movStocksCab: TableProbe;
+    motivosFull: SampleRow[];
+    motivosFullRowCount: number;
+    volumetriaPorMotivo: VolumetriaMotivo[];
+    samplesPorMotivo: SamplesPerMotivo[];
   };
-  volumetria: Array<{
-    tipo: string | number | null;
-    rows: number;
-    produtosDistintos: number;
-    qtSum: number;
-    qtPositiveLines: number;
-    qtNegativeLines: number;
-    dataMin: string | null;
-    dataMax: string | null;
-  }>;
-  samples: Array<{ tipo: string; rows: SampleRow[] }>;
+  tipoDocumentoLookup: {
+    tableName: string | null;
+    rows: SampleRow[];
+    triedNames: string[];
+  };
   relatedTables: RelatedTable[];
-  lookups: {
-    tipoDocumento: SampleRow[];
-    tipoMovLookups: Array<{ table: string; rows: SampleRow[] }>;
-  };
   correlation: Array<{
     day: string;
     stocksMov: number;
@@ -137,54 +185,35 @@ function parseCmdArgs(): Args {
 function printHelp(): void {
   console.log("Uso: movimentos-audit [--months N] [--samples N] [--out-dir <dir>]");
   console.log("");
-  console.log("Produz um relatório único (.md + .json) com o universo de movimentos do ERP.");
-  console.log("Read-only. Não toca em SaaS. Cobre StocksMov + tabelas relacionadas + lookups.");
+  console.log("Auditoria ÚNICA read-only do universo de movimentos do ERP.");
+  console.log("Cobre StocksMov + FKs + MovStocks_Det/Cab + motivos + lookups + correlação.");
+  console.log("Não toca em SaaS. Não escreve em ERP. Não requer SSMS.");
   console.log("");
   console.log("Flags:");
   console.log("  --months <N>    janela de volumetria em meses (default 24)");
-  console.log("  --samples <N>   TOP N amostras por tipo (default 10)");
+  console.log("  --samples <N>   amostras por motivo (default 5)");
   console.log("  --out-dir <d>   pasta de output (default ./run)");
 }
 
-// ── Heurística de detecção da coluna TipoMov ─────────────────────────
+// ── Coerce / pick helpers ────────────────────────────────────────────
 
-function scoreTipoColumn(name: string): number {
-  const n = name.toLowerCase();
-  if (n === "tipomov" || n === "tipo_mov" || n === "tipomovimento" || n === "tipo_movimento") return 100;
-  if (n === "tipomovid" || n === "tipo_movimento_id" || n === "tipomovimentoid") return 95;
-  if (n.startsWith("tipomov") || n.startsWith("tipo_mov") || n.startsWith("tipomovimento")) return 80;
-  if (n === "tipo") return 70;
-  if (/^tipo[_ ]?doc/.test(n)) return 60;  // pode ser ambíguo com Atendimento.TipoDoc
-  if (n.includes("tipo") && (n.includes("mov") || n.includes("operac"))) return 55;
-  if (n.includes("tipo")) return 30;
-  return 0;
+function isoOrNull(v: unknown): string | null {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+  return null;
 }
 
-function detectTipoColumn(cols: ColumnMeta[]): {
-  detected: string | null;
-  score: number;
-  all: Array<{ name: string; score: number }>;
-} {
-  const scored = cols.map((c) => ({ name: c.name, score: scoreTipoColumn(c.name) }));
-  scored.sort((a, b) => b.score - a.score);
-  const best = scored[0];
-  return {
-    detected: best && best.score >= 50 ? best.name : null,
-    score: best?.score ?? 0,
-    all: scored.filter((s) => s.score > 0),
-  };
-}
-
-// ── Date column detection ────────────────────────────────────────────
-
-function pickDateColumn(cols: ColumnMeta[]): string | null {
+function pickDateColumn(cols: ColumnMeta[], preferredNames: string[] = []): string | null {
   const dateLike = cols.filter((c) => /datetime|^date$/i.test(c.dataType));
   if (dateLike.length === 0) return null;
-  const named = dateLike.find((c) => /datamov|data[_ ]?mov|data[_ ]?op/i.test(c.name));
-  return (named ?? dateLike[0]).name;
+  for (const pref of preferredNames) {
+    const m = dateLike.find((c) => c.name.toLowerCase() === pref.toLowerCase());
+    if (m) return m.name;
+  }
+  const heuristic = dateLike.find((c) => /datamov|data\s*mov|datadev|data\s*dev|datarec|data\s*rec|datavend|data\s*venda|datadoc/i.test(c.name));
+  return (heuristic ?? dateLike[0]).name;
 }
 
-// ── Helpers SQL ──────────────────────────────────────────────────────
+// ── Generic SQL helpers ──────────────────────────────────────────────
 
 async function getRowCount(pool: SqlPool, schema: string, table: string): Promise<number> {
   const r = await pool.request().input("s", sql.NVarChar, schema).input("t", sql.NVarChar, table)
@@ -232,86 +261,301 @@ async function getDateRange(pool: SqlPool, schema: string, table: string, dateCo
   const r = await pool.request().query<{ min_date: Date | null; max_date: Date | null }>(
     `SELECT MIN([${dateCol}]) min_date, MAX([${dateCol}]) max_date FROM [${schema}].[${table}]`,
   );
-  const row = r.recordset[0];
-  return {
-    min: row?.min_date instanceof Date ? row.min_date.toISOString() : null,
-    max: row?.max_date instanceof Date ? row.max_date.toISOString() : null,
-  };
+  return { min: isoOrNull(r.recordset[0]?.min_date), max: isoOrNull(r.recordset[0]?.max_date) };
 }
 
-async function getVolumetria(
+async function probeTableFull(pool: SqlPool, schema: string, table: string, sampleSize = 5): Promise<TableProbe> {
+  const exists = await tableExists(pool, { schema, table });
+  if (!exists) {
+    return { schema, name: table, exists: false, rowCount: 0, columns: [], primaryKey: [], indexes: [], dateRange: null, sample: [] };
+  }
+  const columns = await listColumns(pool, { schema, table });
+  const [rowCount, primaryKey, indexes] = await Promise.all([
+    getRowCount(pool, schema, table),
+    getPrimaryKey(pool, schema, table),
+    getIndexes(pool, schema, table),
+  ]);
+  const dateCol = pickDateColumn(columns);
+  const dateRange = dateCol ? { column: dateCol, ...(await getDateRange(pool, schema, table, dateCol)) } : null;
+  let sample: SampleRow[] = [];
+  try {
+    const r = await pool.request().query<SampleRow>(`SELECT TOP ${sampleSize} * FROM [${schema}].[${table}]`);
+    sample = r.recordset;
+  } catch {
+    // ignore — algumas tabelas com tipos exóticos podem falhar SELECT *
+  }
+  return { schema, name: table, exists: true, rowCount, columns, primaryKey, indexes, dateRange, sample };
+}
+
+// ── StocksMov FK-pattern volumetria ──────────────────────────────────
+
+/**
+ * Detecta as 6 FK columns esperadas (com tolerância a variações de espaço).
+ * Devolve as FK columns EXISTENTES + um mapa name→canonical.
+ */
+function detectStocksMovFks(cols: ColumnMeta[]): {
+  detected: string[];
+  detalheId: string | null;
+  suspDetalheId: string | null;
+  creditoDetalheId: string | null;
+  recpDetalheId: string | null;
+  devolDetalheId: string | null;
+  movStocksDetId: string | null;
+} {
+  const byNorm = new Map<string, string>();
+  for (const c of cols) byNorm.set(c.name.toLowerCase().replace(/\s+/g, " "), c.name);
+  const pick = (...candidates: string[]): string | null => {
+    for (const cand of candidates) {
+      const real = byNorm.get(cand.toLowerCase().replace(/\s+/g, " "));
+      if (real) return real;
+    }
+    return null;
+  };
+  const detalheId = pick("Detalhe ID");
+  const suspDetalheId = pick("Atendimento Susp Detalhe ID");
+  const creditoDetalheId = pick("Atendimento Credito Detalhe ID");
+  // Note: o nome real tem DOIS espaços entre "Detalhe" e "Recp"
+  const recpDetalheId = pick("Detalhe  Recp ID", "Detalhe Recp ID");
+  const devolDetalheId = pick("Devolucao Detalhe ID");
+  const movStocksDetId = pick("MovStocksDetID");
+  const detected = [detalheId, suspDetalheId, creditoDetalheId, recpDetalheId, devolDetalheId, movStocksDetId]
+    .filter((x): x is string => x !== null);
+  return { detected, detalheId, suspDetalheId, creditoDetalheId, recpDetalheId, devolDetalheId, movStocksDetId };
+}
+
+async function getVolumetriaPorOrigem(
   pool: SqlPool,
-  schema: string,
-  table: string,
-  tipoCol: string,
+  fks: ReturnType<typeof detectStocksMovFks>,
   dateCol: string,
-  qtyCol: string | null,
-  prodCol: string | null,
   months: number,
-): Promise<AuditReport["volumetria"]> {
+): Promise<VolumetriaOrigem[]> {
+  // Construir CASE com ordem deliberada (mutuamente exclusivos — apenas 1 FK populado por linha).
+  // A precedência reflecte o classificador SaaS: Devolucao > Recepcao > Atendimento > Susp > Credito > MovStocks.
+  const parts: string[] = [];
+  if (fks.devolDetalheId)    parts.push(`WHEN [${fks.devolDetalheId}] IS NOT NULL THEN 'DEVOLUCAO_FORNECEDOR'`);
+  if (fks.recpDetalheId)     parts.push(`WHEN [${fks.recpDetalheId}] IS NOT NULL THEN 'COMPRA'`);
+  if (fks.detalheId)         parts.push(`WHEN [${fks.detalheId}] IS NOT NULL THEN 'VENDA_OU_DEVOLUCAO_CLIENTE'`);
+  if (fks.creditoDetalheId)  parts.push(`WHEN [${fks.creditoDetalheId}] IS NOT NULL THEN 'VENDA_CREDITO'`);
+  if (fks.suspDetalheId)     parts.push(`WHEN [${fks.suspDetalheId}] IS NOT NULL THEN 'RESERVA'`);
+  if (fks.movStocksDetId)    parts.push(`WHEN [${fks.movStocksDetId}] IS NOT NULL THEN 'MOV_INTERNO'`);
+  const caseExpr = parts.length > 0
+    ? `CASE\n        ${parts.join("\n        ")}\n        ELSE 'DESCONHECIDO'\n      END`
+    : `'DESCONHECIDO'`;
+
   const since = new Date();
   since.setMonth(since.getMonth() - months);
-  const qtyExpr = qtyCol ? `SUM(ABS([${qtyCol}]))` : "0";
-  const prodExpr = prodCol ? `COUNT(DISTINCT [${prodCol}])` : "0";
-  const qtyPos = qtyCol ? `SUM(CASE WHEN [${qtyCol}] > 0 THEN 1 ELSE 0 END)` : "0";
-  const qtyNeg = qtyCol ? `SUM(CASE WHEN [${qtyCol}] < 0 THEN 1 ELSE 0 END)` : "0";
   const r = await pool.request().input("d", sql.DateTime, since).query<{
-    tipo: string | number | null;
-    n: number;
-    prods: number;
-    qt: number;
-    pos: number;
-    neg: number;
-    minD: Date | null;
-    maxD: Date | null;
+    origem: string; n: number; qtSum: number; qtPos: number; qtNeg: number;
+    dataMin: Date | null; dataMax: Date | null;
   }>(`
-    SELECT [${tipoCol}] tipo,
-           COUNT_BIG(*) n,
-           ${prodExpr} prods,
-           ${qtyExpr} qt,
-           ${qtyPos} pos,
-           ${qtyNeg} neg,
-           MIN([${dateCol}]) minD,
-           MAX([${dateCol}]) maxD
-    FROM [${schema}].[${table}]
-    WHERE [${dateCol}] >= @d
-    GROUP BY [${tipoCol}]
-    ORDER BY 2 DESC`);
-  return r.recordset.map((row) => ({
-    tipo: row.tipo,
-    rows: Number(row.n),
-    produtosDistintos: Number(row.prods),
-    qtSum: Number(row.qt ?? 0),
-    qtPositiveLines: Number(row.pos),
-    qtNegativeLines: Number(row.neg),
-    dataMin: row.minD instanceof Date ? row.minD.toISOString() : null,
-    dataMax: row.maxD instanceof Date ? row.maxD.toISOString() : null,
+    WITH classified AS (
+      SELECT
+        ${caseExpr} AS origem,
+        [Qtd] AS qt,
+        [${dateCol}] AS dataMov
+      FROM [dbo].[StocksMov]
+      WHERE [${dateCol}] >= @d
+    )
+    SELECT
+      origem,
+      COUNT_BIG(*) AS n,
+      SUM(CAST(qt AS BIGINT)) AS qtSum,
+      SUM(CASE WHEN qt > 0 THEN 1 ELSE 0 END) AS qtPos,
+      SUM(CASE WHEN qt < 0 THEN 1 ELSE 0 END) AS qtNeg,
+      MIN(dataMov) AS dataMin,
+      MAX(dataMov) AS dataMax
+    FROM classified
+    GROUP BY origem
+    ORDER BY n DESC`);
+  return r.recordset.map((x) => ({
+    origem: x.origem,
+    rows: Number(x.n),
+    qtSum: Number(x.qtSum ?? 0),
+    qtPos: Number(x.qtPos),
+    qtNeg: Number(x.qtNeg),
+    dataMin: isoOrNull(x.dataMin),
+    dataMax: isoOrNull(x.dataMax),
   }));
 }
 
-async function getSamplesPerTipo(
+async function getVolumetriaPorTipoDoc(
   pool: SqlPool,
-  schema: string,
-  table: string,
-  tipoCol: string,
+  detalheIdCol: string,
   dateCol: string,
-  tipos: Array<string | number | null>,
-  samplesPerTipo: number,
-): Promise<AuditReport["samples"]> {
-  const out: AuditReport["samples"] = [];
-  for (const tipo of tipos) {
-    if (tipo === null) continue;
-    const req = pool.request().input("t", typeof tipo === "number" ? sql.Int : sql.NVarChar, tipo).input("n", sql.Int, samplesPerTipo);
-    const r = await req.query<SampleRow>(`
-      SELECT TOP (@n) * FROM [${schema}].[${table}]
-      WHERE [${tipoCol}] = @t
-      ORDER BY [${dateCol}] DESC`);
-    out.push({ tipo: String(tipo), rows: r.recordset });
-  }
-  return out;
+  months: number,
+): Promise<VolumetriaTipoDoc[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+  const r = await pool.request().input("d", sql.DateTime, since).query<{
+    tipoDoc: number | null; n: number; qtSum: number; dataMin: Date | null; dataMax: Date | null;
+  }>(`
+    SELECT
+      a.[Tipo Documento] AS tipoDoc,
+      COUNT_BIG(*) AS n,
+      SUM(CAST(sm.[Qtd] AS BIGINT)) AS qtSum,
+      MIN(sm.[${dateCol}]) AS dataMin,
+      MAX(sm.[${dateCol}]) AS dataMax
+    FROM [dbo].[StocksMov] sm
+    INNER JOIN [dbo].[Atendimento Detalhe] ad ON ad.[Detalhe ID] = sm.[${detalheIdCol}]
+    INNER JOIN [dbo].[Atendimento] a ON a.[Atendimento ID] = ad.[Atendimento ID]
+    WHERE sm.[${dateCol}] >= @d AND sm.[${detalheIdCol}] IS NOT NULL
+    GROUP BY a.[Tipo Documento]
+    ORDER BY n DESC`);
+  return r.recordset.map((x) => ({
+    tipoDoc: x.tipoDoc !== null ? Number(x.tipoDoc) : null,
+    inferred: x.tipoDoc === 27 || x.tipoDoc === 104
+      ? "DEVOLUCAO_CLIENTE" as const
+      : x.tipoDoc !== null && [2, 7, 77].includes(Number(x.tipoDoc))
+        ? "VENDA" as const
+        : "OUTROS" as const,
+    rows: Number(x.n),
+    qtSum: Number(x.qtSum ?? 0),
+    dataMin: isoOrNull(x.dataMin),
+    dataMax: isoOrNull(x.dataMax),
+  }));
 }
 
-// ── Tabelas relacionadas ─────────────────────────────────────────────
+// ── MovStocks_Det + MovStocksCab + Motivos ───────────────────────────
+
+async function dumpFullTable(pool: SqlPool, schema: string, table: string, maxRows = 1000): Promise<SampleRow[]> {
+  try {
+    const r = await pool.request().query<SampleRow>(`SELECT TOP ${maxRows} * FROM [${schema}].[${table}]`);
+    return r.recordset;
+  } catch {
+    return [];
+  }
+}
+
+async function getVolumetriaPorMotivo(
+  pool: SqlPool,
+  movStocksDetIdCol: string,
+  dateCol: string,
+  months: number,
+): Promise<VolumetriaMotivo[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+  try {
+    const r = await pool.request().input("d", sql.DateTime, since).query<{
+      motivoId: number | null; motivoDesc: string | null; motivoInactivo: boolean | null;
+      n: number; qtSum: number; qtPos: number; qtNeg: number;
+      dataMin: Date | null; dataMax: Date | null;
+    }>(`
+      SELECT
+        msc.[MovStocksCabMotivoID] AS motivoId,
+        m.[Motivo] AS motivoDesc,
+        m.[MotivoInactivo] AS motivoInactivo,
+        COUNT_BIG(*) AS n,
+        SUM(CAST(sm.[Qtd] AS BIGINT)) AS qtSum,
+        SUM(CASE WHEN sm.[Qtd] > 0 THEN 1 ELSE 0 END) AS qtPos,
+        SUM(CASE WHEN sm.[Qtd] < 0 THEN 1 ELSE 0 END) AS qtNeg,
+        MIN(sm.[${dateCol}]) AS dataMin,
+        MAX(sm.[${dateCol}]) AS dataMax
+      FROM [dbo].[StocksMov] sm
+      INNER JOIN [dbo].[MovStocks_Det] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdCol}]
+      INNER JOIN [dbo].[MovStocksCab] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
+      LEFT JOIN [dbo].[tblMovStocksCab_Motivo] m ON m.[MovStocksCabMotivoID] = msc.[MovStocksCabMotivoID]
+      WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdCol}] IS NOT NULL
+      GROUP BY msc.[MovStocksCabMotivoID], m.[Motivo], m.[MotivoInactivo]
+      ORDER BY n DESC`);
+    return r.recordset.map((x) => ({
+      motivoId: x.motivoId !== null ? Number(x.motivoId) : null,
+      motivoDesc: x.motivoDesc,
+      motivoInactivo: x.motivoInactivo,
+      rows: Number(x.n),
+      qtSum: Number(x.qtSum ?? 0),
+      qtPos: Number(x.qtPos),
+      qtNeg: Number(x.qtNeg),
+      dataMin: isoOrNull(x.dataMin),
+      dataMax: isoOrNull(x.dataMax),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function getSamplesPorMotivo(
+  pool: SqlPool,
+  movStocksDetIdCol: string,
+  dateCol: string,
+  months: number,
+  samplesPerMotivo: number,
+): Promise<SamplesPerMotivo[]> {
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+  try {
+    const r = await pool.request().input("d", sql.DateTime, since).input("n", sql.Int, samplesPerMotivo).query<SampleRow & { rn: number; motivoId: number | null; motivoDesc: string | null }>(`
+      WITH ranked AS (
+        SELECT
+          sm.[StocksMovID], sm.[CodigoID], sm.[${dateCol}] AS DataMov,
+          sm.[Qtd], sm.[QtdBonus], sm.[Existencia], sm.[ValorCustoUnit],
+          sm.[OldPMC], sm.[NovoPMC], sm.[${movStocksDetIdCol}] AS MovStocksDetID,
+          sm.[StocksMovArmazemID],
+          msc.[MovStocksCabMotivoID] AS motivoId,
+          m.[Motivo] AS motivoDesc,
+          ROW_NUMBER() OVER (PARTITION BY msc.[MovStocksCabMotivoID] ORDER BY sm.[${dateCol}] DESC) AS rn
+        FROM [dbo].[StocksMov] sm
+        INNER JOIN [dbo].[MovStocks_Det] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdCol}]
+        INNER JOIN [dbo].[MovStocksCab] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
+        LEFT JOIN [dbo].[tblMovStocksCab_Motivo] m ON m.[MovStocksCabMotivoID] = msc.[MovStocksCabMotivoID]
+        WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdCol}] IS NOT NULL
+      )
+      SELECT * FROM ranked WHERE rn <= @n ORDER BY motivoId, rn`);
+    const groups = new Map<string, SamplesPerMotivo>();
+    for (const row of r.recordset) {
+      const key = String(row.motivoId ?? "NULL");
+      if (!groups.has(key)) {
+        groups.set(key, {
+          motivoId: row.motivoId !== null ? Number(row.motivoId) : null,
+          motivoDesc: row.motivoDesc,
+          rows: [],
+        });
+      }
+      const { rn: _rn, motivoId: _m, motivoDesc: _d, ...rest } = row as Record<string, unknown>;
+      void _rn; void _m; void _d;
+      groups.get(key)!.rows.push(rest);
+    }
+    return Array.from(groups.values());
+  } catch {
+    return [];
+  }
+}
+
+// ── Tipo Documento lookup discovery ──────────────────────────────────
+
+async function findTipoDocumentoLookup(pool: SqlPool): Promise<AuditReport["tipoDocumentoLookup"]> {
+  // Tenta os nomes mais prováveis (Softreis pattern). O probe v1 usou apenas
+  // [Tipo Documento] e devolveu 0 rows — provável que o nome real seja diferente.
+  const candidates = [
+    "Tipo Documento",
+    "TipoDocumento",
+    "Tbl_TipoDocumento",
+    "Tbl_Tipo_Documento",
+    "Tipos Documento",
+    "TipoDocumentos",
+    "Tipo_Documento",
+    "TiposDoc",
+    "TipoDoc",
+  ];
+  const tried: string[] = [];
+  for (const t of candidates) {
+    tried.push(t);
+    if (!(await tableExists(pool, { schema: "dbo", table: t }))) continue;
+    const cols = await listColumns(pool, { schema: "dbo", table: t });
+    // Procura colunas de id + descrição
+    const idCol = cols.find((c) => /id$/i.test(c.name) && /tipo|doc/i.test(c.name))?.name ?? cols[0]?.name;
+    const descCol = cols.find((c) => /descr|nome|name|titulo/i.test(c.name))?.name;
+    try {
+      const sel = descCol ? `[${idCol}] AS id, [${descCol}] AS descricao` : `[${idCol}] AS id, NULL AS descricao`;
+      const r = await pool.request().query<SampleRow>(`SELECT TOP 200 ${sel} FROM [dbo].[${t}] ORDER BY [${idCol}]`);
+      return { tableName: `dbo.${t}`, rows: r.recordset, triedNames: tried };
+    } catch {
+      // continua
+    }
+  }
+  return { tableName: null, rows: [], triedNames: tried };
+}
+
+// ── Related tables (sys.tables LIKE patterns) ────────────────────────
 
 const RELATED_PATTERNS: Array<{ pattern: string; label: string }> = [
   { pattern: "%nventar%", label: "inventário" },
@@ -321,8 +565,6 @@ const RELATED_PATTERNS: Array<{ pattern: string; label: string }> = [
   { pattern: "%ransfer%", label: "transferência" },
   { pattern: "%juste%", label: "ajuste" },
   { pattern: "%nulac%", label: "anulação" },
-  { pattern: "%TipoMov%", label: "lookup tipoMov" },
-  { pattern: "%Tipo_Mov%", label: "lookup tipoMov" },
   { pattern: "%Motivo%", label: "motivos" },
 ];
 
@@ -330,14 +572,13 @@ async function findRelatedTables(pool: SqlPool): Promise<Array<{ name: string; s
   const out: Array<{ name: string; schema: string; matchedPattern: string }> = [];
   const seen = new Set<string>();
   for (const p of RELATED_PATTERNS) {
-    const r = await pool.request().input("p", sql.NVarChar, p.pattern).query<{ schema: string; name: string }>(`
+    const r = await pool.request().input("p", sql.NVarChar, p.pattern).query<{ schema_: string; name: string }>(`
       SELECT ss.name schema_, tt.name FROM sys.tables tt
       JOIN sys.schemas ss ON tt.schema_id = ss.schema_id
       WHERE tt.is_ms_shipped = 0 AND tt.name LIKE @p
       ORDER BY ss.name, tt.name`);
     for (const row of r.recordset) {
-      // sql.NVarChar maps schema_ via select alias; resolve as 'schema' below
-      const sch = (row as unknown as Record<string, string>)["schema_"] ?? "dbo";
+      const sch = row.schema_ ?? "dbo";
       const key = `${sch}.${row.name}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -348,84 +589,65 @@ async function findRelatedTables(pool: SqlPool): Promise<Array<{ name: string; s
 }
 
 async function dumpRelatedTable(pool: SqlPool, schema: string, name: string, matchedPattern: string): Promise<RelatedTable> {
-  const cols = await listColumns(pool, { schema, table: name });
-  const rowCount = await getRowCount(pool, schema, name);
-  let sample: SampleRow[] = [];
-  try {
-    const r = await pool.request().query<SampleRow>(`SELECT TOP 3 * FROM [${schema}].[${name}]`);
-    sample = r.recordset;
-  } catch {
-    // ignore — tabela com colunas exóticas pode falhar SELECT *
-  }
-  return { name, schema, rowCount, columns: cols, sample, matchedPattern };
+  const probe = await probeTableFull(pool, schema, name, 3);
+  return { ...probe, matchedPattern };
 }
 
-// ── Lookups ──────────────────────────────────────────────────────────
-
-async function getTipoDocumentoLookup(pool: SqlPool): Promise<SampleRow[]> {
-  try {
-    const r = await pool.request().query<SampleRow>(
-      `SELECT [Tipo Documento ID] id, [Descricao] descricao FROM [dbo].[Tipo Documento] ORDER BY id`,
-    );
-    return r.recordset;
-  } catch {
-    return [];
-  }
-}
-
-async function getTipoMovLookups(pool: SqlPool, candidates: Array<{ schema: string; name: string }>): Promise<Array<{ table: string; rows: SampleRow[] }>> {
-  const out: Array<{ table: string; rows: SampleRow[] }> = [];
-  for (const t of candidates) {
-    try {
-      const r = await pool.request().query<SampleRow>(`SELECT TOP 50 * FROM [${t.schema}].[${t.name}]`);
-      out.push({ table: `${t.schema}.${t.name}`, rows: r.recordset });
-    } catch {
-      // skip
-    }
-  }
-  return out;
-}
-
-// ── Correlação 7 dias ────────────────────────────────────────────────
+// ── Correlação 7 dias (fixed: detecta coluna date de Devolucao dinamicamente) ──
 
 async function getCorrelation(
   pool: SqlPool,
   stocksMovDateCol: string,
 ): Promise<AuditReport["correlation"]> {
+  // Detectar coluna date real de dbo.Devolucao (era 'DataDevolucao' no v1, errado).
+  // Em Softreis o pattern usual é '[Data Devolucao]' (com espaço).
+  let devolDateCol: string | null = null;
+  if (await tableExists(pool, { schema: "dbo", table: "Devolucao" })) {
+    const cols = await listColumns(pool, { schema: "dbo", table: "Devolucao" });
+    devolDateCol = pickDateColumn(cols, ["Data Devolucao", "DataDevolucao", "Data", "DataMov", "Data Mov"]);
+  }
+
   const since = new Date();
   since.setDate(since.getDate() - 7);
-  const r = await pool.request().input("d", sql.DateTime, since).query<{
-    dia: Date; stocksMov: number; vendas: number; compras: number; devol: number;
-  }>(`
-    SELECT d.dia, sm.n stocksMov, ven.n vendas, com.n compras, dev.n devol
-    FROM (
-      SELECT DISTINCT CAST([${stocksMovDateCol}] AS DATE) dia FROM [dbo].[StocksMov] WHERE [${stocksMovDateCol}] >= @d
-    ) d
-    OUTER APPLY (SELECT COUNT_BIG(*) n FROM [dbo].[StocksMov] x WHERE CAST(x.[${stocksMovDateCol}] AS DATE) = d.dia) sm
-    OUTER APPLY (
-      SELECT COUNT_BIG(*) n FROM [dbo].[Atendimento Detalhe] ad
-      JOIN [dbo].[Atendimento] a ON a.[Atendimento ID]=ad.[Atendimento ID]
-      WHERE CAST(a.[Data Venda] AS DATE) = d.dia AND a.[Fim Venda]='S'
-    ) ven
-    OUTER APPLY (
-      SELECT COUNT_BIG(*) n FROM [dbo].[Recepcao Detalhe] rd
-      JOIN [dbo].[Recepcao] r ON r.[Recepcao ID]=rd.[Recepcao ID]
-      WHERE CAST(r.[Data Recepcao] AS DATE) = d.dia AND r.[RecepcaoSituacaoID]='N'
-    ) com
-    OUTER APPLY (
-      SELECT COUNT_BIG(*) n FROM [dbo].[Devolucao Detalhe] dd
-      JOIN [dbo].[Devolucao] dv ON dv.[Devolucao ID]=dd.[Devolucao ID]
-      WHERE CAST(dv.[DataDevolucao] AS DATE) = d.dia
-    ) dev
-    ORDER BY d.dia DESC`);
-  return r.recordset.map((row) => ({
-    day: row.dia.toISOString().slice(0, 10),
-    stocksMov: Number(row.stocksMov ?? 0),
-    vendas: Number(row.vendas ?? 0),
-    compras: Number(row.compras ?? 0),
-    devolFornecedor: Number(row.devol ?? 0),
-    deltaUnexplained: Number(row.stocksMov ?? 0) - Number(row.vendas ?? 0) - Number(row.compras ?? 0) - Number(row.devol ?? 0),
-  }));
+  const devolApply = devolDateCol
+    ? `OUTER APPLY (
+        SELECT COUNT_BIG(*) n FROM [dbo].[Devolucao Detalhe] dd
+        JOIN [dbo].[Devolucao] dv ON dv.[Devolucao ID]=dd.[Devolucao ID]
+        WHERE CAST(dv.[${devolDateCol}] AS DATE) = d.dia
+      ) dev`
+    : `OUTER APPLY (SELECT CAST(0 AS BIGINT) n) dev`;
+  try {
+    const r = await pool.request().input("d", sql.DateTime, since).query<{
+      dia: Date; stocksMov: number; vendas: number; compras: number; devol: number;
+    }>(`
+      SELECT d.dia, sm.n stocksMov, ven.n vendas, com.n compras, dev.n devol
+      FROM (
+        SELECT DISTINCT CAST([${stocksMovDateCol}] AS DATE) dia FROM [dbo].[StocksMov] WHERE [${stocksMovDateCol}] >= @d
+      ) d
+      OUTER APPLY (SELECT COUNT_BIG(*) n FROM [dbo].[StocksMov] x WHERE CAST(x.[${stocksMovDateCol}] AS DATE) = d.dia) sm
+      OUTER APPLY (
+        SELECT COUNT_BIG(*) n FROM [dbo].[Atendimento Detalhe] ad
+        JOIN [dbo].[Atendimento] a ON a.[Atendimento ID]=ad.[Atendimento ID]
+        WHERE CAST(a.[Data Venda] AS DATE) = d.dia AND a.[Fim Venda]='S'
+      ) ven
+      OUTER APPLY (
+        SELECT COUNT_BIG(*) n FROM [dbo].[Recepcao Detalhe] rd
+        JOIN [dbo].[Recepcao] r ON r.[Recepcao ID]=rd.[Recepcao ID]
+        WHERE CAST(r.[Data Recepcao] AS DATE) = d.dia AND r.[RecepcaoSituacaoID]='N'
+      ) com
+      ${devolApply}
+      ORDER BY d.dia DESC`);
+    return r.recordset.map((row) => ({
+      day: row.dia.toISOString().slice(0, 10),
+      stocksMov: Number(row.stocksMov ?? 0),
+      vendas: Number(row.vendas ?? 0),
+      compras: Number(row.compras ?? 0),
+      devolFornecedor: Number(row.devol ?? 0),
+      deltaUnexplained: Number(row.stocksMov ?? 0) - Number(row.vendas ?? 0) - Number(row.compras ?? 0) - Number(row.devol ?? 0),
+    }));
+  } catch (e) {
+    throw new Error(`correlação falhou: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 // ── Markdown renderer ────────────────────────────────────────────────
@@ -440,13 +662,45 @@ function fmtCol(c: ColumnMeta): string {
   return `${c.name} :: ${type}${c.nullable ? " NULL" : " NOT NULL"}`;
 }
 
+function fmtVal(v: unknown): string {
+  if (v === null || v === undefined) return "(null)";
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "string" && v.length > 200) return v.slice(0, 200) + "…";
+  return String(v);
+}
+
+function renderTableProbe(md: string[], t: TableProbe, title?: string): void {
+  md.push(`${title ?? `### ${t.schema}.${t.name}`} — ${t.exists ? `${t.rowCount.toLocaleString("pt-PT")} rows` : "✗ NÃO EXISTE"}\n`);
+  if (!t.exists) { md.push(""); return; }
+  md.push(`- PK: ${t.primaryKey.join(", ") || "(sem)"}`);
+  if (t.dateRange) md.push(`- Date range [${t.dateRange.column}]: ${t.dateRange.min?.slice(0, 10) ?? "?"} → ${t.dateRange.max?.slice(0, 10) ?? "?"}`);
+  md.push("");
+  md.push("```");
+  for (const c of t.columns) md.push(`  ${fmtCol(c)}`);
+  md.push("```");
+  if (t.indexes.length > 0) {
+    md.push(`\nÍndices:`);
+    for (const i of t.indexes) md.push(`- \`${i.name}\`${i.isUnique ? " UNIQUE" : ""}: (${i.columns.join(", ")})`);
+  }
+  if (t.sample.length > 0) {
+    md.push(`\nSample (${t.sample.length} rows):`);
+    md.push("```");
+    t.sample.forEach((row, i) => {
+      md.push(`-- [${i + 1}] --`);
+      for (const [k, v] of Object.entries(row)) md.push(`  ${k}: ${fmtVal(v)}`);
+    });
+    md.push("```");
+  }
+  md.push("");
+}
+
 function renderMarkdown(r: AuditReport): string {
   const md: string[] = [];
-  md.push(`# Auditoria de Movimentos ERP\n`);
+  md.push(`# Auditoria de Movimentos ERP (v${r.meta.auditVersion})\n`);
   md.push(`- **Timestamp:** ${r.meta.timestamp}`);
   md.push(`- **Agent rev:** ${r.meta.agentRev}`);
   md.push(`- **ERP:** ${r.meta.erp.database}@${r.meta.erp.host}:${r.meta.erp.port}`);
-  md.push(`- **Janela volumetria:** ${r.meta.paramsMonths} meses · samples=${r.meta.paramsSamples}\n`);
+  md.push(`- **Janela:** ${r.meta.paramsMonths} meses · samples/motivo=${r.meta.paramsSamples}\n`);
 
   if (r.warnings.length > 0) {
     md.push(`## ⚠ Warnings\n`);
@@ -455,92 +709,111 @@ function renderMarkdown(r: AuditReport): string {
   }
 
   md.push(`## 1. dbo.StocksMov\n`);
-  if (!r.stocksMov.exists) {
-    md.push(`✗ **NÃO EXISTE.** Pipeline incremental de stock está em risco.\n`);
-  } else {
-    md.push(`- Row count estimado: **${r.stocksMov.rowCountEstimate.toLocaleString("pt-PT")}**`);
-    md.push(`- Date range: ${r.stocksMov.dateRangeAll?.column ? `[${r.stocksMov.dateRangeAll.column}] ${r.stocksMov.dateRangeAll.min?.slice(0,10) ?? "?"} → ${r.stocksMov.dateRangeAll.max?.slice(0,10) ?? "?"}` : "—"}`);
-    md.push(`- **TipoMov column detected:** ${r.stocksMov.tipoColumnDetected ?? "✗ NÃO DETECTADA"} (score ${r.stocksMov.tipoColumnScore})`);
-    if (r.stocksMov.tipoColumnAllCandidates.length > 1) {
-      md.push(`  - Outros candidatos: ${r.stocksMov.tipoColumnAllCandidates.slice(1).map((c) => `${c.name}(${c.score})`).join(", ")}`);
-    }
-    md.push(`- PK: ${r.stocksMov.primaryKey.join(", ") || "(sem)"}`);
-    md.push(`\n### 1.1 Colunas\n`);
-    md.push("```");
-    for (const c of r.stocksMov.columns) md.push(`  ${fmtCol(c)}`);
-    md.push("```\n");
-    if (r.stocksMov.indexes.length > 0) {
-      md.push(`### 1.2 Índices não-PK\n`);
-      for (const i of r.stocksMov.indexes) md.push(`- \`${i.name}\`${i.isUnique ? " UNIQUE" : ""}: (${i.columns.join(", ")})`);
-      md.push("");
-    }
-  }
+  renderTableProbe(md, r.stocksMov, "### Schema");
+  md.push(`### FK columns detectadas (classificador FK-pattern)\n`);
+  md.push(r.stocksMov.fkColumnsDetected.length > 0
+    ? r.stocksMov.fkColumnsDetected.map((c) => `- \`[${c}]\``).join("\n")
+    : "✗ NENHUMA FK detectada — schema inesperado.");
+  md.push("");
 
-  md.push(`## 2. Volumetria ${r.meta.paramsMonths}m por TipoMov\n`);
-  if (r.volumetria.length === 0) {
-    md.push(`(sem dados — tipo não detectado ou tabela vazia)\n`);
+  md.push(`## 2. Volumetria por origem (FK-pattern, ${r.meta.paramsMonths}m)\n`);
+  if (r.volumetriaPorOrigem.length === 0) {
+    md.push(`(sem dados)\n`);
   } else {
-    md.push(`| Tipo | Linhas | Produtos | Qt abs | Qt>0 | Qt<0 | minD | maxD |`);
-    md.push(`|---|---:|---:|---:|---:|---:|---|---|`);
-    for (const v of r.volumetria) {
-      md.push(`| ${v.tipo ?? "NULL"} | ${v.rows.toLocaleString("pt-PT")} | ${v.produtosDistintos} | ${v.qtSum} | ${v.qtPositiveLines} | ${v.qtNegativeLines} | ${v.dataMin?.slice(0,10) ?? "—"} | ${v.dataMax?.slice(0,10) ?? "—"} |`);
+    md.push(`| Origem | Linhas | qt sum | qt>0 | qt<0 | minD | maxD |`);
+    md.push(`|---|---:|---:|---:|---:|---|---|`);
+    for (const v of r.volumetriaPorOrigem) {
+      md.push(`| ${v.origem} | ${v.rows.toLocaleString("pt-PT")} | ${v.qtSum.toLocaleString("pt-PT")} | ${v.qtPos.toLocaleString("pt-PT")} | ${v.qtNeg.toLocaleString("pt-PT")} | ${v.dataMin?.slice(0, 10) ?? "—"} | ${v.dataMax?.slice(0, 10) ?? "—"} |`);
     }
     md.push("");
   }
 
-  md.push(`## 3. Amostras TOP ${r.meta.paramsSamples} por tipo (vertical)\n`);
-  for (const s of r.samples) {
-    md.push(`### tipo=${s.tipo}\n`);
+  md.push(`## 3. Sub-classificação VENDA vs Devolução Cliente (via Atendimento.[Tipo Documento])\n`);
+  if (r.volumetriaPorTipoDoc.length === 0) {
+    md.push(`(sem dados — sem FK [Detalhe ID] populada ou Atendimento JOIN falhou)\n`);
+  } else {
+    md.push(`| TipoDoc | Inferred | Linhas | qt sum | minD | maxD |`);
+    md.push(`|---:|---|---:|---:|---|---|`);
+    for (const v of r.volumetriaPorTipoDoc) {
+      md.push(`| ${v.tipoDoc ?? "NULL"} | ${v.inferred} | ${v.rows.toLocaleString("pt-PT")} | ${v.qtSum.toLocaleString("pt-PT")} | ${v.dataMin?.slice(0, 10) ?? "—"} | ${v.dataMax?.slice(0, 10) ?? "—"} |`);
+    }
+    md.push("");
+  }
+
+  md.push(`## 4. Movimentos internos (MovStocksDetID populated)\n`);
+  md.push(`### 4.1 dbo.MovStocks_Det — schema\n`);
+  renderTableProbe(md, r.movInterno.movStocksDet, " ");
+  md.push(`### 4.2 dbo.MovStocksCab — schema\n`);
+  renderTableProbe(md, r.movInterno.movStocksCab, " ");
+
+  md.push(`### 4.3 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO (${r.movInterno.motivosFullRowCount} rows)\n`);
+  if (r.movInterno.motivosFull.length === 0) {
+    md.push(`(vazio ou tabela inacessível)\n`);
+  } else {
     md.push("```");
-    s.rows.slice(0, r.meta.paramsSamples).forEach((row, i) => {
-      md.push(`-- [${i + 1}] --`);
-      for (const [k, v] of Object.entries(row)) md.push(`  ${k}: ${formatVal(v)}`);
-    });
+    for (const m of r.movInterno.motivosFull) {
+      md.push(`  ${JSON.stringify(m)}`);
+    }
     md.push("```\n");
   }
 
-  md.push(`## 4. Tabelas relacionadas (sys.tables matching)\n`);
-  if (r.relatedTables.length === 0) {
-    md.push(`(nenhuma tabela com padrões: ${RELATED_PATTERNS.map(p => p.pattern).join(", ")})\n`);
+  md.push(`### 4.4 Volumetria por motivo (${r.meta.paramsMonths}m)\n`);
+  if (r.movInterno.volumetriaPorMotivo.length === 0) {
+    md.push(`(sem dados — JOIN MovStocks_Det/Cab pode ter falhado; ver warnings)\n`);
   } else {
-    for (const t of r.relatedTables) {
-      md.push(`### ${t.schema}.${t.name} (${t.matchedPattern}) — ${t.rowCount.toLocaleString("pt-PT")} rows\n`);
-      md.push("```");
-      for (const c of t.columns) md.push(`  ${fmtCol(c)}`);
-      md.push("```");
-      if (t.sample.length > 0) {
-        md.push(`\nSample (3 rows):`);
-        md.push("```");
-        t.sample.forEach((row, i) => {
-          md.push(`-- [${i + 1}] --`);
-          for (const [k, v] of Object.entries(row)) md.push(`  ${k}: ${formatVal(v)}`);
-        });
-        md.push("```");
-      }
-      md.push("");
+    md.push(`| MotivoID | Descrição | Inactivo? | Linhas | qt sum | qt>0 | qt<0 | minD | maxD |`);
+    md.push(`|---:|---|---|---:|---:|---:|---:|---|---|`);
+    for (const v of r.movInterno.volumetriaPorMotivo) {
+      md.push(`| ${v.motivoId ?? "NULL"} | ${(v.motivoDesc ?? "(null)").replace(/\|/g, "\\|")} | ${v.motivoInactivo === null ? "?" : v.motivoInactivo ? "sim" : "não"} | ${v.rows.toLocaleString("pt-PT")} | ${v.qtSum.toLocaleString("pt-PT")} | ${v.qtPos.toLocaleString("pt-PT")} | ${v.qtNeg.toLocaleString("pt-PT")} | ${v.dataMin?.slice(0, 10) ?? "—"} | ${v.dataMax?.slice(0, 10) ?? "—"} |`);
     }
+    md.push("");
   }
 
-  md.push(`## 5. Lookups\n`);
-  md.push(`### 5.1 dbo.[Tipo Documento] (${r.lookups.tipoDocumento.length} entradas)\n`);
-  md.push("```");
-  for (const row of r.lookups.tipoDocumento) {
-    md.push(`  ${row.id} → ${row.descricao ?? "(sem descrição)"}`);
-  }
-  md.push("```\n");
-  if (r.lookups.tipoMovLookups.length > 0) {
-    md.push(`### 5.2 Lookups TipoMov encontradas\n`);
-    for (const lk of r.lookups.tipoMovLookups) {
-      md.push(`#### ${lk.table}\n`);
+  md.push(`### 4.5 Amostras TOP ${r.meta.paramsSamples} por motivo\n`);
+  if (r.movInterno.samplesPorMotivo.length === 0) {
+    md.push(`(sem dados)\n`);
+  } else {
+    for (const g of r.movInterno.samplesPorMotivo) {
+      md.push(`#### motivo=${g.motivoId ?? "NULL"} (${g.motivoDesc ?? "(null)"})\n`);
       md.push("```");
-      lk.rows.forEach((row) => md.push(`  ${JSON.stringify(row)}`));
+      g.rows.forEach((row, i) => {
+        md.push(`-- [${i + 1}] --`);
+        for (const [k, v] of Object.entries(row)) md.push(`  ${k}: ${fmtVal(v)}`);
+      });
       md.push("```\n");
     }
-  } else {
-    md.push(`### 5.2 Lookups TipoMov\n\n(nenhuma tabela TipoMov* encontrada)\n`);
   }
 
-  md.push(`## 6. Correlação 7 dias (StocksMov vs documentos)\n`);
+  md.push(`## 5. Lookup [Tipo Documento]\n`);
+  md.push(`Tentou: ${r.tipoDocumentoLookup.triedNames.map((n) => `\`dbo.${n}\``).join(", ")}\n`);
+  if (r.tipoDocumentoLookup.tableName === null) {
+    md.push(`✗ Nenhuma tabela TipoDocumento encontrada com nomes candidatos.\n`);
+  } else {
+    md.push(`✓ Encontrada: \`${r.tipoDocumentoLookup.tableName}\` (${r.tipoDocumentoLookup.rows.length} rows)\n`);
+    md.push("```");
+    for (const row of r.tipoDocumentoLookup.rows) md.push(`  ${JSON.stringify(row)}`);
+    md.push("```\n");
+  }
+
+  md.push(`## 6. Tabelas relacionadas (sys.tables LIKE patterns)\n`);
+  for (const t of r.relatedTables) {
+    md.push(`### ${t.schema}.${t.name} (${t.matchedPattern}) — ${t.rowCount.toLocaleString("pt-PT")} rows\n`);
+    md.push("```");
+    for (const c of t.columns) md.push(`  ${fmtCol(c)}`);
+    md.push("```");
+    if (t.sample.length > 0) {
+      md.push(`\nSample (3 rows):`);
+      md.push("```");
+      t.sample.forEach((row, i) => {
+        md.push(`-- [${i + 1}] --`);
+        for (const [k, v] of Object.entries(row)) md.push(`  ${k}: ${fmtVal(v)}`);
+      });
+      md.push("```");
+    }
+    md.push("");
+  }
+
+  md.push(`## 7. Correlação 7 dias (StocksMov vs documentos)\n`);
   if (r.correlation.length === 0) {
     md.push(`(sem dados nos últimos 7 dias)\n`);
   } else {
@@ -550,17 +823,10 @@ function renderMarkdown(r: AuditReport): string {
       md.push(`| ${c.day} | ${c.stocksMov} | ${c.vendas} | ${c.compras} | ${c.devolFornecedor} | ${c.deltaUnexplained > 0 ? "**+" + c.deltaUnexplained + "**" : c.deltaUnexplained} |`);
     }
     md.push("");
-    md.push(`> Δ unexplained > 0 ⇒ movimentos StocksMov sem correspondência em Atendimento/Recepcao/Devolucao = **candidatos a ajustes/inventário/transferência**.\n`);
+    md.push(`> Δ unexplained > 0 ⇒ movimentos StocksMov sem correspondência em Atendimento/Recepcao/Devolucao = candidatos a movimentos internos.\n`);
   }
 
   return md.join("\n");
-}
-
-function formatVal(v: unknown): string {
-  if (v === null || v === undefined) return "(null)";
-  if (v instanceof Date) return v.toISOString();
-  if (typeof v === "string" && v.length > 200) return v.slice(0, 200) + "…";
-  return String(v);
 }
 
 // ── Entry point ──────────────────────────────────────────────────────
@@ -580,89 +846,112 @@ export async function movimentosAudit(): Promise<number> {
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
   console.log(RULE);
-  console.log("movimentos-audit — discovery única do universo de movimentos");
+  console.log("movimentos-audit v2 — discovery única do universo de movimentos");
   console.log(RULE);
   console.log(`ERP: ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
-  console.log(`Janela: ${args.months} meses  ·  Samples: ${args.samples} por tipo`);
+  console.log(`Janela: ${args.months} meses  ·  Samples/motivo: ${args.samples}`);
   console.log(`Output: ${outDir}\\movimentos-audit-${ts}.{md,json}`);
   console.log("");
 
   const warnings: string[] = [];
+
+  const emptyProbe: TableProbe = { schema: "dbo", name: "", exists: false, rowCount: 0, columns: [], primaryKey: [], indexes: [], dateRange: null, sample: [] };
   const report: AuditReport = {
-    meta: { timestamp: new Date().toISOString(), agentRev: process.env.AGENT_REV ?? "?", erp: { host: cfg.sqlHost, port: cfg.sqlPort, database: cfg.sqlDatabase }, paramsMonths: args.months, paramsSamples: args.samples },
-    stocksMov: { exists: false, rowCountEstimate: 0, columns: [], primaryKey: [], indexes: [], dateRangeAll: null, tipoColumnDetected: null, tipoColumnScore: 0, tipoColumnAllCandidates: [] },
-    volumetria: [], samples: [], relatedTables: [],
-    lookups: { tipoDocumento: [], tipoMovLookups: [] },
-    correlation: [], warnings,
+    meta: { timestamp: new Date().toISOString(), agentRev: process.env.AGENT_REV ?? "?", auditVersion: 2, erp: { host: cfg.sqlHost, port: cfg.sqlPort, database: cfg.sqlDatabase }, paramsMonths: args.months, paramsSamples: args.samples },
+    stocksMov: { ...emptyProbe, name: "StocksMov", fkColumnsDetected: [] },
+    volumetriaPorOrigem: [],
+    volumetriaPorTipoDoc: [],
+    movInterno: {
+      movStocksDet: { ...emptyProbe, name: "MovStocks_Det" },
+      movStocksCab: { ...emptyProbe, name: "MovStocksCab" },
+      motivosFull: [],
+      motivosFullRowCount: 0,
+      volumetriaPorMotivo: [],
+      samplesPorMotivo: [],
+    },
+    tipoDocumentoLookup: { tableName: null, rows: [], triedNames: [] },
+    relatedTables: [],
+    correlation: [],
+    warnings,
   };
 
   try {
     return await withPool(cfg, async (pool) => {
-      // ── 1. StocksMov ──
-      console.log("▶ 1/6  Schema dbo.StocksMov ...");
-      const smExists = await tableExists(pool, { schema: "dbo", table: "StocksMov" });
-      report.stocksMov.exists = smExists;
-      if (!smExists) {
-        warnings.push("dbo.StocksMov NÃO EXISTE neste ERP — todo o módulo de movimentos fica em risco.");
-      } else {
-        report.stocksMov.columns = await listColumns(pool, { schema: "dbo", table: "StocksMov" });
-        report.stocksMov.rowCountEstimate = await getRowCount(pool, "dbo", "StocksMov");
-        report.stocksMov.primaryKey = await getPrimaryKey(pool, "dbo", "StocksMov");
-        report.stocksMov.indexes = await getIndexes(pool, "dbo", "StocksMov");
-        const tipoDet = detectTipoColumn(report.stocksMov.columns);
-        report.stocksMov.tipoColumnDetected = tipoDet.detected;
-        report.stocksMov.tipoColumnScore = tipoDet.score;
-        report.stocksMov.tipoColumnAllCandidates = tipoDet.all;
-        if (!tipoDet.detected) warnings.push("Coluna TipoMov não detectada por heurística; ver lista de candidatos.");
-        const dateCol = pickDateColumn(report.stocksMov.columns);
-        if (dateCol) {
-          report.stocksMov.dateRangeAll = { column: dateCol, ...(await getDateRange(pool, "dbo", "StocksMov", dateCol)) };
-        } else {
-          warnings.push("Coluna date-like não encontrada em StocksMov (esperado DataMov ou similar).");
+      // ── 1. dbo.StocksMov ──
+      console.log("▶ 1/8  Schema dbo.StocksMov + FK detection ...");
+      const smProbe = await probeTableFull(pool, "dbo", "StocksMov", 0);
+      const fks = detectStocksMovFks(smProbe.columns);
+      report.stocksMov = { ...smProbe, fkColumnsDetected: fks.detected };
+      if (!smProbe.exists) {
+        warnings.push("dbo.StocksMov NÃO EXISTE — auditoria não pode prosseguir além deste ponto.");
+      } else if (fks.detected.length < 5) {
+        warnings.push(`Apenas ${fks.detected.length}/6 FKs detectadas em StocksMov — schema pode estar incompleto. Detectadas: ${fks.detected.join(", ")}`);
+      }
+      const dateCol = smProbe.dateRange?.column ?? null;
+
+      if (smProbe.exists && dateCol) {
+        // ── 2. Volumetria por origem ──
+        console.log("▶ 2/8  Volumetria por origem (FK-pattern) ...");
+        try {
+          report.volumetriaPorOrigem = await getVolumetriaPorOrigem(pool, fks, dateCol, args.months);
+        } catch (e) {
+          warnings.push(`Volumetria por origem falhou: ${e instanceof Error ? e.message : String(e)}`);
         }
 
-        // ── 2. Volumetria ──
-        console.log("▶ 2/6  Volumetria 24m por tipo ...");
-        const qtyCol = report.stocksMov.columns.find((c) => /quantid|qtde|qtd/i.test(c.name))?.name ?? null;
-        const prodCol = report.stocksMov.columns.find((c) => /^codigoid$/i.test(c.name))?.name ?? null;
-        if (tipoDet.detected && dateCol) {
-          report.volumetria = await getVolumetria(pool, "dbo", "StocksMov", tipoDet.detected, dateCol, qtyCol, prodCol, args.months);
-          // ── 3. Samples ──
-          console.log("▶ 3/6  Samples por tipo ...");
-          const tipos = report.volumetria.map((v) => v.tipo);
-          report.samples = await getSamplesPerTipo(pool, "dbo", "StocksMov", tipoDet.detected, dateCol, tipos, args.samples);
-        } else {
-          warnings.push("Volumetria saltada — falta TipoMov ou date column.");
-        }
-
-        // ── 6. Correlação ──
-        if (dateCol) {
-          console.log("▶ 4/6  Correlação 7 dias ...");
+        // ── 3. Sub-classificação VENDA vs DC ──
+        if (fks.detalheId) {
+          console.log("▶ 3/8  Sub-classificação VENDA vs Devolução Cliente ...");
           try {
-            report.correlation = await getCorrelation(pool, dateCol);
+            report.volumetriaPorTipoDoc = await getVolumetriaPorTipoDoc(pool, fks.detalheId, dateCol, args.months);
           } catch (e) {
-            warnings.push(`Correlação falhou: ${e instanceof Error ? e.message : String(e)}`);
+            warnings.push(`Volumetria por TipoDoc falhou: ${e instanceof Error ? e.message : String(e)}`);
           }
+        }
+
+        // ── 4. MovInterno (MovStocks_Det + MovStocksCab + motivos) ──
+        console.log("▶ 4/8  Schema MovStocks_Det + MovStocksCab + motivos full dump ...");
+        report.movInterno.movStocksDet = await probeTableFull(pool, "dbo", "MovStocks_Det", 5);
+        report.movInterno.movStocksCab = await probeTableFull(pool, "dbo", "MovStocksCab", 5);
+        const motivosCount = await getRowCount(pool, "dbo", "tblMovStocksCab_Motivo");
+        report.movInterno.motivosFullRowCount = motivosCount;
+        report.movInterno.motivosFull = await dumpFullTable(pool, "dbo", "tblMovStocksCab_Motivo", 1000);
+
+        if (report.movInterno.movStocksDet.exists && report.movInterno.movStocksCab.exists && fks.movStocksDetId) {
+          console.log("▶ 5/8  Volumetria por motivo ...");
+          report.movInterno.volumetriaPorMotivo = await getVolumetriaPorMotivo(pool, fks.movStocksDetId, dateCol, args.months);
+
+          console.log("▶ 6/8  Amostras por motivo ...");
+          report.movInterno.samplesPorMotivo = await getSamplesPorMotivo(pool, fks.movStocksDetId, dateCol, args.months, args.samples);
+        } else {
+          warnings.push("MovStocks_Det ou MovStocksCab não existe — secção 4.4/4.5 saltada. Movimentos internos não classificáveis por motivo.");
+        }
+
+        // ── 5. Tipo Documento lookup ──
+        console.log("▶ 7/8  Discovery do lookup [Tipo Documento] ...");
+        report.tipoDocumentoLookup = await findTipoDocumentoLookup(pool);
+        if (!report.tipoDocumentoLookup.tableName) {
+          warnings.push(`Lookup [Tipo Documento] não encontrado em nenhum dos nomes candidatos: ${report.tipoDocumentoLookup.triedNames.join(", ")}`);
+        }
+
+        // ── 6. Correlação 7 dias ──
+        console.log("▶ 8/8  Correlação 7 dias ...");
+        try {
+          report.correlation = await getCorrelation(pool, dateCol);
+        } catch (e) {
+          warnings.push(`Correlação 7d falhou: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
-      // ── 4. Tabelas relacionadas ──
-      console.log("▶ 5/6  Tabelas relacionadas (sys.tables LIKE patterns) ...");
+      // ── Related tables (sempre, mesmo se StocksMov falhar) ──
+      console.log("▶ Bonus  Tabelas relacionadas (sys.tables LIKE patterns) ...");
       const candidates = await findRelatedTables(pool);
-      const tipoMovCandidates: Array<{ schema: string; name: string }> = [];
       for (const c of candidates) {
         try {
           report.relatedTables.push(await dumpRelatedTable(pool, c.schema, c.name, c.matchedPattern));
-          if (c.matchedPattern === "lookup tipoMov") tipoMovCandidates.push(c);
         } catch (e) {
           warnings.push(`Falha a inspeccionar ${c.schema}.${c.name}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-
-      // ── 5. Lookups ──
-      console.log("▶ 6/6  Lookups ([Tipo Documento] + TipoMov*) ...");
-      report.lookups.tipoDocumento = await getTipoDocumentoLookup(pool);
-      report.lookups.tipoMovLookups = await getTipoMovLookups(pool, tipoMovCandidates);
 
       // ── Output ──
       const md = renderMarkdown(report);
@@ -677,11 +966,13 @@ export async function movimentosAudit(): Promise<number> {
       console.log(`  Markdown: ${mdPath}`);
       console.log(`  JSON    : ${jsonPath}`);
       console.log(RULE);
-      console.log(`  StocksMov: ${report.stocksMov.exists ? `${report.stocksMov.rowCountEstimate.toLocaleString("pt-PT")} rows` : "✗ NÃO EXISTE"}`);
-      console.log(`  TipoMov detectado: ${report.stocksMov.tipoColumnDetected ?? "✗"}  (score ${report.stocksMov.tipoColumnScore})`);
-      console.log(`  Tipos distintos no período: ${report.volumetria.length}`);
+      console.log(`  StocksMov: ${report.stocksMov.exists ? `${report.stocksMov.rowCount.toLocaleString("pt-PT")} rows · ${report.stocksMov.fkColumnsDetected.length}/6 FKs detectadas` : "✗ NÃO EXISTE"}`);
+      console.log(`  Origens distintas: ${report.volumetriaPorOrigem.length}`);
+      console.log(`  Motivos no lookup: ${report.movInterno.motivosFullRowCount}`);
+      console.log(`  Motivos com movimentos (24m): ${report.movInterno.volumetriaPorMotivo.length}`);
+      console.log(`  Lookup [Tipo Documento]: ${report.tipoDocumentoLookup.tableName ?? "✗ não encontrado"}`);
       console.log(`  Tabelas relacionadas: ${report.relatedTables.length}`);
-      console.log(`  Lookups TipoMov: ${report.lookups.tipoMovLookups.length}`);
+      console.log(`  Correlação 7d: ${report.correlation.length} dias`);
       console.log(`  Warnings: ${warnings.length}`);
       if (warnings.length > 0) for (const w of warnings) console.log(`    ⚠ ${w}`);
       console.log("");
