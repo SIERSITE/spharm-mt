@@ -57,6 +57,7 @@
  *   }
  */
 
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { withIntegrationAuth } from "@/lib/integracao/auth";
@@ -82,7 +83,10 @@ import type { TipoMovimentoArtigo } from "@/generated/prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// rev35: bumped 60→120s para alinhar com aggregate-compras/devoluções.
+// Set-based UPSERT torna 60s improvável de saturar, mas margem para
+// payloads frios (cold function start + DB connection pool warm-up).
+export const maxDuration = 120;
 
 const HARD_BATCH_LIMIT = 500;
 
@@ -164,6 +168,23 @@ type Normalised = {
   externalSaleId: number | null;
   tipoDocumentoId: number | null;
 };
+
+/**
+ * Determinístico (md5 sobre `farmaciaId:externalMovId`) — gera o mesmo
+ * `MovimentoArtigo.id` em runs sucessivos para o mesmo movimento ERP.
+ * Substitui o helper SQL anterior (`'mov_' || substr(md5(…), 1, 24)`)
+ * para o UPSERT set-based ter os IDs prontos do lado JS. Compatibilidade
+ * preservada (mesmo formato → mesmo ID se os inputs forem iguais).
+ */
+function genMovId(farmaciaId: string, externalMovId: number): string {
+  return (
+    "mov_" +
+    createHash("md5")
+      .update(`${farmaciaId}:${externalMovId}`)
+      .digest("hex")
+      .slice(0, 24)
+  );
+}
 
 function asExternalProductId(v: unknown): { num: number; str: string } | null {
   if (v === null || v === undefined) return null;
@@ -362,25 +383,48 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     if (!pid) orphanProducts++;
   }
 
-  // ── Pass 3: UPSERT set-based em chunks de 100 ─────────────────
-  // Mantemos UPSERT linha-a-linha para preservar a ordem skipped/errors
-  // mas usamos $executeRaw para o canónico (1 row/iteração) e
-  // $executeRaw separado para o staging cru. Volume agente: ~10k linhas
-  // típico; ~50 ms/row inclusive ON CONFLICT = ~8 min/batch worst case.
-  // É aceitável para o backfill diferido (background job).
+  // ── Pass 3: UPSERT SET-BASED (rev35) ──────────────────────────
+  // Construímos um único `INSERT … VALUES (…), (…), … ON CONFLICT …`
+  // com todas as N linhas do batch. Substitui o loop linha-a-linha
+  // (~50 ms/row) por 2 round-trips totais (canónico + raw). 500 linhas
+  // passam de ~25 s para ~1-2 s. Resolve o HTTP 504 rev34.
+  //
+  // IDs gerados em JS via md5 — DETERMINÍSTICO + STÁVEL (mesmo input
+  // produz mesmo id → re-runs UPDATEam em vez de duplicar com new id).
+  // Compatível com o formato SQL anterior (`'mov_' || substr(md5(...),...)`).
+  //
+  // Idempotência preservada por (farmaciaId, externalMovId) UNIQUE +
+  // ON CONFLICT DO UPDATE. Retries do agent UPSERTam rows já inseridas.
   let created = 0;
   let updated = 0;
   let desconhecidos = 0;
   const byTipo: Partial<Record<TipoMovimentoArtigo, number>> = {};
-
-  for (let i = 0; i < normalised.length; i++) {
-    const n = normalised[i];
+  for (const n of normalised) {
     if (n.tipo === "DESCONHECIDO") desconhecidos++;
     byTipo[n.tipo] = (byTipo[n.tipo] ?? 0) + 1;
+  }
 
+  if (normalised.length > 0) {
     try {
-      // Set-based UPSERT canónico. RETURNING xmax=0 distingue insert vs update.
-      const result = await ctx.prisma.$queryRaw<Array<{ inserted: boolean }>>(Prisma.sql`
+      const movValues = normalised.map(
+        (n) =>
+          Prisma.sql`(
+            ${genMovId(farmaciaId, n.externalMovId)},
+            ${farmaciaId}, ${n.externalMovId}, ${n.externalProductId}, ${n.produtoId},
+            ${n.dataMovimento}, ${n.tipo}::"TipoMovimentoArtigo",
+            ${n.quantidade}, ${n.quantidadeBonus}, ${n.existenciaApos},
+            ${n.custoUnitario}, ${n.pmcAnterior}, ${n.pmcNovo}, ${n.armazemId},
+            ${n.externalDetalheId}, ${n.externalSuspDetalheId}, ${n.externalCreditoDetalheId},
+            ${n.externalRecpDetalheId}, ${n.externalDevolucaoDetalheId}, ${n.externalMovStocksDetId},
+            ${n.movStocksCabId}, ${n.movStocksCabTipoDocId}, ${n.movStocksCabMotivoId},
+            ${n.movStocksCabMotivoTexto}, ${n.movStocksCabSituacao}, ${n.movStocksCabUserId},
+            ${n.movStocksCabPosto}, ${n.movStocksCabNDocExterno},
+            ${n.externalSaleId}, ${n.tipoDocumentoId},
+            ${ingestRunId}, NOW(), NOW()
+          )`,
+      );
+
+      const upsertResult = await ctx.prisma.$queryRaw<Array<{ inserted: boolean }>>(Prisma.sql`
         INSERT INTO "MovimentoArtigo" (
           "id", "farmaciaId", "externalMovId", "externalProductId", "produtoId",
           "dataMovimento", "tipo",
@@ -394,20 +438,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           "externalSaleId", "tipoDocumentoId",
           "ingestRunId", "ingestedAt", "updatedAt"
         )
-        VALUES (
-          'mov_' || substr(md5(${farmaciaId} || ':' || ${n.externalMovId}::text), 1, 24),
-          ${farmaciaId}, ${n.externalMovId}, ${n.externalProductId}, ${n.produtoId},
-          ${n.dataMovimento}, ${n.tipo}::"TipoMovimentoArtigo",
-          ${n.quantidade}, ${n.quantidadeBonus}, ${n.existenciaApos},
-          ${n.custoUnitario}, ${n.pmcAnterior}, ${n.pmcNovo}, ${n.armazemId},
-          ${n.externalDetalheId}, ${n.externalSuspDetalheId}, ${n.externalCreditoDetalheId},
-          ${n.externalRecpDetalheId}, ${n.externalDevolucaoDetalheId}, ${n.externalMovStocksDetId},
-          ${n.movStocksCabId}, ${n.movStocksCabTipoDocId}, ${n.movStocksCabMotivoId},
-          ${n.movStocksCabMotivoTexto}, ${n.movStocksCabSituacao}, ${n.movStocksCabUserId},
-          ${n.movStocksCabPosto}, ${n.movStocksCabNDocExterno},
-          ${n.externalSaleId}, ${n.tipoDocumentoId},
-          ${ingestRunId}, NOW(), NOW()
-        )
+        VALUES ${Prisma.join(movValues, ", ")}
         ON CONFLICT ("farmaciaId", "externalMovId") DO UPDATE SET
           "externalProductId"           = EXCLUDED."externalProductId",
           "produtoId"                   = EXCLUDED."produtoId",
@@ -440,24 +471,43 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           "updatedAt"                   = NOW()
         RETURNING (xmax = 0) AS inserted
       `);
-      if (result[0]?.inserted) created++;
-      else updated++;
+      for (const r of upsertResult) {
+        if (r.inserted) created++;
+        else updated++;
+      }
 
-      // Snapshot cru paralelo. Idempotente por (farmaciaId, externalMovId, ingestRunId).
-      const rawRow = rawByIndex.get(i);
+      // Snapshot cru paralelo — também set-based. Mesmo padrão
+      // multi-VALUES + ON CONFLICT. Idempotente por (farmaciaId,
+      // externalMovId, ingestRunId) — re-run com mesmo ingestRunId
+      // UPDATEa em vez de criar snapshot adicional.
+      const rawValues = normalised.map((n, idx) => {
+        const rawRow = rawByIndex.get(idx) ?? {};
+        return Prisma.sql`(${farmaciaId}, ${n.externalMovId}, ${JSON.stringify(rawRow)}::jsonb, ${ingestRunId})`;
+      });
       await ctx.prisma.$executeRaw(Prisma.sql`
         INSERT INTO "IngestStocksMovRaw" ("farmaciaId", "externalMovId", "payload", "ingestRunId")
-        VALUES (${farmaciaId}, ${n.externalMovId}, ${rawRow ? JSON.stringify(rawRow) : "{}"}::jsonb, ${ingestRunId})
+        VALUES ${Prisma.join(rawValues, ", ")}
         ON CONFLICT ("farmaciaId", "externalMovId", "ingestRunId") DO UPDATE SET
           "payload" = EXCLUDED."payload"
       `);
     } catch (err) {
-      errors.push({
-        index: i,
-        reason: "upsert_failed",
-        externalId: n.externalMovId,
-        message: err instanceof Error ? err.message : String(err),
-      });
+      // Set-based falha = batch inteiro falha. Idempotência preserva-se:
+      // re-run com mesmo ingestRunId + mesmas linhas é safe. Reportamos
+      // o erro como bloqueador do batch e deixamos o agent re-tentar.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[ingest/movimentos] set-based UPSERT falhou tenant=${ctx.tenant.slug} farmaciaId=${farmaciaId} ingestRunId=${ingestRunId} items=${normalised.length}: ${msg}`,
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "upsert_batch_failed",
+          message: msg,
+          accepted: items.length,
+          batchSize: normalised.length,
+        },
+        { status: 500 },
+      );
     }
   }
 

@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "34";
+const AGENT_REV = "35";
 
 function readGitShortCommit() {
   try {
@@ -840,9 +840,9 @@ function writeBatchWrappers() {
     `set "SINCE=0"`,
     `set /p "SINCE=Since StocksMovID [0]: "`,
     `if "%SINCE%"=="" set "SINCE=0"`,
-    `set "BATCH=500"`,
-    `set /p "BATCH=HTTP batch size [500]: "`,
-    `if "%BATCH%"=="" set "BATCH=500"`,
+    `set "BATCH=100"`,
+    `set /p "BATCH=HTTP batch size [100]: "`,
+    `if "%BATCH%"=="" set "BATCH=100"`,
     `echo.`,
     `echo --- CONFIRMACAO ---`,
     `echo Vai escrever em MovimentoArtigo + IngestStocksMovRaw ^(SaaS^).`,

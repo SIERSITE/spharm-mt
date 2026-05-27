@@ -44,9 +44,18 @@ import { classifyRaw, type RawStocksMovLine } from "../movimento-classifier.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
-const DEFAULT_HTTP_BATCH = 500;
+// rev35: default agressivamente baixo (100) — set-based UPSERT no endpoint
+// processa 100 linhas em ~1 s; mantemos margem para tcp/cold-function start.
+// Pode ser overridado via --batch-size para benchmarking, mas o auto-shrink
+// reduz dinamicamente se algum batch dispara 504/503/502/timeout.
+const DEFAULT_HTTP_BATCH = 100;
+const MIN_HTTP_BATCH = 25;
 const SQL_CHUNK_SIZE = 50_000;
-const BATCH_TIMEOUT_MS = 120_000;
+// Server tem maxDuration=120s; agent espera até 180s para apanhar
+// cold-starts + delay de rede.
+const BATCH_TIMEOUT_MS = 180_000;
+const MAX_RETRIES = 4;
+const BACKOFF_BASE_MS = 1_000;
 
 // ── Row + payload types ────────────────────────────────────────────
 
@@ -116,6 +125,32 @@ function strOrNull(v: unknown): string | null {
   if (s === "" || s === "NULL" || s === "null") return null;
   return s;
 }
+// ── rev35 retry helpers ────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Devolve `true` para condições em que faz sentido re-tentar o mesmo
+ * batch: gateway timeouts (504), bad gateway (502), service unavailable
+ * (503), request timeout (408), too many requests (429), server error
+ * (500), e erros de rede transientes (TCP reset, DNS, fetch aborted).
+ * Devolve `false` para 4xx específicos (400/401/403/404/413/422) — o
+ * batch tem que ser corrigido antes de re-tentar.
+ */
+function isTransientError(err: unknown): boolean {
+  if (err instanceof SaasApiError) {
+    return [408, 425, 429, 500, 502, 503, 504].includes(err.statusCode);
+  }
+  if (err instanceof Error) {
+    return /falha de rede|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|aborted|socket hang up|fetch failed|timeout/i.test(
+      err.message,
+    );
+  }
+  return false;
+}
+
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -321,12 +356,13 @@ function printDryRunHelp(): void {
 
 function printUploadHelp(): void {
   console.log(
-    "Uso: stocksmov-upload --from YYYY-MM-DD --to YYYY-MM-DD [--since-id N] [--batch-size 500]",
+    "Uso: stocksmov-upload --from YYYY-MM-DD --to YYYY-MM-DD [--since-id N] [--batch-size 100]",
   );
   console.log("");
   console.log("Lê dbo.StocksMov + JOINs e POSTa a /api/ingest/v1/movimentos.");
   console.log("Paginação por StocksMovID > since-id (chunks 50k SQL).");
   console.log("Idempotente por (farmaciaId, externalMovId).");
+  console.log("Retry + backoff em 502/503/504/timeout; auto-shrink batch até floor 25.");
   console.log("");
   console.log("Pré-requisitos:");
   console.log("  · stocksmov-dry-run OK contra o mesmo intervalo");
@@ -592,6 +628,11 @@ export async function stocksmovUpload(): Promise<number> {
 
       let sinceId = args.sinceId ?? 0;
       let lastReportTime = Date.now();
+      // rev35: o tamanho efectivo arranca em `httpBatch` (default 100) e
+      // só pode descer (auto-shrink em 504/503/502). Mantemos em scope
+      // do upload todo — se um batch grande falhar e baixar para 50,
+      // os batches seguintes continuam a 50 (não voltam a tentar 100).
+      let currentBatchSize = Math.max(MIN_HTTP_BATCH, httpBatch);
 
       while (true) {
         const chunkT0 = Date.now();
@@ -605,9 +646,24 @@ export async function stocksmovUpload(): Promise<number> {
           `▶ SQL chunk ${totals.sqlChunks}: ${rows.length} linhas (sinceId=${sinceId}, ${chunkElapsed}ms)`,
         );
 
-        // Sub-divide o chunk SQL em batches HTTP de `httpBatch`
-        for (let offset = 0; offset < rows.length; offset += httpBatch) {
-          const slice = rows.slice(offset, offset + httpBatch);
+        // ── rev35: batch HTTP com retry + backoff + auto-shrink ──
+        //
+        // Estratégia (idempotente via ingestRunId + UPSERT por
+        // (farmaciaId, externalMovId)):
+        //   1. Tenta enviar `currentBatchSize` rows.
+        //   2. Em 502/503/504/408/429/500 ou erro de rede: backoff
+        //      exponencial 1s,2s,4s,8s — até MAX_RETRIES tentativas.
+        //   3. Se MAX_RETRIES esgotar: encolhe `currentBatchSize` para
+        //      metade (floor MIN_HTTP_BATCH=25) e retoma o MESMO offset.
+        //   4. Se MIN_HTTP_BATCH falhar persistentemente: aborta, mas
+        //      o re-run com mesmo intervalo + mesmo ingestRunId não
+        //      duplica (UPSERT).
+        //
+        // currentBatchSize só cresce em retry-shrink; nunca volta a subir
+        // dentro do mesmo run (conservador — evita ping-pong).
+        let offset = 0;
+        while (offset < rows.length) {
+          const slice = rows.slice(offset, offset + currentBatchSize);
           const items: MovimentoPayload[] = [];
           let localSkipped = 0;
           for (const r of slice) {
@@ -620,54 +676,99 @@ export async function stocksmovUpload(): Promise<number> {
           }
           if (items.length === 0) {
             totals.skipped += localSkipped;
+            offset += slice.length;
             continue;
           }
 
-          const batchT0 = Date.now();
-          try {
-            const response = await client.ingestMovimentos(
-              { farmaciaId, ingestRunId, items },
-              BATCH_TIMEOUT_MS,
-            );
-            void batchT0; // elapsed disponível para futura logging granular
-            totals.httpBatches++;
-            totals.accepted += response.accepted;
-            totals.upserted += response.upserted;
-            totals.created += response.created;
-            totals.updated += response.updated;
-            totals.desconhecidos += response.desconhecidos;
-            totals.orphanProducts += response.orphanProducts;
-            totals.skipped += response.skipped.length + localSkipped;
-            totals.errors += response.errors.length;
-            totals.durationMs += response.durationMs;
-            for (const [k, v] of Object.entries(response.byTipo)) {
-              totals.byTipo[k] = (totals.byTipo[k] ?? 0) + v;
-            }
-
-            // Throttled progress log (a cada 30s)
-            if (Date.now() - lastReportTime > 30_000) {
-              console.log(
-                `  · totals: chunks=${totals.sqlChunks} batches=${totals.httpBatches} ` +
-                  `upserted=${totals.upserted} desc=${totals.desconhecidos} orph=${totals.orphanProducts}`,
+          let attemptResponse: Awaited<ReturnType<typeof client.ingestMovimentos>> | null = null;
+          let attemptError: unknown = null;
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              attemptResponse = await client.ingestMovimentos(
+                { farmaciaId, ingestRunId, items },
+                BATCH_TIMEOUT_MS,
               );
-              lastReportTime = Date.now();
+              attemptError = null;
+              break;
+            } catch (err) {
+              attemptError = err;
+              if (!isTransientError(err) || attempt === MAX_RETRIES) break;
+              const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+              const reason =
+                err instanceof SaasApiError
+                  ? `HTTP ${err.statusCode}`
+                  : err instanceof Error
+                    ? err.message.slice(0, 80)
+                    : "unknown";
+              console.log(
+                `  ↳ batch (size=${currentBatchSize}, offset=${offset}) tentativa ${attempt}/${MAX_RETRIES} falhou (${reason}); backoff ${backoff}ms`,
+              );
+              await sleep(backoff);
             }
+          }
 
-            if (response.errors.length > 0) {
-              for (const e of response.errors.slice(0, 3)) {
-                console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
-              }
+          if (attemptResponse === null) {
+            // Esgotou retries. Se ainda há margem para encolher, encolhe
+            // e re-tenta o MESMO offset com o novo size.
+            if (isTransientError(attemptError) && currentBatchSize > MIN_HTTP_BATCH) {
+              const newSize = Math.max(MIN_HTTP_BATCH, Math.floor(currentBatchSize / 2));
+              console.log(
+                `  ↳ shrink: ${currentBatchSize} → ${newSize} (offset ${offset} preservado, idempotente via ingestRunId)`,
+              );
+              currentBatchSize = newSize;
+              continue;
             }
-          } catch (err) {
-            if (err instanceof SaasApiError) {
+            // Não-transiente OU já em MIN_HTTP_BATCH — reporta e aborta.
+            // Re-run com mesmo --from/--to/--since-id retoma sem duplicar.
+            const lastOk = offset > 0 ? rows[offset - 1].StocksMovID : sinceId;
+            if (attemptError instanceof SaasApiError) {
               console.error(
-                `✗ HTTP ${err.statusCode} no batch sinceId=${sinceId} offset=${offset}: ${err.bodySnippet ?? err.message}`,
+                `\n✗ HTTP ${attemptError.statusCode} persistente (batchSize=${currentBatchSize}, offset=${offset}): ${attemptError.bodySnippet ?? attemptError.message}`,
               );
             } else {
-              console.error(`✗ Falha no batch sinceId=${sinceId} offset=${offset}:`, err instanceof Error ? err.message : err);
+              console.error(
+                `\n✗ Falha persistente (batchSize=${currentBatchSize}, offset=${offset}):`,
+                attemptError instanceof Error ? attemptError.message : attemptError,
+              );
             }
+            console.error(
+              `  Re-correr para retomar (idempotente, UPSERT preserva):` +
+                `\n    --from ${from} --to ${to} --since-id ${lastOk}`,
+            );
             return 1;
           }
+
+          // Sucesso para esta slice.
+          const response = attemptResponse;
+          totals.httpBatches++;
+          totals.accepted += response.accepted;
+          totals.upserted += response.upserted;
+          totals.created += response.created;
+          totals.updated += response.updated;
+          totals.desconhecidos += response.desconhecidos;
+          totals.orphanProducts += response.orphanProducts;
+          totals.skipped += response.skipped.length + localSkipped;
+          totals.errors += response.errors.length;
+          totals.durationMs += response.durationMs;
+          for (const [k, v] of Object.entries(response.byTipo)) {
+            totals.byTipo[k] = (totals.byTipo[k] ?? 0) + v;
+          }
+
+          if (Date.now() - lastReportTime > 30_000) {
+            console.log(
+              `  · totals: chunks=${totals.sqlChunks} batches=${totals.httpBatches} ` +
+                `upserted=${totals.upserted} desc=${totals.desconhecidos} orph=${totals.orphanProducts} batchSize=${currentBatchSize}`,
+            );
+            lastReportTime = Date.now();
+          }
+
+          if (response.errors.length > 0) {
+            for (const e of response.errors.slice(0, 3)) {
+              console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+            }
+          }
+
+          offset += slice.length;
         }
 
         sinceId = rows[rows.length - 1].StocksMovID;
