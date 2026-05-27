@@ -13,12 +13,12 @@
  *                       --since-id (catch-up automático).
  *
  * Source SQL (rev32 audit fechado):
- *   SELECT sm.* + JOINs Cab/Det/Motivo + Atendimento.[Tipo Documento ID]
+ *   SELECT sm.* + JOINs Cab/Det/Motivo + Atendimento.[Tipo Documento]
  *   FROM dbo.StocksMov sm
  *   LEFT JOIN dbo.tblMovStocksDet det ON det.MovStocksDetID = sm.MovStocksDetID
  *   LEFT JOIN dbo.tblMovStocksCab cab ON cab.MovStocksCabID = det.MovStocksCabID
  *   LEFT JOIN dbo.tblMovStocksCab_Motivo mot ON mot.MovStocksCabMotivoID = cab.MovStocksCabMotivoID
- *   LEFT JOIN dbo.[Atendimento Detalhe] ad ON ad.[Atendimento Detalhe ID] = sm.[Detalhe ID]
+ *   LEFT JOIN dbo.[Atendimento Detalhe] ad ON ad.[Detalhe ID] = sm.[Detalhe ID]
  *   LEFT JOIN dbo.Atendimento at ON at.[Atendimento ID] = ad.[Atendimento ID]
  *   WHERE sm.DataMov >= @from AND sm.DataMov < @to AND sm.StocksMovID > @sinceId
  *   ORDER BY sm.StocksMovID
@@ -127,7 +127,15 @@ function numOrNull(v: unknown): number | null {
   return null;
 }
 
-// ── Source query (rev32 audit fechado) ─────────────────────────────
+// ── Source query (rev32 audit fechado, rev34 column names corrigidos) ─
+//
+// Naming quirks Softreis (validados rev32 audit + bootstrap-dry-run em prod):
+//   · dbo.tblMovStocksCab.[Tipo Documento ID]   — COM "ID"
+//   · dbo.Atendimento.[Tipo Documento]          — SEM "ID"
+//   · dbo.[Atendimento Detalhe].[Detalhe ID]    — PK da tabela (não [Atendimento Detalhe ID])
+//   · dbo.[Atendimento Detalhe].[Atendimento ID] — FK para Atendimento
+//   · dbo.StocksMov.[Detalhe ID]                — FK para [Atendimento Detalhe].[Detalhe ID]
+//   · dbo.StocksMov.[Detalhe  Recp ID]          — 2 espaços (preservar exactamente)
 
 const SOURCE_SQL = `
   SELECT TOP (@limit)
@@ -156,7 +164,7 @@ const SOURCE_SQL = `
     cab.Posto                             AS cabPosto,
     cab.NDocExterno                       AS cabNDocExterno,
     ad.[Atendimento ID]                   AS atendimentoId,
-    at_.[Tipo Documento ID]               AS atTipoDocId
+    at_.[Tipo Documento]                  AS atTipoDocId
   FROM dbo.StocksMov sm
   LEFT JOIN dbo.tblMovStocksDet det
     ON det.MovStocksDetID = sm.MovStocksDetID
@@ -165,7 +173,7 @@ const SOURCE_SQL = `
   LEFT JOIN dbo.tblMovStocksCab_Motivo mot
     ON mot.MovStocksCabMotivoID = cab.MovStocksCabMotivoID
   LEFT JOIN dbo.[Atendimento Detalhe] ad
-    ON ad.[Atendimento Detalhe ID] = sm.[Detalhe ID]
+    ON ad.[Detalhe ID] = sm.[Detalhe ID]
   LEFT JOIN dbo.Atendimento at_
     ON at_.[Atendimento ID] = ad.[Atendimento ID]
   WHERE sm.DataMov >= @from
