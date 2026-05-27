@@ -73,14 +73,15 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [farmaciaIds, setFarmaciaIds] = useState<string[]>(farmacias.map((f) => f.id));
+  // Filtro de farmácia é SINGLE-SELECT explícito: "Todas" + uma por cada
+  // farmácia. Pré-redesign era multi-toggle (cumulativo), o que tornava
+  // ambíguo se estavam a filtrar ou só a indicar visualmente. Agora só
+  // uma está activa de cada vez; "Todas" envia farmaciaIds=undefined.
+  const [farmaciaSel, setFarmaciaSel] = useState<"todas" | string>("todas");
   const [from, setFrom] = useState(defaultFrom ?? "");
   const [to, setTo] = useState(defaultTo ?? "");
   const [quick, setQuick] = useState<QuickFilter>("todos");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const toggleFarmacia = (id: string) =>
-    setFarmaciaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleExpand = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -94,8 +95,7 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
     startTransition(async () => {
       try {
         const result = await runExtratoMovimentos(cnp, {
-          farmaciaIds:
-            farmaciaIds.length > 0 && farmaciaIds.length < farmacias.length ? farmaciaIds : undefined,
+          farmaciaIds: farmaciaSel === "todas" ? undefined : [farmaciaSel],
           from: from || undefined,
           to: to || undefined,
         });
@@ -174,17 +174,22 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
       {/* Filtros de farmácia + período */}
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_140px_140px]">
         <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Farmácia</div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Filtro de farmácia
+          </div>
           <div className="flex flex-wrap gap-1.5">
-            {farmacias.map((f) => {
-              const on = farmaciaIds.includes(f.id);
+            {([{ id: "todas", nome: "Todas" }, ...farmacias] as Array<{ id: string; nome: string }>).map((f) => {
+              const on = farmaciaSel === f.id;
               return (
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => toggleFarmacia(f.id)}
-                  className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
-                    on ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"
+                  aria-pressed={on}
+                  onClick={() => setFarmaciaSel(f.id)}
+                  className={`rounded-full border px-3 py-0.5 text-[11px] font-medium transition ${
+                    on
+                      ? "border-emerald-400 bg-emerald-500 text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                   }`}
                 >
                   {f.nome}
