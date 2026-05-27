@@ -713,7 +713,47 @@ export async function comprasUpload(): Promise<number> {
       console.log(`  Tempo agregado SaaS           : ${totals.durationMs} ms`);
       console.log(`  Batch ID                      : ${ingestBatchId}`);
       if (totals.errors > 0) {
-        console.log(`  ⚠ ${totals.errors} erros — ver detalhes acima.`);
+        console.log(`  ⚠ ${totals.errors} erros — ver detalhes acima. Staging pode estar inconsistente; aggregate-compras NÃO foi disparado.`);
+        return 1;
+      }
+
+      // ── Catch-up automático: staging → Compra final ──────────────────
+      // Mesma janela do upload, write=true, idempotente via ON CONFLICT.
+      // Garante que após qualquer compras-upload bem sucedido o final está
+      // alinhado com o staging — elimina o gap silencioso "operador correu
+      // upload mas esqueceu de agregar". Falha visível: se aggregate falhar,
+      // o comando termina com exit code 1.
+      console.log("");
+      console.log(DOUBLE_RULE);
+      console.log("▶ A propagar staging → Compra (aggregate-compras automático)");
+      console.log(DOUBLE_RULE);
+      try {
+        const agg = await client.pipelineAggregateCompras(
+          { farmaciaId, from, to, write: true },
+          180_000,
+        );
+        console.log(
+          `  ✓ aggregate-compras OK: read=${agg.rawLinesRead} ` +
+            `groups=${agg.candidateGroups} ` +
+            `created=${agg.created ?? "?"} updated=${agg.updated ?? "?"} ` +
+            `orphProd=${agg.orphanProducts.count} ` +
+            `orphForn=${agg.orphanFornecedores.count} (${agg.durationMs}ms)`,
+        );
+      } catch (err) {
+        if (err instanceof SaasApiError) {
+          console.error(
+            `✗ aggregate-compras HTTP ${err.statusCode}: ${err.bodySnippet ?? err.message}`,
+          );
+        } else {
+          console.error(
+            `✗ aggregate-compras falhou:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+        console.error(
+          `  ⚠ Staging populada mas Compra final NÃO actualizada. Re-correr 'compras-upload' ` +
+            `depois de corrigir, OU 'npx tsx scripts/admin/aggregate-compras-tenant.ts --tenant <slug> --from ${from} --to ${to}' do lado SaaS.`,
+        );
         return 1;
       }
       return 0;

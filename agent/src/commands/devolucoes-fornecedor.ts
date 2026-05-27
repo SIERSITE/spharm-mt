@@ -728,7 +728,56 @@ export async function devolucoesFornecedorUpload(): Promise<number> {
       console.log(`  Tempo agregado SaaS           : ${totals.durationMs} ms`);
       console.log(`  Batch ID                      : ${ingestBatchId}`);
       if (totals.errors > 0) {
-        console.log(`  ⚠ ${totals.errors} erros — ver detalhes acima.`);
+        console.log(`  ⚠ ${totals.errors} erros — ver detalhes acima. Staging pode estar inconsistente; aggregate-devolucoes NÃO foi disparado.`);
+        return 1;
+      }
+
+      // ── Catch-up automático: staging → Devolucao final ───────────────
+      // Mesma janela do upload, write=true, idempotente via UPSERT em
+      // (farmaciaId, externalLineId). Garante alinhamento após upload.
+      // Pode devolver 404 not_implemented se o endpoint não existir no
+      // SaaS (deploy mais antigo) — nesse caso reportamos como warning,
+      // não como falha (o full-sync trata simetricamente).
+      console.log("");
+      console.log(DOUBLE_RULE);
+      console.log("▶ A propagar staging → Devolucao (aggregate-devolucoes automático)");
+      console.log(DOUBLE_RULE);
+      try {
+        const agg = await client.pipelineAggregateDevolucoes(
+          { farmaciaId, from, to, write: true },
+          180_000,
+        );
+        console.log(
+          `  ✓ aggregate-devolucoes OK: read=${agg.rawLinesRead} ` +
+            `excluded=${agg.excludedLineCount.total} cands=${agg.candidateLines} ` +
+            `created=${agg.created ?? "?"} updated=${agg.updated ?? "?"} ` +
+            `orphProd=${agg.orphanProducts.count} ` +
+            `orphForn=${agg.orphanFornecedores.count} (${agg.durationMs}ms)`,
+        );
+      } catch (err) {
+        if (err instanceof SaasApiError && err.statusCode === 404) {
+          console.warn(
+            `  ⚠ aggregate-devolucoes endpoint ausente no SaaS (deploy mais antigo). ` +
+              `Staging populada, Devolucao final aguarda redeploy do SaaS. ` +
+              `Re-correr 'devolucoes-fornecedor-upload' depois OU correr ` +
+              `'npx tsx scripts/admin/aggregate-devolucoes-tenant.ts --tenant <slug> --from ${from} --to ${to}' do lado SaaS.`,
+          );
+          return 0; // upload OK; agg pendente é tratado como warning (full-sync compatibilidade)
+        }
+        if (err instanceof SaasApiError) {
+          console.error(
+            `✗ aggregate-devolucoes HTTP ${err.statusCode}: ${err.bodySnippet ?? err.message}`,
+          );
+        } else {
+          console.error(
+            `✗ aggregate-devolucoes falhou:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+        console.error(
+          `  ⚠ Staging populada mas Devolucao final NÃO actualizada. Re-correr 'devolucoes-fornecedor-upload' ` +
+            `depois de corrigir, OU 'npx tsx scripts/admin/aggregate-devolucoes-tenant.ts --tenant <slug> --from ${from} --to ${to}' do lado SaaS.`,
+        );
         return 1;
       }
       return 0;

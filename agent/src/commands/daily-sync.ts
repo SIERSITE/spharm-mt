@@ -754,12 +754,58 @@ async function runCommon(mode: RunMode): Promise<number> {
         console.log(`✓ Dry-run concluído. Sem POSTs. Para escrever, corre 'daily-sync --date ${date}'.`);
         return 0;
       }
-      if (totalErrors === 0) {
-        console.log(`✓ daily-sync ${date} concluído sem erros.`);
-        return 0;
+      if (totalErrors > 0) {
+        console.error(`✗ daily-sync ${date} concluído com ${totalErrors} erros — ver detalhes acima. aggregate-month NÃO disparado.`);
+        return 1;
       }
-      console.error(`✗ daily-sync ${date} concluído com ${totalErrors} erros — ver detalhes acima.`);
-      return 1;
+
+      // ── Catch-up automático: vendas raw → VendaMensal ───────────────
+      // Após daily-sync de vendas para um dia, dispara aggregate-month
+      // para o mês que contém esse dia. Idempotente (deleteMany+
+      // createMany por mês). Garante alinhamento contínuo VendaMensal
+      // ↔ IngestVendaLinhaRaw sem intervenção manual. Daily-sync corre
+      // em cron — `allowOrphans/allowUnknowns=true` para não bloquear
+      // por linhas individuais; gaps ficam visíveis na ficha (C4).
+      const month = date.slice(0, 7); // "YYYY-MM-DD" → "YYYY-MM"
+      console.log("");
+      console.log(DOUBLE_RULE);
+      console.log(`▶ A propagar vendas raw → VendaMensal (aggregate-month ${month})`);
+      console.log(DOUBLE_RULE);
+      // client é guaranteed non-null em mode==="write" (init em runCommon
+      // condicionada por mode); chegámos aqui porque já passámos pelo
+      // ramo dry-run que faz return 0.
+      const writeClient = client!;
+      try {
+        const agg = await writeClient.pipelineAggregateMonth(
+          { month, write: true, allowOrphans: true, allowUnknowns: true },
+          120_000,
+        );
+        console.log(
+          `  ✓ aggregate-month OK: month=${month} ` +
+            `inserted=${agg.rowsInserted} deleted=${agg.rowsDeleted} ` +
+            `(${agg.durationMs}ms)`,
+        );
+      } catch (err) {
+        if (err instanceof SaasApiError) {
+          console.error(
+            `✗ aggregate-month HTTP ${err.statusCode}: ${err.bodySnippet ?? err.message}`,
+          );
+        } else {
+          console.error(
+            `✗ aggregate-month falhou:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+        console.error(
+          `  ⚠ Vendas ingeridas mas VendaMensal NÃO actualizada para ${month}. ` +
+            `Re-correr 'daily-sync --date ${date}' depois de corrigir, OU correr ` +
+            `'npx tsx scripts/admin/aggregate-vendamensal-window.ts --tenant <slug> --from-month ${month} --to-month ${month} --write --allow-orphans --allow-unknowns'.`,
+        );
+        return 1;
+      }
+      console.log("");
+      console.log(`✓ daily-sync ${date} concluído sem erros (catch-up VendaMensal incluído).`);
+      return 0;
     });
   } catch (err) {
     console.error(`\n✗ Falha no ${mode === "dry-run" ? "dry-run" : "daily-sync"}:`);
