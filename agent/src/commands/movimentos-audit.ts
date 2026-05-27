@@ -1,11 +1,11 @@
 /**
  * agent/src/commands/movimentos-audit.ts
  *
- * Auditoria ÚNICA do universo de movimentos no ERP SPharm/Softreis (rev31).
+ * Auditoria ÚNICA do universo de movimentos no ERP SPharm/Softreis (rev32, v3).
  * Read-only. Produz UM relatório (.md + .json) com tudo o que é preciso
  * para fechar o domínio "Movimentos de Artigo" sem qualquer query manual.
  *
- * Conceitos chave (descobertos em rev30):
+ * Conceitos chave:
  *   · `dbo.StocksMov` NÃO tem coluna TipoMov. O tipo deduz-se por FK:
  *       [Detalhe ID]                    → Atendimento (Venda ou DevCliente)
  *       [Atendimento Susp Detalhe ID]   → reserva
@@ -16,10 +16,10 @@
  *                                          Quebra/Ajuste/Transferência),
  *                                          sub-tipo via MovStocksCab.Motivo
  *
- * Esta v2 substitui a heurística TipoMov da v1 (que era um modelo errado)
- * por classificação FK-pattern + dump completo do mapa de motivos para
- * suportar mapping explícito MovStocksCabMotivoID → TipoMovimentoArtigo
- * no SaaS.
+ *   · As tabelas que ligam StocksMov ao motivo têm nomes que VARIAM por
+ *     instalação Softreis. v3 descobre-as DINAMICAMENTE via sys.columns
+ *     (procurando colunas MovStocksDetID, MovStocksCabID e
+ *     MovStocksCabMotivoID em TODAS as tabelas user). Não assumimos nomes.
  *
  * Output:
  *   ./run/movimentos-audit-<timestamp>.md
@@ -30,13 +30,16 @@
  *   2. Volumetria por origem (FK-pattern, 24m)
  *   3. Sub-classificação VENDA vs Devolução Cliente (via Atendimento.[Tipo Documento])
  *   4. Movimentos internos (MovStocksDetID populated):
- *      4.1 dbo.MovStocks_Det — schema
- *      4.2 dbo.MovStocksCab — schema
- *      4.3 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO
- *      4.4 Volumetria por motivo (24m)
- *      4.5 Amostras TOP N por motivo
- *   5. Lookup [Tipo Documento] discovery (tenta múltiplos nomes)
- *   6. Tabelas relacionadas (sys.tables LIKE patterns)
+ *      4.1 DESCOBERTA via sys.columns das tabelas que contêm
+ *          MovStocksDetID / MovStocksCabID / MovStocksCabMotivoID
+ *      4.2 Resolução automática (table com PK = MovStocksDetID = "detail";
+ *          PK = MovStocksCabID = "cab"); log de raciocínio
+ *      4.3 Schemas das tabelas resolvidas + samples
+ *      4.4 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO
+ *      4.5 Volumetria por motivo (24m, JOIN via tabelas resolvidas)
+ *      4.6 Amostras TOP N por motivo
+ *   5. Lookup [Tipo Documento] discovery
+ *   6. Tabelas relacionadas (LIKE patterns) — mantido como bonus
  *   7. Correlação 7 dias (StocksMov × Atendimento × Recepcao × Devolucao)
  *
  * NÃO comunica com SaaS. NÃO escreve em ERP. NÃO requer SSMS.
@@ -59,6 +62,11 @@ const RULE = "═".repeat(72);
 const DEFAULT_MONTHS = 24;
 const DEFAULT_SAMPLES = 5;
 
+// Colunas-chave que ligam StocksMov ao motivo do movimento interno.
+// As tabelas que as contêm são descobertas em runtime — não assumimos nomes.
+const INTERNAL_CHAIN_COLUMNS = ["MovStocksDetID", "MovStocksCabID", "MovStocksCabMotivoID"] as const;
+type InternalColumn = typeof INTERNAL_CHAIN_COLUMNS[number];
+
 // ── Types ────────────────────────────────────────────────────────────
 
 type SampleRow = Record<string, unknown>;
@@ -76,6 +84,16 @@ type TableProbe = {
 };
 
 type RelatedTable = TableProbe & { matchedPattern: string };
+
+type TableColumnHit = {
+  schema: string;
+  table: string;
+  column: string;
+  isInPk: boolean;
+  pkColumnCount: number;
+  isNullable: boolean;
+  dataType: string;
+};
 
 type VolumetriaOrigem = {
   origem: string;
@@ -118,7 +136,7 @@ type AuditReport = {
   meta: {
     timestamp: string;
     agentRev: string;
-    auditVersion: 2;
+    auditVersion: 3;
     erp: { host: string; port: number; database: string };
     paramsMonths: number;
     paramsSamples: number;
@@ -127,8 +145,12 @@ type AuditReport = {
   volumetriaPorOrigem: VolumetriaOrigem[];
   volumetriaPorTipoDoc: VolumetriaTipoDoc[];
   movInterno: {
-    movStocksDet: TableProbe;
-    movStocksCab: TableProbe;
+    candidatesByColumn: Record<InternalColumn, TableColumnHit[]>;
+    resolvedDetTable: { schema: string; name: string; reasoning: string } | null;
+    resolvedCabTable: { schema: string; name: string; reasoning: string } | null;
+    resolutionLog: string[];
+    detTableProbe: TableProbe | null;
+    cabTableProbe: TableProbe | null;
     motivosFull: SampleRow[];
     motivosFullRowCount: number;
     volumetriaPorMotivo: VolumetriaMotivo[];
@@ -186,8 +208,8 @@ function printHelp(): void {
   console.log("Uso: movimentos-audit [--months N] [--samples N] [--out-dir <dir>]");
   console.log("");
   console.log("Auditoria ÚNICA read-only do universo de movimentos do ERP.");
-  console.log("Cobre StocksMov + FKs + MovStocks_Det/Cab + motivos + lookups + correlação.");
-  console.log("Não toca em SaaS. Não escreve em ERP. Não requer SSMS.");
+  console.log("v3 (rev32): descoberta DINÂMICA das tabelas de movimento interno via");
+  console.log("sys.columns — nomes não são assumidos, variam por instalação Softreis.");
   console.log("");
   console.log("Flags:");
   console.log("  --months <N>    janela de volumetria em meses (default 24)");
@@ -289,10 +311,6 @@ async function probeTableFull(pool: SqlPool, schema: string, table: string, samp
 
 // ── StocksMov FK-pattern volumetria ──────────────────────────────────
 
-/**
- * Detecta as 6 FK columns esperadas (com tolerância a variações de espaço).
- * Devolve as FK columns EXISTENTES + um mapa name→canonical.
- */
 function detectStocksMovFks(cols: ColumnMeta[]): {
   detected: string[];
   detalheId: string | null;
@@ -314,7 +332,6 @@ function detectStocksMovFks(cols: ColumnMeta[]): {
   const detalheId = pick("Detalhe ID");
   const suspDetalheId = pick("Atendimento Susp Detalhe ID");
   const creditoDetalheId = pick("Atendimento Credito Detalhe ID");
-  // Note: o nome real tem DOIS espaços entre "Detalhe" e "Recp"
   const recpDetalheId = pick("Detalhe  Recp ID", "Detalhe Recp ID");
   const devolDetalheId = pick("Devolucao Detalhe ID");
   const movStocksDetId = pick("MovStocksDetID");
@@ -329,8 +346,6 @@ async function getVolumetriaPorOrigem(
   dateCol: string,
   months: number,
 ): Promise<VolumetriaOrigem[]> {
-  // Construir CASE com ordem deliberada (mutuamente exclusivos — apenas 1 FK populado por linha).
-  // A precedência reflecte o classificador SaaS: Devolucao > Recepcao > Atendimento > Susp > Credito > MovStocks.
   const parts: string[] = [];
   if (fks.devolDetalheId)    parts.push(`WHEN [${fks.devolDetalheId}] IS NOT NULL THEN 'DEVOLUCAO_FORNECEDOR'`);
   if (fks.recpDetalheId)     parts.push(`WHEN [${fks.recpDetalheId}] IS NOT NULL THEN 'COMPRA'`);
@@ -415,7 +430,114 @@ async function getVolumetriaPorTipoDoc(
   }));
 }
 
-// ── MovStocks_Det + MovStocksCab + Motivos ───────────────────────────
+// ── Discovery dinâmica da cadeia interna ─────────────────────────────
+
+/**
+ * Procura todas as tabelas user que contêm QUALQUER uma das colunas
+ * `MovStocksDetID`, `MovStocksCabID`, `MovStocksCabMotivoID`. Reporta
+ * se cada hit é parte da PK (= é o "owner" da entidade), nullable, etc.
+ * Permite descobrir os nomes reais sem assumir.
+ */
+async function discoverByColumnNames(pool: SqlPool, columnNames: readonly string[]): Promise<TableColumnHit[]> {
+  // SQL Server <= 2008 R2 não tem STRING_SPLIT; passamos como NVARCHAR temp + IN.
+  // Usamos table-valued parameter? Não — overhead. Mais simples: query OR.
+  const inClause = columnNames.map((_, i) => `@c${i}`).join(", ");
+  const req = pool.request();
+  columnNames.forEach((c, i) => req.input(`c${i}`, sql.NVarChar, c));
+  const r = await req.query<{
+    schema_: string; table_: string; column_: string;
+    is_in_pk: number; pk_col_count: number;
+    is_nullable: boolean; data_type: string;
+  }>(`
+    SELECT
+      s.name AS schema_,
+      t.name AS table_,
+      c.name AS column_,
+      ISNULL(pkInfo.is_in_pk, 0) AS is_in_pk,
+      ISNULL(pkInfo.pk_col_count, 0) AS pk_col_count,
+      c.is_nullable,
+      ty.name AS data_type
+    FROM sys.columns c
+    JOIN sys.tables t ON c.object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    JOIN sys.types ty ON c.user_type_id = ty.user_type_id
+    OUTER APPLY (
+      SELECT
+        MAX(CASE WHEN ic.object_id IS NOT NULL THEN 1 ELSE 0 END) AS is_in_pk,
+        (SELECT COUNT(*) FROM sys.index_columns ic2
+         JOIN sys.indexes i2 ON i2.object_id=ic2.object_id AND i2.index_id=ic2.index_id
+         WHERE ic2.object_id=t.object_id AND i2.is_primary_key=1) AS pk_col_count
+      FROM sys.index_columns ic
+      JOIN sys.indexes i ON i.object_id=ic.object_id AND i.index_id=ic.index_id
+      WHERE ic.object_id = c.object_id AND ic.column_id = c.column_id AND i.is_primary_key = 1
+    ) pkInfo
+    WHERE t.is_ms_shipped = 0
+      AND c.name IN (${inClause})
+    ORDER BY c.name, s.name, t.name`);
+  return r.recordset.map((row) => ({
+    schema: row.schema_,
+    table: row.table_,
+    column: row.column_,
+    isInPk: Number(row.is_in_pk) === 1,
+    pkColumnCount: Number(row.pk_col_count ?? 0),
+    isNullable: !!row.is_nullable,
+    dataType: row.data_type,
+  }));
+}
+
+/**
+ * Dada a discovery, resolve qual é a tabela "detail" (PK = MovStocksDetID)
+ * e "cab" (PK = MovStocksCabID). Heurística: prefere PK simples (1 coluna)
+ * com o nome alvo como PK; se múltiplas, escolhe a que tem menos colunas PK.
+ * Retorna também log de raciocínio para auditoria.
+ */
+function resolveInternalChain(hits: TableColumnHit[]): {
+  detTable: { schema: string; name: string; reasoning: string } | null;
+  cabTable: { schema: string; name: string; reasoning: string } | null;
+  log: string[];
+} {
+  const log: string[] = [];
+  const byCol: Record<InternalColumn, TableColumnHit[]> = {
+    MovStocksDetID: [], MovStocksCabID: [], MovStocksCabMotivoID: [],
+  };
+  for (const h of hits) {
+    if (h.column in byCol) byCol[h.column as InternalColumn].push(h);
+  }
+
+  function pickOwner(col: InternalColumn): { schema: string; name: string; reasoning: string } | null {
+    const candidates = byCol[col];
+    if (candidates.length === 0) {
+      log.push(`${col}: 0 tabelas encontradas.`);
+      return null;
+    }
+    log.push(`${col}: ${candidates.length} tabela(s) com a coluna.`);
+    // Preferir: PK simples (pk_col_count=1) com a coluna NOT NULL e no PK
+    const ownerSimple = candidates.find((c) => c.isInPk && c.pkColumnCount === 1 && !c.isNullable);
+    if (ownerSimple) {
+      log.push(`  → owner (PK simples): ${ownerSimple.schema}.${ownerSimple.table}`);
+      return { schema: ownerSimple.schema, name: ownerSimple.table, reasoning: `PK simples = ${col}` };
+    }
+    // Fallback: PK composta mas inclui esta coluna (pk_col_count >= 2)
+    const ownerCompound = candidates.find((c) => c.isInPk && !c.isNullable);
+    if (ownerCompound) {
+      log.push(`  → owner (PK composta): ${ownerCompound.schema}.${ownerCompound.table} (PK tem ${ownerCompound.pkColumnCount} cols)`);
+      return { schema: ownerCompound.schema, name: ownerCompound.table, reasoning: `PK composta inclui ${col}` };
+    }
+    // Sem owner claro — listar candidatos
+    log.push(`  ✗ sem owner — todas as tabelas têm a coluna como FK/secundária:`);
+    for (const c of candidates) {
+      log.push(`     · ${c.schema}.${c.table} (${c.isInPk ? "PK" : "FK"}, ${c.isNullable ? "nullable" : "not null"})`);
+    }
+    return null;
+  }
+
+  const detTable = pickOwner("MovStocksDetID");
+  const cabTable = pickOwner("MovStocksCabID");
+  if (detTable && cabTable) {
+    log.push(`✓ Cadeia resolvida: StocksMov.[MovStocksDetID] → ${detTable.schema}.${detTable.name} → (via MovStocksCabID) → ${cabTable.schema}.${cabTable.name} → tblMovStocksCab_Motivo`);
+  }
+  return { detTable, cabTable, log };
+}
 
 async function dumpFullTable(pool: SqlPool, schema: string, table: string, maxRows = 1000): Promise<SampleRow[]> {
   try {
@@ -426,9 +548,18 @@ async function dumpFullTable(pool: SqlPool, schema: string, table: string, maxRo
   }
 }
 
+/**
+ * Volumetria por motivo (24m) usando as tabelas RESOLVIDAS. As FKs em
+ * MovStocks_Det/Cab (nomes reais) são detectadas: a coluna PK do detalhe
+ * é o JOIN key vs StocksMov.MovStocksDetID; a coluna MovStocksCabID dentro
+ * do detalhe é o JOIN key vs cab.MovStocksCabID; a coluna MovStocksCabMotivoID
+ * dentro do cab é o JOIN key vs tblMovStocksCab_Motivo.
+ */
 async function getVolumetriaPorMotivo(
   pool: SqlPool,
-  movStocksDetIdCol: string,
+  detTable: { schema: string; name: string },
+  cabTable: { schema: string; name: string },
+  movStocksDetIdColInSm: string,
   dateCol: string,
   months: number,
 ): Promise<VolumetriaMotivo[]> {
@@ -451,10 +582,10 @@ async function getVolumetriaPorMotivo(
         MIN(sm.[${dateCol}]) AS dataMin,
         MAX(sm.[${dateCol}]) AS dataMax
       FROM [dbo].[StocksMov] sm
-      INNER JOIN [dbo].[MovStocks_Det] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdCol}]
-      INNER JOIN [dbo].[MovStocksCab] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
+      INNER JOIN [${detTable.schema}].[${detTable.name}] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdColInSm}]
+      INNER JOIN [${cabTable.schema}].[${cabTable.name}] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
       LEFT JOIN [dbo].[tblMovStocksCab_Motivo] m ON m.[MovStocksCabMotivoID] = msc.[MovStocksCabMotivoID]
-      WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdCol}] IS NOT NULL
+      WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdColInSm}] IS NOT NULL
       GROUP BY msc.[MovStocksCabMotivoID], m.[Motivo], m.[MotivoInactivo]
       ORDER BY n DESC`);
     return r.recordset.map((x) => ({
@@ -475,7 +606,9 @@ async function getVolumetriaPorMotivo(
 
 async function getSamplesPorMotivo(
   pool: SqlPool,
-  movStocksDetIdCol: string,
+  detTable: { schema: string; name: string },
+  cabTable: { schema: string; name: string },
+  movStocksDetIdColInSm: string,
   dateCol: string,
   months: number,
   samplesPerMotivo: number,
@@ -488,16 +621,16 @@ async function getSamplesPorMotivo(
         SELECT
           sm.[StocksMovID], sm.[CodigoID], sm.[${dateCol}] AS DataMov,
           sm.[Qtd], sm.[QtdBonus], sm.[Existencia], sm.[ValorCustoUnit],
-          sm.[OldPMC], sm.[NovoPMC], sm.[${movStocksDetIdCol}] AS MovStocksDetID,
+          sm.[OldPMC], sm.[NovoPMC], sm.[${movStocksDetIdColInSm}] AS MovStocksDetID,
           sm.[StocksMovArmazemID],
           msc.[MovStocksCabMotivoID] AS motivoId,
           m.[Motivo] AS motivoDesc,
           ROW_NUMBER() OVER (PARTITION BY msc.[MovStocksCabMotivoID] ORDER BY sm.[${dateCol}] DESC) AS rn
         FROM [dbo].[StocksMov] sm
-        INNER JOIN [dbo].[MovStocks_Det] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdCol}]
-        INNER JOIN [dbo].[MovStocksCab] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
+        INNER JOIN [${detTable.schema}].[${detTable.name}] msd ON msd.[MovStocksDetID] = sm.[${movStocksDetIdColInSm}]
+        INNER JOIN [${cabTable.schema}].[${cabTable.name}] msc ON msc.[MovStocksCabID] = msd.[MovStocksCabID]
         LEFT JOIN [dbo].[tblMovStocksCab_Motivo] m ON m.[MovStocksCabMotivoID] = msc.[MovStocksCabMotivoID]
-        WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdCol}] IS NOT NULL
+        WHERE sm.[${dateCol}] >= @d AND sm.[${movStocksDetIdColInSm}] IS NOT NULL
       )
       SELECT * FROM ranked WHERE rn <= @n ORDER BY motivoId, rn`);
     const groups = new Map<string, SamplesPerMotivo>();
@@ -523,25 +656,15 @@ async function getSamplesPorMotivo(
 // ── Tipo Documento lookup discovery ──────────────────────────────────
 
 async function findTipoDocumentoLookup(pool: SqlPool): Promise<AuditReport["tipoDocumentoLookup"]> {
-  // Tenta os nomes mais prováveis (Softreis pattern). O probe v1 usou apenas
-  // [Tipo Documento] e devolveu 0 rows — provável que o nome real seja diferente.
   const candidates = [
-    "Tipo Documento",
-    "TipoDocumento",
-    "Tbl_TipoDocumento",
-    "Tbl_Tipo_Documento",
-    "Tipos Documento",
-    "TipoDocumentos",
-    "Tipo_Documento",
-    "TiposDoc",
-    "TipoDoc",
+    "Tipo Documento", "TipoDocumento", "Tbl_TipoDocumento", "Tbl_Tipo_Documento",
+    "Tipos Documento", "TipoDocumentos", "Tipo_Documento", "TiposDoc", "TipoDoc",
   ];
   const tried: string[] = [];
   for (const t of candidates) {
     tried.push(t);
     if (!(await tableExists(pool, { schema: "dbo", table: t }))) continue;
     const cols = await listColumns(pool, { schema: "dbo", table: t });
-    // Procura colunas de id + descrição
     const idCol = cols.find((c) => /id$/i.test(c.name) && /tipo|doc/i.test(c.name))?.name ?? cols[0]?.name;
     const descCol = cols.find((c) => /descr|nome|name|titulo/i.test(c.name))?.name;
     try {
@@ -566,6 +689,7 @@ const RELATED_PATTERNS: Array<{ pattern: string; label: string }> = [
   { pattern: "%juste%", label: "ajuste" },
   { pattern: "%nulac%", label: "anulação" },
   { pattern: "%Motivo%", label: "motivos" },
+  { pattern: "%MovStocks%", label: "movstocks (bonus)" },
 ];
 
 async function findRelatedTables(pool: SqlPool): Promise<Array<{ name: string; schema: string; matchedPattern: string }>> {
@@ -593,14 +717,12 @@ async function dumpRelatedTable(pool: SqlPool, schema: string, name: string, mat
   return { ...probe, matchedPattern };
 }
 
-// ── Correlação 7 dias (fixed: detecta coluna date de Devolucao dinamicamente) ──
+// ── Correlação 7 dias ────────────────────────────────────────────────
 
 async function getCorrelation(
   pool: SqlPool,
   stocksMovDateCol: string,
 ): Promise<AuditReport["correlation"]> {
-  // Detectar coluna date real de dbo.Devolucao (era 'DataDevolucao' no v1, errado).
-  // Em Softreis o pattern usual é '[Data Devolucao]' (com espaço).
   let devolDateCol: string | null = null;
   if (await tableExists(pool, { schema: "dbo", table: "Devolucao" })) {
     const cols = await listColumns(pool, { schema: "dbo", table: "Devolucao" });
@@ -741,25 +863,44 @@ function renderMarkdown(r: AuditReport): string {
   }
 
   md.push(`## 4. Movimentos internos (MovStocksDetID populated)\n`);
-  md.push(`### 4.1 dbo.MovStocks_Det — schema\n`);
-  renderTableProbe(md, r.movInterno.movStocksDet, " ");
-  md.push(`### 4.2 dbo.MovStocksCab — schema\n`);
-  renderTableProbe(md, r.movInterno.movStocksCab, " ");
+  md.push(`### 4.1 Discovery dinâmica — tabelas com colunas-chave\n`);
+  for (const col of INTERNAL_CHAIN_COLUMNS) {
+    const hits = r.movInterno.candidatesByColumn[col];
+    md.push(`**\`${col}\`** — ${hits.length} tabela(s) encontradas`);
+    if (hits.length > 0) {
+      md.push(`| Schema | Tabela | Em PK? | Cols PK | Nullable | Tipo |`);
+      md.push(`|---|---|---|---:|---|---|`);
+      for (const h of hits) {
+        md.push(`| ${h.schema} | ${h.table} | ${h.isInPk ? "**sim**" : "não"} | ${h.pkColumnCount} | ${h.isNullable ? "sim" : "não"} | ${h.dataType} |`);
+      }
+    }
+    md.push("");
+  }
 
-  md.push(`### 4.3 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO (${r.movInterno.motivosFullRowCount} rows)\n`);
+  md.push(`### 4.2 Resolução automática da cadeia\n`);
+  md.push("```");
+  for (const line of r.movInterno.resolutionLog) md.push(line);
+  md.push("```");
+  md.push(`- **Detail table (PK MovStocksDetID):** ${r.movInterno.resolvedDetTable ? `\`${r.movInterno.resolvedDetTable.schema}.${r.movInterno.resolvedDetTable.name}\` (${r.movInterno.resolvedDetTable.reasoning})` : "✗ NÃO RESOLVIDA"}`);
+  md.push(`- **Cab table (PK MovStocksCabID):** ${r.movInterno.resolvedCabTable ? `\`${r.movInterno.resolvedCabTable.schema}.${r.movInterno.resolvedCabTable.name}\` (${r.movInterno.resolvedCabTable.reasoning})` : "✗ NÃO RESOLVIDA"}`);
+  md.push("");
+
+  md.push(`### 4.3 Schema das tabelas resolvidas\n`);
+  if (r.movInterno.detTableProbe) renderTableProbe(md, r.movInterno.detTableProbe, "#### Detail");
+  if (r.movInterno.cabTableProbe) renderTableProbe(md, r.movInterno.cabTableProbe, "#### Cab");
+
+  md.push(`### 4.4 dbo.tblMovStocksCab_Motivo — DUMP COMPLETO (${r.movInterno.motivosFullRowCount} rows)\n`);
   if (r.movInterno.motivosFull.length === 0) {
     md.push(`(vazio ou tabela inacessível)\n`);
   } else {
     md.push("```");
-    for (const m of r.movInterno.motivosFull) {
-      md.push(`  ${JSON.stringify(m)}`);
-    }
+    for (const m of r.movInterno.motivosFull) md.push(`  ${JSON.stringify(m)}`);
     md.push("```\n");
   }
 
-  md.push(`### 4.4 Volumetria por motivo (${r.meta.paramsMonths}m)\n`);
+  md.push(`### 4.5 Volumetria por motivo (${r.meta.paramsMonths}m)\n`);
   if (r.movInterno.volumetriaPorMotivo.length === 0) {
-    md.push(`(sem dados — JOIN MovStocks_Det/Cab pode ter falhado; ver warnings)\n`);
+    md.push(`(sem dados — cadeia não resolvida ou sem movimentos internos no período)\n`);
   } else {
     md.push(`| MotivoID | Descrição | Inactivo? | Linhas | qt sum | qt>0 | qt<0 | minD | maxD |`);
     md.push(`|---:|---|---|---:|---:|---:|---:|---|---|`);
@@ -769,7 +910,7 @@ function renderMarkdown(r: AuditReport): string {
     md.push("");
   }
 
-  md.push(`### 4.5 Amostras TOP ${r.meta.paramsSamples} por motivo\n`);
+  md.push(`### 4.6 Amostras TOP ${r.meta.paramsSamples} por motivo\n`);
   if (r.movInterno.samplesPorMotivo.length === 0) {
     md.push(`(sem dados)\n`);
   } else {
@@ -846,7 +987,7 @@ export async function movimentosAudit(): Promise<number> {
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
 
   console.log(RULE);
-  console.log("movimentos-audit v2 — discovery única do universo de movimentos");
+  console.log("movimentos-audit v3 — discovery dinâmica do universo de movimentos");
   console.log(RULE);
   console.log(`ERP: ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
   console.log(`Janela: ${args.months} meses  ·  Samples/motivo: ${args.samples}`);
@@ -857,13 +998,17 @@ export async function movimentosAudit(): Promise<number> {
 
   const emptyProbe: TableProbe = { schema: "dbo", name: "", exists: false, rowCount: 0, columns: [], primaryKey: [], indexes: [], dateRange: null, sample: [] };
   const report: AuditReport = {
-    meta: { timestamp: new Date().toISOString(), agentRev: process.env.AGENT_REV ?? "?", auditVersion: 2, erp: { host: cfg.sqlHost, port: cfg.sqlPort, database: cfg.sqlDatabase }, paramsMonths: args.months, paramsSamples: args.samples },
+    meta: { timestamp: new Date().toISOString(), agentRev: process.env.AGENT_REV ?? "?", auditVersion: 3, erp: { host: cfg.sqlHost, port: cfg.sqlPort, database: cfg.sqlDatabase }, paramsMonths: args.months, paramsSamples: args.samples },
     stocksMov: { ...emptyProbe, name: "StocksMov", fkColumnsDetected: [] },
     volumetriaPorOrigem: [],
     volumetriaPorTipoDoc: [],
     movInterno: {
-      movStocksDet: { ...emptyProbe, name: "MovStocks_Det" },
-      movStocksCab: { ...emptyProbe, name: "MovStocksCab" },
+      candidatesByColumn: { MovStocksDetID: [], MovStocksCabID: [], MovStocksCabMotivoID: [] },
+      resolvedDetTable: null,
+      resolvedCabTable: null,
+      resolutionLog: [],
+      detTableProbe: null,
+      cabTableProbe: null,
       motivosFull: [],
       motivosFullRowCount: 0,
       volumetriaPorMotivo: [],
@@ -878,7 +1023,7 @@ export async function movimentosAudit(): Promise<number> {
   try {
     return await withPool(cfg, async (pool) => {
       // ── 1. dbo.StocksMov ──
-      console.log("▶ 1/8  Schema dbo.StocksMov + FK detection ...");
+      console.log("▶ 1/9  Schema dbo.StocksMov + FK detection ...");
       const smProbe = await probeTableFull(pool, "dbo", "StocksMov", 0);
       const fks = detectStocksMovFks(smProbe.columns);
       report.stocksMov = { ...smProbe, fkColumnsDetected: fks.detected };
@@ -891,7 +1036,7 @@ export async function movimentosAudit(): Promise<number> {
 
       if (smProbe.exists && dateCol) {
         // ── 2. Volumetria por origem ──
-        console.log("▶ 2/8  Volumetria por origem (FK-pattern) ...");
+        console.log("▶ 2/9  Volumetria por origem (FK-pattern) ...");
         try {
           report.volumetriaPorOrigem = await getVolumetriaPorOrigem(pool, fks, dateCol, args.months);
         } catch (e) {
@@ -900,7 +1045,7 @@ export async function movimentosAudit(): Promise<number> {
 
         // ── 3. Sub-classificação VENDA vs DC ──
         if (fks.detalheId) {
-          console.log("▶ 3/8  Sub-classificação VENDA vs Devolução Cliente ...");
+          console.log("▶ 3/9  Sub-classificação VENDA vs Devolução Cliente ...");
           try {
             report.volumetriaPorTipoDoc = await getVolumetriaPorTipoDoc(pool, fks.detalheId, dateCol, args.months);
           } catch (e) {
@@ -908,33 +1053,62 @@ export async function movimentosAudit(): Promise<number> {
           }
         }
 
-        // ── 4. MovInterno (MovStocks_Det + MovStocksCab + motivos) ──
-        console.log("▶ 4/8  Schema MovStocks_Det + MovStocksCab + motivos full dump ...");
-        report.movInterno.movStocksDet = await probeTableFull(pool, "dbo", "MovStocks_Det", 5);
-        report.movInterno.movStocksCab = await probeTableFull(pool, "dbo", "MovStocksCab", 5);
+        // ── 4. Discovery dinâmica da cadeia interna ──
+        console.log("▶ 4/9  Discovery via sys.columns das tabelas com MovStocksDetID/CabID/MotivoID ...");
+        const hits = await discoverByColumnNames(pool, INTERNAL_CHAIN_COLUMNS);
+        for (const h of hits) {
+          if (h.column in report.movInterno.candidatesByColumn) {
+            report.movInterno.candidatesByColumn[h.column as InternalColumn].push(h);
+          }
+        }
+        const resolution = resolveInternalChain(hits);
+        report.movInterno.resolutionLog = resolution.log;
+        report.movInterno.resolvedDetTable = resolution.detTable;
+        report.movInterno.resolvedCabTable = resolution.cabTable;
+
+        // ── 5. Probes das tabelas resolvidas ──
+        console.log("▶ 5/9  Schemas + samples das tabelas resolvidas + motivos full dump ...");
+        if (resolution.detTable) {
+          report.movInterno.detTableProbe = await probeTableFull(pool, resolution.detTable.schema, resolution.detTable.name, 5);
+        } else {
+          warnings.push("Detail table (MovStocksDetID owner) não resolvida — sub-classificação por motivo impossível.");
+        }
+        if (resolution.cabTable) {
+          report.movInterno.cabTableProbe = await probeTableFull(pool, resolution.cabTable.schema, resolution.cabTable.name, 5);
+        } else {
+          warnings.push("Cab table (MovStocksCabID owner) não resolvida — sub-classificação por motivo impossível.");
+        }
+
         const motivosCount = await getRowCount(pool, "dbo", "tblMovStocksCab_Motivo");
         report.movInterno.motivosFullRowCount = motivosCount;
         report.movInterno.motivosFull = await dumpFullTable(pool, "dbo", "tblMovStocksCab_Motivo", 1000);
 
-        if (report.movInterno.movStocksDet.exists && report.movInterno.movStocksCab.exists && fks.movStocksDetId) {
-          console.log("▶ 5/8  Volumetria por motivo ...");
-          report.movInterno.volumetriaPorMotivo = await getVolumetriaPorMotivo(pool, fks.movStocksDetId, dateCol, args.months);
-
-          console.log("▶ 6/8  Amostras por motivo ...");
-          report.movInterno.samplesPorMotivo = await getSamplesPorMotivo(pool, fks.movStocksDetId, dateCol, args.months, args.samples);
+        // ── 6 + 7. Volumetria + Samples (apenas se cadeia resolvida) ──
+        if (resolution.detTable && resolution.cabTable && fks.movStocksDetId) {
+          console.log("▶ 6/9  Volumetria por motivo (JOIN tabelas resolvidas) ...");
+          report.movInterno.volumetriaPorMotivo = await getVolumetriaPorMotivo(
+            pool, resolution.detTable, resolution.cabTable, fks.movStocksDetId, dateCol, args.months,
+          );
+          console.log("▶ 7/9  Amostras por motivo ...");
+          report.movInterno.samplesPorMotivo = await getSamplesPorMotivo(
+            pool, resolution.detTable, resolution.cabTable, fks.movStocksDetId, dateCol, args.months, args.samples,
+          );
+          if (report.movInterno.volumetriaPorMotivo.length === 0) {
+            warnings.push("Cadeia resolvida mas volumetria por motivo voltou vazia — JOIN pode estar incorrecto, ou simplesmente não há movimentos internos no período.");
+          }
         } else {
-          warnings.push("MovStocks_Det ou MovStocksCab não existe — secção 4.4/4.5 saltada. Movimentos internos não classificáveis por motivo.");
+          warnings.push("Cadeia interna não totalmente resolvida — volumetria/samples por motivo saltadas.");
         }
 
-        // ── 5. Tipo Documento lookup ──
-        console.log("▶ 7/8  Discovery do lookup [Tipo Documento] ...");
+        // ── 8. Tipo Documento lookup ──
+        console.log("▶ 8/9  Discovery do lookup [Tipo Documento] ...");
         report.tipoDocumentoLookup = await findTipoDocumentoLookup(pool);
         if (!report.tipoDocumentoLookup.tableName) {
-          warnings.push(`Lookup [Tipo Documento] não encontrado em nenhum dos nomes candidatos: ${report.tipoDocumentoLookup.triedNames.join(", ")}`);
+          warnings.push(`Lookup [Tipo Documento] não encontrado: ${report.tipoDocumentoLookup.triedNames.join(", ")}`);
         }
 
-        // ── 6. Correlação 7 dias ──
-        console.log("▶ 8/8  Correlação 7 dias ...");
+        // ── 9. Correlação 7 dias ──
+        console.log("▶ 9/9  Correlação 7 dias ...");
         try {
           report.correlation = await getCorrelation(pool, dateCol);
         } catch (e) {
@@ -968,6 +1142,8 @@ export async function movimentosAudit(): Promise<number> {
       console.log(RULE);
       console.log(`  StocksMov: ${report.stocksMov.exists ? `${report.stocksMov.rowCount.toLocaleString("pt-PT")} rows · ${report.stocksMov.fkColumnsDetected.length}/6 FKs detectadas` : "✗ NÃO EXISTE"}`);
       console.log(`  Origens distintas: ${report.volumetriaPorOrigem.length}`);
+      console.log(`  Detail table resolvida: ${report.movInterno.resolvedDetTable ? `${report.movInterno.resolvedDetTable.schema}.${report.movInterno.resolvedDetTable.name}` : "✗"}`);
+      console.log(`  Cab table resolvida   : ${report.movInterno.resolvedCabTable ? `${report.movInterno.resolvedCabTable.schema}.${report.movInterno.resolvedCabTable.name}` : "✗"}`);
       console.log(`  Motivos no lookup: ${report.movInterno.motivosFullRowCount}`);
       console.log(`  Motivos com movimentos (24m): ${report.movInterno.volumetriaPorMotivo.length}`);
       console.log(`  Lookup [Tipo Documento]: ${report.tipoDocumentoLookup.tableName ?? "✗ não encontrado"}`);
