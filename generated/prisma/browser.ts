@@ -381,3 +381,30 @@ export type OrderOutbox = Prisma.OrderOutboxModel
  * corrente; a timeline completa vive aqui.
  */
 export type OrderExportAudit = Prisma.OrderExportAuditModel
+/**
+ * Model MovimentoArtigo
+ * Movimento canónico de stock por artigo, derivado 1:1 de
+ * `dbo.StocksMov` no SPharm ERP (audit rev32). Substitui semanticamente
+ * a união ad-hoc de Venda/Compra/Devolucao no extrato; as tabelas
+ * legadas permanecem para dashboard/analytics até deprecação futura.
+ * 
+ * Granularidade: 1 row por StocksMovID. PK natural compósita
+ * `(farmaciaId, externalMovId)` garante idempotência do upload e do
+ * backfill — re-correr a mesma janela produz UPDATE, não duplica.
+ * 
+ * Cada linha tem exactamente 1 das 6 colunas FK populadas (origem do
+ * movimento). O classificador `lib/movimento-classifier.ts` mapeia
+ * essa FK + enrichment de Cab.Motivo/TipoDoc → `tipo`.
+ * 
+ * `existenciaApos` é o running balance pós-movimento (StocksMov.Existencia
+ * no ERP). Permite reconstruir "stock antes/depois" sem inventar dados.
+ */
+export type MovimentoArtigo = Prisma.MovimentoArtigoModel
+/**
+ * Model IngestStocksMovRaw
+ * Staging mirror raw de `dbo.StocksMov + JOINs`. 1 row por POST do
+ * agent; preservado para auditoria post-mortem e re-classificação se
+ * o classificador mudar. Sem FKs ao catálogo — é um snapshot bruto.
+ * Cleanup é direccionado por `ingestRunId`.
+ */
+export type IngestStocksMovRaw = Prisma.IngestStocksMovRawModel

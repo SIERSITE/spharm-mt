@@ -423,7 +423,9 @@ export const ModelName = {
   PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
-  OrderExportAudit: 'OrderExportAudit'
+  OrderExportAudit: 'OrderExportAudit',
+  MovimentoArtigo: 'MovimentoArtigo',
+  IngestStocksMovRaw: 'IngestStocksMovRaw'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -439,7 +441,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -3403,6 +3405,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    MovimentoArtigo: {
+      payload: Prisma.$MovimentoArtigoPayload<ExtArgs>
+      fields: Prisma.MovimentoArtigoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.MovimentoArtigoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.MovimentoArtigoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        findFirst: {
+          args: Prisma.MovimentoArtigoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.MovimentoArtigoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        findMany: {
+          args: Prisma.MovimentoArtigoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>[]
+        }
+        create: {
+          args: Prisma.MovimentoArtigoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        createMany: {
+          args: Prisma.MovimentoArtigoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.MovimentoArtigoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>[]
+        }
+        delete: {
+          args: Prisma.MovimentoArtigoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        update: {
+          args: Prisma.MovimentoArtigoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        deleteMany: {
+          args: Prisma.MovimentoArtigoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.MovimentoArtigoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.MovimentoArtigoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>[]
+        }
+        upsert: {
+          args: Prisma.MovimentoArtigoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$MovimentoArtigoPayload>
+        }
+        aggregate: {
+          args: Prisma.MovimentoArtigoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateMovimentoArtigo>
+        }
+        groupBy: {
+          args: Prisma.MovimentoArtigoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MovimentoArtigoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.MovimentoArtigoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.MovimentoArtigoCountAggregateOutputType> | number
+        }
+      }
+    }
+    IngestStocksMovRaw: {
+      payload: Prisma.$IngestStocksMovRawPayload<ExtArgs>
+      fields: Prisma.IngestStocksMovRawFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.IngestStocksMovRawFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.IngestStocksMovRawFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        findFirst: {
+          args: Prisma.IngestStocksMovRawFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.IngestStocksMovRawFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        findMany: {
+          args: Prisma.IngestStocksMovRawFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>[]
+        }
+        create: {
+          args: Prisma.IngestStocksMovRawCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        createMany: {
+          args: Prisma.IngestStocksMovRawCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.IngestStocksMovRawCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>[]
+        }
+        delete: {
+          args: Prisma.IngestStocksMovRawDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        update: {
+          args: Prisma.IngestStocksMovRawUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        deleteMany: {
+          args: Prisma.IngestStocksMovRawDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.IngestStocksMovRawUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.IngestStocksMovRawUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>[]
+        }
+        upsert: {
+          args: Prisma.IngestStocksMovRawUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestStocksMovRawPayload>
+        }
+        aggregate: {
+          args: Prisma.IngestStocksMovRawAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateIngestStocksMovRaw>
+        }
+        groupBy: {
+          args: Prisma.IngestStocksMovRawGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestStocksMovRawGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.IngestStocksMovRawCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestStocksMovRawCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -3661,7 +3811,8 @@ export const FarmaciaScalarFieldEnum = {
   estado: 'estado',
   dataAdesao: 'dataAdesao',
   dataCriacao: 'dataCriacao',
-  dataAtualizacao: 'dataAtualizacao'
+  dataAtualizacao: 'dataAtualizacao',
+  useMovimentosCanonical: 'useMovimentosCanonical'
 } as const
 
 export type FarmaciaScalarFieldEnum = (typeof FarmaciaScalarFieldEnum)[keyof typeof FarmaciaScalarFieldEnum]
@@ -4196,6 +4347,57 @@ export const OrderExportAuditScalarFieldEnum = {
 export type OrderExportAuditScalarFieldEnum = (typeof OrderExportAuditScalarFieldEnum)[keyof typeof OrderExportAuditScalarFieldEnum]
 
 
+export const MovimentoArtigoScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalMovId: 'externalMovId',
+  externalProductId: 'externalProductId',
+  produtoId: 'produtoId',
+  dataMovimento: 'dataMovimento',
+  tipo: 'tipo',
+  quantidade: 'quantidade',
+  quantidadeBonus: 'quantidadeBonus',
+  existenciaApos: 'existenciaApos',
+  custoUnitario: 'custoUnitario',
+  pmcAnterior: 'pmcAnterior',
+  pmcNovo: 'pmcNovo',
+  armazemId: 'armazemId',
+  externalDetalheId: 'externalDetalheId',
+  externalSuspDetalheId: 'externalSuspDetalheId',
+  externalCreditoDetalheId: 'externalCreditoDetalheId',
+  externalRecpDetalheId: 'externalRecpDetalheId',
+  externalDevolucaoDetalheId: 'externalDevolucaoDetalheId',
+  externalMovStocksDetId: 'externalMovStocksDetId',
+  movStocksCabId: 'movStocksCabId',
+  movStocksCabTipoDocId: 'movStocksCabTipoDocId',
+  movStocksCabMotivoId: 'movStocksCabMotivoId',
+  movStocksCabMotivoTexto: 'movStocksCabMotivoTexto',
+  movStocksCabSituacao: 'movStocksCabSituacao',
+  movStocksCabUserId: 'movStocksCabUserId',
+  movStocksCabPosto: 'movStocksCabPosto',
+  movStocksCabNDocExterno: 'movStocksCabNDocExterno',
+  externalSaleId: 'externalSaleId',
+  tipoDocumentoId: 'tipoDocumentoId',
+  ingestRunId: 'ingestRunId',
+  ingestedAt: 'ingestedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MovimentoArtigoScalarFieldEnum = (typeof MovimentoArtigoScalarFieldEnum)[keyof typeof MovimentoArtigoScalarFieldEnum]
+
+
+export const IngestStocksMovRawScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalMovId: 'externalMovId',
+  payload: 'payload',
+  ingestRunId: 'ingestRunId',
+  ingestedAt: 'ingestedAt'
+} as const
+
+export type IngestStocksMovRawScalarFieldEnum = (typeof IngestStocksMovRawScalarFieldEnum)[keyof typeof IngestStocksMovRawScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -4676,6 +4878,20 @@ export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 
 export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
     
 
+
+/**
+ * Reference to a field of type 'TipoMovimentoArtigo'
+ */
+export type EnumTipoMovimentoArtigoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoMovimentoArtigo'>
+    
+
+
+/**
+ * Reference to a field of type 'TipoMovimentoArtigo[]'
+ */
+export type ListEnumTipoMovimentoArtigoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoMovimentoArtigo[]'>
+    
+
 /**
  * Batch Payload for updateMany & deleteMany & createMany
  */
@@ -4811,6 +5027,8 @@ export type GlobalOmitConfig = {
   tipoDocumentoClassificacao?: Prisma.TipoDocumentoClassificacaoOmit
   orderOutbox?: Prisma.OrderOutboxOmit
   orderExportAudit?: Prisma.OrderExportAuditOmit
+  movimentoArtigo?: Prisma.MovimentoArtigoOmit
+  ingestStocksMovRaw?: Prisma.IngestStocksMovRawOmit
 }
 
 /* Types for Logging */

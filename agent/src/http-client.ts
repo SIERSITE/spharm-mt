@@ -206,6 +206,32 @@ export class SaasClient {
   }
 
   /**
+   * POST /api/ingest/v1/movimentos
+   * Block A3 — UPSERT canónico de StocksMov em MovimentoArtigo.
+   * Body: { farmaciaId, ingestRunId, items[] } (max 500).
+   * Idempotente via `(farmaciaId, externalMovId)`. Re-run produz UPDATE.
+   * Resposta inclui `byTipo` (contagem por TipoMovimentoArtigo),
+   * `desconhecidos` e `orphanProducts` para reporting do agent.
+   */
+  async ingestMovimentos(
+    body: { farmaciaId: string; ingestRunId: string; items: unknown[] },
+    timeoutMs?: number,
+  ): Promise<
+    BootstrapBatchResponse & {
+      created: number;
+      updated: number;
+      desconhecidos: number;
+      orphanProducts: number;
+      byTipo: Record<string, number>;
+    }
+  > {
+    return this.request("POST", "/api/ingest/v1/movimentos", {
+      body,
+      timeoutMs,
+    });
+  }
+
+  /**
    * POST /api/ingest/v1/bootstrap/devolucoes-fornecedor
    * UPSERT idempotente de linhas de devolução AO fornecedor em
    * StagingDevolucaoFornecedorRawLine. Body: { farmaciaId, items[] }

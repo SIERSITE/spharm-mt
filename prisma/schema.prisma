@@ -177,6 +177,28 @@ enum EstadoInventario {
   CANCELADO
 }
 
+/// Tipo canónico de um MovimentoArtigo. Derivado de `StocksMov` no
+/// SPharm ERP (rev32 audit) por classificador `lib/movimento-classifier.ts`:
+///   - FK pattern (qual das 6 colunas FK populadas) → tipo "macro"
+///   - texto normalizado do motivo + Cab.[Tipo Documento ID] → sub-tipo
+///     interno (INVENTARIO/AJUSTE/QUEBRA/PERDA/TRANSFERENCIA_*)
+/// É a representação 1:1 de cada linha StocksMov no SaaS canónico.
+enum TipoMovimentoArtigo {
+  VENDA
+  DEVOLUCAO_CLIENTE
+  VENDA_CREDITO
+  RESERVA_SUSPENSA
+  COMPRA
+  DEVOLUCAO_FORNECEDOR
+  INVENTARIO
+  AJUSTE
+  QUEBRA
+  PERDA
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SAIDA
+  DESCONHECIDO
+}
+
 /// Estados do ciclo de vida de um RegulatoryAcquisitionJob.
 /// Transições típicas:
 ///   PENDING      → IN_PROGRESS    (worker claimed)
@@ -250,21 +272,22 @@ model Produto {
   classificacaoNivel1 Classificacao? @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
   classificacaoNivel2 Classificacao? @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])
 
-  produtosFarmacia     ProdutoFarmacia[]
-  vendas               Venda[]
-  vendasMensais        VendaMensal[]
-  compras              Compra[]
-  devolucoes           Devolucao[]
-  historicoStocks      HistoricoStock[]
-  ajustesStock         AjusteStock[]
-  linhasInventario     LinhaInventario[]
-  indicadores          IndicadoresProdutoFarmacia[]
-  linhasEncomenda      LinhaEncomenda[]
-  filaRevisao          FilaRevisao[]
-  filaEnriquecimento   EnriquecimentoFila[]
-  verificacaoHistorico ProdutoVerificacaoHistorico[]
-  enrichmentSourceLogs EnrichmentSourceLog[]
+  produtosFarmacia      ProdutoFarmacia[]
+  vendas                Venda[]
+  vendasMensais         VendaMensal[]
+  compras               Compra[]
+  devolucoes            Devolucao[]
+  historicoStocks       HistoricoStock[]
+  ajustesStock          AjusteStock[]
+  linhasInventario      LinhaInventario[]
+  indicadores           IndicadoresProdutoFarmacia[]
+  linhasEncomenda       LinhaEncomenda[]
+  filaRevisao           FilaRevisao[]
+  filaEnriquecimento    EnriquecimentoFila[]
+  verificacaoHistorico  ProdutoVerificacaoHistorico[]
+  enrichmentSourceLogs  EnrichmentSourceLog[]
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
+  movimentos            MovimentoArtigo[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -617,26 +640,35 @@ model Farmacia {
   dataCriacao     DateTime       @default(now())
   dataAtualizacao DateTime       @updatedAt
 
-  utilizadores      Utilizador[]
-  utilizadoresExtra UtilizadorFarmacia[]
-  produtosFarmacia  ProdutoFarmacia[]
-  produtosInternos  ProdutoInterno[]
-  vendas            Venda[]
-  vendasMensais     VendaMensal[]
-  compras           Compra[]
-  devolucoes        Devolucao[]
-  historicoStocks   HistoricoStock[]
-  ajustesStock      AjusteStock[]
-  inventarios       Inventario[]
-  indicadores       IndicadoresProdutoFarmacia[]
-  listasEncomenda   ListaEncomenda[]
-  lotesIngestao     LoteIngestao[]
-  emailConfig       EmailConfig?
-  ingestVendasLinhasRaw IngestVendaLinhaRaw[]
-  pipelineRuns          PipelineRun[]
-  fornecedorErpRefs     FornecedorErpRef[]
+  utilizadores                        Utilizador[]
+  utilizadoresExtra                   UtilizadorFarmacia[]
+  produtosFarmacia                    ProdutoFarmacia[]
+  produtosInternos                    ProdutoInterno[]
+  vendas                              Venda[]
+  vendasMensais                       VendaMensal[]
+  compras                             Compra[]
+  devolucoes                          Devolucao[]
+  historicoStocks                     HistoricoStock[]
+  ajustesStock                        AjusteStock[]
+  inventarios                         Inventario[]
+  indicadores                         IndicadoresProdutoFarmacia[]
+  listasEncomenda                     ListaEncomenda[]
+  lotesIngestao                       LoteIngestao[]
+  emailConfig                         EmailConfig?
+  ingestVendasLinhasRaw               IngestVendaLinhaRaw[]
+  pipelineRuns                        PipelineRun[]
+  fornecedorErpRefs                   FornecedorErpRef[]
   stagingComprasRawLines              StagingCompraRawLine[]
   stagingDevolucoesFornecedorRawLines StagingDevolucaoFornecedorRawLine[]
+  movimentos                          MovimentoArtigo[]
+  ingestStocksMovRaw                  IngestStocksMovRaw[]
+
+  /// Feature flag (per-tenant na prática, granularidade per-farmácia
+  /// para rollout incremental). Quando `true`, o extrato de movimentos
+  /// (lib/movimentos-data.ts) lê de `MovimentoArtigo`; quando `false`
+  /// (default), lê do modelo legacy (Venda/Compra/Devolucao + raw).
+  /// Rollback = pôr a false. Removido após 100 % tenants migrados.
+  useMovimentosCanonical Boolean @default(false)
 
   @@unique([nome])
   @@index([codigoANF])
@@ -863,11 +895,11 @@ model Venda {
 /// existentes — `aggregate-vendamensal.ts` populá-os a partir dos
 /// novos campos para que o dashboard continue intacto.
 model VendaMensal {
-  id              String   @id @default(cuid())
-  farmaciaId      String
-  produtoId       String
-  ano             Int
-  mes             Int
+  id         String @id @default(cuid())
+  farmaciaId String
+  produtoId  String
+  ano        Int
+  mes        Int
 
   // ── Campos legados (NOT NULL, populados por loaders Excel + agg script)
   quantidade      Decimal  @db.Decimal(14, 3)
@@ -879,22 +911,22 @@ model VendaMensal {
 
   // ── Campos da agregação (nullable até script popular) ──────────────
   /// SUM assinado de quantidade (VENDA=+, DEVOLUCAO_ANULACAO=−).
-  quantidadeLiquida    Decimal? @db.Decimal(14, 3)
+  quantidadeLiquida   Decimal? @db.Decimal(14, 3)
   /// SUM assinado de pvpUnitario × quantidade. "Bruto" = teto comercial.
-  valorBruto           Decimal? @db.Decimal(14, 2)
+  valorBruto          Decimal? @db.Decimal(14, 2)
   /// SUM assinado de valorLinha (semântica observada: pago utente).
-  valorPagoUtente      Decimal? @db.Decimal(14, 2)
+  valorPagoUtente     Decimal? @db.Decimal(14, 2)
   /// SUM assinado de comparticipacao1 + comparticipacao2.
-  valorComparticipado  Decimal? @db.Decimal(14, 2)
+  valorComparticipado Decimal? @db.Decimal(14, 2)
   /// COUNT(*) de linhas que compuseram a agregação.
-  linhasVenda          Int?
+  linhasVenda         Int?
   /// COUNT(DISTINCT externalSaleId) — número de atendimentos distintos.
-  atendimentos         Int?
+  atendimentos        Int?
   /// Marcador da origem da agregação. Permite distinguir rows
   /// agregadas server-side de rows legadas Excel-import.
-  origemAgregacao      String?
+  origemAgregacao     String?
   /// Timestamp da primeira escrita do row (separa criação de actualização).
-  createdAt            DateTime @default(now())
+  createdAt           DateTime @default(now())
 
   farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
@@ -919,17 +951,17 @@ model VendaMensal {
 /// Campos `ingestBatchId` e `aggregatedAt` ficam `null` em rows legacy
 /// (excel import, etc.) — não tocadas pelo aggregation pipeline nesta fase.
 model Compra {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   farmaciaId          String
   produtoId           String
   fornecedorId        String?
   data                DateTime
-  quantidade          Decimal  @db.Decimal(14, 3)
-  valorTotal          Decimal  @db.Decimal(14, 2)
-  precoUnitario       Decimal? @db.Decimal(12, 4)
-  descontoBonificacao Decimal? @db.Decimal(14, 2)
+  quantidade          Decimal   @db.Decimal(14, 3)
+  valorTotal          Decimal   @db.Decimal(14, 2)
+  precoUnitario       Decimal?  @db.Decimal(12, 4)
+  descontoBonificacao Decimal?  @db.Decimal(14, 2)
   numeroDocumento     String?
-  dataIngestao        DateTime @default(now())
+  dataIngestao        DateTime  @default(now())
   loteIngestaoId      String?
   /// Batch ULID emitido pela aggregation. Permite cleanup direccionado
   /// (`DELETE WHERE ingestBatchId = ?`) e auditoria "que run produziu esta row?".
@@ -1263,8 +1295,8 @@ model LoteIngestao {
 /// Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
 /// Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
 model IngestVendaLinhaRaw {
-  id                 String   @id @default(cuid())
-  farmaciaId         String
+  id         String @id @default(cuid())
+  farmaciaId String
 
   /// Softreis: Atendimento.[Atendimento ID]. Header da venda.
   externalSaleId     Int
@@ -1284,33 +1316,33 @@ model IngestVendaLinhaRaw {
   tipoDocumentoClass String
 
   /// Softreis: CodigoID. Sempre presente.
-  externalProductId  Int
+  externalProductId Int
   /// Resolvido server-side em best-effort via Produto.externalProductId.
   /// Null quando o produto não está em Stocks (data quality issue —
   /// agent reporta no dry-run e aqui fica registo permanente).
-  produtoId          String?
+  produtoId         String?
   /// Linha técnica/serviço sem produto operacional (Softreis:
   /// Stocks.[Processa_Stocks] = 0). Inclui taxas (entrega ao
   /// domicílio, serviço), administração de injectáveis,
   /// rastreios Checksaude, etc. Marcado server-side quando o
   /// agent envia `processaStocks=false` E o lookup ao Produto
   /// falha. Excluído da agregação `VendaMensal`.
-  isNonStockService  Boolean  @default(false)
+  isNonStockService Boolean @default(false)
 
-  quantidade         Decimal? @db.Decimal(14, 3)
-  pvpUnitario        Decimal? @db.Decimal(12, 4)
-  valorLinha         Decimal? @db.Decimal(14, 2)
-  ivaValor           Decimal? @db.Decimal(14, 2)
-  descontoValor      Decimal? @db.Decimal(14, 2)
-  comparticipacao1   Decimal? @db.Decimal(14, 2)
-  comparticipacao2   Decimal? @db.Decimal(14, 2)
-  entidadeId         Int?
+  quantidade       Decimal? @db.Decimal(14, 3)
+  pvpUnitario      Decimal? @db.Decimal(12, 4)
+  valorLinha       Decimal? @db.Decimal(14, 2)
+  ivaValor         Decimal? @db.Decimal(14, 2)
+  descontoValor    Decimal? @db.Decimal(14, 2)
+  comparticipacao1 Decimal? @db.Decimal(14, 2)
+  comparticipacao2 Decimal? @db.Decimal(14, 2)
+  entidadeId       Int?
 
   /// Payload bruto recebido (forensic). Permite reprocessamento sem
   /// re-query ao ERP se a interpretação mudar.
-  rawJson            Json
+  rawJson Json
 
-  importedAt         DateTime @default(now())
+  importedAt DateTime @default(now())
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto  Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
@@ -1351,62 +1383,62 @@ model IngestVendaLinhaRaw {
 /// em cada linha para reconciliação `SUM(qt × valorEurUnit) ≈ headerTotalIncidenciaEur`
 /// sem JOIN. Esta tabela é APENAS staging — Fase 1b não tem agregação.
 model StagingCompraRawLine {
-  id                          BigInt   @id @default(autoincrement())
-  farmaciaId                  String
+  id         BigInt @id @default(autoincrement())
+  farmaciaId String
 
   // ── Identidade ERP ────────────────────────────────────────────
   /// dbo.Recepcao.[Recepcao ID]. Header.
-  externalReceptionId         Int
+  externalReceptionId Int
   /// dbo.[Recepcao Detalhe].[Detalhe  Recp ID] (dois espaços no nome
   /// do campo no SPharm — quirk Softreis preservado server-side).
   /// PK natural da linha; base da idempotência.
-  externalLineId              Int
-  sequencia                   Int?
+  externalLineId      Int
+  sequencia           Int?
 
   // ── Header (denormalizado para reconciliação sem JOIN) ────────
   /// dbo.Recepcao.[NRecepcao]. Numerador interno sequencial.
-  externalNRecepcao           Int
+  externalNRecepcao        Int
   /// dbo.Recepcao.[Fornecedor ID]. Resolução para Fornecedor canónico
   /// faz-se a jusante via FornecedorErpRef — não materializada aqui.
-  externalFornecedorId        Int
+  externalFornecedorId     Int
   /// dbo.Recepcao.[FornecedorTipoDocumentoID] (Tipo Documento).
   /// 99% Factura (2); resto: G/Remessa, G/Transporte, NC, NULL.
-  externalTipoDocumentoId     Int?
+  externalTipoDocumentoId  Int?
   /// dbo.Recepcao.[Fornecedor_NDoc]. Nº documento externo do fornecedor.
-  externalFornecedorNDoc      String?
+  externalFornecedorNDoc   String?
   /// dbo.Recepcao.[Data Recepcao] — canónica para data de operação.
-  dataRecepcao                DateTime
+  dataRecepcao             DateTime
   /// dbo.Recepcao.[Fornecedor_Data] — data da factura externa.
-  fornecedorData              DateTime?
+  fornecedorData           DateTime?
   /// dbo.Recepcao.[ArmazemID]. v1 assume single-warehouse por farmácia.
-  armazemId                   Int
+  armazemId                Int
   /// dbo.Recepcao.[RecepcaoSituacaoID]. Filtrado a 'N' no SQL; capturado
   /// para auditoria + safety net.
-  recepcaoSituacaoId          String
-  headerTotalBrutoEur         Decimal  @db.Decimal(12, 2)
-  headerTotalIvaEur           Decimal  @db.Decimal(12, 2)
-  headerTotalIncidenciaEur    Decimal  @db.Decimal(12, 2)
+  recepcaoSituacaoId       String
+  headerTotalBrutoEur      Decimal   @db.Decimal(12, 2)
+  headerTotalIvaEur        Decimal   @db.Decimal(12, 2)
+  headerTotalIncidenciaEur Decimal   @db.Decimal(12, 2)
 
   // ── Linha (raw, NÃO agregada) ────────────────────────────────
   /// dbo.[Recepcao Detalhe].CodigoID → resolvido para Produto via
   /// ProdutoFarmacia.externalProductId a jusante (fora desta fase).
-  externalCodigoId            Int
-  quantidade                  Int
-  bonus                       Int
-  iva                         Decimal  @db.Decimal(4, 2)
-  desconto                    Decimal? @db.Decimal(7, 2)
+  externalCodigoId     Int
+  quantidade           Int
+  bonus                Int
+  iva                  Decimal   @db.Decimal(4, 2)
+  desconto             Decimal?  @db.Decimal(7, 2)
   /// dbo.[Recepcao Detalhe].[Preco Venda Publico_EUR].
-  precoVendaPublicoEur        Decimal  @db.Decimal(8, 2)
+  precoVendaPublicoEur Decimal   @db.Decimal(8, 2)
   /// dbo.[Recepcao Detalhe].[Valor_EUR]. **UNITÁRIO** (PVF c/ desconto,
   /// sem IVA). Total linha = quantidade × valorEurUnit. Validado rev24
   /// pelas amostras 4.1. Naming explícito para impedir confusão.
-  valorEurUnit                Decimal  @db.Decimal(10, 2)
-  validade                    DateTime?
+  valorEurUnit         Decimal   @db.Decimal(10, 2)
+  validade             DateTime?
 
-  ingestedAt                  DateTime @default(now())
+  ingestedAt    DateTime @default(now())
   /// Batch ULID emitido pelo agent. Permite cleanup direccionado:
   /// `DELETE WHERE ingestBatchId = ?` para reverter passagem específica.
-  ingestBatchId               String
+  ingestBatchId String
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
@@ -1428,64 +1460,64 @@ model StagingCompraRawLine {
 /// Transição P→R muda `quantidadeRecebida` (0 → >0) sem alterar PK;
 /// re-sync via UPSERT captura.
 model StagingDevolucaoFornecedorRawLine {
-  id                          BigInt   @id @default(autoincrement())
-  farmaciaId                  String
+  id         BigInt @id @default(autoincrement())
+  farmaciaId String
 
   // ── Identidade ERP ────────────────────────────────────────────
   /// dbo.Devolucao.[Devolucao ID]. Header.
-  externalDevolucaoId         Int
+  externalDevolucaoId Int
   /// dbo.[Devolucao Detalhe].[Devolucao Detalhe ID]. PK natural da linha.
-  externalLineId              Int
-  sequencia                   Int?
+  externalLineId      Int
+  sequencia           Int?
 
   // ── Header (denormalizado) ────────────────────────────────────
-  externalNDevolucao          Int
-  externalFornecedorId        Int
-  dataDevolucao               DateTime
+  externalNDevolucao   Int
+  externalFornecedorId Int
+  dataDevolucao        DateTime
   /// 'P' | 'E' | 'R' | 'X'. NUNCA 'A' (filtrado no SQL).
-  devolucaoSituacaoId         String
-  armazemId                   Int
+  devolucaoSituacaoId  String
+  armazemId            Int
   /// dbo.Devolucao.[Observacoes]. Texto livre operador.
-  observacoes                 String?
+  observacoes          String?
 
   // ── SAFT compliance (auditoria fiscal PT) ────────────────────
-  serieFacturacao             String?
-  atcud                       String?
-  ncertAt                     Int?
-  systemEntryDate             DateTime?
+  serieFacturacao String?
+  atcud           String?
+  ncertAt         Int?
+  systemEntryDate DateTime?
 
-  headerTotalDocumento        Decimal  @db.Decimal(9, 2)
-  headerTotalIvaEur           Decimal  @db.Decimal(12, 2)
-  headerTotalIncidenciaEur    Decimal  @db.Decimal(12, 2)
+  headerTotalDocumento     Decimal @db.Decimal(9, 2)
+  headerTotalIvaEur        Decimal @db.Decimal(12, 2)
+  headerTotalIncidenciaEur Decimal @db.Decimal(12, 2)
 
   // ── Linha ─────────────────────────────────────────────────────
-  externalCodigoId            Int
+  externalCodigoId     Int
   /// Qt enviada ao fornecedor (decisão operacional, momento da emissão).
-  quantidadeEnviada           Int
+  quantidadeEnviada    Int
   /// Qt aceite pelo fornecedor após resolução. = 0 enquanto estado='P'.
-  quantidadeRecebida          Int
-  bonus                       Int?
+  quantidadeRecebida   Int
+  bonus                Int?
   /// dbo.[Devolucao Detalhe].[Motivo] → dbo.Motivos (FK declarada).
-  motivoId                    Int?
-  iva                         Decimal  @db.Decimal(4, 2)
+  motivoId             Int?
+  iva                  Decimal   @db.Decimal(4, 2)
   /// dbo.[Devolucao Detalhe].[PVP_EUR].
-  precoVendaPublicoEur        Decimal? @db.Decimal(8, 2)
+  precoVendaPublicoEur Decimal?  @db.Decimal(8, 2)
   /// dbo.[Devolucao Detalhe].[PVF_EUR]. UNITÁRIO (PVF c/ desconto).
-  pvfEurUnit                  Decimal? @db.Decimal(8, 2)
+  pvfEurUnit           Decimal?  @db.Decimal(8, 2)
   /// dbo.[Devolucao Detalhe].[Valor]. **TOTAL DA LINHA**
   /// (Qt Enviada × PVF_EUR). Validado rev24 pelas amostras 4.2.
   /// Atenção: semântica diferente de StagingCompraRawLine.valorEurUnit.
-  valorEurTotal               Decimal? @db.Decimal(9, 2)
-  validade                    DateTime?
-  lote                        String?
+  valorEurTotal        Decimal?  @db.Decimal(9, 2)
+  validade             DateTime?
+  lote                 String?
   /// dbo.[Devolucao Detalhe].[Recepcao_Origem]. Texto livre não-estruturado
   /// (ex: "Factura 26385870"). Captura mas não permite JOIN à recepção
   /// original. Auditoria de custo-de-origem ficaria deferida para outra fase.
-  recepcaoOrigemText          String?
-  recepcaoOrigemData          DateTime?
+  recepcaoOrigemText   String?
+  recepcaoOrigemData   DateTime?
 
-  ingestedAt                  DateTime @default(now())
-  ingestBatchId               String
+  ingestedAt    DateTime @default(now())
+  ingestBatchId String
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
@@ -1521,21 +1553,21 @@ model StagingDevolucaoFornecedorRawLine {
 ///   · Sem retenção automática — opera com 1 row por dia × kind, ou
 ///     seja ~3 rows/dia × tenant. 12 meses = ~1k rows. Append-only.
 model PipelineRun {
-  id           String   @id @default(cuid())
-  farmaciaId   String
-  kind         String
-  startedAt    DateTime @default(now())
-  finishedAt   DateTime?
+  id             String    @id @default(cuid())
+  farmaciaId     String
+  kind           String
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
   /// "RUNNING" | "OK" | "ERROR" | "ABORTED"
-  status       String   @default("RUNNING")
+  status         String    @default("RUNNING")
   /// Período coberto. YYYY-MM-DD para daily-*, YYYY-MM para aggregate.
-  dateRef      String?
-  durationMs   Int?
-  errorMessage String?
+  dateRef        String?
+  durationMs     Int?
+  errorMessage   String?
   /// JSON estruturado — ver lib/pipeline/types.ts para shape.
-  details      Json     @default("{}")
+  details        Json      @default("{}")
   /// "agent" | "operator" | "admin" | "scheduler"
-  triggeredBy  String   @default("agent")
+  triggeredBy    String    @default("agent")
   /// Chave determinística enviada pelo agent (ex:
   /// `daily-pipeline:<farmaciaId>:<dateRef>:<startedAt-iso>`). Quando
   /// presente, /api/admin/pipeline/record faz upsert por esta chave em
@@ -1543,8 +1575,8 @@ model PipelineRun {
   /// duplicariam o audit log. Opcional para back-compat com agents
   /// antigos que não enviam.
   idempotencyKey String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
@@ -1696,4 +1728,133 @@ model OrderExportAudit {
 
   @@index([outboxId, at])
   @@index([status, at])
+}
+
+//////////////////////////////////////////////////////
+// MOVIMENTO ARTIGO (canonical, StocksMov-derived)
+//////////////////////////////////////////////////////
+
+/// Movimento canónico de stock por artigo, derivado 1:1 de
+/// `dbo.StocksMov` no SPharm ERP (audit rev32). Substitui semanticamente
+/// a união ad-hoc de Venda/Compra/Devolucao no extrato; as tabelas
+/// legadas permanecem para dashboard/analytics até deprecação futura.
+///
+/// Granularidade: 1 row por StocksMovID. PK natural compósita
+/// `(farmaciaId, externalMovId)` garante idempotência do upload e do
+/// backfill — re-correr a mesma janela produz UPDATE, não duplica.
+///
+/// Cada linha tem exactamente 1 das 6 colunas FK populadas (origem do
+/// movimento). O classificador `lib/movimento-classifier.ts` mapeia
+/// essa FK + enrichment de Cab.Motivo/TipoDoc → `tipo`.
+///
+/// `existenciaApos` é o running balance pós-movimento (StocksMov.Existencia
+/// no ERP). Permite reconstruir "stock antes/depois" sem inventar dados.
+model MovimentoArtigo {
+  id                String  @id @default(cuid())
+  farmaciaId        String
+  /// dbo.StocksMov.StocksMovID. PK natural ERP — base da idempotência.
+  externalMovId     Int
+  /// CodigoID do ERP serializado para string (preserva valores acima
+  /// de 2^53). Resolução para `produtoId` faz-se a jusante via
+  /// ProdutoFarmacia.externalProductId; null quando produto não
+  /// existe em catálogo (orfão).
+  externalProductId String
+  produtoId         String?
+
+  /// dbo.StocksMov.DataMov. Timestamp do movimento (não a data SAFT).
+  dataMovimento DateTime
+  tipo          TipoMovimentoArtigo
+
+  /// dbo.StocksMov.Qtd (assinado: negativo = saída). Preserva o sinal
+  /// para reconciliação fiel; UI converte a |value| + direcao.
+  quantidade      Int
+  quantidadeBonus Int     @default(0)
+  /// dbo.StocksMov.Existencia. Running balance APÓS este movimento.
+  existenciaApos  Int
+  custoUnitario   Decimal @db.Decimal(12, 4)
+  /// dbo.StocksMov.OldPMC.
+  pmcAnterior     Decimal @db.Decimal(12, 4)
+  /// dbo.StocksMov.NovoPMC.
+  pmcNovo         Decimal @db.Decimal(12, 4)
+  armazemId       Int
+
+  // ── FK origem (exactamente 1 populada em 99,9 % das linhas) ────
+  /// dbo.StocksMov.[Detalhe ID] — venda / devolução cliente.
+  externalDetalheId          Int?
+  /// dbo.StocksMov.[Atendimento Susp Detalhe ID] — reserva suspensa.
+  externalSuspDetalheId      Int?
+  /// dbo.StocksMov.[Atendimento Credito Detalhe ID] — venda crédito.
+  externalCreditoDetalheId   Int?
+  /// dbo.StocksMov.[Detalhe  Recp ID] (dois espaços, quirk Softreis) —
+  /// compra / recepção.
+  externalRecpDetalheId      Int?
+  /// dbo.StocksMov.[Devolucao Detalhe ID] — devolução a fornecedor.
+  externalDevolucaoDetalheId Int?
+  /// dbo.StocksMov.MovStocksDetID — movimento interno.
+  externalMovStocksDetId     Int?
+
+  // ── Enrichment via tblMovStocksCab (MOV_INTERNO) ───────────────
+  movStocksCabId          Int?
+  /// dbo.tblMovStocksCab.[Tipo Documento ID]. Fallback do classificador
+  /// quando `MovStocksCabMotivoID IS NULL` (84 % dos Mov_Interno em
+  /// alguns tenants — ex: Segurado audit rev32).
+  movStocksCabTipoDocId   Int?
+  /// dbo.tblMovStocksCab.MovStocksCabMotivoID. ID LOCAL ao tenant
+  /// (Segurado 1..30 ≠ Silveirense 0..65 mesma semântica). Preservado
+  /// para auditoria; classificação canónica vive no campo `tipo`.
+  movStocksCabMotivoId    Int?
+  /// Texto do motivo (dbo.tblMovStocksCab_Motivo.Motivo) já resolvido
+  /// no agent — o classificador trabalha sobre este texto normalizado.
+  movStocksCabMotivoTexto String?
+  /// 'N' = Normal, 'A' = Anulado. Anulados ficam visíveis no extrato
+  /// (UI pinta cinza) com `tipo` regular; permite auditoria total.
+  movStocksCabSituacao    String?
+  movStocksCabUserId      Int?
+  movStocksCabPosto       Int?
+  movStocksCabNDocExterno String?
+
+  // ── Enrichment via Atendimento (VENDA / DEVOLUCAO_CLIENTE) ────
+  /// dbo.Atendimento Detalhe → Atendimento.[Atendimento ID].
+  externalSaleId  Int?
+  /// dbo.Atendimento.[Tipo Documento ID]: 7=VENDA, 104/27=DEV_CLIENTE,
+  /// 2=VENDA (raro). Usado pelo classificador para sub-tipar VENDA vs
+  /// DEVOLUCAO_CLIENTE entre os Stocksmov que partilham FK [Detalhe ID].
+  tipoDocumentoId Int?
+
+  ingestRunId String?
+  ingestedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  produto  Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+
+  /// Idempotência: re-upload da mesma janela UPDATE-a em vez de duplicar.
+  @@unique([farmaciaId, externalMovId])
+  @@index([farmaciaId, externalProductId, dataMovimento])
+  @@index([farmaciaId, dataMovimento, tipo])
+  @@index([farmaciaId, tipo, dataMovimento])
+  @@index([produtoId, dataMovimento])
+  @@index([farmaciaId, movStocksCabId])
+  @@index([ingestRunId])
+}
+
+/// Staging mirror raw de `dbo.StocksMov + JOINs`. 1 row por POST do
+/// agent; preservado para auditoria post-mortem e re-classificação se
+/// o classificador mudar. Sem FKs ao catálogo — é um snapshot bruto.
+/// Cleanup é direccionado por `ingestRunId`.
+model IngestStocksMovRaw {
+  id            BigInt   @id @default(autoincrement())
+  farmaciaId    String
+  externalMovId Int
+  /// Payload completo da linha StocksMov + JOINs (Cab/Det/Motivo/Atendimento).
+  /// O classificador trabalha sobre este JSON; útil para replay.
+  payload       Json
+  ingestRunId   String
+  ingestedAt    DateTime @default(now())
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([farmaciaId, externalMovId, ingestRunId])
+  @@index([farmaciaId, ingestRunId])
+  @@index([ingestedAt])
 }

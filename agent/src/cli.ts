@@ -59,6 +59,7 @@ import {
   devolucoesFornecedorUpload,
 } from "./commands/devolucoes-fornecedor.js";
 import { movimentosAudit } from "./commands/movimentos-audit.js";
+import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -191,6 +192,14 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "movimentos-audit": {
     run: movimentosAudit,
     desc: "Auditoria ÚNICA read-only do universo de movimentos (StocksMov + relacionadas). Gera .md+.json em ./run/.",
+  },
+  "stocksmov-dry-run": {
+    run: stocksmovDryRun,
+    desc: "Block B1: read-only StocksMov + classify local. Sumário por tipo + cobertura DESCONHECIDO + top motivos. SEM POST.",
+  },
+  "stocksmov-upload": {
+    run: stocksmovUpload,
+    desc: "Block B2: POST /api/ingest/v1/movimentos. Paginado por StocksMovID. Idempotente por (farmaciaId, externalMovId). --from/--to[/--since-id].",
   },
   health: {
     run: health,

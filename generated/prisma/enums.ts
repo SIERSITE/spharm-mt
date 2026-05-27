@@ -225,6 +225,25 @@ export const EstadoInventario = {
 export type EstadoInventario = (typeof EstadoInventario)[keyof typeof EstadoInventario]
 
 
+export const TipoMovimentoArtigo = {
+  VENDA: 'VENDA',
+  DEVOLUCAO_CLIENTE: 'DEVOLUCAO_CLIENTE',
+  VENDA_CREDITO: 'VENDA_CREDITO',
+  RESERVA_SUSPENSA: 'RESERVA_SUSPENSA',
+  COMPRA: 'COMPRA',
+  DEVOLUCAO_FORNECEDOR: 'DEVOLUCAO_FORNECEDOR',
+  INVENTARIO: 'INVENTARIO',
+  AJUSTE: 'AJUSTE',
+  QUEBRA: 'QUEBRA',
+  PERDA: 'PERDA',
+  TRANSFERENCIA_ENTRADA: 'TRANSFERENCIA_ENTRADA',
+  TRANSFERENCIA_SAIDA: 'TRANSFERENCIA_SAIDA',
+  DESCONHECIDO: 'DESCONHECIDO'
+} as const
+
+export type TipoMovimentoArtigo = (typeof TipoMovimentoArtigo)[keyof typeof TipoMovimentoArtigo]
+
+
 export const AcquisitionJobStatus = {
   PENDING: 'PENDING',
   IN_PROGRESS: 'IN_PROGRESS',

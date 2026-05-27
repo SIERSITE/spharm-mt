@@ -23,7 +23,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 export type PipelineState = "ok" | "stale" | "empty" | "not-implemented";
 
 export type PipelineRow = {
-  key: "vendas" | "compras" | "devolucoes" | "ajustes" | "inventario";
+  key: "vendas" | "compras" | "devolucoes" | "ajustes" | "inventario" | "movimentos";
   label: string;
   state: PipelineState;
   /** Linhas em tabelas final (Compra, Devolucao, AjusteStock, LinhaInventario) ou agregada (VendaMensal). */
@@ -52,7 +52,7 @@ function fmtDay(d: Date | null): string {
 
 export async function getPipelineFreshness(prisma: PrismaClient): Promise<PipelineRow[]> {
   // Uma única round-trip-ish: queries em paralelo, depois compõe.
-  const [vendasRaw, vendaMensal, compraFinal, compraStg, devFinal, devStg, ajustes, linhasInv] = await Promise.all([
+  const [vendasRaw, vendaMensal, compraFinal, compraStg, devFinal, devStg, ajustes, linhasInv, movs, farmaciasCanonical] = await Promise.all([
     prisma.$queryRaw<Array<{ n: bigint; m: Date | null }>>(
       Prisma.sql`SELECT COUNT(*)::bigint n, MAX("dataVenda") m FROM "IngestVendaLinhaRaw"`,
     ),
@@ -76,6 +76,18 @@ export async function getPipelineFreshness(prisma: PrismaClient): Promise<Pipeli
     ),
     prisma.$queryRaw<Array<{ n: bigint; m: Date | null }>>(
       Prisma.sql`SELECT COUNT(*)::bigint n, MAX(i."dataInventario") m FROM "LinhaInventario" l JOIN "Inventario" i ON i.id = l."inventarioId"`,
+    ),
+    // Block D3 — MovimentoArtigo (canónico StocksMov). NULL/0 quando
+    // nada foi ingerido ainda (pré-rev33 ou tenant a aguardar bootstrap).
+    prisma.$queryRaw<Array<{ n: bigint; m: Date | null; desc: bigint }>>(
+      Prisma.sql`SELECT COUNT(*)::bigint n, MAX("dataMovimento") m, COUNT(*) FILTER (WHERE "tipo" = 'DESCONHECIDO')::bigint desc FROM "MovimentoArtigo"`,
+    ),
+    // Contagem de farmácias com a feature flag activa (drives state).
+    prisma.$queryRaw<Array<{ active: bigint; total: bigint }>>(
+      Prisma.sql`SELECT
+        COUNT(*) FILTER (WHERE "useMovimentosCanonical" = true)::bigint AS active,
+        COUNT(*)::bigint AS total
+      FROM "Farmacia" WHERE "estado" = 'ATIVO' AND "nome" <> 'Farmácia Teste'`,
     ),
   ]);
 
@@ -148,6 +160,29 @@ export async function getPipelineFreshness(prisma: PrismaClient): Promise<Pipeli
   const invState: PipelineState = invN === 0 ? "not-implemented" : "ok";
   const invHint = invN === 0 ? "pipeline não implementada (Inventario pendente)" : `até ${fmtDay(linhasInv[0].m)}`;
 
+  // Movimentos (canónico StocksMov — Block D3, rev33)
+  const movN = Number(movs[0].n);
+  const movMax = movs[0].m;
+  const movDesc = Number(movs[0].desc);
+  const movDescPct = movN > 0 ? (movDesc / movN) * 100 : 0;
+  const flagActive = Number(farmaciasCanonical[0].active);
+  const flagTotal = Number(farmaciasCanonical[0].total);
+  let movState: PipelineState;
+  let movHint: string;
+  if (movN === 0) {
+    movState = "not-implemented";
+    movHint = "pipeline canónica pronta, sem dados (correr stocksmov-upload)";
+  } else if (flagActive === 0) {
+    movState = "empty"; // dados existem mas nenhuma farmácia tem a flag activa
+    movHint = `até ${fmtDay(movMax)} · ${movN.toLocaleString()} rows · flag inactiva (${flagTotal} farmácias)`;
+  } else {
+    movState = movDescPct >= 1 ? "stale" : "ok";
+    movHint =
+      `até ${fmtDay(movMax)} · ${movN.toLocaleString()} rows · ` +
+      `flag activa em ${flagActive}/${flagTotal} farmácias · ` +
+      `DESC ${movDescPct.toFixed(2)}%`;
+  }
+
   return [
     {
       key: "vendas",
@@ -203,6 +238,17 @@ export async function getPipelineFreshness(prisma: PrismaClient): Promise<Pipeli
       stagingMaxData: null,
       staleDays: null,
       hint: invHint,
+    },
+    {
+      key: "movimentos",
+      label: "Movimentos (canónico)",
+      state: movState,
+      finalRows: movN,
+      stagingRows: 0,
+      finalMaxData: movMax,
+      stagingMaxData: null,
+      staleDays: null,
+      hint: movHint,
     },
   ];
 }

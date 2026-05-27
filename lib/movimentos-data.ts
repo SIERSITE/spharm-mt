@@ -181,6 +181,8 @@ async function resolveFarmaciaIds(
 ): Promise<{
   ids: string[];
   nomeById: Map<string, string>;
+  canonicalIds: string[];
+  legacyIds: string[];
 }> {
   const farmacias = await prisma.farmacia.findMany({
     where: {
@@ -190,12 +192,146 @@ async function resolveFarmaciaIds(
         ? { id: { in: filters.farmaciaIds } }
         : {}),
     },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, useMovimentosCanonical: true },
   });
   return {
     ids: farmacias.map((f) => f.id),
     nomeById: new Map(farmacias.map((f) => [f.id, f.nome])),
+    canonicalIds: farmacias.filter((f) => f.useMovimentosCanonical).map((f) => f.id),
+    legacyIds: farmacias.filter((f) => !f.useMovimentosCanonical).map((f) => f.id),
   };
+}
+
+/**
+ * Mapping canónico TipoMovimentoArtigo (Prisma) → MovimentoTipo (UI).
+ * Preserva o conjunto existente de chips/categorias do extrato; nada
+ * de novo aparece sem o UI ter sido actualizado.
+ */
+function mapCanonicalTipo(
+  tipo: string,
+  qtd: number,
+): { tipo: MovimentoTipo; tipoLabelOverride?: string } {
+  switch (tipo) {
+    case "VENDA":
+    case "VENDA_CREDITO":
+      return { tipo: "VENDA" };
+    case "DEVOLUCAO_CLIENTE":
+      return { tipo: "DEVOLUCAO_CLIENTE" };
+    case "COMPRA":
+      return { tipo: "COMPRA" };
+    case "DEVOLUCAO_FORNECEDOR":
+      return { tipo: "DEVOLUCAO_FORNECEDOR" };
+    case "INVENTARIO":
+      return { tipo: "INVENTARIO" };
+    case "QUEBRA":
+      return { tipo: "QUEBRA" };
+    case "PERDA":
+      return { tipo: "PERDA" };
+    case "AJUSTE":
+      // Sinal decide para conservar a semântica visual da UI antiga.
+      return { tipo: qtd > 0 ? "AJUSTE_POSITIVO" : qtd < 0 ? "AJUSTE_NEGATIVO" : "AJUSTE_OUTRO" };
+    case "TRANSFERENCIA_ENTRADA":
+      return { tipo: "AJUSTE_POSITIVO", tipoLabelOverride: "Transferência (entrada)" };
+    case "TRANSFERENCIA_SAIDA":
+      return { tipo: "AJUSTE_NEGATIVO", tipoLabelOverride: "Transferência (saída)" };
+    case "RESERVA_SUSPENSA":
+      return { tipo: "AJUSTE_OUTRO", tipoLabelOverride: "Reserva suspensa" };
+    case "DESCONHECIDO":
+    default:
+      return { tipo: "AJUSTE_OUTRO", tipoLabelOverride: "Movimento (desconhecido)" };
+  }
+}
+
+/**
+ * Lê MovimentoArtigo para `produtoId` × `farmaciaIds`. Devolve já no
+ * shape `MovimentoRow[]`. Ordenação é feita a jusante quando merged
+ * com legacy.
+ *
+ * Volume típico: ~30 linhas/produto/mês × N farmácias × janela. Janela
+ * default 30 dias = <1000 linhas — trivial. Janelas longas (24m) podem
+ * chegar a 20k linhas; ainda aceitável para o extrato de UM produto.
+ *
+ * Sem JOINs adicionais — origem (fornecedor) fica null para compras
+ * canónicas porque StocksMov não traz fornecedor (vive em Recepcao
+ * header). Drill-in: página /compras tem o detalhe completo.
+ */
+async function readCanonicalMovimentos(
+  prisma: PrismaClient,
+  produtoId: string,
+  farmaciaIds: string[],
+  effFrom: Date,
+  effTo: Date,
+  nomeById: Map<string, string>,
+): Promise<MovimentoRow[]> {
+  if (farmaciaIds.length === 0) return [];
+  const rows = await prisma.movimentoArtigo.findMany({
+    where: {
+      produtoId,
+      farmaciaId: { in: farmaciaIds },
+      dataMovimento: { gte: effFrom, lte: effTo },
+    },
+    select: {
+      id: true,
+      farmaciaId: true,
+      dataMovimento: true,
+      tipo: true,
+      quantidade: true,
+      existenciaApos: true,
+      custoUnitario: true,
+      movStocksCabNDocExterno: true,
+      movStocksCabMotivoTexto: true,
+      movStocksCabSituacao: true,
+      externalSaleId: true,
+      externalRecpDetalheId: true,
+      externalDevolucaoDetalheId: true,
+    },
+    orderBy: { dataMovimento: "desc" },
+  });
+
+  return rows.map((r): MovimentoRow => {
+    const qtd = r.quantidade;
+    const { tipo, tipoLabelOverride } = mapCanonicalTipo(r.tipo, qtd);
+    const direcao =
+      r.tipo === "TRANSFERENCIA_ENTRADA"
+        ? "ENTRADA"
+        : r.tipo === "TRANSFERENCIA_SAIDA"
+          ? "SAIDA"
+          : TIPO_DIRECAO[tipo];
+    const documento =
+      r.movStocksCabNDocExterno ??
+      (r.externalSaleId != null
+        ? `#${r.externalSaleId}`
+        : r.externalRecpDetalheId != null
+          ? `Rec #${r.externalRecpDetalheId}`
+          : r.externalDevolucaoDetalheId != null
+            ? `Dev #${r.externalDevolucaoDetalheId}`
+            : null);
+    const existencia = r.existenciaApos;
+    const stockDepois = existencia;
+    const stockAntes = existencia - qtd;
+    const valor = Math.abs(qtd) * toF(r.custoUnitario);
+    const obsParts: string[] = [];
+    if (r.movStocksCabMotivoTexto) obsParts.push(r.movStocksCabMotivoTexto.trim());
+    if (r.movStocksCabSituacao === "A") obsParts.push("[ANULADO]");
+    return {
+      key: `mov:${r.id}`,
+      data: r.dataMovimento.toISOString(),
+      farmaciaId: r.farmaciaId,
+      farmacia: nomeById.get(r.farmaciaId) ?? "—",
+      tipo,
+      tipoLabel: tipoLabelOverride ?? TIPO_LABELS[tipo],
+      direcao,
+      documento,
+      quantidade: Math.abs(qtd),
+      valor: valor > 0 ? Math.round(valor * 100) / 100 : null,
+      origem: null,
+      stockAntes,
+      stockDepois,
+      utilizador: null,
+      observacao: obsParts.length > 0 ? obsParts.join(" ") : null,
+      agregado: false,
+    };
+  });
 }
 
 /**
@@ -214,8 +350,9 @@ export async function getMovimentosProduto(
   });
   if (!produto) return [];
 
-  // 2. Resolver farmácias
-  const { ids: farmaciaIds, nomeById } = await resolveFarmaciaIds(prisma, filters);
+  // 2. Resolver farmácias + split por feature flag
+  const { ids: farmaciaIds, nomeById, canonicalIds, legacyIds } =
+    await resolveFarmaciaIds(prisma, filters);
   if (farmaciaIds.length === 0) return [];
 
   // 3. Janela temporal EFECTIVA — aplicada a TODOS os tipos de movimento.
@@ -231,10 +368,30 @@ export async function getMovimentosProduto(
   effTo.setHours(23, 59, 59, 999);
   const dateFilter = { gte: effFrom, lte: effTo };
 
-  // 4. Queries em paralelo — só para o produto em questão, dentro da janela.
+  // 4. Canónico (flag=true) lê de MovimentoArtigo; legacy (flag=false) lê
+  // de Venda/Compra/Devolucao + raw. As duas streams MERGE no fim — sem
+  // duplicar para a mesma farmácia (mutuamente exclusivas pela flag).
+  // Block D1 — feature flag rollout incremental.
+  const canonicalRows = await readCanonicalMovimentos(
+    prisma,
+    produto.id,
+    canonicalIds,
+    effFrom,
+    effTo,
+    nomeById,
+  );
+
+  // Se TODAS as farmácias estão em canónico, salta legacy reads.
+  if (legacyIds.length === 0) {
+    const filtered = applyTipoFilter(canonicalRows, filters.tipos);
+    filtered.sort((a, b) => b.data.localeCompare(a.data));
+    return filtered;
+  }
+
+  // 5. Queries legacy em paralelo — só para o produto, dentro da janela.
   const commonWhere = {
     produtoId: produto.id,
-    farmaciaId: { in: farmaciaIds },
+    farmaciaId: { in: legacyIds },
     data: dateFilter,
   };
 
@@ -295,7 +452,7 @@ export async function getMovimentosProduto(
       where: {
         produtoId: produto.id,
         inventario: {
-          farmaciaId: { in: farmaciaIds },
+          farmaciaId: { in: legacyIds },
           dataInventario: dateFilter,
         },
       },
@@ -343,7 +500,7 @@ export async function getMovimentosProduto(
         WHERE "produtoId" = ${produto.id}
           AND "tipoDocumentoClass" = 'VENDA'
           AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-          AND "farmaciaId" = ANY(${farmaciaIds})
+          AND "farmaciaId" = ANY(${legacyIds})
         GROUP BY 1, 2
         ORDER BY 1 DESC
       `,
@@ -364,7 +521,7 @@ export async function getMovimentosProduto(
       WHERE "produtoId" = ${produto.id}
         AND "tipoDocumentoClass" = 'VENDA'
         AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-        AND "farmaciaId" = ANY(${farmaciaIds})
+        AND "farmaciaId" = ANY(${legacyIds})
       GROUP BY 2, 3, 4
       ORDER BY 3 DESC, 4 DESC
     `);
@@ -390,7 +547,7 @@ export async function getMovimentosProduto(
     WHERE "produtoId" = ${produto.id}
       AND "tipoDocumentoClass" = 'DEVOLUCAO_ANULACAO'
       AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-      AND "farmaciaId" = ANY(${farmaciaIds})
+      AND "farmaciaId" = ANY(${legacyIds})
     GROUP BY 1, 2
     ORDER BY 3 DESC
   `);
@@ -609,14 +766,26 @@ export async function getMovimentosProduto(
     });
   }
 
-  // 6. Filtrar por tipos pedidos (aplicado em JS — é barato sobre o
-  //    universo já reduzido por produto/farmácia/data)
-  const tipoSet =
-    filters.tipos && filters.tipos.length > 0 ? new Set(filters.tipos) : null;
-  const filtered = tipoSet ? rows.filter((r) => tipoSet.has(r.tipo)) : rows;
+  // 6. Merge das duas streams (canónico + legacy) — farmácias mutuamente
+  //    exclusivas pela flag, não há duplicação.
+  rows.push(...canonicalRows);
 
-  // 7. Ordenar por data desc
+  // 7. Filtrar por tipos pedidos (aplicado em JS — é barato sobre o
+  //    universo já reduzido por produto/farmácia/data)
+  const filtered = applyTipoFilter(rows, filters.tipos);
+
+  // 8. Ordenar por data desc
   filtered.sort((a, b) => b.data.localeCompare(a.data));
 
   return filtered;
+}
+
+/** Helper extraído para o caller poder filtrar a stream canónica isolada. */
+function applyTipoFilter(
+  rows: MovimentoRow[],
+  tipos: MovimentoTipo[] | undefined,
+): MovimentoRow[] {
+  if (!tipos || tipos.length === 0) return rows;
+  const set = new Set(tipos);
+  return rows.filter((r) => set.has(r.tipo));
 }

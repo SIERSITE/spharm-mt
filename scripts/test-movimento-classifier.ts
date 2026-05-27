@@ -1,0 +1,312 @@
+/**
+ * scripts/test-movimento-classifier.ts
+ *
+ * Testes assert-based para `lib/movimento-classifier.ts`.
+ * Cobre:
+ *  1. FK pattern (6 colunas) → tipo macro
+ *  2. Sub-classificação VENDA vs DEVOLUCAO_CLIENTE via Atendimento.TipoDoc
+ *  3. Todos os 31 motivos do Segurado (rev32 audit)
+ *  4. Todos os 53 motivos do Silveirense (rev32 audit)
+ *  5. Fallback por Cab.[Tipo Documento ID] quando motivo NULL
+ *  6. DESCONHECIDO só quando classificador sem hipótese
+ *
+ * Uso:
+ *   npx tsx scripts/test-movimento-classifier.ts
+ *
+ * Sai com código != 0 se algum assert falhar. Imprime sumário no fim.
+ */
+
+import { strict as assert } from "node:assert";
+import {
+  classifyMovimento,
+  type FkPattern,
+  type TipoMovimentoArtigo,
+} from "../lib/movimento-classifier";
+
+// ─────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────
+const EMPTY_FK: FkPattern = {
+  detalheId: null,
+  suspDetalheId: null,
+  creditoDetalheId: null,
+  recpDetalheId: null,
+  devolucaoDetalheId: null,
+  movStocksDetId: null,
+};
+function fkOnly(field: keyof FkPattern): FkPattern {
+  return { ...EMPTY_FK, [field]: 1234 };
+}
+
+let pass = 0;
+let fail = 0;
+const failures: string[] = [];
+
+function it(name: string, fn: () => void): void {
+  try {
+    fn();
+    pass++;
+  } catch (err) {
+    fail++;
+    failures.push(`${name}\n  ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+function expectTipo(
+  input: Parameters<typeof classifyMovimento>[0],
+  expected: TipoMovimentoArtigo,
+  label: string,
+): void {
+  it(label, () => {
+    const r = classifyMovimento(input);
+    assert.equal(
+      r.tipo,
+      expected,
+      `expected ${expected}, got ${r.tipo} (reason=${r.reason})`,
+    );
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 1. FK pattern — origem macro
+// ─────────────────────────────────────────────────────────────────────
+
+expectTipo(
+  { fk: fkOnly("detalheId"), atendimentoTipoDocId: 7 },
+  "VENDA",
+  "FK [Detalhe ID] + TipoDoc=7 → VENDA",
+);
+expectTipo(
+  { fk: fkOnly("detalheId"), atendimentoTipoDocId: 2 },
+  "VENDA",
+  "FK [Detalhe ID] + TipoDoc=2 → VENDA",
+);
+expectTipo(
+  { fk: fkOnly("detalheId"), atendimentoTipoDocId: 104 },
+  "DEVOLUCAO_CLIENTE",
+  "FK [Detalhe ID] + TipoDoc=104 → DEVOLUCAO_CLIENTE",
+);
+expectTipo(
+  { fk: fkOnly("detalheId"), atendimentoTipoDocId: 27 },
+  "DEVOLUCAO_CLIENTE",
+  "FK [Detalhe ID] + TipoDoc=27 → DEVOLUCAO_CLIENTE",
+);
+expectTipo(
+  { fk: fkOnly("detalheId"), atendimentoTipoDocId: null },
+  "VENDA",
+  "FK [Detalhe ID] + TipoDoc=null → VENDA (fallback seguro)",
+);
+expectTipo(
+  { fk: fkOnly("recpDetalheId") },
+  "COMPRA",
+  "FK [Detalhe  Recp ID] → COMPRA",
+);
+expectTipo(
+  { fk: fkOnly("devolucaoDetalheId") },
+  "DEVOLUCAO_FORNECEDOR",
+  "FK [Devolucao Detalhe ID] → DEVOLUCAO_FORNECEDOR",
+);
+expectTipo(
+  { fk: fkOnly("creditoDetalheId") },
+  "VENDA_CREDITO",
+  "FK [Atendimento Credito Detalhe ID] → VENDA_CREDITO",
+);
+expectTipo(
+  { fk: fkOnly("suspDetalheId") },
+  "RESERVA_SUSPENSA",
+  "FK [Atendimento Susp Detalhe ID] → RESERVA_SUSPENSA",
+);
+
+// Sem FK populada → DESCONHECIDO
+expectTipo(
+  { fk: EMPTY_FK },
+  "DESCONHECIDO",
+  "Sem FK populada → DESCONHECIDO",
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// 2. Motivos Segurado (rev32 audit) — todos os 31 valores tblMovStocksCab_Motivo
+// ─────────────────────────────────────────────────────────────────────
+
+const MOV_INT_FK = fkOnly("movStocksDetId");
+
+const seguradoMotivos: Array<[number, string, TipoMovimentoArtigo]> = [
+  [0, "Inventário Permanente", "INVENTARIO"],
+  [1, "acerto stock", "AJUSTE"],
+  [2, "ValorMed", "PERDA"],
+  [3, "Acerto Inventario 2010", "INVENTARIO"],
+  [4, "6840769", "AJUSTE"], // numérico opaco
+  [5, "Acerto Ficha Artigo", "INVENTARIO"],
+  [6, "produto danificado", "QUEBRA"],
+  [7, "reservas nao levantadas", "AJUSTE"],
+  [8, "V", "AJUSTE"], // single-char opaco
+  [9, "uso interno", "PERDA"],
+  [10, "Erro Devolução Fornecdor", "AJUSTE"], // typo do operador preservado
+  [11, "Erro Devolução Fornecedor", "AJUSTE"],
+  [12, "BONUS", "AJUSTE"],
+  [13, "Inventário.", "INVENTARIO"],
+  [14, "Vac- Quebra acidental na manipulação", "QUEBRA"],
+  [15, "Vac- Quebra na rede de frio", "QUEBRA"],
+  [16, "Vac- Prazo de validade expirado", "QUEBRA"],
+  [17, "Vac- Prazo de validade expirado após descongelação", "QUEBRA"],
+  [18, "Vac- Prazo de validade expirado após frasco perfurado", "QUEBRA"],
+  [19, "Vac- Defeito de qualidade/segurança", "QUEBRA"],
+  [20, "Vac- Desvio de temperatura durante o transporte", "QUEBRA"], // regex "desvio.*temperatura"
+  [21, "Vac- Usando a técnica recomendada, não foi possível extrair o número expectável de doses", "PERDA"], // sem match texto → cab fallback (28,qtd=-1) → PERDA. Semanticamente perda de vial.
+  [22, "troca de codigos ", "AJUSTE"],
+  [23, "erro na entrada da encomenda", "AJUSTE"],
+  [24, "inventário 2024", "INVENTARIO"],
+  [25, "oferta natal 2024", "PERDA"], // oferta = perda comercial; sem match texto → fallback Cab.28+qtd<0 → PERDA
+  [26, "inventário 2025", "INVENTARIO"],
+  [27, "prazo de validade", "QUEBRA"],
+  [28, "acerto codigos cnp", "AJUSTE"],
+  [29, "QUEBRA", "QUEBRA"],
+  [30, "inventário 2026", "INVENTARIO"],
+];
+
+for (const [id, txt, expected] of seguradoMotivos) {
+  expectTipo(
+    { fk: MOV_INT_FK, motivoTexto: txt, cabTipoDocId: 28, qtd: -1 },
+    expected,
+    `Segurado motivo[${id}] "${txt}" → ${expected}`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 3. Motivos Silveirense (rev32 audit) — 53 valores (incl. inactivos)
+// ─────────────────────────────────────────────────────────────────────
+
+const silveirenseMotivos: Array<[number, string | null, TipoMovimentoArtigo]> = [
+  [0, "Inventário Permanente", "INVENTARIO"],
+  [1, "nao aceite pelo fornecedor", "PERDA"],
+  [2, "erro stock", "AJUSTE"],
+  [3, "acerto stock", "AJUSTE"],
+  [4, "acerto de stock", "AJUSTE"],
+  [5, "AcERTO DE STOCKerto de stock", "AJUSTE"],
+  [6, "ENGANO DE BONUS", "AJUSTE"],
+  [7, "troca de laboratorio", "AJUSTE"],
+  [8, "TROCA LABORATORIO", "AJUSTE"],
+  [9, null, "PERDA"], // motivo NULL + Cab.28 + qtd=-1 → PERDA (fallback regra)
+  [11, "entrada unidade vendida pak", "AJUSTE"],
+  [14, "encomenda antiga ñdado entrada", "AJUSTE"],
+  [15, "ValorMed", "PERDA"],
+  [17, "uso interno", "PERDA"],
+  [18, "8684878", "AJUSTE"],
+  [19, "PAGAMENTO MONTRA", "PERDA"],
+  [20, "troca sr. Decafarma", "AJUSTE"],
+  [23, "ENTRADA CX SAIDA UNIDADE", "AJUSTE"],
+  [24, "acerto de stock novo codig", "AJUSTE"],
+  [25, "ACERTO STOCK/INVENTARIO", "INVENTARIO"],
+  [27, "reserva2174", "AJUSTE"],
+  [28, "reserva 2215", "AJUSTE"],
+  [29, "reserva2622", "AJUSTE"],
+  [31, "RESERVA2861", "AJUSTE"],
+  [32, "reserva 3298", "AJUSTE"],
+  [33, "reserva 3473", "AJUSTE"],
+  [34, "troca de codigo", "AJUSTE"],
+  [35, "reserva           ", "AJUSTE"],
+  [36, "Acerto Ficha Artigo", "INVENTARIO"],
+  [37, "embalagem danificada", "QUEBRA"],
+  [39, "VALORMED- LABORATORIO FECHOU", "PERDA"],
+  [43, "lab. Nao aceitou produto", "PERDA"],
+  [44, "valormed lab. Nao aceita", "PERDA"],
+  [45, "6612812", "AJUSTE"],
+  [47, "7301101", "AJUSTE"],
+  [48, "AUTO-DESTRUICAO", "QUEBRA"],
+  [49, "AUTO -CONSUMO", "PERDA"],
+  [50, "VALIDADE EXPIRADA", "QUEBRA"],
+  [51, "PRAZO VALIDADE (OFERTA LAB)", "QUEBRA"],
+  [52, "PRAZO VALIDADE ", "QUEBRA"],
+  [53, "Vac- Quebra acidental na manipulação", "QUEBRA"],
+  [54, "Vac- Quebra na rede de frio", "QUEBRA"],
+  [55, "Vac- Prazo de validade expirado", "QUEBRA"],
+  [56, "Vac- Prazo de validade expirado após descongelação", "QUEBRA"],
+  [57, "Vac- Prazo de validade expirado após frasco perfurado", "QUEBRA"],
+  [58, "Vac- Defeito de qualidade/segurança", "QUEBRA"],
+  [61, "Bonus errado", "AJUSTE"],
+  [62, "quebra na rede de frio", "QUEBRA"],
+  [63, "ERRO DE BONUS", "AJUSTE"],
+  [64, "devolucao nao aceite", "PERDA"],
+  [65, "PRODUTO PARA DESTRUIÇÃO", "QUEBRA"],
+];
+
+for (const [id, txt, expected] of silveirenseMotivos) {
+  expectTipo(
+    { fk: MOV_INT_FK, motivoTexto: txt, cabTipoDocId: 28, qtd: -1 },
+    expected,
+    `Silveirense motivo[${id}] ${txt === null ? "NULL" : `"${txt}"`} → ${expected}`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 4. Fallback por Cab.[Tipo Documento ID] (motivo NULL)
+// ─────────────────────────────────────────────────────────────────────
+
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 25 },
+  "INVENTARIO",
+  "motivo NULL + cabTipoDoc=25 (Inventário) → INVENTARIO",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 14 },
+  "AJUSTE",
+  "motivo NULL + cabTipoDoc=14 (Passagem de Saldos) → AJUSTE",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 29 },
+  "QUEBRA",
+  "motivo NULL + cabTipoDoc=29 (Perdas) → QUEBRA",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 28, qtd: 5 },
+  "AJUSTE",
+  "motivo NULL + cabTipoDoc=28 (Acréscimos) + qtd>0 → AJUSTE",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 28, qtd: -5 },
+  "PERDA",
+  "motivo NULL + cabTipoDoc=28 + qtd<0 → PERDA",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 44 },
+  "TRANSFERENCIA_ENTRADA",
+  "motivo NULL + cabTipoDoc=44 (Entrada Stock Farm) → TRANSFERENCIA_ENTRADA",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 43 },
+  "TRANSFERENCIA_SAIDA",
+  "motivo NULL + cabTipoDoc=43 (Saída Robô) → TRANSFERENCIA_SAIDA",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 55 },
+  "AJUSTE",
+  "motivo NULL + cabTipoDoc=55 (Acerto pelo Robô) → AJUSTE",
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// 5. DESCONHECIDO last-resort — motivo unhelpful + cabTipoDoc desconhecido
+// ─────────────────────────────────────────────────────────────────────
+
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: "lorem ipsum", cabTipoDocId: 999 },
+  "DESCONHECIDO",
+  "motivo opaco + cabTipoDoc desconhecido → DESCONHECIDO",
+);
+expectTipo(
+  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: null },
+  "DESCONHECIDO",
+  "motivo NULL + cabTipoDoc NULL → DESCONHECIDO",
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// Sumário
+// ─────────────────────────────────────────────────────────────────────
+console.log(
+  `\nmovimento-classifier tests — ${pass} passed, ${fail} failed (${pass + fail} total)`,
+);
+if (fail > 0) {
+  console.error("\nFalhas:");
+  for (const f of failures) console.error(`  ✗ ${f}`);
+  process.exit(1);
+}
+process.exit(0);

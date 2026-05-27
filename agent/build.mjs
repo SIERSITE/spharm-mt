@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "32";
+const AGENT_REV = "33";
 
 function readGitShortCommit() {
   try {
@@ -745,6 +745,134 @@ function writeBatchWrappers() {
   fs.writeFileSync(
     path.join(DIST_ROOT, "run-compras-upload.bat"),
     comprasUploadBat,
+    "utf8"
+  );
+
+  // ── Block B — stocksmov-dry-run + stocksmov-upload (rev33) ────────
+  // Canónico: StocksMov → MovimentoArtigo. Idempotente por StocksMovID.
+  // Dry-run sem confirmação. Upload pede CONFIRMO + intervalo + since-id
+  // opcional (catch-up incremental).
+
+  const stocksmovDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — stocksmov-dry-run (interactivo)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   stocksmov-dry-run — Block B1 (read-only, sem POST)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Le dbo.StocksMov + JOINs ^(Cab/Det/Motivo/Atendimento^) read-only.`,
+    `echo Classifica localmente via lib/movimento-classifier.`,
+    `echo Imprime distribuicao por tipo, top motivos, lista DESCONHECIDO`,
+    `echo e cobertura ^(<1%% esperado^).`,
+    `echo.`,
+    `echo Pre-requisito: run-test-connection.bat OK.`,
+    `echo.`,
+    `echo Formato datas: YYYY-MM-DD`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. Aborta. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. Aborta. & pause & exit /b 1 )`,
+    `echo.`,
+    `node.exe agent.cjs stocksmov-dry-run --from %FROM% --to %TO%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Nada escrito ERP. Nada enviado SaaS.`,
+    `  echo Proximo passo: run-stocksmov-upload.bat ^(mesmo intervalo^)`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-stocksmov-dry-run.bat"),
+    stocksmovDryRunBat,
+    "utf8"
+  );
+
+  const stocksmovUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — stocksmov-upload (interactivo + CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   stocksmov-upload — Block B2 INGEST CANONICO`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar StocksMov para a SaaS SPharm.MT:`,
+    `echo   - UPSERT MovimentoArtigo ^(canonico, 1 row por StocksMovID^)`,
+    `echo   - Snapshot raw em IngestStocksMovRaw ^(replay/auditoria^)`,
+    `echo   - Idempotente por ^(farmaciaId, externalMovId^)`,
+    `echo   - Paginacao por StocksMovID > since-id ^(chunks 50k SQL^)`,
+    `echo.`,
+    `echo NAO toca Venda, Compra, Devolucao, VendaMensal, AjusteStock.`,
+    `echo NAO toca dashboard reads.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo.`,
+    `echo Pre-requisitos:`,
+    `echo   - run-stocksmov-dry-run.bat OK e revisto`,
+    `echo   - run-fornecedores-upload.bat ^(catalogo Fornecedor populado^)`,
+    `echo   - SPHARMMT_FARMACIA configurado`,
+    `echo.`,
+    `echo Formato datas: YYYY-MM-DD`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. & pause & exit /b 1 )`,
+    `set "SINCE=0"`,
+    `set /p "SINCE=Since StocksMovID [0]: "`,
+    `if "%SINCE%"=="" set "SINCE=0"`,
+    `set "BATCH=500"`,
+    `set /p "BATCH=HTTP batch size [500]: "`,
+    `if "%BATCH%"=="" set "BATCH=500"`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vai escrever em MovimentoArtigo + IngestStocksMovRaw ^(SaaS^).`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs stocksmov-upload --from %FROM% --to %TO% --since-id %SINCE% --batch-size %BATCH%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente: re-run com mesmo intervalo nao duplica.`,
+    `  echo MovimentoArtigo populado; verificar feature flag useMovimentosCanonical na farmacia.`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-stocksmov-upload.bat"),
+    stocksmovUploadBat,
     "utf8"
   );
 
@@ -1609,6 +1737,8 @@ function writeReadme() {
     `  run-compras-upload.bat              Fase 1b: POST a /api/ingest/v1/bootstrap/compras (StagingCompraRawLine). CONFIRMO.`,
     `  run-devolucoes-fornecedor-dry-run.bat  Fase 1b: le dbo.Devolucao + dbo.[Devolucao Detalhe]. Estados P/E/R/X. SEM POST.`,
     `  run-devolucoes-fornecedor-upload.bat   Fase 1b: POST a /api/ingest/v1/bootstrap/devolucoes-fornecedor. CONFIRMO.`,
+    `  run-stocksmov-dry-run.bat           Block B1: le dbo.StocksMov + classifica local. Sumario por tipo + DESCONHECIDO. SEM POST.`,
+    `  run-stocksmov-upload.bat            Block B2: POST a /api/ingest/v1/movimentos. Canonico MovimentoArtigo. Idempotente. CONFIRMO.`,
     `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
     `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,

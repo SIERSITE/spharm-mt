@@ -90,7 +90,9 @@ export const ModelName = {
   PipelineRun: 'PipelineRun',
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
-  OrderExportAudit: 'OrderExportAudit'
+  OrderExportAudit: 'OrderExportAudit',
+  MovimentoArtigo: 'MovimentoArtigo',
+  IngestStocksMovRaw: 'IngestStocksMovRaw'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -328,7 +330,8 @@ export const FarmaciaScalarFieldEnum = {
   estado: 'estado',
   dataAdesao: 'dataAdesao',
   dataCriacao: 'dataCriacao',
-  dataAtualizacao: 'dataAtualizacao'
+  dataAtualizacao: 'dataAtualizacao',
+  useMovimentosCanonical: 'useMovimentosCanonical'
 } as const
 
 export type FarmaciaScalarFieldEnum = (typeof FarmaciaScalarFieldEnum)[keyof typeof FarmaciaScalarFieldEnum]
@@ -861,6 +864,57 @@ export const OrderExportAuditScalarFieldEnum = {
 } as const
 
 export type OrderExportAuditScalarFieldEnum = (typeof OrderExportAuditScalarFieldEnum)[keyof typeof OrderExportAuditScalarFieldEnum]
+
+
+export const MovimentoArtigoScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalMovId: 'externalMovId',
+  externalProductId: 'externalProductId',
+  produtoId: 'produtoId',
+  dataMovimento: 'dataMovimento',
+  tipo: 'tipo',
+  quantidade: 'quantidade',
+  quantidadeBonus: 'quantidadeBonus',
+  existenciaApos: 'existenciaApos',
+  custoUnitario: 'custoUnitario',
+  pmcAnterior: 'pmcAnterior',
+  pmcNovo: 'pmcNovo',
+  armazemId: 'armazemId',
+  externalDetalheId: 'externalDetalheId',
+  externalSuspDetalheId: 'externalSuspDetalheId',
+  externalCreditoDetalheId: 'externalCreditoDetalheId',
+  externalRecpDetalheId: 'externalRecpDetalheId',
+  externalDevolucaoDetalheId: 'externalDevolucaoDetalheId',
+  externalMovStocksDetId: 'externalMovStocksDetId',
+  movStocksCabId: 'movStocksCabId',
+  movStocksCabTipoDocId: 'movStocksCabTipoDocId',
+  movStocksCabMotivoId: 'movStocksCabMotivoId',
+  movStocksCabMotivoTexto: 'movStocksCabMotivoTexto',
+  movStocksCabSituacao: 'movStocksCabSituacao',
+  movStocksCabUserId: 'movStocksCabUserId',
+  movStocksCabPosto: 'movStocksCabPosto',
+  movStocksCabNDocExterno: 'movStocksCabNDocExterno',
+  externalSaleId: 'externalSaleId',
+  tipoDocumentoId: 'tipoDocumentoId',
+  ingestRunId: 'ingestRunId',
+  ingestedAt: 'ingestedAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MovimentoArtigoScalarFieldEnum = (typeof MovimentoArtigoScalarFieldEnum)[keyof typeof MovimentoArtigoScalarFieldEnum]
+
+
+export const IngestStocksMovRawScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalMovId: 'externalMovId',
+  payload: 'payload',
+  ingestRunId: 'ingestRunId',
+  ingestedAt: 'ingestedAt'
+} as const
+
+export type IngestStocksMovRawScalarFieldEnum = (typeof IngestStocksMovRawScalarFieldEnum)[keyof typeof IngestStocksMovRawScalarFieldEnum]
 
 
 export const SortOrder = {
