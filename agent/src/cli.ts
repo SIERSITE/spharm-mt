@@ -58,6 +58,7 @@ import {
   devolucoesFornecedorDryRun,
   devolucoesFornecedorUpload,
 } from "./commands/devolucoes-fornecedor.js";
+import { movimentosAudit } from "./commands/movimentos-audit.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -186,6 +187,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "devolucoes-fornecedor-upload": {
     run: devolucoesFornecedorUpload,
     desc: "Fase 1b: POST /api/ingest/v1/bootstrap/devolucoes-fornecedor. Captura P→R via UPSERT idempotente.",
+  },
+  "movimentos-audit": {
+    run: movimentosAudit,
+    desc: "Auditoria ÚNICA read-only do universo de movimentos (StocksMov + relacionadas). Gera .md+.json em ./run/.",
   },
   health: {
     run: health,
