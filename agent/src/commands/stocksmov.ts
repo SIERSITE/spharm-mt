@@ -211,118 +211,444 @@ function numOrNull(v: unknown): number | null {
   return null;
 }
 
-// ── Source query (rev32 audit fechado, rev34 column names corrigidos,
-//    rev36 ERP-parity enrichment) ────────────────────────────────────
+// ── Dynamic schema discovery (rev37) ───────────────────────────────
 //
-// Naming quirks Softreis (validados rev32 audit + bootstrap-dry-run em prod):
-//   · dbo.tblMovStocksCab.[Tipo Documento ID]   — COM "ID"
-//   · dbo.Atendimento.[Tipo Documento]          — SEM "ID"
-//   · dbo.[Atendimento Detalhe].[Detalhe ID]    — PK da tabela (não [Atendimento Detalhe ID])
-//   · dbo.[Atendimento Detalhe].[Atendimento ID] — FK para Atendimento
-//   · dbo.StocksMov.[Detalhe ID]                — FK para [Atendimento Detalhe].[Detalhe ID]
-//   · dbo.StocksMov.[Detalhe  Recp ID]          — 2 espaços (preservar exactamente)
+// rev34 confirmou que nomes Softreis variam por instalação. rev36 caiu
+// neste mesmo padrão: `Atendimento.EntidadeID` é `[Entidade ID]` (com
+// espaço) numa instalação real. Em vez de tentar adivinhar nome por
+// nome (e pagar uma rev por falha), descobrimos TODOS os nomes em
+// runtime via sys.columns no arranque do upload/dry-run e construímos
+// o SQL com o que existe.
 //
-// rev36 assunções (nomes mais prováveis — todos os JOINs são LEFT, falha
-// resolve em NULL no resultado mas FALHA o parser se uma coluna não existir):
-//   · dbo.Atendimento.EntidadeID                 — FK para Entidades
-//   · dbo.Atendimento.[Numero Documento Externo] — string visível ("G/783019")
-//   · dbo.Entidades.EntidadeID + .Nome           — cliente
-//   · dbo.Recepcao_Detalhe.[Detalhe Recp ID]     — PK (espaço único; sm tem 2)
-//   · dbo.Recepcao_Detalhe.RecepcaoID            — FK para Recepcao_Cab
-//   · dbo.Recepcao_Cab.RecepcaoID + .NumeroDocumento + .FornecedorID
-//   · dbo.Recepcao_Cab.NDocExternoFornecedor     — factura externa
-//   · dbo.Devolucao_Detalhe.[Devolucao Detalhe ID] + .DevolucaoID
-//   · dbo.Devolucao_Cab.DevolucaoID + .NumeroDocumento + .FornecedorID
-//   · dbo.Devolucao_Cab.NDocExternoFornecedor
-//   · dbo.Fornecedores.FornecedorID + .Nome
-//   · dbo.Armazens.ArmazemID + .Designacao
-//   · dbo.Operadores.[User ID] + .Nome           — via cab.[User ID]
-//   · dbo.StocksMov.BonusEnt / BonusSai / ExistenciaBonus
-//   · dbo.StocksMov.PrecoVenda / ValorVenda
+// Mesmo padrão do `movimentos-audit` (rev32) e `discover` — uma única
+// query a sys.columns para todas as 9 tabelas candidatas, devolvendo
+// o que está presente. Para cada coluna lógica que precisamos,
+// pickCol() escolhe a primeira variante que existe; se nenhuma existir,
+// emite NULL no SELECT (o JOIN também é skipped).
 //
-// Se algum nome falhar em produção, patch a coluna específica em rev37 sem
-// alterar o resto.
+// Nomes confirmados rev34 (não-dinâmicos, hardcoded com segurança):
+//   · dbo.tblMovStocksCab.[Tipo Documento ID]
+//   · dbo.Atendimento.[Tipo Documento]
+//   · dbo.[Atendimento Detalhe].[Detalhe ID] / [Atendimento ID]
+//   · dbo.StocksMov.[Detalhe ID] / [Detalhe  Recp ID] (2 espaços)
+//   · dbo.tblMovStocksDet, tblMovStocksCab, tblMovStocksCab_Motivo
+//
+// Tudo o que rev36 adicionou passa por descoberta.
 
-const SOURCE_SQL = `
-  SELECT TOP (@limit)
-    sm.StocksMovID,
-    sm.CodigoID,
-    sm.DataMov,
-    sm.Qtd,
-    sm.QtdBonus,
-    sm.Existencia,
-    sm.ValorCustoUnit,
-    sm.OldPMC,
-    sm.NovoPMC,
-    sm.StocksMovArmazemID,
-    sm.BonusEnt                           AS bonusEnt,
-    sm.BonusSai                           AS bonusSai,
-    sm.ExistenciaBonus                    AS existenciaBonus,
-    sm.PrecoVenda                         AS precoVenda,
-    sm.ValorVenda                         AS valorVenda,
-    sm.[Detalhe ID]                       AS detalheId,
-    sm.[Atendimento Susp Detalhe ID]      AS suspDetalheId,
-    sm.[Atendimento Credito Detalhe ID]   AS creditoDetalheId,
-    sm.[Detalhe  Recp ID]                 AS recpDetalheId,
-    sm.[Devolucao Detalhe ID]             AS devolucaoDetalheId,
-    sm.MovStocksDetID,
-    cab.MovStocksCabID                    AS cabMovStocksCabID,
-    cab.[Tipo Documento ID]               AS cabTipoDocId,
-    cab.MovStocksCabMotivoID              AS cabMotivoId,
-    mot.Motivo                            AS cabMotivoTexto,
-    cab.MovStocksCabSituacaoID            AS cabSituacao,
-    cab.[User ID]                         AS cabUserId,
-    cab.Posto                             AS cabPosto,
-    cab.NDocExterno                       AS cabNDocExterno,
-    ad.[Atendimento ID]                   AS atendimentoId,
-    at_.[Tipo Documento]                  AS atTipoDocId,
-    at_.[Numero Documento Externo]        AS atNDocExterno,
-    ent.Nome                              AS clienteNome,
-    rc.NumeroDocumento                    AS recNDoc,
-    rc.NDocExternoFornecedor              AS recRefExterna,
-    rf.Nome                               AS recFornecedorNome,
-    dc.NumeroDocumento                    AS devNDoc,
-    dc.NDocExternoFornecedor              AS devRefExterna,
-    df.Nome                               AS devFornecedorNome,
-    arm.Designacao                        AS armazemNome,
-    op.Nome                               AS operadorNome
-  FROM dbo.StocksMov sm
-  LEFT JOIN dbo.tblMovStocksDet det
-    ON det.MovStocksDetID = sm.MovStocksDetID
-  LEFT JOIN dbo.tblMovStocksCab cab
-    ON cab.MovStocksCabID = det.MovStocksCabID
-  LEFT JOIN dbo.tblMovStocksCab_Motivo mot
-    ON mot.MovStocksCabMotivoID = cab.MovStocksCabMotivoID
-  LEFT JOIN dbo.[Atendimento Detalhe] ad
-    ON ad.[Detalhe ID] = sm.[Detalhe ID]
-  LEFT JOIN dbo.Atendimento at_
-    ON at_.[Atendimento ID] = ad.[Atendimento ID]
-  LEFT JOIN dbo.Entidades ent
-    ON ent.EntidadeID = at_.EntidadeID
-  LEFT JOIN dbo.Recepcao_Detalhe rd
-    ON rd.[Detalhe Recp ID] = sm.[Detalhe  Recp ID]
-  LEFT JOIN dbo.Recepcao_Cab rc
-    ON rc.RecepcaoID = rd.RecepcaoID
-  LEFT JOIN dbo.Fornecedores rf
-    ON rf.FornecedorID = rc.FornecedorID
-  LEFT JOIN dbo.Devolucao_Detalhe dd
-    ON dd.[Devolucao Detalhe ID] = sm.[Devolucao Detalhe ID]
-  LEFT JOIN dbo.Devolucao_Cab dc
-    ON dc.DevolucaoID = dd.DevolucaoID
-  LEFT JOIN dbo.Fornecedores df
-    ON df.FornecedorID = dc.FornecedorID
-  LEFT JOIN dbo.Armazens arm
-    ON arm.ArmazemID = sm.StocksMovArmazemID
-  LEFT JOIN dbo.Operadores op
-    ON op.[User ID] = cab.[User ID]
-  WHERE sm.DataMov >= @from
-    AND sm.DataMov <  @to
-    AND sm.StocksMovID > @sinceId
-  ORDER BY sm.StocksMovID
-`;
+type RawCol = {
+  table: string;
+  column: string;
+  isPk: boolean;
+  isNullable: boolean;
+};
+
+const DISCOVER_TABLES = [
+  "StocksMov",
+  "Atendimento",
+  "Entidades",
+  "Recepcao_Detalhe",
+  "Recepcao_Cab",
+  "Devolucao_Detalhe",
+  "Devolucao_Cab",
+  "Fornecedores",
+  "Armazens",
+  "Operadores",
+] as const;
+
+async function discoverColumns(pool: SqlPool): Promise<Map<string, RawCol[]>> {
+  const inClause = DISCOVER_TABLES.map((t) => `'${t}'`).join(",");
+  const r = await pool.request().query<{
+    table_: string;
+    column_: string;
+    is_in_pk: boolean;
+    is_nullable: boolean;
+  }>(`
+    SELECT
+      t.name AS table_,
+      c.name AS column_,
+      ISNULL(pkInfo.is_in_pk, 0) AS is_in_pk,
+      c.is_nullable
+    FROM sys.columns c
+    JOIN sys.tables t  ON c.object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    OUTER APPLY (
+      SELECT MAX(1) AS is_in_pk
+      FROM sys.index_columns ic
+      JOIN sys.indexes i ON i.object_id=ic.object_id AND i.index_id=ic.index_id
+      WHERE ic.object_id = c.object_id AND ic.column_id = c.column_id
+        AND i.is_primary_key = 1
+    ) pkInfo
+    WHERE s.name = 'dbo' AND t.name IN (${inClause})
+  `);
+  const m = new Map<string, RawCol[]>();
+  for (const row of r.recordset) {
+    if (!m.has(row.table_)) m.set(row.table_, []);
+    m.get(row.table_)!.push({
+      table: row.table_,
+      column: row.column_,
+      isPk: Number(row.is_in_pk) === 1,
+      isNullable: !!row.is_nullable,
+    });
+  }
+  return m;
+}
+
+/// Primeira variante que existe (case-insensitive). Cada regex deve ser
+/// uma âncora ^...$ para não match parcial. Devolve o nome EXACTO da
+/// coluna (preservando case + espaços) para wrap em [...].
+function pickCol(cols: RawCol[] | undefined, patterns: RegExp[]): string | null {
+  if (!cols) return null;
+  for (const re of patterns) {
+    const m = cols.find((c) => re.test(c.column));
+    if (m) return m.column;
+  }
+  return null;
+}
+
+/// Wrap nome de coluna em [name] para handle de espaços / palavras
+/// reservadas. Devolve null inalterado para o builder decidir emitir
+/// NULL no SELECT.
+function bk(col: string | null): string | null {
+  return col ? `[${col}]` : null;
+}
+
+/// Schema resolvido para as JOINs rev36. Cada bloco pode ser null
+/// (tabela inexistente) ou ter campos null (coluna não encontrada).
+type JoinSchema = {
+  stocksMov: {
+    bonusEnt: string | null;
+    bonusSai: string | null;
+    existenciaBonus: string | null;
+    precoVenda: string | null;
+    valorVenda: string | null;
+  };
+  atendimento: {
+    entidadeFk: string | null;
+    nDocExterno: string | null;
+  };
+  entidades:
+    | { pk: string; nome: string | null }
+    | null;
+  recepcao:
+    | {
+        detPk: string;
+        detCabFk: string;
+        cabPk: string;
+        cabNDoc: string | null;
+        cabRefExterna: string | null;
+        cabFornecedorFk: string | null;
+      }
+    | null;
+  devolucao:
+    | {
+        detPk: string;
+        detCabFk: string;
+        cabPk: string;
+        cabNDoc: string | null;
+        cabRefExterna: string | null;
+        cabFornecedorFk: string | null;
+      }
+    | null;
+  fornecedores:
+    | { pk: string; nome: string | null }
+    | null;
+  armazens:
+    | { pk: string; designacao: string | null }
+    | null;
+  operadores:
+    | { pk: string; nome: string | null }
+    | null;
+};
+
+function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
+  const sm = cols.get("StocksMov");
+  const at = cols.get("Atendimento");
+  const ent = cols.get("Entidades");
+  const rd = cols.get("Recepcao_Detalhe");
+  const rc = cols.get("Recepcao_Cab");
+  const dd = cols.get("Devolucao_Detalhe");
+  const dc = cols.get("Devolucao_Cab");
+  const fo = cols.get("Fornecedores");
+  const ar = cols.get("Armazens");
+  const op = cols.get("Operadores");
+
+  // StocksMov columns rev36 — opcionais (NULL se não existirem).
+  const stocksMov = {
+    bonusEnt: pickCol(sm, [/^bonus\s*ent$/i, /^bonus\s*entrada$/i, /^qtd\s*bonus\s*ent$/i]),
+    bonusSai: pickCol(sm, [/^bonus\s*sai$/i, /^bonus\s*saida$/i, /^qtd\s*bonus\s*sai$/i]),
+    existenciaBonus: pickCol(sm, [/^existencia\s*bonus$/i, /^exist\s*bonus$/i]),
+    precoVenda: pickCol(sm, [/^preco\s*venda$/i, /^pvp\s*venda$/i, /^pvp$/i]),
+    valorVenda: pickCol(sm, [/^valor\s*venda$/i, /^valor$/i]),
+  };
+
+  // Atendimento — entidade FK + NDocExterno (rev36).
+  const atSchema = {
+    entidadeFk: pickCol(at, [/^entidade\s*id$/i, /^cliente\s*id$/i]),
+    nDocExterno: pickCol(at, [
+      /^numero\s*documento\s*externo$/i,
+      /^n\s*doc\s*externo$/i,
+      /^ndoc\s*externo$/i,
+    ]),
+  };
+
+  // Entidades — só existe se a tabela e a PK resolverem.
+  const entPk = pickCol(ent, [/^entidade\s*id$/i]);
+  const entSchema = ent && entPk
+    ? { pk: entPk, nome: pickCol(ent, [/^nome$/i, /^designacao$/i, /^razao\s*social$/i]) }
+    : null;
+
+  // Recepcao chain — det.PK + det.cabFK + cab.PK obrigatórios.
+  const rdPk = pickCol(rd, [/^detalhe\s*recp\s*id$/i, /^recp\s*detalhe\s*id$/i, /^detalhe\s*id$/i]);
+  const rdCabFk = pickCol(rd, [/^recepcao\s*id$/i, /^recep\s*id$/i]);
+  const rcPk = pickCol(rc, [/^recepcao\s*id$/i, /^recep\s*id$/i]);
+  const recepcao = rd && rc && rdPk && rdCabFk && rcPk
+    ? {
+        detPk: rdPk,
+        detCabFk: rdCabFk,
+        cabPk: rcPk,
+        cabNDoc: pickCol(rc, [
+          /^numero\s*documento$/i,
+          /^n\s*doc$/i,
+          /^ndoc$/i,
+          /^numero\s*doc$/i,
+        ]),
+        cabRefExterna: pickCol(rc, [
+          /^ndoc\s*externo\s*fornecedor$/i,
+          /^n\s*doc\s*externo\s*fornecedor$/i,
+          /^numero\s*documento\s*externo$/i,
+          /^ndoc\s*externo$/i,
+        ]),
+        cabFornecedorFk: pickCol(rc, [/^fornecedor\s*id$/i]),
+      }
+    : null;
+
+  // Devolução chain — idem.
+  const ddPk = pickCol(dd, [/^devolucao\s*detalhe\s*id$/i, /^detalhe\s*id$/i]);
+  const ddCabFk = pickCol(dd, [/^devolucao\s*id$/i]);
+  const dcPk = pickCol(dc, [/^devolucao\s*id$/i]);
+  const devolucao = dd && dc && ddPk && ddCabFk && dcPk
+    ? {
+        detPk: ddPk,
+        detCabFk: ddCabFk,
+        cabPk: dcPk,
+        cabNDoc: pickCol(dc, [
+          /^numero\s*documento$/i,
+          /^n\s*doc$/i,
+          /^ndoc$/i,
+          /^numero\s*doc$/i,
+        ]),
+        cabRefExterna: pickCol(dc, [
+          /^ndoc\s*externo\s*fornecedor$/i,
+          /^n\s*doc\s*externo\s*fornecedor$/i,
+          /^numero\s*documento\s*externo$/i,
+        ]),
+        cabFornecedorFk: pickCol(dc, [/^fornecedor\s*id$/i]),
+      }
+    : null;
+
+  // Fornecedores / Armazens / Operadores — lookups simples.
+  const foPk = pickCol(fo, [/^fornecedor\s*id$/i]);
+  const fornecedores = fo && foPk
+    ? { pk: foPk, nome: pickCol(fo, [/^nome$/i, /^designacao$/i, /^razao\s*social$/i]) }
+    : null;
+  const arPk = pickCol(ar, [/^armazem\s*id$/i]);
+  const armazens = ar && arPk
+    ? { pk: arPk, designacao: pickCol(ar, [/^designacao$/i, /^nome$/i, /^descricao$/i]) }
+    : null;
+  const opPk = pickCol(op, [/^user\s*id$/i, /^operador\s*id$/i, /^op\s*id$/i]);
+  const operadores = op && opPk
+    ? { pk: opPk, nome: pickCol(op, [/^nome$/i, /^designacao$/i]) }
+    : null;
+
+  return {
+    stocksMov,
+    atendimento: atSchema,
+    entidades: entSchema,
+    recepcao,
+    devolucao,
+    fornecedores,
+    armazens,
+    operadores,
+  };
+}
+
+/// Linha SELECT: `<expr> AS <alias>`. Quando `expr` é null, emite
+/// `NULL AS <alias>` — preserva o tipo de retorno do recordset.
+function selectLine(alias: string, expr: string | null): string {
+  return `    ${expr ?? "NULL"} AS ${alias}`;
+}
+
+/// Constrói o SOURCE_SQL final usando o schema descoberto. Aliases
+/// das colunas continuam estáveis (alimentam o `StocksMovRow`).
+function buildSourceSql(schema: JoinSchema): string {
+  const select: string[] = [
+    "    sm.StocksMovID",
+    "    sm.CodigoID",
+    "    sm.DataMov",
+    "    sm.Qtd",
+    "    sm.QtdBonus",
+    "    sm.Existencia",
+    "    sm.ValorCustoUnit",
+    "    sm.OldPMC",
+    "    sm.NovoPMC",
+    "    sm.StocksMovArmazemID",
+    selectLine("bonusEnt", schema.stocksMov.bonusEnt ? `sm.${bk(schema.stocksMov.bonusEnt)}` : null),
+    selectLine("bonusSai", schema.stocksMov.bonusSai ? `sm.${bk(schema.stocksMov.bonusSai)}` : null),
+    selectLine("existenciaBonus", schema.stocksMov.existenciaBonus ? `sm.${bk(schema.stocksMov.existenciaBonus)}` : null),
+    selectLine("precoVenda", schema.stocksMov.precoVenda ? `sm.${bk(schema.stocksMov.precoVenda)}` : null),
+    selectLine("valorVenda", schema.stocksMov.valorVenda ? `sm.${bk(schema.stocksMov.valorVenda)}` : null),
+    "    sm.[Detalhe ID]                       AS detalheId",
+    "    sm.[Atendimento Susp Detalhe ID]      AS suspDetalheId",
+    "    sm.[Atendimento Credito Detalhe ID]   AS creditoDetalheId",
+    "    sm.[Detalhe  Recp ID]                 AS recpDetalheId",
+    "    sm.[Devolucao Detalhe ID]             AS devolucaoDetalheId",
+    "    sm.MovStocksDetID",
+    "    cab.MovStocksCabID                    AS cabMovStocksCabID",
+    "    cab.[Tipo Documento ID]               AS cabTipoDocId",
+    "    cab.MovStocksCabMotivoID              AS cabMotivoId",
+    "    mot.Motivo                            AS cabMotivoTexto",
+    "    cab.MovStocksCabSituacaoID            AS cabSituacao",
+    "    cab.[User ID]                         AS cabUserId",
+    "    cab.Posto                             AS cabPosto",
+    "    cab.NDocExterno                       AS cabNDocExterno",
+    "    ad.[Atendimento ID]                   AS atendimentoId",
+    "    at_.[Tipo Documento]                  AS atTipoDocId",
+    selectLine(
+      "atNDocExterno",
+      schema.atendimento.nDocExterno ? `at_.${bk(schema.atendimento.nDocExterno)}` : null,
+    ),
+    selectLine(
+      "clienteNome",
+      schema.entidades && schema.atendimento.entidadeFk && schema.entidades.nome
+        ? `ent.${bk(schema.entidades.nome)}`
+        : null,
+    ),
+    selectLine("recNDoc", schema.recepcao && schema.recepcao.cabNDoc ? `rc.${bk(schema.recepcao.cabNDoc)}` : null),
+    selectLine(
+      "recRefExterna",
+      schema.recepcao && schema.recepcao.cabRefExterna ? `rc.${bk(schema.recepcao.cabRefExterna)}` : null,
+    ),
+    selectLine(
+      "recFornecedorNome",
+      schema.recepcao && schema.recepcao.cabFornecedorFk && schema.fornecedores && schema.fornecedores.nome
+        ? `rf.${bk(schema.fornecedores.nome)}`
+        : null,
+    ),
+    selectLine("devNDoc", schema.devolucao && schema.devolucao.cabNDoc ? `dc.${bk(schema.devolucao.cabNDoc)}` : null),
+    selectLine(
+      "devRefExterna",
+      schema.devolucao && schema.devolucao.cabRefExterna ? `dc.${bk(schema.devolucao.cabRefExterna)}` : null,
+    ),
+    selectLine(
+      "devFornecedorNome",
+      schema.devolucao && schema.devolucao.cabFornecedorFk && schema.fornecedores && schema.fornecedores.nome
+        ? `df.${bk(schema.fornecedores.nome)}`
+        : null,
+    ),
+    selectLine(
+      "armazemNome",
+      schema.armazens && schema.armazens.designacao ? `arm.${bk(schema.armazens.designacao)}` : null,
+    ),
+    selectLine(
+      "operadorNome",
+      schema.operadores && schema.operadores.nome ? `op.${bk(schema.operadores.nome)}` : null,
+    ),
+  ];
+
+  const joins: string[] = [
+    "  LEFT JOIN dbo.tblMovStocksDet det",
+    "    ON det.MovStocksDetID = sm.MovStocksDetID",
+    "  LEFT JOIN dbo.tblMovStocksCab cab",
+    "    ON cab.MovStocksCabID = det.MovStocksCabID",
+    "  LEFT JOIN dbo.tblMovStocksCab_Motivo mot",
+    "    ON mot.MovStocksCabMotivoID = cab.MovStocksCabMotivoID",
+    "  LEFT JOIN dbo.[Atendimento Detalhe] ad",
+    "    ON ad.[Detalhe ID] = sm.[Detalhe ID]",
+    "  LEFT JOIN dbo.Atendimento at_",
+    "    ON at_.[Atendimento ID] = ad.[Atendimento ID]",
+  ];
+  if (schema.entidades && schema.atendimento.entidadeFk) {
+    joins.push(
+      `  LEFT JOIN dbo.Entidades ent`,
+      `    ON ent.${bk(schema.entidades.pk)} = at_.${bk(schema.atendimento.entidadeFk)}`,
+    );
+  }
+  if (schema.recepcao) {
+    joins.push(
+      `  LEFT JOIN dbo.Recepcao_Detalhe rd`,
+      `    ON rd.${bk(schema.recepcao.detPk)} = sm.[Detalhe  Recp ID]`,
+      `  LEFT JOIN dbo.Recepcao_Cab rc`,
+      `    ON rc.${bk(schema.recepcao.cabPk)} = rd.${bk(schema.recepcao.detCabFk)}`,
+    );
+    if (schema.recepcao.cabFornecedorFk && schema.fornecedores) {
+      joins.push(
+        `  LEFT JOIN dbo.Fornecedores rf`,
+        `    ON rf.${bk(schema.fornecedores.pk)} = rc.${bk(schema.recepcao.cabFornecedorFk)}`,
+      );
+    }
+  }
+  if (schema.devolucao) {
+    joins.push(
+      `  LEFT JOIN dbo.Devolucao_Detalhe dd`,
+      `    ON dd.${bk(schema.devolucao.detPk)} = sm.[Devolucao Detalhe ID]`,
+      `  LEFT JOIN dbo.Devolucao_Cab dc`,
+      `    ON dc.${bk(schema.devolucao.cabPk)} = dd.${bk(schema.devolucao.detCabFk)}`,
+    );
+    if (schema.devolucao.cabFornecedorFk && schema.fornecedores) {
+      joins.push(
+        `  LEFT JOIN dbo.Fornecedores df`,
+        `    ON df.${bk(schema.fornecedores.pk)} = dc.${bk(schema.devolucao.cabFornecedorFk)}`,
+      );
+    }
+  }
+  if (schema.armazens) {
+    joins.push(
+      `  LEFT JOIN dbo.Armazens arm`,
+      `    ON arm.${bk(schema.armazens.pk)} = sm.StocksMovArmazemID`,
+    );
+  }
+  if (schema.operadores) {
+    joins.push(
+      `  LEFT JOIN dbo.Operadores op`,
+      `    ON op.${bk(schema.operadores.pk)} = cab.[User ID]`,
+    );
+  }
+
+  return [
+    "  SELECT TOP (@limit)",
+    select.join(",\n"),
+    "  FROM dbo.StocksMov sm",
+    joins.join("\n"),
+    "  WHERE sm.DataMov >= @from",
+    "    AND sm.DataMov <  @to",
+    "    AND sm.StocksMovID > @sinceId",
+    "  ORDER BY sm.StocksMovID",
+  ].join("\n");
+}
+
+/// Log curto do schema resolvido — útil para o operador perceber
+/// o que foi/não foi descoberto, sem ter de correr movimentos-audit.
+function logSchemaSummary(schema: JoinSchema): void {
+  console.log("Schema descoberto (sys.columns):");
+  console.log(
+    `  StocksMov.bonus*/preco/valor : ent=${schema.stocksMov.bonusEnt ?? "—"} ` +
+      `sai=${schema.stocksMov.bonusSai ?? "—"} exBon=${schema.stocksMov.existenciaBonus ?? "—"} ` +
+      `pv=${schema.stocksMov.precoVenda ?? "—"} vv=${schema.stocksMov.valorVenda ?? "—"}`,
+  );
+  console.log(
+    `  Atendimento.{entidadeFk, nDocExt} : ${schema.atendimento.entidadeFk ?? "—"} / ${schema.atendimento.nDocExterno ?? "—"}`,
+  );
+  console.log(`  Entidades : ${schema.entidades ? `pk=${schema.entidades.pk}, nome=${schema.entidades.nome}` : "ausente"}`);
+  console.log(`  Recepcao  : ${schema.recepcao ? `det.PK=${schema.recepcao.detPk}, det.cabFK=${schema.recepcao.detCabFk}, cab.PK=${schema.recepcao.cabPk}, NDoc=${schema.recepcao.cabNDoc ?? "—"}, RefExt=${schema.recepcao.cabRefExterna ?? "—"}, FornFK=${schema.recepcao.cabFornecedorFk ?? "—"}` : "ausente"}`);
+  console.log(`  Devolucao : ${schema.devolucao ? `det.PK=${schema.devolucao.detPk}, det.cabFK=${schema.devolucao.detCabFk}, cab.PK=${schema.devolucao.cabPk}, NDoc=${schema.devolucao.cabNDoc ?? "—"}, RefExt=${schema.devolucao.cabRefExterna ?? "—"}, FornFK=${schema.devolucao.cabFornecedorFk ?? "—"}` : "ausente"}`);
+  console.log(`  Fornecedores : ${schema.fornecedores ? `pk=${schema.fornecedores.pk}, nome=${schema.fornecedores.nome}` : "ausente"}`);
+  console.log(`  Armazens : ${schema.armazens ? `pk=${schema.armazens.pk}, desig=${schema.armazens.designacao}` : "ausente"}`);
+  console.log(`  Operadores : ${schema.operadores ? `pk=${schema.operadores.pk}, nome=${schema.operadores.nome}` : "ausente"}`);
+}
 
 async function fetchPage(
   pool: SqlPool,
+  sourceSql: string,
   from: string,
   to: string,
   sinceId: number,
@@ -334,7 +660,7 @@ async function fetchPage(
     .input("to", sql.DateTime, new Date(`${to}T00:00:00Z`))
     .input("sinceId", sql.Int, sinceId)
     .input("limit", sql.Int, limit)
-    .query<StocksMovRow>(SOURCE_SQL);
+    .query<StocksMovRow>(sourceSql);
   return rs.recordset;
 }
 
@@ -650,8 +976,15 @@ export async function stocksmovDryRun(): Promise<number> {
     return await withPool(cfg, async (pool) => {
       // Para dry-run, lemos UM SÓ chunk de 50k linhas — barato e suficiente
       // para o operador validar a distribuição antes de chamar upload.
+      // rev37: discovery dinâmica antes do primeiro SELECT.
+      console.log(`▶ Discovery de colunas (sys.columns) ...`);
+      const cols = await discoverColumns(pool);
+      const schema = resolveJoinSchema(cols);
+      logSchemaSummary(schema);
+      const sourceSql = buildSourceSql(schema);
+      console.log("");
       console.log(`▶ A ler dbo.StocksMov (até ${SQL_CHUNK_SIZE} linhas) ...`);
-      const rows = await fetchPage(pool, from, to, args.sinceId ?? 0, SQL_CHUNK_SIZE);
+      const rows = await fetchPage(pool, sourceSql, from, to, args.sinceId ?? 0, SQL_CHUNK_SIZE);
       console.log(`  ✓ ${rows.length} linhas lidas (limit=${SQL_CHUNK_SIZE})`);
       if (rows.length === SQL_CHUNK_SIZE) {
         console.log(`  ⚠ Janela maior que ${SQL_CHUNK_SIZE} — re-correr com --since-id ${rows[rows.length - 1]?.StocksMovID} para ver o resto.`);
@@ -852,6 +1185,16 @@ export async function stocksmovUpload(): Promise<number> {
         byTipo: {},
       };
 
+      // rev37: discovery dinâmica antes do loop de chunks. Tabelas/
+      // colunas em falta caem para NULL no SELECT em vez de fazer a
+      // query rebentar. Custo: 1 query a sys.columns no arranque.
+      console.log("▶ Discovery de colunas (sys.columns) ...");
+      const cols = await discoverColumns(pool);
+      const schema = resolveJoinSchema(cols);
+      logSchemaSummary(schema);
+      const sourceSql = buildSourceSql(schema);
+      console.log("");
+
       let sinceId = args.sinceId ?? 0;
       let lastReportTime = Date.now();
       // rev35: o tamanho efectivo arranca em `httpBatch` (default 100) e
@@ -862,7 +1205,7 @@ export async function stocksmovUpload(): Promise<number> {
 
       while (true) {
         const chunkT0 = Date.now();
-        const rows = await fetchPage(pool, from, to, sinceId, SQL_CHUNK_SIZE);
+        const rows = await fetchPage(pool, sourceSql, from, to, sinceId, SQL_CHUNK_SIZE);
         if (rows.length === 0) break;
 
         totals.sqlChunks++;
