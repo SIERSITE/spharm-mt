@@ -10,6 +10,9 @@ import {
   BookOpen,
   Settings,
   Repeat2,
+  TrendingUp,
+  Percent,
+  Boxes,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -31,6 +34,14 @@ const sections: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/stock", label: "Stock", icon: Package },
       { href: "/devolucoes", label: "Devoluções", icon: Undo2 },
+    ],
+  },
+  {
+    label: "Relatórios",
+    items: [
+      { href: "/vendas", label: "Vendas", icon: TrendingUp },
+      { href: "/relatorios/inventario", label: "Inventário", icon: Boxes },
+      { href: "/relatorios/margens", label: "Margens", icon: Percent },
     ],
   },
   {
