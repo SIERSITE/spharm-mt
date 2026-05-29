@@ -96,7 +96,7 @@ type StocksMovRow = {
   existenciaBonus: number | null;
   precoVenda: number | string | null;
   valorVenda: number | string | null;
-  /// Atendimento.[Numero Documento Externo] — "G/783019", "VSG/52653", etc.
+  /// Atendimento.[Numero Documento Externo] — fallback formatado.
   atNDocExterno: string | null;
   /// dbo.Entidades.Nome via Atendimento.EntidadeID — nome do cliente.
   clienteNome: string | null;
@@ -116,6 +116,25 @@ type StocksMovRow = {
   armazemNome: string | null;
   /// dbo.Operadores.Nome via cab.[User ID]. Só mov-interno.
   operadorNome: string | null;
+  // ── rev38 — Serie + Numero compostos + ref talão NC ─────────
+  /// Atendimento Serie + Numero — alimentam "G/783019".
+  atSerie: string | null;
+  atNumero: number | string | null;
+  /// Atendimento Origem Serie + Numero — alimentam "Talão (VS) 52440"
+  /// na NC (anula um Atendimento anterior).
+  atOrigemSerie: string | null;
+  atOrigemNumero: number | string | null;
+  atOrigemTipo: string | null;
+  /// Recepcao_Cab Serie + Numero — alimentam "G/60660" ou "60660".
+  recSerie: string | null;
+  recNumero: number | string | null;
+  /// Devolucao_Cab Serie + Numero.
+  devSerie: string | null;
+  devNumero: number | string | null;
+  /// tblMovStocksCab Serie + Numero — transferências ("VCG_1/2169")
+  /// e mov-interno em geral (perdas, ajustes, inventário).
+  cabSerie: string | null;
+  cabNumero: number | string | null;
 };
 
 type ContraparteTipo =
@@ -253,6 +272,9 @@ const DISCOVER_TABLES = [
   "Fornecedores",
   "Armazens",
   "Operadores",
+  // rev38 — para descobrir Serie/Numero do mov-interno
+  // (transferências, perdas, inventário, ajustes).
+  "tblMovStocksCab",
 ] as const;
 
 async function discoverColumns(pool: SqlPool): Promise<Map<string, RawCol[]>> {
@@ -312,8 +334,9 @@ function bk(col: string | null): string | null {
   return col ? `[${col}]` : null;
 }
 
-/// Schema resolvido para as JOINs rev36. Cada bloco pode ser null
-/// (tabela inexistente) ou ter campos null (coluna não encontrada).
+/// Schema resolvido para as JOINs rev36 + ERP-parity documental rev38.
+/// Cada bloco pode ser null (tabela inexistente) ou ter campos null
+/// (coluna não encontrada).
 type JoinSchema = {
   stocksMov: {
     bonusEnt: string | null;
@@ -324,7 +347,23 @@ type JoinSchema = {
   };
   atendimento: {
     entidadeFk: string | null;
+    // rev38 — Serie + Numero são os campos que o ERP imprime na coluna
+    // "Documento" do relatório ("G/783019" = Serie "G" + Numero 783019).
+    // `nDocExterno` continua a ser fallback (algumas séries têm AT-style
+    // já formatado lá).
+    serie: string | null;
+    numero: string | null;
     nDocExterno: string | null;
+    // rev38 — para a coluna "Externo" das Notas Crédito o ERP imprime
+    // "Talão (VS) 52440" — Serie + Numero do atendimento original
+    // (a venda que esta NC está a anular).
+    origemSerie: string | null;
+    origemNumero: string | null;
+    /// Tipo do documento original ("Talão", "Factura"…) quando capturado
+    /// no Atendimento (ex: AtendimentoOrigem_TipoDoc). Opcional — quando
+    /// presente, formata a ref como "{tipo} ({serie}) {num}"; senão usa
+    /// "({serie}) {num}".
+    origemTipo: string | null;
   };
   entidades:
     | { pk: string; nome: string | null }
@@ -334,6 +373,11 @@ type JoinSchema = {
         detPk: string;
         detCabFk: string;
         cabPk: string;
+        // rev38 — Serie + Numero ⇒ "60660" ou "G/60660" consoante a
+        // instalação. cabNDoc fica como fallback (algumas instalações
+        // têm um único campo já formatado).
+        cabSerie: string | null;
+        cabNumero: string | null;
         cabNDoc: string | null;
         cabRefExterna: string | null;
         cabFornecedorFk: string | null;
@@ -344,6 +388,8 @@ type JoinSchema = {
         detPk: string;
         detCabFk: string;
         cabPk: string;
+        cabSerie: string | null;
+        cabNumero: string | null;
         cabNDoc: string | null;
         cabRefExterna: string | null;
         cabFornecedorFk: string | null;
@@ -358,6 +404,13 @@ type JoinSchema = {
   operadores:
     | { pk: string; nome: string | null }
     | null;
+  // rev38 — mov-interno (transferências, perdas, ajustes, inventário).
+  // Aliases para Serie/Numero de tblMovStocksCab. NDocExterno já é
+  // capturado na cadeia de JOIN base (cabNDocExterno).
+  movStocksCab: {
+    serie: string | null;
+    numero: string | null;
+  };
 };
 
 function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
@@ -371,6 +424,7 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
   const fo = cols.get("Fornecedores");
   const ar = cols.get("Armazens");
   const op = cols.get("Operadores");
+  const mc = cols.get("tblMovStocksCab");
 
   // StocksMov columns rev36 — opcionais (NULL se não existirem).
   const stocksMov = {
@@ -381,13 +435,43 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
     valorVenda: pickCol(sm, [/^valor\s*venda$/i, /^valor$/i]),
   };
 
-  // Atendimento — entidade FK + NDocExterno (rev36).
+  // Atendimento — entidade FK + Serie + Numero + NDocExterno + Origem
+  // (NCs). Serie+Numero é a fonte canónica do "G/783019" / "VSG/25113"
+  // que o ERP imprime; NDocExterno fica como fallback para instalações
+  // que já tenham o formato pronto.
   const atSchema = {
     entidadeFk: pickCol(at, [/^entidade\s*id$/i, /^cliente\s*id$/i]),
+    serie: pickCol(at, [
+      /^serie\s*documento$/i,
+      /^serie\s*doc$/i,
+      /^serie$/i,
+    ]),
+    numero: pickCol(at, [
+      /^numero\s*documento$/i,
+      /^numero\s*doc$/i,
+      /^numero$/i,
+    ]),
     nDocExterno: pickCol(at, [
       /^numero\s*documento\s*externo$/i,
       /^n\s*doc\s*externo$/i,
       /^ndoc\s*externo$/i,
+    ]),
+    origemSerie: pickCol(at, [
+      /^atendimento\s*origem\s*serie$/i,
+      /^serie\s*origem$/i,
+      /^talao\s*origem\s*serie$/i,
+      /^atendimento\s*origem\s*serie\s*doc$/i,
+    ]),
+    origemNumero: pickCol(at, [
+      /^atendimento\s*origem\s*numero$/i,
+      /^numero\s*origem$/i,
+      /^talao\s*origem\s*numero$/i,
+      /^atendimento\s*origem\s*numero\s*doc$/i,
+    ]),
+    origemTipo: pickCol(at, [
+      /^atendimento\s*origem\s*tipo\s*documento$/i,
+      /^tipo\s*documento\s*origem$/i,
+      /^atendimento\s*origem\s*tipo\s*doc$/i,
     ]),
   };
 
@@ -397,7 +481,8 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
     ? { pk: entPk, nome: pickCol(ent, [/^nome$/i, /^designacao$/i, /^razao\s*social$/i]) }
     : null;
 
-  // Recepcao chain — det.PK + det.cabFK + cab.PK obrigatórios.
+  // Recepcao chain — det.PK + det.cabFK + cab.PK obrigatórios. rev38
+  // adiciona Serie + Numero para alinhar com o display do ERP.
   const rdPk = pickCol(rd, [/^detalhe\s*recp\s*id$/i, /^recp\s*detalhe\s*id$/i, /^detalhe\s*id$/i]);
   const rdCabFk = pickCol(rd, [/^recepcao\s*id$/i, /^recep\s*id$/i]);
   const rcPk = pickCol(rc, [/^recepcao\s*id$/i, /^recep\s*id$/i]);
@@ -406,6 +491,18 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
         detPk: rdPk,
         detCabFk: rdCabFk,
         cabPk: rcPk,
+        cabSerie: pickCol(rc, [
+          /^serie\s*documento$/i,
+          /^serie\s*recepcao$/i,
+          /^serie\s*recep$/i,
+          /^serie$/i,
+        ]),
+        cabNumero: pickCol(rc, [
+          /^numero\s*documento$/i,
+          /^numero\s*recepcao$/i,
+          /^numero\s*recep$/i,
+          /^numero$/i,
+        ]),
         cabNDoc: pickCol(rc, [
           /^numero\s*documento$/i,
           /^n\s*doc$/i,
@@ -431,6 +528,16 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
         detPk: ddPk,
         detCabFk: ddCabFk,
         cabPk: dcPk,
+        cabSerie: pickCol(dc, [
+          /^serie\s*documento$/i,
+          /^serie\s*devolucao$/i,
+          /^serie$/i,
+        ]),
+        cabNumero: pickCol(dc, [
+          /^numero\s*documento$/i,
+          /^numero\s*devolucao$/i,
+          /^numero$/i,
+        ]),
         cabNDoc: pickCol(dc, [
           /^numero\s*documento$/i,
           /^n\s*doc$/i,
@@ -460,6 +567,22 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
     ? { pk: opPk, nome: pickCol(op, [/^nome$/i, /^designacao$/i]) }
     : null;
 
+  // rev38 — mov-interno (transferências, perdas, ajustes, inventário).
+  // Serie+Numero quando a instalação os tem; `cabNDocExterno` (já no
+  // SELECT base) continua como fallback.
+  const movStocksCab = {
+    serie: pickCol(mc, [
+      /^serie\s*documento$/i,
+      /^serie\s*mov\s*stocks$/i,
+      /^serie$/i,
+    ]),
+    numero: pickCol(mc, [
+      /^numero\s*documento$/i,
+      /^numero\s*mov\s*stocks$/i,
+      /^numero$/i,
+    ]),
+  };
+
   return {
     stocksMov,
     atendimento: atSchema,
@@ -469,6 +592,7 @@ function resolveJoinSchema(cols: Map<string, RawCol[]>): JoinSchema {
     fornecedores,
     armazens,
     operadores,
+    movStocksCab,
   };
 }
 
@@ -517,6 +641,22 @@ function buildSourceSql(schema: JoinSchema): string {
       "atNDocExterno",
       schema.atendimento.nDocExterno ? `at_.${bk(schema.atendimento.nDocExterno)}` : null,
     ),
+    // rev38 — Serie + Numero do Atendimento (compõem "G/783019").
+    selectLine("atSerie", schema.atendimento.serie ? `at_.${bk(schema.atendimento.serie)}` : null),
+    selectLine("atNumero", schema.atendimento.numero ? `at_.${bk(schema.atendimento.numero)}` : null),
+    // rev38 — Atendimento de origem para NCs ("Talão (VS) 52440").
+    selectLine(
+      "atOrigemSerie",
+      schema.atendimento.origemSerie ? `at_.${bk(schema.atendimento.origemSerie)}` : null,
+    ),
+    selectLine(
+      "atOrigemNumero",
+      schema.atendimento.origemNumero ? `at_.${bk(schema.atendimento.origemNumero)}` : null,
+    ),
+    selectLine(
+      "atOrigemTipo",
+      schema.atendimento.origemTipo ? `at_.${bk(schema.atendimento.origemTipo)}` : null,
+    ),
     selectLine(
       "clienteNome",
       schema.entidades && schema.atendimento.entidadeFk && schema.entidades.nome
@@ -524,6 +664,15 @@ function buildSourceSql(schema: JoinSchema): string {
         : null,
     ),
     selectLine("recNDoc", schema.recepcao && schema.recepcao.cabNDoc ? `rc.${bk(schema.recepcao.cabNDoc)}` : null),
+    // rev38 — Serie + Numero da Recepcao_Cab.
+    selectLine(
+      "recSerie",
+      schema.recepcao && schema.recepcao.cabSerie ? `rc.${bk(schema.recepcao.cabSerie)}` : null,
+    ),
+    selectLine(
+      "recNumero",
+      schema.recepcao && schema.recepcao.cabNumero ? `rc.${bk(schema.recepcao.cabNumero)}` : null,
+    ),
     selectLine(
       "recRefExterna",
       schema.recepcao && schema.recepcao.cabRefExterna ? `rc.${bk(schema.recepcao.cabRefExterna)}` : null,
@@ -535,6 +684,15 @@ function buildSourceSql(schema: JoinSchema): string {
         : null,
     ),
     selectLine("devNDoc", schema.devolucao && schema.devolucao.cabNDoc ? `dc.${bk(schema.devolucao.cabNDoc)}` : null),
+    // rev38 — Serie + Numero da Devolucao_Cab.
+    selectLine(
+      "devSerie",
+      schema.devolucao && schema.devolucao.cabSerie ? `dc.${bk(schema.devolucao.cabSerie)}` : null,
+    ),
+    selectLine(
+      "devNumero",
+      schema.devolucao && schema.devolucao.cabNumero ? `dc.${bk(schema.devolucao.cabNumero)}` : null,
+    ),
     selectLine(
       "devRefExterna",
       schema.devolucao && schema.devolucao.cabRefExterna ? `dc.${bk(schema.devolucao.cabRefExterna)}` : null,
@@ -553,6 +711,9 @@ function buildSourceSql(schema: JoinSchema): string {
       "operadorNome",
       schema.operadores && schema.operadores.nome ? `op.${bk(schema.operadores.nome)}` : null,
     ),
+    // rev38 — Serie + Numero do mov-interno (cab existing JOIN, novos campos).
+    selectLine("cabSerie", schema.movStocksCab.serie ? `cab.${bk(schema.movStocksCab.serie)}` : null),
+    selectLine("cabNumero", schema.movStocksCab.numero ? `cab.${bk(schema.movStocksCab.numero)}` : null),
   ];
 
   const joins: string[] = [
@@ -626,24 +787,55 @@ function buildSourceSql(schema: JoinSchema): string {
   ].join("\n");
 }
 
-/// Log curto do schema resolvido — útil para o operador perceber
-/// o que foi/não foi descoberto, sem ter de correr movimentos-audit.
-function logSchemaSummary(schema: JoinSchema): void {
+/// Log do schema resolvido — útil para o operador perceber o que foi
+/// descoberto. rev38 reforça o output documental: Serie/Numero
+/// descobertos para cada tabela + dump completo das colunas das 4
+/// tabelas documentais (Atendimento, Recepcao_Cab, Devolucao_Cab,
+/// tblMovStocksCab) para que qualquer mismatch entre o display do ERP
+/// e o composer seja imediatamente diagnosticável sem correr scripts.
+function logSchemaSummary(schema: JoinSchema, cols: Map<string, RawCol[]>): void {
   console.log("Schema descoberto (sys.columns):");
   console.log(
     `  StocksMov.bonus*/preco/valor : ent=${schema.stocksMov.bonusEnt ?? "—"} ` +
       `sai=${schema.stocksMov.bonusSai ?? "—"} exBon=${schema.stocksMov.existenciaBonus ?? "—"} ` +
       `pv=${schema.stocksMov.precoVenda ?? "—"} vv=${schema.stocksMov.valorVenda ?? "—"}`,
   );
+  // rev38 — documento + origem (NC)
   console.log(
-    `  Atendimento.{entidadeFk, nDocExt} : ${schema.atendimento.entidadeFk ?? "—"} / ${schema.atendimento.nDocExterno ?? "—"}`,
+    `  Atendimento.{entidadeFk, serie, numero, nDocExt, origemSerie, origemNumero, origemTipo}`,
+  );
+  console.log(
+    `    : ${schema.atendimento.entidadeFk ?? "—"} / ${schema.atendimento.serie ?? "—"} / ${schema.atendimento.numero ?? "—"} / ${schema.atendimento.nDocExterno ?? "—"} / ${schema.atendimento.origemSerie ?? "—"} / ${schema.atendimento.origemNumero ?? "—"} / ${schema.atendimento.origemTipo ?? "—"}`,
   );
   console.log(`  Entidades : ${schema.entidades ? `pk=${schema.entidades.pk}, nome=${schema.entidades.nome}` : "ausente"}`);
-  console.log(`  Recepcao  : ${schema.recepcao ? `det.PK=${schema.recepcao.detPk}, det.cabFK=${schema.recepcao.detCabFk}, cab.PK=${schema.recepcao.cabPk}, NDoc=${schema.recepcao.cabNDoc ?? "—"}, RefExt=${schema.recepcao.cabRefExterna ?? "—"}, FornFK=${schema.recepcao.cabFornecedorFk ?? "—"}` : "ausente"}`);
-  console.log(`  Devolucao : ${schema.devolucao ? `det.PK=${schema.devolucao.detPk}, det.cabFK=${schema.devolucao.detCabFk}, cab.PK=${schema.devolucao.cabPk}, NDoc=${schema.devolucao.cabNDoc ?? "—"}, RefExt=${schema.devolucao.cabRefExterna ?? "—"}, FornFK=${schema.devolucao.cabFornecedorFk ?? "—"}` : "ausente"}`);
+  console.log(
+    `  Recepcao  : ${schema.recepcao ? `det.PK=${schema.recepcao.detPk}, det.cabFK=${schema.recepcao.detCabFk}, cab.PK=${schema.recepcao.cabPk}, Serie=${schema.recepcao.cabSerie ?? "—"}, Numero=${schema.recepcao.cabNumero ?? "—"}, NDoc=${schema.recepcao.cabNDoc ?? "—"}, RefExt=${schema.recepcao.cabRefExterna ?? "—"}, FornFK=${schema.recepcao.cabFornecedorFk ?? "—"}` : "ausente"}`,
+  );
+  console.log(
+    `  Devolucao : ${schema.devolucao ? `det.PK=${schema.devolucao.detPk}, det.cabFK=${schema.devolucao.detCabFk}, cab.PK=${schema.devolucao.cabPk}, Serie=${schema.devolucao.cabSerie ?? "—"}, Numero=${schema.devolucao.cabNumero ?? "—"}, NDoc=${schema.devolucao.cabNDoc ?? "—"}, RefExt=${schema.devolucao.cabRefExterna ?? "—"}, FornFK=${schema.devolucao.cabFornecedorFk ?? "—"}` : "ausente"}`,
+  );
   console.log(`  Fornecedores : ${schema.fornecedores ? `pk=${schema.fornecedores.pk}, nome=${schema.fornecedores.nome}` : "ausente"}`);
   console.log(`  Armazens : ${schema.armazens ? `pk=${schema.armazens.pk}, desig=${schema.armazens.designacao}` : "ausente"}`);
   console.log(`  Operadores : ${schema.operadores ? `pk=${schema.operadores.pk}, nome=${schema.operadores.nome}` : "ausente"}`);
+  console.log(
+    `  tblMovStocksCab.{serie, numero} : ${schema.movStocksCab.serie ?? "—"} / ${schema.movStocksCab.numero ?? "—"}`,
+  );
+
+  // rev38 — dump completo das colunas documentais para diagnóstico.
+  // Útil quando o display do ERP não bate certo com o que foi composto:
+  // o operador vê de imediato que campos estão disponíveis na sua
+  // instalação Softreis e pode reportar o nome real para uma rev futura.
+  console.log("");
+  console.log("Colunas documentais (todas as candidatas — para diagnóstico):");
+  for (const t of ["Atendimento", "Recepcao_Cab", "Devolucao_Cab", "tblMovStocksCab"]) {
+    const c = cols.get(t);
+    if (!c) {
+      console.log(`  ${t}: (tabela ausente)`);
+      continue;
+    }
+    const list = c.map((x) => x.column).sort().join(", ");
+    console.log(`  ${t} (${c.length}): ${list}`);
+  }
 }
 
 async function fetchPage(
@@ -722,32 +914,72 @@ function documentoTipoFor(tipo: TipoMovimentoArtigo): string {
   }
 }
 
-/// Escolhe o número de documento de acordo com a origem do movimento:
-///   · Vendas/devCliente/crédito  → Atendimento.[Numero Documento Externo]
-///   · Compras                    → Recepcao_Cab.NumeroDocumento
-///   · Devolução fornecedor       → Devolucao_Cab.NumeroDocumento
-///   · Mov-interno (todos os outros) → tblMovStocksCab.NDocExterno
-/// Fallback final: StocksMovID stringificado (raríssimo; DESCONHECIDO).
+/// rev38 — compõe "Serie/Numero" quando ambos os campos existem.
+/// Trim numbers (podem vir como decimal "60660.0" do SQL Server) → int.
+/// Retorna null se Serie ou Numero faltarem.
+function composeSerieNumero(
+  serie: string | null,
+  numero: number | string | null | undefined,
+): string | null {
+  const s = strOrNull(serie);
+  const n = numOrNull(numero);
+  if (s && n !== null) return `${s}/${Math.trunc(n)}`;
+  return null;
+}
+
+/// Escolhe o número de documento de acordo com a origem do movimento.
+/// rev38 — preferência: Serie+Numero concatenados ("G/783019"); fallback
+/// para o campo único pré-existente quando uma das peças não existir
+/// (instalações Softreis que já formatem inline o NDocExterno).
+///
+///   · Vendas/devCliente/crédito → Atendimento.[Serie] + [Numero]
+///                                  (fallback: [Numero Documento Externo])
+///   · Compras                    → Recepcao_Cab.[Serie] + [Numero]
+///                                  (fallback: NumeroDocumento)
+///   · Devolução fornecedor       → Devolucao_Cab.[Serie] + [Numero]
+///                                  (fallback: NumeroDocumento)
+///   · Mov-interno                → tblMovStocksCab.[Serie] + [Numero]
+///                                  (fallback: NDocExterno)
 function documentoNumeroFor(r: StocksMovRow, tipo: TipoMovimentoArtigo): string | null {
   const isVendaLike =
     tipo === "VENDA" ||
     tipo === "DEVOLUCAO_CLIENTE" ||
     tipo === "VENDA_CREDITO" ||
     tipo === "RESERVA_SUSPENSA";
-  if (isVendaLike) return strOrNull(r.atNDocExterno);
-  if (tipo === "COMPRA") return strOrNull(r.recNDoc);
-  if (tipo === "DEVOLUCAO_FORNECEDOR") return strOrNull(r.devNDoc);
-  // mov-interno (transferências/inventário/quebra/perda/ajuste): cab.NDocExterno
-  return strOrNull(r.cabNDocExterno);
+  if (isVendaLike) {
+    return composeSerieNumero(r.atSerie, r.atNumero) ?? strOrNull(r.atNDocExterno);
+  }
+  if (tipo === "COMPRA") {
+    return composeSerieNumero(r.recSerie, r.recNumero) ?? strOrNull(r.recNDoc);
+  }
+  if (tipo === "DEVOLUCAO_FORNECEDOR") {
+    return composeSerieNumero(r.devSerie, r.devNumero) ?? strOrNull(r.devNDoc);
+  }
+  // mov-interno (transferências/inventário/quebra/perda/ajuste).
+  return composeSerieNumero(r.cabSerie, r.cabNumero) ?? strOrNull(r.cabNDocExterno);
 }
 
 /// Referência externa cruzada (coluna "Externo" do ERP):
-///   · Compra → factura externa do fornecedor (ex: "FE26X1/1012857")
-///   · Devolução fornecedor → idem
-///   · Outros → NULL (NCs poderão ganhar "Talão original" numa rev futura)
+///   · Compra/devFornecedor → factura externa do fornecedor
+///                            ("FE26X1/1012857") ou doc de transferência
+///                            de outra farmácia ("G/Transferência 1/655")
+///   · NC (devCliente)      → "Talão (Serie) Numero" do atendimento
+///                            original que esta NC anula
+///   · Outros               → NULL
 function referenciaExternaFor(r: StocksMovRow, tipo: TipoMovimentoArtigo): string | null {
   if (tipo === "COMPRA") return strOrNull(r.recRefExterna);
   if (tipo === "DEVOLUCAO_FORNECEDOR") return strOrNull(r.devRefExterna);
+  if (tipo === "DEVOLUCAO_CLIENTE") {
+    const serie = strOrNull(r.atOrigemSerie);
+    const num = numOrNull(r.atOrigemNumero);
+    if (serie && num !== null) {
+      const tipoOrig = strOrNull(r.atOrigemTipo);
+      return tipoOrig
+        ? `${tipoOrig} (${serie}) ${Math.trunc(num)}`
+        : `Talão (${serie}) ${Math.trunc(num)}`;
+    }
+    return null;
+  }
   return null;
 }
 
@@ -980,7 +1212,7 @@ export async function stocksmovDryRun(): Promise<number> {
       console.log(`▶ Discovery de colunas (sys.columns) ...`);
       const cols = await discoverColumns(pool);
       const schema = resolveJoinSchema(cols);
-      logSchemaSummary(schema);
+      logSchemaSummary(schema, cols);
       const sourceSql = buildSourceSql(schema);
       console.log("");
       console.log(`▶ A ler dbo.StocksMov (até ${SQL_CHUNK_SIZE} linhas) ...`);
@@ -1191,7 +1423,7 @@ export async function stocksmovUpload(): Promise<number> {
       console.log("▶ Discovery de colunas (sys.columns) ...");
       const cols = await discoverColumns(pool);
       const schema = resolveJoinSchema(cols);
-      logSchemaSummary(schema);
+      logSchemaSummary(schema, cols);
       const sourceSql = buildSourceSql(schema);
       console.log("");
 
