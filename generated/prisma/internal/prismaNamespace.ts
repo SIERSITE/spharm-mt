@@ -4378,6 +4378,18 @@ export const MovimentoArtigoScalarFieldEnum = {
   movStocksCabNDocExterno: 'movStocksCabNDocExterno',
   externalSaleId: 'externalSaleId',
   tipoDocumentoId: 'tipoDocumentoId',
+  documentoTipo: 'documentoTipo',
+  documentoNumero: 'documentoNumero',
+  referenciaExterna: 'referenciaExterna',
+  contraparteNome: 'contraparteNome',
+  contraparteTipo: 'contraparteTipo',
+  armazemNome: 'armazemNome',
+  utilizadorNome: 'utilizadorNome',
+  quantidadeBonusEnt: 'quantidadeBonusEnt',
+  quantidadeBonusSai: 'quantidadeBonusSai',
+  existenciaBonusApos: 'existenciaBonusApos',
+  precoUnitario: 'precoUnitario',
+  valorLinha: 'valorLinha',
   ingestRunId: 'ingestRunId',
   ingestedAt: 'ingestedAt',
   updatedAt: 'updatedAt'
@@ -4890,6 +4902,20 @@ export type EnumTipoMovimentoArtigoFieldRefInput<$PrismaModel> = FieldRefInputTy
  * Reference to a field of type 'TipoMovimentoArtigo[]'
  */
 export type ListEnumTipoMovimentoArtigoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoMovimentoArtigo[]'>
+    
+
+
+/**
+ * Reference to a field of type 'ContraparteTipo'
+ */
+export type EnumContraparteTipoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ContraparteTipo'>
+    
+
+
+/**
+ * Reference to a field of type 'ContraparteTipo[]'
+ */
+export type ListEnumContraparteTipoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ContraparteTipo[]'>
     
 
 /**

@@ -62,6 +62,11 @@ export type MovimentoArtigoAvgAggregateOutputType = {
   movStocksCabPosto: number | null
   externalSaleId: number | null
   tipoDocumentoId: number | null
+  quantidadeBonusEnt: number | null
+  quantidadeBonusSai: number | null
+  existenciaBonusApos: number | null
+  precoUnitario: runtime.Decimal | null
+  valorLinha: runtime.Decimal | null
 }
 
 export type MovimentoArtigoSumAggregateOutputType = {
@@ -86,6 +91,11 @@ export type MovimentoArtigoSumAggregateOutputType = {
   movStocksCabPosto: number | null
   externalSaleId: number | null
   tipoDocumentoId: number | null
+  quantidadeBonusEnt: number | null
+  quantidadeBonusSai: number | null
+  existenciaBonusApos: number | null
+  precoUnitario: runtime.Decimal | null
+  valorLinha: runtime.Decimal | null
 }
 
 export type MovimentoArtigoMinAggregateOutputType = {
@@ -119,6 +129,18 @@ export type MovimentoArtigoMinAggregateOutputType = {
   movStocksCabNDocExterno: string | null
   externalSaleId: number | null
   tipoDocumentoId: number | null
+  documentoTipo: string | null
+  documentoNumero: string | null
+  referenciaExterna: string | null
+  contraparteNome: string | null
+  contraparteTipo: $Enums.ContraparteTipo | null
+  armazemNome: string | null
+  utilizadorNome: string | null
+  quantidadeBonusEnt: number | null
+  quantidadeBonusSai: number | null
+  existenciaBonusApos: number | null
+  precoUnitario: runtime.Decimal | null
+  valorLinha: runtime.Decimal | null
   ingestRunId: string | null
   ingestedAt: Date | null
   updatedAt: Date | null
@@ -155,6 +177,18 @@ export type MovimentoArtigoMaxAggregateOutputType = {
   movStocksCabNDocExterno: string | null
   externalSaleId: number | null
   tipoDocumentoId: number | null
+  documentoTipo: string | null
+  documentoNumero: string | null
+  referenciaExterna: string | null
+  contraparteNome: string | null
+  contraparteTipo: $Enums.ContraparteTipo | null
+  armazemNome: string | null
+  utilizadorNome: string | null
+  quantidadeBonusEnt: number | null
+  quantidadeBonusSai: number | null
+  existenciaBonusApos: number | null
+  precoUnitario: runtime.Decimal | null
+  valorLinha: runtime.Decimal | null
   ingestRunId: string | null
   ingestedAt: Date | null
   updatedAt: Date | null
@@ -191,6 +225,18 @@ export type MovimentoArtigoCountAggregateOutputType = {
   movStocksCabNDocExterno: number
   externalSaleId: number
   tipoDocumentoId: number
+  documentoTipo: number
+  documentoNumero: number
+  referenciaExterna: number
+  contraparteNome: number
+  contraparteTipo: number
+  armazemNome: number
+  utilizadorNome: number
+  quantidadeBonusEnt: number
+  quantidadeBonusSai: number
+  existenciaBonusApos: number
+  precoUnitario: number
+  valorLinha: number
   ingestRunId: number
   ingestedAt: number
   updatedAt: number
@@ -220,6 +266,11 @@ export type MovimentoArtigoAvgAggregateInputType = {
   movStocksCabPosto?: true
   externalSaleId?: true
   tipoDocumentoId?: true
+  quantidadeBonusEnt?: true
+  quantidadeBonusSai?: true
+  existenciaBonusApos?: true
+  precoUnitario?: true
+  valorLinha?: true
 }
 
 export type MovimentoArtigoSumAggregateInputType = {
@@ -244,6 +295,11 @@ export type MovimentoArtigoSumAggregateInputType = {
   movStocksCabPosto?: true
   externalSaleId?: true
   tipoDocumentoId?: true
+  quantidadeBonusEnt?: true
+  quantidadeBonusSai?: true
+  existenciaBonusApos?: true
+  precoUnitario?: true
+  valorLinha?: true
 }
 
 export type MovimentoArtigoMinAggregateInputType = {
@@ -277,6 +333,18 @@ export type MovimentoArtigoMinAggregateInputType = {
   movStocksCabNDocExterno?: true
   externalSaleId?: true
   tipoDocumentoId?: true
+  documentoTipo?: true
+  documentoNumero?: true
+  referenciaExterna?: true
+  contraparteNome?: true
+  contraparteTipo?: true
+  armazemNome?: true
+  utilizadorNome?: true
+  quantidadeBonusEnt?: true
+  quantidadeBonusSai?: true
+  existenciaBonusApos?: true
+  precoUnitario?: true
+  valorLinha?: true
   ingestRunId?: true
   ingestedAt?: true
   updatedAt?: true
@@ -313,6 +381,18 @@ export type MovimentoArtigoMaxAggregateInputType = {
   movStocksCabNDocExterno?: true
   externalSaleId?: true
   tipoDocumentoId?: true
+  documentoTipo?: true
+  documentoNumero?: true
+  referenciaExterna?: true
+  contraparteNome?: true
+  contraparteTipo?: true
+  armazemNome?: true
+  utilizadorNome?: true
+  quantidadeBonusEnt?: true
+  quantidadeBonusSai?: true
+  existenciaBonusApos?: true
+  precoUnitario?: true
+  valorLinha?: true
   ingestRunId?: true
   ingestedAt?: true
   updatedAt?: true
@@ -349,6 +429,18 @@ export type MovimentoArtigoCountAggregateInputType = {
   movStocksCabNDocExterno?: true
   externalSaleId?: true
   tipoDocumentoId?: true
+  documentoTipo?: true
+  documentoNumero?: true
+  referenciaExterna?: true
+  contraparteNome?: true
+  contraparteTipo?: true
+  armazemNome?: true
+  utilizadorNome?: true
+  quantidadeBonusEnt?: true
+  quantidadeBonusSai?: true
+  existenciaBonusApos?: true
+  precoUnitario?: true
+  valorLinha?: true
   ingestRunId?: true
   ingestedAt?: true
   updatedAt?: true
@@ -472,6 +564,18 @@ export type MovimentoArtigoGroupByOutputType = {
   movStocksCabNDocExterno: string | null
   externalSaleId: number | null
   tipoDocumentoId: number | null
+  documentoTipo: string | null
+  documentoNumero: string | null
+  referenciaExterna: string | null
+  contraparteNome: string | null
+  contraparteTipo: $Enums.ContraparteTipo | null
+  armazemNome: string | null
+  utilizadorNome: string | null
+  quantidadeBonusEnt: number
+  quantidadeBonusSai: number
+  existenciaBonusApos: number
+  precoUnitario: runtime.Decimal | null
+  valorLinha: runtime.Decimal | null
   ingestRunId: string | null
   ingestedAt: Date
   updatedAt: Date
@@ -531,6 +635,18 @@ export type MovimentoArtigoWhereInput = {
   movStocksCabNDocExterno?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   externalSaleId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
   tipoDocumentoId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
+  documentoTipo?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  documentoNumero?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  referenciaExterna?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteTipo?: Prisma.EnumContraparteTipoNullableFilter<"MovimentoArtigo"> | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  utilizadorNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  quantidadeBonusEnt?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  quantidadeBonusSai?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  existenciaBonusApos?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  precoUnitario?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   ingestedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
@@ -569,6 +685,18 @@ export type MovimentoArtigoOrderByWithRelationInput = {
   movStocksCabNDocExterno?: Prisma.SortOrderInput | Prisma.SortOrder
   externalSaleId?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  documentoTipo?: Prisma.SortOrderInput | Prisma.SortOrder
+  documentoNumero?: Prisma.SortOrderInput | Prisma.SortOrder
+  referenciaExterna?: Prisma.SortOrderInput | Prisma.SortOrder
+  contraparteNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  contraparteTipo?: Prisma.SortOrderInput | Prisma.SortOrder
+  armazemNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  utilizadorNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorLinha?: Prisma.SortOrderInput | Prisma.SortOrder
   ingestRunId?: Prisma.SortOrderInput | Prisma.SortOrder
   ingestedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -611,6 +739,18 @@ export type MovimentoArtigoWhereUniqueInput = Prisma.AtLeast<{
   movStocksCabNDocExterno?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   externalSaleId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
   tipoDocumentoId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
+  documentoTipo?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  documentoNumero?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  referenciaExterna?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteTipo?: Prisma.EnumContraparteTipoNullableFilter<"MovimentoArtigo"> | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  utilizadorNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  quantidadeBonusEnt?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  quantidadeBonusSai?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  existenciaBonusApos?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  precoUnitario?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   ingestedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
@@ -649,6 +789,18 @@ export type MovimentoArtigoOrderByWithAggregationInput = {
   movStocksCabNDocExterno?: Prisma.SortOrderInput | Prisma.SortOrder
   externalSaleId?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrderInput | Prisma.SortOrder
+  documentoTipo?: Prisma.SortOrderInput | Prisma.SortOrder
+  documentoNumero?: Prisma.SortOrderInput | Prisma.SortOrder
+  referenciaExterna?: Prisma.SortOrderInput | Prisma.SortOrder
+  contraparteNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  contraparteTipo?: Prisma.SortOrderInput | Prisma.SortOrder
+  armazemNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  utilizadorNome?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrderInput | Prisma.SortOrder
+  valorLinha?: Prisma.SortOrderInput | Prisma.SortOrder
   ingestRunId?: Prisma.SortOrderInput | Prisma.SortOrder
   ingestedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -693,6 +845,18 @@ export type MovimentoArtigoScalarWhereWithAggregatesInput = {
   movStocksCabNDocExterno?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
   externalSaleId?: Prisma.IntNullableWithAggregatesFilter<"MovimentoArtigo"> | number | null
   tipoDocumentoId?: Prisma.IntNullableWithAggregatesFilter<"MovimentoArtigo"> | number | null
+  documentoTipo?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  documentoNumero?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  referenciaExterna?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  contraparteNome?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  contraparteTipo?: Prisma.EnumContraparteTipoNullableWithAggregatesFilter<"MovimentoArtigo"> | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  utilizadorNome?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
+  quantidadeBonusEnt?: Prisma.IntWithAggregatesFilter<"MovimentoArtigo"> | number
+  quantidadeBonusSai?: Prisma.IntWithAggregatesFilter<"MovimentoArtigo"> | number
+  existenciaBonusApos?: Prisma.IntWithAggregatesFilter<"MovimentoArtigo"> | number
+  precoUnitario?: Prisma.DecimalNullableWithAggregatesFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.DecimalNullableWithAggregatesFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.StringNullableWithAggregatesFilter<"MovimentoArtigo"> | string | null
   ingestedAt?: Prisma.DateTimeWithAggregatesFilter<"MovimentoArtigo"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"MovimentoArtigo"> | Date | string
@@ -727,6 +891,18 @@ export type MovimentoArtigoCreateInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -765,6 +941,18 @@ export type MovimentoArtigoUncheckedCreateInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -799,6 +987,18 @@ export type MovimentoArtigoUpdateInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -837,6 +1037,18 @@ export type MovimentoArtigoUncheckedUpdateInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -873,6 +1085,18 @@ export type MovimentoArtigoCreateManyInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -907,6 +1131,18 @@ export type MovimentoArtigoUpdateManyMutationInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -943,6 +1179,18 @@ export type MovimentoArtigoUncheckedUpdateManyInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -994,6 +1242,18 @@ export type MovimentoArtigoCountOrderByAggregateInput = {
   movStocksCabNDocExterno?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrder
+  documentoTipo?: Prisma.SortOrder
+  documentoNumero?: Prisma.SortOrder
+  referenciaExterna?: Prisma.SortOrder
+  contraparteNome?: Prisma.SortOrder
+  contraparteTipo?: Prisma.SortOrder
+  armazemNome?: Prisma.SortOrder
+  utilizadorNome?: Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrder
+  valorLinha?: Prisma.SortOrder
   ingestRunId?: Prisma.SortOrder
   ingestedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -1021,6 +1281,11 @@ export type MovimentoArtigoAvgOrderByAggregateInput = {
   movStocksCabPosto?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrder
+  valorLinha?: Prisma.SortOrder
 }
 
 export type MovimentoArtigoMaxOrderByAggregateInput = {
@@ -1054,6 +1319,18 @@ export type MovimentoArtigoMaxOrderByAggregateInput = {
   movStocksCabNDocExterno?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrder
+  documentoTipo?: Prisma.SortOrder
+  documentoNumero?: Prisma.SortOrder
+  referenciaExterna?: Prisma.SortOrder
+  contraparteNome?: Prisma.SortOrder
+  contraparteTipo?: Prisma.SortOrder
+  armazemNome?: Prisma.SortOrder
+  utilizadorNome?: Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrder
+  valorLinha?: Prisma.SortOrder
   ingestRunId?: Prisma.SortOrder
   ingestedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -1090,6 +1367,18 @@ export type MovimentoArtigoMinOrderByAggregateInput = {
   movStocksCabNDocExterno?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrder
+  documentoTipo?: Prisma.SortOrder
+  documentoNumero?: Prisma.SortOrder
+  referenciaExterna?: Prisma.SortOrder
+  contraparteNome?: Prisma.SortOrder
+  contraparteTipo?: Prisma.SortOrder
+  armazemNome?: Prisma.SortOrder
+  utilizadorNome?: Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrder
+  valorLinha?: Prisma.SortOrder
   ingestRunId?: Prisma.SortOrder
   ingestedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -1117,6 +1406,11 @@ export type MovimentoArtigoSumOrderByAggregateInput = {
   movStocksCabPosto?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   tipoDocumentoId?: Prisma.SortOrder
+  quantidadeBonusEnt?: Prisma.SortOrder
+  quantidadeBonusSai?: Prisma.SortOrder
+  existenciaBonusApos?: Prisma.SortOrder
+  precoUnitario?: Prisma.SortOrder
+  valorLinha?: Prisma.SortOrder
 }
 
 export type MovimentoArtigoCreateNestedManyWithoutProdutoInput = {
@@ -1207,6 +1501,10 @@ export type EnumTipoMovimentoArtigoFieldUpdateOperationsInput = {
   set?: $Enums.TipoMovimentoArtigo
 }
 
+export type NullableEnumContraparteTipoFieldUpdateOperationsInput = {
+  set?: $Enums.ContraparteTipo | null
+}
+
 export type MovimentoArtigoCreateWithoutProdutoInput = {
   id?: string
   externalMovId: number
@@ -1236,6 +1534,18 @@ export type MovimentoArtigoCreateWithoutProdutoInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1272,6 +1582,18 @@ export type MovimentoArtigoUncheckedCreateWithoutProdutoInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1337,6 +1659,18 @@ export type MovimentoArtigoScalarWhereInput = {
   movStocksCabNDocExterno?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   externalSaleId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
   tipoDocumentoId?: Prisma.IntNullableFilter<"MovimentoArtigo"> | number | null
+  documentoTipo?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  documentoNumero?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  referenciaExterna?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  contraparteTipo?: Prisma.EnumContraparteTipoNullableFilter<"MovimentoArtigo"> | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  utilizadorNome?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
+  quantidadeBonusEnt?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  quantidadeBonusSai?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  existenciaBonusApos?: Prisma.IntFilter<"MovimentoArtigo"> | number
+  precoUnitario?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.DecimalNullableFilter<"MovimentoArtigo"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.StringNullableFilter<"MovimentoArtigo"> | string | null
   ingestedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MovimentoArtigo"> | Date | string
@@ -1371,6 +1705,18 @@ export type MovimentoArtigoCreateWithoutFarmaciaInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1407,6 +1753,18 @@ export type MovimentoArtigoUncheckedCreateWithoutFarmaciaInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1468,6 +1826,18 @@ export type MovimentoArtigoCreateManyProdutoInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1502,6 +1872,18 @@ export type MovimentoArtigoUpdateWithoutProdutoInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1538,6 +1920,18 @@ export type MovimentoArtigoUncheckedUpdateWithoutProdutoInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1573,6 +1967,18 @@ export type MovimentoArtigoUncheckedUpdateManyWithoutProdutoInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1608,6 +2014,18 @@ export type MovimentoArtigoCreateManyFarmaciaInput = {
   movStocksCabNDocExterno?: string | null
   externalSaleId?: number | null
   tipoDocumentoId?: number | null
+  documentoTipo?: string | null
+  documentoNumero?: string | null
+  referenciaExterna?: string | null
+  contraparteNome?: string | null
+  contraparteTipo?: $Enums.ContraparteTipo | null
+  armazemNome?: string | null
+  utilizadorNome?: string | null
+  quantidadeBonusEnt?: number
+  quantidadeBonusSai?: number
+  existenciaBonusApos?: number
+  precoUnitario?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: string | null
   ingestedAt?: Date | string
   updatedAt?: Date | string
@@ -1642,6 +2060,18 @@ export type MovimentoArtigoUpdateWithoutFarmaciaInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1678,6 +2108,18 @@ export type MovimentoArtigoUncheckedUpdateWithoutFarmaciaInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1713,6 +2155,18 @@ export type MovimentoArtigoUncheckedUpdateManyWithoutFarmaciaInput = {
   movStocksCabNDocExterno?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   externalSaleId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  documentoTipo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documentoNumero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referenciaExterna?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contraparteTipo?: Prisma.NullableEnumContraparteTipoFieldUpdateOperationsInput | $Enums.ContraparteTipo | null
+  armazemNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  utilizadorNome?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  quantidadeBonusEnt?: Prisma.IntFieldUpdateOperationsInput | number
+  quantidadeBonusSai?: Prisma.IntFieldUpdateOperationsInput | number
+  existenciaBonusApos?: Prisma.IntFieldUpdateOperationsInput | number
+  precoUnitario?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  valorLinha?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   ingestRunId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   ingestedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1751,6 +2205,18 @@ export type MovimentoArtigoSelect<ExtArgs extends runtime.Types.Extensions.Inter
   movStocksCabNDocExterno?: boolean
   externalSaleId?: boolean
   tipoDocumentoId?: boolean
+  documentoTipo?: boolean
+  documentoNumero?: boolean
+  referenciaExterna?: boolean
+  contraparteNome?: boolean
+  contraparteTipo?: boolean
+  armazemNome?: boolean
+  utilizadorNome?: boolean
+  quantidadeBonusEnt?: boolean
+  quantidadeBonusSai?: boolean
+  existenciaBonusApos?: boolean
+  precoUnitario?: boolean
+  valorLinha?: boolean
   ingestRunId?: boolean
   ingestedAt?: boolean
   updatedAt?: boolean
@@ -1789,6 +2255,18 @@ export type MovimentoArtigoSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   movStocksCabNDocExterno?: boolean
   externalSaleId?: boolean
   tipoDocumentoId?: boolean
+  documentoTipo?: boolean
+  documentoNumero?: boolean
+  referenciaExterna?: boolean
+  contraparteNome?: boolean
+  contraparteTipo?: boolean
+  armazemNome?: boolean
+  utilizadorNome?: boolean
+  quantidadeBonusEnt?: boolean
+  quantidadeBonusSai?: boolean
+  existenciaBonusApos?: boolean
+  precoUnitario?: boolean
+  valorLinha?: boolean
   ingestRunId?: boolean
   ingestedAt?: boolean
   updatedAt?: boolean
@@ -1827,6 +2305,18 @@ export type MovimentoArtigoSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   movStocksCabNDocExterno?: boolean
   externalSaleId?: boolean
   tipoDocumentoId?: boolean
+  documentoTipo?: boolean
+  documentoNumero?: boolean
+  referenciaExterna?: boolean
+  contraparteNome?: boolean
+  contraparteTipo?: boolean
+  armazemNome?: boolean
+  utilizadorNome?: boolean
+  quantidadeBonusEnt?: boolean
+  quantidadeBonusSai?: boolean
+  existenciaBonusApos?: boolean
+  precoUnitario?: boolean
+  valorLinha?: boolean
   ingestRunId?: boolean
   ingestedAt?: boolean
   updatedAt?: boolean
@@ -1865,12 +2355,24 @@ export type MovimentoArtigoSelectScalar = {
   movStocksCabNDocExterno?: boolean
   externalSaleId?: boolean
   tipoDocumentoId?: boolean
+  documentoTipo?: boolean
+  documentoNumero?: boolean
+  referenciaExterna?: boolean
+  contraparteNome?: boolean
+  contraparteTipo?: boolean
+  armazemNome?: boolean
+  utilizadorNome?: boolean
+  quantidadeBonusEnt?: boolean
+  quantidadeBonusSai?: boolean
+  existenciaBonusApos?: boolean
+  precoUnitario?: boolean
+  valorLinha?: boolean
   ingestRunId?: boolean
   ingestedAt?: boolean
   updatedAt?: boolean
 }
 
-export type MovimentoArtigoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "externalMovId" | "externalProductId" | "produtoId" | "dataMovimento" | "tipo" | "quantidade" | "quantidadeBonus" | "existenciaApos" | "custoUnitario" | "pmcAnterior" | "pmcNovo" | "armazemId" | "externalDetalheId" | "externalSuspDetalheId" | "externalCreditoDetalheId" | "externalRecpDetalheId" | "externalDevolucaoDetalheId" | "externalMovStocksDetId" | "movStocksCabId" | "movStocksCabTipoDocId" | "movStocksCabMotivoId" | "movStocksCabMotivoTexto" | "movStocksCabSituacao" | "movStocksCabUserId" | "movStocksCabPosto" | "movStocksCabNDocExterno" | "externalSaleId" | "tipoDocumentoId" | "ingestRunId" | "ingestedAt" | "updatedAt", ExtArgs["result"]["movimentoArtigo"]>
+export type MovimentoArtigoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "externalMovId" | "externalProductId" | "produtoId" | "dataMovimento" | "tipo" | "quantidade" | "quantidadeBonus" | "existenciaApos" | "custoUnitario" | "pmcAnterior" | "pmcNovo" | "armazemId" | "externalDetalheId" | "externalSuspDetalheId" | "externalCreditoDetalheId" | "externalRecpDetalheId" | "externalDevolucaoDetalheId" | "externalMovStocksDetId" | "movStocksCabId" | "movStocksCabTipoDocId" | "movStocksCabMotivoId" | "movStocksCabMotivoTexto" | "movStocksCabSituacao" | "movStocksCabUserId" | "movStocksCabPosto" | "movStocksCabNDocExterno" | "externalSaleId" | "tipoDocumentoId" | "documentoTipo" | "documentoNumero" | "referenciaExterna" | "contraparteNome" | "contraparteTipo" | "armazemNome" | "utilizadorNome" | "quantidadeBonusEnt" | "quantidadeBonusSai" | "existenciaBonusApos" | "precoUnitario" | "valorLinha" | "ingestRunId" | "ingestedAt" | "updatedAt", ExtArgs["result"]["movimentoArtigo"]>
 export type MovimentoArtigoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.MovimentoArtigo$produtoArgs<ExtArgs>
@@ -1915,6 +2417,11 @@ export type $MovimentoArtigoPayload<ExtArgs extends runtime.Types.Extensions.Int
      * para reconciliação fiel; UI converte a |value| + direcao.
      */
     quantidade: number
+    /**
+     * @deprecated rev36: substituído por `quantidadeBonusEnt`/`Sai` +
+     * `existenciaBonusApos`. Mantido para compat com leitores legacy;
+     * remover em cleanup futuro após todos os tenants estarem em rev36.
+     */
     quantidadeBonus: number
     /**
      * dbo.StocksMov.Existencia. Running balance APÓS este movimento.
@@ -1991,6 +2498,45 @@ export type $MovimentoArtigoPayload<ExtArgs extends runtime.Types.Extensions.Int
      * DEVOLUCAO_CLIENTE entre os Stocksmov que partilham FK [Detalhe ID].
      */
     tipoDocumentoId: number | null
+    documentoTipo: string | null
+    documentoNumero: string | null
+    /**
+     * Referência cruzada quando aplicável: talão original de uma NC,
+     * factura externa do fornecedor, nº de doc na farmácia de origem
+     * numa transferência. NULL para mov-interno puro.
+     */
+    referenciaExterna: string | null
+    /**
+     * Nome legível da contraparte (cliente / fornecedor / farmácia
+     * origem ou destino). Resolvido no agent via JOIN ao schema SoftReis.
+     * NULL para mov-interno puro (inventário/quebra/ajuste).
+     */
+    contraparteNome: string | null
+    contraparteTipo: $Enums.ContraparteTipo | null
+    /**
+     * dbo.Armazens.Designacao. Nome amigável; `armazemId` continua a ser
+     * a referência canónica.
+     */
+    armazemNome: string | null
+    /**
+     * dbo.Operadores.Nome via StocksMov.OperadorID. Rastreabilidade do
+     * operador que executou o movimento (não impresso pelo ERP no
+     * relatório, está apenas em ficha técnica).
+     */
+    utilizadorNome: string | null
+    quantidadeBonusEnt: number
+    quantidadeBonusSai: number
+    existenciaBonusApos: number
+    /**
+     * dbo.StocksMov.PrecoVenda (PVP da linha de venda) ou PUC da compra.
+     */
+    precoUnitario: runtime.Decimal | null
+    /**
+     * dbo.StocksMov.ValorVenda ou ValorCompra. Total monetário da linha
+     * tal como contabilizado no ERP (preserva o que o ERP imprimiu, sem
+     * recalcular qty × preço — diferenças de IVA, descontos, bonus).
+     */
+    valorLinha: runtime.Decimal | null
     ingestRunId: string | null
     ingestedAt: Date
     updatedAt: Date
@@ -2449,6 +2995,18 @@ export interface MovimentoArtigoFieldRefs {
   readonly movStocksCabNDocExterno: Prisma.FieldRef<"MovimentoArtigo", 'String'>
   readonly externalSaleId: Prisma.FieldRef<"MovimentoArtigo", 'Int'>
   readonly tipoDocumentoId: Prisma.FieldRef<"MovimentoArtigo", 'Int'>
+  readonly documentoTipo: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly documentoNumero: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly referenciaExterna: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly contraparteNome: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly contraparteTipo: Prisma.FieldRef<"MovimentoArtigo", 'ContraparteTipo'>
+  readonly armazemNome: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly utilizadorNome: Prisma.FieldRef<"MovimentoArtigo", 'String'>
+  readonly quantidadeBonusEnt: Prisma.FieldRef<"MovimentoArtigo", 'Int'>
+  readonly quantidadeBonusSai: Prisma.FieldRef<"MovimentoArtigo", 'Int'>
+  readonly existenciaBonusApos: Prisma.FieldRef<"MovimentoArtigo", 'Int'>
+  readonly precoUnitario: Prisma.FieldRef<"MovimentoArtigo", 'Decimal'>
+  readonly valorLinha: Prisma.FieldRef<"MovimentoArtigo", 'Decimal'>
   readonly ingestRunId: Prisma.FieldRef<"MovimentoArtigo", 'String'>
   readonly ingestedAt: Prisma.FieldRef<"MovimentoArtigo", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"MovimentoArtigo", 'DateTime'>

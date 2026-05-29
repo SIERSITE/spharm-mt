@@ -1,50 +1,56 @@
 /**
  * lib/movimentos-data.ts
  *
- * Read-model agregador do histórico de movimentos de um produto.
- * Unifica várias fontes transaccionais dispersas numa única timeline
- * ordenada por data descendente, pronta para a ficha do artigo e
- * (futuramente) para exportação.
+ * Read-model do extrato de movimentos de um produto × farmácia.
  *
- * Fontes consumidas (só o que existe persistido na BD):
- *   · Venda             → saída
- *   · Compra            → entrada
- *   · Devolucao         → saída (FORNECEDOR) / entrada (CLIENTE) / neutro
- *   · AjusteStock       → entrada (POSITIVO) / saída (NEGATIVO, QUEBRA, PERDA) / neutro
- *   · LinhaInventario   → regularização (via Inventario.dataInventario)
+ * Modelo (rev36 — ERP parity):
+ *   Cada linha corresponde a UMA `MovimentoArtigo` (= UMA dbo.StocksMov).
+ *   Sem agregados. Sem "Venda mensal"/"Venda diária". O ERP imprime
+ *   movimento-a-movimento e nós fazemos o mesmo.
  *
- * Fontes NÃO disponíveis nesta fase (intencional — não inventamos):
- *   · Transferências entre farmácias (o módulo Transferências só gera
- *     sugestões, não persiste execuções)
- *   · Recepção de encomenda como evento distinto (Compra já cobre a
- *     entrada; quando existir um modelo dedicado de RecepcaoEncomenda,
- *     adicionar aqui)
- *   · Utilizador que executou o movimento — nenhuma tabela actual
- *     guarda esse campo. Fica a null; UI mostra "—".
- *   · Stock antes / Stock depois — nenhuma tabela guarda esse delta.
- *     Poderia ser reconstruído por running balance a partir de
- *     HistoricoStock + todos os movimentos, mas é trabalho dedicado
- *     com precisão discutível. Fica como TODO explícito.
+ * Fontes:
+ *   · Farmácia com `useMovimentosCanonical=true`  → `MovimentoArtigo`
+ *   · Farmácia com `useMovimentosCanonical=false` → branch legacy
+ *     (Venda / Compra / Devolucao / IngestVendaLinhaRaw) — DEPRECATED.
+ *     Mantém-se enquanto houver tenants pré-rev36 por migrar; quando
+ *     todos forem canónicos, este branch sai.
+ *
+ * NÃO toca em dashboard / ingest / export-orders. Só SELECTs.
  */
 
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 
+// ── Tipos públicos ────────────────────────────────────────────────
+
 export type MovimentoTipo =
   | "VENDA"
+  | "DEVOLUCAO_CLIENTE"
+  | "VENDA_CREDITO"
+  | "RESERVA_SUSPENSA"
   | "COMPRA"
-  | "DEVOLUCAO_FORNECEDOR" // devolução AO fornecedor (saída)
-  | "DEVOLUCAO_CLIENTE"    // devolução DO cliente (entrada)
+  | "DEVOLUCAO_FORNECEDOR"
+  | "INVENTARIO"
+  | "AJUSTE"
+  | "QUEBRA"
+  | "PERDA"
+  | "TRANSFERENCIA_ENTRADA"
+  | "TRANSFERENCIA_SAIDA"
+  | "DESCONHECIDO"
+  // ── Legacy-only (eliminados quando o branch legacy sair) ──
   | "DEVOLUCAO_OUTRA"
   | "AJUSTE_POSITIVO"
   | "AJUSTE_NEGATIVO"
   | "AJUSTE_CORRECAO"
-  | "QUEBRA"
-  | "PERDA"
-  | "AJUSTE_OUTRO"
-  | "INVENTARIO";
+  | "AJUSTE_OUTRO";
 
 export type MovimentoDirecao = "ENTRADA" | "SAIDA" | "NEUTRO";
+
+export type ContraparteTipo =
+  | "CLIENTE"
+  | "FORNECEDOR"
+  | "FARMACIA_ORIGEM"
+  | "FARMACIA_DESTINO";
 
 export type MovimentoRow = {
   /** Chave estável dentro da timeline — fonte + id original. */
@@ -54,30 +60,46 @@ export type MovimentoRow = {
   farmaciaId: string;
   farmacia: string;
   tipo: MovimentoTipo;
-  /** Label legível, já em português. */
+  /** Label legível (ex: "Venda", "Devolução cliente"). */
   tipoLabel: string;
   direcao: MovimentoDirecao;
-  /** Número de documento individual quando existe (raro: fontes são agregadas). */
-  documento: string | null;
-  /** Quantidade ABSOLUTA. A direção é lida de `direcao`. */
+
+  // ── Documento (ERP "Movimento de Artigos") ───────────────────
+  /** Rótulo do tipo de documento ("Factura", "Recepção", "Nota Crédito"…). */
+  documentoTipo: string | null;
+  /** Número visível ("G/783019", "60566", "VSG/25113", "VCG_1/2169"). */
+  documentoNumero: string | null;
+  /** Coluna "Externo" do ERP: factura do fornecedor, talão original duma NC. */
+  referenciaExterna: string | null;
+
+  // ── Contraparte (cliente / fornecedor / farmácia) ────────────
+  contraparteNome: string | null;
+  contraparteTipo: ContraparteTipo | null;
+
+  // ── Quantidades / running balance ────────────────────────────
+  /** Sinal preservado: +N entrada, −N saída. */
   quantidade: number;
-  /** Valor monetário (EUR) magnitude quando a fonte o tem; null caso contrário. */
-  valor: number | null;
-  /** Origem/Fornecedor (compra/devolução). null para vendas/ajustes. */
-  origem: string | null;
-  /** Sempre null nesta fase — nenhuma fonte persiste. */
-  stockAntes: number | null;
-  stockDepois: number | null;
-  /** Sempre null nesta fase — ver nota no topo. */
-  utilizador: string | null;
-  /** Motivo/observação livre quando existe. */
+  /** `existenciaApos − quantidade`. Derivado. */
+  stockAntes: number;
+  /** `existenciaApos` no ERP. */
+  stockDepois: number;
+  quantidadeBonusEnt: number;
+  quantidadeBonusSai: number;
+  existenciaBonusApos: number;
+
+  // ── Económicos ────────────────────────────────────────────────
+  precoUnitario: number | null;
+  valorLinha: number | null;
+  /** PMC novo (após este movimento). */
+  pmcNovo: number | null;
+
+  // ── Metadata ──────────────────────────────────────────────────
+  armazemNome: string | null;
+  utilizadorNome: string | null;
+  /** Motivo livre do operador (`tblMovStocksCab_Motivo`). */
   observacao: string | null;
-  /**
-   * Marca quando a linha NÃO é transacional — é um agregado (ex: soma
-   * mensal vinda de VendaMensal). A UI pinta um badge "mensal" para o
-   * leitor perceber que é uma soma, não um evento venda-a-venda.
-   */
-  agregado: boolean;
+  /** 'A' = anulado, 'N' = normal, null para vendas/compras puras. */
+  situacao: string | null;
 };
 
 export type MovimentosFilters = {
@@ -88,96 +110,104 @@ export type MovimentosFilters = {
   to?: string;
   /** Se vazio/omitido, devolve todos os tipos. */
   tipos?: MovimentoTipo[];
-  /**
-   * Granularidade das vendas:
-   *   · "diaria" → agregado por dia a partir de IngestVendaLinhaRaw (vista
-   *      operacional recente; readonly sobre staging, NUNCA expõe o schema raw).
-   *   · "mensal" → VendaMensal (histórico longo).
-   * Se omitido, é auto-decidida pela janela (`from` nos últimos ~62 dias →
-   * "diaria"; senão "mensal"). As duas fontes NUNCA são misturadas na mesma
-   * vista, para não duplicar a mesma venda.
-   */
-  salesGranularity?: "diaria" | "mensal";
 };
 
-/** Janela máx. (dias) em que se serve a granularidade diária a partir do raw. */
-const DAILY_WINDOW_MAX_DAYS = 62;
-/** Janela por defeito (dias) quando o utilizador não define `Desde`/`Até`. */
-const DEFAULT_WINDOW_DAYS = 30;
+// ── Constantes ────────────────────────────────────────────────────
+
+/** Janela default do extrato — espelho do ERP ("Da Data: AAAA-01-01 ..hoje"). */
+function startOfYearIso(d = new Date()): string {
+  return `${d.getUTCFullYear()}-01-01`;
+}
 
 /**
- * Granularidade das vendas decidida pela janela EFECTIVA (já com o default
- * de 30 dias aplicado). Janela curta (≤62d) → diária a partir do raw; janela
- * longa → mensal (VendaMensal). As duas fontes nunca se misturam.
+ * Janela por defeito (ano corrente → hoje) em ISO yyyy-mm-dd.
+ * Vive aqui (e não no render do server component) para a página passar
+ * a mesma janela ao loader e aos inputs sem chamar `Date.now()` no render.
  */
-function decideGranularity(filters: MovimentosFilters, effFrom: Date): "diaria" | "mensal" {
-  if (filters.salesGranularity) return filters.salesGranularity;
-  return Date.now() - effFrom.getTime() <= DAILY_WINDOW_MAX_DAYS * 86_400_000
-    ? "diaria"
-    : "mensal";
+export function getDefaultMovimentosWindow(): { from: string; to: string } {
+  const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+  return { from: startOfYearIso(), to: isoDay(new Date()) };
 }
+
+const TIPO_LABELS: Record<MovimentoTipo, string> = {
+  VENDA: "Venda",
+  DEVOLUCAO_CLIENTE: "Devolução cliente",
+  VENDA_CREDITO: "Venda crédito",
+  RESERVA_SUSPENSA: "Reserva",
+  COMPRA: "Compra / Receção",
+  DEVOLUCAO_FORNECEDOR: "Devolução fornecedor",
+  INVENTARIO: "Inventário",
+  AJUSTE: "Ajuste",
+  QUEBRA: "Quebra",
+  PERDA: "Perda",
+  TRANSFERENCIA_ENTRADA: "Transferência entrada",
+  TRANSFERENCIA_SAIDA: "Transferência saída",
+  DESCONHECIDO: "Movimento",
+  DEVOLUCAO_OUTRA: "Devolução",
+  AJUSTE_POSITIVO: "Ajuste positivo",
+  AJUSTE_NEGATIVO: "Ajuste negativo",
+  AJUSTE_CORRECAO: "Correção",
+  AJUSTE_OUTRO: "Ajuste",
+};
+
+/** Lista usada pelo dropdown "Tipo de movimento" na UI. */
+export function getTiposDisponiveis(): Array<{ value: MovimentoTipo; label: string }> {
+  // Apenas tipos canónicos rev36 (os legacy-only ficam fora do dropdown).
+  const canonical: MovimentoTipo[] = [
+    "VENDA",
+    "DEVOLUCAO_CLIENTE",
+    "VENDA_CREDITO",
+    "RESERVA_SUSPENSA",
+    "COMPRA",
+    "DEVOLUCAO_FORNECEDOR",
+    "INVENTARIO",
+    "AJUSTE",
+    "QUEBRA",
+    "PERDA",
+    "TRANSFERENCIA_ENTRADA",
+    "TRANSFERENCIA_SAIDA",
+    "DESCONHECIDO",
+  ];
+  return canonical.map((v) => ({ value: v, label: TIPO_LABELS[v] }));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
 
 function toF(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-const TIPO_LABELS: Record<MovimentoTipo, string> = {
-  VENDA: "Venda",
-  COMPRA: "Compra / Receção",
-  DEVOLUCAO_FORNECEDOR: "Devolução fornecedor",
-  DEVOLUCAO_CLIENTE: "Devolução cliente",
-  DEVOLUCAO_OUTRA: "Devolução",
-  AJUSTE_POSITIVO: "Ajuste positivo",
-  AJUSTE_NEGATIVO: "Ajuste negativo",
-  AJUSTE_CORRECAO: "Correção",
-  QUEBRA: "Quebra",
-  PERDA: "Perda",
-  AJUSTE_OUTRO: "Ajuste",
-  INVENTARIO: "Regularização de inventário",
-};
-
-const TIPO_DIRECAO: Record<MovimentoTipo, MovimentoDirecao> = {
-  VENDA: "SAIDA",
-  COMPRA: "ENTRADA",
-  DEVOLUCAO_FORNECEDOR: "SAIDA",
-  DEVOLUCAO_CLIENTE: "ENTRADA",
-  DEVOLUCAO_OUTRA: "NEUTRO",
-  AJUSTE_POSITIVO: "ENTRADA",
-  AJUSTE_NEGATIVO: "SAIDA",
-  AJUSTE_CORRECAO: "NEUTRO",
-  QUEBRA: "SAIDA",
-  PERDA: "SAIDA",
-  AJUSTE_OUTRO: "NEUTRO",
-  INVENTARIO: "NEUTRO",
-};
-
-/**
- * Janela por defeito do extrato (últimos 30 dias) em ISO yyyy-mm-dd.
- * Vive aqui (e não no render do server component) para a página passar a
- * mesma janela ao loader e aos inputs sem chamar `Date.now()` no render
- * (regra de pureza do React/Next).
- */
-export function getDefaultMovimentosWindow(): { from: string; to: string } {
-  const isoDay = (d: Date) => d.toISOString().slice(0, 10);
-  return {
-    from: isoDay(new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000)),
-    to: isoDay(new Date()),
-  };
+function direcaoForTipo(tipo: MovimentoTipo, qty: number): MovimentoDirecao {
+  switch (tipo) {
+    case "VENDA":
+    case "VENDA_CREDITO":
+    case "DEVOLUCAO_FORNECEDOR":
+    case "TRANSFERENCIA_SAIDA":
+    case "QUEBRA":
+    case "PERDA":
+    case "AJUSTE_NEGATIVO":
+      return "SAIDA";
+    case "COMPRA":
+    case "DEVOLUCAO_CLIENTE":
+    case "TRANSFERENCIA_ENTRADA":
+    case "AJUSTE_POSITIVO":
+      return "ENTRADA";
+    case "INVENTARIO":
+    case "AJUSTE":
+    case "AJUSTE_CORRECAO":
+    case "AJUSTE_OUTRO":
+    case "DEVOLUCAO_OUTRA":
+    case "RESERVA_SUSPENSA":
+    case "DESCONHECIDO":
+      return qty > 0 ? "ENTRADA" : qty < 0 ? "SAIDA" : "NEUTRO";
+  }
 }
 
-/** Lista estática usada pelo dropdown "Tipo de movimento" na UI. */
-export function getTiposDisponiveis(): Array<{ value: MovimentoTipo; label: string }> {
-  return (Object.keys(TIPO_LABELS) as MovimentoTipo[]).map((v) => ({
-    value: v,
-    label: TIPO_LABELS[v],
-  }));
-}
-
-/** Resolve o universo de farmácias a considerar. */
+/** Resolve o universo de farmácias a considerar + split por feature flag. */
 async function resolveFarmaciaIds(
   prisma: PrismaClient,
-  filters: MovimentosFilters
+  filters: MovimentosFilters,
 ): Promise<{
   ids: string[];
   nomeById: Map<string, string>;
@@ -202,58 +232,13 @@ async function resolveFarmaciaIds(
   };
 }
 
-/**
- * Mapping canónico TipoMovimentoArtigo (Prisma) → MovimentoTipo (UI).
- * Preserva o conjunto existente de chips/categorias do extrato; nada
- * de novo aparece sem o UI ter sido actualizado.
- */
-function mapCanonicalTipo(
-  tipo: string,
-  qtd: number,
-): { tipo: MovimentoTipo; tipoLabelOverride?: string } {
-  switch (tipo) {
-    case "VENDA":
-    case "VENDA_CREDITO":
-      return { tipo: "VENDA" };
-    case "DEVOLUCAO_CLIENTE":
-      return { tipo: "DEVOLUCAO_CLIENTE" };
-    case "COMPRA":
-      return { tipo: "COMPRA" };
-    case "DEVOLUCAO_FORNECEDOR":
-      return { tipo: "DEVOLUCAO_FORNECEDOR" };
-    case "INVENTARIO":
-      return { tipo: "INVENTARIO" };
-    case "QUEBRA":
-      return { tipo: "QUEBRA" };
-    case "PERDA":
-      return { tipo: "PERDA" };
-    case "AJUSTE":
-      // Sinal decide para conservar a semântica visual da UI antiga.
-      return { tipo: qtd > 0 ? "AJUSTE_POSITIVO" : qtd < 0 ? "AJUSTE_NEGATIVO" : "AJUSTE_OUTRO" };
-    case "TRANSFERENCIA_ENTRADA":
-      return { tipo: "AJUSTE_POSITIVO", tipoLabelOverride: "Transferência (entrada)" };
-    case "TRANSFERENCIA_SAIDA":
-      return { tipo: "AJUSTE_NEGATIVO", tipoLabelOverride: "Transferência (saída)" };
-    case "RESERVA_SUSPENSA":
-      return { tipo: "AJUSTE_OUTRO", tipoLabelOverride: "Reserva suspensa" };
-    case "DESCONHECIDO":
-    default:
-      return { tipo: "AJUSTE_OUTRO", tipoLabelOverride: "Movimento (desconhecido)" };
-  }
-}
+// ── Canónico (rev36) ──────────────────────────────────────────────
 
 /**
- * Lê MovimentoArtigo para `produtoId` × `farmaciaIds`. Devolve já no
- * shape `MovimentoRow[]`. Ordenação é feita a jusante quando merged
- * com legacy.
- *
- * Volume típico: ~30 linhas/produto/mês × N farmácias × janela. Janela
- * default 30 dias = <1000 linhas — trivial. Janelas longas (24m) podem
- * chegar a 20k linhas; ainda aceitável para o extrato de UM produto.
- *
- * Sem JOINs adicionais — origem (fornecedor) fica null para compras
- * canónicas porque StocksMov não traz fornecedor (vive em Recepcao
- * header). Drill-in: página /compras tem o detalhe completo.
+ * Lê `MovimentoArtigo` para (produtoId × farmaciaIds × janela). Já no
+ * shape final `MovimentoRow` que a UI consome. Sem JOINs adicionais —
+ * todos os campos vêm directamente da tabela (foram populados pelo
+ * agent rev36 a partir dos JOINs SoftReis).
  */
 async function readCanonicalMovimentos(
   prisma: PrismaClient,
@@ -277,6 +262,21 @@ async function readCanonicalMovimentos(
       tipo: true,
       quantidade: true,
       existenciaApos: true,
+      // ── rev36 — ERP parity ────────────────────────────────
+      documentoTipo: true,
+      documentoNumero: true,
+      referenciaExterna: true,
+      contraparteNome: true,
+      contraparteTipo: true,
+      armazemNome: true,
+      utilizadorNome: true,
+      quantidadeBonusEnt: true,
+      quantidadeBonusSai: true,
+      existenciaBonusApos: true,
+      precoUnitario: true,
+      valorLinha: true,
+      pmcNovo: true,
+      // ── Legacy enrichment (para fallback de display em rows pré-rev36) ──
       custoUnitario: true,
       movStocksCabNDocExterno: true,
       movStocksCabMotivoTexto: true,
@@ -289,15 +289,14 @@ async function readCanonicalMovimentos(
   });
 
   return rows.map((r): MovimentoRow => {
-    const qtd = r.quantidade;
-    const { tipo, tipoLabelOverride } = mapCanonicalTipo(r.tipo, qtd);
-    const direcao =
-      r.tipo === "TRANSFERENCIA_ENTRADA"
-        ? "ENTRADA"
-        : r.tipo === "TRANSFERENCIA_SAIDA"
-          ? "SAIDA"
-          : TIPO_DIRECAO[tipo];
-    const documento =
+    const qty = r.quantidade;
+    const tipo = r.tipo as MovimentoTipo;
+    const direcao = direcaoForTipo(tipo, qty);
+    const existencia = r.existenciaApos;
+
+    // Fallback display para rows uploaded por agents pré-rev36 (não têm
+    // documentoNumero populado): cair para o que existe.
+    const documentoNumeroFallback =
       r.movStocksCabNDocExterno ??
       (r.externalSaleId != null
         ? `#${r.externalSaleId}`
@@ -306,93 +305,64 @@ async function readCanonicalMovimentos(
           : r.externalDevolucaoDetalheId != null
             ? `Dev #${r.externalDevolucaoDetalheId}`
             : null);
-    const existencia = r.existenciaApos;
-    const stockDepois = existencia;
-    const stockAntes = existencia - qtd;
-    const valor = Math.abs(qtd) * toF(r.custoUnitario);
-    const obsParts: string[] = [];
-    if (r.movStocksCabMotivoTexto) obsParts.push(r.movStocksCabMotivoTexto.trim());
-    if (r.movStocksCabSituacao === "A") obsParts.push("[ANULADO]");
+
     return {
       key: `mov:${r.id}`,
       data: r.dataMovimento.toISOString(),
       farmaciaId: r.farmaciaId,
       farmacia: nomeById.get(r.farmaciaId) ?? "—",
       tipo,
-      tipoLabel: tipoLabelOverride ?? TIPO_LABELS[tipo],
+      tipoLabel: TIPO_LABELS[tipo],
       direcao,
-      documento,
-      quantidade: Math.abs(qtd),
-      valor: valor > 0 ? Math.round(valor * 100) / 100 : null,
-      origem: null,
-      stockAntes,
-      stockDepois,
-      utilizador: null,
-      observacao: obsParts.length > 0 ? obsParts.join(" ") : null,
-      agregado: false,
+      documentoTipo: r.documentoTipo,
+      documentoNumero: r.documentoNumero ?? documentoNumeroFallback,
+      referenciaExterna: r.referenciaExterna,
+      contraparteNome: r.contraparteNome,
+      contraparteTipo: r.contraparteTipo as ContraparteTipo | null,
+      quantidade: qty,
+      stockAntes: existencia - qty,
+      stockDepois: existencia,
+      quantidadeBonusEnt: r.quantidadeBonusEnt,
+      quantidadeBonusSai: r.quantidadeBonusSai,
+      existenciaBonusApos: r.existenciaBonusApos,
+      precoUnitario:
+        r.precoUnitario != null
+          ? toF(r.precoUnitario)
+          : r.custoUnitario != null
+            ? toF(r.custoUnitario)
+            : null,
+      valorLinha: r.valorLinha != null ? toF(r.valorLinha) : null,
+      pmcNovo: r.pmcNovo != null ? toF(r.pmcNovo) : null,
+      armazemNome: r.armazemNome,
+      utilizadorNome: r.utilizadorNome,
+      observacao: r.movStocksCabMotivoTexto?.trim() || null,
+      situacao: r.movStocksCabSituacao,
     };
   });
 }
 
+// ── Legacy (deprecated; só corre para farmácias pré-rev36) ────────
+
 /**
- * Carrega e agrega o extrato de movimentos de um produto.
- * Retorna array ordenado por data desc (mais recente primeiro).
+ * Branch legacy. Lê Venda/Compra/Devolucao/IngestVendaLinhaRaw e devolve
+ * no shape `MovimentoRow`. Conceitualmente é UMA aproximação (vendas
+ * vêm agregadas por dia/mês porque nunca foram per-row no legacy) e
+ * por isso a coluna "Documento" fica fraca. Para fechar este branch é
+ * preciso activar a flag `useMovimentosCanonical` na farmácia.
  */
-export async function getMovimentosProduto(
-  cnp: number,
-  filters: MovimentosFilters = {}
+async function readLegacyMovimentos(
+  prisma: PrismaClient,
+  produtoId: string,
+  legacyIds: string[],
+  effFrom: Date,
+  effTo: Date,
+  nomeById: Map<string, string>,
 ): Promise<MovimentoRow[]> {
-  const prisma = await getPrisma();
-  // 1. Resolver produto
-  const produto = await prisma.produto.findUnique({
-    where: { cnp },
-    select: { id: true },
-  });
-  if (!produto) return [];
-
-  // 2. Resolver farmácias + split por feature flag
-  const { ids: farmaciaIds, nomeById, canonicalIds, legacyIds } =
-    await resolveFarmaciaIds(prisma, filters);
-  if (farmaciaIds.length === 0) return [];
-
-  // 3. Janela temporal EFECTIVA — aplicada a TODOS os tipos de movimento.
-  // Decisão operacional: por defeito o extrato mostra APENAS os últimos 30
-  // dias (vendas, compras, devoluções, ajustes, inventário). Não se mistura
-  // histórico antigo por defeito — uma receção de 2024 só aparece quando o
-  // utilizador alarga `Desde`/`Até`. Sem `from` explícito ⇒ today−30d;
-  // sem `to` ⇒ agora (fim do dia).
-  const effFrom = filters.from
-    ? new Date(filters.from)
-    : new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000);
-  const effTo = filters.to ? new Date(filters.to) : new Date();
-  effTo.setHours(23, 59, 59, 999);
-  const dateFilter = { gte: effFrom, lte: effTo };
-
-  // 4. Canónico (flag=true) lê de MovimentoArtigo; legacy (flag=false) lê
-  // de Venda/Compra/Devolucao + raw. As duas streams MERGE no fim — sem
-  // duplicar para a mesma farmácia (mutuamente exclusivas pela flag).
-  // Block D1 — feature flag rollout incremental.
-  const canonicalRows = await readCanonicalMovimentos(
-    prisma,
-    produto.id,
-    canonicalIds,
-    effFrom,
-    effTo,
-    nomeById,
-  );
-
-  // Se TODAS as farmácias estão em canónico, salta legacy reads.
-  if (legacyIds.length === 0) {
-    const filtered = applyTipoFilter(canonicalRows, filters.tipos);
-    filtered.sort((a, b) => b.data.localeCompare(a.data));
-    return filtered;
-  }
-
-  // 5. Queries legacy em paralelo — só para o produto, dentro da janela.
+  if (legacyIds.length === 0) return [];
   const commonWhere = {
-    produtoId: produto.id,
+    produtoId,
     farmaciaId: { in: legacyIds },
-    data: dateFilter,
+    data: { gte: effFrom, lte: effTo },
   };
 
   const [vendas, compras, devolucoes, ajustes, linhasInventario] = await Promise.all([
@@ -450,10 +420,10 @@ export async function getMovimentosProduto(
     }),
     prisma.linhaInventario.findMany({
       where: {
-        produtoId: produto.id,
+        produtoId,
         inventario: {
           farmaciaId: { in: legacyIds },
-          dataInventario: dateFilter,
+          dataInventario: { gte: effFrom, lte: effTo },
         },
       },
       select: {
@@ -470,137 +440,41 @@ export async function getMovimentosProduto(
     }),
   ]);
 
-  // Vendas: granularidade DIÁRIA (raw, janela recente) OU MENSAL
-  // (VendaMensal, histórico longo) — nunca as duas na mesma vista, para não
-  // duplicar a mesma venda. Auto-decidida pela janela.
-  const granularity = decideGranularity(filters, effFrom);
-
-  type VendaMensalRow = {
-    id: string;
-    farmaciaId: string;
-    ano: number;
-    mes: number;
-    quantidade: unknown;
-    valorBruto: unknown;
-    valorTotal: unknown;
-  };
-  let vendasMensais: VendaMensalRow[] = [];
-  let vendasDiarias: Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }> = [];
-
-  if (granularity === "diaria") {
-    // Vendas PURAS por dia × farmácia (apenas class='VENDA'). As devoluções
-    // cliente saem como linhas autónomas via stream `devolucoesCliente`
-    // (per-documento) — nunca mais misturadas em "net diário".
-    vendasDiarias = await prisma.$queryRaw<Array<{ dia: Date; farmaciaId: string; qtd: number; valor: number }>>(
-      Prisma.sql`
-        SELECT date_trunc('day', "dataVenda") AS dia, "farmaciaId",
-          SUM(ABS(COALESCE("quantidade", 0)))::float AS qtd,
-          SUM(ABS(COALESCE("valorLinha", 0)))::float AS valor
-        FROM "IngestVendaLinhaRaw"
-        WHERE "produtoId" = ${produto.id}
-          AND "tipoDocumentoClass" = 'VENDA'
-          AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-          AND "farmaciaId" = ANY(${legacyIds})
-        GROUP BY 1, 2
-        ORDER BY 1 DESC
-      `,
-    );
-  } else {
-    // Vendas PURAS por mês × farmácia (apenas class='VENDA') — agregado
-    // directamente do raw, NÃO de VendaMensal (que é net e mascara as NCs).
-    // As devoluções cliente continuam per-documento abaixo.
-    vendasMensais = await prisma.$queryRaw<VendaMensalRow[]>(Prisma.sql`
-      SELECT MIN("externalSaleLineId")::text AS id,
-             "farmaciaId",
-             EXTRACT(YEAR FROM "dataVenda")::int AS ano,
-             EXTRACT(MONTH FROM "dataVenda")::int AS mes,
-             SUM(ABS(COALESCE("quantidade", 0)))::float AS quantidade,
-             SUM(ABS(COALESCE("valorLinha", 0)))::float AS "valorBruto",
-             SUM(ABS(COALESCE("valorLinha", 0)))::float AS "valorTotal"
-      FROM "IngestVendaLinhaRaw"
-      WHERE "produtoId" = ${produto.id}
-        AND "tipoDocumentoClass" = 'VENDA'
-        AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-        AND "farmaciaId" = ANY(${legacyIds})
-      GROUP BY 2, 3, 4
-      ORDER BY 3 DESC, 4 DESC
-    `);
-  }
-
-  // Devoluções cliente per-documento (sempre, independentemente da
-  // granularidade das vendas). Volumetria baixa (~10/dia max), per-doc é
-  // legível operacionalmente. Vem da MESMA tabela IngestVendaLinhaRaw mas
-  // com `tipoDocumentoClass='DEVOLUCAO_ANULACAO'` — agrupa-se por
-  // externalSaleId+farmácia porque um Atendimento pode ter várias linhas
-  // do mesmo produto (raro).
-  const devolucoesCliente = await prisma.$queryRaw<Array<{
-    saleId: number; farmaciaId: string; data: Date; qt: number; valor: number;
-    entId: number | null; lines: number;
-  }>>(Prisma.sql`
-    SELECT "externalSaleId" AS "saleId", "farmaciaId",
-           MIN("dataVenda") AS data,
-           SUM(ABS(COALESCE("quantidade", 0)))::float AS qt,
-           SUM(ABS(COALESCE("valorLinha", 0)))::float AS valor,
-           MIN("entidadeId") AS "entId",
-           COUNT(*)::int AS lines
-    FROM "IngestVendaLinhaRaw"
-    WHERE "produtoId" = ${produto.id}
-      AND "tipoDocumentoClass" = 'DEVOLUCAO_ANULACAO'
-      AND "dataVenda" >= ${effFrom} AND "dataVenda" <= ${effTo}
-      AND "farmaciaId" = ANY(${legacyIds})
-    GROUP BY 1, 2
-    ORDER BY 3 DESC
-  `);
-
-  // 5. Normalizar tudo num único shape
+  // Vendas individuais (sem agregação) — uma linha por Venda.
   const rows: MovimentoRow[] = [];
-
   for (const v of vendas) {
-    rows.push({
+    const qty = -Math.abs(toF(v.quantidade));
+    rows.push(legacyRow({
       key: `venda:${v.id}`,
-      data: v.data.toISOString(),
       farmaciaId: v.farmaciaId,
-      farmacia: nomeById.get(v.farmaciaId) ?? "—",
+      data: v.data,
       tipo: "VENDA",
-      tipoLabel: TIPO_LABELS.VENDA,
-      direcao: TIPO_DIRECAO.VENDA,
-      documento: v.tipoVenda ? `Tipo: ${v.tipoVenda}` : null,
-      quantidade: Math.abs(Math.round(toF(v.quantidade))),
-      valor: null,
-      origem: null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
+      quantidade: qty,
+      documentoTipo: "Factura",
+      documentoNumero: v.tipoVenda ? `Tipo ${v.tipoVenda}` : null,
+      contraparteNome: null,
+      contraparteTipo: null,
+      valorLinha: null,
       observacao: null,
-      agregado: false,
-    });
+      nomeById,
+    }));
   }
-
   for (const c of compras) {
-    rows.push({
+    rows.push(legacyRow({
       key: `compra:${c.id}`,
-      data: c.data.toISOString(),
       farmaciaId: c.farmaciaId,
-      farmacia: nomeById.get(c.farmaciaId) ?? "—",
+      data: c.data,
       tipo: "COMPRA",
-      tipoLabel: TIPO_LABELS.COMPRA,
-      direcao: TIPO_DIRECAO.COMPRA,
-      // Documento real só quando existe; as compras agregadas (produto-dia-
-      // fornecedor) não têm nº de documento individual → "—" na UI.
-      documento: c.numeroDocumento ?? null,
-      quantidade: Math.abs(Math.round(toF(c.quantidade))),
-      valor: c.valorTotal != null ? Math.abs(toF(c.valorTotal)) : null,
-      origem: c.fornecedor?.nomeNormalizado ?? null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
+      quantidade: Math.abs(toF(c.quantidade)),
+      documentoTipo: "Recepção",
+      documentoNumero: c.numeroDocumento ?? null,
+      contraparteNome: c.fornecedor?.nomeNormalizado ?? null,
+      contraparteTipo: c.fornecedor ? "FORNECEDOR" : null,
+      valorLinha: c.valorTotal != null ? Math.abs(toF(c.valorTotal)) : null,
       observacao: null,
-      // Sem documento individual = linha agregada (dia × fornecedor). Marcada
-      // para a UI sinalizar "agregado" e não a confundir com documento real.
-      agregado: c.numeroDocumento == null,
-    });
+      nomeById,
+    }));
   }
-
   for (const d of devolucoes) {
     const tipo: MovimentoTipo =
       d.tipo === "FORNECEDOR"
@@ -608,29 +482,22 @@ export async function getMovimentosProduto(
         : d.tipo === "CLIENTE"
           ? "DEVOLUCAO_CLIENTE"
           : "DEVOLUCAO_OUTRA";
-    rows.push({
+    const sign = tipo === "DEVOLUCAO_FORNECEDOR" ? -1 : 1;
+    rows.push(legacyRow({
       key: `devolucao:${d.id}`,
-      data: d.data.toISOString(),
       farmaciaId: d.farmaciaId,
-      farmacia: nomeById.get(d.farmaciaId) ?? "—",
+      data: d.data,
       tipo,
-      tipoLabel: TIPO_LABELS[tipo],
-      direcao: TIPO_DIRECAO[tipo],
-      // Devolução não tem nº de documento individual nesta fase → "—".
-      // O fornecedor (destino) e o motivo vão para Observação (não inventamos
-      // um "documento" a partir do nome do fornecedor).
-      documento: null,
-      quantidade: Math.abs(Math.round(toF(d.quantidade))),
-      valor: d.valor != null ? Math.abs(toF(d.valor)) : null,
-      origem: d.fornecedorDestino?.nomeNormalizado ?? null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
+      quantidade: sign * Math.abs(toF(d.quantidade)),
+      documentoTipo: tipo === "DEVOLUCAO_CLIENTE" ? "Nota Crédito" : "Devolução",
+      documentoNumero: null,
+      contraparteNome: d.fornecedorDestino?.nomeNormalizado ?? null,
+      contraparteTipo: d.fornecedorDestino ? "FORNECEDOR" : null,
+      valorLinha: d.valor != null ? Math.abs(toF(d.valor)) : null,
       observacao: d.motivo ?? null,
-      agregado: false,
-    });
+      nomeById,
+    }));
   }
-
   for (const a of ajustes) {
     const tipo: MovimentoTipo =
       a.tipo === "POSITIVO"
@@ -644,148 +511,133 @@ export async function getMovimentosProduto(
               : a.tipo === "PERDA"
                 ? "PERDA"
                 : "AJUSTE_OUTRO";
-    rows.push({
+    const qty = toF(a.quantidade);
+    rows.push(legacyRow({
       key: `ajuste:${a.id}`,
-      data: a.data.toISOString(),
       farmaciaId: a.farmaciaId,
-      farmacia: nomeById.get(a.farmaciaId) ?? "—",
+      data: a.data,
       tipo,
-      tipoLabel: TIPO_LABELS[tipo],
-      direcao: TIPO_DIRECAO[tipo],
-      documento: null,
-      quantidade: Math.abs(Math.round(toF(a.quantidade))),
-      valor: a.valor != null ? Math.abs(toF(a.valor)) : null,
-      origem: null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
+      quantidade: qty,
+      documentoTipo: "Ajuste",
+      documentoNumero: null,
+      contraparteNome: null,
+      contraparteTipo: null,
+      valorLinha: a.valor != null ? Math.abs(toF(a.valor)) : null,
       observacao: a.motivo || a.observacoes || null,
-      agregado: false,
-    });
+      nomeById,
+    }));
   }
-
   for (const li of linhasInventario) {
-    const diferenca = toF(li.diferenca);
-    rows.push({
+    const qty = toF(li.diferenca);
+    rows.push(legacyRow({
       key: `inv:${li.id}`,
-      data: li.inventario.dataInventario.toISOString(),
       farmaciaId: li.inventario.farmaciaId,
-      farmacia: nomeById.get(li.inventario.farmaciaId) ?? "—",
+      data: li.inventario.dataInventario,
       tipo: "INVENTARIO",
-      tipoLabel: TIPO_LABELS.INVENTARIO,
-      direcao:
-        diferenca > 0 ? "ENTRADA" : diferenca < 0 ? "SAIDA" : "NEUTRO",
-      documento: li.inventario.nome ?? null,
-      quantidade: Math.abs(Math.round(diferenca)),
-      valor: li.valorDiferenca != null ? Math.abs(toF(li.valorDiferenca)) : null,
-      origem: null,
-      stockAntes: li.stockSistema !== null ? Math.round(toF(li.stockSistema)) : null,
-      stockDepois: Math.round(toF(li.stockContado)),
-      utilizador: null,
+      quantidade: qty,
+      documentoTipo: "Inventário",
+      documentoNumero: li.inventario.nome ?? null,
+      contraparteNome: null,
+      contraparteTipo: null,
+      valorLinha: li.valorDiferenca != null ? Math.abs(toF(li.valorDiferenca)) : null,
       observacao: li.observacoes ?? null,
-      agregado: false,
-    });
+      nomeById,
+    }));
   }
-
-  // Vendas mensais (a partir do raw, só class='VENDA' — devoluções cliente
-  // ficam fora e aparecem em linhas próprias). Uma linha sintética por
-  // mês × farmácia. Data = último dia do mês (ordenação cronológica).
-  for (const vm of vendasMensais) {
-    const qty = Math.round(toF(vm.quantidade));
-    if (qty <= 0) continue;
-    const endOfMonth = new Date(vm.ano, vm.mes, 0, 23, 59, 59);
-    rows.push({
-      key: `vm:${vm.farmaciaId}:${vm.ano}-${String(vm.mes).padStart(2, "0")}`,
-      data: endOfMonth.toISOString(),
-      farmaciaId: vm.farmaciaId,
-      farmacia: nomeById.get(vm.farmaciaId) ?? "—",
-      tipo: "VENDA",
-      tipoLabel: "Venda (mensal)",
-      direcao: "SAIDA",
-      documento: null,
-      quantidade: qty,
-      valor: vm.valorBruto != null ? Math.abs(toF(vm.valorBruto)) : (vm.valorTotal != null ? Math.abs(toF(vm.valorTotal)) : null),
-      origem: null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
-      observacao: "Total mensal de VENDAs (Devoluções cliente em linha própria)",
-      agregado: true,
-    });
-  }
-
-  // Devolução Cliente per-documento: 1 linha por (Atendimento × farmácia).
-  // documento mostra `#${externalSaleId}` para auditoria operacional;
-  // origem resume a entidade (público vs comparticipada). NÃO é agregado
-  // diário/mensal — é o documento real do refund.
-  for (const d of devolucoesCliente) {
-    const qty = Math.round(toF(d.qt));
-    if (qty <= 0) continue;
-    rows.push({
-      key: `dc:${d.farmaciaId}:${d.saleId}`,
-      data: d.data.toISOString(),
-      farmaciaId: d.farmaciaId,
-      farmacia: nomeById.get(d.farmaciaId) ?? "—",
-      tipo: "DEVOLUCAO_CLIENTE",
-      tipoLabel: TIPO_LABELS.DEVOLUCAO_CLIENTE,
-      direcao: TIPO_DIRECAO.DEVOLUCAO_CLIENTE,
-      documento: `#${d.saleId}`,
-      quantidade: qty,
-      valor: Math.round(toF(d.valor) * 100) / 100,
-      origem: d.entId === 1 ? "Público" : d.entId == null ? null : "Comparticipada",
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
-      observacao: d.lines > 1 ? `${d.lines} linhas neste documento` : null,
-      agregado: false, // é um documento real, não agregado
-    });
-  }
-
-  // Vendas diárias (raw agregado por dia) — só class='VENDA'. Devoluções
-  // cliente saem em linhas próprias acima. Já não há "net diário" mascarado.
-  for (const d of vendasDiarias) {
-    const qty = Math.round(toF(d.qtd));
-    if (qty <= 0) continue;
-    rows.push({
-      key: `vd:${d.farmaciaId}:${d.dia.toISOString().slice(0, 10)}`,
-      data: d.dia.toISOString(),
-      farmaciaId: d.farmaciaId,
-      farmacia: nomeById.get(d.farmaciaId) ?? "—",
-      tipo: "VENDA",
-      tipoLabel: "Venda (diária)",
-      direcao: "SAIDA",
-      documento: null,
-      quantidade: qty,
-      valor: Math.round(toF(d.valor) * 100) / 100,
-      origem: null,
-      stockAntes: null,
-      stockDepois: null,
-      utilizador: null,
-      observacao: "Total diário de VENDAs (Devoluções cliente em linha própria)",
-      agregado: true,
-    });
-  }
-
-  // 6. Merge das duas streams (canónico + legacy) — farmácias mutuamente
-  //    exclusivas pela flag, não há duplicação.
-  rows.push(...canonicalRows);
-
-  // 7. Filtrar por tipos pedidos (aplicado em JS — é barato sobre o
-  //    universo já reduzido por produto/farmácia/data)
-  const filtered = applyTipoFilter(rows, filters.tipos);
-
-  // 8. Ordenar por data desc
-  filtered.sort((a, b) => b.data.localeCompare(a.data));
-
-  return filtered;
+  return rows;
 }
 
-/** Helper extraído para o caller poder filtrar a stream canónica isolada. */
-function applyTipoFilter(
-  rows: MovimentoRow[],
-  tipos: MovimentoTipo[] | undefined,
-): MovimentoRow[] {
-  if (!tipos || tipos.length === 0) return rows;
-  const set = new Set(tipos);
-  return rows.filter((r) => set.has(r.tipo));
+function legacyRow(args: {
+  key: string;
+  farmaciaId: string;
+  data: Date;
+  tipo: MovimentoTipo;
+  quantidade: number;
+  documentoTipo: string | null;
+  documentoNumero: string | null;
+  contraparteNome: string | null;
+  contraparteTipo: ContraparteTipo | null;
+  valorLinha: number | null;
+  observacao: string | null;
+  nomeById: Map<string, string>;
+}): MovimentoRow {
+  return {
+    key: args.key,
+    data: args.data.toISOString(),
+    farmaciaId: args.farmaciaId,
+    farmacia: args.nomeById.get(args.farmaciaId) ?? "—",
+    tipo: args.tipo,
+    tipoLabel: TIPO_LABELS[args.tipo],
+    direcao: direcaoForTipo(args.tipo, args.quantidade),
+    documentoTipo: args.documentoTipo,
+    documentoNumero: args.documentoNumero,
+    referenciaExterna: null,
+    contraparteNome: args.contraparteNome,
+    contraparteTipo: args.contraparteTipo,
+    quantidade: args.quantidade,
+    // Stock antes/depois desconhecido no legacy — sem running balance.
+    stockAntes: 0,
+    stockDepois: 0,
+    quantidadeBonusEnt: 0,
+    quantidadeBonusSai: 0,
+    existenciaBonusApos: 0,
+    precoUnitario: null,
+    valorLinha: args.valorLinha,
+    pmcNovo: null,
+    armazemNome: null,
+    utilizadorNome: null,
+    observacao: args.observacao,
+    situacao: null,
+  };
 }
+
+// ── Entry point ───────────────────────────────────────────────────
+
+/**
+ * Carrega o extrato de movimentos de um produto. Devolve array ordenado
+ * por data desc (mais recente primeiro). Ignora `Prisma`/`PrismaClient`
+ * exterior — usa o cliente partilhado via `getPrisma()`.
+ */
+export async function getMovimentosProduto(
+  cnp: number,
+  filters: MovimentosFilters = {},
+): Promise<MovimentoRow[]> {
+  const prisma = await getPrisma();
+  // 1. Resolver produto
+  const produto = await prisma.produto.findUnique({
+    where: { cnp },
+    select: { id: true },
+  });
+  if (!produto) return [];
+
+  // 2. Resolver farmácias + split por flag canónica
+  const { ids: farmaciaIds, nomeById, canonicalIds, legacyIds } =
+    await resolveFarmaciaIds(prisma, filters);
+  if (farmaciaIds.length === 0) return [];
+
+  // 3. Janela. Sem `from` ⇒ início do ano corrente. Sem `to` ⇒ agora.
+  const effFrom = filters.from
+    ? new Date(filters.from)
+    : new Date(`${startOfYearIso()}T00:00:00Z`);
+  const effTo = filters.to ? new Date(filters.to) : new Date();
+  effTo.setHours(23, 59, 59, 999);
+
+  // 4. Buscar das duas streams (mutuamente exclusivas por farmácia)
+  const [canonicalRows, legacyRows] = await Promise.all([
+    readCanonicalMovimentos(prisma, produto.id, canonicalIds, effFrom, effTo, nomeById),
+    readLegacyMovimentos(prisma, produto.id, legacyIds, effFrom, effTo, nomeById),
+  ]);
+
+  // 5. Merge + filtro de tipos + ordem desc por data
+  let rows = [...canonicalRows, ...legacyRows];
+  if (filters.tipos && filters.tipos.length > 0) {
+    const set = new Set(filters.tipos);
+    rows = rows.filter((r) => set.has(r.tipo));
+  }
+  rows.sort((a, b) => b.data.localeCompare(a.data));
+  return rows;
+}
+
+// Prisma import preservado para callers que necessitem do tipo (re-export
+// implícito via type imports). Não é usado runtime nesta versão.
+void Prisma;

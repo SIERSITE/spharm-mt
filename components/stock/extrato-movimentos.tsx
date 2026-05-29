@@ -2,7 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { MovimentoRow, MovimentoTipo } from "@/lib/movimentos-data";
+import type {
+  MovimentoRow,
+  MovimentoTipo,
+  ContraparteTipo,
+} from "@/lib/movimentos-data";
 import { runExtratoMovimentos } from "@/app/stock/artigo/[cnp]/actions";
 
 type FarmaciaOpt = { id: string; nome: string };
@@ -12,35 +16,62 @@ type Props = {
   farmacias: FarmaciaOpt[];
   /** Carregado server-side no page open. */
   initialRows: MovimentoRow[];
-  /** Janela inicial (ISO yyyy-mm-dd) — reflecte o default de 30 dias. */
+  /** Janela inicial (ISO yyyy-mm-dd) — reflecte o default do ano corrente. */
   defaultFrom?: string;
   defaultTo?: string;
 };
 
-type QuickFilter =
-  | "todos"
-  | "vendas"
-  | "devolucoes-cliente"
-  | "compras"
-  | "devolucoes-fornecedor"
-  | "outros";
-
-function categoria(tipo: MovimentoTipo): Exclude<QuickFilter, "todos"> {
-  if (tipo === "VENDA") return "vendas";
-  if (tipo === "DEVOLUCAO_CLIENTE" || tipo === "DEVOLUCAO_OUTRA") return "devolucoes-cliente";
-  if (tipo === "COMPRA") return "compras";
-  if (tipo === "DEVOLUCAO_FORNECEDOR") return "devolucoes-fornecedor";
-  return "outros";
-}
-
-/** Estilo do badge de tipo por categoria — distinção visual clara. */
-const CAT_BADGE: Record<Exclude<QuickFilter, "todos">, string> = {
-  vendas: "border-sky-200 bg-sky-50 text-sky-700",
-  "devolucoes-cliente": "border-rose-200 bg-rose-50 text-rose-700",
-  compras: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  "devolucoes-fornecedor": "border-amber-200 bg-amber-50 text-amber-700",
-  outros: "border-slate-200 bg-slate-50 text-slate-600",
+// ── Chips: 1:1 com `MovimentoTipo` canónico, espelho do "Resumo por
+// Tipo de Documento" do relatório ERP. Cada chip filtra um conjunto
+// PRECISO de tipos — não há catch-all "Outros". ─────────────────────
+type Chip = {
+  key: string;
+  label: string;
+  tipos: MovimentoTipo[];
 };
+
+const CHIPS: Chip[] = [
+  { key: "todos", label: "Todos", tipos: [] }, // [] = sem filtro
+  { key: "venda", label: "Venda", tipos: ["VENDA", "VENDA_CREDITO"] },
+  { key: "dev-cliente", label: "Devolução cliente", tipos: ["DEVOLUCAO_CLIENTE", "DEVOLUCAO_OUTRA"] },
+  { key: "compra", label: "Compra / Recepção", tipos: ["COMPRA"] },
+  { key: "dev-fornecedor", label: "Devolução fornecedor", tipos: ["DEVOLUCAO_FORNECEDOR"] },
+  { key: "transf-entrada", label: "Transferência entrada", tipos: ["TRANSFERENCIA_ENTRADA"] },
+  { key: "transf-saida", label: "Transferência saída", tipos: ["TRANSFERENCIA_SAIDA"] },
+  { key: "inventario", label: "Inventário", tipos: ["INVENTARIO"] },
+  { key: "quebra-perda", label: "Quebra / Perda", tipos: ["QUEBRA", "PERDA"] },
+  {
+    key: "ajuste",
+    label: "Ajuste",
+    tipos: ["AJUSTE", "AJUSTE_POSITIVO", "AJUSTE_NEGATIVO", "AJUSTE_CORRECAO", "AJUSTE_OUTRO"],
+  },
+  { key: "reserva", label: "Reserva", tipos: ["RESERVA_SUSPENSA"] },
+];
+
+const TIPO_BADGE: Partial<Record<MovimentoTipo, string>> = {
+  VENDA: "border-sky-200 bg-sky-50 text-sky-700",
+  VENDA_CREDITO: "border-sky-200 bg-sky-50 text-sky-700",
+  DEVOLUCAO_CLIENTE: "border-rose-200 bg-rose-50 text-rose-700",
+  DEVOLUCAO_OUTRA: "border-rose-200 bg-rose-50 text-rose-700",
+  COMPRA: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  DEVOLUCAO_FORNECEDOR: "border-amber-200 bg-amber-50 text-amber-700",
+  TRANSFERENCIA_ENTRADA: "border-teal-200 bg-teal-50 text-teal-700",
+  TRANSFERENCIA_SAIDA: "border-orange-200 bg-orange-50 text-orange-700",
+  INVENTARIO: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  QUEBRA: "border-red-200 bg-red-50 text-red-700",
+  PERDA: "border-red-200 bg-red-50 text-red-700",
+  AJUSTE: "border-violet-200 bg-violet-50 text-violet-700",
+  AJUSTE_POSITIVO: "border-violet-200 bg-violet-50 text-violet-700",
+  AJUSTE_NEGATIVO: "border-violet-200 bg-violet-50 text-violet-700",
+  AJUSTE_CORRECAO: "border-violet-200 bg-violet-50 text-violet-700",
+  AJUSTE_OUTRO: "border-violet-200 bg-violet-50 text-violet-700",
+  RESERVA_SUSPENSA: "border-slate-200 bg-slate-50 text-slate-600",
+  DESCONHECIDO: "border-slate-200 bg-slate-50 text-slate-500",
+};
+
+function badgeClassFor(tipo: MovimentoTipo): string {
+  return TIPO_BADGE[tipo] ?? "border-slate-200 bg-slate-50 text-slate-600";
+}
 
 function formatDate(iso: string): string {
   try {
@@ -49,31 +80,54 @@ function formatDate(iso: string): string {
     return iso;
   }
 }
-function formatDateTime(iso: string): string {
+function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleString("pt-PT", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
   } catch {
-    return iso;
+    return "";
   }
 }
 function fmtCurrency(v: number | null): string {
   if (v === null || !Number.isFinite(v)) return "—";
   return v.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
-function signedQty(row: MovimentoRow): string {
-  if (row.quantidade === 0) return "0";
-  if (row.direcao === "ENTRADA") return `+${row.quantidade}`;
-  if (row.direcao === "SAIDA") return `−${row.quantidade}`;
-  return String(row.quantidade);
+function fmtPrice4(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
+  return v.toLocaleString("pt-PT", { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + " €";
 }
-function qtyColor(direcao: MovimentoRow["direcao"]): string {
-  if (direcao === "ENTRADA") return "text-emerald-700";
-  if (direcao === "SAIDA") return "text-rose-700";
+function signedQty(qty: number): string {
+  if (qty === 0) return "0";
+  if (qty > 0) return `+${qty.toLocaleString("pt-PT")}`;
+  return `−${Math.abs(qty).toLocaleString("pt-PT")}`;
+}
+function qtyColor(qty: number): string {
+  if (qty > 0) return "text-emerald-700";
+  if (qty < 0) return "text-rose-700";
   return "text-slate-600";
 }
-/** Tem detalhe documental REAL (documento/stock/utilizador) — só então expande. */
-function hasRealDetail(r: MovimentoRow): boolean {
-  return r.documento !== null || r.stockAntes !== null || r.stockDepois !== null || r.utilizador !== null;
+
+function composeDocumento(r: MovimentoRow): string {
+  const tipo = r.documentoTipo?.trim();
+  const num = r.documentoNumero?.trim();
+  if (tipo && num) return `${tipo} ${num}`;
+  if (tipo) return tipo;
+  if (num) return num;
+  return "—";
+}
+
+function contraparteLabel(tipo: ContraparteTipo | null): string {
+  switch (tipo) {
+    case "CLIENTE":
+      return "Cliente";
+    case "FORNECEDOR":
+      return "Fornecedor";
+    case "FARMACIA_ORIGEM":
+      return "Farmácia origem";
+    case "FARMACIA_DESTINO":
+      return "Farmácia destino";
+    default:
+      return "";
+  }
 }
 
 export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, defaultTo }: Props) {
@@ -81,14 +135,10 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // Filtro de farmácia é SINGLE-SELECT explícito: "Todas" + uma por cada
-  // farmácia. Pré-redesign era multi-toggle (cumulativo), o que tornava
-  // ambíguo se estavam a filtrar ou só a indicar visualmente. Agora só
-  // uma está activa de cada vez; "Todas" envia farmaciaIds=undefined.
   const [farmaciaSel, setFarmaciaSel] = useState<"todas" | string>("todas");
   const [from, setFrom] = useState(defaultFrom ?? "");
   const [to, setTo] = useState(defaultTo ?? "");
-  const [quick, setQuick] = useState<QuickFilter>("todos");
+  const [quickKey, setQuickKey] = useState<string>("todos");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (key: string) =>
     setExpanded((prev) => {
@@ -115,36 +165,51 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
     });
   };
 
-  // Contagens por categoria (sobre TODAS as linhas carregadas) — aparecem
-  // nos chips para distinção operacional. As 5 categorias canónicas estão
-  // sempre visíveis; "Outros" só se houver pelo menos uma linha (ajustes/
-  // inventário, quando StocksMov entrar em C5).
+  // Contagens por chip — sobre TODAS as linhas carregadas. "Todos" usa
+  // rows.length; cada outro chip conta apenas os tipos que filtra.
   const counts = useMemo(() => {
-    const c = {
-      todos: rows.length,
-      vendas: 0,
-      "devolucoes-cliente": 0,
-      compras: 0,
-      "devolucoes-fornecedor": 0,
-      outros: 0,
-    };
-    for (const r of rows) c[categoria(r.tipo)]++;
-    return c;
+    const m: Record<string, number> = { todos: rows.length };
+    for (const c of CHIPS) {
+      if (c.tipos.length === 0) continue;
+      const set = new Set(c.tipos);
+      m[c.key] = rows.filter((r) => set.has(r.tipo)).length;
+    }
+    return m;
   }, [rows]);
 
-  const visibleRows = useMemo(
-    () => (quick === "todos" ? rows : rows.filter((r) => categoria(r.tipo) === quick)),
-    [rows, quick],
+  const visibleChips = useMemo(
+    () => CHIPS.filter((c) => c.key === "todos" || (counts[c.key] ?? 0) > 0),
+    [counts],
   );
 
-  const chips: Array<{ key: QuickFilter; label: string; n: number }> = [
-    { key: "todos", label: "Todos", n: counts.todos },
-    { key: "vendas", label: "Venda", n: counts.vendas },
-    { key: "devolucoes-cliente", label: "Devolução Cliente", n: counts["devolucoes-cliente"] },
-    { key: "compras", label: "Compra", n: counts.compras },
-    { key: "devolucoes-fornecedor", label: "Devolução Fornecedor", n: counts["devolucoes-fornecedor"] },
-    ...(counts.outros > 0 ? [{ key: "outros" as QuickFilter, label: "Outros", n: counts.outros }] : []),
-  ];
+  const visibleRows = useMemo(() => {
+    if (quickKey === "todos") return rows;
+    const chip = CHIPS.find((c) => c.key === quickKey);
+    if (!chip || chip.tipos.length === 0) return rows;
+    const set = new Set(chip.tipos);
+    return rows.filter((r) => set.has(r.tipo));
+  }, [rows, quickKey]);
+
+  // Totais — espelho do "Resumo Geral / Período" do ERP.
+  const totals = useMemo(() => {
+    let entradas = 0;
+    let saidas = 0;
+    let bonusEnt = 0;
+    let bonusSai = 0;
+    for (const r of visibleRows) {
+      if (r.quantidade > 0) entradas += r.quantidade;
+      else if (r.quantidade < 0) saidas += -r.quantidade;
+      bonusEnt += r.quantidadeBonusEnt;
+      bonusSai += r.quantidadeBonusSai;
+    }
+    return {
+      entradas,
+      saidas,
+      saldo: entradas - saidas,
+      bonusEnt,
+      bonusSai,
+    };
+  }, [visibleRows]);
 
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
@@ -152,12 +217,9 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
         <div>
           <h2 className="text-[14px] font-semibold text-slate-900">Extrato de movimentos</h2>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            <span className="font-semibold text-slate-700">Categorias separadas</span>: Venda · Devolução
-            Cliente · Compra · Devolução Fornecedor. Por defeito mostra os{" "}
-            <span className="font-semibold text-slate-700">últimos 30 dias</span> em todos os tipos; altera
-            Desde/Até para ver histórico (acima de ~2 meses as vendas passam a mensais). Linhas{" "}
-            <span className="font-semibold text-amber-700">agregado</span> são totais diários/mensais de Vendas
-            puras; Devolução Cliente é per-documento (#Atendimento).
+            Espelho do relatório <span className="font-medium">Movimento de Artigos</span> do ERP — uma
+            linha por movimento, com documento, contraparte, quantidades e running balance. Altera{" "}
+            <span className="font-semibold text-slate-700">Desde / Até</span> para mudar o período.
           </p>
         </div>
         <button
@@ -170,20 +232,21 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
         </button>
       </div>
 
-      {/* Filtros rápidos por tipo (client-side, com contagem) */}
+      {/* Chips de filtro rápido */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
-        {chips.map((c) => {
-          const on = quick === c.key;
+        {visibleChips.map((c) => {
+          const on = quickKey === c.key;
+          const n = counts[c.key] ?? 0;
           return (
             <button
               key={c.key}
               type="button"
-              onClick={() => setQuick(c.key)}
+              onClick={() => setQuickKey(c.key)}
               className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
                 on ? "border-slate-800 bg-slate-800 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
               }`}
             >
-              {c.label} <span className={on ? "text-white/70" : "text-slate-400"}>({c.n})</span>
+              {c.label} <span className={on ? "text-white/70" : "text-slate-400"}>({n})</span>
             </button>
           );
         })}
@@ -242,7 +305,7 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
         </div>
       )}
 
-      {/* Resultados — colunas simplificadas (detalhe documental no expandir) */}
+      {/* Grelha principal — 7 colunas */}
       <div className="mt-4 overflow-x-auto">
         {visibleRows.length === 0 ? (
           <div className="rounded-[12px] border border-dashed border-slate-200 bg-white/60 px-4 py-8 text-center text-[12px] text-slate-500">
@@ -255,101 +318,143 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
             <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
               <tr>
                 <th className="py-2 pr-3">Data</th>
-                <th className="py-2 pr-3">Farmácia</th>
+                <th className="py-2 pr-3">Documento</th>
                 <th className="py-2 pr-3">Tipo</th>
-                <th className="py-2 pr-3 text-right">Quantidade</th>
-                <th className="py-2 pr-3 text-right">Valor</th>
-                <th className="py-2 pr-3">Origem / Fornecedor</th>
+                <th className="py-2 pr-3">Cliente / Fornecedor</th>
+                <th className="py-2 pr-3 text-right">Qtd</th>
+                <th className="py-2 pr-3 text-right">Stock depois</th>
+                <th className="py-2 pr-3">Observação</th>
                 <th className="py-2 w-6" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleRows.map((row) => {
-                const cat = categoria(row.tipo);
-                const canExpand = hasRealDetail(row);
                 const isOpen = expanded.has(row.key);
                 return (
                   <FragmentRow
                     key={row.key}
                     row={row}
-                    cat={cat}
-                    canExpand={canExpand}
                     isOpen={isOpen}
-                    onToggle={() => canExpand && toggleExpand(row.key)}
+                    onToggle={() => toggleExpand(row.key)}
                   />
                 );
               })}
             </tbody>
+            {/* Linha de totais — espelho do "Total Entradas / Saídas / Saldo" */}
+            <tfoot className="border-t border-slate-200 bg-slate-50/60 text-[11px] font-semibold">
+              <tr>
+                <td className="px-2 py-2 text-slate-600" colSpan={4}>
+                  Total no período
+                </td>
+                <td className="px-2 py-2 text-right">
+                  <span className="text-emerald-700">+{totals.entradas.toLocaleString("pt-PT")}</span>{" "}
+                  <span className="text-rose-700">−{totals.saidas.toLocaleString("pt-PT")}</span>
+                </td>
+                <td className="px-2 py-2 text-right text-slate-800">
+                  Saldo {totals.saldo >= 0 ? "+" : "−"}
+                  {Math.abs(totals.saldo).toLocaleString("pt-PT")}
+                </td>
+                <td className="px-2 py-2 text-slate-500" colSpan={2}>
+                  Bónus: +{totals.bonusEnt.toLocaleString("pt-PT")} / −{totals.bonusSai.toLocaleString("pt-PT")}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
     </section>
   );
+}
 
-  function FragmentRow({
-    row,
-    cat,
-    canExpand,
-    isOpen,
-    onToggle,
-  }: {
-    row: MovimentoRow;
-    cat: Exclude<QuickFilter, "todos">;
-    canExpand: boolean;
-    isOpen: boolean;
-    onToggle: () => void;
-  }) {
-    return (
-      <>
-        <tr className={canExpand ? "cursor-pointer hover:bg-slate-50/70" : ""} onClick={onToggle}>
-          <td className="py-2 pr-3 whitespace-nowrap text-slate-700">{formatDate(row.data)}</td>
-          <td className="py-2 pr-3 text-slate-700">{row.farmacia}</td>
-          <td className="py-2 pr-3">
-            <span className="flex flex-wrap items-center gap-1.5">
-              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_BADGE[cat]}`}>
-                {row.tipoLabel}
-              </span>
-              {row.agregado && (
-                <span
-                  className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700"
-                  title="Total agregado — não é movimento individual (sem documento/utilizador/stock antes-depois)"
-                >
-                  agregado
-                </span>
-              )}
+function FragmentRow({
+  row,
+  isOpen,
+  onToggle,
+}: {
+  row: MovimentoRow;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const anulado = row.situacao === "A";
+  const rowClasses = [
+    "cursor-pointer hover:bg-slate-50/70",
+    anulado ? "text-slate-400 line-through decoration-slate-300" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <>
+      <tr className={rowClasses} onClick={onToggle}>
+        <td className="py-2 pr-3 whitespace-nowrap text-slate-700">
+          <div>{formatDate(row.data)}</div>
+          <div className="text-[10px] text-slate-400">{formatTime(row.data)}</div>
+        </td>
+        <td className="py-2 pr-3 text-slate-700">
+          <div className="font-medium">{composeDocumento(row)}</div>
+          {row.referenciaExterna && (
+            <div className="text-[10px] text-slate-500">Ref: {row.referenciaExterna}</div>
+          )}
+        </td>
+        <td className="py-2 pr-3">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${badgeClassFor(row.tipo)}`}
+            >
+              {row.tipoLabel}
             </span>
-          </td>
-          <td className={`py-2 pr-3 text-right font-medium ${qtyColor(row.direcao)}`}>{signedQty(row)}</td>
-          <td className="py-2 pr-3 text-right text-slate-600">{fmtCurrency(row.valor)}</td>
-          <td className="py-2 pr-3 text-slate-500">{row.origem ?? "—"}</td>
-          <td className="py-2 text-slate-400">
-            {canExpand ? (isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />) : null}
+            {anulado && (
+              <span className="rounded-full border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                Anulado
+              </span>
+            )}
+          </span>
+        </td>
+        <td className="py-2 pr-3 text-slate-700">
+          {row.contraparteNome ?? "—"}
+          {row.contraparteTipo && row.contraparteNome && (
+            <div className="text-[10px] text-slate-400">{contraparteLabel(row.contraparteTipo)}</div>
+          )}
+        </td>
+        <td className={`py-2 pr-3 text-right font-medium ${qtyColor(row.quantidade)}`}>
+          {signedQty(row.quantidade)}
+        </td>
+        <td className="py-2 pr-3 text-right text-slate-700 tabular-nums">
+          {row.stockDepois.toLocaleString("pt-PT")}
+        </td>
+        <td className="py-2 pr-3 text-slate-600">{row.observacao ?? "—"}</td>
+        <td className="py-2 text-slate-400">
+          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </td>
+      </tr>
+      {isOpen && (
+        <tr className="bg-slate-50/60">
+          <td colSpan={8} className="px-3 py-2">
+            <div className="grid gap-x-6 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
+              <Detail label="Stock antes" value={row.stockAntes.toLocaleString("pt-PT")} />
+              <Detail label="Stock depois" value={row.stockDepois.toLocaleString("pt-PT")} />
+              <Detail
+                label="Bónus +/−"
+                value={
+                  row.quantidadeBonusEnt > 0 || row.quantidadeBonusSai > 0
+                    ? `+${row.quantidadeBonusEnt} / −${row.quantidadeBonusSai}`
+                    : "—"
+                }
+              />
+              <Detail
+                label="Ex. bónus"
+                value={row.existenciaBonusApos > 0 ? row.existenciaBonusApos.toLocaleString("pt-PT") : "—"}
+              />
+              <Detail label="PMC" value={fmtPrice4(row.pmcNovo)} />
+              <Detail label="Preço" value={fmtPrice4(row.precoUnitario)} />
+              <Detail label="Valor" value={fmtCurrency(row.valorLinha)} />
+              <Detail label="Armazém" value={row.armazemNome ?? "—"} />
+              <Detail label="Utilizador" value={row.utilizadorNome ?? "—"} />
+            </div>
           </td>
         </tr>
-        {canExpand && isOpen && (
-          <tr className="bg-slate-50/60">
-            <td colSpan={7} className="px-3 py-2">
-              <div className="grid gap-x-6 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-2 lg:grid-cols-4">
-                <Detail label="Documento" value={row.documento} />
-                <Detail label="Stock antes" value={row.stockAntes !== null ? String(row.stockAntes) : null} />
-                <Detail label="Stock depois" value={row.stockDepois !== null ? String(row.stockDepois) : null} />
-                <Detail label="Utilizador" value={row.utilizador} />
-                {row.observacao && (
-                  <div className="sm:col-span-2 lg:col-span-4">
-                    <span className="text-slate-400">Observação: </span>
-                    <span className="text-slate-600">{row.observacao}</span>
-                  </div>
-                )}
-                <div className="sm:col-span-2 lg:col-span-4 text-[10px] text-slate-400">
-                  Registado em {formatDateTime(row.data)}
-                </div>
-              </div>
-            </td>
-          </tr>
-        )}
-      </>
-    );
-  }
+      )}
+    </>
+  );
 }
 
 function Detail({ label, value }: { label: string; value: string | null }) {

@@ -40,7 +40,11 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
-import { classifyRaw, type RawStocksMovLine } from "../movimento-classifier.js";
+import {
+  classifyRaw,
+  type RawStocksMovLine,
+  type TipoMovimentoArtigo,
+} from "../movimento-classifier.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -86,7 +90,39 @@ type StocksMovRow = {
   cabNDocExterno: string | null;
   atendimentoId: number | null;
   atTipoDocId: number | null;
+  // rev36 — ERP parity enrichment
+  bonusEnt: number | null;
+  bonusSai: number | null;
+  existenciaBonus: number | null;
+  precoVenda: number | string | null;
+  valorVenda: number | string | null;
+  /// Atendimento.[Numero Documento Externo] — "G/783019", "VSG/52653", etc.
+  atNDocExterno: string | null;
+  /// dbo.Entidades.Nome via Atendimento.EntidadeID — nome do cliente.
+  clienteNome: string | null;
+  /// Recepcao_Cab.NumeroDocumento — "60566".
+  recNDoc: string | null;
+  /// Recepcao_Cab.NDocExternoFornecedor — "FE26X1/1012857" ou "1/655".
+  recRefExterna: string | null;
+  /// Fornecedor da Recepcao_Cab.
+  recFornecedorNome: string | null;
+  /// Devolucao_Cab.NumeroDocumento.
+  devNDoc: string | null;
+  /// Devolucao_Cab.NDocExternoFornecedor.
+  devRefExterna: string | null;
+  /// Fornecedor da Devolucao_Cab.
+  devFornecedorNome: string | null;
+  /// dbo.Armazens.Designacao.
+  armazemNome: string | null;
+  /// dbo.Operadores.Nome via cab.[User ID]. Só mov-interno.
+  operadorNome: string | null;
 };
+
+type ContraparteTipo =
+  | "CLIENTE"
+  | "FORNECEDOR"
+  | "FARMACIA_ORIGEM"
+  | "FARMACIA_DESTINO";
 
 type MovimentoPayload = {
   externalMovId: number;
@@ -115,6 +151,19 @@ type MovimentoPayload = {
   movStocksCabNDocExterno: string | null;
   externalSaleId: number | null;
   tipoDocumentoId: number | null;
+  // rev36 — ERP parity (composto no agent a partir do FK pattern)
+  documentoTipo: string | null;
+  documentoNumero: string | null;
+  referenciaExterna: string | null;
+  contraparteNome: string | null;
+  contraparteTipo: ContraparteTipo | null;
+  armazemNome: string | null;
+  utilizadorNome: string | null;
+  quantidadeBonusEnt: number;
+  quantidadeBonusSai: number;
+  existenciaBonusApos: number;
+  precoUnitario: number | null;
+  valorLinha: number | null;
 };
 
 // ── Coerções ────────────────────────────────────────────────────────
@@ -162,7 +211,8 @@ function numOrNull(v: unknown): number | null {
   return null;
 }
 
-// ── Source query (rev32 audit fechado, rev34 column names corrigidos) ─
+// ── Source query (rev32 audit fechado, rev34 column names corrigidos,
+//    rev36 ERP-parity enrichment) ────────────────────────────────────
 //
 // Naming quirks Softreis (validados rev32 audit + bootstrap-dry-run em prod):
 //   · dbo.tblMovStocksCab.[Tipo Documento ID]   — COM "ID"
@@ -171,6 +221,27 @@ function numOrNull(v: unknown): number | null {
 //   · dbo.[Atendimento Detalhe].[Atendimento ID] — FK para Atendimento
 //   · dbo.StocksMov.[Detalhe ID]                — FK para [Atendimento Detalhe].[Detalhe ID]
 //   · dbo.StocksMov.[Detalhe  Recp ID]          — 2 espaços (preservar exactamente)
+//
+// rev36 assunções (nomes mais prováveis — todos os JOINs são LEFT, falha
+// resolve em NULL no resultado mas FALHA o parser se uma coluna não existir):
+//   · dbo.Atendimento.EntidadeID                 — FK para Entidades
+//   · dbo.Atendimento.[Numero Documento Externo] — string visível ("G/783019")
+//   · dbo.Entidades.EntidadeID + .Nome           — cliente
+//   · dbo.Recepcao_Detalhe.[Detalhe Recp ID]     — PK (espaço único; sm tem 2)
+//   · dbo.Recepcao_Detalhe.RecepcaoID            — FK para Recepcao_Cab
+//   · dbo.Recepcao_Cab.RecepcaoID + .NumeroDocumento + .FornecedorID
+//   · dbo.Recepcao_Cab.NDocExternoFornecedor     — factura externa
+//   · dbo.Devolucao_Detalhe.[Devolucao Detalhe ID] + .DevolucaoID
+//   · dbo.Devolucao_Cab.DevolucaoID + .NumeroDocumento + .FornecedorID
+//   · dbo.Devolucao_Cab.NDocExternoFornecedor
+//   · dbo.Fornecedores.FornecedorID + .Nome
+//   · dbo.Armazens.ArmazemID + .Designacao
+//   · dbo.Operadores.[User ID] + .Nome           — via cab.[User ID]
+//   · dbo.StocksMov.BonusEnt / BonusSai / ExistenciaBonus
+//   · dbo.StocksMov.PrecoVenda / ValorVenda
+//
+// Se algum nome falhar em produção, patch a coluna específica em rev37 sem
+// alterar o resto.
 
 const SOURCE_SQL = `
   SELECT TOP (@limit)
@@ -184,6 +255,11 @@ const SOURCE_SQL = `
     sm.OldPMC,
     sm.NovoPMC,
     sm.StocksMovArmazemID,
+    sm.BonusEnt                           AS bonusEnt,
+    sm.BonusSai                           AS bonusSai,
+    sm.ExistenciaBonus                    AS existenciaBonus,
+    sm.PrecoVenda                         AS precoVenda,
+    sm.ValorVenda                         AS valorVenda,
     sm.[Detalhe ID]                       AS detalheId,
     sm.[Atendimento Susp Detalhe ID]      AS suspDetalheId,
     sm.[Atendimento Credito Detalhe ID]   AS creditoDetalheId,
@@ -199,7 +275,17 @@ const SOURCE_SQL = `
     cab.Posto                             AS cabPosto,
     cab.NDocExterno                       AS cabNDocExterno,
     ad.[Atendimento ID]                   AS atendimentoId,
-    at_.[Tipo Documento]                  AS atTipoDocId
+    at_.[Tipo Documento]                  AS atTipoDocId,
+    at_.[Numero Documento Externo]        AS atNDocExterno,
+    ent.Nome                              AS clienteNome,
+    rc.NumeroDocumento                    AS recNDoc,
+    rc.NDocExternoFornecedor              AS recRefExterna,
+    rf.Nome                               AS recFornecedorNome,
+    dc.NumeroDocumento                    AS devNDoc,
+    dc.NDocExternoFornecedor              AS devRefExterna,
+    df.Nome                               AS devFornecedorNome,
+    arm.Designacao                        AS armazemNome,
+    op.Nome                               AS operadorNome
   FROM dbo.StocksMov sm
   LEFT JOIN dbo.tblMovStocksDet det
     ON det.MovStocksDetID = sm.MovStocksDetID
@@ -211,6 +297,24 @@ const SOURCE_SQL = `
     ON ad.[Detalhe ID] = sm.[Detalhe ID]
   LEFT JOIN dbo.Atendimento at_
     ON at_.[Atendimento ID] = ad.[Atendimento ID]
+  LEFT JOIN dbo.Entidades ent
+    ON ent.EntidadeID = at_.EntidadeID
+  LEFT JOIN dbo.Recepcao_Detalhe rd
+    ON rd.[Detalhe Recp ID] = sm.[Detalhe  Recp ID]
+  LEFT JOIN dbo.Recepcao_Cab rc
+    ON rc.RecepcaoID = rd.RecepcaoID
+  LEFT JOIN dbo.Fornecedores rf
+    ON rf.FornecedorID = rc.FornecedorID
+  LEFT JOIN dbo.Devolucao_Detalhe dd
+    ON dd.[Devolucao Detalhe ID] = sm.[Devolucao Detalhe ID]
+  LEFT JOIN dbo.Devolucao_Cab dc
+    ON dc.DevolucaoID = dd.DevolucaoID
+  LEFT JOIN dbo.Fornecedores df
+    ON df.FornecedorID = dc.FornecedorID
+  LEFT JOIN dbo.Armazens arm
+    ON arm.ArmazemID = sm.StocksMovArmazemID
+  LEFT JOIN dbo.Operadores op
+    ON op.[User ID] = cab.[User ID]
   WHERE sm.DataMov >= @from
     AND sm.DataMov <  @to
     AND sm.StocksMovID > @sinceId
@@ -251,17 +355,126 @@ function rowToRaw(r: StocksMovRow): RawStocksMovLine {
   };
 }
 
+// ── ERP-parity composers (rev36) ───────────────────────────────────
+//
+// Cada movimento canónico tem 1 "documento" + 0..1 "contraparte" do
+// ponto de vista operacional. Os helpers abaixo escolhem a fonte certa
+// consoante o tipo classificado, mantendo o agent como única fonte de
+// verdade desta composição (o endpoint apenas faz UPSERT do que recebe).
+
+/// Mapeia `tipo` (classifier) para o rótulo de documento que o ERP imprime.
+/// Espelha o "Tipo de Documento" da grelha "Movimento de Artigos".
+function documentoTipoFor(tipo: TipoMovimentoArtigo): string {
+  switch (tipo) {
+    case "VENDA":
+      return "Factura";
+    case "DEVOLUCAO_CLIENTE":
+      return "Nota Crédito";
+    case "VENDA_CREDITO":
+      return "Factura Crédito";
+    case "RESERVA_SUSPENSA":
+      return "Reserva";
+    case "COMPRA":
+      return "Recepção";
+    case "DEVOLUCAO_FORNECEDOR":
+      return "Devolução";
+    case "TRANSFERENCIA_SAIDA":
+      return "G/Transferência";
+    case "TRANSFERENCIA_ENTRADA":
+      return "Recepção"; // recepção via transferência inter-farmácia
+    case "INVENTARIO":
+      return "Inventário";
+    case "QUEBRA":
+      return "Quebra";
+    case "PERDA":
+      return "Perda";
+    case "AJUSTE":
+      return "Ajuste";
+    case "DESCONHECIDO":
+    default:
+      return "?";
+  }
+}
+
+/// Escolhe o número de documento de acordo com a origem do movimento:
+///   · Vendas/devCliente/crédito  → Atendimento.[Numero Documento Externo]
+///   · Compras                    → Recepcao_Cab.NumeroDocumento
+///   · Devolução fornecedor       → Devolucao_Cab.NumeroDocumento
+///   · Mov-interno (todos os outros) → tblMovStocksCab.NDocExterno
+/// Fallback final: StocksMovID stringificado (raríssimo; DESCONHECIDO).
+function documentoNumeroFor(r: StocksMovRow, tipo: TipoMovimentoArtigo): string | null {
+  const isVendaLike =
+    tipo === "VENDA" ||
+    tipo === "DEVOLUCAO_CLIENTE" ||
+    tipo === "VENDA_CREDITO" ||
+    tipo === "RESERVA_SUSPENSA";
+  if (isVendaLike) return strOrNull(r.atNDocExterno);
+  if (tipo === "COMPRA") return strOrNull(r.recNDoc);
+  if (tipo === "DEVOLUCAO_FORNECEDOR") return strOrNull(r.devNDoc);
+  // mov-interno (transferências/inventário/quebra/perda/ajuste): cab.NDocExterno
+  return strOrNull(r.cabNDocExterno);
+}
+
+/// Referência externa cruzada (coluna "Externo" do ERP):
+///   · Compra → factura externa do fornecedor (ex: "FE26X1/1012857")
+///   · Devolução fornecedor → idem
+///   · Outros → NULL (NCs poderão ganhar "Talão original" numa rev futura)
+function referenciaExternaFor(r: StocksMovRow, tipo: TipoMovimentoArtigo): string | null {
+  if (tipo === "COMPRA") return strOrNull(r.recRefExterna);
+  if (tipo === "DEVOLUCAO_FORNECEDOR") return strOrNull(r.devRefExterna);
+  return null;
+}
+
+/// Resolve nome + tipo da contraparte (coluna "Cliente/Fornecedor" do ERP):
+///   · Vendas/devCliente/crédito  → Entidades.Nome (CLIENTE)
+///   · Compras                    → Recepcao_Cab → Fornecedores.Nome (FORNECEDOR)
+///   · Devolução fornecedor       → Devolucao_Cab → Fornecedores.Nome (FORNECEDOR)
+///   · Transferências             → NULL nesta rev (origem/destino farmácia
+///     vem em rev futura; o documento "G/Transferência …" já dá contexto)
+///   · Mov-interno puro           → NULL
+function contraparteFor(
+  r: StocksMovRow,
+  tipo: TipoMovimentoArtigo,
+): { nome: string | null; tipo: ContraparteTipo | null } {
+  if (
+    tipo === "VENDA" ||
+    tipo === "DEVOLUCAO_CLIENTE" ||
+    tipo === "VENDA_CREDITO" ||
+    tipo === "RESERVA_SUSPENSA"
+  ) {
+    return { nome: strOrNull(r.clienteNome), tipo: "CLIENTE" };
+  }
+  if (tipo === "COMPRA") {
+    return { nome: strOrNull(r.recFornecedorNome), tipo: "FORNECEDOR" };
+  }
+  if (tipo === "DEVOLUCAO_FORNECEDOR") {
+    return { nome: strOrNull(r.devFornecedorNome), tipo: "FORNECEDOR" };
+  }
+  return { nome: null, tipo: null };
+}
+
 function rowToPayload(r: StocksMovRow): MovimentoPayload | null {
   const externalMovId = numOrNull(r.StocksMovID);
   const externalProductId = numOrNull(r.CodigoID);
   if (externalMovId === null || externalProductId === null) return null;
   if (!(r.DataMov instanceof Date) || Number.isNaN(r.DataMov.getTime())) return null;
+  // rev36: classifica primeiro porque os composers dependem do `tipo`
+  // (ex: "Recepção" vs "G/Transferência" para FK recpDetalheId).
+  const cls = classifyRaw(rowToRaw(r));
+  const tipo = cls.tipo;
+  const contraparte = contraparteFor(r, tipo);
+  const bonusEnt = numOrNull(r.bonusEnt) ?? 0;
+  const bonusSai = numOrNull(r.bonusSai) ?? 0;
+  // Compatibilidade com o campo combinado deprecated: assina o bónus por
+  // sentido (entrada positiva, saída negativa) — mantém o que o leitor
+  // legacy esperava.
+  const quantidadeBonusCombinado = bonusEnt - bonusSai;
   return {
     externalMovId,
     externalProductId: String(externalProductId),
     dataMovimento: r.DataMov.toISOString(),
     quantidade: numOrNull(r.Qtd) ?? 0,
-    quantidadeBonus: numOrNull(r.QtdBonus) ?? 0,
+    quantidadeBonus: quantidadeBonusCombinado,
     existenciaApos: numOrNull(r.Existencia) ?? 0,
     custoUnitario: numOrNull(r.ValorCustoUnit) ?? 0,
     pmcAnterior: numOrNull(r.OldPMC) ?? 0,
@@ -283,6 +496,19 @@ function rowToPayload(r: StocksMovRow): MovimentoPayload | null {
     movStocksCabNDocExterno: strOrNull(r.cabNDocExterno),
     externalSaleId: numOrNull(r.atendimentoId),
     tipoDocumentoId: numOrNull(r.atTipoDocId),
+    // rev36 — ERP parity
+    documentoTipo: documentoTipoFor(tipo),
+    documentoNumero: documentoNumeroFor(r, tipo),
+    referenciaExterna: referenciaExternaFor(r, tipo),
+    contraparteNome: contraparte.nome,
+    contraparteTipo: contraparte.tipo,
+    armazemNome: strOrNull(r.armazemNome),
+    utilizadorNome: strOrNull(r.operadorNome),
+    quantidadeBonusEnt: bonusEnt,
+    quantidadeBonusSai: bonusSai,
+    existenciaBonusApos: numOrNull(r.existenciaBonus) ?? 0,
+    precoUnitario: numOrNull(r.precoVenda),
+    valorLinha: numOrNull(r.valorVenda),
   };
 }
 

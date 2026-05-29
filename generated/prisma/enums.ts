@@ -244,6 +244,16 @@ export const TipoMovimentoArtigo = {
 export type TipoMovimentoArtigo = (typeof TipoMovimentoArtigo)[keyof typeof TipoMovimentoArtigo]
 
 
+export const ContraparteTipo = {
+  CLIENTE: 'CLIENTE',
+  FORNECEDOR: 'FORNECEDOR',
+  FARMACIA_ORIGEM: 'FARMACIA_ORIGEM',
+  FARMACIA_DESTINO: 'FARMACIA_DESTINO'
+} as const
+
+export type ContraparteTipo = (typeof ContraparteTipo)[keyof typeof ContraparteTipo]
+
+
 export const AcquisitionJobStatus = {
   PENDING: 'PENDING',
   IN_PROGRESS: 'IN_PROGRESS',

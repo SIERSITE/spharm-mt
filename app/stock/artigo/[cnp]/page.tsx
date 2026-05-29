@@ -5,9 +5,7 @@ import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
-import { CoberturaPipelines } from "@/components/stock/cobertura-pipelines";
 import { getMovimentosProduto, getDefaultMovimentosWindow } from "@/lib/movimentos-data";
-import { getPipelineFreshness } from "@/lib/pipeline-freshness";
 import {
   ArrowLeft,
   Package,
@@ -130,14 +128,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // ao loader quer ao componente, para os inputs reflectirem exactamente o que
   // está a ser mostrado.
   const { from: defaultFrom, to: defaultTo } = getDefaultMovimentosWindow();
-  const prisma = await getPrisma();
-  const [movimentosIniciais, pipelineFreshness] = await Promise.all([
-    getMovimentosProduto(produto.cnp, {
-      from: defaultFrom,
-      to: defaultTo,
-    }),
-    getPipelineFreshness(prisma),
-  ]);
+  // Cobertura por pipeline foi MOVIDA para /admin/pipeline — não pertence
+  // à ficha operacional do artigo. A ficha é per-produto; freshness é
+  // tenant-wide e só faz sentido na área técnica/admin.
+  const movimentosIniciais = await getMovimentosProduto(produto.cnp, {
+    from: defaultFrom,
+    to: defaultTo,
+  });
 
   const fabricante = fmt(produto.fabricante?.nomeNormalizado);
   const principioAtivo = fmt(produto.dci);
@@ -365,12 +362,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             </>
           )}
         </section>
-
-        {/* Cobertura por pipeline (tenant-wide): mostra estado/freshness de
-            cada origem (vendas, compras, devoluções, ajustes, inventário)
-            ACIMA do extrato. Os gaps silenciosos (ex: staging > Compra) ficam
-            visíveis como "N dias por agregar". */}
-        <CoberturaPipelines rows={pipelineFreshness} />
 
         {/* Extrato de movimentos — carregado server-side; o botão
             "Atualizar" refresca em cima do dataset inicial. */}

@@ -12,6 +12,9 @@
 
 import { getPipelineStatus, type PipelineRunSummary } from "@/lib/data/pipeline-status";
 import { PIPELINE_STATUS } from "@/lib/pipeline/types";
+import { getPipelineFreshness } from "@/lib/pipeline-freshness";
+import { CoberturaPipelines } from "@/components/stock/cobertura-pipelines";
+import { getPrisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +58,11 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default async function AdminPipelinePage() {
-  const data = await getPipelineStatus();
+  const prisma = await getPrisma();
+  const [data, pipelineFreshness] = await Promise.all([
+    getPipelineStatus(),
+    getPipelineFreshness(prisma),
+  ]);
 
   const build = {
     commit:
@@ -81,6 +88,10 @@ export default async function AdminPipelinePage() {
       </section>
 
       <Metrics data={data} />
+      {/* Freshness por domínio (vendas / compras / devoluções / ajustes /
+          inventário / movimentos canónicos). Anteriormente vivia na ficha
+          do artigo — saiu de lá porque é tenant-wide, não per-produto. */}
+      <CoberturaPipelines rows={pipelineFreshness} />
       <LastRunsSection data={data} />
       <RecentRunsTable rows={data.recentRuns} />
       {data.recentFailures.length > 0 ? <FailuresTable rows={data.recentFailures} /> : null}

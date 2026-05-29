@@ -77,7 +77,10 @@ import {
   classifyMovimento,
   type FkPattern,
 } from "@/lib/movimento-classifier";
-import type { TipoMovimentoArtigo } from "@/generated/prisma/client";
+import type {
+  TipoMovimentoArtigo,
+  ContraparteTipo,
+} from "@/generated/prisma/client";
 // O classifier devolve o seu próprio union type local (1:1 com Prisma enum);
 // usamos o do Prisma no schema-side e confiamos no string match no boundary.
 
@@ -121,6 +124,20 @@ type MovimentoLinePayload = {
 
   externalSaleId: unknown;
   tipoDocumentoId: unknown;
+
+  // rev36 — ERP parity (todos optional; agent rev≤35 não os envia)
+  documentoTipo?: unknown;
+  documentoNumero?: unknown;
+  referenciaExterna?: unknown;
+  contraparteNome?: unknown;
+  contraparteTipo?: unknown;
+  armazemNome?: unknown;
+  utilizadorNome?: unknown;
+  quantidadeBonusEnt?: unknown;
+  quantidadeBonusSai?: unknown;
+  existenciaBonusApos?: unknown;
+  precoUnitario?: unknown;
+  valorLinha?: unknown;
 };
 
 type MovimentosResponse = BootstrapBatchResponse & {
@@ -167,7 +184,33 @@ type Normalised = {
 
   externalSaleId: number | null;
   tipoDocumentoId: number | null;
+
+  // rev36 — ERP parity
+  documentoTipo: string | null;
+  documentoNumero: string | null;
+  referenciaExterna: string | null;
+  contraparteNome: string | null;
+  contraparteTipo: ContraparteTipo | null;
+  armazemNome: string | null;
+  utilizadorNome: string | null;
+  quantidadeBonusEnt: number;
+  quantidadeBonusSai: number;
+  existenciaBonusApos: number;
+  precoUnitario: number | null;
+  valorLinha: number | null;
 };
+
+const CONTRAPARTE_TIPO_VALUES: Record<ContraparteTipo, true> = {
+  CLIENTE: true,
+  FORNECEDOR: true,
+  FARMACIA_ORIGEM: true,
+  FARMACIA_DESTINO: true,
+};
+
+function asContraparteTipo(v: unknown): ContraparteTipo | null {
+  if (typeof v !== "string") return null;
+  return v in CONTRAPARTE_TIPO_VALUES ? (v as ContraparteTipo) : null;
+}
 
 /**
  * Determinístico (md5 sobre `farmaciaId:externalMovId`) — gera o mesmo
@@ -364,6 +407,21 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       movStocksCabNDocExterno: asStringOrNull(raw.movStocksCabNDocExterno),
       externalSaleId: asIntOrNull(raw.externalSaleId),
       tipoDocumentoId,
+      // rev36 — ERP parity. Agents anteriores não enviam estes campos;
+      // ficam null / defaults e não bloqueiam o upsert (colunas nullable
+      // ou com DEFAULT 0 na migration).
+      documentoTipo: asStringOrNull(raw.documentoTipo),
+      documentoNumero: asStringOrNull(raw.documentoNumero),
+      referenciaExterna: asStringOrNull(raw.referenciaExterna),
+      contraparteNome: asStringOrNull(raw.contraparteNome),
+      contraparteTipo: asContraparteTipo(raw.contraparteTipo),
+      armazemNome: asStringOrNull(raw.armazemNome),
+      utilizadorNome: asStringOrNull(raw.utilizadorNome),
+      quantidadeBonusEnt: asIntOrNull(raw.quantidadeBonusEnt) ?? 0,
+      quantidadeBonusSai: asIntOrNull(raw.quantidadeBonusSai) ?? 0,
+      existenciaBonusApos: asIntOrNull(raw.existenciaBonusApos) ?? 0,
+      precoUnitario: asDecimalOrNull(raw.precoUnitario),
+      valorLinha: asDecimalOrNull(raw.valorLinha),
     });
   }
 
@@ -420,6 +478,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             ${n.movStocksCabMotivoTexto}, ${n.movStocksCabSituacao}, ${n.movStocksCabUserId},
             ${n.movStocksCabPosto}, ${n.movStocksCabNDocExterno},
             ${n.externalSaleId}, ${n.tipoDocumentoId},
+            ${n.documentoTipo}, ${n.documentoNumero}, ${n.referenciaExterna},
+            ${n.contraparteNome}, ${n.contraparteTipo}::"ContraparteTipo",
+            ${n.armazemNome}, ${n.utilizadorNome},
+            ${n.quantidadeBonusEnt}, ${n.quantidadeBonusSai}, ${n.existenciaBonusApos},
+            ${n.precoUnitario}, ${n.valorLinha},
             ${ingestRunId}, NOW(), NOW()
           )`,
       );
@@ -436,6 +499,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           "movStocksCabMotivoTexto", "movStocksCabSituacao", "movStocksCabUserId",
           "movStocksCabPosto", "movStocksCabNDocExterno",
           "externalSaleId", "tipoDocumentoId",
+          "documentoTipo", "documentoNumero", "referenciaExterna",
+          "contraparteNome", "contraparteTipo",
+          "armazemNome", "utilizadorNome",
+          "quantidadeBonusEnt", "quantidadeBonusSai", "existenciaBonusApos",
+          "precoUnitario", "valorLinha",
           "ingestRunId", "ingestedAt", "updatedAt"
         )
         VALUES ${Prisma.join(movValues, ", ")}
@@ -467,6 +535,18 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           "movStocksCabNDocExterno"     = EXCLUDED."movStocksCabNDocExterno",
           "externalSaleId"              = EXCLUDED."externalSaleId",
           "tipoDocumentoId"             = EXCLUDED."tipoDocumentoId",
+          "documentoTipo"               = EXCLUDED."documentoTipo",
+          "documentoNumero"             = EXCLUDED."documentoNumero",
+          "referenciaExterna"           = EXCLUDED."referenciaExterna",
+          "contraparteNome"             = EXCLUDED."contraparteNome",
+          "contraparteTipo"             = EXCLUDED."contraparteTipo",
+          "armazemNome"                 = EXCLUDED."armazemNome",
+          "utilizadorNome"              = EXCLUDED."utilizadorNome",
+          "quantidadeBonusEnt"          = EXCLUDED."quantidadeBonusEnt",
+          "quantidadeBonusSai"          = EXCLUDED."quantidadeBonusSai",
+          "existenciaBonusApos"         = EXCLUDED."existenciaBonusApos",
+          "precoUnitario"               = EXCLUDED."precoUnitario",
+          "valorLinha"                  = EXCLUDED."valorLinha",
           "ingestRunId"                 = EXCLUDED."ingestRunId",
           "updatedAt"                   = NOW()
         RETURNING (xmax = 0) AS inserted

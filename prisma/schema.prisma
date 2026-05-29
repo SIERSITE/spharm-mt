@@ -199,6 +199,22 @@ enum TipoMovimentoArtigo {
   DESCONHECIDO
 }
 
+/// Natureza da contraparte de um MovimentoArtigo. Usada para identificar
+/// quem está do outro lado do movimento na grelha "Cliente/Fornecedor"
+/// do extrato. Compõe a coluna a partir do FK pattern + JOINs no agent:
+///   - CLIENTE          : venda/devolução cliente (Atendimento.Entidades)
+///   - FORNECEDOR       : compra/devolução fornecedor (Recepcao/Devolucao_Cab.Fornecedores)
+///   - FARMACIA_ORIGEM  : transferência ENTRADA (origem na outra farmácia)
+///   - FARMACIA_DESTINO : transferência SAÍDA (destino na outra farmácia)
+/// Movimentos internos puros (inventário/quebra/perda/ajuste) ficam com
+/// `contraparteTipo = null` e `contraparteNome = null`.
+enum ContraparteTipo {
+  CLIENTE
+  FORNECEDOR
+  FARMACIA_ORIGEM
+  FARMACIA_DESTINO
+}
+
 /// Estados do ciclo de vida de um RegulatoryAcquisitionJob.
 /// Transições típicas:
 ///   PENDING      → IN_PROGRESS    (worker claimed)
@@ -1768,6 +1784,9 @@ model MovimentoArtigo {
   /// dbo.StocksMov.Qtd (assinado: negativo = saída). Preserva o sinal
   /// para reconciliação fiel; UI converte a |value| + direcao.
   quantidade      Int
+  /// @deprecated rev36: substituído por `quantidadeBonusEnt`/`Sai` +
+  /// `existenciaBonusApos`. Mantido para compat com leitores legacy;
+  /// remover em cleanup futuro após todos os tenants estarem em rev36.
   quantidadeBonus Int     @default(0)
   /// dbo.StocksMov.Existencia. Running balance APÓS este movimento.
   existenciaApos  Int
@@ -1820,6 +1839,50 @@ model MovimentoArtigo {
   /// 2=VENDA (raro). Usado pelo classificador para sub-tipar VENDA vs
   /// DEVOLUCAO_CLIENTE entre os Stocksmov que partilham FK [Detalhe ID].
   tipoDocumentoId Int?
+
+  // ── ERP parity rev36 ───────────────────────────────────────────
+  // Composto no agent a partir do FK pattern: para vendas vem de
+  // Atendimento+Atendimento_TipoDocumento, para compras de Recepcao_Cab,
+  // para devForn de Devolucao_Cab, para mov-interno de tblMovStocksCab.
+  // Permite mostrar "Factura G/783019", "Recepção 60566", "Nota Crédito
+  // VSG/25113", "G/Transferência VCG_1/2169" tal como no relatório ERP.
+  documentoTipo     String? @db.VarChar(40)
+  documentoNumero   String? @db.VarChar(40)
+  /// Referência cruzada quando aplicável: talão original de uma NC,
+  /// factura externa do fornecedor, nº de doc na farmácia de origem
+  /// numa transferência. NULL para mov-interno puro.
+  referenciaExterna String? @db.VarChar(80)
+
+  /// Nome legível da contraparte (cliente / fornecedor / farmácia
+  /// origem ou destino). Resolvido no agent via JOIN ao schema SoftReis.
+  /// NULL para mov-interno puro (inventário/quebra/ajuste).
+  contraparteNome String?          @db.VarChar(160)
+  contraparteTipo ContraparteTipo?
+
+  /// dbo.Armazens.Designacao. Nome amigável; `armazemId` continua a ser
+  /// a referência canónica.
+  armazemNome String? @db.VarChar(60)
+  /// dbo.Operadores.Nome via StocksMov.OperadorID. Rastreabilidade do
+  /// operador que executou o movimento (não impresso pelo ERP no
+  /// relatório, está apenas em ficha técnica).
+  utilizadorNome String? @db.VarChar(80)
+
+  // ── Bónus split (rev36) ────────────────────────────────────────
+  // O ERP imprime Bónus+ / Bónus- / Ex.Bon separadamente. `quantidadeBonus`
+  // (combinado, pré-rev36) mantém-se para compatibilidade temporária mas
+  // deprecará após cleanup. Origem: dbo.StocksMov.BonusEnt/BonusSai e
+  // dbo.StocksMov.ExistenciaBonus.
+  quantidadeBonusEnt  Int @default(0)
+  quantidadeBonusSai  Int @default(0)
+  existenciaBonusApos Int @default(0)
+
+  // ── Preço / valor (rev36) ──────────────────────────────────────
+  /// dbo.StocksMov.PrecoVenda (PVP da linha de venda) ou PUC da compra.
+  precoUnitario Decimal? @db.Decimal(12, 4)
+  /// dbo.StocksMov.ValorVenda ou ValorCompra. Total monetário da linha
+  /// tal como contabilizado no ERP (preserva o que o ERP imprimiu, sem
+  /// recalcular qty × preço — diferenças de IVA, descontos, bonus).
+  valorLinha    Decimal? @db.Decimal(12, 2)
 
   ingestRunId String?
   ingestedAt  DateTime @default(now())

@@ -810,6 +810,13 @@ export type EnumTipoMovimentoArtigoFilter<$PrismaModel = never> = {
   not?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel> | $Enums.TipoMovimentoArtigo
 }
 
+export type EnumContraparteTipoNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.ContraparteTipo | Prisma.EnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel> | $Enums.ContraparteTipo | null
+}
+
 export type EnumTipoMovimentoArtigoWithAggregatesFilter<$PrismaModel = never> = {
   equals?: $Enums.TipoMovimentoArtigo | Prisma.EnumTipoMovimentoArtigoFieldRefInput<$PrismaModel>
   in?: $Enums.TipoMovimentoArtigo[] | Prisma.ListEnumTipoMovimentoArtigoFieldRefInput<$PrismaModel>
@@ -818,6 +825,16 @@ export type EnumTipoMovimentoArtigoWithAggregatesFilter<$PrismaModel = never> = 
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel>
   _max?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel>
+}
+
+export type EnumContraparteTipoNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ContraparteTipo | Prisma.EnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumContraparteTipoNullableWithAggregatesFilter<$PrismaModel> | $Enums.ContraparteTipo | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel>
 }
 
 export type NestedStringFilter<$PrismaModel = never> = {
@@ -1564,6 +1581,13 @@ export type NestedEnumTipoMovimentoArtigoFilter<$PrismaModel = never> = {
   not?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel> | $Enums.TipoMovimentoArtigo
 }
 
+export type NestedEnumContraparteTipoNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.ContraparteTipo | Prisma.EnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel> | $Enums.ContraparteTipo | null
+}
+
 export type NestedEnumTipoMovimentoArtigoWithAggregatesFilter<$PrismaModel = never> = {
   equals?: $Enums.TipoMovimentoArtigo | Prisma.EnumTipoMovimentoArtigoFieldRefInput<$PrismaModel>
   in?: $Enums.TipoMovimentoArtigo[] | Prisma.ListEnumTipoMovimentoArtigoFieldRefInput<$PrismaModel>
@@ -1572,6 +1596,16 @@ export type NestedEnumTipoMovimentoArtigoWithAggregatesFilter<$PrismaModel = nev
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel>
   _max?: Prisma.NestedEnumTipoMovimentoArtigoFilter<$PrismaModel>
+}
+
+export type NestedEnumContraparteTipoNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ContraparteTipo | Prisma.EnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  in?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.ContraparteTipo[] | Prisma.ListEnumContraparteTipoFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumContraparteTipoNullableWithAggregatesFilter<$PrismaModel> | $Enums.ContraparteTipo | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumContraparteTipoNullableFilter<$PrismaModel>
 }
 
 
