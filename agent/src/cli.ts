@@ -60,6 +60,7 @@ import {
 } from "./commands/devolucoes-fornecedor.js";
 import { movimentosAudit } from "./commands/movimentos-audit.js";
 import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
+import { inspectStocksIvaSchema } from "./commands/inspect-stocks-iva-schema.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -164,6 +165,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "inspect-codigoid": {
     run: inspectCodigoId,
     desc: "Probe dbo.Stocks read-only para lista de CodigoIDs (--ids).",
+  },
+  "inspect-stocks-iva-schema": {
+    run: inspectStocksIvaSchema,
+    desc: "rev40: lista colunas com 'iva' em dbo.Stocks + TOP 10 valores + tabelas IVA/Taxa* candidatas. Para diagnosticar quando STOCKS_MESTRE fica 0.",
   },
   "fornecedores-dry-run": {
     run: fornecedoresDryRun,

@@ -241,39 +241,140 @@ export function renderTotals(label: string, t: PipelineTotals): void {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * rev39 — descobre o nome da coluna de IVA na tabela mestre `dbo.Stocks`
- * em runtime. SoftReis varia entre instalações: `[IVA]`, `[Codigo_IVA]`,
- * `[CodigoIVA]`, `[Taxa IVA]`, `[Taxa_IVA]`, `[TaxaIVA]`, `[IVA_ID]`,
- * `[IVAID]`. Devolve `null` quando nenhuma variante existe — neste caso
- * o agent envia `taxaIva: null` e o SaaS preserva o que houver (vindo
- * do recuperador de fallback).
+ * rev40 — descobre o nome da coluna de IVA na tabela mestre `dbo.Stocks`.
+ * Versão alargada e diagnóstica: SEMPRE imprime as colunas candidatas
+ * (qualquer coluna cujo nome contenha "iva"), e quando encontra match
+ * mostra TOP 5 valores DISTINCT para validar a escala (fracção 0.06 vs
+ * percentagem 6 vs código 1/2/3 numa tabela mestre `[IVAs]`).
  *
- * O valor cru pode vir como fracção (0.06) ou percentagem (6) — o
- * server normaliza ambos via `normalizeIva()`.
+ * Regex de match cobre 19 variantes observadas em instalações SoftReis:
+ *   IVA, Iva, iva
+ *   TaxaIVA, Taxa_IVA, Taxa IVA, TxIVA, Tx_IVA, Tx IVA
+ *   CodigoIVA, Codigo_IVA, Codigo IVA, Cod_IVA, CodIVA, CodIva
+ *   IVAID, IVA_ID, IVA Id
+ *   TipoIVA, Tipo_IVA, Tipo IVA
+ *   IVACod, IVA_Codigo
+ *   PercIVA, PercentagemIVA, ValorIVA (último é arriscado)
+ *
+ * Estratégia: primeiro tenta os matches "fortes" (taxa/percentagem
+ * directas); só depois aceita IDs (que requerem JOIN extra a uma tabela
+ * `dbo.IVAs` ou `dbo.TaxasIVA`). Quando devolve um ID, o caller pode
+ * fazer LEFT JOIN à tabela master para resolver — gerido caso a caso.
+ *
+ * Se nenhum match → devolve null E imprime TODAS as colunas de Stocks
+ * (cap 200) para análise manual.
  */
-async function discoverStocksIvaColumn(pool: SqlPool): Promise<string | null> {
+type IvaColumnResolution = {
+  column: string | null;
+  /** `direct` = coluna contém a percentagem/fracção. `id` = código para JOIN. */
+  kind: "direct" | "id" | null;
+  /** Todas as colunas da tabela Stocks que contêm "iva" (case-insensitive). */
+  candidates: string[];
+  /** Todas as colunas (cap 200) — só usado em fallback de diagnóstico. */
+  allColumns: string[];
+};
+
+async function discoverStocksIvaColumn(
+  pool: SqlPool,
+): Promise<IvaColumnResolution> {
   const r = await pool.request().query<{ column_: string }>(`
     SELECT c.name AS column_
     FROM sys.columns c
     JOIN sys.tables t  ON c.object_id = t.object_id
     JOIN sys.schemas s ON t.schema_id = s.schema_id
     WHERE s.name = 'dbo' AND t.name = 'Stocks'
+    ORDER BY c.column_id
   `);
-  const cols = r.recordset.map((row) => row.column_);
-  const patterns: RegExp[] = [
+  const allColumns = r.recordset.map((row) => row.column_);
+  const candidates = allColumns.filter((c) => /iva/i.test(c));
+
+  // Ordem importa — primeiro as variantes mais directas, depois IDs.
+  const directPatterns: RegExp[] = [
     /^iva$/i,
-    /^taxa\s*iva$/i,
-    /^taxa[_ ]iva$/i,
-    /^codigo[_ ]?iva$/i,
-    /^iva[_ ]?id$/i,
-    /^tipo[_ ]?iva$/i,
-    /^iva[_ ]?codigo$/i,
+    /^taxa[_ ]?iva$/i,
+    /^tx[_ ]?iva$/i,
+    /^perc[_ ]?iva$/i,
+    /^percentagem[_ ]?iva$/i,
+    /^iva[_ ]?perc$/i,
+    /^iva[_ ]?taxa$/i,
   ];
-  for (const re of patterns) {
-    const found = cols.find((c) => re.test(c));
-    if (found) return found;
+  for (const re of directPatterns) {
+    const found = candidates.find((c) => re.test(c));
+    if (found) return { column: found, kind: "direct", candidates, allColumns };
   }
-  return null;
+
+  // IDs/códigos — exigem JOIN à master mas valem tentar.
+  const idPatterns: RegExp[] = [
+    /^codigo[_ ]?iva$/i,
+    /^cod[_ ]?iva$/i,
+    /^iva[_ ]?id$/i,
+    /^iva[_ ]?cod(?:igo)?$/i,
+    /^tipo[_ ]?iva$/i,
+    /^iva[_ ]?tipo$/i,
+  ];
+  for (const re of idPatterns) {
+    const found = candidates.find((c) => re.test(c));
+    if (found) return { column: found, kind: "id", candidates, allColumns };
+  }
+
+  return { column: null, kind: null, candidates, allColumns };
+}
+
+/**
+ * Diagnóstico verboso da discovery: lista candidatos, decisão, e TOP 5
+ * valores DISTINCT quando uma coluna foi escolhida. Imprime tudo no
+ * stdout para o log capturar.
+ */
+async function logIvaDiscovery(
+  pool: SqlPool,
+  resolution: IvaColumnResolution,
+): Promise<void> {
+  console.log(`  ▸ rev40 IVA mestre — discovery em dbo.Stocks:`);
+  console.log(`     candidatos (colunas com 'iva' no nome): ${resolution.candidates.length}`);
+  for (const c of resolution.candidates) {
+    console.log(`       · [${c}]`);
+  }
+  if (resolution.column === null) {
+    console.log(`     ✗ nenhum match — taxaIva será NULL no payload`);
+    console.log(
+      `     dump TODAS as colunas de dbo.Stocks (para análise manual):`,
+    );
+    for (let i = 0; i < Math.min(resolution.allColumns.length, 200); i++) {
+      console.log(`       [${resolution.allColumns[i]}]`);
+    }
+    if (resolution.allColumns.length > 200) {
+      console.log(`       ... (+${resolution.allColumns.length - 200} colunas omitidas)`);
+    }
+    return;
+  }
+
+  console.log(
+    `     ✓ match: [${resolution.column}] (kind=${resolution.kind})`,
+  );
+
+  // Sample TOP 5 DISTINCT valores para validar escala
+  try {
+    const rs = await pool.request().query<{ v: unknown; n: number }>(`
+      SELECT TOP 5 [${resolution.column}] AS v, COUNT(*) AS n
+      FROM [dbo].[Stocks]
+      WHERE [Retirado] = 0 AND [Processa_Stocks] <> 0
+      GROUP BY [${resolution.column}]
+      ORDER BY COUNT(*) DESC
+    `);
+    console.log(`     TOP 5 valores DISTINCT em Stocks.[${resolution.column}]:`);
+    for (const row of rs.recordset) {
+      console.log(`       valor=${String(row.v).padStart(10)} × ${row.n}`);
+    }
+    if (resolution.kind === "id") {
+      console.log(
+        `     ⚠ kind=id: valores são códigos. Para resolver a percentagem real é necessário JOIN a uma tabela mestre (ex.: dbo.IVAs, dbo.TaxasIVA). Rev40 envia o código cru; SaaS faz lookup quando rev41 trouxer o mapeamento.`,
+      );
+    }
+  } catch (e) {
+    console.log(
+      `     ⚠ sample falhou: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 }
 
 export async function runProductsPipeline(
@@ -289,14 +390,17 @@ export async function runProductsPipeline(
   console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
-  // rev39 — discovery do campo IVA na tabela mestre Stocks
-  const ivaCol = await discoverStocksIvaColumn(pool);
-  if (ivaCol) {
-    console.log(`  ▸ rev39 IVA mestre: coluna detectada = Stocks.[${ivaCol}]`);
-  } else {
-    console.log(`  ▸ rev39 IVA mestre: coluna não detectada — taxaIva será null (fallback recuperador no SaaS)`);
-  }
-  const ivaSelect = ivaCol ? `s.[${ivaCol}]` : `CAST(NULL AS DECIMAL(7,4))`;
+  // rev40 — discovery do campo IVA na tabela mestre Stocks (alargada
+  // + diagnóstico verboso). Quando a coluna é encontrada, o SELECT
+  // inclui-a; senão emite NULL. Para kind='id' (código que requer JOIN
+  // a tabela mestre de IVAs), rev40 envia o código cru — o SaaS faz o
+  // que pode na normalizeIva e o que sobrar fica "IVA por apurar"
+  // até rev41 (que vai descobrir e enviar o mapeamento id→percentagem).
+  const ivaResolution = await discoverStocksIvaColumn(pool);
+  await logIvaDiscovery(pool, ivaResolution);
+  const ivaSelect = ivaResolution.column
+    ? `s.[${ivaResolution.column}]`
+    : `CAST(NULL AS DECIMAL(7,4))`;
 
   while (true) {
     const rs = await pool
