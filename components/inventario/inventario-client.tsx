@@ -32,17 +32,20 @@ import {
   buildInventarioReport,
   buildInventarioPorFarmaciaReport,
   buildInventarioPorGrupoReport,
+  buildInventarioPorIvaReport,
 } from "@/lib/reporting/adapters/inventario";
 import type {
   InventarioResult,
   InventarioRow,
   InventarioPorFarmaciaRow,
   InventarioPorGrupoRow,
+  InventarioPorIvaRow,
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
+import { AlertTriangle } from "lucide-react";
 
-type Vista = "produto" | "farmacia" | "grupo";
+type Vista = "produto" | "farmacia" | "grupo" | "iva";
 // "Grupo" foi promovido a vista top-level — dentro da vista "Por produto"
 // mantemos só artigo/farmácia para não duplicar a função.
 type AgrupamentoProduto = "artigo" | "farmacia";
@@ -164,7 +167,9 @@ export function InventarioClient({
       label: string;
       numProdutos: number;
       stockTotal: number;
-      valorStock: number;
+      valorStockSemIva: number;
+      valorIva: number;
+      valorStockComIva: number;
       rotura: number;
       excesso: number;
       semMovimento: number;
@@ -178,7 +183,9 @@ export function InventarioClient({
           label: key,
           numProdutos: 0,
           stockTotal: 0,
-          valorStock: 0,
+          valorStockSemIva: 0,
+          valorIva: 0,
+          valorStockComIva: 0,
           rotura: 0,
           excesso: 0,
           semMovimento: 0,
@@ -187,7 +194,9 @@ export function InventarioClient({
       const acc = m.get(key)!;
       acc.numProdutos++;
       if (r.stockAtual !== null) acc.stockTotal += r.stockAtual;
-      if (r.valorStock !== null) acc.valorStock += r.valorStock;
+      if (r.valorStock !== null) acc.valorStockSemIva += r.valorStock;
+      if (r.valorIva !== null) acc.valorIva += r.valorIva;
+      if (r.valorStockComIva !== null) acc.valorStockComIva += r.valorStockComIva;
       if (r.estado === "ROTURA") acc.rotura++;
       if (r.estado === "EXCESSO") acc.excesso++;
       if (r.estado === "SEM_MOVIMENTO") acc.semMovimento++;
@@ -237,6 +246,14 @@ export function InventarioClient({
         organization,
       });
     }
+    if (vista === "iva") {
+      return buildInventarioPorIvaReport({
+        rows: result?.porIva ?? [],
+        filters,
+        universe: uni,
+        organization,
+      });
+    }
     return buildInventarioReport({
       rows: rowsByEstado,
       filters,
@@ -253,7 +270,7 @@ export function InventarioClient({
           <div>
             <h1 className="text-[20px] font-semibold text-slate-900">Inventário de Stock</h1>
             <p className="mt-1 text-[12px] text-slate-500">
-              Snapshot operacional por produto, farmácia e grupo homogéneo.
+              Snapshot operacional por produto, farmácia, grupo homogéneo e taxa IVA.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -269,12 +286,29 @@ export function InventarioClient({
           </div>
         </section>
 
-        {/* Tabs de vista (Por produto / Por farmácia / Por grupo) */}
+        {/* Aviso permanente sobre plano fiscal */}
+        <section className="flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <b>Valor stock s/IVA</b> = <code>stockAtual × PMC</code> (PMC/PUC do ERP são sem
+            IVA). <b>Valor stock c/IVA</b> aplica a taxa da última compra do produto
+            (<code>StagingCompraRawLine</code>). Sem taxa capturada → linha em{" "}
+            <span className="font-semibold">IVA desconhecido</span>, valor c/IVA não calculado.
+          </span>
+        </section>
+
+        {/* Tabs de vista (Por produto / Por farmácia / Por grupo / Por IVA) */}
         <div className="flex flex-wrap gap-1.5">
-          {(["produto", "farmacia", "grupo"] as Vista[]).map((v) => {
+          {(["produto", "farmacia", "grupo", "iva"] as Vista[]).map((v) => {
             const on = vista === v;
             const label =
-              v === "produto" ? "Por produto" : v === "farmacia" ? "Por farmácia" : "Por grupo";
+              v === "produto"
+                ? "Por produto"
+                : v === "farmacia"
+                  ? "Por farmácia"
+                  : v === "grupo"
+                    ? "Por grupo"
+                    : "Por taxa IVA";
             return (
               <button
                 key={v}
@@ -322,6 +356,8 @@ export function InventarioClient({
           <ViewPorFarmacia rows={result?.porFarmacia ?? []} />
         ) : vista === "grupo" ? (
           <ViewPorGrupo rows={result?.porGrupo ?? []} />
+        ) : vista === "iva" ? (
+          <ViewPorIva rows={result?.porIva ?? []} />
         ) : (
           <ViewPorProduto
             rows={rowsByEstado}
@@ -361,7 +397,9 @@ function ViewPorProduto({
         label: string;
         numProdutos: number;
         stockTotal: number;
-        valorStock: number;
+        valorStockSemIva: number;
+        valorIva: number;
+        valorStockComIva: number;
         rotura: number;
         excesso: number;
         semMovimento: number;
@@ -448,13 +486,13 @@ function TabelaLinhaProduto({ rows }: { rows: InventarioRow[] }) {
             <th className="py-2 pr-3">Categoria</th>
             <th className="py-2 pr-3">Farmácia</th>
             <th className="py-2 pr-3 text-right">Stock</th>
-            <th className="py-2 pr-3 text-right">Mín.</th>
             <th className="py-2 pr-3 text-right">PMC</th>
             <th className="py-2 pr-3 text-right">PVP</th>
-            <th className="py-2 pr-3 text-right">Valor</th>
-            <th className="py-2 pr-3">Últ. venda</th>
-            <th className="py-2 pr-3 text-right">Dias s/v</th>
-            <th className="py-2 pr-3 text-right">Cobertura</th>
+            <th className="py-2 pr-3 text-right">IVA %</th>
+            <th className="py-2 pr-3 text-right">Val. s/IVA</th>
+            <th className="py-2 pr-3 text-right">IVA €</th>
+            <th className="py-2 pr-3 text-right">Val. c/IVA</th>
+            <th className="py-2 pr-3 text-right">Cobert.</th>
             <th className="py-2 pr-3">Estado</th>
           </tr>
         </thead>
@@ -468,24 +506,26 @@ function TabelaLinhaProduto({ rows }: { rows: InventarioRow[] }) {
               <td className="py-2 pr-3 text-right tabular-nums text-slate-700">
                 {fmtNumber(r.stockAtual)}
               </td>
-              <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
-                {fmtNumber(r.stockMinimo)}
-              </td>
               <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                 {fmtCurrency(r.pmc)}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                 {fmtCurrency(r.pvp)}
               </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                {r.taxaIva === null ? "—" : `${r.taxaIva}%`}
+              </td>
               <td className="py-2 pr-3 text-right tabular-nums font-medium text-slate-800">
                 {fmtCurrency(r.valorStock)}
               </td>
-              <td className="py-2 pr-3 text-slate-600">{fmtDay(r.dataUltimaVenda)}</td>
               <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                {fmtNumber(r.diasSemVenda)}
+                {fmtCurrency(r.valorIva)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums font-medium text-slate-800">
+                {fmtCurrency(r.valorStockComIva)}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                {r.coberturaDias === null ? "—" : `${r.coberturaDias}`}
+                {r.coberturaDias === null ? "—" : `${r.coberturaDias}d`}
               </td>
               <td className="py-2 pr-3">
                 <span
@@ -511,7 +551,9 @@ function TabelaAgregadaProduto({
     label: string;
     numProdutos: number;
     stockTotal: number;
-    valorStock: number;
+    valorStockSemIva: number;
+    valorIva: number;
+    valorStockComIva: number;
     rotura: number;
     excesso: number;
     semMovimento: number;
@@ -534,7 +576,9 @@ function TabelaAgregadaProduto({
             <th className="py-2 pr-3">{header}</th>
             <th className="py-2 pr-3 text-right">Produtos</th>
             <th className="py-2 pr-3 text-right">Stock total</th>
-            <th className="py-2 pr-3 text-right">Valor stock</th>
+            <th className="py-2 pr-3 text-right">Val. s/IVA</th>
+            <th className="py-2 pr-3 text-right">IVA €</th>
+            <th className="py-2 pr-3 text-right">Val. c/IVA</th>
             <th className="py-2 pr-3 text-right">Roturas</th>
             <th className="py-2 pr-3 text-right">Excesso</th>
             <th className="py-2 pr-3 text-right">Sem mov.</th>
@@ -549,7 +593,13 @@ function TabelaAgregadaProduto({
                 {Math.round(r.stockTotal).toLocaleString("pt-PT")}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums">
-                {fmtCurrency(r.valorStock)}
+                {fmtCurrency(r.valorStockSemIva)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                {fmtCurrency(r.valorIva)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(r.valorStockComIva)}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-rose-700">
                 {r.rotura}
@@ -587,13 +637,13 @@ function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
               <th className="py-2 pr-3">Grupo</th>
               <th className="py-2 pr-3 text-right">Produtos</th>
               <th className="py-2 pr-3 text-right">Stock total</th>
-              <th className="py-2 pr-3 text-right">Valor stock</th>
+              <th className="py-2 pr-3 text-right">Val. s/IVA</th>
+              <th className="py-2 pr-3 text-right">IVA €</th>
+              <th className="py-2 pr-3 text-right">Val. c/IVA</th>
               <th className="py-2 pr-3 text-right">Rotura</th>
               <th className="py-2 pr-3 text-right">Excesso</th>
               <th className="py-2 pr-3 text-right">Sem mov.</th>
               <th className="py-2 pr-3 text-right">Sem custo</th>
-              <th className="py-2 pr-3 text-right">Sem stock</th>
-              <th className="py-2 pr-3 text-right">Normal</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -607,7 +657,13 @@ function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
                   {r.stockTotal.toLocaleString("pt-PT")}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums font-medium">
-                  {fmtCurrency(r.valorStock)}
+                  {fmtCurrency(r.valorStockSemIva)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.valorIva)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums font-medium">
+                  {fmtCurrency(r.valorStockComIva)}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-rose-700">{r.rotura}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-amber-700">{r.excesso}</td>
@@ -616,12 +672,6 @@ function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
                   {r.semCusto}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
-                  {r.semStock}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
-                  {r.normal}
                 </td>
               </tr>
             ))}
@@ -636,7 +686,13 @@ function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
                 {rows.reduce((s, r) => s + r.stockTotal, 0).toLocaleString("pt-PT")}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums">
-                {fmtCurrency(rows.reduce((s, r) => s + r.valorStock, 0))}
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStockSemIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStockComIva, 0))}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-rose-700">
                 {rows.reduce((s, r) => s + r.rotura, 0)}
@@ -650,12 +706,93 @@ function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
               <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
                 {rows.reduce((s, r) => s + r.semCusto, 0)}
               </td>
-              <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
-                {rows.reduce((s, r) => s + r.semStock, 0)}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ── Vista Por Taxa IVA (executiva fiscal) ────────────────────────
+
+function ViewPorIva({ rows }: { rows: InventarioPorIvaRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-6 py-12 text-center text-[12px] text-slate-500">
+        Sem buckets de IVA no resultado.
+      </section>
+    );
+  }
+  const totalSemIva = rows.reduce((s, r) => s + r.valorStockSemIva, 0);
+  return (
+    <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[12px]">
+          <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+            <tr>
+              <th className="py-2 pr-3">Taxa IVA</th>
+              <th className="py-2 pr-3 text-right">Produtos</th>
+              <th className="py-2 pr-3 text-right">Stock total</th>
+              <th className="py-2 pr-3 text-right">Val. s/IVA</th>
+              <th className="py-2 pr-3 text-right">IVA €</th>
+              <th className="py-2 pr-3 text-right">Val. c/IVA</th>
+              <th className="py-2 pr-3 text-right">% Valor</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r) => {
+              const desconhecido = r.key === "DESC";
+              return (
+                <tr key={r.key} className={desconhecido ? "bg-slate-50/60" : undefined}>
+                  <td
+                    className={`py-2 pr-3 font-medium ${desconhecido ? "text-slate-500 italic" : "text-slate-800"}`}
+                  >
+                    {r.label}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums">
+                    {r.numProdutos.toLocaleString("pt-PT")}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums">
+                    {r.stockTotal.toLocaleString("pt-PT")}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums font-medium">
+                    {fmtCurrency(r.valorStockSemIva)}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                    {desconhecido ? "—" : fmtCurrency(r.valorIva)}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums font-medium">
+                    {desconhecido ? "—" : fmtCurrency(r.valorStockComIva)}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                    {totalSemIva > 0
+                      ? `${(Math.round((r.valorStockSemIva / totalSemIva) * 1000) / 10).toLocaleString("pt-PT")}%`
+                      : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot className="border-t border-slate-200 bg-slate-50/60 text-[11px] font-semibold">
+            <tr>
+              <td className="py-2 pr-3 text-slate-700">Total</td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.numProdutos, 0).toLocaleString("pt-PT")}
               </td>
-              <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
-                {rows.reduce((s, r) => s + r.normal, 0)}
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.stockTotal, 0).toLocaleString("pt-PT")}
               </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(totalSemIva)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStockComIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-slate-500">100%</td>
             </tr>
           </tfoot>
         </table>
@@ -683,13 +820,13 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
               <th className="py-2 pr-3">Farmácia</th>
               <th className="py-2 pr-3 text-right">Produtos</th>
               <th className="py-2 pr-3 text-right">Stock total</th>
-              <th className="py-2 pr-3 text-right">Valor stock</th>
+              <th className="py-2 pr-3 text-right">Val. s/IVA</th>
+              <th className="py-2 pr-3 text-right">IVA €</th>
+              <th className="py-2 pr-3 text-right">Val. c/IVA</th>
               <th className="py-2 pr-3 text-right">Rotura</th>
               <th className="py-2 pr-3 text-right">Excesso</th>
               <th className="py-2 pr-3 text-right">Sem mov.</th>
               <th className="py-2 pr-3 text-right">Sem custo</th>
-              <th className="py-2 pr-3 text-right">Sem stock</th>
-              <th className="py-2 pr-3 text-right">Normal</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -701,7 +838,13 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
                   {r.stockTotal.toLocaleString("pt-PT")}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums font-medium">
-                  {fmtCurrency(r.valorStock)}
+                  {fmtCurrency(r.valorStockSemIva)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.valorIva)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums font-medium">
+                  {fmtCurrency(r.valorStockComIva)}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-rose-700">
                   {r.rotura}
@@ -714,12 +857,6 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
                   {r.semCusto}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
-                  {r.semStock}
-                </td>
-                <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
-                  {r.normal}
                 </td>
               </tr>
             ))}
@@ -734,7 +871,13 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
                 {rows.reduce((s, r) => s + r.stockTotal, 0).toLocaleString("pt-PT")}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums">
-                {fmtCurrency(rows.reduce((s, r) => s + r.valorStock, 0))}
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStockSemIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorIva, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStockComIva, 0))}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-rose-700">
                 {rows.reduce((s, r) => s + r.rotura, 0)}
@@ -747,12 +890,6 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
               </td>
               <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
                 {rows.reduce((s, r) => s + r.semCusto, 0)}
-              </td>
-              <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
-                {rows.reduce((s, r) => s + r.semStock, 0)}
-              </td>
-              <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
-                {rows.reduce((s, r) => s + r.normal, 0)}
               </td>
             </tr>
           </tfoot>

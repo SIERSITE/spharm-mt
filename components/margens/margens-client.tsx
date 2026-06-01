@@ -44,13 +44,15 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
+  SEM_IVA: "Sem IVA",
 };
 const MARGEM_BADGE: Record<EstadoMargem, string> = {
   FIAVEL: "border-emerald-200 bg-emerald-50 text-emerald-700",
   PARCIAL: "border-amber-200 bg-amber-50 text-amber-700",
   SEM_CUSTO: "border-rose-200 bg-rose-50 text-rose-700",
+  SEM_IVA: "border-slate-300 bg-slate-100 text-slate-700",
 };
-const ALL_ESTADOS: EstadoMargem[] = ["FIAVEL", "PARCIAL", "SEM_CUSTO"];
+const ALL_ESTADOS: EstadoMargem[] = ["FIAVEL", "PARCIAL", "SEM_CUSTO", "SEM_IVA"];
 
 function fmtCurrency(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "—";
@@ -135,6 +137,7 @@ export function MargensClient({
       FIAVEL: 0,
       PARCIAL: 0,
       SEM_CUSTO: 0,
+      SEM_IVA: 0,
     };
     for (const r of result?.porProduto ?? []) c[r.estado]++;
     return c;
@@ -200,14 +203,17 @@ export function MargensClient({
           </div>
         </section>
 
-        {/* Aviso permanente sobre snapshot de custo */}
+        {/* Aviso permanente sobre snapshot de custo e plano fiscal */}
         <section className="flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            Custo estimado a partir do <b>PMC/PUC actual</b> de <code>ProdutoFarmacia</code>.{" "}
-            Margem % suprimida em vendas sem custo conhecido (estado{" "}
-            <span className="font-semibold">Sem custo</span> ou{" "}
-            <span className="font-semibold">Parcial</span>).
+            Margem calculada{" "}
+            <b>SEM IVA</b>: <code>(PVP/(1+taxa)) − PMC</code>. PVP do ERP vem com IVA; PMC/PUC
+            de <code>ProdutoFarmacia</code> são sem IVA. Taxa por produto vem da{" "}
+            <b>última compra</b> em <code>StagingCompraRawLine</code>. Sem taxa conhecida →
+            estado <span className="font-semibold">Sem IVA</span>, margem €/% suprimidas. Sem
+            custo conhecido → <span className="font-semibold">Sem custo</span> ou{" "}
+            <span className="font-semibold">Parcial</span>.
           </span>
         </section>
 
@@ -312,17 +318,28 @@ export function MargensClient({
 function KPIBar({ result }: { result: MargensResult }) {
   const t = result.totals;
   return (
-    <section className="grid gap-3 md:grid-cols-5">
-      <KPI label="Vendas €" value={fmtCurrency(t.valorVendido)} />
+    <section className="grid gap-3 md:grid-cols-6">
+      <KPI label="Vendas € (c/ IVA)" value={fmtCurrency(t.valorVendido)} />
+      <KPI
+        label="Vendas € (s/ IVA)"
+        value={t.valorVendidoSemIva > 0 ? fmtCurrency(t.valorVendidoSemIva) : "—"}
+        helper={t.valorVendidoSemIva === 0 ? "Sem linhas com IVA conhecido" : undefined}
+      />
       <KPI label="Custo €" value={fmtCurrency(t.custoEstimado)} />
       <KPI label="Margem €" value={fmtCurrency(t.margemEur)} />
       <KPI
         label="Margem %"
         value={t.margemPct !== null ? fmtPct(t.margemPct) : "—"}
-        helper={t.margemPct === null ? "Suprimida — cobertura insuficiente" : undefined}
+        helper={
+          t.margemPct === null
+            ? t.estado === "SEM_IVA"
+              ? "Suprimida — taxa IVA desconhecida"
+              : "Suprimida — cobertura insuficiente"
+            : undefined
+        }
       />
       <KPI
-        label="Cobertura de custo"
+        label="Cobertura"
         value={fmtCobertura(t.coberturaCusto)}
         helper={MARGEM_LABEL[t.estado]}
         helperTone={t.estado === "FIAVEL" ? "ok" : t.estado === "PARCIAL" ? "warn" : "bad"}
@@ -380,11 +397,12 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
               <th className="py-2 pr-3">Categoria</th>
               <th className="py-2 pr-3">Farmácia</th>
               <th className="py-2 pr-3 text-right">Qtd</th>
-              <th className="py-2 pr-3 text-right">Valor vend.</th>
+              <th className="py-2 pr-3 text-right">Vendas c/IVA</th>
+              <th className="py-2 pr-3 text-right">IVA %</th>
+              <th className="py-2 pr-3 text-right">Vendas s/IVA</th>
               <th className="py-2 pr-3 text-right">Custo est.</th>
               <th className="py-2 pr-3 text-right">Margem €</th>
               <th className="py-2 pr-3 text-right">Margem %</th>
-              <th className="py-2 pr-3 text-right">Cobert.</th>
               <th className="py-2 pr-3">Estado</th>
             </tr>
           </thead>
@@ -397,6 +415,12 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
                 <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                  {r.taxaIva === null ? "—" : `${r.taxaIva}%`}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.valorVendidoSemIva)}
+                </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                   {fmtCurrency(r.custoEstimado)}
                 </td>
@@ -404,9 +428,6 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
                   {fmtCurrency(r.margemEur)}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtPct(r.margemPct)}</td>
-                <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
-                  {fmtCobertura(r.coberturaCusto)}
-                </td>
                 <td className="py-2 pr-3">
                   <span
                     className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${MARGEM_BADGE[r.estado]}`}
@@ -441,7 +462,8 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
             <tr>
               <th className="py-2 pr-3">{header}</th>
               <th className="py-2 pr-3 text-right">Qtd</th>
-              <th className="py-2 pr-3 text-right">Valor vend.</th>
+              <th className="py-2 pr-3 text-right">Vendas c/IVA</th>
+              <th className="py-2 pr-3 text-right">Vendas s/IVA</th>
               <th className="py-2 pr-3 text-right">Custo est.</th>
               <th className="py-2 pr-3 text-right">Margem €</th>
               <th className="py-2 pr-3 text-right">Margem %</th>
@@ -455,6 +477,9 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
                 <td className="py-2 pr-3 font-medium text-slate-800">{r.label}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.valorVendidoSemIva)}
+                </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                   {fmtCurrency(r.custoEstimado)}
                 </td>

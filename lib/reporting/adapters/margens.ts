@@ -30,23 +30,27 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
+  SEM_IVA: "Sem IVA",
 };
 
-// Por produto: CNP 6 · Descrição 22 · Categoria 11 · Farmácia 11 ·
-//              Qtd 6 · Valor vend. 9 · Custo est. 9 · Margem € 8 ·
-//              Margem % 6 · Cobertura 6 · Estado 6   = 100
+// Por produto: CNP 5 · Descrição 18 · Categoria 9 · Farmácia 9 ·
+//              Qtd 5 · Vend c/IVA 8 · IVA% 4 · Vend s/IVA 8 ·
+//              Custo 8 · Margem € 8 · Margem % 6 · Estado 6 · Cobert. 6
+//              = 100
 const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
-  { key: "cnp",            label: "CNP",          format: "text",     width: 6 },
-  { key: "designacao",     label: "Descrição",    format: "text",     width: 22 },
-  { key: "categoria",      label: "Categoria",    format: "text",     width: 11 },
-  { key: "farmacia",       label: "Farmácia",     format: "text",     width: 11 },
-  { key: "qtdVendida",     label: "Qtd",          format: "integer",  width: 6,  showTotal: true },
-  { key: "valorVendido",   label: "Valor vend.",  format: "currency", width: 9,  showTotal: true },
-  { key: "custoEstimado",  label: "Custo est.",   format: "currency", width: 9,  showTotal: true },
-  { key: "margemEur",      label: "Margem €",     format: "currency", width: 8,  showTotal: true },
-  { key: "margemPct",      label: "Margem %",     format: "text",     width: 6 },
-  { key: "coberturaPct",   label: "Cobert.",      format: "text",     width: 6 },
-  { key: "estado",         label: "Estado",       format: "text",     width: 6 },
+  { key: "cnp",                label: "CNP",          format: "text",     width: 5 },
+  { key: "designacao",         label: "Descrição",    format: "text",     width: 18 },
+  { key: "categoria",          label: "Categoria",    format: "text",     width: 9 },
+  { key: "farmacia",           label: "Farmácia",     format: "text",     width: 9 },
+  { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 5,  showTotal: true },
+  { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 8,  showTotal: true },
+  { key: "taxaIva",            label: "IVA %",        format: "text",     width: 4 },
+  { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 8,  showTotal: true },
+  { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 8,  showTotal: true },
+  { key: "margemEur",          label: "Margem €",     format: "currency", width: 8,  showTotal: true },
+  { key: "margemPct",          label: "Margem %",     format: "text",     width: 6 },
+  { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 6 },
+  { key: "estado",             label: "Estado",       format: "text",     width: 6 },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string): string {
@@ -98,11 +102,12 @@ function pct(n: number | null, suffix = "%"): string {
   return `${n.toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${suffix}`;
 }
 
-// Aviso permanente: snapshot de custo (PMC/PUC actual aplica-se ao
-// período histórico). Cobertura < 50 % suprime margem; entre 50 e 95 %
-// é PARCIAL e só margem € é fiável.
+// Aviso permanente: margem é (PVP/(1+taxa) − PMC). PVP do ERP vem c/
+// IVA, custo SEM IVA. Taxa IVA real vem da última compra do produto em
+// StagingCompraRawLine. Sem taxa → estado SEM_IVA, margem €/% nulas.
+// Cobertura < 50% suprime margem; 50-95% é PARCIAL.
 function commonSubtitle(): string {
-  return "Custo estimado a partir de PMC/PUC actual de ProdutoFarmacia · margem % suprimida em vendas sem custo conhecido";
+  return "Margem calculada SEM IVA: (PVP/(1+taxa)) − PMC. PMC/PUC de ProdutoFarmacia (snapshot actual). Taxa IVA da última compra. Sem IVA conhecido → margem suprimida.";
 }
 
 export function buildMargensProdutoReport(input: {
@@ -123,6 +128,8 @@ export function buildMargensProdutoReport(input: {
     farmacia: r.farmacia,
     qtdVendida: r.qtdVendida,
     valorVendido: r.valorVendido,
+    taxaIva: r.taxaIva === null ? "—" : `${r.taxaIva}%`,
+    valorVendidoSemIva: r.valorVendidoSemIva ?? 0,
     custoEstimado: r.custoEstimado ?? 0,
     margemEur: r.margemEur ?? 0,
     margemPct: pct(r.margemPct),
@@ -130,34 +137,41 @@ export function buildMargensProdutoReport(input: {
     estado: MARGEM_LABEL[r.estado],
   }));
 
-  // KPIs globais — só sobre linhas com custo conhecido para evitar
-  // valores enganadores ao nível agregado.
+  // KPIs globais — separar plano fiscal: total vendido c/IVA inclui
+  // tudo; total s/IVA, custo, margem só sobre linhas com IVA + custo.
   let qty = 0;
-  let valor = 0;
+  let valorComIva = 0;
+  let valorSemIva = 0;
   let custo = 0;
   let margem = 0;
-  let qtyCom = 0;
+  let qtyFiavel = 0;
   for (const r of input.rows) {
     qty += r.qtdVendida;
-    valor += r.valorVendido;
-    if (r.custoEstimado !== null && r.margemEur !== null) {
-      qtyCom += r.qtdVendida;
+    valorComIva += r.valorVendido;
+    if (
+      r.custoEstimado !== null &&
+      r.margemEur !== null &&
+      r.valorVendidoSemIva !== null
+    ) {
+      qtyFiavel += r.qtdVendida;
+      valorSemIva += r.valorVendidoSemIva;
       custo += r.custoEstimado;
       margem += r.margemEur;
     }
   }
-  const cobertura = qty > 0 ? qtyCom / qty : 0;
+  const cobertura = qty > 0 ? qtyFiavel / qty : 0;
   const margemPctGlobal =
-    cobertura >= 0.95 && valor > 0
-      ? Math.round((margem / valor) * 10000) / 100
+    cobertura >= 0.95 && valorSemIva > 0
+      ? Math.round((margem / valorSemIva) * 10000) / 100
       : null;
 
   const summary: ReportSummaryItem[] = [
     { label: "Linhas", value: input.rows.length, format: "integer" },
     { label: "Unidades vendidas", value: Math.round(qty), format: "integer" },
-    { label: "Valor vendido", value: Math.round(valor * 100) / 100, format: "currency" },
-    { label: "Custo estimado", value: Math.round(custo * 100) / 100, format: "currency" },
-    { label: "Margem €", value: Math.round(margem * 100) / 100, format: "currency" },
+    { label: "Vendas € (c/ IVA)", value: Math.round(valorComIva * 100) / 100, format: "currency" },
+    { label: "Vendas € (s/ IVA)", value: Math.round(valorSemIva * 100) / 100, format: "currency" },
+    { label: "Custo estimado (s/ IVA)", value: Math.round(custo * 100) / 100, format: "currency" },
+    { label: "Margem € (s/ IVA)", value: Math.round(margem * 100) / 100, format: "currency" },
     { label: "Margem %", value: margemPctGlobal !== null ? `${margemPctGlobal}%` : "—", format: "text" },
     { label: "Cobertura", value: `${Math.round(cobertura * 1000) / 10}%`, format: "text" },
   ];
@@ -200,20 +214,22 @@ export function buildMargensAggReport(input: {
         ? "Farmácia"
         : "Grupo";
   const columns: ReportColumn[] = [
-    { key: "label",          label: headerLabel,     format: "text",     width: 24 },
-    { key: "qtdVendida",     label: "Qtd",           format: "integer",  width: 9,  showTotal: true },
-    { key: "valorVendido",   label: "Valor vend.",   format: "currency", width: 12, showTotal: true },
-    { key: "custoEstimado",  label: "Custo est.",    format: "currency", width: 12, showTotal: true },
-    { key: "margemEur",      label: "Margem €",      format: "currency", width: 11, showTotal: true },
-    { key: "margemPct",      label: "Margem %",      format: "text",     width: 8 },
-    { key: "coberturaPct",   label: "Cobert.",       format: "text",     width: 8 },
-    { key: "estado",         label: "Estado",        format: "text",     width: 8 },
+    { key: "label",              label: headerLabel,    format: "text",     width: 19 },
+    { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 7,  showTotal: true },
+    { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 11, showTotal: true },
+    { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 11, showTotal: true },
+    { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 11, showTotal: true },
+    { key: "margemEur",          label: "Margem €",     format: "currency", width: 10, showTotal: true },
+    { key: "margemPct",          label: "Margem %",     format: "text",     width: 7 },
+    { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 7 },
+    { key: "estado",             label: "Estado",       format: "text",     width: 7 },
   ];
 
   const rowsForReport: ReportRow[] = input.rows.map((r) => ({
     label: r.label,
     qtdVendida: r.qtdVendida,
     valorVendido: r.valorVendido,
+    valorVendidoSemIva: r.valorVendidoSemIva,
     custoEstimado: r.custoEstimado,
     margemEur: r.margemEur,
     margemPct: pct(r.margemPct),
@@ -222,16 +238,18 @@ export function buildMargensAggReport(input: {
   }));
 
   const totalQty = input.rows.reduce((s, r) => s + r.qtdVendida, 0);
-  const totalValor = input.rows.reduce((s, r) => s + r.valorVendido, 0);
+  const totalComIva = input.rows.reduce((s, r) => s + r.valorVendido, 0);
+  const totalSemIva = input.rows.reduce((s, r) => s + r.valorVendidoSemIva, 0);
   const totalCusto = input.rows.reduce((s, r) => s + r.custoEstimado, 0);
   const totalMargem = input.rows.reduce((s, r) => s + r.margemEur, 0);
 
   const summary: ReportSummaryItem[] = [
     { label: headerLabel + "s", value: input.rows.length, format: "integer" },
     { label: "Unidades vendidas", value: Math.round(totalQty), format: "integer" },
-    { label: "Valor vendido", value: Math.round(totalValor * 100) / 100, format: "currency" },
-    { label: "Custo estimado", value: Math.round(totalCusto * 100) / 100, format: "currency" },
-    { label: "Margem €", value: Math.round(totalMargem * 100) / 100, format: "currency" },
+    { label: "Vendas € (c/ IVA)", value: Math.round(totalComIva * 100) / 100, format: "currency" },
+    { label: "Vendas € (s/ IVA)", value: Math.round(totalSemIva * 100) / 100, format: "currency" },
+    { label: "Custo (s/ IVA)", value: Math.round(totalCusto * 100) / 100, format: "currency" },
+    { label: "Margem € (s/ IVA)", value: Math.round(totalMargem * 100) / 100, format: "currency" },
   ];
 
   const titleByGroup: Record<"categoria" | "farmacia" | "grupo", string> = {

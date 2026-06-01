@@ -3,10 +3,20 @@
  *
  * Read-model do relatório operacional de Margens.
  *
+ * IVA — regra dura (introduzida 2026-06-01):
+ *   · PVP/valorVendido vem da venda BRUTA (com IVA).
+ *   · PMC/PUC em `ProdutoFarmacia` são SEM IVA.
+ *   · Calcular `margem = (valorVendido / (1 + taxa/100)) − custo` para
+ *     ficar no mesmo plano fiscal (ambos sem IVA).
+ *   · Taxa IVA real vem da última linha de `StagingCompraRawLine` por
+ *     (farmaciaId, externalProductId). Quando ausente → margem €/€%
+ *     ficam null e estado = SEM_IVA (não inventamos taxa).
+ *
  * Três níveis alimentados pelo MESMO universo agregado (produto×farm):
  *   1. Por produto   → 1 linha por (CNP × farmácia × período inteiro)
  *   2. Por categoria → agrega o Por Produto por categoria canónica
  *   3. Por farmácia  → agrega o Por Produto por farmácia
+ *   4. Por grupo     → agrega o Por Produto por grupo homogéneo
  *
  * Cobertura de custo:
  *   Estimamos o custo das vendas usando o `pmc` (preferido) ou `puc`
@@ -17,13 +27,14 @@
  *   Para uma linha (produto×farm) com `pmc/puc>0` definimos
  *   `coberturaCusto = 1`; senão `0`. Numa agregação (categoria ou
  *   farmácia) a cobertura é a fracção PONDERADA POR UNIDADES VENDIDAS
- *   de linhas com custo conhecido.
+ *   de linhas com custo conhecido E IVA conhecido.
  *
  * Regras duras (per spec):
  *   · Não inventar custo. PMC/PUC ausente → linha entra mas margem
  *     fica null e estado = SEM_CUSTO.
- *   · Margem % suprimida em estados PARCIAL e SEM_CUSTO.
- *   · Produtos sem custo aparecem como vendas sem custo (não excluídos).
+ *   · Não inventar IVA. Taxa ausente → margem €/% nulas e estado=SEM_IVA.
+ *   · Margem % suprimida em estados PARCIAL, SEM_CUSTO e SEM_IVA.
+ *   · Produtos sem custo/IVA aparecem como linha (não excluídos).
  */
 
 import { getPrisma } from "@/lib/prisma";
@@ -31,7 +42,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
-export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO";
+export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "SEM_IVA";
 
 export type MargemRow = {
   cnp: number;
@@ -41,12 +52,18 @@ export type MargemRow = {
   farmaciaId: string;
   farmacia: string;
   qtdVendida: number;
-  valorVendido: number;            // bruto (€)
-  custoUnitarioBase: number | null; // PMC ou PUC snapshot actual
-  custoEstimado: number | null;    // qty × custoUnitarioBase; null sem custo
+  /** PVP × qty, com IVA (como vem do ERP). */
+  valorVendido: number;
+  /** PVP × qty / (1 + taxa/100). null quando taxa IVA desconhecida. */
+  valorVendidoSemIva: number | null;
+  /** Taxa IVA em % (6/13/23/...). null quando desconhecida. */
+  taxaIva: number | null;
+  custoUnitarioBase: number | null; // PMC ou PUC snapshot actual, sem IVA
+  custoEstimado: number | null;     // qty × custoUnitarioBase; null sem custo
+  /** valorVendidoSemIva − custoEstimado. null se IVA ou custo ausente. */
   margemEur: number | null;
-  margemPct: number | null;        // null se estado != FIAVEL
-  coberturaCusto: number;          // 0..1 — pondera por unidades vendidas
+  margemPct: number | null;         // null fora de FIAVEL
+  coberturaCusto: number;           // 0..1 — pondera por unidades vendidas
   estado: EstadoMargem;
 };
 
@@ -54,7 +71,10 @@ export type MargensAgg = {
   key: string;
   label: string;
   qtdVendida: number;
+  /** Soma valor vendido COM IVA. */
   valorVendido: number;
+  /** Soma valor vendido SEM IVA (apenas linhas com IVA conhecido). */
+  valorVendidoSemIva: number;
   custoEstimado: number;
   margemEur: number;
   margemPct: number | null;
@@ -68,10 +88,11 @@ export type MargensResult = {
   porFarmacia: MargensAgg[];
   /** Agregado por Grupo Homogéneo (Produto.grupoHomogeneo / categoriaResolver). */
   porGrupo: MargensAgg[];
-  /** KPIs globais sobre todas as linhas com custo conhecido. */
+  /** KPIs globais sobre todas as linhas com custo + IVA conhecidos. */
   totals: {
     qtdVendida: number;
-    valorVendido: number;
+    valorVendido: number;        // com IVA
+    valorVendidoSemIva: number;  // só linhas com IVA conhecido
     custoEstimado: number;
     margemEur: number;
     margemPct: number | null;
@@ -93,6 +114,11 @@ function toF(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Cobertura aqui é "fracção das unidades vendidas com custo E IVA
+ * conhecidos". SEM_IVA / SEM_CUSTO são estados extremos onde a margem
+ * é matematicamente impossível de calcular sem inventar dados.
+ */
 function classifyMargem(cobertura: number): EstadoMargem {
   if (cobertura >= FIAVEL_THRESHOLD) return "FIAVEL";
   if (cobertura >= PARCIAL_THRESHOLD) return "PARCIAL";
@@ -234,6 +260,7 @@ export async function getMargensData(
       valor_bruto: string;
       pmc: string | null;
       puc: string | null;
+      taxa_iva: string | null;
     }>
   >(Prisma.sql`
     WITH agg AS (
@@ -258,11 +285,20 @@ export async function getMargensData(
       agg.qty::text                 AS qty,
       agg.valor_bruto::text         AS valor_bruto,
       pf."pmc"::text                AS pmc,
-      pf."puc"::text                AS puc
+      pf."puc"::text                AS puc,
+      iva_src.iva::text             AS taxa_iva
     FROM agg
     JOIN "Produto" p ON p.id = agg."produtoId"
     LEFT JOIN "ProdutoFarmacia" pf
       ON pf."produtoId" = agg."produtoId" AND pf."farmaciaId" = agg."farmaciaId"
+    LEFT JOIN LATERAL (
+      SELECT scrl."iva"
+      FROM "StagingCompraRawLine" scrl
+      WHERE scrl."farmaciaId" = agg."farmaciaId"
+        AND scrl."externalCodigoId" = pf."externalProductId"
+      ORDER BY scrl."externalLineId" DESC
+      LIMIT 1
+    ) iva_src ON true
     WHERE 1 = 1
       ${distrCond}
       ${prodIdCond}
@@ -288,19 +324,46 @@ export async function getMargensData(
   // ── Compor linhas Por Produto ───────────────────────────────────
   const porProduto: MargemRow[] = rows.map((r) => {
     const qty = toF(r.qty);
-    const valorVendido = rounded2(toF(r.valor_bruto));
+    const valorVendido = rounded2(toF(r.valor_bruto)); // com IVA
     const pmc = numOrNull(r.pmc);
     const puc = numOrNull(r.puc);
     const custoUnitarioBase =
       pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
-    const cobertura = custoUnitarioBase !== null ? 1 : 0;
-    const custoEstimado =
-      custoUnitarioBase !== null ? rounded2(qty * custoUnitarioBase) : null;
-    const margemEur = custoEstimado !== null ? rounded2(valorVendido - custoEstimado) : null;
-    const estado = classifyMargem(cobertura);
+    const taxaIva = numOrNull(r.taxa_iva);
+    const ivaOk = taxaIva !== null && taxaIva >= 0;
+    const custoOk = custoUnitarioBase !== null;
+
+    // Venda sem IVA — só faz sentido com taxa real.
+    const valorVendidoSemIva = ivaOk
+      ? rounded2(valorVendido / (1 + (taxaIva as number) / 100))
+      : null;
+
+    const custoEstimado = custoOk ? rounded2(qty * (custoUnitarioBase as number)) : null;
+
+    // Margem só quando temos AMBOS: IVA conhecido (para descontar) +
+    // custo conhecido. Caso contrário é não fiável — null e estado SEM_*.
+    const margemEur =
+      ivaOk && custoOk
+        ? rounded2((valorVendidoSemIva as number) - (custoEstimado as number))
+        : null;
+
+    // Cobertura = mass-fracção de unidades onde podemos calcular. Aqui é
+    // binária por linha; agregada vira fracção ponderada por unidades.
+    const cobertura = ivaOk && custoOk ? 1 : 0;
+
+    // Estado: SEM_IVA tem precedência (regra explícita do user). Depois
+    // SEM_CUSTO. Depois cobertura (FIAVEL/PARCIAL/SEM_CUSTO).
+    let estado: EstadoMargem;
+    if (!ivaOk) estado = "SEM_IVA";
+    else if (!custoOk) estado = "SEM_CUSTO";
+    else estado = classifyMargem(cobertura);
+
     const margemPct =
-      estado === "FIAVEL" && valorVendido > 0 && margemEur !== null
-        ? Math.round((margemEur / valorVendido) * 10000) / 100
+      estado === "FIAVEL" &&
+      valorVendidoSemIva !== null &&
+      valorVendidoSemIva > 0 &&
+      margemEur !== null
+        ? Math.round((margemEur / valorVendidoSemIva) * 10000) / 100
         : null;
 
     const n1Nome = r.classificacaoNivel1Id ? classifMap.get(r.classificacaoNivel1Id) : null;
@@ -321,6 +384,8 @@ export async function getMargensData(
       farmacia: nomeById.get(r.farmaciaId) ?? "—",
       qtdVendida: qty,
       valorVendido,
+      valorVendidoSemIva,
+      taxaIva,
       custoUnitarioBase,
       custoEstimado,
       margemEur,
@@ -340,6 +405,7 @@ export async function getMargensData(
     label: "TOTAL",
     qtdVendida: 0,
     valorVendido: 0,
+    valorVendidoSemIva: 0,
     custoEstimado: 0,
     margemEur: 0,
     margemPct: null,
@@ -355,6 +421,7 @@ export async function getMargensData(
     totals: {
       qtdVendida: totalRow.qtdVendida,
       valorVendido: totalRow.valorVendido,
+      valorVendidoSemIva: totalRow.valorVendidoSemIva,
       custoEstimado: totalRow.custoEstimado,
       margemEur: totalRow.margemEur,
       margemPct: totalRow.margemPct,
@@ -373,6 +440,7 @@ function emptyResult(): MargensResult {
     totals: {
       qtdVendida: 0,
       valorVendido: 0,
+      valorVendidoSemIva: 0,
       custoEstimado: 0,
       margemEur: 0,
       margemPct: null,
@@ -384,10 +452,13 @@ function emptyResult(): MargensResult {
 
 /**
  * Agregação ponderada por UNIDADES VENDIDAS:
- *   · cobertura = Σ(qty × cobertura) / Σ(qty)
- *   · margem €  = Σ(margem €) sobre as linhas com custo conhecido
- *   · margem %  = margem € / Σ(valor vendido das linhas com custo)
- *                 — só exibida se estado=FIAVEL no nível agregado
+ *   · cobertura = Σ(qty fiável) / Σ(qty total)
+ *   · margem €  = Σ(margem €) sobre linhas fiáveis (IVA + custo)
+ *   · margem %  = margem € / Σ(valorSemIva fiável) — só se FIAVEL agregado
+ *
+ * Linha fiável = IVA conhecido AND custo conhecido. Linhas SEM_IVA ou
+ * SEM_CUSTO entram no qty total (impactam cobertura) mas não no numerador
+ * da margem (não inventamos).
  */
 function aggregate(
   rows: MargemRow[],
@@ -396,9 +467,9 @@ function aggregate(
   type Acc = {
     key: string;
     qtdTotal: number;
-    qtdComCusto: number;
-    valorVendidoTotal: number;
-    valorVendidoComCusto: number;
+    qtdFiavel: number;
+    valorVendidoTotal: number;        // com IVA (inclui linhas sem IVA)
+    valorVendidoSemIvaTotal: number;  // só linhas com IVA conhecido
     custoEstimadoTotal: number;
     margemEurTotal: number;
   };
@@ -409,9 +480,9 @@ function aggregate(
       map.set(k, {
         key: k,
         qtdTotal: 0,
-        qtdComCusto: 0,
+        qtdFiavel: 0,
         valorVendidoTotal: 0,
-        valorVendidoComCusto: 0,
+        valorVendidoSemIvaTotal: 0,
         custoEstimadoTotal: 0,
         margemEurTotal: 0,
       });
@@ -419,25 +490,32 @@ function aggregate(
     const acc = map.get(k)!;
     acc.qtdTotal += r.qtdVendida;
     acc.valorVendidoTotal += r.valorVendido;
-    if (r.custoEstimado !== null && r.margemEur !== null) {
-      acc.qtdComCusto += r.qtdVendida;
-      acc.valorVendidoComCusto += r.valorVendido;
+    if (r.margemEur !== null && r.custoEstimado !== null && r.valorVendidoSemIva !== null) {
+      acc.qtdFiavel += r.qtdVendida;
+      acc.valorVendidoSemIvaTotal += r.valorVendidoSemIva;
       acc.custoEstimadoTotal += r.custoEstimado;
       acc.margemEurTotal += r.margemEur;
     }
   }
   return Array.from(map.values()).map((acc) => {
-    const cobertura = acc.qtdTotal > 0 ? acc.qtdComCusto / acc.qtdTotal : 0;
-    const estado = classifyMargem(cobertura);
+    const cobertura = acc.qtdTotal > 0 ? acc.qtdFiavel / acc.qtdTotal : 0;
+    const estado: EstadoMargem =
+      acc.qtdFiavel === 0
+        ? // Sem qualquer linha fiável — pode ser falta de IVA, custo, ou
+          // ambos. Usamos SEM_CUSTO como fallback executivo (cobre o caso
+          // dominante quando o tenant ainda não tem stagging de compras).
+          "SEM_CUSTO"
+        : classifyMargem(cobertura);
     const margemPct =
-      estado === "FIAVEL" && acc.valorVendidoComCusto > 0
-        ? Math.round((acc.margemEurTotal / acc.valorVendidoComCusto) * 10000) / 100
+      estado === "FIAVEL" && acc.valorVendidoSemIvaTotal > 0
+        ? Math.round((acc.margemEurTotal / acc.valorVendidoSemIvaTotal) * 10000) / 100
         : null;
     return {
       key: acc.key,
       label: acc.key,
       qtdVendida: Math.round(acc.qtdTotal),
       valorVendido: rounded2(acc.valorVendidoTotal),
+      valorVendidoSemIva: rounded2(acc.valorVendidoSemIvaTotal),
       custoEstimado: rounded2(acc.custoEstimadoTotal),
       margemEur: rounded2(acc.margemEurTotal),
       margemPct,
@@ -451,4 +529,5 @@ export const MARGEM_LABELS: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
+  SEM_IVA: "Sem IVA",
 };

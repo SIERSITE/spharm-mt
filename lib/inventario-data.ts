@@ -3,30 +3,35 @@
  *
  * Read-model do relatório operacional de Inventário.
  *
- * Duas vistas alimentadas pelo MESMO universo unitário (produto×farmácia):
- *   1. Por produto    → 1 linha por (CNP × farmácia); agregações × grupo
- *                       feitas no cliente sobre este universo.
- *   2. Por farmácia   → KPIs executivos por farmácia (nº produtos, stock
- *                       total, valor stock, roturas, excesso, sem
- *                       movimento) — computados aqui server-side a partir
- *                       do mesmo dataset; sem duplicação de queries.
+ * IVA — regra dura (2026-06-01):
+ *   · PMC/PUC em ProdutoFarmacia são SEM IVA. Logo valorStock (qty×PMC)
+ *     é SEM IVA por construção.
+ *   · Para exibir o valor "com IVA" precisamos da taxa real. Vem da
+ *     última linha de StagingCompraRawLine por (farmaciaId, externalProductId).
+ *   · Sem taxa conhecida → valorIva = null, valorStockComIva = null
+ *     (NÃO inventamos taxa). A linha entra em "IVA desconhecido" na
+ *     vista Por taxa IVA.
+ *
+ * Vistas (mesmo universo, alimentadas server-side):
+ *   1. Por produto    → 1 linha por (CNP × farmácia)
+ *   2. Por farmácia   → KPIs executivos por farmácia
+ *   3. Por grupo      → KPIs executivos por grupo homogéneo
+ *   4. Por taxa IVA   → bucket {6, 13, 23, desconhecido} (computado server-side)
  *
  * Fontes:
- *   · ProdutoFarmacia   (stockAtual, stockMinimo, pmc, puc, pvp,
- *                        dataUltimaVenda, dataUltimaCompra)
- *   · Produto           (cnp, designacao, classificacao*)
- *   · VendaMensal       (agregado últimos 90 dias para cobertura)
+ *   · ProdutoFarmacia       (stockAtual, stockMinimo, pmc, puc, pvp, datas)
+ *   · Produto               (cnp, designacao, classificacao*)
+ *   · VendaMensal           (agregado últimos 90 dias para cobertura)
+ *   · StagingCompraRawLine  (taxa IVA mais recente por produto)
  *
  * Estado canónico: NORMAL / ROTURA / EXCESSO / SEM_MOVIMENTO /
  *                   SEM_CUSTO / SEM_STOCK.
  *
  * Regras duras:
  *   · stockAtual=null  ≠  stockAtual=0
- *   · custo desconhecido → valorStock fica null, estado SEM_CUSTO
- *   · margem/% só em /relatorios/margens — aqui é só valor stock × custo
- *
- * Performance: 1 round-trip à BD com CTE de vendas_90d. Tempo esperado
- * ~2-4s em tenant médio (50k linhas).
+ *   · custo desconhecido  → valorStock null, estado SEM_CUSTO
+ *   · taxa IVA desconhecida → valorIva null, valorStockComIva null
+ *   · margem só em /relatorios/margens
  */
 
 import { getPrisma } from "@/lib/prisma";
@@ -55,10 +60,16 @@ export type InventarioRow = {
   pmc: number | null;
   puc: number | null;
   pvp: number | null;
-  /** PMC quando existe, PUC fallback. null se ambos faltarem. */
+  /** PMC quando existe, PUC fallback. null se ambos faltarem. SEM IVA. */
   custoUnitario: number | null;
-  /** stockAtual × custoUnitario. null se uma das peças faltar. */
+  /** Taxa IVA % (6/13/23/...) — última compra do produto. null se desconhecida. */
+  taxaIva: number | null;
+  /** stockAtual × custoUnitario, SEM IVA. null se uma das peças faltar. */
   valorStock: number | null;
+  /** valorStock × (taxa/100). null se valorStock ou taxa faltarem. */
+  valorIva: number | null;
+  /** valorStock + valorIva. null se taxa ou custo desconhecidos. */
+  valorStockComIva: number | null;
   dataUltimaVenda: string | null;
   dataUltimaCompra: string | null;
   diasSemVenda: number | null;
@@ -77,8 +88,12 @@ export type InventarioPorFarmaciaRow = {
   numProdutos: number;
   /** Soma stockAtual ignorando null. */
   stockTotal: number;
-  /** Soma valorStock ignorando null. */
-  valorStock: number;
+  /** Soma valorStock (s/ IVA) ignorando null. */
+  valorStockSemIva: number;
+  /** Soma valorIva ignorando null. */
+  valorIva: number;
+  /** Soma valorStockComIva ignorando null. */
+  valorStockComIva: number;
   /** Contagens por estado canónico. */
   rotura: number;
   excesso: number;
@@ -97,7 +112,9 @@ export type InventarioPorGrupoRow = {
   grupo: string;
   numProdutos: number;
   stockTotal: number;
-  valorStock: number;
+  valorStockSemIva: number;
+  valorIva: number;
+  valorStockComIva: number;
   rotura: number;
   excesso: number;
   semMovimento: number;
@@ -106,10 +123,27 @@ export type InventarioPorGrupoRow = {
   normal: number;
 };
 
+/**
+ * Vista executiva por taxa IVA. Buckets canónicos: 6, 13, 23 (PT),
+ * "Isento/0" (taxa 0), "Outro" (taxas restantes) e "Desconhecido" (sem
+ * captura). Nunca inventamos a taxa — produtos sem dados vão para
+ * "Desconhecido".
+ */
+export type InventarioPorIvaRow = {
+  key: string;            // "23" | "13" | "6" | "0" | "OUTRO" | "DESC"
+  label: string;          // "23%" | "Isento/0%" | "IVA desconhecido" | ...
+  numProdutos: number;
+  stockTotal: number;
+  valorStockSemIva: number;
+  valorIva: number;
+  valorStockComIva: number;
+};
+
 export type InventarioResult = {
   porProduto: InventarioRow[];
   porFarmacia: InventarioPorFarmaciaRow[];
   porGrupo: InventarioPorGrupoRow[];
+  porIva: InventarioPorIvaRow[];
 };
 
 const SEM_MOV_DAYS = 180;
@@ -176,7 +210,7 @@ export async function getInventarioData(
   const prisma = await getPrisma();
   const { ids: farmaciaIds, nomeById } = await resolveFarmacias(prisma, filters.farmaciaNomes);
   if (farmaciaIds.length === 0) {
-    return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
   }
 
   // ── Filtro de produto via categoria canónica (NIVEL_1) ──────────
@@ -189,13 +223,13 @@ export async function getInventarioData(
       select: { id: true },
     });
     const classifIds = classifs.map((c) => c.id);
-    if (classifIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    if (classifIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
     const produtos = await prisma.produto.findMany({
       where: { classificacaoNivel1Id: { in: classifIds } },
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
   }
   if (filters.apenasSemClassif) {
     const produtos = await prisma.produto.findMany({
@@ -207,7 +241,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
   }
   if (filters.fabricantes && filters.fabricantes.length > 0) {
     const fabs = await prisma.fabricante.findMany({
@@ -215,7 +249,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     const fabIds = fabs.map((f) => f.id);
-    if (fabIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    if (fabIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
     const produtos = await prisma.produto.findMany({
       where: {
         fabricanteId: { in: fabIds },
@@ -224,7 +258,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
   }
 
   // ── CTE de vendas dos últimos 90 dias agrupada por produto×farm ──
@@ -274,6 +308,7 @@ export async function getInventarioData(
       dataUltimaVenda: Date | null;
       dataUltimaCompra: Date | null;
       qty90d: string;
+      taxa_iva: string | null;
     }>
   >(Prisma.sql`
     WITH vendas_90d AS (
@@ -301,11 +336,20 @@ export async function getInventarioData(
       pf."pvp"::text          AS pvp,
       pf."dataUltimaVenda",
       pf."dataUltimaCompra",
-      COALESCE(v.qty_90d, 0)::text AS "qty90d"
+      COALESCE(v.qty_90d, 0)::text AS "qty90d",
+      iva_src.iva::text             AS taxa_iva
     FROM "ProdutoFarmacia" pf
     JOIN "Produto" p ON p.id = pf."produtoId"
     LEFT JOIN vendas_90d v
       ON v."produtoId" = pf."produtoId" AND v."farmaciaId" = pf."farmaciaId"
+    LEFT JOIN LATERAL (
+      SELECT scrl."iva"
+      FROM "StagingCompraRawLine" scrl
+      WHERE scrl."farmaciaId" = pf."farmaciaId"
+        AND scrl."externalCodigoId" = pf."externalProductId"
+      ORDER BY scrl."externalLineId" DESC
+      LIMIT 1
+    ) iva_src ON true
     WHERE pf."flagRetirado" = false
       AND pf."farmaciaId" = ANY(${farmaciaIds})
       ${distrCond}
@@ -342,6 +386,19 @@ export async function getInventarioData(
       custoUnitario !== null && stockAtual !== null
         ? Math.round(stockAtual * custoUnitario * 100) / 100
         : null;
+
+    // Taxa IVA da última compra (LATERAL JOIN à staging). null preserva
+    // o sinal "não inventamos" — produto entra em "Desconhecido".
+    const taxaIva = numOrNull(r.taxa_iva);
+    const valorIva =
+      valorStock !== null && taxaIva !== null && taxaIva >= 0
+        ? Math.round(valorStock * (taxaIva / 100) * 100) / 100
+        : null;
+    const valorStockComIva =
+      valorStock !== null && valorIva !== null
+        ? Math.round((valorStock + valorIva) * 100) / 100
+        : null;
+
     const qty90d = toF(r.qty90d);
     const vendaMediaDia90d = qty90d / VENDAS_WINDOW_DAYS;
     const coberturaDias =
@@ -382,7 +439,10 @@ export async function getInventarioData(
       puc,
       pvp,
       custoUnitario,
+      taxaIva,
       valorStock,
+      valorIva,
+      valorStockComIva,
       dataUltimaVenda: r.dataUltimaVenda ? r.dataUltimaVenda.toISOString() : null,
       dataUltimaCompra: r.dataUltimaCompra ? r.dataUltimaCompra.toISOString() : null,
       diasSemVenda,
@@ -401,7 +461,9 @@ export async function getInventarioData(
       farmacia: nomeById.get(id) ?? "—",
       numProdutos: 0,
       stockTotal: 0,
-      valorStock: 0,
+      valorStockSemIva: 0,
+      valorIva: 0,
+      valorStockComIva: 0,
       rotura: 0,
       excesso: 0,
       semMovimento: 0,
@@ -415,7 +477,9 @@ export async function getInventarioData(
     if (!k) continue;
     k.numProdutos++;
     if (r.stockAtual !== null) k.stockTotal += r.stockAtual;
-    if (r.valorStock !== null) k.valorStock += r.valorStock;
+    if (r.valorStock !== null) k.valorStockSemIva += r.valorStock;
+    if (r.valorIva !== null) k.valorIva += r.valorIva;
+    if (r.valorStockComIva !== null) k.valorStockComIva += r.valorStockComIva;
     switch (r.estado) {
       case "ROTURA":
         k.rotura++;
@@ -441,7 +505,9 @@ export async function getInventarioData(
     .map((k) => ({
       ...k,
       stockTotal: Math.round(k.stockTotal),
-      valorStock: Math.round(k.valorStock * 100) / 100,
+      valorStockSemIva: Math.round(k.valorStockSemIva * 100) / 100,
+      valorIva: Math.round(k.valorIva * 100) / 100,
+      valorStockComIva: Math.round(k.valorStockComIva * 100) / 100,
     }))
     .sort((a, b) => a.farmacia.localeCompare(b.farmacia, "pt-PT"));
 
@@ -455,7 +521,9 @@ export async function getInventarioData(
         grupo: key,
         numProdutos: 0,
         stockTotal: 0,
-        valorStock: 0,
+        valorStockSemIva: 0,
+        valorIva: 0,
+        valorStockComIva: 0,
         rotura: 0,
         excesso: 0,
         semMovimento: 0,
@@ -467,7 +535,9 @@ export async function getInventarioData(
     const g = byGrupo.get(key)!;
     g.numProdutos++;
     if (r.stockAtual !== null) g.stockTotal += r.stockAtual;
-    if (r.valorStock !== null) g.valorStock += r.valorStock;
+    if (r.valorStock !== null) g.valorStockSemIva += r.valorStock;
+    if (r.valorIva !== null) g.valorIva += r.valorIva;
+    if (r.valorStockComIva !== null) g.valorStockComIva += r.valorStockComIva;
     switch (r.estado) {
       case "ROTURA": g.rotura++; break;
       case "EXCESSO": g.excesso++; break;
@@ -481,11 +551,71 @@ export async function getInventarioData(
     .map((g) => ({
       ...g,
       stockTotal: Math.round(g.stockTotal),
-      valorStock: Math.round(g.valorStock * 100) / 100,
+      valorStockSemIva: Math.round(g.valorStockSemIva * 100) / 100,
+      valorIva: Math.round(g.valorIva * 100) / 100,
+      valorStockComIva: Math.round(g.valorStockComIva * 100) / 100,
     }))
     .sort((a, b) => a.grupo.localeCompare(b.grupo, "pt-PT"));
 
-  return { porProduto, porFarmacia, porGrupo };
+  // ── Vista executiva por taxa IVA ─────────────────────────────────
+  const porIva = aggregatePorIva(porProduto);
+
+  return { porProduto, porFarmacia, porGrupo, porIva };
+}
+
+/**
+ * Agrega rows em buckets canónicos {23, 13, 6, 0, OUTRO, DESC} usando a
+ * taxa fiscal portuguesa standard. Produtos sem taxa capturada na
+ * staging caem em DESC — não inventamos.
+ */
+function aggregatePorIva(rows: InventarioRow[]): InventarioPorIvaRow[] {
+  const buckets: Record<string, InventarioPorIvaRow> = {
+    "23": emptyIvaBucket("23", "IVA 23%"),
+    "13": emptyIvaBucket("13", "IVA 13%"),
+    "6": emptyIvaBucket("6", "IVA 6%"),
+    "0": emptyIvaBucket("0", "Isento / 0%"),
+    OUTRO: emptyIvaBucket("OUTRO", "Outras taxas"),
+    DESC: emptyIvaBucket("DESC", "IVA desconhecido"),
+  };
+  for (const r of rows) {
+    let key: string;
+    if (r.taxaIva === null) key = "DESC";
+    else if (r.taxaIva === 0) key = "0";
+    else if (r.taxaIva === 6) key = "6";
+    else if (r.taxaIva === 13) key = "13";
+    else if (r.taxaIva === 23) key = "23";
+    else key = "OUTRO";
+    const b = buckets[key];
+    b.numProdutos++;
+    if (r.stockAtual !== null) b.stockTotal += r.stockAtual;
+    if (r.valorStock !== null) b.valorStockSemIva += r.valorStock;
+    if (r.valorIva !== null) b.valorIva += r.valorIva;
+    if (r.valorStockComIva !== null) b.valorStockComIva += r.valorStockComIva;
+  }
+  // Manter ordem canónica (23,13,6,0,OUTRO,DESC) e omitir buckets vazios
+  // para não poluir o relatório quando o tenant só tem 23+desconhecido.
+  return ["23", "13", "6", "0", "OUTRO", "DESC"]
+    .map((k) => buckets[k])
+    .filter((b) => b.numProdutos > 0)
+    .map((b) => ({
+      ...b,
+      stockTotal: Math.round(b.stockTotal),
+      valorStockSemIva: Math.round(b.valorStockSemIva * 100) / 100,
+      valorIva: Math.round(b.valorIva * 100) / 100,
+      valorStockComIva: Math.round(b.valorStockComIva * 100) / 100,
+    }));
+}
+
+function emptyIvaBucket(key: string, label: string): InventarioPorIvaRow {
+  return {
+    key,
+    label,
+    numProdutos: 0,
+    stockTotal: 0,
+    valorStockSemIva: 0,
+    valorIva: 0,
+    valorStockComIva: 0,
+  };
 }
 
 export const ESTADO_LABELS: Record<EstadoInventario, string> = {
