@@ -820,6 +820,26 @@ model ProdutoFarmacia {
   /// OCP, Alliance, etc.). Usado apenas como contexto interno, análise de
   /// abastecimento e hints fracos. NUNCA como fabricante canónico.
   fornecedorOrigem     String?
+
+  // ── IVA (rev39 + recuperador) ───────────────────────────────────
+  /// Taxa IVA canónica de farmácia em pontos percentuais inteiros:
+  /// 6, 13, 23 ou NULL. Resultado de pipeline de recuperação que
+  /// combina (em cascata, ver `lib/iva-recovery.ts`):
+  ///   1. STOCKS_MESTRE        — `dbo.Stocks.[IVA]` via agent rev39+
+  ///   2. STAGING_COMPRA       — última `StagingCompraRawLine.iva`
+  ///   3. STAGING_DEVOLUCAO    — última `StagingDevolucaoFornecedor*.iva`
+  ///   4. VENDA_DERIVADA       — moda da taxa derivada por linha de venda
+  /// Valores fora de {6,13,23} ou ausentes → permanece NULL ("IVA por
+  /// apurar"). Nunca inventamos.
+  taxaIvaPercent       Int?
+  /// Fonte que populou `taxaIvaPercent`. Token uppercase: ver enum
+  /// `TaxaIvaSource` em lib/iva-recovery. NULL ⇒ taxaIvaPercent é NULL.
+  taxaIvaSource        String?
+  /// Timestamp da última execução do recuperador que tocou nesta linha.
+  /// Distinto de `dataAtualizacao` para permitir auditoria do pipeline
+  /// sem ruído de outros campos.
+  taxaIvaUpdatedAt     DateTime?
+
   dataAtualizacao      DateTime  @updatedAt
   dataCriacao          DateTime  @default(now())
 
@@ -833,6 +853,9 @@ model ProdutoFarmacia {
   @@index([farmaciaId, externalProductId])
   @@index([fornecedorHabitualId])
   @@index([flagRetirado])
+  // Suporta filtragem rápida em buckets "Por taxa IVA" no relatório
+  // Inventário (4 buckets canónicos: 6/13/23/null).
+  @@index([taxaIvaPercent])
 }
 
 //////////////////////////////////////////////////////

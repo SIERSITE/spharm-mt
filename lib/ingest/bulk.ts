@@ -167,6 +167,13 @@ export type ProdutoFarmaciaProductRow = {
   flagRetirado: boolean;
   fornecedorExternalId: number | null;
   fornecedorOrigem: string | null;
+  /**
+   * Taxa IVA canónica de farmácia: 6, 13, 23 ou null. Vem do agent rev39+
+   * via discovery dinâmica de `dbo.Stocks.[IVA]` (ou colunas variantes).
+   * Quando o agent envia, o endpoint marca `taxaIvaSource='STOCKS_MESTRE'`
+   * — fonte mais autoritativa do pipeline de recuperação.
+   */
+  taxaIvaPercent: number | null;
 };
 
 /**
@@ -185,14 +192,20 @@ export async function bulkUpsertProdutoFarmaciaProducts(
     (r) => Prisma.sql`(
       ${randomUUID()}, ${r.produtoId}, ${r.farmaciaId}, ${r.externalProductId},
       ${r.pvp}, ${r.pmc}, ${r.puc}, ${r.dataUltimaVenda}, ${r.dataUltimaCompra},
-      ${r.flagRetirado}, ${r.fornecedorExternalId}, ${r.fornecedorOrigem}, now()
+      ${r.flagRetirado}, ${r.fornecedorExternalId}, ${r.fornecedorOrigem},
+      ${r.taxaIvaPercent},
+      ${r.taxaIvaPercent === null ? null : 'STOCKS_MESTRE'},
+      ${r.taxaIvaPercent === null ? null : new Date()},
+      now()
     )`
   );
   return db.$executeRaw`
     INSERT INTO "ProdutoFarmacia" (
       "id", "produtoId", "farmaciaId", "externalProductId",
       "pvp", "pmc", "puc", "dataUltimaVenda", "dataUltimaCompra",
-      "flagRetirado", "fornecedorExternalId", "fornecedorOrigem", "dataAtualizacao"
+      "flagRetirado", "fornecedorExternalId", "fornecedorOrigem",
+      "taxaIvaPercent", "taxaIvaSource", "taxaIvaUpdatedAt",
+      "dataAtualizacao"
     )
     VALUES ${Prisma.join(values)}
     ON CONFLICT ("produtoId", "farmaciaId") DO UPDATE SET
@@ -205,6 +218,18 @@ export async function bulkUpsertProdutoFarmaciaProducts(
       "flagRetirado"         = EXCLUDED."flagRetirado",
       "fornecedorExternalId" = COALESCE(EXCLUDED."fornecedorExternalId", "ProdutoFarmacia"."fornecedorExternalId"),
       "fornecedorOrigem"     = COALESCE(EXCLUDED."fornecedorOrigem", "ProdutoFarmacia"."fornecedorOrigem"),
+      -- IVA mestre: o ERP é a verdade. Quando o agent envia uma taxa
+      -- (não-null), sobrescreve qualquer taxa anterior (incluindo as
+      -- derivadas pelo recuperador). NULL no payload preserva o existente.
+      "taxaIvaPercent"       = COALESCE(EXCLUDED."taxaIvaPercent", "ProdutoFarmacia"."taxaIvaPercent"),
+      "taxaIvaSource"        = CASE
+                                 WHEN EXCLUDED."taxaIvaPercent" IS NOT NULL THEN 'STOCKS_MESTRE'
+                                 ELSE "ProdutoFarmacia"."taxaIvaSource"
+                               END,
+      "taxaIvaUpdatedAt"     = CASE
+                                 WHEN EXCLUDED."taxaIvaPercent" IS NOT NULL THEN now()
+                                 ELSE "ProdutoFarmacia"."taxaIvaUpdatedAt"
+                               END,
       "dataAtualizacao"      = now()
   `;
 }

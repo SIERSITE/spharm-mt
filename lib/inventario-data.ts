@@ -309,7 +309,7 @@ export async function getInventarioData(
       dataUltimaVenda: Date | null;
       dataUltimaCompra: Date | null;
       qty90d: string;
-      taxa_iva: string | null;
+      taxaIvaPercent: number | null;
     }>
   >(Prisma.sql`
     WITH vendas_90d AS (
@@ -338,19 +338,11 @@ export async function getInventarioData(
       pf."dataUltimaVenda",
       pf."dataUltimaCompra",
       COALESCE(v.qty_90d, 0)::text AS "qty90d",
-      iva_src.iva::text             AS taxa_iva
+      pf."taxaIvaPercent"          AS "taxaIvaPercent"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto" p ON p.id = pf."produtoId"
     LEFT JOIN vendas_90d v
       ON v."produtoId" = pf."produtoId" AND v."farmaciaId" = pf."farmaciaId"
-    LEFT JOIN LATERAL (
-      SELECT scrl."iva"
-      FROM "StagingCompraRawLine" scrl
-      WHERE scrl."farmaciaId" = pf."farmaciaId"
-        AND scrl."externalCodigoId" = pf."externalProductId"
-      ORDER BY scrl."externalLineId" DESC
-      LIMIT 1
-    ) iva_src ON true
     WHERE pf."flagRetirado" = false
       AND pf."farmaciaId" = ANY(${farmaciaIds})
       ${distrCond}
@@ -388,10 +380,10 @@ export async function getInventarioData(
         ? Math.round(stockAtual * custoUnitario * 100) / 100
         : null;
 
-    // Taxa IVA da última compra (LATERAL JOIN à staging), normalizada
-    // ao conjunto canónico de farmácia {6, 13, 23}. Fora disso → null
-    // (entra em "IVA por apurar"). Não inventamos taxa.
-    const taxaIva = normalizeIva(numOrNull(r.taxa_iva));
+    // Taxa IVA persistida em ProdutoFarmacia.taxaIvaPercent (já
+    // normalizada para {6,13,23} pelo recuperador / endpoint products).
+    // Fora deste conjunto vai como null e a linha vira "IVA por apurar".
+    const taxaIva = normalizeIva(r.taxaIvaPercent);
     const valorIva =
       valorStock !== null && taxaIva !== null
         ? Math.round(valorStock * (taxaIva / 100) * 100) / 100

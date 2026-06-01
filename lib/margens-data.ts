@@ -265,7 +265,7 @@ export async function getMargensData(
       valor_bruto: string;
       pmc: string | null;
       puc: string | null;
-      taxa_iva: string | null;
+      taxaIvaPercent: number | null;
     }>
   >(Prisma.sql`
     WITH agg AS (
@@ -291,19 +291,11 @@ export async function getMargensData(
       agg.valor_bruto::text         AS valor_bruto,
       pf."pmc"::text                AS pmc,
       pf."puc"::text                AS puc,
-      iva_src.iva::text             AS taxa_iva
+      pf."taxaIvaPercent"           AS "taxaIvaPercent"
     FROM agg
     JOIN "Produto" p ON p.id = agg."produtoId"
     LEFT JOIN "ProdutoFarmacia" pf
       ON pf."produtoId" = agg."produtoId" AND pf."farmaciaId" = agg."farmaciaId"
-    LEFT JOIN LATERAL (
-      SELECT scrl."iva"
-      FROM "StagingCompraRawLine" scrl
-      WHERE scrl."farmaciaId" = agg."farmaciaId"
-        AND scrl."externalCodigoId" = pf."externalProductId"
-      ORDER BY scrl."externalLineId" DESC
-      LIMIT 1
-    ) iva_src ON true
     WHERE 1 = 1
       ${distrCond}
       ${prodIdCond}
@@ -334,9 +326,11 @@ export async function getMargensData(
     const puc = numOrNull(r.puc);
     const custoUnitarioBase =
       pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
-    // Normalização canónica: 0.06→6, 0.13→13, 0.23→23, resto→null.
-    // NÃO inventamos taxa: 0.00 da staging vira null (IVA por apurar).
-    const taxaIva = normalizeIva(numOrNull(r.taxa_iva));
+    // Taxa IVA persistida em ProdutoFarmacia.taxaIvaPercent pelo
+    // pipeline de recuperação (lib/iva-recovery.ts). Valor já em
+    // {6,13,23,null} — `normalizeIva()` aqui é defensivo contra
+    // qualquer valor legacy fora do conjunto.
+    const taxaIva = normalizeIva(r.taxaIvaPercent);
     const ivaOk = taxaIva !== null;
     const custoOk = custoUnitarioBase !== null;
 

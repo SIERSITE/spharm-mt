@@ -72,6 +72,13 @@ type ProductPayload = {
   mnsrmNCompart: boolean | null;
   fornecedorHabitualId: number | null;
   fornecedorHabitualNome: string | null;
+  /**
+   * rev39 — taxa IVA da tabela mestre `dbo.Stocks`. Valor cru: pode vir
+   * como fracção (0.06/0.13/0.23) ou percentagem (6/13/23). O server
+   * normaliza via `normalizeIva()`. null quando a coluna não foi
+   * detectada (rev39 fallback) ou quando o produto não tem taxa no ERP.
+   */
+  taxaIva: number | null;
 };
 
 type StockPayload = {
@@ -233,6 +240,42 @@ export function renderTotals(label: string, t: PipelineTotals): void {
 // Pipeline 1: PRODUTOS — keyset por CodigoID
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * rev39 — descobre o nome da coluna de IVA na tabela mestre `dbo.Stocks`
+ * em runtime. SoftReis varia entre instalações: `[IVA]`, `[Codigo_IVA]`,
+ * `[CodigoIVA]`, `[Taxa IVA]`, `[Taxa_IVA]`, `[TaxaIVA]`, `[IVA_ID]`,
+ * `[IVAID]`. Devolve `null` quando nenhuma variante existe — neste caso
+ * o agent envia `taxaIva: null` e o SaaS preserva o que houver (vindo
+ * do recuperador de fallback).
+ *
+ * O valor cru pode vir como fracção (0.06) ou percentagem (6) — o
+ * server normaliza ambos via `normalizeIva()`.
+ */
+async function discoverStocksIvaColumn(pool: SqlPool): Promise<string | null> {
+  const r = await pool.request().query<{ column_: string }>(`
+    SELECT c.name AS column_
+    FROM sys.columns c
+    JOIN sys.tables t  ON c.object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = 'dbo' AND t.name = 'Stocks'
+  `);
+  const cols = r.recordset.map((row) => row.column_);
+  const patterns: RegExp[] = [
+    /^iva$/i,
+    /^taxa\s*iva$/i,
+    /^taxa[_ ]iva$/i,
+    /^codigo[_ ]?iva$/i,
+    /^iva[_ ]?id$/i,
+    /^tipo[_ ]?iva$/i,
+    /^iva[_ ]?codigo$/i,
+  ];
+  for (const re of patterns) {
+    const found = cols.find((c) => re.test(c));
+    if (found) return found;
+  }
+  return null;
+}
+
 export async function runProductsPipeline(
   pool: SqlPool,
   client: SaasClient,
@@ -245,6 +288,15 @@ export async function runProductsPipeline(
   console.log(DOUBLE_RULE);
   console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
+
+  // rev39 — discovery do campo IVA na tabela mestre Stocks
+  const ivaCol = await discoverStocksIvaColumn(pool);
+  if (ivaCol) {
+    console.log(`  ▸ rev39 IVA mestre: coluna detectada = Stocks.[${ivaCol}]`);
+  } else {
+    console.log(`  ▸ rev39 IVA mestre: coluna não detectada — taxaIva será null (fallback recuperador no SaaS)`);
+  }
+  const ivaSelect = ivaCol ? `s.[${ivaCol}]` : `CAST(NULL AS DECIMAL(7,4))`;
 
   while (true) {
     const rs = await pool
@@ -265,6 +317,7 @@ export async function runProductsPipeline(
         mnsrmNCompart: unknown;
         fornecedorHabitualId: number | null;
         fornecedorHabitualNome: string | null;
+        taxaIva: unknown;
       }>(`
         SELECT TOP (@n)
           s.CodigoID                   AS externalProductId,
@@ -279,7 +332,8 @@ export async function runProductsPipeline(
           s.[Generico]                 AS generico,
           s.[MNSRM_NCompart]           AS mnsrmNCompart,
           ars.[Fornecedor Habitual]    AS fornecedorHabitualId,
-          f.[Nome Abreviado]           AS fornecedorHabitualNome
+          f.[Nome Abreviado]           AS fornecedorHabitualNome,
+          ${ivaSelect}                 AS taxaIva
         FROM [dbo].[Stocks] s
         OUTER APPLY (
           SELECT TOP 1 [Fornecedor Habitual]
@@ -311,6 +365,7 @@ export async function runProductsPipeline(
       mnsrmNCompart: boolOrNull(r.mnsrmNCompart),
       fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
+      taxaIva: numOrNull(r.taxaIva),
     }));
 
     if (dryRun) {

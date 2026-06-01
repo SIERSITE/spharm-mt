@@ -53,6 +53,7 @@ import {
   dedupeByKey,
   type ProdutoFarmaciaProductRow,
 } from "@/lib/ingest/bulk";
+import { normalizeIva } from "@/lib/iva";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,15 @@ type ProductPayload = {
   mnsrmNCompart: unknown;
   fornecedorHabitualId: unknown;
   fornecedorHabitualNome: unknown;
+  /**
+   * Taxa IVA do produto na tabela mestre `dbo.Stocks`. Capturada pelo
+   * agent rev39+ via discovery dinâmica (`Stocks.[IVA]`, `[Codigo_IVA]`,
+   * `[TaxaIVA]` — depende do quirk do SoftReis). Aceita fracção
+   * (0.06/0.13/0.23) OU percentagem (6/13/23). Normaliza para {6,13,23,null}.
+   * Quando o agent (≤ rev38) não envia, fica undefined → preserva o
+   * existente em BD via COALESCE.
+   */
+  taxaIva: unknown;
 };
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -127,6 +137,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     flagRetirado: boolean;
     fornecedorExternalId: number | null;
     fornecedorOrigem: string | null;
+    /** {6, 13, 23, null}. null se agent não enviou ou valor não-canónico. */
+    taxaIvaPercent: number | null;
   };
 
   // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
@@ -145,6 +157,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       skipped.push({ index: i, reason: "missing_designacao", externalId: externalProductId ?? undefined });
       continue;
     }
+    // IVA: agent ≤ rev38 não envia (undefined) → fica null e o pipeline
+    // preserva o existente via COALESCE no bulk. rev39+ envia número
+    // (fracção 0.06 ou percentagem 6) que normalizamos para {6,13,23,null}.
+    const taxaIvaRaw = asDecimalOrNull(raw.taxaIva);
+    const taxaIvaPercent = taxaIvaRaw === null ? null : (normalizeIva(taxaIvaRaw) ?? null);
     accepted.push({
       index: i,
       cnp,
@@ -160,6 +177,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       flagRetirado: asBoolOrFalse(raw.retirado),
       fornecedorExternalId: asIntOrNull(raw.fornecedorHabitualId),
       fornecedorOrigem: asStringOrNull(raw.fornecedorHabitualNome),
+      taxaIvaPercent,
     });
   }
 
@@ -197,6 +215,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         flagRetirado: a.flagRetirado,
         fornecedorExternalId: a.fornecedorExternalId,
         fornecedorOrigem: a.fornecedorOrigem,
+        taxaIvaPercent: a.taxaIvaPercent,
       });
     }
     await bulkUpsertProdutoFarmaciaProducts(ctx.prisma, pfRows);
@@ -244,6 +263,13 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             flagRetirado: a.flagRetirado,
             fornecedorExternalId: a.fornecedorExternalId ?? null,
             fornecedorOrigem: a.fornecedorOrigem ?? null,
+            ...(a.taxaIvaPercent !== null
+              ? {
+                  taxaIvaPercent: a.taxaIvaPercent,
+                  taxaIvaSource: "STOCKS_MESTRE",
+                  taxaIvaUpdatedAt: new Date(),
+                }
+              : {}),
           },
           update: {
             externalProductId: a.externalProductId ?? undefined,
@@ -255,6 +281,14 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
             flagRetirado: a.flagRetirado,
             fornecedorExternalId: a.fornecedorExternalId ?? undefined,
             fornecedorOrigem: a.fornecedorOrigem ?? undefined,
+            // IVA: rev39+ → sobrescreve com source mestre. rev≤38 → null.
+            ...(a.taxaIvaPercent !== null
+              ? {
+                  taxaIvaPercent: a.taxaIvaPercent,
+                  taxaIvaSource: "STOCKS_MESTRE",
+                  taxaIvaUpdatedAt: new Date(),
+                }
+              : {}),
           },
         });
         upserted++;
