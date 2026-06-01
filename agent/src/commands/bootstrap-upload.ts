@@ -241,139 +241,163 @@ export function renderTotals(label: string, t: PipelineTotals): void {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * rev40 — descobre o nome da coluna de IVA na tabela mestre `dbo.Stocks`.
- * Versão alargada e diagnóstica: SEMPRE imprime as colunas candidatas
- * (qualquer coluna cujo nome contenha "iva"), e quando encontra match
- * mostra TOP 5 valores DISTINCT para validar a escala (fracção 0.06 vs
- * percentagem 6 vs código 1/2/3 numa tabela mestre `[IVAs]`).
+ * rev42 — IVA resolvido via JOIN explícito a `dbo.IVA` (master confirmada
+ * pelo iva-audit rev41). Substitui a discovery genérica das rev39/40.
  *
- * Regex de match cobre 19 variantes observadas em instalações SoftReis:
- *   IVA, Iva, iva
- *   TaxaIVA, Taxa_IVA, Taxa IVA, TxIVA, Tx_IVA, Tx IVA
- *   CodigoIVA, Codigo_IVA, Codigo IVA, Cod_IVA, CodIVA, CodIva
- *   IVAID, IVA_ID, IVA Id
- *   TipoIVA, Tipo_IVA, Tipo IVA
- *   IVACod, IVA_Codigo
- *   PercIVA, PercentagemIVA, ValorIVA (último é arriscado)
+ * Plano construído em runtime:
+ *   1. Stocks.[Taxa IVA]    — coluna FK em Stocks (auto-discover; pode ter
+ *                             outro nome em outras instalações)
+ *   2. dbo.IVA              — master (existência confirmada)
+ *   3. PK de dbo.IVA        — coluna 1 da PK simples (provável [IVA id])
+ *   4. Coluna percentual    — coluna numérica não-PK cujo domínio cobre
+ *                             taxas fiscais PT {0, 5, 6, 7, 13, 16, 23, ...}
  *
- * Estratégia: primeiro tenta os matches "fortes" (taxa/percentagem
- * directas); só depois aceita IDs (que requerem JOIN extra a uma tabela
- * `dbo.IVAs` ou `dbo.TaxasIVA`). Quando devolve um ID, o caller pode
- * fazer LEFT JOIN à tabela master para resolver — gerido caso a caso.
- *
- * Se nenhum match → devolve null E imprime TODAS as colunas de Stocks
- * (cap 200) para análise manual.
+ * Se qualquer um dos passos falhar, devolve plano nulo e a query principal
+ * emite `taxaIva: NULL` no payload — não inventamos taxa. Operador corre
+ * `iva-audit` para investigar.
  */
-type IvaColumnResolution = {
-  column: string | null;
-  /** `direct` = coluna contém a percentagem/fracção. `id` = código para JOIN. */
-  kind: "direct" | "id" | null;
-  /** Todas as colunas da tabela Stocks que contêm "iva" (case-insensitive). */
-  candidates: string[];
-  /** Todas as colunas (cap 200) — só usado em fallback de diagnóstico. */
-  allColumns: string[];
+type IvaJoinPlan = {
+  stocksColumn: string | null;     // ex.: "Taxa IVA"
+  masterTable: string | null;       // "IVA"
+  masterPk: string | null;          // ex.: "IVA id"
+  masterRateColumn: string | null;  // ex.: "Taxa"
 };
 
-async function discoverStocksIvaColumn(
-  pool: SqlPool,
-): Promise<IvaColumnResolution> {
-  const r = await pool.request().query<{ column_: string }>(`
+async function discoverIvaJoinPlan(pool: SqlPool): Promise<IvaJoinPlan> {
+  // 1. Coluna IVA em Stocks (qualquer coluna com 'iva' no nome — preferimos
+  // "Taxa IVA" mas aceitamos outras variantes)
+  const stocksColsR = await pool.request().query<{ column_: string }>(`
     SELECT c.name AS column_
     FROM sys.columns c
     JOIN sys.tables t  ON c.object_id = t.object_id
     JOIN sys.schemas s ON t.schema_id = s.schema_id
-    WHERE s.name = 'dbo' AND t.name = 'Stocks'
+    WHERE s.name = 'dbo' AND t.name = 'Stocks' AND c.name LIKE '%iva%'
     ORDER BY c.column_id
   `);
-  const allColumns = r.recordset.map((row) => row.column_);
-  const candidates = allColumns.filter((c) => /iva/i.test(c));
+  const ivaInStocks = stocksColsR.recordset.map((r) => r.column_);
+  // Preferência: nome com 'taxa' primeiro (Taxa IVA), depois qualquer com 'iva'
+  const stocksColumn =
+    ivaInStocks.find((c) => /taxa/i.test(c)) ?? ivaInStocks[0] ?? null;
 
-  // Ordem importa — primeiro as variantes mais directas, depois IDs.
-  const directPatterns: RegExp[] = [
-    /^iva$/i,
-    /^taxa[_ ]?iva$/i,
-    /^tx[_ ]?iva$/i,
-    /^perc[_ ]?iva$/i,
-    /^percentagem[_ ]?iva$/i,
-    /^iva[_ ]?perc$/i,
-    /^iva[_ ]?taxa$/i,
-  ];
-  for (const re of directPatterns) {
-    const found = candidates.find((c) => re.test(c));
-    if (found) return { column: found, kind: "direct", candidates, allColumns };
+  // 2. dbo.IVA existe?
+  const ivaExistsR = await pool.request().query<{ n: number }>(`
+    SELECT COUNT(*) AS n
+    FROM sys.tables t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = 'dbo' AND t.name = 'IVA'
+  `);
+  if (Number(ivaExistsR.recordset[0]?.n ?? 0) === 0) {
+    return { stocksColumn, masterTable: null, masterPk: null, masterRateColumn: null };
   }
 
-  // IDs/códigos — exigem JOIN à master mas valem tentar.
-  const idPatterns: RegExp[] = [
-    /^codigo[_ ]?iva$/i,
-    /^cod[_ ]?iva$/i,
-    /^iva[_ ]?id$/i,
-    /^iva[_ ]?cod(?:igo)?$/i,
-    /^tipo[_ ]?iva$/i,
-    /^iva[_ ]?tipo$/i,
-  ];
-  for (const re of idPatterns) {
-    const found = candidates.find((c) => re.test(c));
-    if (found) return { column: found, kind: "id", candidates, allColumns };
+  // 3. PK de dbo.IVA (esperado: [IVA id] simples)
+  const pkR = await pool.request().query<{ col: string }>(`
+    SELECT c.name AS col
+    FROM sys.indexes i
+    JOIN sys.index_columns ic ON i.object_id=ic.object_id AND i.index_id=ic.index_id
+    JOIN sys.columns c ON ic.object_id=c.object_id AND ic.column_id=c.column_id
+    JOIN sys.tables t ON i.object_id=t.object_id
+    JOIN sys.schemas s ON t.schema_id=s.schema_id
+    WHERE s.name='dbo' AND t.name='IVA' AND i.is_primary_key=1
+    ORDER BY ic.key_ordinal
+  `);
+  const pkCols = pkR.recordset.map((r) => r.col);
+  const masterPk = pkCols.length === 1 ? pkCols[0] : null;
+  if (!masterPk) {
+    // PK composta ou inexistente — fallback: primeira coluna integer
+    const colsR = await pool.request().query<{ name_: string; type_: string }>(`
+      SELECT c.name AS name_, ty.name AS type_
+      FROM sys.columns c
+      JOIN sys.tables t ON c.object_id=t.object_id
+      JOIN sys.schemas s ON t.schema_id=s.schema_id
+      JOIN sys.types ty ON c.user_type_id=ty.user_type_id
+      WHERE s.name='dbo' AND t.name='IVA'
+      ORDER BY c.column_id
+    `);
+    const firstInt = colsR.recordset.find((c) => /int|tinyint|smallint|bigint/i.test(c.type_));
+    if (firstInt) {
+      return { stocksColumn, masterTable: "IVA", masterPk: firstInt.name_, masterRateColumn: null };
+    }
+    return { stocksColumn, masterTable: "IVA", masterPk: null, masterRateColumn: null };
   }
 
-  return { column: null, kind: null, candidates, allColumns };
+  // 4. Coluna percentual em dbo.IVA (numeric não-PK com domínio plausível)
+  const masterRateColumn = await detectIvaRateColumn(pool, pkCols);
+
+  return { stocksColumn, masterTable: "IVA", masterPk, masterRateColumn };
 }
 
 /**
- * Diagnóstico verboso da discovery: lista candidatos, decisão, e TOP 5
- * valores DISTINCT quando uma coluna foi escolhida. Imprime tudo no
- * stdout para o log capturar.
+ * Identifica a coluna percentual em `dbo.IVA`. Tenta na ordem:
+ *   1. Match de nome forte: Taxa / Percentagem / Percent (case-insensitive)
+ *   2. Match de domínio: numeric não-PK com 100% dos valores em
+ *      taxas fiscais PT (escala % ou fracção)
+ *   3. Variância: rejeita colunas constantes
+ *
+ * null se nenhuma coluna oferecer confiança suficiente — payload fica
+ * com taxaIva=NULL e o operador corre `iva-audit` para validar.
  */
-async function logIvaDiscovery(
-  pool: SqlPool,
-  resolution: IvaColumnResolution,
-): Promise<void> {
-  console.log(`  ▸ rev40 IVA mestre — discovery em dbo.Stocks:`);
-  console.log(`     candidatos (colunas com 'iva' no nome): ${resolution.candidates.length}`);
-  for (const c of resolution.candidates) {
-    console.log(`       · [${c}]`);
-  }
-  if (resolution.column === null) {
-    console.log(`     ✗ nenhum match — taxaIva será NULL no payload`);
-    console.log(
-      `     dump TODAS as colunas de dbo.Stocks (para análise manual):`,
-    );
-    for (let i = 0; i < Math.min(resolution.allColumns.length, 200); i++) {
-      console.log(`       [${resolution.allColumns[i]}]`);
-    }
-    if (resolution.allColumns.length > 200) {
-      console.log(`       ... (+${resolution.allColumns.length - 200} colunas omitidas)`);
-    }
-    return;
-  }
-
-  console.log(
-    `     ✓ match: [${resolution.column}] (kind=${resolution.kind})`,
+async function detectIvaRateColumn(pool: SqlPool, pkCols: string[]): Promise<string | null> {
+  const colsR = await pool.request().query<{ name_: string; type_: string }>(`
+    SELECT c.name AS name_, ty.name AS type_
+    FROM sys.columns c
+    JOIN sys.tables t ON c.object_id=t.object_id
+    JOIN sys.schemas s ON t.schema_id=s.schema_id
+    JOIN sys.types ty ON c.user_type_id=ty.user_type_id
+    WHERE s.name='dbo' AND t.name='IVA'
+    ORDER BY c.column_id
+  `);
+  const numericCols = colsR.recordset.filter(
+    (c) =>
+      /^(decimal|numeric|float|real|tinyint|smallint|int|bigint)$/i.test(c.type_) &&
+      !pkCols.includes(c.name_),
   );
+  if (numericCols.length === 0) return null;
 
-  // Sample TOP 5 DISTINCT valores para validar escala
-  try {
-    const rs = await pool.request().query<{ v: unknown; n: number }>(`
-      SELECT TOP 5 [${resolution.column}] AS v, COUNT(*) AS n
-      FROM [dbo].[Stocks]
-      WHERE [Retirado] = 0 AND [Processa_Stocks] <> 0
-      GROUP BY [${resolution.column}]
-      ORDER BY COUNT(*) DESC
-    `);
-    console.log(`     TOP 5 valores DISTINCT em Stocks.[${resolution.column}]:`);
-    for (const row of rs.recordset) {
-      console.log(`       valor=${String(row.v).padStart(10)} × ${row.n}`);
+  // 1. Match de nome forte
+  for (const c of numericCols) {
+    if (/^(taxa|percent(agem)?|perc)$/i.test(c.name_)) {
+      return c.name_;
     }
-    if (resolution.kind === "id") {
-      console.log(
-        `     ⚠ kind=id: valores são códigos. Para resolver a percentagem real é necessário JOIN a uma tabela mestre (ex.: dbo.IVAs, dbo.TaxasIVA). Rev40 envia o código cru; SaaS faz lookup quando rev41 trouxer o mapeamento.`,
+  }
+
+  // 2. Match de domínio + variância
+  const PT_RATES = [0, 5, 6, 7, 8, 12, 13, 16, 17, 19, 21, 23];
+  const PT_RATES_FRAC = PT_RATES.map((v) => v / 100);
+  for (const c of numericCols) {
+    try {
+      const r = await pool.request().query<{ v: number; n: number }>(`
+        SELECT [${c.name_}] AS v, COUNT(*) AS n
+        FROM [dbo].[IVA]
+        GROUP BY [${c.name_}]
+      `);
+      const values = r.recordset.map((row) => Number(row.v)).filter(Number.isFinite);
+      if (values.length < 2) continue; // sem variação, não é a taxa
+      const allInPct = values.every((v) => PT_RATES.includes(v));
+      const allInFrac = values.every((v) =>
+        PT_RATES_FRAC.includes(Math.round(v * 100) / 100),
       );
+      if (allInPct || allInFrac) return c.name_;
+    } catch {
+      // ignora
     }
-  } catch (e) {
-    console.log(
-      `     ⚠ sample falhou: ${e instanceof Error ? e.message : String(e)}`,
-    );
+  }
+
+  return null;
+}
+
+function logIvaPlan(plan: IvaJoinPlan): void {
+  console.log(`  ▸ rev42 IVA — plano de JOIN dbo.Stocks → dbo.IVA:`);
+  console.log(`     Stocks.[${plan.stocksColumn ?? "✗"}]  ==  IVA.[${plan.masterPk ?? "✗"}]`);
+  console.log(`     rateColumn: ${plan.masterRateColumn ? `IVA.[${plan.masterRateColumn}]` : "✗ (não detectada — taxaIva será NULL no payload)"}`);
+  if (!plan.stocksColumn) {
+    console.log(`     ⚠ Stocks não tem coluna 'iva' — corre run-iva-audit.bat para diagnóstico`);
+  }
+  if (!plan.masterTable) {
+    console.log(`     ⚠ dbo.IVA não existe nesta instalação — corre run-iva-audit.bat para identificar master alternativa`);
+  }
+  if (plan.masterTable && !plan.masterRateColumn) {
+    console.log(`     ⚠ dbo.IVA existe mas a coluna percentual não foi identificada — corre run-iva-audit.bat (dump completo + análise automática)`);
   }
 }
 
@@ -390,17 +414,23 @@ export async function runProductsPipeline(
   console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
-  // rev40 — discovery do campo IVA na tabela mestre Stocks (alargada
-  // + diagnóstico verboso). Quando a coluna é encontrada, o SELECT
-  // inclui-a; senão emite NULL. Para kind='id' (código que requer JOIN
-  // a tabela mestre de IVAs), rev40 envia o código cru — o SaaS faz o
-  // que pode na normalizeIva e o que sobrar fica "IVA por apurar"
-  // até rev41 (que vai descobrir e enviar o mapeamento id→percentagem).
-  const ivaResolution = await discoverStocksIvaColumn(pool);
-  await logIvaDiscovery(pool, ivaResolution);
-  const ivaSelect = ivaResolution.column
-    ? `s.[${ivaResolution.column}]`
-    : `CAST(NULL AS DECIMAL(7,4))`;
+  // rev42 — IVA via JOIN explícito a dbo.IVA (master canónica confirmada
+  // pelo iva-audit rev41). O agent envia a percentagem já resolvida —
+  // sem mais códigos crus para o SaaS interpretar. Quando o plano não
+  // está completo (ex.: instalação sem dbo.IVA), o SELECT emite NULL
+  // e o payload preserva o existente no SaaS via COALESCE.
+  const ivaPlan = await discoverIvaJoinPlan(pool);
+  logIvaPlan(ivaPlan);
+
+  const ivaJoinClause =
+    ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
+      ? `LEFT JOIN [dbo].[${ivaPlan.masterTable}] iva_master
+           ON iva_master.[${ivaPlan.masterPk}] = s.[${ivaPlan.stocksColumn}]`
+      : ``;
+  const ivaSelect =
+    ivaPlan.masterTable && ivaPlan.masterRateColumn
+      ? `iva_master.[${ivaPlan.masterRateColumn}]`
+      : `CAST(NULL AS DECIMAL(7,4))`;
 
   while (true) {
     const rs = await pool
@@ -446,6 +476,7 @@ export async function runProductsPipeline(
           ORDER BY ArmazemID
         ) ars
         LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
+        ${ivaJoinClause}
         WHERE s.[Retirado] = 0
           AND s.[Processa_Stocks] <> 0
           AND s.CodigoID > @lastId

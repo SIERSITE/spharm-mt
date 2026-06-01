@@ -146,15 +146,47 @@ type JoinProposal = {
   validationSql: string;
 };
 
+/**
+ * rev42 — dump completo e dedicado da master `dbo.IVA` (confirmada
+ * pelo audit rev41). Inclui schema, todas as linhas (não TOP), e
+ * análise automática da coluna percentual.
+ */
+type IvaMasterDump = {
+  exists: boolean;
+  schema: string;
+  table: string;
+  rowCount: number;
+  columns: ColumnMeta[];
+  primaryKey: string[];
+  /** TODAS as linhas (não TOP). dbo.IVA é tipicamente <20 rows. */
+  allRows: SampleRow[];
+  /**
+   * Coluna identificada automaticamente como percentual (decimal/numeric
+   * com domínio compatível com taxas portuguesas {0, 5, 6, 7, 13, 16, 23}).
+   * null se nenhuma coluna for óbvia — operador deve validar pelo dump.
+   */
+  rateColumnDetected: string | null;
+  /** Razões pelas quais a coluna foi (ou não foi) seleccionada. */
+  rateColumnReasoning: string[];
+  /**
+   * Mapeamento código→taxa derivado linearmente do dump. Quando
+   * rateColumnDetected é null, todos os valores ficam null e o
+   * operador valida manualmente.
+   */
+  inferredMapping: Array<{ codigo: number | null; taxa: number | null; descricao: string | null }>;
+};
+
 type IvaAuditReport = {
   meta: {
     timestamp: string;
     agentRev: string;
-    auditVersion: 1;
+    auditVersion: 2;
     erp: { host: string; port: number; database: string };
     paramsSamples: number;
   };
   stocksTaxaIva: StocksTaxaIvaInfo;
+  /** rev42: dump dedicado da master canónica (confirmada). */
+  ivaMaster: IvaMasterDump;
   candidateTables: TableProbe[];
   fksFromStocks: FkInfo[];
   fksToStocks: FkInfo[];
@@ -429,6 +461,157 @@ async function inspectStocksTaxaIva(pool: SqlPool): Promise<StocksTaxaIvaInfo> {
     dataType: ivaCol.type_,
     distribution: distR.recordset,
     totalRows: Number(totalR.recordset[0]?.n ?? 0),
+  };
+}
+
+// ── rev42 — dump dedicado de dbo.IVA (master confirmada) ────────────
+
+/**
+ * Lê tudo o que existe em `dbo.IVA`: schema completo, todas as linhas
+ * (não TOP — dbo.IVA tem tipicamente <20 rows), e identifica automaticamente
+ * a coluna percentual via 3 sinais cumulativos:
+ *
+ *   1. Nome da coluna match: Taxa/Percentagem/Percent/Valor/IVA + numeric type
+ *   2. Domínio compatível com taxas fiscais portuguesas:
+ *        - actuais: 0, 6, 13, 23
+ *        - históricas: 5, 7, 12, 16, 17, 19, 21 (regiões/anos passados)
+ *      Aceita também escala fracção (0..1) — multiplica por 100 mentalmente.
+ *   3. Variação entre linhas (uma coluna que sempre tem o mesmo valor não é a taxa)
+ *
+ * Se não encontrar coluna óbvia, devolve null e o operador VALIDA pelo
+ * dump completo — não inventamos mapeamento.
+ */
+async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
+  const empty: IvaMasterDump = {
+    exists: false,
+    schema: "dbo",
+    table: "IVA",
+    rowCount: 0,
+    columns: [],
+    primaryKey: [],
+    allRows: [],
+    rateColumnDetected: null,
+    rateColumnReasoning: ["dbo.IVA não existe"],
+    inferredMapping: [],
+  };
+
+  const exists = await tableExists(pool, { schema: "dbo", table: "IVA" });
+  if (!exists) return empty;
+
+  const [columns, pk, rowCount] = await Promise.all([
+    listColumns(pool, { schema: "dbo", table: "IVA" }),
+    getPrimaryKey(pool, "dbo", "IVA"),
+    getRowCount(pool, "dbo", "IVA"),
+  ]);
+
+  // TODAS as linhas — não TOP. Master fiscal é sempre pequena.
+  // Cap defensivo a 500 caso alguma instalação tenha algo anómalo.
+  const all = await pool.request().query<SampleRow>(`
+    SELECT TOP 500 * FROM [dbo].[IVA] ORDER BY 1
+  `);
+  const allRows = all.recordset;
+
+  // ── Identificar coluna percentual ────────────────────────────────
+  const reasoning: string[] = [];
+  const numericCols = columns.filter((c) =>
+    /^(?:decimal|numeric|float|real|tinyint|smallint|int|bigint)$/i.test(c.dataType),
+  );
+  reasoning.push(`Colunas numéricas candidatas: ${numericCols.map((c) => `[${c.name}](${c.dataType})`).join(", ") || "(nenhuma)"}`);
+
+  // Taxas fiscais válidas em PT (actuais + algumas históricas, ambas escalas)
+  const PT_RATES_PCT = new Set([0, 5, 6, 7, 8, 12, 13, 16, 17, 19, 21, 23]);
+  const PT_RATES_FRAC = new Set([0.0, 0.05, 0.06, 0.07, 0.08, 0.12, 0.13, 0.16, 0.17, 0.19, 0.21, 0.23]);
+
+  type Score = { col: string; nameScore: number; domainScore: number; varianceScore: number; total: number; sampleValues: number[] };
+  const scores: Score[] = [];
+
+  for (const c of numericCols) {
+    // Não pode ser a PK (PK é o código, não a taxa)
+    if (pk.includes(c.name)) {
+      reasoning.push(`[${c.name}] — é PK, ignorada como rateColumn`);
+      continue;
+    }
+    const values = allRows
+      .map((r) => r[c.name])
+      .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(Number(v)))
+      .map((v) => Number(v));
+    if (values.length === 0) {
+      reasoning.push(`[${c.name}] — todos os valores são NULL/inválidos, ignorada`);
+      continue;
+    }
+    // 1. Nome match
+    const nameScore = /^(taxa|percent|perc|valor|iva)$/i.test(c.name) ? 30
+                    : /(taxa|percent)/i.test(c.name) ? 20
+                    : 0;
+    // 2. Domain match — em qualquer escala
+    const inPctScale = values.filter((v) => PT_RATES_PCT.has(v));
+    const inFracScale = values.filter((v) => PT_RATES_FRAC.has(Math.round(v * 100) / 100));
+    const matchCount = Math.max(inPctScale.length, inFracScale.length);
+    const domainScore = values.length > 0 ? Math.round(50 * (matchCount / values.length)) : 0;
+    // 3. Variação — uma coluna constante não é a taxa
+    const distinct = new Set(values).size;
+    const varianceScore = distinct >= 2 ? 20 : 0;
+
+    const total = nameScore + domainScore + varianceScore;
+    scores.push({
+      col: c.name,
+      nameScore,
+      domainScore,
+      varianceScore,
+      total,
+      sampleValues: values.slice(0, 10),
+    });
+  }
+
+  scores.sort((a, b) => b.total - a.total);
+  for (const s of scores) {
+    reasoning.push(
+      `[${s.col}] score=${s.total} (nome=${s.nameScore} + domínio=${s.domainScore} + variação=${s.varianceScore}) — valores: ${s.sampleValues.slice(0, 6).join(", ")}…`,
+    );
+  }
+
+  // Threshold: para considerar fiável precisa de pelo menos:
+  //   - 50 pts no total (alguma evidência mínima)
+  //   - domínio > 0 (pelo menos UM valor canónico encontrado)
+  const top = scores[0];
+  let rateColumnDetected: string | null = null;
+  if (top && top.total >= 50 && top.domainScore > 0) {
+    rateColumnDetected = top.col;
+    reasoning.push(`✓ Coluna percentual identificada: [${top.col}]`);
+  } else if (top) {
+    reasoning.push(`✗ Nenhuma coluna percentual com evidência suficiente (top=${top.col}, score=${top.total}). Operador deve validar pelo dump.`);
+  }
+
+  // ── Inferred mapping ──────────────────────────────────────────────
+  // Se temos rate column + PK simples, construímos o mapeamento óbvio.
+  const inferredMapping: IvaMasterDump["inferredMapping"] = [];
+  if (rateColumnDetected && pk.length === 1) {
+    const pkCol = pk[0];
+    // Tentar adivinhar a coluna de descrição (texto, contém "desc"/"nome")
+    const descCol = columns.find((c) =>
+      /^(descric|descrip|nome|designacao)/i.test(c.name) && /char|text|nvarchar|varchar/i.test(c.dataType),
+    )?.name;
+    for (const r of allRows) {
+      const codigoRaw = r[pkCol];
+      const taxaRaw = r[rateColumnDetected];
+      const codigo = codigoRaw === null || codigoRaw === undefined ? null : Number(codigoRaw);
+      const taxa = taxaRaw === null || taxaRaw === undefined ? null : Number(taxaRaw);
+      const descricao = descCol ? (r[descCol] as string | null) ?? null : null;
+      inferredMapping.push({ codigo, taxa, descricao });
+    }
+  }
+
+  return {
+    exists: true,
+    schema: "dbo",
+    table: "IVA",
+    rowCount,
+    columns,
+    primaryKey: pk,
+    allRows,
+    rateColumnDetected,
+    rateColumnReasoning: reasoning,
+    inferredMapping,
   };
 }
 
@@ -734,6 +917,45 @@ function renderMarkdown(r: IvaAuditReport): string {
   }
   lines.push("");
 
+  // 1b (rev42). Master fiscal dedicado
+  lines.push(`## 1b. dbo.IVA — master fiscal (dump completo)`);
+  lines.push("");
+  if (!r.ivaMaster.exists) {
+    lines.push("✗ **`dbo.IVA` não existe nesta instalação.** Operador deve validar o nome da master no audit genérico abaixo (secção 5).");
+  } else {
+    lines.push(`- rows: **${r.ivaMaster.rowCount}**`);
+    lines.push(`- PK: ${r.ivaMaster.primaryKey.length > 0 ? "`[" + r.ivaMaster.primaryKey.join(",") + "]`" : "_(sem PK)_"}`);
+    lines.push(`- colunas:`);
+    for (const c of r.ivaMaster.columns) {
+      lines.push(`    - \`[${c.name}]\` ${c.dataType}${c.nullable ? " NULL" : " NOT NULL"}`);
+    }
+    lines.push("");
+    lines.push(`### Análise automática da coluna percentual`);
+    lines.push("");
+    for (const line of r.ivaMaster.rateColumnReasoning) lines.push(`- ${line}`);
+    lines.push("");
+    if (r.ivaMaster.rateColumnDetected) {
+      lines.push(`**✓ Coluna percentual: \`[${r.ivaMaster.rateColumnDetected}]\`**`);
+    } else {
+      lines.push(`**⚠ Coluna percentual não detectada automaticamente — operador valida pelo dump abaixo.**`);
+    }
+    lines.push("");
+    lines.push(`### Dump completo (todas as linhas)`);
+    lines.push("");
+    lines.push(fmtSample(r.ivaMaster.allRows));
+    lines.push("");
+    if (r.ivaMaster.inferredMapping.length > 0) {
+      lines.push(`### Mapeamento inferido`);
+      lines.push("");
+      lines.push(`| código | descrição | taxa |`);
+      lines.push(`|---:|---|---:|`);
+      for (const m of r.ivaMaster.inferredMapping) {
+        lines.push(`| ${m.codigo ?? "—"} | ${m.descricao ?? "_(sem coluna desc)_"} | ${m.taxa ?? "—"} |`);
+      }
+      lines.push("");
+    }
+  }
+
   // 2. Candidate tables
   lines.push(`## 2. Tabelas candidatas (LIKE %IVA% / %Taxa% / %Imposto% / %Fiscal% / Tbl_Tipo_%)`);
   lines.push("");
@@ -895,11 +1117,23 @@ export async function ivaAudit(): Promise<number> {
       meta: {
         timestamp: new Date().toISOString(),
         agentRev: process.env.AGENT_REV ?? "(unknown)",
-        auditVersion: 1,
+        auditVersion: 2,
         erp: { host: cfg.sqlHost, port: cfg.sqlPort, database: cfg.sqlDatabase },
         paramsSamples: args.samples,
       },
       stocksTaxaIva: { columnName: null, dataType: null, distribution: [], totalRows: 0 },
+      ivaMaster: {
+        exists: false,
+        schema: "dbo",
+        table: "IVA",
+        rowCount: 0,
+        columns: [],
+        primaryKey: [],
+        allRows: [],
+        rateColumnDetected: null,
+        rateColumnReasoning: [],
+        inferredMapping: [],
+      },
       candidateTables: [],
       fksFromStocks: [],
       fksToStocks: [],
@@ -916,7 +1150,7 @@ export async function ivaAudit(): Promise<number> {
     console.log("");
 
     // 1. Stocks.[Taxa IVA]
-    console.log("▶ 1/5  dbo.Stocks — coluna de IVA + distribuição de códigos ...");
+    console.log("▶ 1/6  dbo.Stocks — coluna de IVA + distribuição de códigos ...");
     try {
       report.stocksTaxaIva = await inspectStocksTaxaIva(pool);
       if (report.stocksTaxaIva.columnName) {
@@ -929,8 +1163,22 @@ export async function ivaAudit(): Promise<number> {
       warnings.push(`Inspect Stocks falhou: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // 1b (rev42). Master dedicada: dbo.IVA — dump completo + análise
+    console.log("▶ 2/6  dbo.IVA — dump completo + identificação coluna percentual ...");
+    try {
+      report.ivaMaster = await inspectIvaMaster(pool);
+      if (report.ivaMaster.exists) {
+        console.log(`       rows=${report.ivaMaster.rowCount} · pk=[${report.ivaMaster.primaryKey.join(",")}] · rateColumn=${report.ivaMaster.rateColumnDetected ?? "✗ não detectada (validar pelo dump)"}`);
+      } else {
+        warnings.push("dbo.IVA não existe — usar audit genérico abaixo para identificar master alternativa.");
+        console.log(`       ✗ dbo.IVA não existe`);
+      }
+    } catch (e) {
+      warnings.push(`Inspect dbo.IVA falhou: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     // 2. Candidate tables
-    console.log("▶ 2/5  Procura tabelas candidatas (%IVA% / %Taxa% / %Imposto% / %Fiscal% / Tbl_Tipo_%) ...");
+    console.log("▶ 3/6  Procura tabelas candidatas (%IVA% / %Taxa% / %Imposto% / %Fiscal% / Tbl_Tipo_%) ...");
     const cands = await findCandidateTables(pool);
     console.log(`       encontradas: ${cands.length}`);
     for (const c of cands) {
@@ -944,7 +1192,7 @@ export async function ivaAudit(): Promise<number> {
     }
 
     // 3. FKs Stocks
-    console.log("▶ 3/5  FKs envolvendo dbo.Stocks ...");
+    console.log("▶ 4/6  FKs envolvendo dbo.Stocks ...");
     try {
       report.fksFromStocks = await getOutgoingFks(pool, "dbo", "Stocks");
       report.fksToStocks = await getIncomingFks(pool, "dbo", "Stocks");
@@ -954,7 +1202,7 @@ export async function ivaAudit(): Promise<number> {
     }
 
     // 4. Domain matching
-    console.log("▶ 4/5  Domain matching — varrer colunas candidatas pelos códigos observados ...");
+    console.log("▶ 5/6  Domain matching — varrer colunas candidatas pelos códigos observados ...");
     const observedCodes = report.stocksTaxaIva.distribution
       .map((d) => d.codigo)
       .filter((v): v is number => typeof v === "number");
@@ -970,7 +1218,7 @@ export async function ivaAudit(): Promise<number> {
     }
 
     // 5. Scoring + proposta
-    console.log("▶ 5/5  Scoring de candidatos + proposta de JOIN ...");
+    console.log("▶ 6/6  Scoring de candidatos + proposta de JOIN ...");
     report.masterCandidates = scoreCandidates(
       report.candidateTables,
       report.fksFromStocks,
@@ -1003,6 +1251,7 @@ export async function ivaAudit(): Promise<number> {
     console.log(`  JSON    : ${jsonPath}`);
     console.log(RULE);
     console.log(`  Stocks.[Taxa IVA]   : ${report.stocksTaxaIva.columnName ? `[${report.stocksTaxaIva.columnName}] · ${report.stocksTaxaIva.distribution.length} códigos · ${report.stocksTaxaIva.totalRows.toLocaleString("pt-PT")} produtos` : "✗ não encontrada"}`);
+    console.log(`  dbo.IVA master      : ${report.ivaMaster.exists ? `${report.ivaMaster.rowCount} rows · rateColumn=${report.ivaMaster.rateColumnDetected ?? "✗"}` : "✗ não existe"}`);
     console.log(`  Tabelas candidatas  : ${report.candidateTables.length}`);
     console.log(`  FKs outgoing Stocks : ${report.fksFromStocks.length}`);
     console.log(`  FKs incoming Stocks : ${report.fksToStocks.length}`);
