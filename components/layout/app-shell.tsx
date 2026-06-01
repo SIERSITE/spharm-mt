@@ -8,7 +8,6 @@ import {
   BookOpen,
   ClipboardList,
   FileText,
-  LineChart,
   LogOut,
   RotateCcw,
   ArrowLeftRight,
@@ -17,7 +16,7 @@ import {
   Users,
   Plug,
   ShieldCheck,
-  Activity,
+  Percent,
 } from "lucide-react";
 
 type AppShellProps = {
@@ -32,17 +31,25 @@ type AppShellProps = {
 };
 
 const navigation = [
-{
-  section: "ANÁLISE",
-  items: [
-    { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
-    { label: "Stock", href: "/stock", icon: Boxes },
-    { label: "Vendas", href: "/vendas", icon: FileText },
-    { label: "Devoluções", href: "/devolucoes", icon: RotateCcw },
-    { label: "Análise operacional", href: "/analise-operacional", icon: Activity },
-    { label: "Relatório mensal", href: "/relatorios/vendas-mensais", icon: LineChart },
-  ],
-},
+  {
+    section: "ANÁLISE",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
+      { label: "Stock", href: "/stock", icon: Boxes },
+      { label: "Vendas", href: "/vendas", icon: FileText },
+      { label: "Devoluções", href: "/devolucoes", icon: RotateCcw },
+    ],
+  },
+  {
+    // Apenas os dois relatórios oficiais. As rotas /analise-operacional
+    // e /relatorios/vendas-mensais permanecem acessíveis por URL (não
+    // apagamos módulos, só os tiramos do menu lateral).
+    section: "RELATÓRIOS",
+    items: [
+      { label: "Inventário de Stock", href: "/relatorios/inventario", icon: Boxes },
+      { label: "Margens", href: "/relatorios/margens", icon: Percent },
+    ],
+  },
   {
     section: "DECISÃO",
     items: [

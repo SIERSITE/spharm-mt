@@ -191,9 +191,14 @@ export function buildMargensAggReport(input: {
     distribuidores: string[];
   };
   organization: string;
-  groupBy: "categoria" | "farmacia";
+  groupBy: "categoria" | "farmacia" | "grupo";
 }): Report {
-  const headerLabel = input.groupBy === "categoria" ? "Categoria" : "Farmácia";
+  const headerLabel =
+    input.groupBy === "categoria"
+      ? "Categoria"
+      : input.groupBy === "farmacia"
+        ? "Farmácia"
+        : "Grupo";
   const columns: ReportColumn[] = [
     { key: "label",          label: headerLabel,     format: "text",     width: 24 },
     { key: "qtdVendida",     label: "Qtd",           format: "integer",  width: 9,  showTotal: true },
@@ -229,11 +234,19 @@ export function buildMargensAggReport(input: {
     { label: "Margem €", value: Math.round(totalMargem * 100) / 100, format: "currency" },
   ];
 
+  const titleByGroup: Record<"categoria" | "farmacia" | "grupo", string> = {
+    categoria: "Relatório de Margens — Por Categoria",
+    farmacia: "Relatório de Margens — Por Farmácia",
+    grupo: "Relatório de Margens — Por Grupo",
+  };
+  const slugByGroup: Record<"categoria" | "farmacia" | "grupo", string> = {
+    categoria: "margens-categoria",
+    farmacia: "margens-farmacia",
+    grupo: "margens-grupo",
+  };
+
   return {
-    title:
-      input.groupBy === "categoria"
-        ? "Relatório de Margens — Por Categoria"
-        : "Relatório de Margens — Por Farmácia",
+    title: titleByGroup[input.groupBy],
     subtitle: commonSubtitle(),
     generatedAt: new Date(),
     filtersApplied: buildFiltersLabel(input.filters, input.universe),
@@ -241,7 +254,7 @@ export function buildMargensAggReport(input: {
     columns,
     rows: rowsForReport,
     meta: {
-      slug: input.groupBy === "categoria" ? "margens-categoria" : "margens-farmacia",
+      slug: slugByGroup[input.groupBy],
       orientation: "landscape",
       organization: input.organization,
       footer: "SPharm.MT · Margens executivo",

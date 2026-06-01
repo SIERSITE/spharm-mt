@@ -21,6 +21,7 @@ import type {
 import type {
   InventarioRow,
   InventarioPorFarmaciaRow,
+  InventarioPorGrupoRow,
   EstadoInventario,
 } from "@/lib/inventario-data";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
@@ -243,6 +244,78 @@ export function buildInventarioPorFarmaciaReport(input: {
     rows: rowsForReport,
     meta: {
       slug: "inventario-por-farmacia",
+      orientation: "landscape",
+      organization: input.organization,
+      footer: "SPharm.MT · Inventário executivo",
+    },
+  };
+}
+
+// ── Vista executiva — Por Grupo Homogéneo ─────────────────────────
+//
+// Mesmas colunas/semantica da vista Por Farmácia, mas o header passa a
+// "Grupo". Útil para olhar para roturas/excesso a nível de molécula.
+
+const INVENTARIO_GRUPO_COLUMNS: ReportColumn[] = [
+  { key: "grupo",        label: "Grupo",         format: "text",     width: 22 },
+  { key: "numProdutos",  label: "Produtos",      format: "integer",  width: 10, showTotal: true },
+  { key: "stockTotal",   label: "Stock total",   format: "integer",  width: 12, showTotal: true },
+  { key: "valorStock",   label: "Valor stock",   format: "currency", width: 14, showTotal: true },
+  { key: "rotura",       label: "Rotura",        format: "integer",  width: 8,  showTotal: true },
+  { key: "excesso",      label: "Excesso",       format: "integer",  width: 8,  showTotal: true },
+  { key: "semMovimento", label: "Sem mov.",      format: "integer",  width: 9,  showTotal: true },
+  { key: "semCusto",     label: "Sem custo",     format: "integer",  width: 9,  showTotal: true },
+  { key: "normal",       label: "Normal",        format: "integer",  width: 8,  showTotal: true },
+];
+
+export function buildInventarioPorGrupoReport(input: {
+  rows: InventarioPorGrupoRow[];
+  filters: SharedReportFilters;
+  universe: {
+    farmacias: string[];
+    categorias: string[];
+    fabricantes: string[];
+    distribuidores: string[];
+  };
+  organization: string;
+}): Report {
+  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
+    grupo: r.grupo,
+    numProdutos: r.numProdutos,
+    stockTotal: r.stockTotal,
+    valorStock: r.valorStock,
+    rotura: r.rotura,
+    excesso: r.excesso,
+    semMovimento: r.semMovimento,
+    semCusto: r.semCusto,
+    normal: r.normal,
+  }));
+
+  const totalProdutos = input.rows.reduce((s, r) => s + r.numProdutos, 0);
+  const totalStock = input.rows.reduce((s, r) => s + r.stockTotal, 0);
+  const totalValor = input.rows.reduce((s, r) => s + r.valorStock, 0);
+  const totalRotura = input.rows.reduce((s, r) => s + r.rotura, 0);
+  const totalSemMov = input.rows.reduce((s, r) => s + r.semMovimento, 0);
+
+  const summary: ReportSummaryItem[] = [
+    { label: "Grupos", value: input.rows.length, format: "integer" },
+    { label: "Produtos (total)", value: totalProdutos, format: "integer" },
+    { label: "Stock total (un.)", value: totalStock, format: "integer" },
+    { label: "Valor stock", value: Math.round(totalValor * 100) / 100, format: "currency" },
+    { label: "Roturas", value: totalRotura, format: "integer" },
+    { label: "Sem movimento", value: totalSemMov, format: "integer" },
+  ];
+
+  return {
+    title: "Inventário por Grupo",
+    subtitle: `Snapshot ${new Date().toISOString().slice(0, 10)}`,
+    generatedAt: new Date(),
+    filtersApplied: buildFiltersLabel(input.filters, input.universe),
+    summary,
+    columns: INVENTARIO_GRUPO_COLUMNS,
+    rows: rowsForReport,
+    meta: {
+      slug: "inventario-por-grupo",
       orientation: "landscape",
       organization: input.organization,
       footer: "SPharm.MT · Inventário executivo",

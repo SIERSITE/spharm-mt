@@ -66,6 +66,8 @@ export type MargensResult = {
   porProduto: MargemRow[];
   porCategoria: MargensAgg[];
   porFarmacia: MargensAgg[];
+  /** Agregado por Grupo Homogéneo (Produto.grupoHomogeneo / categoriaResolver). */
+  porGrupo: MargensAgg[];
   /** KPIs globais sobre todas as linhas com custo conhecido. */
   totals: {
     qtdVendida: number;
@@ -328,9 +330,10 @@ export async function getMargensData(
     };
   });
 
-  // ── Agregações (Por Categoria, Por Farmácia, Total) ─────────────
+  // ── Agregações (Por Categoria, Por Farmácia, Por Grupo, Total) ──
   const porCategoria = aggregate(porProduto, (r) => r.categoria ?? "(sem categoria)");
   const porFarmacia = aggregate(porProduto, (r) => r.farmacia);
+  const porGrupo = aggregate(porProduto, (r) => r.grupo ?? "(sem grupo)");
   const totals = aggregate(porProduto, () => "TOTAL");
   const totalRow = totals[0] ?? {
     key: "TOTAL",
@@ -348,6 +351,7 @@ export async function getMargensData(
     porProduto,
     porCategoria,
     porFarmacia,
+    porGrupo,
     totals: {
       qtdVendida: totalRow.qtdVendida,
       valorVendido: totalRow.valorVendido,
@@ -365,6 +369,7 @@ function emptyResult(): MargensResult {
     porProduto: [],
     porCategoria: [],
     porFarmacia: [],
+    porGrupo: [],
     totals: {
       qtdVendida: 0,
       valorVendido: 0,

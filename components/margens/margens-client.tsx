@@ -38,7 +38,7 @@ import type {
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import { AlertTriangle } from "lucide-react";
 
-type Nivel = "produto" | "categoria" | "farmacia";
+type Nivel = "produto" | "categoria" | "farmacia" | "grupo";
 
 const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
@@ -156,8 +156,14 @@ export function MargensClient({
         organization,
       });
     }
+    const aggRows =
+      nivel === "categoria"
+        ? result?.porCategoria ?? []
+        : nivel === "farmacia"
+          ? result?.porFarmacia ?? []
+          : result?.porGrupo ?? [];
     return buildMargensAggReport({
-      rows: nivel === "categoria" ? result?.porCategoria ?? [] : result?.porFarmacia ?? [],
+      rows: aggRows,
       filters,
       universe: {
         farmacias: universe.farmacias,
@@ -166,7 +172,7 @@ export function MargensClient({
         distribuidores: universe.distribuidores,
       },
       organization,
-      groupBy: nivel === "categoria" ? "categoria" : "farmacia",
+      groupBy: nivel,
     });
   };
 
@@ -178,7 +184,7 @@ export function MargensClient({
           <div>
             <h1 className="text-[20px] font-semibold text-slate-900">Margens</h1>
             <p className="mt-1 text-[12px] text-slate-500">
-              Margens operacionais por produto, categoria e farmácia.
+              Margens operacionais por produto, categoria, farmácia e grupo.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -235,11 +241,17 @@ export function MargensClient({
             <KPIBar result={result!} />
 
             {/* Tabs de nível */}
-            <div className="flex gap-1.5">
-              {(["produto", "categoria", "farmacia"] as Nivel[]).map((n) => {
+            <div className="flex flex-wrap gap-1.5">
+              {(["produto", "categoria", "farmacia", "grupo"] as Nivel[]).map((n) => {
                 const on = nivel === n;
                 const label =
-                  n === "produto" ? "Por produto" : n === "categoria" ? "Por categoria" : "Por farmácia";
+                  n === "produto"
+                    ? "Por produto"
+                    : n === "categoria"
+                      ? "Por categoria"
+                      : n === "farmacia"
+                        ? "Por farmácia"
+                        : "Por grupo";
                 return (
                   <button
                     key={n}
@@ -287,6 +299,7 @@ export function MargensClient({
             {nivel === "produto" && <TabelaProduto rows={rowsByEstadoProduto} />}
             {nivel === "categoria" && <TabelaAgg rows={result?.porCategoria ?? []} header="Categoria" />}
             {nivel === "farmacia" && <TabelaAgg rows={result?.porFarmacia ?? []} header="Farmácia" />}
+            {nivel === "grupo" && <TabelaAgg rows={result?.porGrupo ?? []} header="Grupo" />}
           </>
         )}
       </div>

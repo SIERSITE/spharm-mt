@@ -88,9 +88,28 @@ export type InventarioPorFarmaciaRow = {
   normal: number;
 };
 
+/**
+ * Vista executiva por Grupo Homogéneo (resolveCategoria → grupo).
+ * Linhas sem grupo resolvido vão para "(sem grupo)".
+ */
+export type InventarioPorGrupoRow = {
+  key: string;
+  grupo: string;
+  numProdutos: number;
+  stockTotal: number;
+  valorStock: number;
+  rotura: number;
+  excesso: number;
+  semMovimento: number;
+  semCusto: number;
+  semStock: number;
+  normal: number;
+};
+
 export type InventarioResult = {
   porProduto: InventarioRow[];
   porFarmacia: InventarioPorFarmaciaRow[];
+  porGrupo: InventarioPorGrupoRow[];
 };
 
 const SEM_MOV_DAYS = 180;
@@ -157,7 +176,7 @@ export async function getInventarioData(
   const prisma = await getPrisma();
   const { ids: farmaciaIds, nomeById } = await resolveFarmacias(prisma, filters.farmaciaNomes);
   if (farmaciaIds.length === 0) {
-    return { porProduto: [], porFarmacia: [] };
+    return { porProduto: [], porFarmacia: [], porGrupo: [] };
   }
 
   // ── Filtro de produto via categoria canónica (NIVEL_1) ──────────
@@ -170,13 +189,13 @@ export async function getInventarioData(
       select: { id: true },
     });
     const classifIds = classifs.map((c) => c.id);
-    if (classifIds.length === 0) return { porProduto: [], porFarmacia: [] };
+    if (classifIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
     const produtos = await prisma.produto.findMany({
       where: { classificacaoNivel1Id: { in: classifIds } },
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
   }
   if (filters.apenasSemClassif) {
     const produtos = await prisma.produto.findMany({
@@ -188,7 +207,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
   }
   if (filters.fabricantes && filters.fabricantes.length > 0) {
     const fabs = await prisma.fabricante.findMany({
@@ -196,7 +215,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     const fabIds = fabs.map((f) => f.id);
-    if (fabIds.length === 0) return { porProduto: [], porFarmacia: [] };
+    if (fabIds.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
     const produtos = await prisma.produto.findMany({
       where: {
         fabricanteId: { in: fabIds },
@@ -205,7 +224,7 @@ export async function getInventarioData(
       select: { id: true },
     });
     produtoIdFilter = produtos.map((p) => p.id);
-    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [] };
+    if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [] };
   }
 
   // ── CTE de vendas dos últimos 90 dias agrupada por produto×farm ──
@@ -426,7 +445,47 @@ export async function getInventarioData(
     }))
     .sort((a, b) => a.farmacia.localeCompare(b.farmacia, "pt-PT"));
 
-  return { porProduto, porFarmacia };
+  // ── Vista executiva por Grupo Homogéneo ─────────────────────────
+  const byGrupo = new Map<string, InventarioPorGrupoRow>();
+  for (const r of porProduto) {
+    const key = r.grupo ?? "(sem grupo)";
+    if (!byGrupo.has(key)) {
+      byGrupo.set(key, {
+        key,
+        grupo: key,
+        numProdutos: 0,
+        stockTotal: 0,
+        valorStock: 0,
+        rotura: 0,
+        excesso: 0,
+        semMovimento: 0,
+        semCusto: 0,
+        semStock: 0,
+        normal: 0,
+      });
+    }
+    const g = byGrupo.get(key)!;
+    g.numProdutos++;
+    if (r.stockAtual !== null) g.stockTotal += r.stockAtual;
+    if (r.valorStock !== null) g.valorStock += r.valorStock;
+    switch (r.estado) {
+      case "ROTURA": g.rotura++; break;
+      case "EXCESSO": g.excesso++; break;
+      case "SEM_MOVIMENTO": g.semMovimento++; break;
+      case "SEM_CUSTO": g.semCusto++; break;
+      case "SEM_STOCK": g.semStock++; break;
+      case "NORMAL": g.normal++; break;
+    }
+  }
+  const porGrupo = Array.from(byGrupo.values())
+    .map((g) => ({
+      ...g,
+      stockTotal: Math.round(g.stockTotal),
+      valorStock: Math.round(g.valorStock * 100) / 100,
+    }))
+    .sort((a, b) => a.grupo.localeCompare(b.grupo, "pt-PT"));
+
+  return { porProduto, porFarmacia, porGrupo };
 }
 
 export const ESTADO_LABELS: Record<EstadoInventario, string> = {

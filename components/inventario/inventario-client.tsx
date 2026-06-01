@@ -31,17 +31,21 @@ import type {
 import {
   buildInventarioReport,
   buildInventarioPorFarmaciaReport,
+  buildInventarioPorGrupoReport,
 } from "@/lib/reporting/adapters/inventario";
 import type {
   InventarioResult,
   InventarioRow,
   InventarioPorFarmaciaRow,
+  InventarioPorGrupoRow,
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 
-type Vista = "produto" | "farmacia";
-type AgrupamentoProduto = "artigo" | "farmacia" | "grupo";
+type Vista = "produto" | "farmacia" | "grupo";
+// "Grupo" foi promovido a vista top-level — dentro da vista "Por produto"
+// mantemos só artigo/farmácia para não duplicar a função.
+type AgrupamentoProduto = "artigo" | "farmacia";
 
 const ESTADO_LABEL: Record<EstadoInventario, string> = {
   NORMAL: "Normal",
@@ -151,7 +155,8 @@ export function InventarioClient({
     return result.porProduto.filter((r) => r.estado === estadoChip);
   }, [result, estadoChip]);
 
-  // Agregações para "agruparPor=farmacia|grupo" (sobre rowsByEstado)
+  // Agregações para "agruparPor=farmacia" sobre rowsByEstado.
+  // (artigo = sem agregação, mostra linha-a-linha.)
   const aggregated = useMemo(() => {
     if (agrupamento === "artigo") return null;
     type Acc = {
@@ -166,10 +171,7 @@ export function InventarioClient({
     };
     const m = new Map<string, Acc>();
     for (const r of rowsByEstado) {
-      const key =
-        agrupamento === "farmacia"
-          ? r.farmacia
-          : r.grupo ?? "—";
+      const key = r.farmacia;
       if (!m.has(key)) {
         m.set(key, {
           key,
@@ -213,28 +215,32 @@ export function InventarioClient({
 
   // Adapter para export reflecte VISTA actual
   const buildReport = () => {
+    const uni = {
+      farmacias: universe.farmacias,
+      categorias: universe.categorias,
+      fabricantes: universe.fabricantes,
+      distribuidores: universe.distribuidores,
+    };
     if (vista === "farmacia") {
       return buildInventarioPorFarmaciaReport({
         rows: result?.porFarmacia ?? [],
         filters,
-        universe: {
-          farmacias: universe.farmacias,
-          categorias: universe.categorias,
-          fabricantes: universe.fabricantes,
-          distribuidores: universe.distribuidores,
-        },
+        universe: uni,
+        organization,
+      });
+    }
+    if (vista === "grupo") {
+      return buildInventarioPorGrupoReport({
+        rows: result?.porGrupo ?? [],
+        filters,
+        universe: uni,
         organization,
       });
     }
     return buildInventarioReport({
       rows: rowsByEstado,
       filters,
-      universe: {
-        farmacias: universe.farmacias,
-        categorias: universe.categorias,
-        fabricantes: universe.fabricantes,
-        distribuidores: universe.distribuidores,
-      },
+      universe: uni,
       organization,
     });
   };
@@ -245,9 +251,9 @@ export function InventarioClient({
         {/* Header */}
         <section className="flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-[20px] font-semibold text-slate-900">Inventário</h1>
+            <h1 className="text-[20px] font-semibold text-slate-900">Inventário de Stock</h1>
             <p className="mt-1 text-[12px] text-slate-500">
-              Snapshot operacional de stock por produto e por farmácia.
+              Snapshot operacional por produto, farmácia e grupo homogéneo.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -263,11 +269,12 @@ export function InventarioClient({
           </div>
         </section>
 
-        {/* Tabs de vista (Por produto / Por farmácia) */}
-        <div className="flex gap-1.5">
-          {(["produto", "farmacia"] as Vista[]).map((v) => {
+        {/* Tabs de vista (Por produto / Por farmácia / Por grupo) */}
+        <div className="flex flex-wrap gap-1.5">
+          {(["produto", "farmacia", "grupo"] as Vista[]).map((v) => {
             const on = vista === v;
-            const label = v === "produto" ? "Por produto" : "Por farmácia";
+            const label =
+              v === "produto" ? "Por produto" : v === "farmacia" ? "Por farmácia" : "Por grupo";
             return (
               <button
                 key={v}
@@ -313,6 +320,8 @@ export function InventarioClient({
           </section>
         ) : vista === "farmacia" ? (
           <ViewPorFarmacia rows={result?.porFarmacia ?? []} />
+        ) : vista === "grupo" ? (
+          <ViewPorGrupo rows={result?.porGrupo ?? []} />
         ) : (
           <ViewPorProduto
             rows={rowsByEstado}
@@ -389,9 +398,9 @@ function ViewPorProduto({
       {/* Agrupar por */}
       <div className="flex items-center gap-2 text-[12px] text-slate-600">
         <span className="font-medium">Agrupar por:</span>
-        {(["artigo", "farmacia", "grupo"] as AgrupamentoProduto[]).map((a) => {
+        {(["artigo", "farmacia"] as AgrupamentoProduto[]).map((a) => {
           const on = agrupamento === a;
-          const label = a === "artigo" ? "Artigo" : a === "farmacia" ? "Farmácia" : "Grupo";
+          const label = a === "artigo" ? "Artigo" : "Farmácia";
           return (
             <button
               key={a}
@@ -516,7 +525,7 @@ function TabelaAgregadaProduto({
       </div>
     );
   }
-  const header = groupBy === "farmacia" ? "Farmácia" : "Grupo";
+  const header = groupBy === "farmacia" ? "Farmácia" : "Artigo";
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-[12px]">
@@ -556,6 +565,102 @@ function TabelaAgregadaProduto({
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ── Vista Por Grupo (KPIs executivos por grupo homogéneo) ────────
+
+function ViewPorGrupo({ rows }: { rows: InventarioPorGrupoRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-6 py-12 text-center text-[12px] text-slate-500">
+        Sem grupos no resultado.
+      </section>
+    );
+  }
+  return (
+    <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[12px]">
+          <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+            <tr>
+              <th className="py-2 pr-3">Grupo</th>
+              <th className="py-2 pr-3 text-right">Produtos</th>
+              <th className="py-2 pr-3 text-right">Stock total</th>
+              <th className="py-2 pr-3 text-right">Valor stock</th>
+              <th className="py-2 pr-3 text-right">Rotura</th>
+              <th className="py-2 pr-3 text-right">Excesso</th>
+              <th className="py-2 pr-3 text-right">Sem mov.</th>
+              <th className="py-2 pr-3 text-right">Sem custo</th>
+              <th className="py-2 pr-3 text-right">Sem stock</th>
+              <th className="py-2 pr-3 text-right">Normal</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td className="py-2 pr-3 font-medium text-slate-800">{r.grupo}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">
+                  {r.numProdutos.toLocaleString("pt-PT")}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums">
+                  {r.stockTotal.toLocaleString("pt-PT")}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums font-medium">
+                  {fmtCurrency(r.valorStock)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-rose-700">{r.rotura}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-amber-700">{r.excesso}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                  {r.semMovimento}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
+                  {r.semCusto}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
+                  {r.semStock}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
+                  {r.normal}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t border-slate-200 bg-slate-50/60 text-[11px] font-semibold">
+            <tr>
+              <td className="py-2 pr-3 text-slate-700">Total</td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.numProdutos, 0).toLocaleString("pt-PT")}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.stockTotal, 0).toLocaleString("pt-PT")}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums">
+                {fmtCurrency(rows.reduce((s, r) => s + r.valorStock, 0))}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-rose-700">
+                {rows.reduce((s, r) => s + r.rotura, 0)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-amber-700">
+                {rows.reduce((s, r) => s + r.excesso, 0)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                {rows.reduce((s, r) => s + r.semMovimento, 0)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-violet-700">
+                {rows.reduce((s, r) => s + r.semCusto, 0)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-orange-700">
+                {rows.reduce((s, r) => s + r.semStock, 0)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums text-emerald-700">
+                {rows.reduce((s, r) => s + r.normal, 0)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   );
 }
 
