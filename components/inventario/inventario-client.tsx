@@ -292,8 +292,10 @@ export function InventarioClient({
           <span>
             <b>Valor stock s/IVA</b> = <code>stockAtual × PMC</code> (PMC/PUC do ERP são sem
             IVA). <b>Valor stock c/IVA</b> aplica a taxa da última compra do produto
-            (<code>StagingCompraRawLine</code>). Sem taxa capturada → linha em{" "}
-            <span className="font-semibold">IVA desconhecido</span>, valor c/IVA não calculado.
+            (<code>StagingCompraRawLine</code>), normalizada para o conjunto canónico de
+            farmácia <b>6% · 13% · 23%</b>. Taxa fora deste conjunto (ou ausente) → linha em{" "}
+            <span className="font-semibold">IVA por apurar</span>, valor c/IVA não calculado.
+            Não inventamos taxa.
           </span>
         </section>
 
@@ -742,11 +744,11 @@ function ViewPorIva({ rows }: { rows: InventarioPorIvaRow[] }) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => {
-              const desconhecido = r.key === "DESC";
+              const apurar = r.key === "APURAR";
               return (
-                <tr key={r.key} className={desconhecido ? "bg-slate-50/60" : undefined}>
+                <tr key={r.key} className={apurar ? "bg-slate-50/60" : undefined}>
                   <td
-                    className={`py-2 pr-3 font-medium ${desconhecido ? "text-slate-500 italic" : "text-slate-800"}`}
+                    className={`py-2 pr-3 font-medium ${apurar ? "text-slate-500 italic" : "text-slate-800"}`}
                   >
                     {r.label}
                   </td>
@@ -760,10 +762,10 @@ function ViewPorIva({ rows }: { rows: InventarioPorIvaRow[] }) {
                     {fmtCurrency(r.valorStockSemIva)}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
-                    {desconhecido ? "—" : fmtCurrency(r.valorIva)}
+                    {apurar ? "—" : fmtCurrency(r.valorIva)}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums font-medium">
-                    {desconhecido ? "—" : fmtCurrency(r.valorStockComIva)}
+                    {apurar ? "—" : fmtCurrency(r.valorStockComIva)}
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
                     {totalSemIva > 0

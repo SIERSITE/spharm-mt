@@ -30,7 +30,7 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
-  SEM_IVA: "Sem IVA",
+  IVA_POR_APURAR: "IVA por apurar",
 };
 
 // Por produto: CNP 5 · Descrição 18 · Categoria 9 · Farmácia 9 ·
@@ -107,7 +107,7 @@ function pct(n: number | null, suffix = "%"): string {
 // StagingCompraRawLine. Sem taxa → estado SEM_IVA, margem €/% nulas.
 // Cobertura < 50% suprime margem; 50-95% é PARCIAL.
 function commonSubtitle(): string {
-  return "Margem calculada SEM IVA: (PVP/(1+taxa)) − PMC. PMC/PUC de ProdutoFarmacia (snapshot actual). Taxa IVA da última compra. Sem IVA conhecido → margem suprimida.";
+  return "Margem calculada SEM IVA: (PVP/(1+taxa)) − PMC. Taxas canónicas de farmácia: 6%/13%/23% (última compra do produto, normalizada). Taxa fora deste conjunto ou ausente → IVA por apurar, margem suprimida.";
 }
 
 export function buildMargensProdutoReport(input: {

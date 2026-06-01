@@ -168,7 +168,7 @@ export function buildInventarioReport(input: {
     { label: "Valor stock s/ IVA", value: Math.round(totalSemIva * 100) / 100, format: "currency" },
     { label: "Valor IVA", value: Math.round(totalIva * 100) / 100, format: "currency" },
     { label: "Valor stock c/ IVA", value: Math.round(totalComIva * 100) / 100, format: "currency" },
-    { label: "Linhas s/ IVA conhecido", value: semIvaConhecido, format: "integer" },
+    { label: "Linhas IVA por apurar", value: semIvaConhecido, format: "integer" },
     { label: "Roturas", value: counts.ROTURA, format: "integer" },
     { label: "Excesso", value: counts.EXCESSO, format: "integer" },
     { label: "Sem movimento", value: counts.SEM_MOVIMENTO, format: "integer" },
@@ -356,7 +356,7 @@ export function buildInventarioPorGrupoReport(input: {
 // ── Vista executiva — Por Taxa IVA ────────────────────────────────
 //
 // Buckets canónicos PT: 23 / 13 / 6 / 0 / Outro / Desconhecido.
-// Produtos sem taxa capturada na staging vão para "IVA desconhecido".
+// Produtos com taxa fora de {6,13,23} ou ausente → "IVA por apurar".
 // NUNCA inventamos a taxa.
 
 const INVENTARIO_IVA_COLUMNS: ReportColumn[] = [
@@ -399,7 +399,7 @@ export function buildInventarioPorIvaReport(input: {
         : "—",
   }));
 
-  const semIvaBucket = input.rows.find((r) => r.key === "DESC");
+  const porApurarBucket = input.rows.find((r) => r.key === "APURAR");
   const summary: ReportSummaryItem[] = [
     { label: "Buckets", value: input.rows.length, format: "integer" },
     { label: "Produtos", value: totalProdutos, format: "integer" },
@@ -408,15 +408,15 @@ export function buildInventarioPorIvaReport(input: {
     { label: "Valor IVA", value: Math.round(totalIva * 100) / 100, format: "currency" },
     { label: "Valor stock c/ IVA", value: Math.round(totalComIva * 100) / 100, format: "currency" },
     {
-      label: "Produtos s/ IVA conhecido",
-      value: semIvaBucket ? semIvaBucket.numProdutos : 0,
+      label: "Produtos IVA por apurar",
+      value: porApurarBucket ? porApurarBucket.numProdutos : 0,
       format: "integer",
     },
   ];
 
   return {
     title: "Inventário por Taxa IVA",
-    subtitle: `Snapshot ${new Date().toISOString().slice(0, 10)} · Taxa da última compra do produto; sem captura → bucket "IVA desconhecido"`,
+    subtitle: `Snapshot ${new Date().toISOString().slice(0, 10)} · Taxas canónicas farmácia 6%/13%/23% (última compra normalizada); fora deste conjunto → "IVA por apurar"`,
     generatedAt: new Date(),
     filtersApplied: buildFiltersLabel(input.filters, input.universe),
     summary,

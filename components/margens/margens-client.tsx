@@ -44,15 +44,15 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
-  SEM_IVA: "Sem IVA",
+  IVA_POR_APURAR: "IVA por apurar",
 };
 const MARGEM_BADGE: Record<EstadoMargem, string> = {
   FIAVEL: "border-emerald-200 bg-emerald-50 text-emerald-700",
   PARCIAL: "border-amber-200 bg-amber-50 text-amber-700",
   SEM_CUSTO: "border-rose-200 bg-rose-50 text-rose-700",
-  SEM_IVA: "border-slate-300 bg-slate-100 text-slate-700",
+  IVA_POR_APURAR: "border-slate-300 bg-slate-100 text-slate-700",
 };
-const ALL_ESTADOS: EstadoMargem[] = ["FIAVEL", "PARCIAL", "SEM_CUSTO", "SEM_IVA"];
+const ALL_ESTADOS: EstadoMargem[] = ["FIAVEL", "PARCIAL", "SEM_CUSTO", "IVA_POR_APURAR"];
 
 function fmtCurrency(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "—";
@@ -137,7 +137,7 @@ export function MargensClient({
       FIAVEL: 0,
       PARCIAL: 0,
       SEM_CUSTO: 0,
-      SEM_IVA: 0,
+      IVA_POR_APURAR: 0,
     };
     for (const r of result?.porProduto ?? []) c[r.estado]++;
     return c;
@@ -207,12 +207,12 @@ export function MargensClient({
         <section className="flex items-start gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            Margem calculada{" "}
-            <b>SEM IVA</b>: <code>(PVP/(1+taxa)) − PMC</code>. PVP do ERP vem com IVA; PMC/PUC
-            de <code>ProdutoFarmacia</code> são sem IVA. Taxa por produto vem da{" "}
-            <b>última compra</b> em <code>StagingCompraRawLine</code>. Sem taxa conhecida →
-            estado <span className="font-semibold">Sem IVA</span>, margem €/% suprimidas. Sem
-            custo conhecido → <span className="font-semibold">Sem custo</span> ou{" "}
+            Margem calculada <b>SEM IVA</b>: <code>(PVP/(1+taxa)) − PMC</code>. Taxas válidas
+            de farmácia: <b>6% · 13% · 23%</b>. Taxa por produto vem da última compra em{" "}
+            <code>StagingCompraRawLine</code>, normalizada para uma destas três. Fora deste
+            conjunto → estado <span className="font-semibold">IVA por apurar</span>, margem
+            €/% suprimidas (não inventamos taxa). Sem custo conhecido →{" "}
+            <span className="font-semibold">Sem custo</span> ou{" "}
             <span className="font-semibold">Parcial</span>.
           </span>
         </section>
@@ -332,8 +332,8 @@ function KPIBar({ result }: { result: MargensResult }) {
         value={t.margemPct !== null ? fmtPct(t.margemPct) : "—"}
         helper={
           t.margemPct === null
-            ? t.estado === "SEM_IVA"
-              ? "Suprimida — taxa IVA desconhecida"
+            ? t.estado === "IVA_POR_APURAR"
+              ? "Suprimida — IVA por apurar"
               : "Suprimida — cobertura insuficiente"
             : undefined
         }

@@ -3,14 +3,17 @@
  *
  * Read-model do relatório operacional de Margens.
  *
- * IVA — regra dura (introduzida 2026-06-01):
+ * IVA — regra dura (introduzida 2026-06-01, escala corrigida 2026-06-01):
  *   · PVP/valorVendido vem da venda BRUTA (com IVA).
  *   · PMC/PUC em `ProdutoFarmacia` são SEM IVA.
  *   · Calcular `margem = (valorVendido / (1 + taxa/100)) − custo` para
  *     ficar no mesmo plano fiscal (ambos sem IVA).
- *   · Taxa IVA real vem da última linha de `StagingCompraRawLine` por
- *     (farmaciaId, externalProductId). Quando ausente → margem €/€%
- *     ficam null e estado = SEM_IVA (não inventamos taxa).
+ *   · Taxa vem de `StagingCompraRawLine.iva` (LATERAL JOIN à última
+ *     compra) e é normalizada em {6, 13, 23} via `normalizeIva()`. O
+ *     campo na staging está em fracção (0.06/0.13/0.23) — confirmado
+ *     2026-06-01 em grupo-silveira (136 817 linhas).
+ *   · Valores fora de {6,13,23} (incluindo 0.00 da staging) → taxa
+ *     null, estado IVA_POR_APURAR (não inventamos taxa).
  *
  * Três níveis alimentados pelo MESMO universo agregado (produto×farm):
  *   1. Por produto   → 1 linha por (CNP × farmácia × período inteiro)
@@ -32,17 +35,19 @@
  * Regras duras (per spec):
  *   · Não inventar custo. PMC/PUC ausente → linha entra mas margem
  *     fica null e estado = SEM_CUSTO.
- *   · Não inventar IVA. Taxa ausente → margem €/% nulas e estado=SEM_IVA.
- *   · Margem % suprimida em estados PARCIAL, SEM_CUSTO e SEM_IVA.
+ *   · Não inventar IVA. Taxa ausente ou fora de {6,13,23} → margem €/%
+ *     nulas e estado = IVA_POR_APURAR.
+ *   · Margem % suprimida em estados PARCIAL, SEM_CUSTO e IVA_POR_APURAR.
  *   · Produtos sem custo/IVA aparecem como linha (não excluídos).
  */
 
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { normalizeIva, type TaxaIvaCanonica } from "@/lib/iva";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
-export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "SEM_IVA";
+export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "IVA_POR_APURAR";
 
 export type MargemRow = {
   cnp: number;
@@ -56,8 +61,8 @@ export type MargemRow = {
   valorVendido: number;
   /** PVP × qty / (1 + taxa/100). null quando taxa IVA desconhecida. */
   valorVendidoSemIva: number | null;
-  /** Taxa IVA em % (6/13/23/...). null quando desconhecida. */
-  taxaIva: number | null;
+  /** Taxa IVA canónica de farmácia: 6 | 13 | 23 | null. */
+  taxaIva: TaxaIvaCanonica | null;
   custoUnitarioBase: number | null; // PMC ou PUC snapshot actual, sem IVA
   custoEstimado: number | null;     // qty × custoUnitarioBase; null sem custo
   /** valorVendidoSemIva − custoEstimado. null se IVA ou custo ausente. */
@@ -329,8 +334,10 @@ export async function getMargensData(
     const puc = numOrNull(r.puc);
     const custoUnitarioBase =
       pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
-    const taxaIva = numOrNull(r.taxa_iva);
-    const ivaOk = taxaIva !== null && taxaIva >= 0;
+    // Normalização canónica: 0.06→6, 0.13→13, 0.23→23, resto→null.
+    // NÃO inventamos taxa: 0.00 da staging vira null (IVA por apurar).
+    const taxaIva = normalizeIva(numOrNull(r.taxa_iva));
+    const ivaOk = taxaIva !== null;
     const custoOk = custoUnitarioBase !== null;
 
     // Venda sem IVA — só faz sentido com taxa real.
@@ -351,10 +358,10 @@ export async function getMargensData(
     // binária por linha; agregada vira fracção ponderada por unidades.
     const cobertura = ivaOk && custoOk ? 1 : 0;
 
-    // Estado: SEM_IVA tem precedência (regra explícita do user). Depois
-    // SEM_CUSTO. Depois cobertura (FIAVEL/PARCIAL/SEM_CUSTO).
+    // Estado: IVA_POR_APURAR tem precedência. Depois SEM_CUSTO. Depois
+    // cobertura (FIAVEL/PARCIAL/SEM_CUSTO).
     let estado: EstadoMargem;
-    if (!ivaOk) estado = "SEM_IVA";
+    if (!ivaOk) estado = "IVA_POR_APURAR";
     else if (!custoOk) estado = "SEM_CUSTO";
     else estado = classifyMargem(cobertura);
 
@@ -410,7 +417,7 @@ export async function getMargensData(
     margemEur: 0,
     margemPct: null,
     coberturaCusto: 0,
-    estado: "SEM_CUSTO" as EstadoMargem,
+    estado: "IVA_POR_APURAR" as EstadoMargem,
   };
 
   return {
@@ -445,7 +452,7 @@ function emptyResult(): MargensResult {
       margemEur: 0,
       margemPct: null,
       coberturaCusto: 0,
-      estado: "SEM_CUSTO",
+      estado: "IVA_POR_APURAR",
     },
   };
 }
@@ -529,5 +536,5 @@ export const MARGEM_LABELS: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
   SEM_CUSTO: "Sem custo",
-  SEM_IVA: "Sem IVA",
+  IVA_POR_APURAR: "IVA por apurar",
 };

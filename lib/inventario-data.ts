@@ -37,6 +37,7 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { normalizeIva, TAXA_IVA_BUCKETS, type TaxaIvaCanonica } from "@/lib/iva";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 export type EstadoInventario =
@@ -62,8 +63,8 @@ export type InventarioRow = {
   pvp: number | null;
   /** PMC quando existe, PUC fallback. null se ambos faltarem. SEM IVA. */
   custoUnitario: number | null;
-  /** Taxa IVA % (6/13/23/...) — última compra do produto. null se desconhecida. */
-  taxaIva: number | null;
+  /** Taxa IVA canónica de farmácia: 6 | 13 | 23 | null (IVA por apurar). */
+  taxaIva: TaxaIvaCanonica | null;
   /** stockAtual × custoUnitario, SEM IVA. null se uma das peças faltar. */
   valorStock: number | null;
   /** valorStock × (taxa/100). null se valorStock ou taxa faltarem. */
@@ -124,14 +125,14 @@ export type InventarioPorGrupoRow = {
 };
 
 /**
- * Vista executiva por taxa IVA. Buckets canónicos: 6, 13, 23 (PT),
- * "Isento/0" (taxa 0), "Outro" (taxas restantes) e "Desconhecido" (sem
- * captura). Nunca inventamos a taxa — produtos sem dados vão para
- * "Desconhecido".
+ * Vista executiva por taxa IVA. Buckets canónicos PT (farmácia):
+ * 6, 13, 23 e "IVA por apurar". Não há "Isento", "Outras taxas" ou
+ * "Desconhecido" — produtos sem taxa canónica capturada vão todos
+ * para "IVA por apurar". Não inventamos taxa.
  */
 export type InventarioPorIvaRow = {
-  key: string;            // "23" | "13" | "6" | "0" | "OUTRO" | "DESC"
-  label: string;          // "23%" | "Isento/0%" | "IVA desconhecido" | ...
+  key: "6" | "13" | "23" | "APURAR";
+  label: string;          // "IVA 6%" | "IVA 13%" | "IVA 23%" | "IVA por apurar"
   numProdutos: number;
   stockTotal: number;
   valorStockSemIva: number;
@@ -387,11 +388,12 @@ export async function getInventarioData(
         ? Math.round(stockAtual * custoUnitario * 100) / 100
         : null;
 
-    // Taxa IVA da última compra (LATERAL JOIN à staging). null preserva
-    // o sinal "não inventamos" — produto entra em "Desconhecido".
-    const taxaIva = numOrNull(r.taxa_iva);
+    // Taxa IVA da última compra (LATERAL JOIN à staging), normalizada
+    // ao conjunto canónico de farmácia {6, 13, 23}. Fora disso → null
+    // (entra em "IVA por apurar"). Não inventamos taxa.
+    const taxaIva = normalizeIva(numOrNull(r.taxa_iva));
     const valorIva =
-      valorStock !== null && taxaIva !== null && taxaIva >= 0
+      valorStock !== null && taxaIva !== null
         ? Math.round(valorStock * (taxaIva / 100) * 100) / 100
         : null;
     const valorStockComIva =
@@ -564,38 +566,37 @@ export async function getInventarioData(
 }
 
 /**
- * Agrega rows em buckets canónicos {23, 13, 6, 0, OUTRO, DESC} usando a
- * taxa fiscal portuguesa standard. Produtos sem taxa capturada na
- * staging caem em DESC — não inventamos.
+ * Agrega rows nos 4 buckets canónicos de farmácia: 6, 13, 23 e
+ * "IVA por apurar". `r.taxaIva` já vem normalizado de normalizeIva()
+ * em `{6 | 13 | 23 | null}`, logo aqui é só dispatch directo.
  */
 function aggregatePorIva(rows: InventarioRow[]): InventarioPorIvaRow[] {
-  const buckets: Record<string, InventarioPorIvaRow> = {
-    "23": emptyIvaBucket("23", "IVA 23%"),
-    "13": emptyIvaBucket("13", "IVA 13%"),
+  const buckets: Record<"6" | "13" | "23" | "APURAR", InventarioPorIvaRow> = {
     "6": emptyIvaBucket("6", "IVA 6%"),
-    "0": emptyIvaBucket("0", "Isento / 0%"),
-    OUTRO: emptyIvaBucket("OUTRO", "Outras taxas"),
-    DESC: emptyIvaBucket("DESC", "IVA desconhecido"),
+    "13": emptyIvaBucket("13", "IVA 13%"),
+    "23": emptyIvaBucket("23", "IVA 23%"),
+    APURAR: emptyIvaBucket("APURAR", "IVA por apurar"),
   };
   for (const r of rows) {
-    let key: string;
-    if (r.taxaIva === null) key = "DESC";
-    else if (r.taxaIva === 0) key = "0";
-    else if (r.taxaIva === 6) key = "6";
-    else if (r.taxaIva === 13) key = "13";
-    else if (r.taxaIva === 23) key = "23";
-    else key = "OUTRO";
-    const b = buckets[key];
+    const k: "6" | "13" | "23" | "APURAR" =
+      r.taxaIva === 6
+        ? "6"
+        : r.taxaIva === 13
+          ? "13"
+          : r.taxaIva === 23
+            ? "23"
+            : "APURAR";
+    const b = buckets[k];
     b.numProdutos++;
     if (r.stockAtual !== null) b.stockTotal += r.stockAtual;
     if (r.valorStock !== null) b.valorStockSemIva += r.valorStock;
     if (r.valorIva !== null) b.valorIva += r.valorIva;
     if (r.valorStockComIva !== null) b.valorStockComIva += r.valorStockComIva;
   }
-  // Manter ordem canónica (23,13,6,0,OUTRO,DESC) e omitir buckets vazios
-  // para não poluir o relatório quando o tenant só tem 23+desconhecido.
-  return ["23", "13", "6", "0", "OUTRO", "DESC"]
-    .map((k) => buckets[k])
+  // Mantém a ordem canónica de TAXA_IVA_BUCKETS e omite buckets vazios
+  // para não poluir relatórios de tenants que só usam 6%+23%.
+  return TAXA_IVA_BUCKETS
+    .map((meta) => buckets[meta.key])
     .filter((b) => b.numProdutos > 0)
     .map((b) => ({
       ...b,
@@ -606,7 +607,10 @@ function aggregatePorIva(rows: InventarioRow[]): InventarioPorIvaRow[] {
     }));
 }
 
-function emptyIvaBucket(key: string, label: string): InventarioPorIvaRow {
+function emptyIvaBucket(
+  key: "6" | "13" | "23" | "APURAR",
+  label: string,
+): InventarioPorIvaRow {
   return {
     key,
     label,
