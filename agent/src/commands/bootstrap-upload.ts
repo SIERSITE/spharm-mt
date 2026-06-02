@@ -354,12 +354,31 @@ async function detectIvaRateColumn(pool: SqlPool, pkCols: string[]): Promise<str
   );
   if (numericCols.length === 0) return null;
 
-  // 1. Match de nome forte
+  // 1. Match de nome forte (Taxa/Percent)
   for (const c of numericCols) {
     if (/^(taxa|percent(agem)?|perc)$/i.test(c.name_)) {
       return c.name_;
     }
   }
+
+  // 1b. rev44 — "IVA valor"/"valor" no contexto de dbo.IVA é o canónico
+  // SoftReis. Verificamos com domain match a seguir.
+  const valorCandidate = numericCols.find((c) => /^(?:iva[_ ]?valor|valor)$/i.test(c.name_));
+
+  // rev44 — detectar coluna inactivo para filtrar linhas históricas.
+  // SoftReis tem ids 2/3/4/7 inactivos com taxas {0.05, 0.12, 0.20, 0.21}
+  // que deixariam o detector falhar se contasse todas as linhas.
+  const inactivoColR = await pool.request().query<{ name_: string }>(`
+    SELECT TOP 1 c.name AS name_
+    FROM sys.columns c
+    JOIN sys.tables t ON c.object_id=t.object_id
+    JOIN sys.schemas s ON t.schema_id=s.schema_id
+    WHERE s.name='dbo' AND t.name='IVA'
+      AND (c.name LIKE '%inactiv%' OR c.name LIKE '%inativ%')
+    ORDER BY c.column_id
+  `);
+  const inactivoCol = inactivoColR.recordset[0]?.name_ ?? null;
+  const activeFilter = inactivoCol ? `WHERE [${inactivoCol}] = 0` : "";
 
   // 2. Match de domínio + variância — apenas taxas válidas PT/farmácia.
   // Regra dura: 0/6/13/23 e equivalentes em fracção. Não aceitamos
@@ -367,11 +386,18 @@ async function detectIvaRateColumn(pool: SqlPool, pkCols: string[]): Promise<str
   // apurar" no SaaS via normalizeIva(null).
   const PT_RATES = [0, 6, 13, 23];
   const PT_RATES_FRAC = PT_RATES.map((v) => v / 100);
-  for (const c of numericCols) {
+
+  // Avaliar a candidata "valor" primeiro
+  const ordered = valorCandidate
+    ? [valorCandidate, ...numericCols.filter((c) => c.name_ !== valorCandidate.name_)]
+    : numericCols;
+
+  for (const c of ordered) {
     try {
       const r = await pool.request().query<{ v: number; n: number }>(`
         SELECT [${c.name_}] AS v, COUNT(*) AS n
         FROM [dbo].[IVA]
+        ${activeFilter}
         GROUP BY [${c.name_}]
       `);
       const values = r.recordset.map((row) => Number(row.v)).filter(Number.isFinite);
@@ -390,7 +416,7 @@ async function detectIvaRateColumn(pool: SqlPool, pkCols: string[]): Promise<str
 }
 
 function logIvaPlan(plan: IvaJoinPlan): void {
-  console.log(`  ▸ rev42 IVA — plano de JOIN dbo.Stocks → dbo.IVA:`);
+  console.log(`  ▸ rev44 IVA — plano de JOIN dbo.Stocks → dbo.IVA:`);
   console.log(`     Stocks.[${plan.stocksColumn ?? "✗"}]  ==  IVA.[${plan.masterPk ?? "✗"}]`);
   console.log(`     rateColumn: ${plan.masterRateColumn ? `IVA.[${plan.masterRateColumn}]` : "✗ (não detectada — taxaIva será NULL no payload)"}`);
   if (!plan.stocksColumn) {

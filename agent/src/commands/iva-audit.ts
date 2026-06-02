@@ -196,6 +196,21 @@ type IvaMasterDump = {
     motivo: "fora_dominio_canonico" | "taxa_null";
     produtosAfectados: number;
   }>;
+  /**
+   * rev44 — conformidade fim-a-fim: para cada código distinto em
+   * `dbo.Stocks.[Taxa IVA]` que tenha produtos activos, mostra o
+   * mapeamento até à taxa real através de `dbo.IVA`. É o que o
+   * operador vê para validar antes do products-upload.
+   */
+  conformidade: Array<{
+    codigoStocks: number;
+    nProdutos: number;
+    ivaIdMatched: number | null;
+    rateValue: number | null;
+    taxaCanonica: 0 | 6 | 13 | 23 | null;
+    descricao: string | null;
+    status: "OK" | "SEM_MATCH" | "NAO_CANONICA";
+  }>;
 };
 
 type IvaAuditReport = {
@@ -516,6 +531,7 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     rateColumnReasoning: ["dbo.IVA não existe"],
     inferredMapping: [],
     anomalies: [],
+    conformidade: [],
   };
 
   const exists = await tableExists(pool, { schema: "dbo", table: "IVA" });
@@ -541,13 +557,55 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
   );
   reasoning.push(`Colunas numéricas candidatas: ${numericCols.map((c) => `[${c.name}](${c.dataType})`).join(", ") || "(nenhuma)"}`);
 
+  // rev44 — detectar coluna "inactivo"/"ativo" para ignorar taxas
+  // históricas (ex.: dbo.IVA.[IVA_Inactivo] em SoftReis tem 4 linhas
+  // antigas com taxas 5%/12%/20%/21% que não correspondem ao conjunto
+  // canónico actual {0,6,13,23} mas nenhum produto activo as usa).
+  const inactivoCol = columns.find((c) =>
+    /^(?:inactivo|inativo|ativo|activo|estado|status)$/i.test(c.name) ||
+    /inactiv|inativ/i.test(c.name),
+  );
+  // Quando a coluna é tipo "inactivo", true=desactivada → filtrar.
+  // Quando é "activo"/"ativo", false/0=desactivada → filtrar.
+  const isInactivoNaming = inactivoCol
+    ? /inactiv|inativ/i.test(inactivoCol.name)
+    : false;
+  if (inactivoCol) {
+    reasoning.push(
+      `Coluna de estado detectada: [${inactivoCol.name}] (semântica=${isInactivoNaming ? "inactivo→true ignora" : "ativo→false ignora"}). Linhas históricas serão excluídas do domain match.`,
+    );
+  }
+
   // Taxas fiscais válidas em PT/farmácia (regra dura 2026-06-02):
   // apenas {0, 6, 13, 23}. Tudo o resto (5/7/8/12/16/17/19/21/etc.) é
   // tratado como anomalia e cai em "IVA por apurar" nos relatórios.
   const PT_RATES_PCT = new Set([0, 6, 13, 23]);
   const PT_RATES_FRAC = new Set([0.0, 0.06, 0.13, 0.23]);
 
-  type Score = { col: string; nameScore: number; domainScore: number; varianceScore: number; total: number; sampleValues: number[] };
+  /** Retorna linhas activas (ou todas se a coluna de estado não existir). */
+  function activeRows(): SampleRow[] {
+    if (!inactivoCol) return allRows;
+    return allRows.filter((r) => {
+      const v = r[inactivoCol.name];
+      // bit/bool no SQL Server vem como boolean via mssql node driver
+      const isInactive = isInactivoNaming ? v === true || v === 1 : !(v === true || v === 1);
+      return !isInactive;
+    });
+  }
+  const activosCount = activeRows().length;
+  if (inactivoCol) {
+    reasoning.push(`Linhas activas após filtro: ${activosCount}/${allRows.length}`);
+  }
+
+  type Score = {
+    col: string;
+    nameScore: number;
+    domainScore: number;
+    varianceScore: number;
+    total: number;
+    sampleValues: number[];
+    coverageActivos: { matched: number; total: number };
+  };
   const scores: Score[] = [];
 
   for (const c of numericCols) {
@@ -556,25 +614,42 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
       reasoning.push(`[${c.name}] — é PK, ignorada como rateColumn`);
       continue;
     }
-    const values = allRows
+    // Ignorar a própria coluna de inactivo (se for numérica via bit)
+    if (inactivoCol && c.name === inactivoCol.name) continue;
+
+    const allValues = allRows
       .map((r) => r[c.name])
       .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(Number(v)))
       .map((v) => Number(v));
-    if (values.length === 0) {
+    if (allValues.length === 0) {
       reasoning.push(`[${c.name}] — todos os valores são NULL/inválidos, ignorada`);
       continue;
     }
-    // 1. Nome match
-    const nameScore = /^(taxa|percent|perc|valor|iva)$/i.test(c.name) ? 30
-                    : /(taxa|percent)/i.test(c.name) ? 20
-                    : 0;
-    // 2. Domain match — em qualquer escala
-    const inPctScale = values.filter((v) => PT_RATES_PCT.has(v));
-    const inFracScale = values.filter((v) => PT_RATES_FRAC.has(Math.round(v * 100) / 100));
+
+    // rev44: scoring de domínio sobre linhas ACTIVAS (mais rigoroso)
+    const activosValues = activeRows()
+      .map((r) => r[c.name])
+      .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(Number(v)))
+      .map((v) => Number(v));
+
+    // 1. Nome match — adicionado match para "valor"/"iva valor" quando
+    //    a tabela é a master IVA (nesse contexto, [IVA valor] é a taxa)
+    const nameScore = /^(taxa|percent|perc)$/i.test(c.name)
+      ? 30
+      : /(taxa|percent|valor|iva)/i.test(c.name)
+        ? 25
+        : 0;
+
+    // 2. Domain match — calculado sobre LINHAS ACTIVAS quando a coluna
+    //    inactivo existe. Coverage 100% nos activos vale 50 pts cheios.
+    const targetValues = inactivoCol ? activosValues : allValues;
+    const inPctScale = targetValues.filter((v) => PT_RATES_PCT.has(v));
+    const inFracScale = targetValues.filter((v) => PT_RATES_FRAC.has(Math.round(v * 100) / 100));
     const matchCount = Math.max(inPctScale.length, inFracScale.length);
-    const domainScore = values.length > 0 ? Math.round(50 * (matchCount / values.length)) : 0;
+    const domainScore = targetValues.length > 0 ? Math.round(50 * (matchCount / targetValues.length)) : 0;
+
     // 3. Variação — uma coluna constante não é a taxa
-    const distinct = new Set(values).size;
+    const distinct = new Set(allValues).size;
     const varianceScore = distinct >= 2 ? 20 : 0;
 
     const total = nameScore + domainScore + varianceScore;
@@ -584,27 +659,37 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
       domainScore,
       varianceScore,
       total,
-      sampleValues: values.slice(0, 10),
+      sampleValues: allValues.slice(0, 10),
+      coverageActivos: { matched: matchCount, total: targetValues.length },
     });
   }
 
   scores.sort((a, b) => b.total - a.total);
   for (const s of scores) {
     reasoning.push(
-      `[${s.col}] score=${s.total} (nome=${s.nameScore} + domínio=${s.domainScore} + variação=${s.varianceScore}) — valores: ${s.sampleValues.slice(0, 6).join(", ")}…`,
+      `[${s.col}] score=${s.total} (nome=${s.nameScore} + domínio=${s.domainScore} + variação=${s.varianceScore}) — coverage activos=${s.coverageActivos.matched}/${s.coverageActivos.total} — valores: ${s.sampleValues.slice(0, 6).join(", ")}…`,
     );
   }
 
   // Threshold: para considerar fiável precisa de pelo menos:
-  //   - 50 pts no total (alguma evidência mínima)
-  //   - domínio > 0 (pelo menos UM valor canónico encontrado)
+  //   - 50 pts no total OU
+  //   - 100% de coverage nos activos (mesmo que nome score seja 0)
   const top = scores[0];
   let rateColumnDetected: string | null = null;
-  if (top && top.total >= 50 && top.domainScore > 0) {
-    rateColumnDetected = top.col;
-    reasoning.push(`✓ Coluna percentual identificada: [${top.col}]`);
-  } else if (top) {
-    reasoning.push(`✗ Nenhuma coluna percentual com evidência suficiente (top=${top.col}, score=${top.total}). Operador deve validar pelo dump.`);
+  if (top) {
+    const fullCoverage =
+      top.coverageActivos.total > 0 &&
+      top.coverageActivos.matched === top.coverageActivos.total;
+    if (top.total >= 50 || fullCoverage) {
+      rateColumnDetected = top.col;
+      reasoning.push(
+        `✓ Coluna percentual identificada: [${top.col}]${fullCoverage ? ` (coverage 100% nos activos — supera limiar)` : ""}`,
+      );
+    } else {
+      reasoning.push(
+        `✗ Nenhuma coluna percentual com evidência suficiente (top=${top.col}, score=${top.total}, coverage activos=${top.coverageActivos.matched}/${top.coverageActivos.total}). Operador deve validar pelo dump.`,
+      );
+    }
   }
 
   // ── Inferred mapping + anomalias ──────────────────────────────────
@@ -660,6 +745,88 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     }
   }
 
+  // ── rev44 — tabela de conformidade Stocks × IVA ──────────────────
+  // Para cada código distinto em Stocks.[Taxa IVA] (produtos activos),
+  // resolver via dbo.IVA até à taxa canónica final.
+  const conformidade: IvaMasterDump["conformidade"] = [];
+  if (pk.length === 1 && rateColumnDetected) {
+    const pkCol = pk[0];
+    const rateCol = rateColumnDetected;
+    const descCol = columns.find((c) =>
+      /^(descric|descrip|nome|designacao|texto)/i.test(c.name) &&
+      /char|text|nvarchar|varchar/i.test(c.dataType),
+    )?.name;
+
+    // Descobrir o nome da coluna em Stocks. Já o sabemos do
+    // inspectStocksTaxaIva, mas para encapsular fazemos quick lookup.
+    const stocksColR = await pool.request().query<{ name_: string }>(`
+      SELECT TOP 1 c.name AS name_
+      FROM sys.columns c
+      JOIN sys.tables t ON c.object_id = t.object_id
+      JOIN sys.schemas s ON t.schema_id = s.schema_id
+      WHERE s.name='dbo' AND t.name='Stocks' AND c.name LIKE '%iva%'
+      ORDER BY CASE WHEN c.name LIKE '%taxa%' THEN 0 ELSE 1 END, c.column_id
+    `);
+    const stocksCol = stocksColR.recordset[0]?.name_;
+
+    if (stocksCol) {
+      const distR = await pool.request().query<{ codigo: number; n: number }>(`
+        SELECT [${stocksCol}] AS codigo, COUNT(*) AS n
+        FROM [dbo].[Stocks]
+        WHERE [Retirado] = 0 AND [Processa_Stocks] <> 0
+          AND [${stocksCol}] IS NOT NULL
+        GROUP BY [${stocksCol}]
+        ORDER BY COUNT(*) DESC
+      `);
+
+      // Mapa id→linha master para lookup rápido
+      const masterById = new Map<number, SampleRow>();
+      for (const r of allRows) {
+        const id = r[pkCol];
+        if (id !== null && id !== undefined && Number.isFinite(Number(id))) {
+          masterById.set(Number(id), r);
+        }
+      }
+
+      for (const row of distR.recordset) {
+        const codigo = Number(row.codigo);
+        const nProdutos = Number(row.n);
+        const masterRow = masterById.get(codigo);
+        let ivaIdMatched: number | null = null;
+        let rateValue: number | null = null;
+        let descricao: string | null = null;
+        let taxaCanonica: 0 | 6 | 13 | 23 | null = null;
+        let status: "OK" | "SEM_MATCH" | "NAO_CANONICA" = "SEM_MATCH";
+
+        if (masterRow) {
+          ivaIdMatched = codigo;
+          const raw = masterRow[rateCol];
+          rateValue = raw === null || raw === undefined ? null : Number(raw);
+          descricao = descCol ? (masterRow[descCol] as string | null) ?? null : null;
+
+          if (rateValue !== null) {
+            // Normalização inline: aceita fracção ou %
+            const pct = Math.abs(rateValue) <= 1 ? rateValue * 100 : rateValue;
+            if (pct === 0) taxaCanonica = 0;
+            else if (pct >= 5.5 && pct <= 6.5) taxaCanonica = 6;
+            else if (pct >= 12.5 && pct <= 13.5) taxaCanonica = 13;
+            else if (pct >= 22.5 && pct <= 23.5) taxaCanonica = 23;
+          }
+          status = taxaCanonica !== null ? "OK" : "NAO_CANONICA";
+        }
+        conformidade.push({
+          codigoStocks: codigo,
+          nProdutos,
+          ivaIdMatched,
+          rateValue,
+          taxaCanonica,
+          descricao,
+          status,
+        });
+      }
+    }
+  }
+
   return {
     exists: true,
     schema: "dbo",
@@ -672,6 +839,7 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     rateColumnReasoning: reasoning,
     inferredMapping,
     anomalies,
+    conformidade,
   };
 }
 
@@ -1019,6 +1187,34 @@ function renderMarkdown(r: IvaAuditReport): string {
       lines.push("");
     }
 
+    // rev44 — Tabela de conformidade Stocks × IVA
+    if (r.ivaMaster.conformidade.length > 0) {
+      lines.push(`### Conformidade fim-a-fim Stocks → dbo.IVA → Taxa canónica`);
+      lines.push("");
+      lines.push(`Validação operacional: para cada código distinto em \`Stocks.[Taxa IVA]\` (produtos activos), mostra o caminho até à taxa canónica.`);
+      lines.push("");
+      lines.push(`| Código Stocks | n.º produtos | IVA id | rate value | Taxa canónica | Descrição | Status |`);
+      lines.push(`|---:|---:|---:|---:|:---:|---|:---:|`);
+      let totalOk = 0;
+      let totalAll = 0;
+      for (const c of r.ivaMaster.conformidade) {
+        totalAll += c.nProdutos;
+        if (c.status === "OK") totalOk += c.nProdutos;
+        const statusBadge =
+          c.status === "OK" ? "✓ OK"
+          : c.status === "NAO_CANONICA" ? "✗ fora {0,6,13,23}"
+          : "✗ sem match";
+        const taxaStr = c.taxaCanonica === null ? "—" : `${c.taxaCanonica}%`;
+        lines.push(
+          `| ${c.codigoStocks} | ${c.nProdutos.toLocaleString("pt-PT")} | ${c.ivaIdMatched ?? "—"} | ${c.rateValue ?? "—"} | ${taxaStr} | ${c.descricao ?? "_(sem desc)_"} | ${statusBadge} |`,
+        );
+      }
+      const pctOk = totalAll > 0 ? Math.round((totalOk / totalAll) * 1000) / 10 : 0;
+      lines.push("");
+      lines.push(`**Cobertura total: ${totalOk.toLocaleString("pt-PT")} / ${totalAll.toLocaleString("pt-PT")} produtos = ${pctOk}%**`);
+      lines.push("");
+    }
+
     // Secção de anomalias dedicada
     if (r.ivaMaster.anomalies.length > 0) {
       lines.push(`### ⚠ Anomalias — taxas fora do domínio canónico {0, 6, 13, 23}`);
@@ -1217,6 +1413,7 @@ export async function ivaAudit(): Promise<number> {
         rateColumnReasoning: [],
         inferredMapping: [],
         anomalies: [],
+        conformidade: [],
       },
       candidateTables: [],
       fksFromStocks: [],
@@ -1341,6 +1538,14 @@ export async function ivaAudit(): Promise<number> {
       const anom = report.ivaMaster.anomalies.length;
       const afectados = report.ivaMaster.anomalies.reduce((s, a) => s + a.produtosAfectados, 0);
       console.log(`  dbo.IVA mapping     : ${canonicas} canónicas · ${anom} anomalia(s)${anom > 0 ? ` (${afectados} produtos afectados)` : ""}`);
+    }
+    if (report.ivaMaster.conformidade.length > 0) {
+      const totalAll = report.ivaMaster.conformidade.reduce((s, c) => s + c.nProdutos, 0);
+      const totalOk = report.ivaMaster.conformidade
+        .filter((c) => c.status === "OK")
+        .reduce((s, c) => s + c.nProdutos, 0);
+      const pctOk = totalAll > 0 ? Math.round((totalOk / totalAll) * 1000) / 10 : 0;
+      console.log(`  Conformidade Stocks : ${totalOk}/${totalAll} produtos (${pctOk}%) com taxa canónica resolvida`);
     }
     console.log(`  Tabelas candidatas  : ${report.candidateTables.length}`);
     console.log(`  FKs outgoing Stocks : ${report.fksFromStocks.length}`);
