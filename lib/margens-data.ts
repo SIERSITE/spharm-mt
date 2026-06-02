@@ -328,13 +328,17 @@ export async function getMargensData(
       pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
     // Taxa IVA persistida em ProdutoFarmacia.taxaIvaPercent pelo
     // pipeline de recuperação (lib/iva-recovery.ts). Valor já em
-    // {6,13,23,null} — `normalizeIva()` aqui é defensivo contra
-    // qualquer valor legacy fora do conjunto.
+    // {0,6,13,23,null} — `normalizeIva()` aqui é defensivo contra
+    // qualquer valor legacy fora do conjunto canónico.
+    // 0% é taxa válida (isento) — para esses produtos
+    // valorVendidoSemIva == valorVendido e a margem é calculada
+    // normalmente. Estados PT/farmácia: {0%, 6%, 13%, 23%}.
     const taxaIva = normalizeIva(r.taxaIvaPercent);
     const ivaOk = taxaIva !== null;
     const custoOk = custoUnitarioBase !== null;
 
-    // Venda sem IVA — só faz sentido com taxa real.
+    // Venda sem IVA — só faz sentido com taxa real (incluindo 0).
+    // taxa=0 → divisor=1 → valorSemIva == valorComIva (esperado).
     const valorVendidoSemIva = ivaOk
       ? rounded2(valorVendido / (1 + (taxaIva as number) / 100))
       : null;

@@ -361,8 +361,11 @@ async function detectIvaRateColumn(pool: SqlPool, pkCols: string[]): Promise<str
     }
   }
 
-  // 2. Match de domínio + variância
-  const PT_RATES = [0, 5, 6, 7, 8, 12, 13, 16, 17, 19, 21, 23];
+  // 2. Match de domínio + variância — apenas taxas válidas PT/farmácia.
+  // Regra dura: 0/6/13/23 e equivalentes em fracção. Não aceitamos
+  // taxas históricas (5/7/8/12/16/17/19/21) — essas viram "IVA por
+  // apurar" no SaaS via normalizeIva(null).
+  const PT_RATES = [0, 6, 13, 23];
   const PT_RATES_FRAC = PT_RATES.map((v) => v / 100);
   for (const c of numericCols) {
     try {

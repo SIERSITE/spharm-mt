@@ -172,8 +172,30 @@ type IvaMasterDump = {
    * Mapeamento código→taxa derivado linearmente do dump. Quando
    * rateColumnDetected é null, todos os valores ficam null e o
    * operador valida manualmente.
+   *
+   * `isCanonica` marca true quando a taxa cai exactamente em
+   * {0, 6, 13, 23} (regra de negócio PT/farmácia). Linhas com
+   * `isCanonica=false` são anomalias e o normalizeIva() do SaaS
+   * trata-as como "IVA por apurar".
    */
-  inferredMapping: Array<{ codigo: number | null; taxa: number | null; descricao: string | null }>;
+  inferredMapping: Array<{
+    codigo: number | null;
+    taxa: number | null;
+    descricao: string | null;
+    isCanonica: boolean;
+  }>;
+  /**
+   * Lista de anomalias: linhas da master cujo valor `taxa` NÃO está
+   * em {0, 6, 13, 23} (ou está null). Estas linhas, depois do JOIN
+   * em Stocks, vão produzir produtos com "IVA por apurar".
+   */
+  anomalies: Array<{
+    codigo: number | null;
+    taxa: number | null;
+    descricao: string | null;
+    motivo: "fora_dominio_canonico" | "taxa_null";
+    produtosAfectados: number;
+  }>;
 };
 
 type IvaAuditReport = {
@@ -493,6 +515,7 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     rateColumnDetected: null,
     rateColumnReasoning: ["dbo.IVA não existe"],
     inferredMapping: [],
+    anomalies: [],
   };
 
   const exists = await tableExists(pool, { schema: "dbo", table: "IVA" });
@@ -518,9 +541,11 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
   );
   reasoning.push(`Colunas numéricas candidatas: ${numericCols.map((c) => `[${c.name}](${c.dataType})`).join(", ") || "(nenhuma)"}`);
 
-  // Taxas fiscais válidas em PT (actuais + algumas históricas, ambas escalas)
-  const PT_RATES_PCT = new Set([0, 5, 6, 7, 8, 12, 13, 16, 17, 19, 21, 23]);
-  const PT_RATES_FRAC = new Set([0.0, 0.05, 0.06, 0.07, 0.08, 0.12, 0.13, 0.16, 0.17, 0.19, 0.21, 0.23]);
+  // Taxas fiscais válidas em PT/farmácia (regra dura 2026-06-02):
+  // apenas {0, 6, 13, 23}. Tudo o resto (5/7/8/12/16/17/19/21/etc.) é
+  // tratado como anomalia e cai em "IVA por apurar" nos relatórios.
+  const PT_RATES_PCT = new Set([0, 6, 13, 23]);
+  const PT_RATES_FRAC = new Set([0.0, 0.06, 0.13, 0.23]);
 
   type Score = { col: string; nameScore: number; domainScore: number; varianceScore: number; total: number; sampleValues: number[] };
   const scores: Score[] = [];
@@ -582,22 +607,56 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     reasoning.push(`✗ Nenhuma coluna percentual com evidência suficiente (top=${top.col}, score=${top.total}). Operador deve validar pelo dump.`);
   }
 
-  // ── Inferred mapping ──────────────────────────────────────────────
-  // Se temos rate column + PK simples, construímos o mapeamento óbvio.
+  // ── Inferred mapping + anomalias ──────────────────────────────────
+  // Se temos rate column + PK simples, construímos o mapeamento óbvio
+  // e classificamos cada código como canónico (∈ {0,6,13,23}) ou anomalia.
   const inferredMapping: IvaMasterDump["inferredMapping"] = [];
+  const anomalies: IvaMasterDump["anomalies"] = [];
   if (rateColumnDetected && pk.length === 1) {
     const pkCol = pk[0];
     // Tentar adivinhar a coluna de descrição (texto, contém "desc"/"nome")
     const descCol = columns.find((c) =>
       /^(descric|descrip|nome|designacao)/i.test(c.name) && /char|text|nvarchar|varchar/i.test(c.dataType),
     )?.name;
+
+    // Pre-fetch: contagem de produtos por código IVA em Stocks (uma query)
+    const produtosPorCodigoR = await pool.request().query<{ codigo: number | null; n: number }>(`
+      SELECT [Taxa IVA] AS codigo, COUNT(*) AS n
+      FROM [dbo].[Stocks]
+      WHERE [Retirado] = 0 AND [Processa_Stocks] <> 0
+      GROUP BY [Taxa IVA]
+    `).catch(() => ({ recordset: [] as Array<{ codigo: number | null; n: number }> }));
+    const produtosPorCodigo = new Map<number, number>();
+    for (const row of produtosPorCodigoR.recordset) {
+      if (row.codigo !== null && row.codigo !== undefined) {
+        produtosPorCodigo.set(Number(row.codigo), Number(row.n));
+      }
+    }
+
     for (const r of allRows) {
       const codigoRaw = r[pkCol];
       const taxaRaw = r[rateColumnDetected];
       const codigo = codigoRaw === null || codigoRaw === undefined ? null : Number(codigoRaw);
       const taxa = taxaRaw === null || taxaRaw === undefined ? null : Number(taxaRaw);
       const descricao = descCol ? (r[descCol] as string | null) ?? null : null;
-      inferredMapping.push({ codigo, taxa, descricao });
+
+      // Canónica = está em {0, 6, 13, 23} em escala % ou {0, 0.06, 0.13, 0.23} em fracção.
+      const isCanonica =
+        taxa !== null &&
+        (PT_RATES_PCT.has(taxa) || PT_RATES_FRAC.has(Math.round(taxa * 100) / 100));
+
+      inferredMapping.push({ codigo, taxa, descricao, isCanonica });
+
+      if (!isCanonica) {
+        const produtosAfectados = codigo !== null ? (produtosPorCodigo.get(codigo) ?? 0) : 0;
+        anomalies.push({
+          codigo,
+          taxa,
+          descricao,
+          motivo: taxa === null ? "taxa_null" : "fora_dominio_canonico",
+          produtosAfectados,
+        });
+      }
     }
   }
 
@@ -612,6 +671,7 @@ async function inspectIvaMaster(pool: SqlPool): Promise<IvaMasterDump> {
     rateColumnDetected,
     rateColumnReasoning: reasoning,
     inferredMapping,
+    anomalies,
   };
 }
 
@@ -945,13 +1005,36 @@ function renderMarkdown(r: IvaAuditReport): string {
     lines.push(fmtSample(r.ivaMaster.allRows));
     lines.push("");
     if (r.ivaMaster.inferredMapping.length > 0) {
-      lines.push(`### Mapeamento inferido`);
+      lines.push(`### Mapeamento Código ERP → Taxa real`);
       lines.push("");
-      lines.push(`| código | descrição | taxa |`);
-      lines.push(`|---:|---|---:|`);
+      lines.push(`Domínio canónico (regra PT/farmácia): **{0, 6, 13, 23}**. Linhas marcadas como ✗ caem em "IVA por apurar" nos relatórios (margens não calcula).`);
+      lines.push("");
+      lines.push(`| código ERP | descrição | taxa | canónica |`);
+      lines.push(`|---:|---|---:|:---:|`);
       for (const m of r.ivaMaster.inferredMapping) {
-        lines.push(`| ${m.codigo ?? "—"} | ${m.descricao ?? "_(sem coluna desc)_"} | ${m.taxa ?? "—"} |`);
+        const taxaStr = m.taxa === null ? "—" : `${m.taxa}`;
+        const flag = m.isCanonica ? "✓" : "✗";
+        lines.push(`| ${m.codigo ?? "—"} | ${m.descricao ?? "_(sem coluna desc)_"} | ${taxaStr} | ${flag} |`);
       }
+      lines.push("");
+    }
+
+    // Secção de anomalias dedicada
+    if (r.ivaMaster.anomalies.length > 0) {
+      lines.push(`### ⚠ Anomalias — taxas fora do domínio canónico {0, 6, 13, 23}`);
+      lines.push("");
+      lines.push(`Estes códigos da master não correspondem a taxas válidas em PT/farmácia. Os produtos afectados ficam com **IVA por apurar** no SaaS (margem suprimida, bucket "IVA por apurar" no Inventário).`);
+      lines.push("");
+      lines.push(`| código ERP | descrição | taxa | motivo | produtos afectados |`);
+      lines.push(`|---:|---|---:|---|---:|`);
+      for (const a of r.ivaMaster.anomalies) {
+        const taxaStr = a.taxa === null ? "—" : `${a.taxa}`;
+        const motivo = a.motivo === "taxa_null" ? "taxa NULL na master" : "fora de {0,6,13,23}";
+        lines.push(`| ${a.codigo ?? "—"} | ${a.descricao ?? "_(sem coluna desc)_"} | ${taxaStr} | ${motivo} | ${a.produtosAfectados} |`);
+      }
+      lines.push("");
+    } else if (r.ivaMaster.inferredMapping.length > 0) {
+      lines.push(`### ✓ Sem anomalias — todas as taxas em {0, 6, 13, 23}`);
       lines.push("");
     }
   }
@@ -1133,6 +1216,7 @@ export async function ivaAudit(): Promise<number> {
         rateColumnDetected: null,
         rateColumnReasoning: [],
         inferredMapping: [],
+        anomalies: [],
       },
       candidateTables: [],
       fksFromStocks: [],
@@ -1252,6 +1336,12 @@ export async function ivaAudit(): Promise<number> {
     console.log(RULE);
     console.log(`  Stocks.[Taxa IVA]   : ${report.stocksTaxaIva.columnName ? `[${report.stocksTaxaIva.columnName}] · ${report.stocksTaxaIva.distribution.length} códigos · ${report.stocksTaxaIva.totalRows.toLocaleString("pt-PT")} produtos` : "✗ não encontrada"}`);
     console.log(`  dbo.IVA master      : ${report.ivaMaster.exists ? `${report.ivaMaster.rowCount} rows · rateColumn=${report.ivaMaster.rateColumnDetected ?? "✗"}` : "✗ não existe"}`);
+    if (report.ivaMaster.exists && report.ivaMaster.inferredMapping.length > 0) {
+      const canonicas = report.ivaMaster.inferredMapping.filter((m) => m.isCanonica).length;
+      const anom = report.ivaMaster.anomalies.length;
+      const afectados = report.ivaMaster.anomalies.reduce((s, a) => s + a.produtosAfectados, 0);
+      console.log(`  dbo.IVA mapping     : ${canonicas} canónicas · ${anom} anomalia(s)${anom > 0 ? ` (${afectados} produtos afectados)` : ""}`);
+    }
     console.log(`  Tabelas candidatas  : ${report.candidateTables.length}`);
     console.log(`  FKs outgoing Stocks : ${report.fksFromStocks.length}`);
     console.log(`  FKs incoming Stocks : ${report.fksToStocks.length}`);

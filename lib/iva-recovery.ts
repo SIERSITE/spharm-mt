@@ -131,7 +131,7 @@ export async function recoverIvaForTenant(
     FROM "ProdutoFarmacia"
     WHERE "flagRetirado" = false
       AND "taxaIvaSource" = 'STOCKS_MESTRE'
-      AND "taxaIvaPercent" IN (6, 13, 23)
+      AND "taxaIvaPercent" IN (0, 6, 13, 23)
   `);
   const candidates = new Map<string, Candidate>();
   for (const r of mestreRows) {

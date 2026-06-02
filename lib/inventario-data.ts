@@ -126,13 +126,15 @@ export type InventarioPorGrupoRow = {
 
 /**
  * Vista executiva por taxa IVA. Buckets canónicos PT (farmácia):
- * 6, 13, 23 e "IVA por apurar". Não há "Isento", "Outras taxas" ou
- * "Desconhecido" — produtos sem taxa canónica capturada vão todos
- * para "IVA por apurar". Não inventamos taxa.
+ * 0, 6, 13, 23 e "IVA por apurar". Não há "Outras taxas" — produtos
+ * com taxa fora do conjunto canónico (5/7/8/12/16/17/19/21/etc.) ou
+ * sem taxa capturada vão todos para "IVA por apurar". Não inventamos.
+ *
+ * 0% é taxa válida (isento), distinta de APURAR (taxa desconhecida).
  */
 export type InventarioPorIvaRow = {
-  key: "6" | "13" | "23" | "APURAR";
-  label: string;          // "IVA 6%" | "IVA 13%" | "IVA 23%" | "IVA por apurar"
+  key: "0" | "6" | "13" | "23" | "APURAR";
+  label: string;          // "IVA 0%" | "IVA 6%" | "IVA 13%" | "IVA 23%" | "IVA por apurar"
   numProdutos: number;
   stockTotal: number;
   valorStockSemIva: number;
@@ -558,26 +560,29 @@ export async function getInventarioData(
 }
 
 /**
- * Agrega rows nos 4 buckets canónicos de farmácia: 6, 13, 23 e
+ * Agrega rows nos 5 buckets canónicos de farmácia: 0, 6, 13, 23 e
  * "IVA por apurar". `r.taxaIva` já vem normalizado de normalizeIva()
- * em `{6 | 13 | 23 | null}`, logo aqui é só dispatch directo.
+ * em `{0 | 6 | 13 | 23 | null}`, logo aqui é só dispatch directo.
  */
 function aggregatePorIva(rows: InventarioRow[]): InventarioPorIvaRow[] {
-  const buckets: Record<"6" | "13" | "23" | "APURAR", InventarioPorIvaRow> = {
+  const buckets: Record<"0" | "6" | "13" | "23" | "APURAR", InventarioPorIvaRow> = {
+    "0": emptyIvaBucket("0", "IVA 0%"),
     "6": emptyIvaBucket("6", "IVA 6%"),
     "13": emptyIvaBucket("13", "IVA 13%"),
     "23": emptyIvaBucket("23", "IVA 23%"),
     APURAR: emptyIvaBucket("APURAR", "IVA por apurar"),
   };
   for (const r of rows) {
-    const k: "6" | "13" | "23" | "APURAR" =
-      r.taxaIva === 6
-        ? "6"
-        : r.taxaIva === 13
-          ? "13"
-          : r.taxaIva === 23
-            ? "23"
-            : "APURAR";
+    const k: "0" | "6" | "13" | "23" | "APURAR" =
+      r.taxaIva === 0
+        ? "0"
+        : r.taxaIva === 6
+          ? "6"
+          : r.taxaIva === 13
+            ? "13"
+            : r.taxaIva === 23
+              ? "23"
+              : "APURAR";
     const b = buckets[k];
     b.numProdutos++;
     if (r.stockAtual !== null) b.stockTotal += r.stockAtual;
@@ -600,7 +605,7 @@ function aggregatePorIva(rows: InventarioRow[]): InventarioPorIvaRow[] {
 }
 
 function emptyIvaBucket(
-  key: "6" | "13" | "23" | "APURAR",
+  key: "0" | "6" | "13" | "23" | "APURAR",
   label: string,
 ): InventarioPorIvaRow {
   return {
