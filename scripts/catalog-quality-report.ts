@@ -21,9 +21,16 @@ import "dotenv/config";
 import * as fs from "fs";
 import * as path from "path";
 import { legacyPrisma as prisma } from "../lib/prisma";
+import { Prisma } from "../generated/prisma/client";
 
 const REPORT_PATH = path.resolve("notes/catalog-quality-report.md");
 const BASELINE_OUTROS = 6195;
+
+// Hoisted: `pct` é usado por gather*() acima da sua declaração original.
+function pct(n: number, d: number): string {
+  if (d === 0) return "—";
+  return `${((n / d) * 100).toFixed(1)}%`;
+}
 
 type SectionTotals = {
   totalVivos: number;
@@ -37,6 +44,39 @@ type SectionTotals = {
   comEmbalagem: number;
   comImagem: number;
   validadoManualmente: number;
+};
+
+/**
+ * Cobertura para o universo NÃO-MEDICAMENTO (cosmética, suplementos,
+ * dispositivos, alimentar, OUTRO). Adicionado em 2026-06 para suportar o
+ * pipeline D (retail enrichment) — sem isto, não havia visibilidade sobre
+ * 49% do catálogo.
+ *
+ * Bucket "totalNaoMedicamento" inclui todos os productType ≠ MEDICAMENTO
+ * (incluindo NULL, tratado como "sem classificação").
+ */
+type SectionNaoMedicamento = {
+  totalNaoMedicamento: number;
+  porType: Array<{ productType: string; n: number; pct: string }>;
+  comNivel2: number;
+  comMarca: number;
+  comDescricaoRica: number; // designacao com > 30 chars (heurística simples)
+  comImagem: number;
+  semClassificacao: number; // productType IS NULL OR classificacaoNivel2 IS NULL
+  validadoManualmente: number;
+};
+
+/**
+ * Cobertura de imagens cross-cutting. Resume o estado do pipeline C
+ * (imagens medicamentos + retail) num único bloco para o dashboard
+ * conseguir mostrar o KPI sem agregar a partir das outras secções.
+ */
+type SectionImagens = {
+  totalVivos: number;
+  comImagem: number;
+  semImagem: number;
+  comImagemMedicamento: number;
+  comImagemNaoMedicamento: number;
 };
 
 type SectionRegulatory = {
@@ -63,6 +103,8 @@ type SectionClassification = {
 type Report = {
   generatedAt: string;
   totals: SectionTotals;
+  naoMedicamento: SectionNaoMedicamento;
+  imagens: SectionImagens;
   regulatory: SectionRegulatory;
   classification: SectionClassification;
   baseline: { outrosBefore: number; outrosNow: number; delta: number; pct: string };
@@ -206,6 +248,112 @@ async function gatherRegulatory(): Promise<SectionRegulatory> {
   };
 }
 
+// ── Não-medicamentos ────────────────────────────────────────────────────
+//
+// Cobertura do universo não-MEDICAMENTO. Heurística "descrição rica":
+// designacao > 30 chars — o ERP costuma truncar nomes a 30-40 chars, e
+// produtos enriquecidos por retail trazem nomes mais completos.
+async function gatherNaoMedicamento(): Promise<SectionNaoMedicamento> {
+  const livesFilter = { estado: { not: "INATIVO" as const } };
+  const naoMedFilter: Prisma.ProdutoWhereInput = {
+    ...livesFilter,
+    OR: [
+      { productType: { not: "MEDICAMENTO" } },
+      { productType: null },
+    ],
+  };
+
+  const [
+    totalNaoMedicamento,
+    porTypeGroup,
+    comNivel2,
+    comMarca,
+    comDescricaoRica,
+    comImagem,
+    semClassificacao,
+    validadoManualmente,
+  ] = await Promise.all([
+    prisma.produto.count({ where: naoMedFilter }),
+    prisma.produto.groupBy({
+      by: ["productType"],
+      where: naoMedFilter,
+      _count: { _all: true },
+    }),
+    prisma.produto.count({
+      where: { ...naoMedFilter, classificacaoNivel2Id: { not: null } },
+    }),
+    prisma.produto.count({
+      where: { ...naoMedFilter, fabricanteId: { not: null } },
+    }),
+    prisma.$queryRaw<Array<{ n: bigint }>>`
+      SELECT COUNT(*)::bigint AS n
+      FROM "Produto"
+      WHERE "estado" != 'INATIVO'
+        AND ("productType" IS NULL OR "productType" != 'MEDICAMENTO')
+        AND LENGTH("designacao") > 30
+    `.then((r) => Number(r[0]?.n ?? 0)),
+    prisma.produto.count({
+      where: { ...naoMedFilter, imagemUrl: { not: null } },
+    }),
+    prisma.produto.count({
+      where: {
+        ...naoMedFilter,
+        OR: [{ productType: null }, { classificacaoNivel2Id: null }],
+      },
+    }),
+    prisma.produto.count({
+      where: { ...naoMedFilter, validadoManualmente: true },
+    }),
+  ]);
+
+  const porType = porTypeGroup
+    .map((g) => ({
+      productType: g.productType ?? "(NULL)",
+      n: g._count._all,
+      pct: pct(g._count._all, totalNaoMedicamento),
+    }))
+    .sort((a, b) => b.n - a.n);
+
+  return {
+    totalNaoMedicamento,
+    porType,
+    comNivel2,
+    comMarca,
+    comDescricaoRica,
+    comImagem,
+    semClassificacao,
+    validadoManualmente,
+  };
+}
+
+// ── Imagens (cross-cutting) ─────────────────────────────────────────────
+async function gatherImagens(): Promise<SectionImagens> {
+  const livesFilter = { estado: { not: "INATIVO" as const } };
+
+  const [totalVivos, comImagem, comImagemMedicamento, comImagemNaoMedicamento] = await Promise.all([
+    prisma.produto.count({ where: livesFilter }),
+    prisma.produto.count({ where: { ...livesFilter, imagemUrl: { not: null } } }),
+    prisma.produto.count({
+      where: { ...livesFilter, productType: "MEDICAMENTO", imagemUrl: { not: null } },
+    }),
+    prisma.produto.count({
+      where: {
+        ...livesFilter,
+        OR: [{ productType: { not: "MEDICAMENTO" } }, { productType: null }],
+        imagemUrl: { not: null },
+      },
+    }),
+  ]);
+
+  return {
+    totalVivos,
+    comImagem,
+    semImagem: totalVivos - comImagem,
+    comImagemMedicamento,
+    comImagemNaoMedicamento,
+  };
+}
+
 async function gatherClassification(): Promise<SectionClassification> {
   const medLive = { productType: "MEDICAMENTO" as const, estado: { not: "INATIVO" as const } };
 
@@ -311,11 +459,6 @@ async function gatherClassification(): Promise<SectionClassification> {
   };
 }
 
-function pct(n: number, d: number): string {
-  if (d === 0) return "—";
-  return `${((n / d) * 100).toFixed(1)}%`;
-}
-
 function renderMarkdown(r: Report): string {
   const t = r.totals;
   const reg = r.regulatory;
@@ -345,6 +488,42 @@ function renderMarkdown(r: Report): string {
   lines.push(`| MEDICAMENTO com embalagem | ${t.comEmbalagem.toLocaleString()} (${pct(t.comEmbalagem, t.totalMedicamentoVivos)}) |`);
   lines.push(`| MEDICAMENTO com imagemUrl | ${t.comImagem.toLocaleString()} (${pct(t.comImagem, t.totalMedicamentoVivos)}) |`);
   lines.push(`| MEDICAMENTO validadoManualmente=true | ${t.validadoManualmente.toLocaleString()} (${pct(t.validadoManualmente, t.totalMedicamentoVivos)}) |`);
+  lines.push("");
+
+  // ── 1b. Não-medicamentos ────────────────────────────────────────────────
+  const nm = r.naoMedicamento;
+  lines.push("## 1b. Não-medicamentos (cosmética, suplementos, dispositivos, alimentar, OUTRO)");
+  lines.push("");
+  lines.push("| Métrica | Valor |");
+  lines.push("|---|---:|");
+  lines.push(`| Total não-medicamento vivos | ${nm.totalNaoMedicamento.toLocaleString()} |`);
+  lines.push(`| Com classificação N2 | ${nm.comNivel2.toLocaleString()} (${pct(nm.comNivel2, nm.totalNaoMedicamento)}) |`);
+  lines.push(`| Com fabricante/marca | ${nm.comMarca.toLocaleString()} (${pct(nm.comMarca, nm.totalNaoMedicamento)}) |`);
+  lines.push(`| Com designação rica (>30 chars) | ${nm.comDescricaoRica.toLocaleString()} (${pct(nm.comDescricaoRica, nm.totalNaoMedicamento)}) |`);
+  lines.push(`| Com imagem | ${nm.comImagem.toLocaleString()} (${pct(nm.comImagem, nm.totalNaoMedicamento)}) |`);
+  lines.push(`| **Sem classificação** (productType OU N2 NULL) | **${nm.semClassificacao.toLocaleString()}** (${pct(nm.semClassificacao, nm.totalNaoMedicamento)}) |`);
+  lines.push(`| Validado manualmente | ${nm.validadoManualmente.toLocaleString()} (${pct(nm.validadoManualmente, nm.totalNaoMedicamento)}) |`);
+  lines.push("");
+  lines.push("### Distribuição por productType");
+  lines.push("");
+  lines.push("| productType | N | % |");
+  lines.push("|---|---:|---:|");
+  for (const row of nm.porType) {
+    lines.push(`| ${row.productType} | ${row.n.toLocaleString()} | ${row.pct} |`);
+  }
+  lines.push("");
+
+  // ── 1c. Imagens (cross-cutting) ─────────────────────────────────────────
+  const im = r.imagens;
+  lines.push("## 1c. Imagens (cross-cutting)");
+  lines.push("");
+  lines.push("| Métrica | Valor |");
+  lines.push("|---|---:|");
+  lines.push(`| Total Produto vivo | ${im.totalVivos.toLocaleString()} |`);
+  lines.push(`| Com imagem | ${im.comImagem.toLocaleString()} (${pct(im.comImagem, im.totalVivos)}) |`);
+  lines.push(`| **Sem imagem** | **${im.semImagem.toLocaleString()}** (${pct(im.semImagem, im.totalVivos)}) |`);
+  lines.push(`| Com imagem — MEDICAMENTO | ${im.comImagemMedicamento.toLocaleString()} |`);
+  lines.push(`| Com imagem — não-medicamento | ${im.comImagemNaoMedicamento.toLocaleString()} |`);
   lines.push("");
 
   // ── 2. Regulatory coverage ──────────────────────────────────────────────
@@ -424,19 +603,31 @@ async function main(): Promise<void> {
   console.log("Catalog quality report — read-only diagnostic");
   console.log("─".repeat(74));
 
-  console.log("\n[1/3] Totais...");
+  console.log("\n[1/5] Totais...");
   const totals = await gatherTotals();
   console.log(`  produtos vivos:              ${totals.totalVivos}`);
   console.log(`  MEDICAMENTO vivos:           ${totals.totalMedicamentoVivos}`);
   console.log(`  em "Outros Medicamentos":    ${totals.outrosMedicamentos}`);
 
-  console.log("\n[2/3] Regulatory coverage...");
+  console.log("\n[2/5] Não-medicamentos...");
+  const naoMedicamento = await gatherNaoMedicamento();
+  console.log(`  não-medicamento vivos:       ${naoMedicamento.totalNaoMedicamento}`);
+  console.log(`  com nivel2:                  ${naoMedicamento.comNivel2}`);
+  console.log(`  com imagem:                  ${naoMedicamento.comImagem}`);
+  console.log(`  sem classificação:           ${naoMedicamento.semClassificacao}`);
+
+  console.log("\n[3/5] Imagens...");
+  const imagens = await gatherImagens();
+  console.log(`  com imagem (total):          ${imagens.comImagem}`);
+  console.log(`  sem imagem:                  ${imagens.semImagem}`);
+
+  console.log("\n[4/5] Regulatory coverage...");
   const regulatory = await gatherRegulatory();
   console.log(`  total RegulatoryRecord:      ${regulatory.totalRR}`);
   console.log(`  RR ∩ Produto vivos:          ${regulatory.intersect}`);
   console.log(`  RR clínico ∩ Produto vivos:  ${regulatory.produtoComRRClinico}`);
 
-  console.log("\n[3/3] Classification...");
+  console.log("\n[5/5] Classification...");
   const classification = await gatherClassification();
   console.log(`  nivel2 distribuídos:         ${classification.nivel2Distribution.length}`);
   console.log(`  top ATC prefixes:            ${classification.topAtcPrefixes.length}`);
@@ -452,6 +643,8 @@ async function main(): Promise<void> {
   const report: Report = {
     generatedAt: new Date().toISOString(),
     totals,
+    naoMedicamento,
+    imagens,
     regulatory,
     classification,
     baseline,

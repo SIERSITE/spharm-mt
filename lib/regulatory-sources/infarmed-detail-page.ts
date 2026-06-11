@@ -62,6 +62,13 @@ export type InfomedDetailResult = {
   viasAdministracao: string[];
   /** Apresentações com CNP, embalagem, e estado de comercialização. */
   embalagens: InfomedEmbalagem[];
+  /**
+   * URL da imagem da embalagem oficial (foto / pictograma) quando o
+   * INFOMED a expõe. Normalmente em `<img>` dentro da panelGrid da
+   * apresentação. Pode ser absoluto (https://…) ou relativo ao base
+   * INFARMED — o caller normaliza. Null quando ausente (caso comum).
+   */
+  imagemUrl: string | null;
   /** Snapshot bruto para audit/debug. */
   raw: {
     fetchedAt: string;
@@ -219,6 +226,15 @@ export function parseInfomedDetailHtml(
   // ── Embalagens / CNPs ─────────────────────────────────────────────
   const embalagens = extractEmbalagens($);
 
+  // ── Imagem da embalagem ──────────────────────────────────────────
+  // O INFOMED exibe a foto da embalagem num <img> dentro da panelGrid
+  // principal. Selectors conhecidos (mais específico → mais permissivo):
+  //   #fotoMedicamento img         (id estável usado em algumas pages)
+  //   img[src*="getImagemMedicamento"]  (servlet de imagem dinâmica)
+  //   img[src*="med_guid"]         (fallback — imagem cuja URL referencia o guid)
+  // Normalizamos para URL absoluto. Null se nenhum dos selectors bate.
+  const imagemUrl = extractImagemUrl($);
+
   // Sanity: produto deve ter pelo menos nome + (dci OU atc OU embalagens)
   if (!dci && !codigoATC && embalagens.length === 0) {
     throw new InfomedParseError(
@@ -244,6 +260,7 @@ export function parseInfomedDetailHtml(
     classificacaoDispensa,
     viasAdministracao,
     embalagens,
+    imagemUrl,
     raw: {
       fetchedAt: new Date().toISOString(),
       sourceUrl,
@@ -378,6 +395,63 @@ function extractClassificacaoDispensa($: cheerio.CheerioAPI): string | null {
  * A página tem DUAS versões do carousel (big e mobile-form) com os mesmos
  * dados — usar Map por CNP para deduplicar.
  */
+/**
+ * Extrai a URL da imagem da embalagem.
+ *
+ * O INFOMED renderiza a foto via um servlet dinâmico (`getImagemMedicamento`)
+ * num `<img>` dentro da panelGrid principal. Em algumas pages a imagem é
+ * referida por `#fotoMedicamento`. Selectors ordenados do mais específico
+ * ao mais permissivo — primeiro hit ganha.
+ *
+ * Normalização: URLs relativas (`/INFOMED-fo/...`) são absolutizadas
+ * usando o BASE_URL. URLs já absolutas ficam intactas.
+ *
+ * Filtros anti-falso-positivo:
+ *   · descarta gifs decorativos (`logo`, `icon`, `spacer`, `ajax-loader`)
+ *   · descarta data-uris (não persistíveis)
+ *   · descarta URLs vazias / "#"
+ */
+function extractImagemUrl($: cheerio.CheerioAPI): string | null {
+  const candidates: string[] = [];
+
+  // Selectors mais específicos primeiro
+  const selectors = [
+    "#fotoMedicamento img[src]",
+    "img[src*=\"getImagemMedicamento\"]",
+    "img[src*=\"med_guid\"]",
+    // Fallback: qualquer img dentro do main content que tenha "imagem" / "foto" / "medicamento" no src
+    "img[src*=\"imagem\"]",
+    "img[src*=\"foto\"]",
+  ];
+
+  for (const sel of selectors) {
+    $(sel).each((_, el) => {
+      const src = $(el).attr("src");
+      if (src) candidates.push(src);
+    });
+    if (candidates.length > 0) break;
+  }
+
+  for (const raw of candidates) {
+    const url = normalizeImageUrl(raw);
+    if (url) return url;
+  }
+  return null;
+}
+
+function normalizeImageUrl(raw: string): string | null {
+  const s = raw.trim();
+  if (!s || s === "#") return null;
+  if (s.startsWith("data:")) return null;
+  const low = s.toLowerCase();
+  if (/(?:logo|icon|spacer|ajax-loader|loading)/.test(low)) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (s.startsWith("/")) return `https://extranet.infarmed.pt${s}`;
+  // Relativo a INFOMED-fo
+  return `${BASE_URL}/${s.replace(/^\.?\//, "")}`;
+}
+
 function extractEmbalagens($: cheerio.CheerioAPI): InfomedEmbalagem[] {
   const found = new Map<number, InfomedEmbalagem>();
 

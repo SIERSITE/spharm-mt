@@ -4,6 +4,22 @@
     {
       "path": "/api/jobs/refresh-ipf",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/jobs/enrich-catalog",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/jobs/enqueue-regulatory",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/jobs/acquire-regulatory",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/jobs/enrich-retail",
+      "schedule": "0 5 * * *"
     }
   ]
 }
