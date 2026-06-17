@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Percent,
 } from "lucide-react";
+import { logoutAction } from "@/app/dashboard/actions";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -224,10 +225,15 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             <div className="text-sm font-medium text-slate-500">Dashboard</div>
 
             <div className="flex items-center gap-3">
-              <button className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-white/50 hover:text-slate-700">
-                <LogOut className="h-4 w-4" />
-                Sair
-              </button>
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-white/50 hover:text-slate-700"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sair
+                </button>
+              </form>
             </div>
           </header>
 
