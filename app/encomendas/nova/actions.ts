@@ -9,9 +9,14 @@ import { createEncomendaWithOutbox, type OrderLineInput } from "@/lib/ingest/ord
 import { logAudit } from "@/lib/audit";
 import {
   generateOrderProposal,
+  generateGroupProposal,
   type ProposalInput,
   type ProposalResult,
 } from "@/lib/encomendas/proposal";
+
+// ─── Tipos públicos ──────────────────────────────────────────────────────────
+
+export type ProposalMode = "farmacia" | "grupo" | "consolidacao";
 
 export type CreateOrderFormInput = {
   farmaciaId: string;
@@ -21,8 +26,8 @@ export type CreateOrderFormInput = {
 };
 
 export type GenerateProposalInput = {
-  farmaciaId: string;
-  /** ISO date — yyyy-mm-dd or full ISO. */
+  mode: ProposalMode;
+  farmaciaId?: string;   // obrigatório para mode=farmacia
   startDate: string;
   endDate: string;
   considerStock: boolean;
@@ -39,20 +44,16 @@ type ActionResult =
   | { ok: true; listaEncomendaId: string; outboxId: string | null }
   | { ok: false; error: string };
 
+// ─── Criar encomenda ─────────────────────────────────────────────────────────
+
 export async function createOrderAction(input: CreateOrderFormInput): Promise<ActionResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
-  if (!input.farmaciaId) {
-    return { ok: false, error: "Seleccione uma farmácia." };
-  }
-  if (!input.nome.trim()) {
-    return { ok: false, error: "Nome da encomenda em falta." };
-  }
-  if (input.linhas.length === 0) {
-    return { ok: false, error: "Adicione pelo menos um produto." };
-  }
+  if (!input.farmaciaId) return { ok: false, error: "Seleccione uma farmácia." };
+  if (!input.nome.trim()) return { ok: false, error: "Nome da encomenda em falta." };
+  if (input.linhas.length === 0) return { ok: false, error: "Adicione pelo menos um produto." };
 
   try {
     const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
@@ -68,11 +69,7 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       action: input.finalize ? "order.created_and_finalized" : "order.created_draft",
       entity: "ListaEncomenda",
       entityId: result.listaEncomendaId,
-      meta: {
-        finalize: input.finalize,
-        linhasCount: input.linhas.length,
-        outboxId: result.outboxId,
-      },
+      meta: { finalize: input.finalize, linhasCount: input.linhas.length, outboxId: result.outboxId },
     });
 
     revalidatePath("/encomendas");
@@ -83,22 +80,24 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
   }
 }
 
-/**
- * Gera a proposta de encomenda a partir de vendas no período definido
- * pelo utilizador. Read-only — não cria nada na BD; o utilizador revê
- * e depois usa `createOrderAction` para finalizar.
- */
+// ─── Gerar proposta ──────────────────────────────────────────────────────────
+
 export async function generateProposalAction(
   input: GenerateProposalInput
 ): Promise<GenerateProposalResult> {
-  await requirePermission("reports.write");
+  const session = await requirePermission("reports.write");
+
+  // Grupo e consolidação requerem perfil de gestor de grupo ou administrador.
+  if (input.mode === "grupo" || input.mode === "consolidacao") {
+    if (session.perfil !== "ADMINISTRADOR" && session.perfil !== "GESTOR_GRUPO") {
+      return { ok: false, error: "Sem permissão para vista de grupo." };
+    }
+  }
 
   try {
-    if (!input.farmaciaId) {
-      return { ok: false, error: "Seleccione uma farmácia." };
-    }
     const start = new Date(input.startDate);
     const end = new Date(input.endDate);
+
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return { ok: false, error: "Datas inválidas." };
     }
@@ -109,59 +108,75 @@ export async function generateProposalAction(
       return { ok: false, error: "Cobertura alvo deve ser pelo menos 1 dia." };
     }
 
-    // Inclusivo até ao fim do dia de end.
     end.setHours(23, 59, 59, 999);
 
-    const data = await generateOrderProposal({
-      farmaciaId: input.farmaciaId,
-      startDate: start,
-      endDate: end,
-      considerStock: input.considerStock,
-      baseRule: input.baseRule,
-      targetCoverageDays: input.targetCoverageDays,
-      filters: input.filters,
-    });
+    const prisma = await getPrisma();
 
-    return { ok: true, data };
+    if (input.mode === "farmacia") {
+      if (!input.farmaciaId) return { ok: false, error: "Seleccione uma farmácia." };
+
+      const farmacia = await prisma.farmacia.findUnique({
+        where: { id: input.farmaciaId },
+        select: { nome: true },
+      });
+
+      const data = await generateOrderProposal({
+        farmaciaId: input.farmaciaId,
+        farmaciaNome: farmacia?.nome ?? input.farmaciaId,
+        startDate: start,
+        endDate: end,
+        considerStock: input.considerStock,
+        baseRule: input.baseRule,
+        targetCoverageDays: input.targetCoverageDays,
+        filters: input.filters,
+      });
+
+      return { ok: true, data };
+    } else {
+      // modo grupo ou consolidacao — o servidor determina as farmácias activas
+      const farmacias = await prisma.farmacia.findMany({
+        where: { estado: "ATIVO" },
+        select: { id: true, nome: true },
+        orderBy: { nome: "asc" },
+      });
+
+      if (farmacias.length === 0) {
+        return { ok: false, error: "Sem farmácias activas configuradas." };
+      }
+
+      const farmaciaNames = Object.fromEntries(farmacias.map((f) => [f.id, f.nome]));
+
+      const data = await generateGroupProposal({
+        farmaciaIds: farmacias.map((f) => f.id),
+        farmaciaNames,
+        startDate: start,
+        endDate: end,
+        considerStock: input.considerStock,
+        baseRule: input.baseRule,
+        targetCoverageDays: input.targetCoverageDays,
+        filters: input.filters,
+      });
+
+      return { ok: true, data };
+    }
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Erro desconhecido",
-    };
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
 }
 
-// ─── Transferência interna (RC Batch 2) ───────────────────────────────
-//
-// Reutiliza `createEncomendaWithOutbox` em modo RASCUNHO (sem outbox /
-// sem export agent). A `ListaEncomenda` resultante é o registo
-// operacional da transferência sugerida; o operador revê, ajusta a
-// quantidade e finaliza no flow existente em /encomendas/[id]. As
-// linhas têm `notas` estruturada com a origem (source farmácia + CNP)
-// e o motivo (same-cnp ou dci-equivalent). Sem novos modelos, sem
-// outbox.
+// ─── Transferência interna ────────────────────────────────────────────────────
 
 export type InternalTransferKind = "same-cnp" | "dci-equivalent";
 
 export type CreateInternalTransferInput = {
-  /** Farmácia destino — onde a ruptura está iminente. Esta é a
-   *  `ListaEncomenda.farmaciaId`. */
   destinoFarmaciaId: string;
-  /** Farmácia origem — onde existe excesso. Vai para `notas` da linha. */
   sourceFarmaciaNome: string;
-  /** Produto a transferir (mesmo `produtoId` para same-CNP; produtoId
-   *  do source para DCI-equivalent). */
   produtoId: string;
-  /** CNP — informativo, para apresentação consistente nos logs e
-   *  notas. */
   cnp: string;
   designacao: string;
   quantidade: number;
   kind: InternalTransferKind;
-  /** "rotura iminente" | "excesso interno" | livre */
   motivo: string;
-  /** Para DCI-equivalent: identifica o produto que existe na origem
-   *  (CNP diferente do destino). */
   dciSourceProductName?: string;
   dciSourceCnp?: string;
 };
@@ -183,7 +198,7 @@ function buildTransferNote(input: CreateInternalTransferInput): string {
 }
 
 export async function createInternalTransferAction(
-  input: CreateInternalTransferInput,
+  input: CreateInternalTransferInput
 ): Promise<CreateInternalTransferResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
@@ -193,9 +208,6 @@ export async function createInternalTransferAction(
   if (!input.produtoId) return { ok: false, error: "Produto em falta." };
   if (!Number.isFinite(input.quantidade) || input.quantidade <= 0) {
     return { ok: false, error: "Quantidade tem de ser > 0." };
-  }
-  if (input.kind === "dci-equivalent" && !input.dciSourceCnp) {
-    return { ok: false, error: "DCI-equivalente requer CNP do produto source." };
   }
 
   const nome =
@@ -207,8 +219,8 @@ export async function createInternalTransferAction(
     const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
       farmaciaId: input.destinoFarmaciaId,
       criadoPorId: session.sub,
-      nome: nome.slice(0, 180), // safety bound
-      finalize: false, // RASCUNHO sempre — operador revê e finaliza no flow normal
+      nome: nome.slice(0, 180),
+      finalize: false,
       linhas: [
         {
           produtoId: input.produtoId,

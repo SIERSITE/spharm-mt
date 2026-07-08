@@ -2,21 +2,29 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import {
   createOrderAction,
+  createInternalTransferAction,
   generateProposalAction,
   type CreateOrderFormInput,
+  type ProposalMode,
 } from "@/app/encomendas/nova/actions";
 import {
   resolveProductsByCnpAction,
   type ProductSearchResult,
 } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
-import type { ProposalRow, ProposalBaseRule } from "@/lib/encomendas/proposal";
+import type {
+  ProposalRow,
+  ProposalBaseRule,
+  ProposalEstado,
+  ProposalStats,
+  ExcessoInfo,
+} from "@/lib/encomendas/proposal";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 
-const TODAS_ID = "__todas__";
+// ─── Tipos locais ─────────────────────────────────────────────────────────────
 
 type Line = {
   key: number;
@@ -30,11 +38,16 @@ type Line = {
   salesQty: number | null;
   avgDailySales: number | null;
   currentStock: number | null;
+  coberturaAtualDias: number | null;
   pendingQty: number | null;
   suggestedQty: number | null;
+  transferirQty: number;
   finalQty: string;
   notas: string;
   source: "proposal" | "manual" | "prefill";
+  estado: ProposalEstado | null;
+  motivo: string | null;
+  excessoFonte: ExcessoInfo[];
 };
 
 type SortCol =
@@ -43,7 +56,7 @@ type SortCol =
   | "salesQty"
   | "avgDailySales"
   | "currentStock"
-  | "coberturaAtual"
+  | "coberturaAtualDias"
   | "pendingQty"
   | "suggestedQty";
 
@@ -51,8 +64,9 @@ type Props = {
   farmacias: { id: string; nome: string }[];
   filterOptions: ReportingFilterOptions;
   productTypes: string[];
-  /** Mês mais recente com dados em VendaMensal. Usado para o período default. */
   latestDataMonth?: { ano: number; mes: number } | null;
+  userPerfil: string;
+  userFarmaciaId: string | null;
 };
 
 type PrefillStash = {
@@ -68,22 +82,22 @@ function nextKey(): number {
   return ++lineKeyCounter;
 }
 
-function fmtNum(v: number | null, digits = 0): string {
+const CAN_GROUP_PERFIS = new Set(["ADMINISTRADOR", "GESTOR_GRUPO"]);
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+
+function fmtNum(v: number | null | undefined, digits = 0): string {
   if (v == null) return "—";
   if (digits === 0) return String(Math.round(v));
   return v.toFixed(digits);
 }
 
 function isoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function defaultPeriod(latest?: { ano: number; mes: number } | null): { start: string; end: string } {
+function defaultPeriod(latest?: { ano: number; mes: number } | null) {
   if (latest) {
-    // 3 meses terminando no último dia do mês mais recente com dados.
     const end = new Date(latest.ano, latest.mes, 0);
     const start = new Date(latest.ano, latest.mes - 1 - 2, 1);
     return { start: isoDate(start), end: isoDate(end) };
@@ -94,16 +108,66 @@ function defaultPeriod(latest?: { ano: number; mes: number } | null): { start: s
   return { start: isoDate(start), end: isoDate(end) };
 }
 
-export function OrderCreateClient({ farmacias, filterOptions, productTypes, latestDataMonth }: Props) {
+function estadoLabel(e: ProposalEstado): string {
+  switch (e) {
+    case "TRANSFERÊNCIA": return "Transferência";
+    case "COMPRAR": return "Comprar";
+    case "AGUARDAR": return "Aguardar";
+    case "ADEQUADO": return "Adequado";
+  }
+}
+
+function estadoColors(e: ProposalEstado): string {
+  switch (e) {
+    case "TRANSFERÊNCIA": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "COMPRAR": return "bg-rose-50 text-rose-700 border-rose-200";
+    case "AGUARDAR": return "bg-amber-50 text-amber-700 border-amber-200";
+    case "ADEQUADO": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  }
+}
+
+function rowBg(e: ProposalEstado | null): string {
+  if (!e) return "";
+  switch (e) {
+    case "TRANSFERÊNCIA": return "bg-blue-50/30";
+    case "COMPRAR": return "";
+    case "AGUARDAR": return "bg-amber-50/20";
+    case "ADEQUADO": return "bg-emerald-50/20";
+  }
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export function OrderCreateClient({
+  farmacias,
+  filterOptions,
+  productTypes,
+  latestDataMonth,
+  userPerfil,
+  userFarmaciaId,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [busy, startTransition] = useTransition();
   const [generating, startGenerate] = useTransition();
+  const [creatingTransfer, startTransfer] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err" | "info"; msg: string } | null>(null);
 
-  // ─── Critérios ───────────────────────────────────────────────────────────────
+  const canGroupMode = CAN_GROUP_PERFIS.has(userPerfil);
+
+  // Farmácias visíveis para o utilizador
+  const farmaciasVisiveis = useMemo(() => {
+    if (canGroupMode) return farmacias;
+    if (!userFarmaciaId) return farmacias;
+    return farmacias.filter((f) => f.id === userFarmaciaId);
+  }, [farmacias, canGroupMode, userFarmaciaId]);
+
+  // ─── Modo ────────────────────────────────────────────────────────────────
+  const [mode, setMode] = useState<ProposalMode>("farmacia");
+
+  // ─── Critérios ───────────────────────────────────────────────────────────
   const period = useMemo(() => defaultPeriod(latestDataMonth), []);
-  const [farmaciaId, setFarmaciaId] = useState(farmacias[0]?.id ?? "");
+  const [farmaciaId, setFarmaciaId] = useState(farmaciasVisiveis[0]?.id ?? "");
   const [startDate, setStartDate] = useState(period.start);
   const [endDate, setEndDate] = useState(period.end);
   const [considerStock, setConsiderStock] = useState(true);
@@ -115,30 +179,34 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
   const [selCategorias, setSelCategorias] = useState<string[]>([]);
   const [selProductTypes, setSelProductTypes] = useState<string[]>([]);
 
-  // ─── Linhas ──────────────────────────────────────────────────────────────────
+  // ─── Linhas ──────────────────────────────────────────────────────────────
   const [linhas, setLinhas] = useState<Line[]>([]);
   const [hasProposal, setHasProposal] = useState(false);
-  const [proposalMeta, setProposalMeta] = useState<{ numDays: number; filtered: number } | null>(null);
+  const [proposalMeta, setProposalMeta] = useState<{
+    numDays: number;
+    stats: ProposalStats;
+  } | null>(null);
 
-  // ─── Filtros e ordenação da tabela ───────────────────────────────────────────
+  // ─── Filtros da tabela ────────────────────────────────────────────────────
   const [tableSearch, setTableSearch] = useState("");
+  const [filterEstado, setFilterEstado] = useState<ProposalEstado | null>(null);
+  const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useState("");
   const [filterRuturas, setFilterRuturas] = useState(false);
   const [filterStockBaixo, setFilterStockBaixo] = useState(false);
-  const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("salesQty");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // ─── Picker manual ───────────────────────────────────────────────────────────
+  // ─── Picker manual ────────────────────────────────────────────────────────
   const [manualOpen, setManualOpen] = useState(false);
 
-  // ─── Cabeçalho da encomenda ──────────────────────────────────────────────────
+  // ─── Cabeçalho ────────────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
 
-  const isTodasMode = farmaciaId === TODAS_ID;
+  const isGroupMode = mode === "grupo" || mode === "consolidacao";
 
-  // Farmácias com linhas geradas (para filtro em modo "todas")
+  // Farmácias com linhas (para filtro em modo grupo)
   const farmaciaOptions = useMemo(() => {
-    if (!isTodasMode) return [];
+    if (!isGroupMode) return [];
     const seen = new Set<string>();
     const opts: { id: string; nome: string }[] = [];
     for (const l of linhas) {
@@ -149,7 +217,7 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
       }
     }
     return opts;
-  }, [linhas, isTodasMode, farmacias]);
+  }, [linhas, isGroupMode, farmacias]);
 
   // Linhas visíveis após filtros + ordenação
   const visibleLinhas = useMemo(() => {
@@ -164,82 +232,74 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
           (l.fabricante?.toLowerCase().includes(q) ?? false)
       );
     }
-
-    if (filterFarmaciaTabela) {
-      list = list.filter((l) => l.farmaciaNome === filterFarmaciaTabela);
-    }
-
-    if (filterRuturas) {
-      list = list.filter((l) => l.currentStock != null && l.currentStock <= 0);
-    }
-
-    if (filterStockBaixo) {
+    if (filterFarmaciaTabela) list = list.filter((l) => l.farmaciaNome === filterFarmaciaTabela);
+    if (filterEstado) list = list.filter((l) => l.estado === filterEstado);
+    if (filterRuturas) list = list.filter((l) => l.currentStock != null && l.currentStock <= 0);
+    if (filterStockBaixo)
       list = list.filter(
-        (l) =>
-          l.currentStock != null &&
-          l.currentStock > 0 &&
-          l.suggestedQty != null &&
-          l.suggestedQty > 0
+        (l) => l.currentStock != null && l.currentStock > 0 && l.suggestedQty != null && l.suggestedQty > 0
       );
-    }
 
     return [...list].sort((a, b) => {
       let va: number | string | null = null;
       let vb: number | string | null = null;
-
       switch (sortCol) {
-        case "designacao":
-          va = a.designacao;
-          vb = b.designacao;
-          break;
-        case "farmaciaNome":
-          va = a.farmaciaNome ?? "";
-          vb = b.farmaciaNome ?? "";
-          break;
-        case "salesQty":
-          va = a.salesQty;
-          vb = b.salesQty;
-          break;
-        case "avgDailySales":
-          va = a.avgDailySales;
-          vb = b.avgDailySales;
-          break;
-        case "currentStock":
-          va = a.currentStock;
-          vb = b.currentStock;
-          break;
-        case "coberturaAtual":
-          va =
-            a.currentStock != null && a.avgDailySales != null && a.avgDailySales > 0
-              ? a.currentStock / a.avgDailySales
-              : null;
-          vb =
-            b.currentStock != null && b.avgDailySales != null && b.avgDailySales > 0
-              ? b.currentStock / b.avgDailySales
-              : null;
-          break;
-        case "pendingQty":
-          va = a.pendingQty;
-          vb = b.pendingQty;
-          break;
-        case "suggestedQty":
-          va = a.suggestedQty;
-          vb = b.suggestedQty;
-          break;
+        case "designacao": va = a.designacao; vb = b.designacao; break;
+        case "farmaciaNome": va = a.farmaciaNome ?? ""; vb = b.farmaciaNome ?? ""; break;
+        case "salesQty": va = a.salesQty; vb = b.salesQty; break;
+        case "avgDailySales": va = a.avgDailySales; vb = b.avgDailySales; break;
+        case "currentStock": va = a.currentStock; vb = b.currentStock; break;
+        case "coberturaAtualDias": va = a.coberturaAtualDias; vb = b.coberturaAtualDias; break;
+        case "pendingQty": va = a.pendingQty; vb = b.pendingQty; break;
+        case "suggestedQty": va = a.suggestedQty; vb = b.suggestedQty; break;
       }
-
       if (va === null || va === undefined) return 1;
       if (vb === null || vb === undefined) return -1;
-      if (typeof va === "string" && typeof vb === "string") {
+      if (typeof va === "string" && typeof vb === "string")
         return sortDir === "asc" ? va.localeCompare(vb, "pt") : vb.localeCompare(va, "pt");
-      }
-      const na = Number(va);
-      const nb = Number(vb);
-      return sortDir === "asc" ? na - nb : nb - na;
+      return sortDir === "asc" ? Number(va) - Number(vb) : Number(vb) - Number(va);
     });
-  }, [linhas, tableSearch, filterFarmaciaTabela, filterRuturas, filterStockBaixo, sortCol, sortDir]);
+  }, [linhas, tableSearch, filterFarmaciaTabela, filterEstado, filterRuturas, filterStockBaixo, sortCol, sortDir]);
 
-  // ─── Prefill a partir do dashboard ───────────────────────────────────────────
+  // Vista consolidada (agrupada por produto)
+  const consolidadoRows = useMemo(() => {
+    if (mode !== "consolidacao") return [];
+    const byProduct = new Map<
+      string,
+      {
+        produtoId: string; cnp: number; designacao: string; fabricante: string | null;
+        totalFinalQty: number;
+        estadoPriority: ProposalEstado;
+        farmaciaLinhas: Line[];
+      }
+    >();
+    const priority: Record<ProposalEstado, number> = {
+      COMPRAR: 4, TRANSFERÊNCIA: 3, AGUARDAR: 2, ADEQUADO: 1,
+    };
+    for (const l of linhas) {
+      const k = l.produtoId;
+      if (!byProduct.has(k)) {
+        byProduct.set(k, {
+          produtoId: l.produtoId, cnp: l.cnp, designacao: l.designacao,
+          fabricante: l.fabricante, totalFinalQty: 0,
+          estadoPriority: l.estado ?? "ADEQUADO", farmaciaLinhas: [],
+        });
+      }
+      const g = byProduct.get(k)!;
+      g.totalFinalQty += Number(l.finalQty || "0") || 0;
+      g.farmaciaLinhas.push(l);
+      const ep = l.estado ? priority[l.estado] : 0;
+      const gp = priority[g.estadoPriority];
+      if (ep > gp) g.estadoPriority = l.estado ?? g.estadoPriority;
+    }
+    return [...byProduct.values()].sort(
+      (a, b) =>
+        (priority[b.estadoPriority] ?? 0) - (priority[a.estadoPriority] ?? 0) ||
+        b.totalFinalQty - a.totalFinalQty
+    );
+  }, [linhas, mode]);
+
+  // ─── Prefill ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (searchParams.get("prefill") !== "1") return;
     if (typeof window === "undefined") return;
@@ -248,25 +308,17 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
     window.sessionStorage.removeItem(PREFILL_KEY);
 
     let stash: PrefillStash;
-    try {
-      stash = JSON.parse(raw) as PrefillStash;
-    } catch {
-      return;
-    }
+    try { stash = JSON.parse(raw) as PrefillStash; } catch { return; }
     if (!Array.isArray(stash.lines) || stash.lines.length === 0) return;
 
     let resolvedFarmaciaId = "";
-    if (stash.farmaciaId && farmacias.some((f) => f.id === stash.farmaciaId)) {
+    if (stash.farmaciaId && farmaciasVisiveis.some((f) => f.id === stash.farmaciaId))
       resolvedFarmaciaId = stash.farmaciaId;
-    } else if (stash.farmaciaNome) {
-      resolvedFarmaciaId =
-        farmacias.find((f) => f.nome === stash.farmaciaNome)?.id ?? "";
-    }
+    else if (stash.farmaciaNome)
+      resolvedFarmaciaId = farmaciasVisiveis.find((f) => f.nome === stash.farmaciaNome)?.id ?? "";
+
     if (!resolvedFarmaciaId) {
-      setFlash({
-        type: "err",
-        msg: "Farmácia da sugestão não encontrada — escolha uma farmácia e gere a proposta manualmente.",
-      });
+      setFlash({ type: "err", msg: "Farmácia da sugestão não encontrada." });
       return;
     }
     setFarmaciaId(resolvedFarmaciaId);
@@ -274,210 +326,157 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
     const cnps: number[] = [];
     const qtyByCnp = new Map<number, number>();
     for (const l of stash.lines) {
-      const cnp = typeof l.cnp === "number" ? l.cnp : Number(l.cnp);
+      const cnp = Number(l.cnp);
       if (!Number.isFinite(cnp) || cnp <= 0) continue;
       cnps.push(cnp);
-      const q = typeof l.quantidade === "number" ? l.quantidade : Number(l.quantidade);
+      const q = Number(l.quantidade);
       if (Number.isFinite(q) && q > 0) qtyByCnp.set(cnp, q);
     }
     if (cnps.length === 0) return;
 
     startGenerate(async () => {
-      const products = await resolveProductsByCnpAction({
-        cnps,
-        farmaciaId: resolvedFarmaciaId,
-      });
-      setLinhas(
-        products.map((p) => buildPrefillLine(p, qtyByCnp.get(p.cnp) ?? null, resolvedFarmaciaId))
-      );
+      const products = await resolveProductsByCnpAction({ cnps, farmaciaId: resolvedFarmaciaId });
+      const farmNome = farmaciasVisiveis.find((f) => f.id === resolvedFarmaciaId)?.nome ?? null;
+      setLinhas(products.map((p) => buildPrefillLine(p, qtyByCnp.get(p.cnp) ?? null, resolvedFarmaciaId, farmNome)));
       setHasProposal(true);
       const missing = cnps.length - products.length;
       setFlash({
         type: "info",
-        msg:
-          missing > 0
-            ? `${products.length} de ${cnps.length} produtos pré-preenchidos. ${missing} CNP não encontrados no catálogo.`
-            : `${products.length} produtos pré-preenchidos a partir da sugestão.`,
+        msg: missing > 0
+          ? `${products.length} de ${cnps.length} produtos pré-preenchidos. ${missing} CNP não encontrados.`
+          : `${products.length} produtos pré-preenchidos.`,
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function buildPrefillLine(p: ProductSearchResult, qty: number | null, lineFarmaciaId: string): Line {
+  // ─── Builders de linha ────────────────────────────────────────────────────
+
+  function buildPrefillLine(
+    p: ProductSearchResult,
+    qty: number | null,
+    lineFarmaciaId: string,
+    lineFarmaciaNome: string | null
+  ): Line {
     return {
-      key: nextKey(),
-      produtoId: p.id,
-      cnp: p.cnp,
-      designacao: p.designacao,
-      fabricante: p.fabricante,
-      fornecedor: null,
-      farmaciaNome: null,
-      farmaciaId: lineFarmaciaId,
-      salesQty: null,
-      avgDailySales: null,
-      currentStock: p.stockAtual,
-      pendingQty: null,
-      suggestedQty: qty,
-      finalQty: qty != null ? String(qty) : "",
-      notas: "",
-      source: "prefill",
+      key: nextKey(), produtoId: p.id, cnp: p.cnp, designacao: p.designacao,
+      fabricante: p.fabricante, fornecedor: null,
+      farmaciaNome: lineFarmaciaNome, farmaciaId: lineFarmaciaId,
+      salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
+      coberturaAtualDias: null, pendingQty: null, suggestedQty: qty,
+      transferirQty: 0, finalQty: qty != null ? String(qty) : "", notas: "",
+      source: "prefill", estado: null, motivo: null, excessoFonte: [],
     };
   }
 
-  function buildProposalLine(
-    r: ProposalRow,
-    farmaciaNome?: string | null,
-    lineFarmaciaId?: string | null
-  ): Line {
+  function buildProposalLine(r: ProposalRow): Line {
     return {
-      key: nextKey(),
-      produtoId: r.produtoId,
-      cnp: r.cnp,
-      designacao: r.designacao,
-      fabricante: r.fabricante,
-      fornecedor: r.fornecedor,
-      farmaciaNome: farmaciaNome ?? null,
-      farmaciaId: lineFarmaciaId ?? null,
-      salesQty: r.salesQty,
-      avgDailySales: r.avgDailySales,
-      currentStock: r.currentStock,
-      pendingQty: r.pendingQty,
-      suggestedQty: r.suggestedQty,
-      finalQty: String(r.suggestedQty),
-      notas: "",
-      source: "proposal",
+      key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
+      fabricante: r.fabricante, fornecedor: r.fornecedor,
+      farmaciaNome: r.farmaciaNome, farmaciaId: r.farmaciaId,
+      salesQty: r.salesQty, avgDailySales: r.avgDailySales,
+      currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
+      pendingQty: r.pendingQty, suggestedQty: r.suggestedQty,
+      transferirQty: r.transferirQty,
+      finalQty: r.estado === "TRANSFERÊNCIA" ? "0" : String(r.suggestedQty),
+      notas: "", source: "proposal",
+      estado: r.estado, motivo: r.motivo, excessoFonte: r.excessoFonte,
     };
   }
 
   function buildManualLine(p: ProductSearchResult): Line {
     return {
-      key: nextKey(),
-      produtoId: p.id,
-      cnp: p.cnp,
-      designacao: p.designacao,
-      fabricante: p.fabricante,
-      fornecedor: null,
-      farmaciaNome: null,
-      farmaciaId: isTodasMode ? null : farmaciaId,
-      salesQty: null,
-      avgDailySales: null,
-      currentStock: p.stockAtual,
-      pendingQty: null,
-      suggestedQty: null,
-      finalQty: "1",
-      notas: "",
-      source: "manual",
+      key: nextKey(), produtoId: p.id, cnp: p.cnp, designacao: p.designacao,
+      fabricante: p.fabricante, fornecedor: null,
+      farmaciaNome: isGroupMode ? null : (farmaciasVisiveis.find((f) => f.id === farmaciaId)?.nome ?? null),
+      farmaciaId: isGroupMode ? null : farmaciaId,
+      salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
+      coberturaAtualDias: null, pendingQty: null, suggestedQty: null,
+      transferirQty: 0, finalQty: "1", notas: "",
+      source: "manual", estado: null, motivo: null, excessoFonte: [],
     };
   }
 
-  // ─── Acções ──────────────────────────────────────────────────────────────────
+  // ─── Acções ───────────────────────────────────────────────────────────────
+
+  function handleModeChange(next: ProposalMode) {
+    if (next === mode) return;
+    if (linhas.length > 0 && !window.confirm("Mudar de modo limpa as linhas actuais. Continuar?"))
+      return;
+    setLinhas([]);
+    setHasProposal(false);
+    setProposalMeta(null);
+    setFilterEstado(null);
+    setMode(next);
+  }
+
+  function handleFarmaciaChange(nextId: string) {
+    if (nextId === farmaciaId) return;
+    if (linhas.length > 0 && !window.confirm("Mudar de farmácia limpa as linhas actuais. Continuar?")) return;
+    setLinhas([]);
+    setHasProposal(false);
+    setProposalMeta(null);
+    setFarmaciaId(nextId);
+  }
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("desc"); }
+  }
 
   function handleGenerate() {
     setFlash(null);
-    if (!farmaciaId) {
+    if (mode === "farmacia" && !farmaciaId) {
       setFlash({ type: "err", msg: "Seleccione uma farmácia." });
       return;
     }
-    if (linhas.length > 0) {
-      const ok = window.confirm(
-        "Gerar uma nova proposta substitui as linhas actuais. Continuar?"
-      );
-      if (!ok) return;
-    }
+    if (linhas.length > 0 && !window.confirm("Gerar nova proposta substitui as linhas actuais. Continuar?"))
+      return;
 
     const commonInput = {
-      startDate,
-      endDate,
-      considerStock,
-      baseRule,
+      mode,
+      farmaciaId: mode === "farmacia" ? farmaciaId : undefined,
+      startDate, endDate, considerStock, baseRule,
       targetCoverageDays: coverageDays,
       filters: {
-        fabricantes: selFabricantes,
-        fornecedores: selFornecedores,
-        categorias: selCategorias,
-        productTypes: selProductTypes,
+        fabricantes: selFabricantes, fornecedores: selFornecedores,
+        categorias: selCategorias, productTypes: selProductTypes,
       },
     };
 
-    if (farmaciaId === TODAS_ID) {
-      startGenerate(async () => {
-        const results = await Promise.all(
-          farmacias.map((f) =>
-            generateProposalAction({ farmaciaId: f.id, ...commonInput }).then(
-              (r) => ({ r, farmacia: f })
-            )
-          )
-        );
+    startGenerate(async () => {
+      const result = await generateProposalAction(commonInput);
+      if (!result.ok) { setFlash({ type: "err", msg: result.error }); return; }
 
-        let numDays = 0;
-        let totalAnalyzed = 0;
-        const allLines: Line[] = [];
-        const errors: string[] = [];
+      const lines = result.data.rows
+        .filter((r) => r.estado !== "ADEQUADO" || !considerStock)
+        .map(buildProposalLine);
 
-        for (const { r, farmacia } of results) {
-          if (!r.ok) {
-            errors.push(`${farmacia.nome}: ${r.error}`);
-            continue;
-          }
-          numDays = r.data.meta.numDays;
-          totalAnalyzed += r.data.rows.length;
-          const farmLines = r.data.rows
-            .filter((row) => row.suggestedQty > 0 || !considerStock)
-            .map((row) => buildProposalLine(row, farmacia.nome, farmacia.id));
-          allLines.push(...farmLines);
-        }
+      setLinhas(lines);
+      setHasProposal(true);
+      setProposalMeta({ numDays: result.data.meta.numDays, stats: result.data.meta.stats });
+      setFilterEstado(null);
+      setFilterFarmaciaTabela("");
 
-        setLinhas(allLines);
-        setHasProposal(true);
-        setProposalMeta({ numDays, filtered: allLines.length });
-        setFilterFarmaciaTabela("");
-
-        if (errors.length > 0) {
-          setFlash({
-            type: "err",
-            msg: `Erros em ${errors.length} farmácia(s): ${errors.join("; ")}`,
-          });
-        } else {
-          setFlash({
-            type: "info",
-            msg: `${allLines.length} linhas · ${farmacias.length} farmácias · ${totalAnalyzed} produtos analisados · ${numDays} dias`,
-          });
-        }
+      const { stats } = result.data.meta;
+      const parts: string[] = [];
+      if (stats.comprar > 0) parts.push(`${stats.comprar} a comprar`);
+      if (stats.transferencia > 0) parts.push(`${stats.transferencia} transferências`);
+      if (stats.aguardar > 0) parts.push(`${stats.aguardar} aguardar`);
+      setFlash({
+        type: "info",
+        msg: `${lines.length} linhas · ${result.data.meta.numDays} dias${parts.length ? " · " + parts.join(" · ") : ""}`,
       });
-    } else {
-      startGenerate(async () => {
-        const result = await generateProposalAction({ farmaciaId, ...commonInput });
-        if (!result.ok) {
-          setFlash({ type: "err", msg: result.error });
-          return;
-        }
-        const lines = result.data.rows
-          .filter((r) => r.suggestedQty > 0 || !considerStock)
-          .map((r) => buildProposalLine(r));
-        setLinhas(lines);
-        setHasProposal(true);
-        setProposalMeta({
-          numDays: result.data.meta.numDays,
-          filtered: result.data.rows.length,
-        });
-        setFlash({
-          type: "info",
-          msg: `${lines.length} linhas propostas (${result.data.rows.length} produtos analisados em ${result.data.meta.numDays} dias).`,
-        });
-      });
-    }
+    });
   }
 
   function handlePickManual(p: ProductSearchResult) {
     setLinhas((prev) => {
       const existing = prev.findIndex((l) => l.produtoId === p.id);
-      if (existing >= 0) {
-        return prev.map((l, i) => {
-          if (i !== existing) return l;
-          const cur = Number(l.finalQty || "0") || 0;
-          return { ...l, finalQty: String(cur + 1) };
-        });
-      }
+      if (existing >= 0)
+        return prev.map((l, i) =>
+          i !== existing ? l : { ...l, finalQty: String((Number(l.finalQty || "0") || 0) + 1) }
+        );
       return [...prev, buildManualLine(p)];
     });
   }
@@ -490,76 +489,28 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
     setLinhas((prev) => prev.filter((l) => l.key !== key));
   }
 
-  function handleFarmaciaChange(nextId: string) {
-    if (nextId === farmaciaId) return;
-    if (linhas.length > 0) {
-      const ok = window.confirm(
-        "Mudar de farmácia limpa as linhas actuais (stock e vendas são por farmácia). Continuar?"
-      );
-      if (!ok) return;
-      setLinhas([]);
-      setHasProposal(false);
-      setProposalMeta(null);
-    }
-    setFarmaciaId(nextId);
-    setFilterFarmaciaTabela("");
-  }
+  function handleCriarTransferencia(l: Line) {
+    if (!l.farmaciaId || l.excessoFonte.length === 0) return;
+    const fonte = l.excessoFonte[0];
+    const quantidade = l.transferirQty > 0 ? l.transferirQty : (l.suggestedQty ?? 0);
+    if (quantidade <= 0) return;
 
-  function handleSort(col: SortCol) {
-    if (sortCol === col) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortCol(col);
-      setSortDir("desc");
-    }
-  }
-
-  function submit(finalize: boolean) {
-    setFlash(null);
-    if (isTodasMode) {
-      setFlash({
-        type: "err",
-        msg: "Modo «Todas as farmácias» — seleccione uma farmácia específica para guardar a encomenda.",
-      });
-      return;
-    }
-    const validLines = linhas.filter((l) => {
-      const q = Number(l.finalQty || "0");
-      return Number.isFinite(q) && q > 0;
-    });
-    if (validLines.length === 0) {
-      setFlash({
-        type: "err",
-        msg: "Sem linhas com quantidade > 0. Edite as quantidades ou remova linhas vazias.",
-      });
-      return;
-    }
-
-    const input: CreateOrderFormInput = {
-      farmaciaId,
-      nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
-      finalize,
-      linhas: validLines.map((l) => ({
+    startTransfer(async () => {
+      const result = await createInternalTransferAction({
+        destinoFarmaciaId: l.farmaciaId!,
+        sourceFarmaciaNome: fonte.farmaciaNome,
         produtoId: l.produtoId,
-        quantidadeSugerida: l.suggestedQty != null ? l.suggestedQty : null,
-        quantidadeAjustada: Number(l.finalQty),
-        notas: l.notas.trim() || null,
-      })),
-    };
-
-    startTransition(async () => {
-      const result = await createOrderAction(input);
+        cnp: String(l.cnp),
+        designacao: l.designacao,
+        quantidade,
+        kind: "same-cnp",
+        motivo: l.motivo ?? "Proposta de encomenda — excedente disponível no grupo",
+      });
       if (result.ok) {
         setFlash({
           type: "ok",
-          msg: finalize
-            ? "Encomenda criada e finalizada. A abrir o detalhe…"
-            : "Rascunho guardado. A abrir o detalhe…",
+          msg: `Transferência criada (rascunho) para ${l.designacao}. A abrir…`,
         });
-        setNome("");
-        setLinhas([]);
-        setHasProposal(false);
-        setProposalMeta(null);
         setTimeout(() => router.push(`/encomendas/${result.listaEncomendaId}`), 800);
       } else {
         setFlash({ type: "err", msg: result.error });
@@ -567,106 +518,195 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
     });
   }
 
-  const totalFinalVisible = visibleLinhas.reduce(
-    (s, l) => s + (Number(l.finalQty || "0") || 0),
-    0
-  );
-  const totalFinalAll = linhas.reduce(
-    (s, l) => s + (Number(l.finalQty || "0") || 0),
-    0
-  );
-  const hasTableFilters =
-    !!tableSearch || filterRuturas || filterStockBaixo || !!filterFarmaciaTabela;
+  function submit(finalize: boolean) {
+    setFlash(null);
+    const validLines = linhas.filter((l) => {
+      const q = Number(l.finalQty || "0");
+      return Number.isFinite(q) && q > 0;
+    });
+    if (validLines.length === 0) {
+      setFlash({ type: "err", msg: "Sem linhas com quantidade > 0." });
+      return;
+    }
+
+    if (mode === "consolidacao") {
+      // Cria uma ListaEncomenda por farmácia
+      const byFarmacia = new Map<string, Line[]>();
+      for (const l of validLines) {
+        const fId = l.farmaciaId ?? "";
+        if (!fId) continue;
+        if (!byFarmacia.has(fId)) byFarmacia.set(fId, []);
+        byFarmacia.get(fId)!.push(l);
+      }
+      if (byFarmacia.size === 0) {
+        setFlash({ type: "err", msg: "Sem farmácias identificadas nas linhas." });
+        return;
+      }
+
+      startTransition(async () => {
+        const results = await Promise.all(
+          [...byFarmacia.entries()].map(([fId, fLinhas]) =>
+            createOrderAction({
+              farmaciaId: fId,
+              nome: (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180),
+              finalize,
+              linhas: fLinhas.map((l) => ({
+                produtoId: l.produtoId,
+                quantidadeSugerida: l.suggestedQty ?? null,
+                quantidadeAjustada: Number(l.finalQty),
+                notas: l.notas.trim() || null,
+              })),
+            })
+          )
+        );
+        const errors = results.filter((r) => !r.ok);
+        if (errors.length > 0) {
+          setFlash({ type: "err", msg: `${errors.length} encomenda(s) falharam.` });
+        } else {
+          setFlash({ type: "ok", msg: `${byFarmacia.size} encomenda(s) criadas.` });
+          setLinhas([]);
+          setHasProposal(false);
+          setProposalMeta(null);
+          setTimeout(() => router.push("/encomendas"), 800);
+        }
+      });
+    } else {
+      const input: CreateOrderFormInput = {
+        farmaciaId,
+        nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
+        finalize,
+        linhas: validLines.map((l) => ({
+          produtoId: l.produtoId,
+          quantidadeSugerida: l.suggestedQty ?? null,
+          quantidadeAjustada: Number(l.finalQty),
+          notas: l.notas.trim() || null,
+        })),
+      };
+      startTransition(async () => {
+        const result = await createOrderAction(input);
+        if (result.ok) {
+          setFlash({ type: "ok", msg: finalize ? "Encomenda finalizada." : "Rascunho guardado." });
+          setNome(""); setLinhas([]); setHasProposal(false); setProposalMeta(null);
+          setTimeout(() => router.push(`/encomendas/${result.listaEncomendaId}`), 800);
+        } else {
+          setFlash({ type: "err", msg: result.error });
+        }
+      });
+    }
+  }
+
+  // ─── Cálculos derivados ───────────────────────────────────────────────────
+
+  const totalFinalVisible = visibleLinhas.reduce((s, l) => s + (Number(l.finalQty || "0") || 0), 0);
+  const totalFinalAll = linhas.reduce((s, l) => s + (Number(l.finalQty || "0") || 0), 0);
+  const hasTableFilters = !!tableSearch || !!filterEstado || filterRuturas || filterStockBaixo || !!filterFarmaciaTabela;
 
   const filtersCount =
-    selFabricantes.length +
-    selFornecedores.length +
-    selCategorias.length +
-    selProductTypes.length;
+    selFabricantes.length + selFornecedores.length + selCategorias.length + selProductTypes.length;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-      {/*
-       * Aviso permanente de posicionamento: assistente operacional, não motor
-       * de decisão automática.
-       */}
+      {/* Aviso posicionamento */}
       <div
         role="note"
-        aria-label="Aviso sobre as sugestões de encomenda"
         className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-snug text-amber-900"
       >
         <span className="font-semibold">Assistente operacional.</span>{" "}
-        As quantidades sugeridas baseiam-se em cobertura e rotação reais.
-        Não contemplam descontos, MOQ, campanhas nem prazos do fornecedor —
-        valide condições comerciais antes de finalizar a encomenda.
+        As sugestões baseiam-se em vendas reais. Não contemplam descontos, MOQ, campanhas
+        nem prazos — valide condições comerciais antes de finalizar.
       </div>
 
       {flash && (
         <div
           className={`rounded-xl border px-4 py-3 text-[13px] ${
-            flash.type === "ok"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : flash.type === "info"
-                ? "border-cyan-200 bg-cyan-50 text-cyan-800"
-                : "border-rose-200 bg-rose-50 text-rose-800"
+            flash.type === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : flash.type === "info" ? "border-cyan-200 bg-cyan-50 text-cyan-800"
+            : "border-rose-200 bg-rose-50 text-rose-800"
           }`}
         >
           {flash.msg}
         </div>
       )}
 
+      {/* MODO */}
+      {canGroupMode && (
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
+          {(["farmacia", "grupo", "consolidacao"] as ProposalMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => handleModeChange(m)}
+              disabled={generating || busy}
+              className={`flex-1 rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
+                mode === m
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              }`}
+            >
+              {m === "farmacia" ? "Farmácia" : m === "grupo" ? "Grupo" : "Consolidação"}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* CRITÉRIOS */}
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-4 py-3">
-          <h2 className="text-[14px] font-semibold text-slate-900">Critérios de geração</h2>
+          <h2 className="text-[14px] font-semibold text-slate-900">Critérios</h2>
           <p className="mt-0.5 text-[12px] text-slate-500">
-            Define a janela de vendas e a regra de cálculo. A proposta é gerada a
-            partir de vendas reais (VendaMensal). Produtos retirados são excluídos automaticamente.
+            {mode === "farmacia"
+              ? "Proposta para uma farmácia. Produtos retirados são excluídos automaticamente."
+              : mode === "grupo"
+                ? "Necessidades de todas as farmácias do grupo. Sugere transferências antes de compra."
+                : "Vista consolidada por produto para negociação de volume. Cria uma encomenda por farmácia."}
           </p>
         </div>
 
         <div className="grid gap-4 px-4 py-4 md:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              Farmácia
-            </label>
-            <select
-              value={farmaciaId}
-              onChange={(e) => handleFarmaciaChange(e.target.value)}
-              disabled={busy || generating}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
-            >
-              <option value={TODAS_ID}>— Todas as farmácias —</option>
-              {farmacias.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-          </div>
+          {mode === "farmacia" && (
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                Farmácia
+              </label>
+              <select
+                value={farmaciaId}
+                onChange={(e) => handleFarmaciaChange(e.target.value)}
+                disabled={busy || generating}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
+              >
+                {farmaciasVisiveis.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isGroupMode && (
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                Farmácias
+              </label>
+              <div className="flex h-[42px] items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[13px] text-slate-600">
+                Todas as farmácias activas ({farmacias.length})
+              </div>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Data início
             </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
               disabled={busy || generating}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
-            />
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Data fim
             </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
               disabled={busy || generating}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
-            />
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
           </div>
 
           <div className="md:col-span-2">
@@ -674,31 +714,14 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
               Regra de cálculo
             </label>
             <div className="flex flex-wrap gap-3">
-              <label className="inline-flex items-center gap-2 text-[13px] text-slate-700">
-                <input
-                  type="radio"
-                  name="baseRule"
-                  checked={baseRule === "coverage"}
-                  onChange={() => setBaseRule("coverage")}
-                  disabled={busy || generating}
-                />
-                Média diária × cobertura
-              </label>
-              <label className="inline-flex items-center gap-2 text-[13px] text-slate-700">
-                <input
-                  type="radio"
-                  name="baseRule"
-                  checked={baseRule === "total"}
-                  onChange={() => setBaseRule("total")}
-                  disabled={busy || generating || considerStock}
-                  title={
-                    considerStock
-                      ? "Quando «considerar stock» está activo, a regra é fixa em média × cobertura"
-                      : undefined
-                  }
-                />
-                Total de vendas no período
-              </label>
+              {(["coverage", "total"] as ProposalBaseRule[]).map((r) => (
+                <label key={r} className="inline-flex items-center gap-2 text-[13px] text-slate-700">
+                  <input type="radio" name="baseRule" checked={baseRule === r}
+                    onChange={() => setBaseRule(r)}
+                    disabled={busy || generating || (r === "total" && considerStock)} />
+                  {r === "coverage" ? "Média diária × cobertura" : "Total de vendas no período"}
+                </label>
+              ))}
             </div>
           </div>
 
@@ -706,40 +729,23 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
               Cobertura alvo (dias)
             </label>
-            <input
-              type="number"
-              min="1"
-              value={coverageDays}
+            <input type="number" min="1" value={coverageDays}
               onChange={(e) => setCoverageDays(Math.max(1, Number(e.target.value) || 1))}
               disabled={busy || generating || (baseRule === "total" && !considerStock)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
-            />
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
           </div>
         </div>
 
         <div className="grid gap-3 border-t border-slate-100 px-4 py-3 md:grid-cols-[auto_1fr_auto] md:items-center">
           <label className="inline-flex items-center gap-2 text-[13px] text-slate-700">
-            <input
-              type="checkbox"
-              checked={considerStock}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setConsiderStock(next);
-                if (next) setBaseRule("coverage");
-              }}
-              disabled={busy || generating}
-            />
+            <input type="checkbox" checked={considerStock}
+              onChange={(e) => { setConsiderStock(e.target.checked); if (e.target.checked) setBaseRule("coverage"); }}
+              disabled={busy || generating} />
             Considerar stock e pendentes
           </label>
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((v) => !v)}
-            disabled={busy || generating}
-            className="inline-flex items-center justify-self-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition ${filtersOpen ? "rotate-180" : ""}`}
-            />
+          <button type="button" onClick={() => setFiltersOpen((v) => !v)} disabled={busy || generating}
+            className="inline-flex items-center justify-self-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <ChevronDown className={`h-3.5 w-3.5 transition ${filtersOpen ? "rotate-180" : ""}`} />
             Filtros
             {filtersCount > 0 && (
               <span className="ml-1 rounded-full bg-cyan-50 px-2 text-[11px] font-semibold text-cyan-700">
@@ -747,367 +753,313 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={busy || generating || !farmaciaId}
-            className="inline-flex items-center gap-2 rounded-xl border border-emerald-500 bg-emerald-600 px-5 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button type="button" onClick={handleGenerate}
+            disabled={busy || generating || (mode === "farmacia" && !farmaciaId)}
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-500 bg-emerald-600 px-5 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
             {generating ? "A gerar…" : hasProposal ? "Gerar nova proposta" : "Gerar proposta"}
           </button>
         </div>
 
         {filtersOpen && (
           <div className="grid gap-4 border-t border-slate-100 px-4 py-4 md:grid-cols-2 lg:grid-cols-4">
-            <FilterMulti
-              label="Fabricantes"
-              options={filterOptions.fabricantes}
-              selected={selFabricantes}
-              onChange={setSelFabricantes}
-              disabled={busy || generating}
-            />
-            <FilterMulti
-              label="Distribuidores"
-              options={filterOptions.distribuidores}
-              selected={selFornecedores}
-              onChange={setSelFornecedores}
-              disabled={busy || generating}
-            />
-            <FilterMulti
-              label="Categorias"
-              options={filterOptions.categorias}
-              selected={selCategorias}
-              onChange={setSelCategorias}
-              disabled={busy || generating}
-            />
-            <FilterMulti
-              label="Tipos de produto"
-              options={productTypes}
-              selected={selProductTypes}
-              onChange={setSelProductTypes}
-              disabled={busy || generating}
-            />
+            <FilterMulti label="Fabricantes" options={filterOptions.fabricantes} selected={selFabricantes} onChange={setSelFabricantes} disabled={busy || generating} />
+            <FilterMulti label="Distribuidores" options={filterOptions.distribuidores} selected={selFornecedores} onChange={setSelFornecedores} disabled={busy || generating} />
+            <FilterMulti label="Categorias" options={filterOptions.categorias} selected={selCategorias} onChange={setSelCategorias} disabled={busy || generating} />
+            <FilterMulti label="Tipos" options={productTypes} selected={selProductTypes} onChange={setSelProductTypes} disabled={busy || generating} />
           </div>
         )}
       </section>
+
+      {/* PAINEL DE RESUMO */}
+      {proposalMeta && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {(
+            [
+              { estado: "COMPRAR" as ProposalEstado, count: proposalMeta.stats.comprar, label: "A comprar", bg: "bg-rose-50 border-rose-200", text: "text-rose-700", dot: "bg-rose-500" },
+              { estado: "TRANSFERÊNCIA" as ProposalEstado, count: proposalMeta.stats.transferencia, label: "Transferência", bg: "bg-blue-50 border-blue-200", text: "text-blue-700", dot: "bg-blue-500" },
+              { estado: "AGUARDAR" as ProposalEstado, count: proposalMeta.stats.aguardar, label: "Aguardar", bg: "bg-amber-50 border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
+              { estado: "ADEQUADO" as ProposalEstado, count: proposalMeta.stats.adequado, label: "Adequado", bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+            ] as const
+          ).map(({ estado, count, label, bg, text, dot }) => (
+            <button
+              key={estado}
+              type="button"
+              onClick={() => setFilterEstado(filterEstado === estado ? null : estado)}
+              className={`rounded-xl border px-4 py-3 text-left transition-all ${bg} ${
+                filterEstado === estado ? "ring-2 ring-offset-1 ring-slate-400" : "hover:opacity-80"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${dot}`} />
+                <span className={`text-[11px] font-medium uppercase tracking-wider ${text}`}>{label}</span>
+              </div>
+              <div className={`mt-1 text-2xl font-bold ${text}`}>{count}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* PROPOSTA */}
-      <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <div>
-            <h2 className="text-[14px] font-semibold text-slate-900">Proposta</h2>
+      {mode !== "consolidacao" && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div>
+              <h2 className="text-[14px] font-semibold text-slate-900">Proposta</h2>
+              <p className="mt-0.5 text-[12px] text-slate-500">
+                {linhas.length === 0
+                  ? hasProposal ? "Sem linhas accionáveis."
+                    : "Defina os critérios e clique em Gerar proposta."
+                  : hasTableFilters
+                    ? `${visibleLinhas.length} de ${linhas.length} linhas · total visível: ${totalFinalVisible} · total geral: ${totalFinalAll}${proposalMeta ? ` · ${proposalMeta.numDays}d` : ""}`
+                    : `${linhas.length} linha${linhas.length === 1 ? "" : "s"} · total: ${totalFinalAll}${proposalMeta ? ` · ${proposalMeta.numDays}d` : ""}`}
+              </p>
+            </div>
+          </div>
+
+          {linhas.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+              <input type="text" value={tableSearch} onChange={(e) => setTableSearch(e.target.value)}
+                placeholder="Pesquisar produto, CNP, fabricante…"
+                className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none" />
+              {isGroupMode && farmaciaOptions.length > 0 && (
+                <select value={filterFarmaciaTabela} onChange={(e) => setFilterFarmaciaTabela(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none">
+                  <option value="">Todas as farmácias</option>
+                  {farmaciaOptions.map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
+                </select>
+              )}
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
+                <input type="checkbox" checked={filterRuturas} onChange={(e) => { setFilterRuturas(e.target.checked); if (e.target.checked) setFilterStockBaixo(false); }} className="rounded" />
+                Ruturas
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
+                <input type="checkbox" checked={filterStockBaixo} onChange={(e) => { setFilterStockBaixo(e.target.checked); if (e.target.checked) setFilterRuturas(false); }} className="rounded" />
+                Stock baixo
+              </label>
+              {filterEstado && (
+                <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${estadoColors(filterEstado)}`}>
+                  {estadoLabel(filterEstado)} ×
+                </span>
+              )}
+              {hasTableFilters && (
+                <button type="button"
+                  onClick={() => { setTableSearch(""); setFilterEstado(null); setFilterRuturas(false); setFilterStockBaixo(false); setFilterFarmaciaTabela(""); }}
+                  className="ml-auto text-[11px] text-slate-500 hover:text-slate-700">
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+          )}
+
+          {linhas.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[12px] text-slate-400">
+              {generating ? "A calcular proposta…" : "Sem linhas."}
+            </div>
+          ) : visibleLinhas.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[12px] text-slate-400">
+              Nenhuma linha corresponde aos filtros activos.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left">
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
+                    <SortableHeader col="designacao" label="Produto" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                    {isGroupMode && <SortableHeader col="farmaciaNome" label="Farmácia" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
+                    <SortableHeader col="salesQty" label="Vendas" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <SortableHeader col="avgDailySales" label="Média/d" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <SortableHeader col="currentStock" label="Stock" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <SortableHeader col="coberturaAtualDias" label="Cobert." sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <SortableHeader col="pendingQty" label="Pendente" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <SortableHeader col="suggestedQty" label="Sugerida" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400">Final</th>
+                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleLinhas.map((l) => {
+                    const isRutura = l.currentStock != null && l.currentStock <= 0;
+                    const cobBaixo = l.coberturaAtualDias != null && l.coberturaAtualDias > 0 && l.coberturaAtualDias < 7;
+                    return (
+                      <tr key={l.key} className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""}`}>
+                        <td className="px-3 py-2">
+                          {l.estado && (
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(l.estado)}`}>
+                              {estadoLabel(l.estado)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 min-w-[200px]">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-medium text-slate-900">{l.designacao}</span>
+                            {l.source === "manual" && <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-700">manual</span>}
+                            {l.source === "prefill" && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-1.5 text-[10px] text-cyan-700">sugestão</span>}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-slate-500">
+                            <span className="font-mono">CNP {l.cnp}</span>
+                            {l.fabricante && <><span className="mx-1 text-slate-300">·</span>{l.fabricante}</>}
+                          </div>
+                        </td>
+                        {isGroupMode && <td className="px-3 py-2 text-[11px] text-slate-600">{l.farmaciaNome ?? "—"}</td>}
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.salesQty)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.avgDailySales, 1)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums font-medium ${isRutura ? "text-rose-600" : "text-slate-700"}`}>
+                          {fmtNum(l.currentStock)}
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
+                          {l.coberturaAtualDias != null ? `${l.coberturaAtualDias.toFixed(1)}d` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
+                        <td className="px-3 py-2">
+                          <input type="number" min="0" value={l.finalQty}
+                            onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+                            disabled={busy}
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+                        </td>
+                        <td className="px-3 py-2 min-w-[220px]">
+                          {l.estado === "TRANSFERÊNCIA" && l.excessoFonte.length > 0 ? (
+                            <div className="space-y-1">
+                              <p className="text-[11px] text-blue-700">{l.motivo}</p>
+                              <button type="button"
+                                onClick={() => handleCriarTransferencia(l)}
+                                disabled={creatingTransfer || busy}
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+                                <ArrowLeftRight className="h-3 w-3" />
+                                Criar transferência
+                              </button>
+                            </div>
+                          ) : l.motivo ? (
+                            <p className="text-[11px] text-slate-500">{l.motivo}</p>
+                          ) : (
+                            <input type="text" value={l.notas}
+                              onChange={(e) => updateLine(l.key, { notas: e.target.value })}
+                              placeholder="notas"
+                              disabled={busy}
+                              className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
+                            className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* VISTA CONSOLIDAÇÃO */}
+      {mode === "consolidacao" && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-[14px] font-semibold text-slate-900">Vista consolidada</h2>
             <p className="mt-0.5 text-[12px] text-slate-500">
-              {linhas.length === 0
-                ? hasProposal
-                  ? "Sem linhas — todas com quantidade sugerida 0."
-                  : "Defina os critérios e clique em Gerar proposta."
-                : hasTableFilters
-                  ? `${visibleLinhas.length} de ${linhas.length} linha${linhas.length === 1 ? "" : "s"} visíveis · total visível: ${totalFinalVisible} · total geral: ${totalFinalAll}${proposalMeta ? ` · ${proposalMeta.numDays} dias` : ""}`
-                  : `${linhas.length} linha${linhas.length === 1 ? "" : "s"} · total a encomendar: ${totalFinalAll}${proposalMeta ? ` · ${proposalMeta.numDays} dias analisados` : ""}`}
+              Agrupado por produto. Ajuste as quantidades finais por farmácia antes de criar as encomendas.
+              {consolidadoRows.length > 0 && ` ${consolidadoRows.length} produtos · total: ${totalFinalAll} und`}
             </p>
           </div>
-        </div>
 
-        {/* Barra de filtros da tabela — só visível quando há linhas */}
-        {linhas.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
-            <input
-              type="text"
-              value={tableSearch}
-              onChange={(e) => setTableSearch(e.target.value)}
-              placeholder="Pesquisar produto, CNP, fabricante…"
-              className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none"
-            />
-            {isTodasMode && farmaciaOptions.length > 0 && (
-              <select
-                value={filterFarmaciaTabela}
-                onChange={(e) => setFilterFarmaciaTabela(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-cyan-400 focus:outline-none"
-              >
-                <option value="">Todas as farmácias</option>
-                {farmaciaOptions.map((f) => (
-                  <option key={f.id} value={f.nome}>
-                    {f.nome}
-                  </option>
-                ))}
-              </select>
-            )}
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
-              <input
-                type="checkbox"
-                checked={filterRuturas}
-                onChange={(e) => {
-                  setFilterRuturas(e.target.checked);
-                  if (e.target.checked) setFilterStockBaixo(false);
-                }}
-                className="rounded"
-              />
-              Apenas ruturas (stock = 0)
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
-              <input
-                type="checkbox"
-                checked={filterStockBaixo}
-                onChange={(e) => {
-                  setFilterStockBaixo(e.target.checked);
-                  if (e.target.checked) setFilterRuturas(false);
-                }}
-                className="rounded"
-              />
-              Stock baixo (tem stock, precisa encomenda)
-            </label>
-            {hasTableFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setTableSearch("");
-                  setFilterRuturas(false);
-                  setFilterStockBaixo(false);
-                  setFilterFarmaciaTabela("");
-                }}
-                className="ml-auto text-[11px] text-slate-500 hover:text-slate-700"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
-        )}
-
-        {linhas.length === 0 ? (
-          <div className="px-4 py-10 text-center text-[12px] text-slate-400">
-            {generating ? "A calcular proposta…" : "Sem linhas."}
-          </div>
-        ) : visibleLinhas.length === 0 ? (
-          <div className="px-4 py-10 text-center text-[12px] text-slate-400">
-            Nenhuma linha corresponde aos filtros activos.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="border-b border-slate-100 text-left">
-                  <SortableHeader col="designacao" label="Produto" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                  {isTodasMode && (
-                    <SortableHeader col="farmaciaNome" label="Farmácia" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                  )}
-                  <SortableHeader col="salesQty" label="Vendas" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <SortableHeader col="avgDailySales" label="Média/dia" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <SortableHeader col="currentStock" label="Stock" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <SortableHeader col="coberturaAtual" label="Cobert. (d)" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <SortableHeader col="pendingQty" label="Pendente" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <SortableHeader col="suggestedQty" label="Sugerida" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400">Final</th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {visibleLinhas.map((l) => {
-                  const coberturaAtual =
-                    l.currentStock != null && l.avgDailySales != null && l.avgDailySales > 0
-                      ? l.currentStock / l.avgDailySales
-                      : null;
-                  const isRutura = l.currentStock != null && l.currentStock <= 0;
-                  const isStockBaixo = !isRutura && coberturaAtual != null && coberturaAtual < 7;
-                  return (
-                    <tr
-                      key={l.key}
-                      className={`border-b border-slate-50 ${
-                        isRutura ? "bg-rose-50/40" : isStockBaixo ? "bg-amber-50/30" : ""
-                      }`}
-                    >
-                      <td className="px-3 py-2">
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-medium text-slate-900">{l.designacao}</span>
-                          {isRutura && (
-                            <span className="rounded-full border border-rose-200 bg-rose-50 px-1.5 text-[10px] font-semibold text-rose-700">
-                              rutura
-                            </span>
-                          )}
-                          {l.source === "manual" && (
-                            <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-700">
-                              manual
-                            </span>
-                          )}
-                          {l.source === "prefill" && (
-                            <span className="rounded-full border border-cyan-200 bg-cyan-50 px-1.5 text-[10px] font-medium text-cyan-700">
-                              sugestão
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                          <span className="font-mono">CNP {l.cnp}</span>
-                          {l.fabricante && (
-                            <>
-                              <span className="text-slate-300">·</span>
-                              <span>{l.fabricante}</span>
-                            </>
-                          )}
-                          {l.fornecedor && (
-                            <>
-                              <span className="text-slate-300">·</span>
-                              <span className="text-slate-400">{l.fornecedor}</span>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                      {isTodasMode && (
-                        <td className="px-3 py-2 text-[11px] text-slate-600">
-                          {l.farmaciaNome ?? "—"}
-                        </td>
-                      )}
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-700">
-                        {fmtNum(l.salesQty)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-700">
-                        {fmtNum(l.avgDailySales, 1)}
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-right tabular-nums font-medium ${
-                          isRutura ? "text-rose-600" : "text-slate-700"
-                        }`}
-                      >
-                        {fmtNum(l.currentStock)}
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-right tabular-nums ${
-                          coberturaAtual != null && coberturaAtual < 7
-                            ? "font-medium text-amber-600"
-                            : "text-slate-500"
-                        }`}
-                      >
-                        {coberturaAtual != null ? coberturaAtual.toFixed(1) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                        {fmtNum(l.pendingQty)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">
-                        {fmtNum(l.suggestedQty)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={l.finalQty}
-                          onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
-                          disabled={busy}
-                          className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={l.notas}
-                          onChange={(e) => updateLine(l.key, { notas: e.target.value })}
-                          placeholder="opcional"
-                          disabled={busy}
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => removeLine(l.key)}
-                          disabled={busy}
-                          title="Remover linha"
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+          {consolidadoRows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[12px] text-slate-400">
+              {generating ? "A calcular…" : "Gere uma proposta para ver a vista consolidada."}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {consolidadoRows.map((g) => (
+                <div key={g.produtoId} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(g.estadoPriority)}`}>
+                          {estadoLabel(g.estadoPriority)}
+                        </span>
+                        <span className="font-medium text-slate-900">{g.designacao}</span>
+                        <span className="font-mono text-[11px] text-slate-500">CNP {g.cnp}</span>
+                        {g.fabricante && <span className="text-[11px] text-slate-500">{g.fabricante}</span>}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {g.farmaciaLinhas.map((l) => (
+                          <div key={l.key} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                            <span className="text-[11px] font-medium text-slate-700">{l.farmaciaNome ?? "—"}</span>
+                            <span className="text-[11px] text-slate-400">suger. {fmtNum(l.suggestedQty)}</span>
+                            <input type="number" min="0" value={l.finalQty}
+                              onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+                              disabled={busy}
+                              className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-right text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-[11px] text-slate-500">Total</div>
+                      <div className="text-lg font-bold text-slate-900">{g.totalFinalQty}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* PICKER MANUAL */}
-      <section className="rounded-xl border border-slate-200 bg-white">
-        <button
-          type="button"
-          onClick={() => {
-            if (!isTodasMode) setManualOpen((v) => !v);
-          }}
-          disabled={isTodasMode}
-          className={`flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left ${
-            isTodasMode ? "cursor-not-allowed opacity-40" : ""
-          }`}
-        >
-          <div>
-            <h2 className="text-[14px] font-semibold text-slate-900">
-              Adicionar produto manual
-            </h2>
-            <p className="mt-0.5 text-[12px] text-slate-500">
-              {isTodasMode
-                ? "Seleccione uma farmácia específica para adicionar produtos manualmente."
-                : "Excepção para produtos sem vendas no período ou fora dos filtros."}
-            </p>
-          </div>
-          {!isTodasMode && (
-            <Plus
-              className={`h-4 w-4 text-slate-400 transition ${manualOpen ? "rotate-45" : ""}`}
-            />
+      {mode === "farmacia" && (
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <button type="button" onClick={() => setManualOpen((v) => !v)}
+            className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-3 text-left">
+            <div>
+              <h2 className="text-[14px] font-semibold text-slate-900">Adicionar produto manual</h2>
+              <p className="mt-0.5 text-[12px] text-slate-500">Para produtos sem vendas no período ou fora dos filtros.</p>
+            </div>
+            <Plus className={`h-4 w-4 text-slate-400 transition ${manualOpen ? "rotate-45" : ""}`} />
+          </button>
+          {manualOpen && (
+            <div className="p-4">
+              <ProductPicker farmaciaId={farmaciaId} disabled={busy || generating} onPick={handlePickManual} />
+            </div>
           )}
-        </button>
-        {manualOpen && !isTodasMode && (
-          <div className="p-4">
-            <ProductPicker
-              farmaciaId={farmaciaId}
-              disabled={busy || generating}
-              onPick={handlePickManual}
-            />
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* CABEÇALHO + FINALIZAR */}
+      {/* GUARDAR / FINALIZAR */}
       <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
-        {isTodasMode ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-            <span className="font-semibold">Modo comparação.</span> Seleccione uma farmácia
-            específica para criar uma encomenda.
-            {linhas.length > 0 && (
-              <span className="ml-2 text-amber-700">
-                ({linhas.length} linhas geradas para {farmacias.length} farmácias — use o filtro acima para ver por farmácia.)
-              </span>
+        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+          <div>
+            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+              {mode === "consolidacao" ? "Prefixo do nome (aplicado a cada encomenda)" : "Nome da encomenda"}
+            </label>
+            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)}
+              placeholder={mode === "consolidacao"
+                ? `Grupo ${new Date().toLocaleDateString("pt-PT")}`
+                : `Encomenda ${new Date().toLocaleDateString("pt-PT")}`}
+              disabled={busy}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
+            {mode === "consolidacao" && linhas.length > 0 && (
+              <p className="mt-1 text-[11px] text-slate-500">
+                Vai criar {new Set(linhas.map((l) => l.farmaciaId).filter(Boolean)).size} encomenda(s) — uma por farmácia.
+              </p>
             )}
           </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                Nome da encomenda
-              </label>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder={`Encomenda ${new Date().toLocaleDateString("pt-PT")}`}
-                disabled={busy}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => submit(false)}
-              disabled={busy || linhas.length === 0}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
-            >
-              {busy ? "A guardar..." : "Guardar rascunho"}
-            </button>
-            <button
-              type="button"
-              onClick={() => submit(true)}
-              disabled={busy || linhas.length === 0}
-              className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50"
-            >
-              {busy ? "A finalizar..." : "Finalizar e enviar para fila"}
-            </button>
-          </div>
-        )}
+          <button type="button" onClick={() => submit(false)}
+            disabled={busy || linhas.length === 0}
+            className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
+            {busy ? "A guardar..." : "Guardar rascunho"}
+          </button>
+          <button type="button" onClick={() => submit(true)}
+            disabled={busy || linhas.length === 0}
+            className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
+            {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -1115,41 +1067,21 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes, late
 
 // ─── SortableHeader ───────────────────────────────────────────────────────────
 
-function SortableHeader({
-  col,
-  label,
-  sortCol,
-  sortDir,
-  onSort,
-  right = false,
-}: {
-  col: SortCol;
-  label: string;
-  sortCol: SortCol;
-  sortDir: "asc" | "desc";
-  onSort: (col: SortCol) => void;
-  right?: boolean;
+function SortableHeader({ col, label, sortCol, sortDir, onSort, right = false }: {
+  col: SortCol; label: string; sortCol: SortCol;
+  sortDir: "asc" | "desc"; onSort: (c: SortCol) => void; right?: boolean;
 }) {
   const active = sortCol === col;
   return (
     <th className={`px-3 py-2 ${right ? "text-right" : ""}`}>
-      <button
-        type="button"
-        onClick={() => onSort(col)}
+      <button type="button" onClick={() => onSort(col)}
         className={`inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
           active ? "text-cyan-600" : "text-slate-400 hover:text-slate-600"
-        }`}
-      >
+        }`}>
         {label}
         {active ? (
-          sortDir === "asc" ? (
-            <ChevronUp className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )
-        ) : (
-          <ChevronsUpDown className="h-3 w-3 opacity-40" />
-        )}
+          sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+        ) : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
       </button>
     </th>
   );
@@ -1157,59 +1089,32 @@ function SortableHeader({
 
 // ─── FilterMulti ─────────────────────────────────────────────────────────────
 
-function FilterMulti({
-  label,
-  options,
-  selected,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  disabled?: boolean;
+function FilterMulti({ label, options, selected, onChange, disabled }: {
+  label: string; options: string[]; selected: string[];
+  onChange: (next: string[]) => void; disabled?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
+    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
   }, [options, query]);
 
   function toggle(value: string) {
-    onChange(
-      selected.includes(value)
-        ? selected.filter((v) => v !== value)
-        : [...selected, value]
-    );
+    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
   }
 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-          {label}
-        </label>
+        <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</label>
         {selected.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            disabled={disabled}
-            className="text-[11px] text-slate-500 hover:text-slate-700"
-          >
-            Limpar
-          </button>
+          <button type="button" onClick={() => onChange([])} disabled={disabled}
+            className="text-[11px] text-slate-500 hover:text-slate-700">Limpar</button>
         )}
       </div>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Procurar… (${options.length})`}
-        disabled={disabled}
-        className="mb-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none disabled:opacity-50"
-      />
+      <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+        placeholder={`Procurar… (${options.length})`} disabled={disabled}
+        className="mb-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
       <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white">
         {filtered.length === 0 ? (
           <div className="px-2 py-2 text-[11px] text-slate-400">Sem resultados.</div>
@@ -1218,12 +1123,7 @@ function FilterMulti({
             {filtered.map((o) => (
               <li key={o}>
                 <label className="flex cursor-pointer items-center gap-2 px-2 py-1 text-[12px] hover:bg-slate-50">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(o)}
-                    onChange={() => toggle(o)}
-                    disabled={disabled}
-                  />
+                  <input type="checkbox" checked={selected.includes(o)} onChange={() => toggle(o)} disabled={disabled} />
                   <span className="truncate">{o}</span>
                 </label>
               </li>

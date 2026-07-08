@@ -14,13 +14,9 @@ async function getProductTypes(prisma: Awaited<ReturnType<typeof getPrisma>>): P
     orderBy: { productType: "asc" },
     take: 200,
   });
-  return rows
-    .map((r) => (r.productType ?? "").trim())
-    .filter((s) => s.length > 0);
+  return rows.map((r) => (r.productType ?? "").trim()).filter((s) => s.length > 0);
 }
 
-/** Mês mais recente com dados em VendaMensal — usado para definir o período
- *  default da UI. Se não houver dados, devolve null. */
 async function getLatestDataMonth(
   prisma: Awaited<ReturnType<typeof getPrisma>>
 ): Promise<{ ano: number; mes: number } | null> {
@@ -34,7 +30,7 @@ async function getLatestDataMonth(
 }
 
 export default async function NovaEncomendaPage() {
-  await requirePermission("reports.write");
+  const session = await requirePermission("reports.write");
 
   const prisma = await getPrisma();
   const [farmacias, filterOptions, productTypes, latestDataMonth] = await Promise.all([
@@ -62,6 +58,8 @@ export default async function NovaEncomendaPage() {
             filterOptions={filterOptions}
             productTypes={productTypes}
             latestDataMonth={latestDataMonth}
+            userPerfil={session.perfil}
+            userFarmaciaId={session.farmaciaId ?? null}
           />
         </div>
       </div>
