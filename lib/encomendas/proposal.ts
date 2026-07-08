@@ -207,6 +207,7 @@ export async function generateOrderProposal(
                                   AND pf."farmaciaId" = ${input.farmaciaId}
     LEFT JOIN pending              ON pending."produtoId" = v."produtoId"
     WHERE v.qty > 0
+      AND (pf."flagRetirado" IS NOT TRUE)
       ${whereExtra}
     ORDER BY v.qty DESC
     LIMIT ${MAX_ROWS}
