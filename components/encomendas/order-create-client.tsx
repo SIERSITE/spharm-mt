@@ -37,6 +37,8 @@ type Props = {
   farmacias: { id: string; nome: string }[];
   filterOptions: ReportingFilterOptions;
   productTypes: string[];
+  /** Mês mais recente com dados em VendaMensal. Usado para o período default. */
+  latestDataMonth?: { ano: number; mes: number } | null;
 };
 
 type PrefillStash = {
@@ -65,14 +67,20 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function defaultPeriod(): { start: string; end: string } {
+function defaultPeriod(latest?: { ano: number; mes: number } | null): { start: string; end: string } {
+  if (latest) {
+    // 3 meses terminando no último dia do mês mais recente com dados.
+    const end = new Date(latest.ano, latest.mes, 0); // último dia do mês latest
+    const start = new Date(latest.ano, latest.mes - 1 - 2, 1); // 1º dia de 3 meses antes
+    return { start: isoDate(start), end: isoDate(end) };
+  }
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - 29);
+  start.setDate(start.getDate() - 89);
   return { start: isoDate(start), end: isoDate(end) };
 }
 
-export function OrderCreateClient({ farmacias, filterOptions, productTypes }: Props) {
+export function OrderCreateClient({ farmacias, filterOptions, productTypes, latestDataMonth }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [busy, startTransition] = useTransition();
@@ -82,7 +90,7 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes }: Pr
   );
 
   // Critérios
-  const period = useMemo(defaultPeriod, []);
+  const period = useMemo(() => defaultPeriod(latestDataMonth), []);
   const [farmaciaId, setFarmaciaId] = useState(farmacias[0]?.id ?? "");
   const [startDate, setStartDate] = useState(period.start);
   const [endDate, setEndDate] = useState(period.end);
@@ -376,6 +384,22 @@ export function OrderCreateClient({ farmacias, filterOptions, productTypes }: Pr
 
   return (
     <div className="space-y-6">
+      {/*
+       * Aviso permanente de posicionamento (fecho 2026-06): este módulo é
+       * um assistente operacional, não um motor de decisão automática. Ver
+       * header de lib/encomendas-data.ts para o detalhe das limitações.
+       */}
+      <div
+        role="note"
+        aria-label="Aviso sobre as sugestões de encomenda"
+        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-snug text-amber-900"
+      >
+        <span className="font-semibold">Assistente operacional.</span>{" "}
+        As quantidades sugeridas baseiam-se em cobertura e rotação reais.
+        Não contemplam descontos, MOQ, campanhas nem prazos do fornecedor —
+        valide condições comerciais antes de finalizar a encomenda.
+      </div>
+
       {flash && (
         <div
           className={`rounded-xl border px-4 py-3 text-[13px] ${

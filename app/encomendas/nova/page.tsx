@@ -6,8 +6,7 @@ import { OrderCreateClient } from "@/components/encomendas/order-create-client";
 
 export const dynamic = "force-dynamic";
 
-async function getProductTypes(): Promise<string[]> {
-  const prisma = await getPrisma();
+async function getProductTypes(prisma: Awaited<ReturnType<typeof getPrisma>>): Promise<string[]> {
   const rows = await prisma.produto.findMany({
     where: { productType: { not: null } },
     select: { productType: true },
@@ -20,18 +19,33 @@ async function getProductTypes(): Promise<string[]> {
     .filter((s) => s.length > 0);
 }
 
+/** Mês mais recente com dados em VendaMensal — usado para definir o período
+ *  default da UI. Se não houver dados, devolve null. */
+async function getLatestDataMonth(
+  prisma: Awaited<ReturnType<typeof getPrisma>>
+): Promise<{ ano: number; mes: number } | null> {
+  const rows = await prisma.$queryRaw<{ ano: number; mes: number }[]>`
+    SELECT ano::int, mes::int
+    FROM "VendaMensal"
+    ORDER BY ano DESC, mes DESC
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 export default async function NovaEncomendaPage() {
   await requirePermission("reports.write");
 
   const prisma = await getPrisma();
-  const [farmacias, filterOptions, productTypes] = await Promise.all([
+  const [farmacias, filterOptions, productTypes, latestDataMonth] = await Promise.all([
     prisma.farmacia.findMany({
       where: { estado: "ATIVO" },
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),
     getReportingFilterOptions(),
-    getProductTypes(),
+    getProductTypes(prisma),
+    getLatestDataMonth(prisma),
   ]);
 
   return (
@@ -47,6 +61,7 @@ export default async function NovaEncomendaPage() {
             farmacias={farmacias}
             filterOptions={filterOptions}
             productTypes={productTypes}
+            latestDataMonth={latestDataMonth}
           />
         </div>
       </div>

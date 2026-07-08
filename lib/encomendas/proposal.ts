@@ -159,14 +159,21 @@ export async function generateOrderProposal(
   const whereExtra =
     conds.length > 0 ? Prisma.sql`AND ${Prisma.join(conds, " AND ")}` : Prisma.empty;
 
+  // Aggregar por mês — o agente injeta VendaMensal, não Venda individual.
+  // Filtra por (ano*100+mes) para cobrir o intervalo de meses do período.
+  // quantidadeLiquida (VENDA−DEVOLUCAO) preferida; fallback para quantidade.
+  const startYM = input.startDate.getFullYear() * 100 + (input.startDate.getMonth() + 1);
+  const endYM   = input.endDate.getFullYear()   * 100 + (input.endDate.getMonth()   + 1);
+
   const rawRows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
     WITH vendas AS (
-      SELECT v."produtoId", SUM(v.quantidade) AS qty
-      FROM "Venda" v
-      WHERE v."farmaciaId" = ${input.farmaciaId}
-        AND v.data >= ${input.startDate}
-        AND v.data <= ${input.endDate}
-      GROUP BY v."produtoId"
+      SELECT vm."produtoId",
+             GREATEST(SUM(COALESCE(vm."quantidadeLiquida", vm.quantidade)), 0) AS qty
+      FROM "VendaMensal" vm
+      WHERE vm."farmaciaId" = ${input.farmaciaId}
+        AND (vm.ano * 100 + vm.mes) >= ${startYM}
+        AND (vm.ano * 100 + vm.mes) <= ${endYM}
+      GROUP BY vm."produtoId"
     ),
     pending AS (
       SELECT le."produtoId",
