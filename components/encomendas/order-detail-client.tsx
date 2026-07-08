@@ -3,14 +3,16 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import {
   addManualLineAction,
+  cancelOutboxAction,
   finalizeFromDetailAction,
   removeLineAction,
+  retryOutboxAction,
   updateLineAction,
 } from "@/app/encomendas/[id]/actions";
 import type { ProductSearchResult } from "@/app/encomendas/nova/search";
@@ -168,6 +170,34 @@ export function OrderDetailClient({ detail }: Props) {
     });
   }
 
+  function handleRetryOutbox(outboxId: string) {
+    if (!confirm("Repor a encomenda para PENDENTE para o agent tentar novamente?")) return;
+    setFlash(null);
+    startTransition(async () => {
+      const r = await retryOutboxAction(outboxId);
+      if (r.ok) {
+        setFlash({ type: "ok", msg: "Encomenda reposta para PENDENTE — o agent tentará na próxima passagem." });
+        router.refresh();
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
+    });
+  }
+
+  function handleCancelOutbox(outboxId: string) {
+    if (!confirm("Cancelar a exportação desta encomenda? O agent não a tentará exportar novamente.")) return;
+    setFlash(null);
+    startTransition(async () => {
+      const r = await cancelOutboxAction(outboxId);
+      if (r.ok) {
+        setFlash({ type: "ok", msg: "Exportação cancelada." });
+        router.refresh();
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
       {/* Voltar + título */}
@@ -243,6 +273,36 @@ export function OrderDetailClient({ detail }: Props) {
             )}
           </div>
         )}
+
+        {/* Acções de gestão do outbox — visíveis só quando há outbox e estado permite */}
+        {detail.outbox &&
+          (detail.outbox.state === "FALHADO" || detail.outbox.state === "PENDENTE") && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              {detail.outbox.state === "FALHADO" && (
+                <button
+                  type="button"
+                  onClick={() => handleRetryOutbox(detail.outbox!.id)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-[12px] font-medium text-cyan-700 hover:bg-cyan-100 disabled:opacity-50"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Tentar novamente
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleCancelOutbox(detail.outbox!.id)}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Cancelar exportação
+              </button>
+              <span className="text-[11px] text-slate-400">
+                Requer permissão de administrador.
+              </span>
+            </div>
+          )}
       </section>
 
       {flash && (

@@ -7,6 +7,7 @@ import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import { finalizeAndQueueOrder } from "@/lib/ingest/orders";
 import { logAudit } from "@/lib/audit";
+import { retryOutboxRow, cancelOutboxRow } from "@/lib/integracao/outbox-admin";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -191,6 +192,58 @@ export async function addManualLineAction(input: {
       meta: { produtoId: input.produtoId, quantidade: input.quantidadeAjustada },
     });
     revalidateDetail(input.listaEncomendaId);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+/**
+ * Retry manual de uma encomenda em FALHADO — reset de tentativas,
+ * volta a PENDENTE para o agent recolher no próximo ciclo.
+ * Requer settings.global (ADMINISTRADOR ou GESTOR_GRUPO).
+ */
+export async function retryOutboxAction(outboxId: string): Promise<ActionResult> {
+  const session = await requirePermission("settings.global");
+  const prisma = await getPrisma();
+
+  try {
+    const result = await retryOutboxRow(prisma, outboxId, session.sub);
+    if (!result.ok) return { ok: false, error: result.error };
+
+    await logAudit({
+      actorId: session.sub,
+      action: "outbox.manual_retry",
+      entity: "OrderOutbox",
+      entityId: outboxId,
+    });
+    revalidatePath("/encomendas");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+/**
+ * Cancelamento manual do outbox a partir de PENDENTE ou FALHADO.
+ * A encomenda fica CANCELADA — o agent não a tentará exportar novamente.
+ * Requer settings.global (ADMINISTRADOR ou GESTOR_GRUPO).
+ */
+export async function cancelOutboxAction(outboxId: string): Promise<ActionResult> {
+  const session = await requirePermission("settings.global");
+  const prisma = await getPrisma();
+
+  try {
+    const result = await cancelOutboxRow(prisma, outboxId, session.sub, null);
+    if (!result.ok) return { ok: false, error: result.error };
+
+    await logAudit({
+      actorId: session.sub,
+      action: "outbox.manual_cancel",
+      entity: "OrderOutbox",
+      entityId: outboxId,
+    });
+    revalidatePath("/encomendas");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
