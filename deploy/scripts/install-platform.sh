@@ -90,12 +90,14 @@ ensure_structure() {
 
   # ── Código, configuração e segredos: sempre em $SPHARMMT_ROOT ────────
   ensure_dir "$SPHARMMT_ROOT" 2750 "$OWNER"
+  # `secrets` fica FORA desta lista: 2750 dar-lhe-ia setgid e permissões de
+  # grupo, precisamente o que não pode ter.
   local dirs=(
     app
     logs logs/app logs/postgres logs/proxy logs/monitoring logs/backups
     docker docker/compose docker/env docker/build
     scripts scripts/lib monitoring monitoring/checks monitoring/state
-    proxy proxy/conf proxy/certs secrets
+    proxy proxy/conf proxy/certs
   )
   for d in "${dirs[@]}"; do ensure_dir "${SPHARMMT_ROOT}/${d}" 2750 "$OWNER"; done
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
@@ -110,8 +112,10 @@ ensure_structure() {
     "${SPHARMMT_BACKUP_DIR}/files" "${SPHARMMT_BACKUP_DIR}/tmp"
   )
   for d in "${ddirs[@]}"; do ensure_dir "$d" 2750 "$OWNER"; done
-  ensure_dir "${SPHARMMT_PG_DIR}/data" 0700 "$OWNER"
-  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 0700 "$OWNER"
+  # 2700: o PostgreSQL só recusa bits de grupo/others (S_IRWXG|S_IRWXO); o
+  # setgid não entra nessa máscara e mantém a herança de grupo.
+  ensure_dir "${SPHARMMT_PG_DIR}/data" 2700 "$OWNER"
+  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$OWNER"
 
   if data_disk_in_use; then
     ensure_dir "$SPHARMMT_DOCKER_DATA_DIR" 2750 root:root
@@ -284,6 +288,7 @@ EOF
   if [ "$DRY_RUN" != "1" ]; then
     chmod 0600 "$SPHARMMT_SECRETS_FILE"
     chown root:root "$SPHARMMT_SECRETS_FILE"
+    enforce_secret_file_modes
     # Um segredo vazio passa despercebido e falha só em produção.
     local empty
     empty=$(awk -F= '/^[A-Z_]+=/ && ($2 == "" ) {print $1}' "$SPHARMMT_SECRETS_FILE" | tr '\n' ' ')

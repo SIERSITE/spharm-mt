@@ -374,9 +374,31 @@ sugerido — mas a decisão sobre qual é a fonte de verdade, e com a stack para
 `<DATA_ROOT>` é `/data` quando há disco dedicado e `/opt/spharmmt` quando não
 há — ver [Disco dedicado aos dados](#disco-dedicado-aos-dados-opcional).
 
-Owner `deploy:spharmmt`, directórios `2750` (setgid, para o grupo ser herdado),
-`umask 027`. `secrets/` é `0700 root:root` — o `deploy` lê com sudo, e os
-containers só recebem o que o compose montar explicitamente.
+### Política de permissões
+
+Owner `deploy:spharmmt`, `umask 027`. Os modos **não são uniformes** — cada
+diretório tem a expectativa que faz sentido para o que guarda, e o
+`verify-platform.sh` verifica cada um pela sua regra:
+
+| Caminho | Modo | Owner | Porquê |
+|---|---|---|---|
+| `/opt/spharmmt` e subdirectórios | `2750` | `deploy:spharmmt` | setgid para o grupo ser herdado pelo conteúdo criado por qualquer membro |
+| `secrets/` | `0700` **sem setgid** | `root:root` | não há grupo a herdar; o setgid só alargaria a superfície. O `deploy` lê com sudo |
+| `secrets/*` (ficheiros) | `0600` | `root:root` | sem excepções; qualquer excepção futura fica documentada em `enforce_secret_file_modes()` |
+| `postgres/data` | `0700` ou `2700` | `deploy:spharmmt` | o PostgreSQL só recusa bits de grupo/others (`S_IRWXG\|S_IRWXO`); o setgid não entra nessa máscara |
+| `backups/postgres` | `0700` ou `2700` | `deploy:spharmmt` | idem |
+| `docker/env/` | `2750` | `deploy:spharmmt` | lido pelo `deploy` ao subir a stack |
+
+**Armadilha do `chmod`, que já custou uma divergência real:** o GNU chmod
+**preserva** setuid/setgid em *directórios* quando o modo é numérico — mesmo
+com 4 dígitos. Sobre um directório `2750`, `chmod 0700` deixa `2700`. E um
+directório criado dentro de um pai com setgid herda-o logo no `mkdir`. Por
+isso `ensure_dir()` limpa os bits especiais com `chmod a-s` antes de aplicar
+um modo que não os inclui — sem isso, `ensure_dir .../secrets 0700` produzia
+`2700` silenciosamente.
+
+Os UID/GID de `postgres/data` serão revistos quando o container PostgreSQL
+for introduzido.
 
 ---
 

@@ -1015,13 +1015,15 @@ step_structure() {
   # Código, configuração e segredos — sempre em $SPHARMMT_ROOT.
   # setgid (2xxx) faz herdar o grupo spharmmt — evita ficheiros criados por
   # um membro do grupo ficarem inacessíveis aos outros.
+  # `secrets` NÃO entra nesta lista: aplicar-lhe 2750 dava-lhe setgid e
+  # permissões de grupo, que é exactamente o que não pode ter. É criado à
+  # parte, com o modo definitivo.
   local dirs=(
     app
     logs logs/app logs/postgres logs/proxy logs/monitoring logs/backups
     docker docker/compose docker/env docker/build
     scripts scripts/lib
     monitoring monitoring/checks monitoring/state
-    secrets
     proxy proxy/conf proxy/certs
   )
   for d in "${dirs[@]}"; do ensure_dir "${SPHARMMT_ROOT}/${d}" 2750 "$owner"; done
@@ -1043,14 +1045,22 @@ step_structure() {
 
   step "13. Permissões, owners e umask"
 
-  # secrets: só root. O deploy lê com sudo; os containers recebem só o que
-  # o compose montar explicitamente.
+  # ── secrets: 0700 root:root, SEM setgid ──────────────────────────────
+  # Só root. O deploy lê com sudo; os containers recebem apenas o que o
+  # compose montar explicitamente. Não há grupo a herdar aqui, logo o
+  # setgid não serve nada e só alarga a superfície.
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
-  # dados do Postgres: 0700 é exigido pelo próprio Postgres, que recusa
-  # arrancar com permissões mais largas.
-  ensure_dir "${SPHARMMT_PG_DIR}/data" 0700 "$owner"
-  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 0700 "$owner"
-  ensure_dir "${SPHARMMT_ROOT}/docker/env" 0750 "$owner"
+  enforce_secret_file_modes
+
+  # ── postgres/data: 2700 deploy:spharmmt ──────────────────────────────
+  # O PostgreSQL exige que o data directory não tenha bits para grupo nem
+  # para others (verifica S_IRWXG|S_IRWXO); o setgid não entra nessa
+  # máscara, portanto 2700 é aceite e mantém a herança de grupo para o
+  # conteúdo criado por membros do grupo spharmmt.
+  # A revisão de UID/GID fica para quando o container PostgreSQL existir.
+  ensure_dir "${SPHARMMT_PG_DIR}/data" 2700 "$owner"
+  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$owner"
+  ensure_dir "${SPHARMMT_ROOT}/docker/env" 2750 "$owner"
 
   # umask 027: ficheiros 640, directórios 750 — nada legível por "others".
   if [ -f /etc/login.defs ]; then ensure_kv /etc/login.defs UMASK "027" " "; fi

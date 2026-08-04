@@ -228,16 +228,47 @@ sec_volumes() {
   fi
   check "owner ${SPHARMMT_USER}:${SPHARMMT_GROUP}" \
     bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_ROOT})\" = '${SPHARMMT_USER}:${SPHARMMT_GROUP}' ]"
-  check "secrets = 0700 root:root" \
+
+  # ── secrets ──────────────────────────────────────────────────────────
+  # Regra estrita e distinta da dos dados: 0700 root:root, SEM setgid,
+  # sem qualquer bit de grupo. Não há grupo a herdar aqui — o setgid só
+  # alargaria a superfície sem servir nada.
+  check "secrets = 0700 root:root (sem setgid)" \
     bash -c "[ \"\$(stat -c '%a %U:%G' ${SPHARMMT_ROOT}/secrets)\" = '700 root:root' ]"
-  # O PostgreSQL recusa arrancar se o data directory tiver permissões mais
-  # largas do que 0700/0750.
-  check "postgres/data <= 0750" \
-    bash -c "[ \$(stat -c '%a' ${SPHARMMT_PG_DIR}/data) -le 750 ]"
-  check "backups/postgres = 0700" \
-    bash -c "[ \$(stat -c '%a' ${SPHARMMT_BACKUP_DIR}/postgres) = 700 ]"
-  check "nada world-readable na árvore" \
-    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -perm -o+r -o -perm -o+w 2>/dev/null | head -1)\" ]"
+  check "secrets sem qualquer permissão de grupo" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -maxdepth 0 -perm /g+rwx 2>/dev/null)\" ]"
+  check "ficheiros em secrets a 0600 root:root" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -type f \\( ! -perm 600 -o ! -user root -o ! -group root \\) 2>/dev/null | head -1)\" ]"
+
+  # ── postgres/data ────────────────────────────────────────────────────
+  # Expectativa DIFERENTE, de propósito: 2700 é aceite (o setgid mantém a
+  # herança de grupo) desde que o owner seja o correcto e não haja bits
+  # para "others". O PostgreSQL verifica S_IRWXG|S_IRWXO, e o setgid não
+  # entra nessa máscara. UID/GID serão revistos quando o container existir.
+  check "postgres/data owner ${SPHARMMT_USER}:${SPHARMMT_GROUP}" \
+    bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_PG_DIR}/data)\" = '${SPHARMMT_USER}:${SPHARMMT_GROUP}' ]"
+  check "postgres/data em 0700 ou 2700" \
+    bash -c "case \"\$(stat -c '%a' ${SPHARMMT_PG_DIR}/data)\" in 700|2700) exit 0;; *) exit 1;; esac"
+  check "postgres/data sem bits para others (exigido pelo PostgreSQL)" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_PG_DIR}/data -maxdepth 0 -perm /o+rwx 2>/dev/null)\" ]"
+
+  check "backups/postgres em 0700 ou 2700" \
+    bash -c "case \"\$(stat -c '%a' ${SPHARMMT_BACKUP_DIR}/postgres)\" in 700|2700) exit 0;; *) exit 1;; esac"
+
+  # ── Conteúdo sensível ────────────────────────────────────────────────
+  # Só o que é mesmo sensível. Varrer a árvore inteira acusava ficheiros
+  # legitimamente legíveis (README.md a 0644, por exemplo) e treinava
+  # qualquer pessoa a ignorar este check.
+  local sensitive=""
+  for p in "${SPHARMMT_ROOT}/secrets" "${SPHARMMT_ROOT}/docker/env" \
+           "${SPHARMMT_BACKUP_DIR}" "${SPHARMMT_PG_DIR}"; do
+    [ -e "$p" ] && sensitive="${sensitive} ${p}"
+  done
+  check "nada acessível a others em conteúdo sensível" \
+    bash -c "[ -z \"\$(find ${sensitive} -perm /o+rwx 2>/dev/null | head -1)\" ]"
+  check "nenhum ficheiro .env legível por others" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -name '*.env' -type f -perm /o+rwx 2>/dev/null | head -1)\" ]"
+
   check "umask 027 em login.defs"        bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
   check "setgid na raiz (herança de grupo)" \
     bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}) -ge 2000 ]"

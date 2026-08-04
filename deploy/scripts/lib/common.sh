@@ -484,8 +484,46 @@ ensure_dir() {
     CHANGES_MADE=1
   fi
   [ "$DRY_RUN" = "1" ] && return 0
+
+  # O GNU chmod PRESERVA setuid/setgid em DIRECTÓRIOS quando o modo é
+  # numérico — mesmo com 4 dígitos. Sobre um directório 2750, `chmod 0700`
+  # deixa 2700, não 0700. E um directório criado dentro de um pai com
+  # setgid herda-o logo no mkdir.
+  #
+  # Como os modos deste pacote são absolutos ("quero exactamente isto"),
+  # limpamos os bits especiais sempre que o modo pedido não os inclui.
+  # Sem isto, `ensure_dir .../secrets 0700` produzia 2700 e o directório de
+  # segredos ficava com setgid sem ninguém perceber porquê.
+  case "$mode" in
+    [0-7][0-7][0-7]|0[0-7][0-7][0-7]) chmod a-s "$path" ;;
+  esac
   chmod "$mode" "$path"
   if [ -n "$owner" ]; then chown "$owner" "$path"; fi
+  return 0
+}
+
+# Política de ficheiros em secrets/: 0600 root:root, sem excepções.
+# Qualquer excepção futura tem de ser documentada AQUI — o verificador
+# aplica exactamente esta regra.
+enforce_secret_file_modes() {
+  local dir="${SPHARMMT_ROOT}/secrets"
+  [ -d "$dir" ] || return 0
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] aplicaria 0600 root:root aos ficheiros de ${dir}"
+    return 0
+  fi
+  local n=0 f
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    chmod 0600 "$f" 2>/dev/null || true
+    chown root:root "$f" 2>/dev/null || true
+    n=$((n + 1))
+  done < <(find "$dir" -type f 2>/dev/null)
+  if [ "$n" -gt 0 ]; then
+    ok "${n} ficheiro(s) em secrets/ a 0600 root:root"
+  else
+    dbg "sem ficheiros em ${dir}"
+  fi
   return 0
 }
 
