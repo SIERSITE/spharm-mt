@@ -59,7 +59,7 @@ RUN apt-get update -qq \
       -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 \
  && apt-get install -y -qq --no-install-recommends \
       -o Acquire::http::Timeout=30 -o Acquire::Retries=3 \
-      ca-certificates openssh-client coreutils util-linux findutils grep sed gawk \
+      ca-certificates openssh-client openssh-server coreutils util-linux findutils grep sed gawk \
       procps file tzdata locales curl gnupg \
  && rm -rf /var/lib/apt/lists/*
 EOF

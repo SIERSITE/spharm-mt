@@ -116,7 +116,23 @@ done
 
 REBOOT_REQUIRED=0
 SSH_HARDENED=0
-SSH_DROPIN=/etc/ssh/sshd_config.d/99-spharmmt-hardening.conf
+# PRECEDÊNCIA DOS DROP-INS DO SSHD — a razão de ser do prefixo 00-.
+#
+# `/etc/ssh/sshd_config` tem `Include /etc/ssh/sshd_config.d/*.conf` NO TOPO,
+# os ficheiros são lidos por ordem lexicográfica, e em SSH o PRIMEIRO valor
+# obtido para cada palavra-chave é o que vence. Numa imagem cloud da Ubuntu
+# existe tipicamente:
+#
+#   50-cloud-init.conf         PasswordAuthentication yes    ← vencia
+#   60-cloudimg-settings.conf  PasswordAuthentication no
+#   99-spharmmt-hardening.conf PasswordAuthentication no     ← chegava tarde
+#
+# Com o prefixo 99- o nosso ficheiro era lido em último e não tinha efeito
+# nenhum: `sshd -T` devolvia `passwordauthentication yes`. O prefixo 00-
+# garante que somos lidos primeiro e que os nossos valores ganham.
+SSH_DROPIN=/etc/ssh/sshd_config.d/00-spharmmt-hardening.conf
+# Ficheiro da versão anterior, removido só depois de o novo estar validado.
+SSH_DROPIN_LEGACY=/etc/ssh/sshd_config.d/99-spharmmt-hardening.conf
 
 # Home e grupo primário reais do utilizador. NÃO assumir /home/<user> nem
 # grupo homónimo: um utilizador `deploy` pré-existente pode ter sido criado
@@ -580,6 +596,84 @@ _valid_key_count() {
   printf '%s' "$n"
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# Valores EFECTIVOS do sshd
+# ─────────────────────────────────────────────────────────────────────────
+#
+# O conteúdo dos ficheiros não diz nada sobre o que o sshd vai fazer: com
+# vários drop-ins e a regra "primeiro valor vence", só `sshd -T` sabe. Foi
+# precisamente por confiar no ficheiro que o endurecimento ficou inerte
+# numa VPS com 50-cloud-init.conf a activar a password.
+
+# _sshd_get <chave> [-C <spec>] — valor efectivo de uma directiva.
+_sshd_get() {
+  local key=$1; shift
+  sshd -T "$@" 2>/dev/null | awk -v k="$key" 'tolower($1)==k {print tolower($2); exit}'
+}
+
+# _ssh_effective_ok <permit_root> [-C <spec>] — confirma o conjunto mínimo.
+# Devolve 0 se TODOS os valores efectivos são os pretendidos.
+_ssh_effective_ok() {
+  local want_root=$1; shift
+  local -a ctx=("$@")
+  local bad=0
+
+  # Bash tem âmbito dinâmico: esta função vê `ctx` e `bad` da chamadora.
+  _chk() {
+    local key=$1 want=$2 got
+    got=$(_sshd_get "$key" "${ctx[@]}")
+    if [ "$got" != "$want" ]; then
+      err "  ${key}: esperado '${want}', efectivo '${got:-<vazio>}'"
+      bad=1
+    fi
+  }
+
+  _chk passwordauthentication      no
+  _chk kbdinteractiveauthentication no
+  _chk pubkeyauthentication        yes
+  _chk usepam                      yes
+  _chk permitemptypasswords        no
+
+  # PermitRootLogin: o `sshd -T` NORMALIZA `prohibit-password` para o
+  # sinónimo legado `without-password`. Comparar literalmente fazia esta
+  # validação falhar sempre — e o bootstrap revertia um endurecimento
+  # perfeitamente correcto.
+  _norm_root() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+      without-password) printf 'prohibit-password' ;;
+      *) printf '%s' "$1" | tr '[:upper:]' '[:lower:]' ;;
+    esac
+  }
+  local got_root
+  got_root=$(_sshd_get permitrootlogin "${ctx[@]}")
+  if [ "$(_norm_root "$got_root")" != "$(_norm_root "$want_root")" ]; then
+    err "  permitrootlogin: esperado '${want_root}', efectivo '${got_root:-<vazio>}'"
+    bad=1
+  fi
+
+  # AllowUsers tem de conter o utilizador de deploy: sem isso o login é
+  # recusado mesmo com chave válida. O `sshd -T` imprime UMA LINHA POR
+  # UTILIZADOR (`allowusers deploy` + `allowusers root`), portanto não se
+  # pode parar na primeira.
+  local allow
+  allow=$(sshd -T "${ctx[@]}" 2>/dev/null \
+          | awk 'tolower($1)=="allowusers"{for (i=2; i<=NF; i++) printf "%s ", $i}')
+  case " ${allow}" in
+    *" ${DEPLOY_USER} "*) ;;
+    *) err "  allowusers: '${allow% }' não inclui ${DEPLOY_USER}"; bad=1 ;;
+  esac
+
+  return "$bad"
+}
+
+_ssh_dump_effective() {
+  err "valores efectivos relevantes:"
+  sshd -T "$@" 2>/dev/null | grep -iE '^(passwordauthentication|kbdinteractive|pubkeyauth|permitrootlogin|usepam|permitempty|allowusers|authenticationmethods) ' \
+    | sed 's/^/    /' >&2 || true
+  err "ordem de leitura dos drop-ins (o primeiro valor de cada chave vence):"
+  find /etc/ssh/sshd_config.d -maxdepth 1 -name '*.conf' 2>/dev/null | sort | sed 's/^/    /' >&2 || true
+}
+
 step_ssh() {
   step "7. SSH por chave"
 
@@ -652,10 +746,22 @@ step_ssh() {
     fi
   fi
 
+  # Guarda o estado anterior dos DOIS ficheiros, para poder repor exactamente
+  # o que estava se qualquer validação falhar.
+  local sshbak; sshbak=$(mktemp -d)
+  if [ "$DRY_RUN" != "1" ]; then
+    [ -f "$SSH_DROPIN" ] && cp -a "$SSH_DROPIN" "${sshbak}/new" || true
+    [ -f "$SSH_DROPIN_LEGACY" ] && cp -a "$SSH_DROPIN_LEGACY" "${sshbak}/legacy" || true
+  fi
+
   write_file "$SSH_DROPIN" 0644 root:root <<EOF
 # Gerido por bootstrap-vps.sh — SPharm.MT
-# Em SSH a PRIMEIRA directiva vence; este drop-in é lido antes do
-# sshd_config principal por causa do prefixo 99- e do Include no topo.
+#
+# PREFIXO 00- É DELIBERADO. O Include está no topo do sshd_config, os
+# drop-ins são lidos por ordem lexicográfica e em SSH o PRIMEIRO valor
+# vence. Com 99- este ficheiro era lido depois do 50-cloud-init.conf da
+# imagem cloud (que traz PasswordAuthentication yes) e não tinha efeito.
+# Confirmar sempre com \`sshd -T\`, nunca pelo conteúdo dos ficheiros.
 PermitRootLogin ${permit_root}
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -695,23 +801,78 @@ EOF
     if svc_active ssh.socket; then run systemctl restart ssh.socket; fi
   fi
 
-  # Validação obrigatória: config inválida = sshd não arranca.
-  if [ "$DRY_RUN" != "1" ]; then
-    if ! sshd -t 2>/dev/null; then
-      err "configuração sshd inválida — a remover o drop-in"
-      rm -f "$SSH_DROPIN"
-      sshd -t || die "sshd continua inválido depois do rollback — inspecciona /etc/ssh/sshd_config manualmente"
-      die "endurecimento do SSH revertido (a sessão actual não foi afectada)"
+  if [ "$DRY_RUN" = "1" ]; then
+    rm -rf "$sshbak"
+    info "[dry-run] validaria com sshd -t, sshd -T e sshd -T -C user=${DEPLOY_USER},host=$(hostname),addr=127.0.0.1"
+    info "[dry-run] removeria ${SSH_DROPIN_LEGACY} e faria systemctl reload ssh"
+    SSH_HARDENED=1
+    ok "SSH endurecido: password OFF, PermitRootLogin=${permit_root}, AllowUsers='${allow_users}'"
+    return 0
+  fi
+
+  # ── Validação em três níveis, ANTES de qualquer reload ────────────────
+  # Enquanto não houver reload, o sshd em execução mantém a configuração
+  # antiga: a sessão actual está a salvo aconteça o que acontecer aqui.
+  _ssh_restore() {
+    rm -f "$SSH_DROPIN"
+    [ -f "${sshbak}/new" ] && cp -a "${sshbak}/new" "$SSH_DROPIN" || true
+    [ -f "${sshbak}/legacy" ] && cp -a "${sshbak}/legacy" "$SSH_DROPIN_LEGACY" || true
+    rm -rf "$sshbak"
+  }
+
+  if ! sshd -t 2>/dev/null; then
+    err "sshd -t rejeitou a configuração"
+    sshd -t 2>&1 | sed 's/^/    /' >&2 || true
+    _ssh_restore
+    die "endurecimento revertido. NENHUM reload foi feito — a sessão actual não foi afectada."
+  fi
+  ok "sshd -t: sintaxe válida"
+
+  if ! _ssh_effective_ok "$permit_root"; then
+    err "os valores EFECTIVOS do sshd não são os pretendidos"
+    _ssh_dump_effective
+    _ssh_restore
+    die "endurecimento revertido. NENHUM reload foi feito."
+  fi
+  ok "sshd -T: valores efectivos correctos"
+
+  # `-C` avalia a configuração no contexto de uma ligação concreta, o que
+  # inclui blocos Match que só se aplicam a certos utilizadores/origens.
+  # Sem isto, um `Match User deploy` noutro drop-in podia repor a password.
+  if ! _ssh_effective_ok "$permit_root" "-C" "user=${DEPLOY_USER},host=$(hostname),addr=127.0.0.1"; then
+    err "no contexto user=${DEPLOY_USER} os valores efectivos divergem (bloco Match?)"
+    _ssh_dump_effective "-C" "user=${DEPLOY_USER},host=$(hostname),addr=127.0.0.1"
+    _ssh_restore
+    die "endurecimento revertido. NENHUM reload foi feito."
+  fi
+  ok "sshd -T -C user=${DEPLOY_USER}: valores efectivos correctos"
+
+  # ── Só agora o ficheiro antigo pode sair ──────────────────────────────
+  if [ -f "$SSH_DROPIN_LEGACY" ]; then
+    rm -f "$SSH_DROPIN_LEGACY"
+    # Remover um ficheiro também muda a configuração efectiva — revalidar.
+    if sshd -t 2>/dev/null && _ssh_effective_ok "$permit_root"; then
+      ok "${SSH_DROPIN_LEGACY} removido (substituído por ${SSH_DROPIN##*/})"
+    else
+      err "a remoção do ficheiro antigo degradou a configuração — a repô-lo"
+      _ssh_restore
+      die "endurecimento revertido. NENHUM reload foi feito."
     fi
-    ok "configuração sshd validada (sshd -t)"
-    # reload, nunca restart: a sessão actual sobrevive mesmo se algo correr mal.
-    systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || \
-      systemctl restart ssh.socket 2>/dev/null || true
+  fi
+  rm -rf "$sshbak"
+
+  # reload, NUNCA restart: a sessão actual sobrevive mesmo se algo correr mal.
+  if ! systemctl reload ssh 2>/dev/null && ! systemctl reload sshd 2>/dev/null; then
+    warn "systemctl reload ssh falhou — a configuração está no disco mas não activa"
+    warn "aplica manualmente com: systemctl reload ssh"
+  else
+    ok "systemctl reload ssh aplicado (sem restart)"
   fi
 
   SSH_HARDENED=1
   ok "SSH endurecido: password OFF, PermitRootLogin=${permit_root}, AllowUsers='${allow_users}'"
   warn "NÃO FECHES esta sessão. Abre outra e confirma:  ssh ${DEPLOY_USER}@<ip>"
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════

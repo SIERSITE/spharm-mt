@@ -92,14 +92,39 @@ sec_seguranca() {
   fi
 
   # ── SSH
+  #
+  # TUDO aqui é verificado pelo valor EFECTIVO (`sshd -T`), nunca pelo
+  # conteúdo dos ficheiros. Com vários drop-ins e a regra "primeiro valor
+  # vence", um ficheiro correcto pode estar completamente inerte — foi
+  # assim que o endurecimento passou despercebido numa VPS cujo
+  # 50-cloud-init.conf reactivava a password.
   if [ "$IS_ROOT" = "1" ] && has_cmd sshd; then
+    local ctx
+    ctx="user=${SPHARMMT_USER},host=$(hostname),addr=127.0.0.1"
     check "configuração sshd válida"          sshd -t
-    check "PasswordAuthentication no"         bash -c "sshd -T 2>/dev/null | grep -qi '^passwordauthentication no'"
-    check "PubkeyAuthentication yes"          bash -c "sshd -T 2>/dev/null | grep -qi '^pubkeyauthentication yes'"
-    check "PermitEmptyPasswords no"           bash -c "sshd -T 2>/dev/null | grep -qi '^permitemptypasswords no'"
+    check "PasswordAuthentication no (efectivo)" \
+      bash -c "[ \"\$(sshd -T 2>/dev/null | awk 'tolower(\$1)==\"passwordauthentication\"{print tolower(\$2);exit}')\" = no ]"
+    check "PubkeyAuthentication yes (efectivo)" \
+      bash -c "[ \"\$(sshd -T 2>/dev/null | awk 'tolower(\$1)==\"pubkeyauthentication\"{print tolower(\$2);exit}')\" = yes ]"
+    check "KbdInteractiveAuthentication no (efectivo)" \
+      bash -c "[ \"\$(sshd -T 2>/dev/null | awk 'tolower(\$1)==\"kbdinteractiveauthentication\"{print tolower(\$2);exit}')\" = no ]"
+    check "PermitEmptyPasswords no (efectivo)" \
+      bash -c "[ \"\$(sshd -T 2>/dev/null | awk 'tolower(\$1)==\"permitemptypasswords\"{print tolower(\$2);exit}')\" = no ]"
+    check "UsePAM yes (efectivo)" \
+      bash -c "[ \"\$(sshd -T 2>/dev/null | awk 'tolower(\$1)==\"usepam\"{print tolower(\$2);exit}')\" = yes ]"
     check "MaxAuthTries <= 3"                 bash -c "[ \$(sshd -T 2>/dev/null | awk '/^maxauthtries/ {print \$2}') -le 3 ]"
     check_warn "PermitRootLogin no"           bash -c "sshd -T 2>/dev/null | grep -qi '^permitrootlogin no'"
-    check "AllowUsers definido"               bash -c "sshd -T 2>/dev/null | grep -qi '^allowusers'"
+    check "AllowUsers inclui ${SPHARMMT_USER}" \
+      bash -c "sshd -T 2>/dev/null | awk 'tolower(\$1)==\"allowusers\"' | grep -qw '${SPHARMMT_USER}'"
+    # Contexto de ligação concreto: apanha blocos Match que só se aplicam a
+    # certos utilizadores ou origens e que poderiam repor a password.
+    check "PasswordAuthentication no também em contexto de ligação" \
+      bash -c "[ \"\$(sshd -T -C '${ctx}' 2>/dev/null | awk 'tolower(\$1)==\"passwordauthentication\"{print tolower(\$2);exit}')\" = no ]"
+    # O nosso drop-in tem de ser lido ANTES dos da imagem cloud.
+    check "drop-in do SPharm.MT tem precedência (00-)" \
+      bash -c "[ -f /etc/ssh/sshd_config.d/00-spharmmt-hardening.conf ]"
+    check_warn "drop-in antigo 99- já não existe" \
+      bash -c "[ ! -f /etc/ssh/sshd_config.d/99-spharmmt-hardening.conf ]"
   else
     check_skip "endurecimento SSH" "requer root"
   fi
