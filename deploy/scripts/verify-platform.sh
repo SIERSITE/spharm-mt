@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+# deploy/scripts/verify-platform.sh
+#
+# Checklist automática do servidor. É a fonte de verdade sobre "está pronto?"
+# e o único comando que deve ser corrido depois de qualquer alteração à
+# infraestrutura — bootstrap, instalação, actualização, restauro ou reboot.
+#
+# Cobre, por secção: sistema · segurança · Docker · volumes e permissões ·
+# segredos · stack · PostgreSQL · proxy · healthchecks · backups · logs ·
+# recursos.
+#
+# Tudo o que ainda não existe é reportado como SKIP, não como falha — o
+# mesmo script serve a fase de preparação e a operação corrente.
+#
+# Uso:
+#   sudo ./verify-platform.sh              # checklist completa
+#   sudo ./verify-platform.sh --json <f>   # escreve também o resultado em JSON
+#   sudo ./verify-platform.sh --section seguranca
+#
+# Saída: 0 = tudo verde (avisos permitidos) · 3 = pelo menos uma falha
+#        · 2 = pré-condição
+
+set -Eeuo pipefail
+# shellcheck source=lib/common.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+
+JSON_OUT=""
+ONLY_SECTION=""
+
+usage() {
+  cat <<EOF
+Uso: sudo $0 [opções]
+
+  --json <ficheiro>   Escreve o resultado em JSON (para monitorização)
+  --section <nome>    Só uma secção: sistema | seguranca | docker | volumes |
+                      segredos | stack | postgres | proxy | monitorizacao |
+                      backups | logs | recursos
+$(common_flags_help)
+
+Correr sem sudo funciona, mas várias verificações (sshd -T, ufw, fail2ban,
+segredos) ficam em SKIP por falta de permissões.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  if parse_common_flag "$1"; then shift; continue; fi
+  case "$1" in
+    --json) JSON_OUT=${2:?}; shift 2 ;;
+    --section) ONLY_SECTION=${2:?}; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage >&2; die_usage "opção desconhecida: $1" ;;
+  esac
+done
+
+IS_ROOT=0; [ "$(id -u)" -eq 0 ] && IS_ROOT=1
+HAS_STACK=0; [ -f "$SPHARMMT_COMPOSE_FILE" ] && HAS_STACK=1
+HAS_PG=0; container_exists "$SPHARMMT_PG_CONTAINER" 2>/dev/null && HAS_PG=1
+
+want() { [ -z "$ONLY_SECTION" ] || [ "$ONLY_SECTION" = "$1" ]; }
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_sistema() {
+  want sistema || return 0
+  step "1. Sistema"
+  check "Ubuntu 24.04 LTS"              bash -c "grep -q 'VERSION_ID=\"24.04\"' /etc/os-release"
+  check "sem pacotes por actualizar"    bash -c "[ \$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst') -eq 0 ]"
+  check_warn "sem reboot pendente"      bash -c "[ ! -f /var/run/reboot-required ]"
+  check "unattended-upgrades instalado" is_installed unattended-upgrades
+  check "timer apt-daily-upgrade activo" svc_active apt-daily-upgrade.timer
+  check "política de security aplicada" test -f /etc/apt/apt.conf.d/52spharmmt-unattended
+  check "relógio sincronizado (NTP)"    bash -c "timedatectl show -p NTPSynchronized --value | grep -q yes"
+  check "timezone definida"             bash -c "[ -n \"\$(timedatectl show -p Timezone --value)\" ]"
+  check "hostname resolve localmente"   bash -c "getent hosts \$(hostnamectl --static) >/dev/null"
+  check_warn "swap activa"              bash -c "[ \$(free -m | awk '/^Swap:/ {print \$2}') -gt 0 ]"
+  check "vm.swappiness <= 20"           bash -c "[ \$(sysctl -n vm.swappiness) -le 20 ]"
+  check "sysctl do SPharm.MT aplicado"  test -f /etc/sysctl.d/60-spharmmt.conf
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_seguranca() {
+  want seguranca || return 0
+  step "2. Segurança"
+
+  # ── Utilizadores
+  check "utilizador ${SPHARMMT_USER} existe"  id "$SPHARMMT_USER"
+  check "${SPHARMMT_USER} tem sudo"           bash -c "id -nG ${SPHARMMT_USER} | grep -qw sudo"
+  check "grupo ${SPHARMMT_GROUP} existe"      getent group "$SPHARMMT_GROUP"
+  if [ "$IS_ROOT" = "1" ]; then
+    check "sudoers válido"                    visudo -c
+  else
+    check_skip "sudoers válido" "requer root"
+  fi
+
+  # ── SSH
+  if [ "$IS_ROOT" = "1" ] && has_cmd sshd; then
+    check "configuração sshd válida"          sshd -t
+    check "PasswordAuthentication no"         bash -c "sshd -T 2>/dev/null | grep -qi '^passwordauthentication no'"
+    check "PubkeyAuthentication yes"          bash -c "sshd -T 2>/dev/null | grep -qi '^pubkeyauthentication yes'"
+    check "PermitEmptyPasswords no"           bash -c "sshd -T 2>/dev/null | grep -qi '^permitemptypasswords no'"
+    check "MaxAuthTries <= 3"                 bash -c "[ \$(sshd -T 2>/dev/null | awk '/^maxauthtries/ {print \$2}') -le 3 ]"
+    check_warn "PermitRootLogin no"           bash -c "sshd -T 2>/dev/null | grep -qi '^permitrootlogin no'"
+    check "AllowUsers definido"               bash -c "sshd -T 2>/dev/null | grep -qi '^allowusers'"
+  else
+    check_skip "endurecimento SSH" "requer root"
+  fi
+  # Home real do utilizador — não assumir /home/<user>.
+  local uhome
+  uhome=$(getent passwd "$SPHARMMT_USER" 2>/dev/null | cut -d: -f6)
+  uhome=${uhome:-/home/${SPHARMMT_USER}}
+  check "chave em authorized_keys"            bash -c "[ -s '${uhome}/.ssh/authorized_keys' ]"
+  check "authorized_keys em modo 600"         bash -c "[ \$(stat -c '%a' '${uhome}/.ssh/authorized_keys' 2>/dev/null) = 600 ]"
+
+  # ── Firewall
+  if has_cmd ufw && [ "$IS_ROOT" = "1" ]; then
+    check "UFW activa"                        bash -c "ufw status | grep -q '^Status: active'"
+    check "UFW arranca no boot"               svc_enabled ufw
+    check "default deny incoming"             bash -c "ufw status verbose | grep -q 'deny (incoming)'"
+    check "SSH permitido"                     bash -c "ufw status | grep -qE '22/tcp|ssh'"
+    if [ "$HAS_STACK" = "1" ]; then
+      check_warn "80/443 abertos (proxy no ar)" bash -c "ufw status | grep -qE '^(80|443)/tcp .*ALLOW'"
+    else
+      check "80 fechado (sem proxy ainda)"    bash -c "! ufw status | grep -qE '^80/tcp .*ALLOW'"
+      check "443 fechado (sem proxy ainda)"   bash -c "! ufw status | grep -qE '^443/tcp .*ALLOW'"
+    fi
+  else
+    check_skip "firewall" "requer root e ufw"
+  fi
+
+  # ── fail2ban
+  check "fail2ban activo"                     svc_active fail2ban
+  check "fail2ban arranca no boot"            svc_enabled fail2ban
+  if [ "$IS_ROOT" = "1" ] && has_cmd fail2ban-client; then
+    check "jail sshd activa"                  fail2ban-client status sshd
+    check "banaction = ufw"                   grep -q 'banaction *= *ufw' /etc/fail2ban/jail.local
+  else
+    check_skip "jails do fail2ban" "requer root"
+  fi
+
+  # ── Exposição de portos: a verificação que mais importa neste servidor.
+  # O Docker escreve regras de iptables ANTES do UFW; um container
+  # publicado em 0.0.0.0 fica acessível da internet apesar da firewall.
+  if has_cmd ss; then
+    check "PostgreSQL NÃO exposto em 0.0.0.0" \
+      bash -c "! ss -tulpnH 2>/dev/null | grep -E '0\.0\.0\.0:5432|\[::\]:5432' | grep -q ."
+    check "sem portos inesperados em 0.0.0.0" \
+      bash -c "! ss -tulpnH 2>/dev/null | awk '{print \$5}' | grep -E '^0\.0\.0\.0:' | grep -vE ':(22|80|443)\$' | grep -q ."
+  else
+    check_skip "exposição de portos" "ss indisponível"
+  fi
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_docker() {
+  want docker || return 0
+  step "3. Docker"
+  check "docker instalado"                has_cmd docker
+  check "docker do repositório oficial"   bash -c "apt-cache policy docker-ce 2>/dev/null | grep -q download.docker.com"
+  check "serviço docker activo"           svc_active docker
+  check "docker arranca no boot"          svc_enabled docker
+  check "containerd activo"               svc_active containerd
+  check "docker compose v2"               docker compose version
+  check "buildx disponível"               docker buildx version
+  check "daemon responde"                 docker info
+  check "daemon.json presente"            test -f /etc/docker/daemon.json
+  check "rotação de logs de container"    grep -q '"max-size"' /etc/docker/daemon.json
+  check "live-restore activo"             bash -c "docker info 2>/dev/null | grep -q 'Live Restore Enabled: true'"
+  check "no-new-privileges activo"        grep -q '"no-new-privileges": true' /etc/docker/daemon.json
+  check "rede ${SPHARMMT_NETWORK} existe" docker network inspect "$SPHARMMT_NETWORK"
+  check "${SPHARMMT_USER} no grupo docker" bash -c "id -nG ${SPHARMMT_USER} | grep -qw docker"
+  # Imagens órfãs acumulam-se silenciosamente e são a segunda causa de
+  # disco cheio em hosts Docker, a seguir aos logs.
+  check_warn "menos de 20 imagens locais" bash -c "[ \$(docker images -q | wc -l) -lt 20 ]"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_volumes() {
+  want volumes || return 0
+  step "4. Volumes e permissões"
+  local d
+  for d in app postgres postgres/data backups backups/postgres logs docker \
+           docker/compose docker/env scripts monitoring secrets proxy; do
+    check "${SPHARMMT_ROOT}/${d}"         test -d "${SPHARMMT_ROOT}/${d}"
+  done
+  check "owner ${SPHARMMT_USER}:${SPHARMMT_GROUP}" \
+    bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_ROOT})\" = '${SPHARMMT_USER}:${SPHARMMT_GROUP}' ]"
+  check "secrets = 0700 root:root" \
+    bash -c "[ \"\$(stat -c '%a %U:%G' ${SPHARMMT_ROOT}/secrets)\" = '700 root:root' ]"
+  # O PostgreSQL recusa arrancar se o data directory tiver permissões mais
+  # largas do que 0700/0750.
+  check "postgres/data <= 0750" \
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}/postgres/data) -le 750 ]"
+  check "backups/postgres = 0700" \
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}/backups/postgres) = 700 ]"
+  check "nada world-readable na árvore" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -perm -o+r -o -perm -o+w 2>/dev/null | head -1)\" ]"
+  check "umask 027 em login.defs"        bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
+  check "setgid na raiz (herança de grupo)" \
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}) -ge 2000 ]"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_segredos() {
+  want segredos || return 0
+  step "5. Segredos"
+  if [ "$IS_ROOT" != "1" ]; then check_skip "segredos" "requer root"; return 0; fi
+  check "ficheiro de segredos existe"     test -f "$SPHARMMT_SECRETS_FILE"
+  [ -f "$SPHARMMT_SECRETS_FILE" ] || return 0
+  check "modo 0600 root:root" \
+    bash -c "[ \"\$(stat -c '%a %U:%G' ${SPHARMMT_SECRETS_FILE})\" = '600 root:root' ]"
+  local k
+  for k in POSTGRES_SUPERUSER_PASSWORD POSTGRES_APP_PASSWORD AUTH_SECRET \
+           TENANT_ENCRYPTION_SECRET EMAIL_CONFIG_SECRET CRON_SECRET ADMIN_API_TOKEN; do
+    check "segredo ${k} definido"         grep -qE "^${k}=.+" "$SPHARMMT_SECRETS_FILE"
+  done
+  check "TENANT_ENCRYPTION_SECRET com 64 hex" \
+    grep -qE '^TENANT_ENCRYPTION_SECRET=[0-9a-f]{64}$' "$SPHARMMT_SECRETS_FILE"
+  check "nenhum segredo vazio" \
+    bash -c "! awk -F= '/^[A-Z_]+=/ && \$2 == \"\" {print}' ${SPHARMMT_SECRETS_FILE} | grep -q ."
+  # Segredos em git seria comprometimento total.
+  check "segredos fora de /opt/spharmmt/app" \
+    bash -c "! find ${SPHARMMT_ROOT}/app -maxdepth 2 -name '*.secrets.env' 2>/dev/null | grep -q ."
+  check "env da stack existe"             test -f "$SPHARMMT_ENV_FILE"
+  check "env não legível por outros" \
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ENV_FILE} 2>/dev/null || echo 777) -le 640 ]"
+  check "configuração central existe"     test -f "$SPHARMMT_CONF_FILE"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_stack() {
+  want stack || return 0
+  step "6. Stack aplicacional"
+  if [ "$HAS_STACK" != "1" ]; then
+    check_skip "docker-compose da plataforma" "ainda não instalado (fase seguinte)"
+    return 0
+  fi
+  check "compose config válido"           dc config
+  local total running
+  total=$(dc config --services 2>/dev/null | wc -l)
+  running=$(dc ps -q 2>/dev/null | wc -l)
+  check "todos os serviços a correr (${running}/${total})" bash -c "[ ${running} -ge ${total} ]"
+  check "sem containers unhealthy"        bash -c "[ -z \"\$(docker ps --filter health=unhealthy -q)\" ]"
+  check "sem containers parados"          bash -c "[ -z \"\$(docker ps -a --filter status=exited -q)\" ]"
+  check "restart policy definida em todos" \
+    bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' | grep -qx 'no'"
+  check "limites de memória definidos" \
+    bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' | grep -q ' 0\$'"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_postgres() {
+  want postgres || return 0
+  step "7. PostgreSQL"
+  if [ "$HAS_PG" != "1" ]; then
+    check_skip "PostgreSQL" "ainda não instalado (fase seguinte)"
+    return 0
+  fi
+  check "container a correr"              container_running "$SPHARMMT_PG_CONTAINER"
+  check "aceita ligações (pg_isready)"    docker exec "$SPHARMMT_PG_CONTAINER" pg_isready -q
+  check "NÃO publicado em 0.0.0.0" \
+    bash -c "! docker port ${SPHARMMT_PG_CONTAINER} 2>/dev/null | grep -q '0.0.0.0'"
+  check "dados em volume persistente" \
+    bash -c "docker inspect ${SPHARMMT_PG_CONTAINER} -f '{{range .Mounts}}{{.Destination}} {{end}}' | grep -q '/var/lib/postgresql'"
+  check "healthcheck definido" \
+    bash -c "[ \"\$(docker inspect ${SPHARMMT_PG_CONTAINER} -f '{{if .State.Health}}yes{{end}}')\" = yes ]"
+  if [ "$IS_ROOT" = "1" ] && [ -f "$SPHARMMT_SECRETS_FILE" ]; then
+    # Ficheiro de segredos gerado em runtime — o caminho não é constante.
+    set -a
+    # shellcheck disable=SC1090
+    . "$SPHARMMT_SECRETS_FILE"
+    set +a
+    check "autenticação do superutilizador" \
+      bash -c "docker exec -e PGPASSWORD='${POSTGRES_SUPERUSER_PASSWORD:-}' ${SPHARMMT_PG_CONTAINER} psql -U postgres -d postgres -c 'SELECT 1'"
+    check_warn "conexões abaixo de 80%" \
+      bash -c "c=\$(docker exec -e PGPASSWORD='${POSTGRES_SUPERUSER_PASSWORD:-}' ${SPHARMMT_PG_CONTAINER} psql -U postgres -tAc 'SELECT count(*) FROM pg_stat_activity'); m=\$(docker exec -e PGPASSWORD='${POSTGRES_SUPERUSER_PASSWORD:-}' ${SPHARMMT_PG_CONTAINER} psql -U postgres -tAc 'SHOW max_connections'); [ \$((c*100/m)) -lt 80 ]"
+  else
+    check_skip "autenticação do PostgreSQL" "requer root e ficheiro de segredos"
+  fi
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_proxy() {
+  want proxy || return 0
+  step "8. Reverse proxy"
+  if ! container_exists "$SPHARMMT_PROXY_CONTAINER"; then
+    check_skip "reverse proxy" "ainda não instalado (fase seguinte)"
+    return 0
+  fi
+  check "container a correr"              container_running "$SPHARMMT_PROXY_CONTAINER"
+  check "porto 80 publicado"              bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^80/tcp'"
+  check_warn "porto 443 publicado (TLS)"  bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^443/tcp'"
+  check "responde em 127.0.0.1"           bash -c "curl -fsS -o /dev/null -m 10 http://127.0.0.1/ || curl -fsS -o /dev/null -m 10 -k https://127.0.0.1/"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_monitorizacao() {
+  want monitorizacao || return 0
+  step "9. Monitorização"
+  check "healthcheck instalado"           test -x "${SPHARMMT_ROOT}/monitoring/checks/healthcheck.sh"
+  check "timer do healthcheck activo"     svc_active spharmmt-healthcheck.timer
+  check "timer do healthcheck no boot"    svc_enabled spharmmt-healthcheck.timer
+  check "unit do healthcheck não falhada" bash -c "[ \"\$(systemctl is-failed spharmmt-healthcheck.service 2>/dev/null)\" != failed ]"
+  if [ -x "${SPHARMMT_ROOT}/monitoring/checks/healthcheck.sh" ]; then
+    # rc<=1 significa OK ou apenas avisos; rc=2 é crítico.
+    check "healthcheck corre sem CRIT" \
+      bash -c "${SPHARMMT_ROOT}/monitoring/checks/healthcheck.sh >/dev/null 2>&1; [ \$? -le 1 ]"
+  fi
+  check_warn "última execução há < 1h" \
+    bash -c "[ -f ${SPHARMMT_ROOT}/monitoring/state/last-run ] && [ \$(( \$(date +%s) - \$(stat -c %Y ${SPHARMMT_ROOT}/monitoring/state/last-run) )) -lt 3600 ]"
+  check "sysstat a recolher histórico"    svc_active sysstat
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_backups() {
+  want backups || return 0
+  step "10. Backups"
+  check "script de backup instalado"      test -x "${SPHARMMT_ROOT}/scripts/backup-platform.sh"
+  check "script de restauro instalado"    test -x "${SPHARMMT_ROOT}/scripts/restore-platform.sh"
+  check "timer de backup activo"          svc_active spharmmt-backup.timer
+  check "timer de backup no boot"         svc_enabled spharmmt-backup.timer
+  check "unit de backup não falhada"      bash -c "[ \"\$(systemctl is-failed spharmmt-backup.service 2>/dev/null)\" != failed ]"
+  local d
+  for d in daily weekly monthly; do
+    check "backups/postgres/${d}"         test -d "${SPHARMMT_ROOT}/backups/postgres/${d}"
+  done
+  check "política documentada"            test -f "${SPHARMMT_ROOT}/backups/POLICY.md"
+
+  if [ "$HAS_PG" = "1" ]; then
+    local n
+    n=$(find "${SPHARMMT_ROOT}/backups/postgres/daily" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    check "existe pelo menos um conjunto" bash -c "[ ${n} -gt 0 ]"
+    if [ "$n" -gt 0 ]; then
+      local newest
+      newest=$(find "${SPHARMMT_ROOT}/backups/postgres/daily" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+      check "conjunto mais recente < 30h" \
+        bash -c "[ \$(( ( \$(date +%s) - \$(stat -c %Y '${newest}') ) / 3600 )) -lt 30 ]"
+      check "checksums do último conjunto conferem" \
+        bash -c "cd '${newest}' && sha256sum -c --quiet SHA256SUMS"
+      check "manifesto presente"          test -f "${newest}/MANIFEST.txt"
+    fi
+  else
+    check_skip "conjuntos de backup" "PostgreSQL ainda não instalado"
+  fi
+
+  # Regra 3-2-1: enquanto não houver destino externo, isto é staging.
+  check_warn "destino externo configurado" \
+    bash -c "grep -qE '^BACKUP_REMOTE_(TARGET|URL)=.+' ${SPHARMMT_CONF_FILE} 2>/dev/null"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_logs() {
+  want logs || return 0
+  step "11. Logs"
+  check "journald persistente"            bash -c "grep -q 'Storage=persistent' /etc/systemd/journald.conf.d/99-spharmmt.conf 2>/dev/null"
+  check "journald com limite de uso"      bash -c "grep -q 'SystemMaxUse' /etc/systemd/journald.conf.d/99-spharmmt.conf 2>/dev/null"
+  # SystemMaxUse=2G — se o journal passou disso, a configuração não pegou.
+  check "journald abaixo de 3GB"          bash -c "[ \$(journalctl --disk-usage 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?[KMG]' | head -1 | numfmt --from=iec --suffix=B 2>/dev/null | tr -d 'B' || echo 0) -lt 3221225472 ]"
+  check "logrotate do SPharm.MT"          test -f /etc/logrotate.d/spharmmt
+  check "logrotate sem erros"             logrotate -d /etc/logrotate.d/spharmmt
+  check "timer do logrotate activo"       svc_active logrotate.timer
+  check "directório de logs existe"       test -d "${SPHARMMT_ROOT}/logs"
+  check "logs de scripts em ${SPHARMMT_LOG_DIR}" test -d "$SPHARMMT_LOG_DIR"
+  check_warn "nenhum log acima de 200MB" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/logs /var/log -size +200M -name '*.log' 2>/dev/null | head -1)\" ]"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+sec_recursos() {
+  want recursos || return 0
+  step "12. Recursos"
+  check "disco / abaixo de 80%"           bash -c "[ \$(df -P / | awk 'NR==2 {gsub(\"%\",\"\",\$5); print \$5}') -lt 80 ]"
+  check "inodes / abaixo de 80%"          bash -c "[ \$(df -Pi / | awk 'NR==2 {gsub(\"%\",\"\",\$5); print \$5}') -lt 80 ]"
+  check "pelo menos 2GB de RAM livre"     bash -c "[ \$(free -m | awk '/^Mem:/ {print \$7}') -gt 2048 ]"
+  check "load1 abaixo de nproc x2"        bash -c "[ \$(awk '{print int(\$1)}' /proc/loadavg) -lt \$(( \$(nproc) * 2 )) ]"
+  check_warn "swap abaixo de 50%"         bash -c "t=\$(free -m | awk '/^Swap:/ {print \$2}'); u=\$(free -m | awk '/^Swap:/ {print \$3}'); [ \"\$t\" -eq 0 ] || [ \$(( u * 100 / t )) -lt 50 ]"
+  check "4 vCPU disponíveis"              bash -c "[ \$(nproc) -ge 4 ]"
+  check "pelo menos 7GB de RAM total"     bash -c "[ \$(free -m | awk '/^Mem:/ {print \$2}') -ge 7000 ]"
+  check_warn "espaço para 30 dias de crescimento" \
+    bash -c "[ \$(df -Pm ${SPHARMMT_ROOT} | awk 'NR==2 {print \$4}') -gt 20480 ]"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+main() {
+  log_init
+  banner "verify-platform"
+
+  [ "$IS_ROOT" = "1" ] || warn "sem sudo: verificações de SSH, firewall e segredos ficam em SKIP"
+
+  sec_sistema
+  sec_seguranca
+  sec_docker
+  sec_volumes
+  sec_segredos
+  sec_stack
+  sec_postgres
+  sec_proxy
+  sec_monitorizacao
+  sec_backups
+  sec_logs
+  sec_recursos
+
+  local rc=0
+  report "Checklist da plataforma" || rc=$?
+
+  [ -n "$JSON_OUT" ] && { report_json "$JSON_OUT"; info "JSON: ${JSON_OUT}"; }
+
+  printf '\n'
+  if [ "$rc" -eq 0 ]; then
+    if [ "$HAS_STACK" = "1" ]; then
+      ok "plataforma operacional."
+    else
+      ok "servidor preparado e pronto a receber a stack (PostgreSQL + app + proxy)."
+    fi
+  else
+    err "há falhas a corrigir — detalhe acima e em ${LOG_FILE}"
+  fi
+  finish "$rc"
+}
+
+main "$@"
