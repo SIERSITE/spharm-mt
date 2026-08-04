@@ -96,6 +96,23 @@ is_mountpoint() {
   findmnt -rno TARGET "$1" >/dev/null 2>&1
 }
 
+# Ficheiro de tabela de montagens. Variável apenas para os testes poderem
+# exercitar a lógica sem tocar no sistema real.
+: "${FSTAB_FILE:=/etc/fstab}"
+
+# Verifica a tabela de montagens.
+#
+# ATENÇÃO a duas armadilhas, ambas já responsáveis por falhas reais:
+#   1. `findmnt` NÃO tem opção `--quiet` — em versão nenhuma do util-linux.
+#      Usá-la faz o comando sair com erro de sintaxe SEMPRE, o que era lido
+#      como "fstab inválido". Silenciar faz-se por redirecção.
+#   2. O resultado é ABSOLUTO: sinaliza qualquer problema do ficheiro,
+#      incluindo os que já lá estavam. Nunca usar como veredicto isolado
+#      para decidir reverter uma linha nossa — comparar antes/depois.
+fstab_verify_ok() {
+  findmnt --verify --tab-file "$FSTAB_FILE" >/dev/null 2>&1
+}
+
 if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
   if is_mountpoint /data; then
     SPHARMMT_DATA_ROOT=/data

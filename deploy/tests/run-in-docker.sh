@@ -85,7 +85,12 @@ set -e
 # O repositório é montado read-only; os scripts precisam de escrever em /tmp.
 cp -r /work/deploy /tmp/deploy
 chmod +x /tmp/deploy/scripts/*.sh /tmp/deploy/tests/*.sh
-SCRIPTS_DIR=/tmp/deploy/scripts bash /tmp/deploy/tests/test-bootstrap-dryrun.sh
+export SCRIPTS_DIR=/tmp/deploy/scripts
+suite_rc=0
+for t in /tmp/deploy/tests/test-*.sh; do
+  bash "$t" || suite_rc=1
+done
+exit $suite_rc
 ' || rc=$?
 
 echo

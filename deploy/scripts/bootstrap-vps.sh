@@ -243,6 +243,112 @@ EOF
 # ═════════════════════════════════════════════════════════════════════════
 # 3. Pacotes base, swap, sysctl
 # ═════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
+# Swap — isolada em funções próprias para ser testável sem tocar no sistema.
+# FSTAB_FILE (em lib/common.sh) e SWAP_FILE são sobreponíveis para esse fim.
+# ═════════════════════════════════════════════════════════════════════════
+: "${SWAP_FILE:=/swapfile}"
+
+# Ver fstab_verify_ok() em lib/common.sh para as duas armadilhas do
+# `findmnt --verify`. Deliberadamente multi-linha, com `}` na coluna 0: o
+# teste extrai esta função por gama de sed até `^}` e um one-liner faria a
+# gama estender-se até ao fim da função seguinte.
+fstab_is_valid() {
+  fstab_verify_ok
+}
+
+# Garante a entrada persistente, sem duplicar, e com rollback limitado à
+# linha que este script escreveu.
+ensure_swap_fstab_entry() {
+  if grep -qE "^[[:space:]]*${SWAP_FILE}[[:space:]]" "$FSTAB_FILE" 2>/dev/null; then
+    ok "${FSTAB_FILE} já tem a entrada de swap (não duplicada)"
+    return 0
+  fi
+
+  # Estado ANTES de mexer. Sem esta referência não é possível distinguir
+  # "a nossa linha partiu o ficheiro" de "o ficheiro já tinha problemas" —
+  # e reverteríamos uma linha correcta por causa de um aviso alheio.
+  local baseline_ok=0
+  if fstab_is_valid; then baseline_ok=1; fi
+
+  backup_file "$FSTAB_FILE"
+  printf '%s none swap sw 0 0\n' "$SWAP_FILE" >> "$FSTAB_FILE"
+
+  if fstab_is_valid; then
+    ok "swap persistente; ${FSTAB_FILE} validado"
+    return 0
+  fi
+
+  if [ "$baseline_ok" = "0" ]; then
+    # Já estava assim antes. A entrada de swap fica — removê-la não corrige
+    # nada e deixaria a swap sem persistência por uma razão que não é nossa.
+    warn "${FSTAB_FILE} já tinha problemas ANTES desta alteração"
+    warn "entrada de swap mantida. Inspecciona com: findmnt --verify"
+    return 0
+  fi
+
+  # O ficheiro estava bom e passou a estar mau: a responsabilidade é da
+  # linha que acabámos de escrever.
+  err "${FSTAB_FILE} ficou inválido por causa da entrada de swap — a reverter APENAS essa linha"
+  sed -i "\|^[[:space:]]*${SWAP_FILE}[[:space:]]|d" "$FSTAB_FILE"
+  if fstab_is_valid; then
+    warn "entrada removida e ${FSTAB_FILE} está válido."
+    warn "A swap fica ACTIVA mas NÃO sobrevive a um reboot. Diagnostica com: findmnt --verify"
+    return 0
+  fi
+  die "${FSTAB_FILE} continua inválido depois do rollback — inspecciona manualmente antes de reiniciar"
+}
+
+setup_swap() {
+  if [ "$SWAP_SIZE" = "0" ] || [ "$SWAP_SIZE" = "none" ]; then
+    info "swap ignorada (--swap-size 0)"
+    return 0
+  fi
+
+  local active
+  active=$(swapon --show=NAME --noheadings 2>/dev/null | tr '\n' ' ' || true)
+
+  if [ -n "${active// /}" ]; then
+    ok "swap já activa: ${active}"
+    # Reparação: swap activa sem entrada no fstab não sobrevive ao reboot.
+    # É o estado em que fica uma execução que falhou entre o `swapon` e a
+    # persistência — exactamente o que o bug do `findmnt --quiet` provocava.
+    if printf '%s' "$active" | grep -qw -- "$SWAP_FILE"; then
+      ensure_swap_fstab_entry
+    fi
+    return 0
+  fi
+
+  info "a criar swap de ${SWAP_SIZE} em ${SWAP_FILE}..."
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] criaria ${SWAP_FILE} e a respectiva entrada em ${FSTAB_FILE}"
+    return 0
+  fi
+
+  # Reaproveita um swapfile deixado por uma execução interrompida: recriá-lo
+  # desperdiça I/O e pode falhar por falta de espaço.
+  if [ -f "$SWAP_FILE" ]; then
+    warn "${SWAP_FILE} já existe (execução anterior interrompida?) — reaproveitado"
+  else
+    # fallocate falha em alguns filesystems (btrfs); dd é o fallback.
+    if ! fallocate -l "$SWAP_SIZE" "$SWAP_FILE" 2>/dev/null; then
+      local mb; mb=$(numfmt --from=iec "$SWAP_SIZE" | awk '{print int($1/1048576)}')
+      dd if=/dev/zero of="$SWAP_FILE" bs=1M count="$mb" status=none
+    fi
+  fi
+  chmod 600 "$SWAP_FILE"
+
+  # mkswap apenas se ainda não for uma área de swap válida — repetir mkswap
+  # sobre uma área já formatada muda o UUID sem necessidade.
+  if [ "$(blkid -o value -s TYPE "$SWAP_FILE" 2>/dev/null || true)" != "swap" ]; then
+    mkswap "$SWAP_FILE" >/dev/null
+  fi
+  swapon "$SWAP_FILE"
+  ok "swap activa (${SWAP_SIZE})"
+
+  ensure_swap_fstab_entry
+}
+
 step_base() {
   step "3. Pacotes base, swap e kernel"
 
@@ -262,33 +368,7 @@ step_base() {
     svc_enabled sysstat || run systemctl enable --now sysstat || true
   fi
 
-  # Swap: 8GB de RAM sem swap = OOM killer em vez de degradação.
-  if [ "$SWAP_SIZE" = "0" ] || [ "$SWAP_SIZE" = "none" ]; then
-    info "swap ignorada (--swap-size 0)"
-  elif [ -n "$(swapon --show --noheadings 2>/dev/null)" ]; then
-    ok "swap já activa: $(swapon --show=NAME,SIZE --noheadings | tr '\n' ' ')"
-  else
-    info "a criar swapfile de ${SWAP_SIZE}..."
-    if [ "$DRY_RUN" != "1" ]; then
-      # fallocate falha em alguns filesystems (btrfs); dd é o fallback.
-      if ! fallocate -l "$SWAP_SIZE" /swapfile 2>/dev/null; then
-        local mb; mb=$(numfmt --from=iec "$SWAP_SIZE" | awk '{print int($1/1048576)}')
-        dd if=/dev/zero of=/swapfile bs=1M count="$mb" status=none
-      fi
-      chmod 600 /swapfile
-      mkswap /swapfile >/dev/null
-      swapon /swapfile
-      backup_file /etc/fstab
-      grep -q '^/swapfile' /etc/fstab || printf '/swapfile none swap sw 0 0\n' >> /etc/fstab
-      # Um /etc/fstab inválido impede o boot — validar sempre.
-      if ! findmnt --verify --quiet; then
-        err "/etc/fstab ficou inválido — a reverter a entrada de swap"
-        sed -i '/^\/swapfile/d' /etc/fstab
-        die "fstab inválido após adicionar swap (nada partido, entrada removida)"
-      fi
-    fi
-    ok "swapfile ${SWAP_SIZE} activo e persistente"
-  fi
+  setup_swap
 
   write_file /etc/sysctl.d/60-spharmmt.conf 0644 root:root <<'EOF'
 # Gerido por bootstrap-vps.sh
@@ -1041,7 +1121,13 @@ validate() {
     check_skip "swap activa" "--swap-size 0"
   else
     check "swap activa"                 bash -c "[ \$(free -m | awk '/^Swap:/ {print \$2}') -gt 0 ]"
+    # Swap activa mas ausente do fstab não sobrevive ao reboot — é
+    # exactamente o estado meio-configurado que o bug do findmnt deixava.
+    check "swap persistente no fstab"   bash -c "grep -qE '^[^#]*[[:space:]]swap[[:space:]]' ${FSTAB_FILE}"
+    check "sem entradas de swap duplicadas" \
+      bash -c "[ \$(grep -cE '^[[:space:]]*${SWAP_FILE}[[:space:]]' ${FSTAB_FILE}) -le 1 ]"
   fi
+  check "fstab válido"                  bash -c "findmnt --verify >/dev/null 2>&1"
   check "vm.swappiness = 10"            bash -c "[ \$(sysctl -n vm.swappiness) -eq 10 ]"
 
   check "utilizador ${DEPLOY_USER}"     id "$DEPLOY_USER"

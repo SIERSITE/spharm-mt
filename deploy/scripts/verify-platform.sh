@@ -193,7 +193,7 @@ sec_volumes() {
     check "volume de dados MONTADO"       is_mountpoint "$SPHARMMT_DATA_ROOT"
     check "montagem persistente (fstab)"  bash -c "grep -qE '^[^#]*[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab"
     check "fstab por UUID (não /dev/sdX)" bash -c "grep -E '[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab | grep -q '^UUID='"
-    check "fstab válido"                  findmnt --verify --quiet
+    check "fstab válido"                  bash -c "findmnt --verify >/dev/null 2>&1"
     check "volume abaixo de 80%"          bash -c "[ \$(df -P '${SPHARMMT_DATA_ROOT}' | awk 'NR==2 {gsub(\"%\",\"\",\$5); print \$5}') -lt 80 ]"
     check "volume gravável"               bash -c "touch '${SPHARMMT_DATA_ROOT}/.spharmmt-wt' && rm -f '${SPHARMMT_DATA_ROOT}/.spharmmt-wt'"
     check_warn "sem dados órfãos no layout antigo" \

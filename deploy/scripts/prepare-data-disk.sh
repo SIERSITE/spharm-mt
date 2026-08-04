@@ -325,6 +325,11 @@ mount_and_persist() {
   # SEMPRE por UUID: /dev/sdb pode passar a /dev/sdc entre arranques
   # (ordem de detecção), e um fstab a apontar para o disco errado é um
   # servidor que não arranca.
+  # Estado antes de mexer — ver fstab_verify_ok() em lib/common.sh: o
+  # veredicto é absoluto e inclui problemas pré-existentes.
+  local baseline_ok=0
+  if fstab_verify_ok; then baseline_ok=1; fi
+
   if grep -qE "^[^#]*[[:space:]]${MOUNT_POINT}[[:space:]]" /etc/fstab; then
     warn "já existe uma entrada para ${MOUNT_POINT} em /etc/fstab — preservada"
   else
@@ -338,12 +343,18 @@ mount_and_persist() {
   # deixa a máquina presa no boot, sem acesso.
 
   # Um fstab inválido impede o arranque — validar antes de qualquer reboot.
-  findmnt --verify --quiet || {
-    err "/etc/fstab ficou inválido — a remover a entrada acabada de adicionar"
+  if fstab_verify_ok; then
+    ok "/etc/fstab validado (findmnt --verify)"
+  elif [ "$baseline_ok" = "0" ]; then
+    # Já tinha problemas antes de mexermos: reverter a nossa linha não os
+    # corrige e deixaria o disco de dados sem persistência sem razão.
+    warn "/etc/fstab já tinha problemas ANTES desta alteração — entrada mantida"
+    warn "inspecciona com: findmnt --verify"
+  else
+    err "/etc/fstab ficou inválido por causa da entrada nova — a revertê-la"
     sed -i "\|UUID=${uuid}|d" /etc/fstab
     die "fstab inválido (entrada revertida, sistema continua a arrancar)"
-  }
-  ok "/etc/fstab validado (findmnt --verify)"
+  fi
 
   if is_mountpoint "$MOUNT_POINT"; then
     ok "${MOUNT_POINT} já montado"
@@ -415,7 +426,7 @@ postflight() {
   check "${MOUNT_POINT} montado"           is_mountpoint "$MOUNT_POINT"
   check "montado a partir de ${part}"      bash -c "[ \"\$(findmnt -rno SOURCE '${MOUNT_POINT}')\" = '${part}' ]"
   check "entrada no /etc/fstab por UUID"   bash -c "grep -qE '^UUID=.*[[:space:]]${MOUNT_POINT}[[:space:]]' /etc/fstab"
-  check "fstab válido"                     findmnt --verify --quiet
+  check "fstab válido"                     bash -c "findmnt --verify >/dev/null 2>&1"
   check "escrita funciona"                 bash -c "touch '${MOUNT_POINT}/.spharmmt-write-test' && rm -f '${MOUNT_POINT}/.spharmmt-write-test'"
   for d in postgres postgres/data docker backups backups/postgres; do
     check "${MOUNT_POINT}/${d}"            test -d "${MOUNT_POINT}/${d}"
