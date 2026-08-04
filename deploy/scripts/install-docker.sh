@@ -89,6 +89,11 @@ setup_repo() {
   local key=/etc/apt/keyrings/docker.asc
   if [ -s "$key" ] && grep -q "BEGIN PGP PUBLIC KEY BLOCK" "$key"; then
     ok "chave GPG já presente"
+  elif [ "$DRY_RUN" = "1" ]; then
+    # Sem esta guarda, o dry-run ia mesmo à rede buscar a chave. Um dry-run
+    # não deve ter efeitos externos — e numa rede lenta ficava pendurado
+    # até 3 minutos entre retries e timeout.
+    info "[dry-run] descarregaria a chave GPG de https://download.docker.com/linux/ubuntu/gpg"
   else
     info "a descarregar a chave GPG oficial..."
     local tmp; tmp=$(mktemp)
@@ -218,6 +223,16 @@ configure_network() {
 # ─── Pós-condições ───────────────────────────────────────────────────────
 postflight() {
   step "Validação"
+
+  # Em dry-run nada foi instalado — validar devolveria falha em tudo e o
+  # bootstrap, que delega neste script, abortaria.
+  if [ "$DRY_RUN" = "1" ]; then
+    info "validação ignorada: em dry-run nada foi instalado"
+    check_skip "validação do Docker" "dry-run"
+    report "Docker — validação"
+    return 0
+  fi
+
   check "docker instalado"              has_cmd docker
   check "docker do repositório oficial" bash -c "apt-cache policy docker-ce | grep -q download.docker.com"
   check "serviço docker activo"         svc_active docker

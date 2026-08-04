@@ -346,7 +346,16 @@ require_not_root() {
 require_cmd() {
   local missing=()
   for c in "$@"; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
-  [ ${#missing[@]} -eq 0 ] || die_precond "comandos em falta: ${missing[*]}"
+  if [ ${#missing[@]} -eq 0 ]; then return 0; fi
+  # Em dry-run, um comando em falta é normalmente um pacote que um passo
+  # ANTERIOR simulou instalar (curl e gpg, por exemplo, são instalados pelo
+  # step_base e depois exigidos pelo install-docker). Abortar aqui faria o
+  # dry-run falhar por uma razão que não existe na execução real.
+  if [ "$DRY_RUN" = "1" ]; then
+    warn "[dry-run] comandos em falta: ${missing[*]} — em execução real teriam sido instalados antes"
+    return 0
+  fi
+  die_precond "comandos em falta: ${missing[*]}"
 }
 
 require_ubuntu() {
@@ -375,6 +384,44 @@ require_free_space() {
   [ "${avail_mb:-0}" -ge "$need_mb" ] \
     || die_precond "espaço insuficiente em ${path}: ${avail_mb}MB livres, necessários ${need_mb}MB"
   dbg "espaço em ${path}: ${avail_mb}MB livres (mínimo ${need_mb}MB)"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# Estado simulado (--dry-run)
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Em dry-run nada é criado, mas os passos seguintes precisam de saber o que
+# TERIA sido criado. Sem isto, um passo simula `adduser deploy` e o passo
+# seguinte pergunta ao sistema se o utilizador existe, não encontra nada, e
+# o dry-run diverge da execução real — além de despejar erros espúrios como
+# `id: 'deploy': no such user`.
+#
+# Estes registos só têm efeito quando DRY_RUN=1. Em execução real as
+# funções consultam sempre o sistema.
+
+_SIM_USERS=" "
+_SIM_GROUPS=" "
+_SIM_USER_GROUPS=" "
+
+sim_user_created()  { _SIM_USERS="${_SIM_USERS}${1} "; }
+sim_group_created() { _SIM_GROUPS="${_SIM_GROUPS}${1} "; }
+sim_user_in_group() { _SIM_USER_GROUPS="${_SIM_USER_GROUPS}${1}:${2} "; }
+
+_sim_has() { [ "$DRY_RUN" = "1" ] && case "$1" in *" $2 "*) return 0 ;; esac; return 1; }
+
+user_exists() {
+  if id "$1" >/dev/null 2>&1; then return 0; fi
+  _sim_has "$_SIM_USERS" "$1"
+}
+
+group_exists() {
+  if getent group "$1" >/dev/null 2>&1; then return 0; fi
+  _sim_has "$_SIM_GROUPS" "$1"
+}
+
+user_in_group() {
+  if id -nG "$1" 2>/dev/null | tr ' ' '\n' | grep -qx "$2"; then return 0; fi
+  _sim_has "$_SIM_USER_GROUPS" "${1}:${2}"
 }
 
 has_cmd()      { command -v "$1" >/dev/null 2>&1; }

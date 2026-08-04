@@ -365,31 +365,39 @@ EOF
 step_user() {
   step "5. Utilizador ${DEPLOY_USER}"
 
-  getent group "$DEPLOY_GROUP" >/dev/null || { run groupadd "$DEPLOY_GROUP"; ok "grupo ${DEPLOY_GROUP} criado"; }
+  if group_exists "$DEPLOY_GROUP"; then
+    ok "grupo ${DEPLOY_GROUP} já existe"
+  else
+    run groupadd "$DEPLOY_GROUP"
+    sim_group_created "$DEPLOY_GROUP"
+    ok "grupo ${DEPLOY_GROUP} criado"
+  fi
 
-  if id "$DEPLOY_USER" >/dev/null 2>&1; then
+  if user_exists "$DEPLOY_USER"; then
     ok "utilizador ${DEPLOY_USER} já existe — será reutilizado, não recriado"
   else
     run adduser --disabled-password --gecos "SPharm.MT deploy" "$DEPLOY_USER"
+    sim_user_created "$DEPLOY_USER"
     ok "utilizador ${DEPLOY_USER} criado (sem password — acesso só por chave)"
   fi
 
   # Resolve o home e o grupo primário REAIS (podem não ser os convencionais
   # se o utilizador já existia). Tudo o que se segue usa estes valores.
-  if id "$DEPLOY_USER" >/dev/null 2>&1; then
-    local resolved_home resolved_group
-    resolved_home=$(getent passwd "$DEPLOY_USER" | cut -d: -f6)
-    resolved_group=$(id -gn "$DEPLOY_USER")
-    [ -n "$resolved_home" ] && DEPLOY_HOME="$resolved_home"
-    [ -n "$resolved_group" ] && DEPLOY_PGROUP="$resolved_group"
-    ok "home=${DEPLOY_HOME} grupo primário=${DEPLOY_PGROUP}"
-  fi
+  # Em dry-run o utilizador não existe mesmo: ficam os defaults, que é o
+  # que `adduser` teria criado.
+  local resolved_home resolved_group
+  resolved_home=$(getent passwd "$DEPLOY_USER" 2>/dev/null | cut -d: -f6 || true)
+  resolved_group=$(id -gn "$DEPLOY_USER" 2>/dev/null || true)
+  if [ -n "$resolved_home" ]; then DEPLOY_HOME="$resolved_home"; fi
+  if [ -n "$resolved_group" ]; then DEPLOY_PGROUP="$resolved_group"; fi
+  ok "home=${DEPLOY_HOME} grupo primário=${DEPLOY_PGROUP}"
 
   for g in sudo "$DEPLOY_GROUP"; do
-    if id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx "$g"; then
+    if user_in_group "$DEPLOY_USER" "$g"; then
       dbg "${DEPLOY_USER} já em ${g}"
     else
       run usermod -aG "$g" "$DEPLOY_USER"
+      sim_user_in_group "$DEPLOY_USER" "$g"
       ok "${DEPLOY_USER} adicionado ao grupo ${g}"
     fi
   done
@@ -469,12 +477,15 @@ step_firewall() {
 _collect_keys() {
   local out=$1
   : > "$out"
-  [ -n "$SSH_KEY" ] && printf '%s\n' "$SSH_KEY" >> "$out"
-  [ -n "$SSH_KEY_FILE" ] && cat "$SSH_KEY_FILE" >> "$out"
+  if [ -n "$SSH_KEY" ]; then printf '%s\n' "$SSH_KEY" >> "$out"; fi
+  if [ -n "$SSH_KEY_FILE" ]; then cat "$SSH_KEY_FILE" >> "$out"; fi
   if [ ! -s "$out" ] && [ -s /root/.ssh/authorized_keys ]; then
     grep -vE '^\s*(#|$)' /root/.ssh/authorized_keys >> "$out" || true
-    [ -s "$out" ] && info "sem --ssh-key: reutilizadas as chaves de /root/.ssh/authorized_keys"
+    if [ -s "$out" ]; then
+      info "sem --ssh-key: reutilizadas as chaves de /root/.ssh/authorized_keys"
+    fi
   fi
+  return 0
 }
 
 # Conta as chaves públicas sintacticamente válidas de um ficheiro.
@@ -521,12 +532,25 @@ step_ssh() {
     return 0
   fi
 
-  # Contagem final sobre o ficheiro real — é esta que decide.
+  # Contagem final — é esta que decide se se desliga a autenticação por
+  # password.
   local installed=0
-  [ -f "${DEPLOY_HOME}/.ssh/authorized_keys" ] && \
+  if [ -f "${DEPLOY_HOME}/.ssh/authorized_keys" ]; then
     installed=$(_valid_key_count "${DEPLOY_HOME}/.ssh/authorized_keys")
+  fi
+  # Em dry-run o authorized_keys não chegou a ser escrito. Sem isto, o
+  # dry-run reportava "NENHUMA chave pública válida encontrada" mesmo com
+  # --ssh-key fornecida, e simulava um resultado diferente do real. A
+  # decisão passa a assentar nas chaves efectivamente RECEBIDAS ($nkeys),
+  # que é o que a execução real teria instalado.
+  if [ "$DRY_RUN" = "1" ] && [ "$nkeys" -gt "$installed" ]; then
+    installed="$nkeys"
+    info "[dry-run] ${nkeys} chave(s) válida(s) recebida(s) por argumento — seriam instaladas em ${DEPLOY_HOME}/.ssh/authorized_keys"
+  fi
   local root_keys=0
-  [ -f /root/.ssh/authorized_keys ] && root_keys=$(_valid_key_count /root/.ssh/authorized_keys)
+  if [ -f /root/.ssh/authorized_keys ]; then
+    root_keys=$(_valid_key_count /root/.ssh/authorized_keys)
+  fi
 
   if [ "$installed" -eq 0 ] && [ "$root_keys" -eq 0 ]; then
     warn "NENHUMA chave pública válida encontrada — autenticação por password NÃO será desligada"
@@ -658,7 +682,13 @@ EOF
       warn "fail2ban arrancou mas não responde ainda; verifica com: fail2ban-client status"
     fi
   fi
-  [ -n "$ADMIN_IP" ] && ok "${ADMIN_IP} isento de bans (ignoreip)"
+  # NUNCA terminar uma função com `[ ... ] && cmd`: se o teste for falso a
+  # função devolve 1 e, como é chamada directamente do main, o `set -e`
+  # aborta o script. Foi exactamente isto que partiu o primeiro dry-run.
+  if [ -n "$ADMIN_IP" ]; then
+    ok "${ADMIN_IP} isento de bans (ignoreip)"
+  fi
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -696,9 +726,15 @@ step_disks() {
   while IFS= read -r name; do
     [ -z "$name" ] && continue
     dev="/dev/${name}"
-    size=$(numfmt --to=iec "$(lsblk -bdno SIZE "$dev" 2>/dev/null | head -1)" 2>/dev/null || echo '?')
-    fstype=$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]')
-    parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l)
+    # O nó pode não estar acessível (container, dispositivo removido entre a
+    # listagem e a consulta). Sem esta guarda o lsblk devolve 32, o pipefail
+    # propaga e o `set -e` aborta o bootstrap inteiro numa etapa que é
+    # meramente informativa.
+    [ -b "$dev" ] || continue
+    size=$(lsblk -bdno SIZE "$dev" 2>/dev/null | head -1 || true)
+    size=$(numfmt --to=iec "${size:-0}" 2>/dev/null || echo '?')
+    fstype=$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]' || true)
+    parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l || echo 0)
 
     if [ "$name" = "$rootd" ]; then
       info "${dev} (${size}) — disco de sistema"
@@ -982,6 +1018,15 @@ EOF
 # ═════════════════════════════════════════════════════════════════════════
 validate() {
   step "17. Validação"
+
+  # Em dry-run nada foi aplicado: validar o estado do sistema devolveria
+  # falhas em tudo e o dry-run terminaria com rc=3. O que o dry-run valida
+  # é o FLUXO do script, não o resultado — esse só existe na execução real.
+  if [ "$DRY_RUN" = "1" ]; then
+    info "validação ignorada: em dry-run nada foi aplicado, não há estado para verificar"
+    check_skip "validação final do servidor" "dry-run"
+    return 0
+  fi
 
   check "Ubuntu 24.04"                  bash -c "grep -q '24.04' /etc/os-release"
   check "sem pacotes por actualizar"    bash -c "[ \$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst') -eq 0 ]"

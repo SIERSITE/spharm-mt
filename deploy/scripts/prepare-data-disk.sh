@@ -96,10 +96,12 @@ root_disk() {
 disk_is_free() {
   local dev=$1 name; name=$(basename "$dev")
 
+  # Nó inacessível — não é candidato e não deve abortar a análise.
+  [ -b "$dev" ] || return 1
   # Tem partições?
-  [ "$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l)" -eq 0 ] || return 1
+  [ "$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l || echo 1)" -eq 0 ] || return 1
   # Tem filesystem ou assinatura conhecida?
-  [ -z "$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]')" ] || return 1
+  [ -z "$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]' || echo busy)" ] || return 1
   # blkid detecta assinaturas que o lsblk pode não reportar.
   blkid -p "$dev" >/dev/null 2>&1 && return 1
   # Está montado?
@@ -111,7 +113,7 @@ disk_is_free() {
   return 0
 }
 
-disk_size() { lsblk -bdno SIZE "$1" 2>/dev/null | head -1; }
+disk_size() { lsblk -bdno SIZE "$1" 2>/dev/null | head -1 || true; }
 
 report_disks() {
   step "Discos do sistema"
@@ -126,9 +128,12 @@ report_disks() {
     [ -z "$name" ] && continue
     dev="/dev/${name}"
     SHOW_PARTS=""
+    # Ver nota em disk_is_free: um nó inacessível faz o lsblk devolver 32 e,
+    # com pipefail, abortaria o relatório.
+    [ -b "$dev" ] || continue
     size=$(disk_size "$dev"); sizeh=$(numfmt --to=iec "${size:-0}" 2>/dev/null || echo '?')
-    fstype=$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]')
-    parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l)
+    fstype=$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]' || true)
+    parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l || echo 0)
 
     if [ "$name" = "$rootd" ]; then
       state="sistema"; note="raiz do SO — NUNCA tocar"

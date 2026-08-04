@@ -366,8 +366,12 @@ TENANT_FALLBACK_ENABLED=1
 NODE_OPTIONS=--max-old-space-size=2048
 EOF
   ok "configuração da stack em ${SPHARMMT_ENV_FILE}"
-  [ "$cookie_secure" = "0" ] && \
+  # if explícito e não `[ ... ] && cmd`: como última instrução da função,
+  # um teste falso devolveria 1 e o `set -e` abortaria o script.
+  if [ "$cookie_secure" = "0" ]; then
     warn "SESSION_COOKIE_SECURE=0 (sem HTTPS). Passa a 1 assim que houver domínio e certificado."
+  fi
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════
