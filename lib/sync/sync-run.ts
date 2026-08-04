@@ -169,6 +169,60 @@ export async function withSyncRun<T>(
   }
 }
 
+/**
+ * Actualiza `lastHeartbeatAt` da linha para agora. Chamar periodicamente
+ * (a cada ~30s) durante runs longos para que o health check consiga
+ * distinguir "worker vivo" de "worker morto".
+ *
+ * Silencioso em erro — o run principal não deve falhar só porque o
+ * heartbeat falhou (rede temporária ao control plane).
+ */
+export async function heartbeatSyncRun(id: string): Promise<void> {
+  try {
+    await getControlPrismaCli().syncRun.update({
+      where: { id },
+      data: { lastHeartbeatAt: new Date() },
+    });
+  } catch (err) {
+    // best-effort — não vale quebrar o run
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[heartbeatSyncRun] falhou:", err instanceof Error ? err.message : err);
+    }
+  }
+}
+
+/**
+ * Devolve `true` se já existir uma linha RUNNING para o mesmo
+ * (tenantSlug, source) com heartbeat recente (< `staleThresholdMs`).
+ * Usado como lock cooperativo entre invocações paralelas do mesmo cron.
+ *
+ * NÃO é um lock atómico ao nível de BD (não usa `SELECT ... FOR UPDATE`)
+ * — se dois workers começarem simultaneamente, ambos podem passar.
+ * Isso é aceitável para o pipeline de enriquecimento (jobs são idempotentes
+ * por CNP), e demasiado caro para justificar um advisory lock aqui.
+ */
+export async function isSyncRunAlreadyRunning(
+  tenantSlug: string,
+  source: string,
+  staleThresholdMs: number = 5 * 60 * 1000,
+): Promise<boolean> {
+  const cutoff = new Date(Date.now() - staleThresholdMs);
+  const row = await getControlPrismaCli().syncRun.findFirst({
+    where: {
+      tenantSlug,
+      source,
+      status: "RUNNING",
+      OR: [
+        { lastHeartbeatAt: { gte: cutoff } },
+        // sem heartbeat mas iniciado há < 30s (arranque)
+        { lastHeartbeatAt: null, startedAt: { gte: new Date(Date.now() - 30_000) } },
+      ],
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 function sanitizeCounts(c: SyncRunCounts): Record<string, number> {
   const out: Record<string, number> = {};
   if (Number.isFinite(c.recordsRead) && (c.recordsRead ?? 0) >= 0) {

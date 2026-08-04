@@ -38,6 +38,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authorizeCronRequest } from "@/lib/jobs/cron-auth";
 import { forEachActiveTenant, type TenantIterSummary } from "@/lib/tenancy/for-each-tenant";
 import { runEnrichCycle, type EnrichCycleSummary } from "@/lib/jobs/enrich-catalog";
+import {
+  startSyncRun,
+  completeSyncRun,
+  failSyncRun,
+  heartbeatSyncRun,
+  isSyncRunAlreadyRunning,
+} from "@/lib/sync/sync-run";
+
+const JOB_SOURCE = "enrich-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,17 +136,41 @@ async function handle(req: NextRequest): Promise<Response> {
   try {
     iteratorSummary = await forEachActiveTenant(
       async ({ tenant, prisma }) => {
+        if (await isSyncRunAlreadyRunning(tenant.slug, JOB_SOURCE)) {
+          tenants.push({
+            ok: false,
+            slug: tenant.slug,
+            nome: tenant.nome,
+            error: "already_running",
+          });
+          return;
+        }
+        const run = await startSyncRun({
+          tenantSlug: tenant.slug,
+          source: JOB_SOURCE,
+          triggerType: "CRON",
+          meta: { syncLimit, reclassifyLimit },
+        });
+        const hb = setInterval(() => heartbeatSyncRun(run.id), 30_000);
         try {
+          await heartbeatSyncRun(run.id);
           const summary = await runEnrichCycle({ prisma, syncLimit, reclassifyLimit });
+          await completeSyncRun(run.id, {
+            recordsUpdated: summary.sync.updated + summary.reclassify.updated,
+            recordsFailed: summary.sync.errors + summary.reclassify.errors,
+          });
           tenants.push({ ok: true, slug: tenant.slug, nome: tenant.nome, summary });
         } catch (err) {
+          await failSyncRun(run.id, err);
           tenants.push({
             ok: false,
             slug: tenant.slug,
             nome: tenant.nome,
             error: err instanceof Error ? err.message : String(err),
           });
-          throw err; // re-throw para o iterador contar como falha
+          throw err;
+        } finally {
+          clearInterval(hb);
         }
       },
       { onlySlugs }

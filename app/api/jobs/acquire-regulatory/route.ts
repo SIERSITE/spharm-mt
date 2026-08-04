@@ -32,6 +32,15 @@ import {
   runAcquisitionTick,
   type AcquisitionTickSummary,
 } from "@/lib/jobs/regulatory-acquisition";
+import {
+  startSyncRun,
+  completeSyncRun,
+  failSyncRun,
+  heartbeatSyncRun,
+  isSyncRunAlreadyRunning,
+} from "@/lib/sync/sync-run";
+
+const JOB_SOURCE = "acquire-regulatory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,15 +139,41 @@ async function handle(req: NextRequest): Promise<Response> {
   try {
     iteratorSummary = await forEachActiveTenant(
       async ({ tenant, prisma }) => {
+        if (await isSyncRunAlreadyRunning(tenant.slug, JOB_SOURCE)) {
+          tenants.push({
+            ok: false,
+            slug: tenant.slug,
+            nome: tenant.nome,
+            error: "already_running",
+          });
+          return;
+        }
+        const run = await startSyncRun({
+          tenantSlug: tenant.slug,
+          source: JOB_SOURCE,
+          triggerType: "CRON",
+          meta: { maxJobsPerTenant, maxDurationMsPerTenant, skipInfomedHttp },
+        });
+        const hb = setInterval(() => heartbeatSyncRun(run.id), 30_000);
         try {
+          await heartbeatSyncRun(run.id);
           const summary = await runAcquisitionTick({
             prisma,
             maxJobs: maxJobsPerTenant,
             maxDurationMs: maxDurationMsPerTenant,
             skipInfomedHttp,
           });
+          await completeSyncRun(run.id, {
+            recordsRead: summary.processed,
+            recordsUpdated:
+              summary.produtoUpdates.fieldsFilled +
+              summary.produtoUpdates.imagemUrlFilled,
+            recordsInserted: summary.regulatoryRecordUpserts,
+            recordsFailed: summary.outcomes.failed + summary.outcomes.blocked,
+          });
           tenants.push({ ok: true, slug: tenant.slug, nome: tenant.nome, summary });
         } catch (err) {
+          await failSyncRun(run.id, err);
           tenants.push({
             ok: false,
             slug: tenant.slug,
@@ -146,6 +181,8 @@ async function handle(req: NextRequest): Promise<Response> {
             error: err instanceof Error ? err.message : String(err),
           });
           throw err;
+        } finally {
+          clearInterval(hb);
         }
       },
       { onlySlugs },

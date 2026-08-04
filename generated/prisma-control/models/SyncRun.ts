@@ -54,6 +54,7 @@ export type SyncRunMinAggregateOutputType = {
   startedAt: Date | null
   finishedAt: Date | null
   durationMs: number | null
+  lastHeartbeatAt: Date | null
   recordsRead: number | null
   recordsInserted: number | null
   recordsUpdated: number | null
@@ -74,6 +75,7 @@ export type SyncRunMaxAggregateOutputType = {
   startedAt: Date | null
   finishedAt: Date | null
   durationMs: number | null
+  lastHeartbeatAt: Date | null
   recordsRead: number | null
   recordsInserted: number | null
   recordsUpdated: number | null
@@ -94,6 +96,7 @@ export type SyncRunCountAggregateOutputType = {
   startedAt: number
   finishedAt: number
   durationMs: number
+  lastHeartbeatAt: number
   recordsRead: number
   recordsInserted: number
   recordsUpdated: number
@@ -132,6 +135,7 @@ export type SyncRunMinAggregateInputType = {
   startedAt?: true
   finishedAt?: true
   durationMs?: true
+  lastHeartbeatAt?: true
   recordsRead?: true
   recordsInserted?: true
   recordsUpdated?: true
@@ -152,6 +156,7 @@ export type SyncRunMaxAggregateInputType = {
   startedAt?: true
   finishedAt?: true
   durationMs?: true
+  lastHeartbeatAt?: true
   recordsRead?: true
   recordsInserted?: true
   recordsUpdated?: true
@@ -172,6 +177,7 @@ export type SyncRunCountAggregateInputType = {
   startedAt?: true
   finishedAt?: true
   durationMs?: true
+  lastHeartbeatAt?: true
   recordsRead?: true
   recordsInserted?: true
   recordsUpdated?: true
@@ -279,6 +285,7 @@ export type SyncRunGroupByOutputType = {
   startedAt: Date
   finishedAt: Date | null
   durationMs: number | null
+  lastHeartbeatAt: Date | null
   recordsRead: number
   recordsInserted: number
   recordsUpdated: number
@@ -322,6 +329,7 @@ export type SyncRunWhereInput = {
   startedAt?: Prisma.DateTimeFilter<"SyncRun"> | Date | string
   finishedAt?: Prisma.DateTimeNullableFilter<"SyncRun"> | Date | string | null
   durationMs?: Prisma.IntNullableFilter<"SyncRun"> | number | null
+  lastHeartbeatAt?: Prisma.DateTimeNullableFilter<"SyncRun"> | Date | string | null
   recordsRead?: Prisma.IntFilter<"SyncRun"> | number
   recordsInserted?: Prisma.IntFilter<"SyncRun"> | number
   recordsUpdated?: Prisma.IntFilter<"SyncRun"> | number
@@ -342,6 +350,7 @@ export type SyncRunOrderByWithRelationInput = {
   startedAt?: Prisma.SortOrder
   finishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   durationMs?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastHeartbeatAt?: Prisma.SortOrderInput | Prisma.SortOrder
   recordsRead?: Prisma.SortOrder
   recordsInserted?: Prisma.SortOrder
   recordsUpdated?: Prisma.SortOrder
@@ -365,6 +374,7 @@ export type SyncRunWhereUniqueInput = Prisma.AtLeast<{
   startedAt?: Prisma.DateTimeFilter<"SyncRun"> | Date | string
   finishedAt?: Prisma.DateTimeNullableFilter<"SyncRun"> | Date | string | null
   durationMs?: Prisma.IntNullableFilter<"SyncRun"> | number | null
+  lastHeartbeatAt?: Prisma.DateTimeNullableFilter<"SyncRun"> | Date | string | null
   recordsRead?: Prisma.IntFilter<"SyncRun"> | number
   recordsInserted?: Prisma.IntFilter<"SyncRun"> | number
   recordsUpdated?: Prisma.IntFilter<"SyncRun"> | number
@@ -385,6 +395,7 @@ export type SyncRunOrderByWithAggregationInput = {
   startedAt?: Prisma.SortOrder
   finishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   durationMs?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastHeartbeatAt?: Prisma.SortOrderInput | Prisma.SortOrder
   recordsRead?: Prisma.SortOrder
   recordsInserted?: Prisma.SortOrder
   recordsUpdated?: Prisma.SortOrder
@@ -413,6 +424,7 @@ export type SyncRunScalarWhereWithAggregatesInput = {
   startedAt?: Prisma.DateTimeWithAggregatesFilter<"SyncRun"> | Date | string
   finishedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"SyncRun"> | Date | string | null
   durationMs?: Prisma.IntNullableWithAggregatesFilter<"SyncRun"> | number | null
+  lastHeartbeatAt?: Prisma.DateTimeNullableWithAggregatesFilter<"SyncRun"> | Date | string | null
   recordsRead?: Prisma.IntWithAggregatesFilter<"SyncRun"> | number
   recordsInserted?: Prisma.IntWithAggregatesFilter<"SyncRun"> | number
   recordsUpdated?: Prisma.IntWithAggregatesFilter<"SyncRun"> | number
@@ -433,6 +445,7 @@ export type SyncRunCreateInput = {
   startedAt?: Date | string
   finishedAt?: Date | string | null
   durationMs?: number | null
+  lastHeartbeatAt?: Date | string | null
   recordsRead?: number
   recordsInserted?: number
   recordsUpdated?: number
@@ -453,6 +466,7 @@ export type SyncRunUncheckedCreateInput = {
   startedAt?: Date | string
   finishedAt?: Date | string | null
   durationMs?: number | null
+  lastHeartbeatAt?: Date | string | null
   recordsRead?: number
   recordsInserted?: number
   recordsUpdated?: number
@@ -473,6 +487,7 @@ export type SyncRunUpdateInput = {
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   finishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastHeartbeatAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   recordsRead?: Prisma.IntFieldUpdateOperationsInput | number
   recordsInserted?: Prisma.IntFieldUpdateOperationsInput | number
   recordsUpdated?: Prisma.IntFieldUpdateOperationsInput | number
@@ -493,6 +508,7 @@ export type SyncRunUncheckedUpdateInput = {
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   finishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastHeartbeatAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   recordsRead?: Prisma.IntFieldUpdateOperationsInput | number
   recordsInserted?: Prisma.IntFieldUpdateOperationsInput | number
   recordsUpdated?: Prisma.IntFieldUpdateOperationsInput | number
@@ -513,6 +529,7 @@ export type SyncRunCreateManyInput = {
   startedAt?: Date | string
   finishedAt?: Date | string | null
   durationMs?: number | null
+  lastHeartbeatAt?: Date | string | null
   recordsRead?: number
   recordsInserted?: number
   recordsUpdated?: number
@@ -533,6 +550,7 @@ export type SyncRunUpdateManyMutationInput = {
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   finishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastHeartbeatAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   recordsRead?: Prisma.IntFieldUpdateOperationsInput | number
   recordsInserted?: Prisma.IntFieldUpdateOperationsInput | number
   recordsUpdated?: Prisma.IntFieldUpdateOperationsInput | number
@@ -553,6 +571,7 @@ export type SyncRunUncheckedUpdateManyInput = {
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   finishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   durationMs?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  lastHeartbeatAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   recordsRead?: Prisma.IntFieldUpdateOperationsInput | number
   recordsInserted?: Prisma.IntFieldUpdateOperationsInput | number
   recordsUpdated?: Prisma.IntFieldUpdateOperationsInput | number
@@ -573,6 +592,7 @@ export type SyncRunCountOrderByAggregateInput = {
   startedAt?: Prisma.SortOrder
   finishedAt?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
+  lastHeartbeatAt?: Prisma.SortOrder
   recordsRead?: Prisma.SortOrder
   recordsInserted?: Prisma.SortOrder
   recordsUpdated?: Prisma.SortOrder
@@ -601,6 +621,7 @@ export type SyncRunMaxOrderByAggregateInput = {
   startedAt?: Prisma.SortOrder
   finishedAt?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
+  lastHeartbeatAt?: Prisma.SortOrder
   recordsRead?: Prisma.SortOrder
   recordsInserted?: Prisma.SortOrder
   recordsUpdated?: Prisma.SortOrder
@@ -621,6 +642,7 @@ export type SyncRunMinOrderByAggregateInput = {
   startedAt?: Prisma.SortOrder
   finishedAt?: Prisma.SortOrder
   durationMs?: Prisma.SortOrder
+  lastHeartbeatAt?: Prisma.SortOrder
   recordsRead?: Prisma.SortOrder
   recordsInserted?: Prisma.SortOrder
   recordsUpdated?: Prisma.SortOrder
@@ -667,6 +689,7 @@ export type SyncRunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   startedAt?: boolean
   finishedAt?: boolean
   durationMs?: boolean
+  lastHeartbeatAt?: boolean
   recordsRead?: boolean
   recordsInserted?: boolean
   recordsUpdated?: boolean
@@ -687,6 +710,7 @@ export type SyncRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   startedAt?: boolean
   finishedAt?: boolean
   durationMs?: boolean
+  lastHeartbeatAt?: boolean
   recordsRead?: boolean
   recordsInserted?: boolean
   recordsUpdated?: boolean
@@ -707,6 +731,7 @@ export type SyncRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   startedAt?: boolean
   finishedAt?: boolean
   durationMs?: boolean
+  lastHeartbeatAt?: boolean
   recordsRead?: boolean
   recordsInserted?: boolean
   recordsUpdated?: boolean
@@ -727,6 +752,7 @@ export type SyncRunSelectScalar = {
   startedAt?: boolean
   finishedAt?: boolean
   durationMs?: boolean
+  lastHeartbeatAt?: boolean
   recordsRead?: boolean
   recordsInserted?: boolean
   recordsUpdated?: boolean
@@ -737,7 +763,7 @@ export type SyncRunSelectScalar = {
   updatedAt?: boolean
 }
 
-export type SyncRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantSlug" | "source" | "status" | "triggerType" | "workerId" | "startedAt" | "finishedAt" | "durationMs" | "recordsRead" | "recordsInserted" | "recordsUpdated" | "recordsFailed" | "errorSummary" | "metaJson" | "createdAt" | "updatedAt", ExtArgs["result"]["syncRun"]>
+export type SyncRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantSlug" | "source" | "status" | "triggerType" | "workerId" | "startedAt" | "finishedAt" | "durationMs" | "lastHeartbeatAt" | "recordsRead" | "recordsInserted" | "recordsUpdated" | "recordsFailed" | "errorSummary" | "metaJson" | "createdAt" | "updatedAt", ExtArgs["result"]["syncRun"]>
 
 export type $SyncRunPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "SyncRun"
@@ -770,6 +796,13 @@ export type $SyncRunPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
      * completeSyncRun/failSyncRun para evitar recomputar em queries.
      */
     durationMs: number | null
+    /**
+     * Última prova-de-vida do worker. Actualizado periodicamente durante
+     * runs longos via `heartbeatSyncRun(id)`. Se um run RUNNING tem
+     * `lastHeartbeatAt` mais velho que `STUCK_THRESHOLD_MS` (default 5min),
+     * deve ser considerado morto — alerta e/ou reset.
+     */
+    lastHeartbeatAt: Date | null
     /**
      * Contadores opcionais. Caller preenche o que fizer sentido.
      */
@@ -1220,6 +1253,7 @@ export interface SyncRunFieldRefs {
   readonly startedAt: Prisma.FieldRef<"SyncRun", 'DateTime'>
   readonly finishedAt: Prisma.FieldRef<"SyncRun", 'DateTime'>
   readonly durationMs: Prisma.FieldRef<"SyncRun", 'Int'>
+  readonly lastHeartbeatAt: Prisma.FieldRef<"SyncRun", 'DateTime'>
   readonly recordsRead: Prisma.FieldRef<"SyncRun", 'Int'>
   readonly recordsInserted: Prisma.FieldRef<"SyncRun", 'Int'>
   readonly recordsUpdated: Prisma.FieldRef<"SyncRun", 'Int'>

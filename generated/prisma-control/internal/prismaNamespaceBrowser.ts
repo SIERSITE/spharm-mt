@@ -150,6 +150,7 @@ export const SyncRunScalarFieldEnum = {
   startedAt: 'startedAt',
   finishedAt: 'finishedAt',
   durationMs: 'durationMs',
+  lastHeartbeatAt: 'lastHeartbeatAt',
   recordsRead: 'recordsRead',
   recordsInserted: 'recordsInserted',
   recordsUpdated: 'recordsUpdated',

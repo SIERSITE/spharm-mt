@@ -23,6 +23,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authorizeCronRequest } from "@/lib/jobs/cron-auth";
 import { forEachActiveTenant, type TenantIterSummary } from "@/lib/tenancy/for-each-tenant";
 import { runEnqueueRegulatory, type EnqueueSummary } from "@/lib/jobs/enqueue-regulatory";
+import {
+  startSyncRun,
+  completeSyncRun,
+  failSyncRun,
+  heartbeatSyncRun,
+  isSyncRunAlreadyRunning,
+} from "@/lib/sync/sync-run";
+
+const JOB_SOURCE = "enqueue-regulatory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,10 +97,36 @@ async function handle(req: NextRequest): Promise<Response> {
   try {
     iteratorSummary = await forEachActiveTenant(
       async ({ tenant, prisma }) => {
+        // Lock cooperativo — evita dois runs para o mesmo (tenant, source)
+        // quando o cron dispara em cima duma execução manual.
+        if (await isSyncRunAlreadyRunning(tenant.slug, JOB_SOURCE)) {
+          tenants.push({
+            ok: false,
+            slug: tenant.slug,
+            nome: tenant.nome,
+            error: "already_running",
+          });
+          return; // não conta como falha do iterador, apenas skip
+        }
+        const run = await startSyncRun({
+          tenantSlug: tenant.slug,
+          source: JOB_SOURCE,
+          triggerType: "CRON",
+          meta: { maxNewJobs },
+        });
+        // heartbeat a cada 30s enquanto o run corre
+        const hb = setInterval(() => heartbeatSyncRun(run.id), 30_000);
         try {
+          await heartbeatSyncRun(run.id);
           const summary = await runEnqueueRegulatory({ prisma, maxNewJobs });
+          await completeSyncRun(run.id, {
+            recordsRead: summary.candidatesFound,
+            recordsInserted: summary.jobsCreated,
+            recordsUpdated: summary.jobsAlreadyOpen,
+          });
           tenants.push({ ok: true, slug: tenant.slug, nome: tenant.nome, summary });
         } catch (err) {
+          await failSyncRun(run.id, err);
           tenants.push({
             ok: false,
             slug: tenant.slug,
@@ -99,6 +134,8 @@ async function handle(req: NextRequest): Promise<Response> {
             error: err instanceof Error ? err.message : String(err),
           });
           throw err;
+        } finally {
+          clearInterval(hb);
         }
       },
       { onlySlugs },

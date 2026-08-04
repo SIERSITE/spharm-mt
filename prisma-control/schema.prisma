@@ -241,6 +241,12 @@ model SyncRun {
   /// completeSyncRun/failSyncRun para evitar recomputar em queries.
   durationMs      Int?
 
+  /// Última prova-de-vida do worker. Actualizado periodicamente durante
+  /// runs longos via `heartbeatSyncRun(id)`. Se um run RUNNING tem
+  /// `lastHeartbeatAt` mais velho que `STUCK_THRESHOLD_MS` (default 5min),
+  /// deve ser considerado morto — alerta e/ou reset.
+  lastHeartbeatAt DateTime?
+
   /// Contadores opcionais. Caller preenche o que fizer sentido.
   recordsRead     Int             @default(0)
   recordsInserted Int             @default(0)
