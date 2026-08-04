@@ -1,0 +1,113 @@
+{
+  "_comment": "Exemplo ILUSTRATIVO de manifest.json produzido por `npm run catalog:export`. As contagens correspondem ao dry-run real da base legacy a 2026-08-04; os sha256 são fictícios. A origem aparece sempre mascarada — nunca há credenciais num bundle.",
+  "manifestVersion": 1,
+  "tool": "catalog-master/1.0.0",
+  "exportedAt": "2026-08-04T14:22:07.114Z",
+  "source": {
+    "label": "env:DATABASE_URL (ep-polis***/neondb)",
+    "kind": "url-env",
+    "tenantSlug": null,
+    "schemaVersion": "20260601120000_produto_farmacia_taxa_iva"
+  },
+  "options": {
+    "filter": "enriched",
+    "includeHistory": true,
+    "includeTipoDoc": false,
+    "regulatory": "all"
+  },
+  "tables": [
+    {
+      "table": "classificacao",
+      "model": "Classificacao",
+      "file": "classificacao.ndjson",
+      "rows": 192,
+      "sha256": "3f1c0a9d5b7e2148a6c4d90f83b512ee7a4d6c8f019b3e5a7c2d4f6089b1a3c5",
+      "bytes": 41283
+    },
+    {
+      "table": "fabricante",
+      "model": "Fabricante",
+      "file": "fabricante.ndjson",
+      "rows": 1031,
+      "sha256": "9a2b4c6d8e0f1234567890abcdef1234567890abcdef1234567890abcdef1234",
+      "bytes": 187420
+    },
+    {
+      "table": "fabricanteAlias",
+      "model": "FabricanteAlias",
+      "file": "fabricante-alias.ndjson",
+      "rows": 1019,
+      "sha256": "1b3d5f7091a2c4e6b8d0f2a4c6e8091b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c",
+      "bytes": 132905
+    },
+    {
+      "table": "produto",
+      "model": "Produto",
+      "file": "produto.ndjson",
+      "rows": 13514,
+      "sha256": "c7e9a1b3d5f7092a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a",
+      "bytes": 9418337
+    },
+    {
+      "table": "regulatoryRecord",
+      "model": "RegulatoryRecord",
+      "file": "regulatory-record.ndjson",
+      "rows": 283337,
+      "sha256": "5d7f9b1c3e5a7092b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6c8e0",
+      "bytes": 92847113
+    },
+    {
+      "table": "infarmedSnapshot",
+      "model": "InfarmedSnapshot",
+      "file": "infarmed-snapshot.ndjson",
+      "rows": 41368,
+      "sha256": "8e0a2c4e6b8d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0b",
+      "bytes": 14203998
+    },
+    {
+      "table": "produtoVerificacaoHistorico",
+      "model": "ProdutoVerificacaoHistorico",
+      "file": "produto-verificacao-historico.ndjson",
+      "rows": 27714,
+      "sha256": "2c4e6b8d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e",
+      "bytes": 7719044
+    },
+    {
+      "table": "tipoDocumentoClassificacao",
+      "model": "TipoDocumentoClassificacao",
+      "file": "tipo-documento-classificacao.ndjson",
+      "rows": 0,
+      "sha256": "",
+      "bytes": 0
+    }
+  ],
+  "coverage": {
+    "produtos": 13514,
+    "comATC": 4168,
+    "comDCI": 4171,
+    "comFormaFarmaceutica": 4171,
+    "comDosagem": 4171,
+    "comEmbalagem": 4173,
+    "comImagem": 4410,
+    "comFabricante": 12579,
+    "comNivel1": 11438,
+    "comNivel2": 11438,
+    "validadosManualmente": 0
+  },
+  "omittedProdutoFields": [
+    "externalProductId",
+    "lastVerificationAttemptAt",
+    "dataAtualizacao"
+  ],
+  "excludedTables": {
+    "Farmacia": "Entidade da farmácia — recriada no onboarding de cada tenant.",
+    "Utilizador": "Contas e password hashes — nunca saem do tenant de origem.",
+    "EmailConfig": "Credenciais SMTP cifradas — segredo por farmácia.",
+    "ProdutoFarmacia": "Preço, stock, margem, IVA — específico da farmácia.",
+    "Venda": "Transacional.",
+    "MovimentoArtigo": "Movimentos canónicos — reimportados pelo agent.",
+    "IngestStocksMovRaw": "Raw.",
+    "FilaRevisao": "Fila de revisão humana — estado de trabalho, não catálogo.",
+    "PipelineRun": "Log de execuções de pipeline."
+  }
+}
