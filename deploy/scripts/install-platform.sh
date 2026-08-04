@@ -75,6 +75,7 @@ preflight() {
   require_ubuntu 24.04
   require_cmd docker openssl install systemctl awk sed
   docker compose version >/dev/null 2>&1 || die_precond "docker compose v2 ausente — corre install-docker.sh"
+  require_data_root_mounted
   id "$DEPLOY_USER" >/dev/null 2>&1 || die_precond "utilizador ${DEPLOY_USER} não existe — corre bootstrap-vps.sh"
   getent group "$DEPLOY_GROUP" >/dev/null || die_precond "grupo ${DEPLOY_GROUP} não existe — corre bootstrap-vps.sh"
   require_free_space / 10240
@@ -85,12 +86,12 @@ preflight() {
 # 1. Estrutura (idempotente — repete o que o bootstrap fez, sem destruir)
 # ═════════════════════════════════════════════════════════════════════════
 ensure_structure() {
-  step "1. Estrutura ${SPHARMMT_ROOT}"
+  step "1. Estrutura"
+
+  # ── Código, configuração e segredos: sempre em $SPHARMMT_ROOT ────────
   ensure_dir "$SPHARMMT_ROOT" 2750 "$OWNER"
   local dirs=(
-    app postgres postgres/data postgres/conf postgres/init
-    backups backups/postgres backups/postgres/daily backups/postgres/weekly
-    backups/postgres/monthly backups/files backups/tmp
+    app
     logs logs/app logs/postgres logs/proxy logs/monitoring logs/backups
     docker docker/compose docker/env docker/build
     scripts scripts/lib monitoring monitoring/checks monitoring/state
@@ -98,9 +99,55 @@ ensure_structure() {
   )
   for d in "${dirs[@]}"; do ensure_dir "${SPHARMMT_ROOT}/${d}" 2750 "$OWNER"; done
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
-  ensure_dir "${SPHARMMT_ROOT}/postgres/data" 0700 "$OWNER"
-  ensure_dir "${SPHARMMT_ROOT}/backups/postgres" 0700 "$OWNER"
-  ok "estrutura garantida"
+  ok "aplicação e configuração em ${SPHARMMT_ROOT}"
+
+  # ── Dados: em $SPHARMMT_DATA_ROOT ────────────────────────────────────
+  local ddirs=(
+    "${SPHARMMT_PG_DIR}" "${SPHARMMT_PG_DIR}/conf" "${SPHARMMT_PG_DIR}/init"
+    "${SPHARMMT_BACKUP_DIR}" "${SPHARMMT_BACKUP_DIR}/postgres"
+    "${SPHARMMT_BACKUP_DIR}/postgres/daily" "${SPHARMMT_BACKUP_DIR}/postgres/weekly"
+    "${SPHARMMT_BACKUP_DIR}/postgres/monthly"
+    "${SPHARMMT_BACKUP_DIR}/files" "${SPHARMMT_BACKUP_DIR}/tmp"
+  )
+  for d in "${ddirs[@]}"; do ensure_dir "$d" 2750 "$OWNER"; done
+  ensure_dir "${SPHARMMT_PG_DIR}/data" 0700 "$OWNER"
+  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 0700 "$OWNER"
+
+  if data_disk_in_use; then
+    ensure_dir "$SPHARMMT_DOCKER_DATA_DIR" 2750 root:root
+    ok "dados no disco dedicado ${SPHARMMT_DATA_ROOT} ($(df -Ph "$SPHARMMT_DATA_ROOT" | awk 'NR==2 {print $4}') livres)"
+    check_legacy_data
+  else
+    ok "dados em ${SPHARMMT_DATA_ROOT} (mesmo volume do sistema)"
+    local free; free=$(df -Ph "$SPHARMMT_ROOT" | awk 'NR==2 {print $4}')
+    info "espaço livre: ${free}. Há disco livre por usar? corre prepare-data-disk.sh"
+  fi
+}
+
+# Detecta dados deixados para trás no layout antigo. NUNCA os move: mover
+# dados exige a stack parada e uma decisão consciente sobre o que é fonte de
+# verdade. Aqui limitamo-nos a tornar o problema visível.
+check_legacy_data() {
+  local legacy_pg="${SPHARMMT_ROOT}/postgres/data"
+  local legacy_bk="${SPHARMMT_ROOT}/backups/postgres"
+  local found=0
+
+  if [ -d "$legacy_pg" ] && [ -n "$(ls -A "$legacy_pg" 2>/dev/null)" ]; then
+    warn "EXISTEM DADOS em ${legacy_pg} (layout antigo), mas a configuração aponta agora para ${SPHARMMT_PG_DIR}/data"
+    found=1
+  fi
+  if [ -d "$legacy_bk" ] && [ -n "$(ls -A "$legacy_bk" 2>/dev/null)" ]; then
+    warn "EXISTEM BACKUPS em ${legacy_bk}, mas a configuração aponta agora para ${SPHARMMT_BACKUP_DIR}/postgres"
+    found=1
+  fi
+
+  if [ "$found" = "1" ]; then
+    warn "Nada foi movido — este script nunca move dados automaticamente."
+    warn "Para migrar, com a stack PARADA e depois de um backup verificado:"
+    warn "    sudo systemctl stop spharmmt-backup.timer"
+    warn "    sudo rsync -aHAX --info=progress2 ${SPHARMMT_ROOT}/postgres/data/ ${SPHARMMT_PG_DIR}/data/"
+    warn "    # validar, e só depois remover a origem"
+  fi
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -129,6 +176,22 @@ SPHARMMT_LOG_DIR="${SPHARMMT_LOG_DIR}"
 SPHARMMT_COMPOSE_FILE="${SPHARMMT_ROOT}/docker/compose/docker-compose.yml"
 SPHARMMT_ENV_FILE="${SPHARMMT_ROOT}/docker/env/platform.env"
 SPHARMMT_SECRETS_FILE="${SPHARMMT_ROOT}/secrets/platform.secrets.env"
+
+# ── Dados ────────────────────────────────────────────────────────────
+# SPHARMMT_ROOT guarda aplicação, configuração e segredos (pequeno,
+# recriável). SPHARMMT_DATA_ROOT guarda o que cresce: PostgreSQL, backups
+# e, no futuro, volumes Docker.
+#
+# Quando são iguais, é uma VPS de disco único — comportamento de sempre.
+# Quando diferem, os dados vivem num volume dedicado montado por UUID.
+#
+# Estes valores são EXPLÍCITOS de propósito: depois de instalada, a
+# plataforma não deve mudar de sítio por o /data ter falhado a montar num
+# arranque. Se editares isto à mão, os dados NÃO são movidos.
+SPHARMMT_DATA_ROOT="${SPHARMMT_DATA_ROOT}"
+SPHARMMT_PG_DIR="${SPHARMMT_PG_DIR}"
+SPHARMMT_BACKUP_DIR="${SPHARMMT_BACKUP_DIR}"
+SPHARMMT_DOCKER_DATA_DIR="${SPHARMMT_DOCKER_DATA_DIR}"
 
 SPHARMMT_NETWORK="${SPHARMMT_NETWORK}"
 SPHARMMT_PG_CONTAINER="${SPHARMMT_PG_CONTAINER}"
@@ -263,6 +326,15 @@ NEXT_PUBLIC_APP_URL=${public_url}
 SESSION_COOKIE_SECURE=${cookie_secure}
 SESSION_COOKIE_SAMESITE=lax
 
+# ── Caminhos de dados no host (bind mounts do compose, fase seguinte) ─
+# Separação deliberada: SPHARMMT_ROOT tem aplicação e configuração,
+# DATA_ROOT tem o que cresce. Numa VPS de disco único são o mesmo sítio.
+DATA_ROOT=${SPHARMMT_DATA_ROOT}
+POSTGRES_DATA_DIR=${SPHARMMT_PG_DIR}/data
+POSTGRES_CONF_DIR=${SPHARMMT_PG_DIR}/conf
+POSTGRES_INIT_DIR=${SPHARMMT_PG_DIR}/init
+BACKUP_DIR=${SPHARMMT_BACKUP_DIR}
+
 # ── PostgreSQL (container interno, nunca exposto) ────────────────────
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
@@ -308,7 +380,7 @@ install_scripts() {
   ensure_dir "${dst}/lib" 2750 "$OWNER"
 
   local scripts=(
-    bootstrap-vps.sh install-docker.sh install-platform.sh
+    bootstrap-vps.sh install-docker.sh install-platform.sh prepare-data-disk.sh
     verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh
     healthcheck.sh
   )
@@ -410,6 +482,16 @@ postflight() {
   step "Validação"
   check "estrutura ${SPHARMMT_ROOT}"          test -d "$SPHARMMT_ROOT"
   check "configuração central"                test -f "$SPHARMMT_CONF_FILE"
+  check "data root ${SPHARMMT_DATA_ROOT}"     test -d "$SPHARMMT_DATA_ROOT"
+  check "postgres em ${SPHARMMT_PG_DIR}/data" test -d "${SPHARMMT_PG_DIR}/data"
+  check "backups em ${SPHARMMT_BACKUP_DIR}"   test -d "${SPHARMMT_BACKUP_DIR}/postgres"
+  check "data root gravado na conf"           grep -qE '^SPHARMMT_DATA_ROOT=' "$SPHARMMT_CONF_FILE"
+  if data_disk_in_use; then
+    check "volume de dados montado"           is_mountpoint "$SPHARMMT_DATA_ROOT"
+    check "montagem persistente (fstab)"      bash -c "grep -qE '^[^#]*[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab"
+  else
+    check_skip "volume de dados dedicado" "dados no mesmo volume do sistema"
+  fi
   check "ficheiro de segredos"                test -f "$SPHARMMT_SECRETS_FILE"
   check "segredos 0600 root:root"             bash -c "[ \"\$(stat -c '%a %U:%G' ${SPHARMMT_SECRETS_FILE})\" = '600 root:root' ]"
   check "env da stack"                        test -f "$SPHARMMT_ENV_FILE"

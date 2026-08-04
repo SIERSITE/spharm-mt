@@ -16,12 +16,13 @@
 #    8. fail2ban
 #    9. desactivar login root                ← só com --disable-root-login
 #   10. Docker (delega em install-docker.sh)
-#   11. estrutura /opt/spharmmt
-#   12. permissões, owners, umask
-#   13. rotação de logs (journald + logrotate + docker)
-#   14. monitorização (healthcheck + systemd timer)
-#   15. directórios de backup
-#   16. validação e relatório final
+#   11. discos — DETECÇÃO APENAS, nunca particiona nem formata
+#   12. estrutura /opt/spharmmt (+ /data, se houver disco dedicado)
+#   13. permissões, owners, umask
+#   14. rotação de logs (journald + logrotate + docker)
+#   15. monitorização (healthcheck + systemd timer)
+#   16. directórios de backup
+#   17. validação e relatório final
 #
 # SEGURANÇA CONTRA LOCKOUT — regras que este script nunca quebra:
 #   · a regra de SSH entra na firewall ANTES de a firewall ser activada;
@@ -124,6 +125,9 @@ SSH_DROPIN=/etc/ssh/sshd_config.d/99-spharmmt-hardening.conf
 # São resolvidos em step_user() a partir de /etc/passwd.
 DEPLOY_HOME="/home/${DEPLOY_USER}"
 DEPLOY_PGROUP="${DEPLOY_USER}"
+
+# Discos livres detectados em step_disks(), para o relatório final.
+DISK_HINT=""
 
 # ═════════════════════════════════════════════════════════════════════════
 # 0. Pré-condições
@@ -680,19 +684,62 @@ step_docker() {
 # ═════════════════════════════════════════════════════════════════════════
 # 10-11. Estrutura, permissões e umask
 # ═════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
+# 10. Discos — DETECÇÃO APENAS. Nunca particiona, nunca formata, nunca monta.
+# ═════════════════════════════════════════════════════════════════════════
+step_disks() {
+  step "11. Discos"
+
+  local rootd free_disks=() name dev size fstype parts
+  rootd=$(lsblk -rno PKNAME "$(findmnt -rno SOURCE / 2>/dev/null)" 2>/dev/null | head -1 || true)
+
+  while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    dev="/dev/${name}"
+    size=$(numfmt --to=iec "$(lsblk -bdno SIZE "$dev" 2>/dev/null | head -1)" 2>/dev/null || echo '?')
+    fstype=$(lsblk -rno FSTYPE "$dev" 2>/dev/null | tr -d '[:space:]')
+    parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l)
+
+    if [ "$name" = "$rootd" ]; then
+      info "${dev} (${size}) — disco de sistema"
+    elif [ "$parts" -eq 0 ] && [ -z "$fstype" ] && ! blkid -p "$dev" >/dev/null 2>&1; then
+      free_disks+=("$dev")
+      ok "${dev} (${size}) — LIVRE, sem filesystem"
+    else
+      info "${dev} (${size}) — ${parts} partição(ões)${fstype:+, ${fstype}}"
+    fi
+  done < <(lsblk -dno NAME --nodeps 2>/dev/null | grep -vE '^(loop|sr|ram|fd)' || true)
+
+  if data_disk_in_use; then
+    ok "disco de dados já em uso: ${SPHARMMT_DATA_ROOT} ($(df -Ph "$SPHARMMT_DATA_ROOT" | awk 'NR==2 {print $4}') livres)"
+    return 0
+  fi
+
+  if [ "${#free_disks[@]}" -gt 0 ]; then
+    printf '\n'
+    warn "${#free_disks[@]} disco(s) livre(s) detectado(s): ${free_disks[*]}"
+    warn "NÃO foram tocados — este script nunca particiona nem formata."
+    info "Para dedicar um deles aos dados (PostgreSQL, backups), depois do bootstrap:"
+    info "    sudo ${SCRIPT_DIR}/prepare-data-disk.sh                    # relatório"
+    info "    sudo ${SCRIPT_DIR}/prepare-data-disk.sh --device ${free_disks[0]}   # prepara"
+    info "Sem isso, os dados ficam em ${SPHARMMT_ROOT} — perfeitamente válido."
+    DISK_HINT="${free_disks[*]}"
+  else
+    info "nenhum disco livre — dados em ${SPHARMMT_ROOT}"
+  fi
+}
+
 step_structure() {
-  step "10. Estrutura ${SPHARMMT_ROOT}"
+  step "12. Estrutura ${SPHARMMT_ROOT}"
 
   local owner="${DEPLOY_USER}:${DEPLOY_GROUP}"
   ensure_dir "$SPHARMMT_ROOT" 2750 "$owner"
 
+  # Código, configuração e segredos — sempre em $SPHARMMT_ROOT.
   # setgid (2xxx) faz herdar o grupo spharmmt — evita ficheiros criados por
   # um membro do grupo ficarem inacessíveis aos outros.
   local dirs=(
     app
-    postgres postgres/data postgres/conf postgres/init
-    backups backups/postgres backups/postgres/daily backups/postgres/weekly
-    backups/postgres/monthly backups/files backups/tmp
     logs logs/app logs/postgres logs/proxy logs/monitoring logs/backups
     docker docker/compose docker/env docker/build
     scripts scripts/lib
@@ -702,15 +749,30 @@ step_structure() {
   )
   for d in "${dirs[@]}"; do ensure_dir "${SPHARMMT_ROOT}/${d}" 2750 "$owner"; done
 
-  step "11. Permissões, owners e umask"
+  # Dados — em $SPHARMMT_DATA_ROOT, que é /data quando existe disco dedicado
+  # e $SPHARMMT_ROOT quando não existe. Sem disco dedicado os caminhos ficam
+  # exactamente onde sempre estiveram.
+  if data_disk_in_use; then
+    info "disco de dados dedicado activo: ${SPHARMMT_DATA_ROOT}"
+  fi
+  local ddirs=(
+    "${SPHARMMT_PG_DIR}" "${SPHARMMT_PG_DIR}/conf" "${SPHARMMT_PG_DIR}/init"
+    "${SPHARMMT_BACKUP_DIR}" "${SPHARMMT_BACKUP_DIR}/postgres"
+    "${SPHARMMT_BACKUP_DIR}/postgres/daily" "${SPHARMMT_BACKUP_DIR}/postgres/weekly"
+    "${SPHARMMT_BACKUP_DIR}/postgres/monthly"
+    "${SPHARMMT_BACKUP_DIR}/files" "${SPHARMMT_BACKUP_DIR}/tmp"
+  )
+  for d in "${ddirs[@]}"; do ensure_dir "$d" 2750 "$owner"; done
+
+  step "13. Permissões, owners e umask"
 
   # secrets: só root. O deploy lê com sudo; os containers recebem só o que
   # o compose montar explicitamente.
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
   # dados do Postgres: 0700 é exigido pelo próprio Postgres, que recusa
   # arrancar com permissões mais largas.
-  ensure_dir "${SPHARMMT_ROOT}/postgres/data" 0700 "$owner"
-  ensure_dir "${SPHARMMT_ROOT}/backups/postgres" 0700 "$owner"
+  ensure_dir "${SPHARMMT_PG_DIR}/data" 0700 "$owner"
+  ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 0700 "$owner"
   ensure_dir "${SPHARMMT_ROOT}/docker/env" 0750 "$owner"
 
   # umask 027: ficheiros 640, directórios 750 — nada legível por "others".
@@ -761,7 +823,7 @@ EOF
 # 12. Logs
 # ═════════════════════════════════════════════════════════════════════════
 step_logs() {
-  step "12. Rotação de logs"
+  step "14. Rotação de logs"
 
   ensure_dir /etc/systemd/journald.conf.d 0755 root:root
   write_file /etc/systemd/journald.conf.d/99-spharmmt.conf 0644 root:root <<'EOF'
@@ -827,7 +889,7 @@ EOF
 # 13. Monitorização
 # ═════════════════════════════════════════════════════════════════════════
 step_monitoring() {
-  step "13. Monitorização"
+  step "15. Monitorização"
 
   local owner="${DEPLOY_USER}:${DEPLOY_GROUP}"
   local hc_src="${SCRIPT_DIR}/healthcheck.sh"
@@ -890,9 +952,9 @@ EOF
 # 14. Backups (só preparação)
 # ═════════════════════════════════════════════════════════════════════════
 step_backups() {
-  step "14. Directórios de backup"
+  step "16. Directórios de backup"
   local owner="${DEPLOY_USER}:${DEPLOY_GROUP}"
-  write_file "${SPHARMMT_ROOT}/backups/POLICY.md" 0640 "$owner" <<'EOF'
+  write_file "${SPHARMMT_BACKUP_DIR}/POLICY.md" 0640 "$owner" <<'EOF'
 # Política de backups — SPharm.MT
 
 ## Retenção (implementada em scripts/backup-platform.sh)
@@ -919,7 +981,7 @@ EOF
 # 15. Validação final
 # ═════════════════════════════════════════════════════════════════════════
 validate() {
-  step "15. Validação"
+  step "17. Validação"
 
   check "Ubuntu 24.04"                  bash -c "grep -q '24.04' /etc/os-release"
   check "sem pacotes por actualizar"    bash -c "[ \$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst') -eq 0 ]"
@@ -980,8 +1042,17 @@ validate() {
     check "${SPHARMMT_ROOT}/${d}"       test -d "${SPHARMMT_ROOT}/${d}"
   done
   check "owner ${DEPLOY_USER}:${DEPLOY_GROUP}" bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_ROOT})\" = '${DEPLOY_USER}:${DEPLOY_GROUP}' ]"
+  check "dados em ${SPHARMMT_DATA_ROOT}" test -d "$SPHARMMT_DATA_ROOT"
+  check "postgres em ${SPHARMMT_PG_DIR}" test -d "${SPHARMMT_PG_DIR}/data"
+  check "backups em ${SPHARMMT_BACKUP_DIR}" test -d "${SPHARMMT_BACKUP_DIR}/postgres"
+  if data_disk_in_use; then
+    check "disco de dados montado"      is_mountpoint "$SPHARMMT_DATA_ROOT"
+    check "montagem persistente (fstab)" bash -c "grep -qE '^[^#]*[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab"
+  else
+    check_skip "disco de dados dedicado" "dados no mesmo volume do sistema"
+  fi
   check "secrets = 0700 root:root"      bash -c "[ \"\$(stat -c '%a %U:%G' ${SPHARMMT_ROOT}/secrets)\" = '700 root:root' ]"
-  check "postgres/data = 0700"          bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}/postgres/data) = 700 ]"
+  check "postgres/data = 0700"          bash -c "[ \$(stat -c '%a' ${SPHARMMT_PG_DIR}/data) = 700 ]"
   check "nada world-readable"           bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -perm -o+r -o -perm -o+w 2>/dev/null)\" ]"
   check "umask 027 em login.defs"       bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
 
@@ -1029,6 +1100,9 @@ final_report() {
     printf 'docker        : %s\n' "$(docker --version 2>/dev/null || echo 'não instalado')"
     printf 'compose       : %s\n' "$(docker compose version --short 2>/dev/null || echo 'n/d')"
     printf 'estrutura     : %s\n' "$SPHARMMT_ROOT"
+    printf 'dados         : %s%s\n' "$SPHARMMT_DATA_ROOT" \
+      "$(data_disk_in_use && printf ' (disco dedicado)' || printf ' (mesmo volume do sistema)')"
+    [ -n "$DISK_HINT" ] && printf 'discos livres : %s (NAO tocados)\n' "$DISK_HINT"
     printf 'reboot pend.  : %s\n' "$([ -f /var/run/reboot-required ] && echo SIM || echo nao)"
     printf '\nVerificações\n-----------\n'
     local i
@@ -1040,8 +1114,14 @@ final_report() {
     printf '\nPróximos passos\n---------------\n'
     printf '  1. Numa NOVA sessão, confirmar acesso:  ssh %s@<ip>\n' "$DEPLOY_USER"
     printf '  2. Reboot e revalidar:                  sudo reboot && %s/scripts/verify-platform.sh\n' "$SPHARMMT_ROOT"
-    printf '  3. Instalar a plataforma:               sudo ./install-platform.sh\n'
-    printf '  4. Configurar destino de backup externo (a lacuna aberta mais séria)\n'
+    if [ -n "$DISK_HINT" ]; then
+      printf '  3. Dedicar um disco aos dados (opcional): sudo ./prepare-data-disk.sh --device %s\n' "${DISK_HINT%% *}"
+      printf '  4. Instalar a plataforma:               sudo ./install-platform.sh\n'
+      printf '  5. Configurar destino de backup externo (a lacuna aberta mais séria)\n'
+    else
+      printf '  3. Instalar a plataforma:               sudo ./install-platform.sh\n'
+      printf '  4. Configurar destino de backup externo (a lacuna aberta mais séria)\n'
+    fi
   } > "$rpt" 2>/dev/null || rpt=""
 
   if [ -n "$rpt" ]; then
@@ -1068,6 +1148,7 @@ main() {
   step_ssh
   step_fail2ban
   step_docker
+  step_disks
   step_structure
   step_logs
   step_monitoring

@@ -34,6 +34,19 @@ CORE_SERVICES=${CORE_SERVICES:-"ssh docker containerd fail2ban systemd-journald"
 # shellcheck disable=SC1090
 [ -r "$SPHARMMT_CONF_FILE" ] && . "$SPHARMMT_CONF_FILE"
 
+# Data root — mesma resolução de lib/common.sh, repetida aqui porque este
+# script é deliberadamente auto-contido. Sem disco dedicado, cai em
+# $SPHARMMT_ROOT e os caminhos ficam onde sempre estiveram.
+if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
+  if findmnt -rno TARGET /data >/dev/null 2>&1; then
+    SPHARMMT_DATA_ROOT=/data
+  else
+    SPHARMMT_DATA_ROOT="$SPHARMMT_ROOT"
+  fi
+fi
+: "${SPHARMMT_BACKUP_DIR:=${SPHARMMT_DATA_ROOT}/backups}"
+: "${SPHARMMT_PG_DIR:=${SPHARMMT_DATA_ROOT}/postgres}"
+
 STATE_DIR="${SPHARMMT_ROOT}/monitoring/state"
 mkdir -p "$STATE_DIR" 2>/dev/null || STATE_DIR="${TMPDIR:-/tmp}"
 
@@ -175,8 +188,19 @@ else
   say OK "postgres ainda não instalado (fase de preparação)"
 fi
 
+# ─── Volume de dados ─────────────────────────────────────────────────────
+if [ "$SPHARMMT_DATA_ROOT" != "$SPHARMMT_ROOT" ]; then
+  if findmnt -rno TARGET "$SPHARMMT_DATA_ROOT" >/dev/null 2>&1; then
+    say OK "volume de dados montado em ${SPHARMMT_DATA_ROOT}"
+  else
+    # Silencioso e destrutivo: as escritas iriam para o disco de sistema e
+    # desapareceriam quando o volume voltasse a montar.
+    say CRIT "volume de dados ${SPHARMMT_DATA_ROOT} configurado mas NAO MONTADO"
+  fi
+fi
+
 # ─── Backups ─────────────────────────────────────────────────────────────
-bdir="${SPHARMMT_ROOT}/backups/postgres/daily"
+bdir="${SPHARMMT_BACKUP_DIR}/postgres/daily"
 if [ -d "$bdir" ]; then
   # Os dumps vivem em daily/<conjunto>/*.dump — daí a profundidade 2.
   last=$(find "$bdir" -mindepth 1 -maxdepth 2 -type f -name '*.dump' 2>/dev/null | head -1)

@@ -177,10 +177,30 @@ sec_volumes() {
   want volumes || return 0
   step "4. Volumes e permissões"
   local d
-  for d in app postgres postgres/data backups backups/postgres logs docker \
-           docker/compose docker/env scripts monitoring secrets proxy; do
+  # Aplicação e configuração
+  for d in app logs docker docker/compose docker/env scripts monitoring secrets proxy; do
     check "${SPHARMMT_ROOT}/${d}"         test -d "${SPHARMMT_ROOT}/${d}"
   done
+  # Dados — em /data com disco dedicado, senão no mesmo sítio de sempre
+  check "dados: ${SPHARMMT_DATA_ROOT}"    test -d "$SPHARMMT_DATA_ROOT"
+  check "${SPHARMMT_PG_DIR}/data"         test -d "${SPHARMMT_PG_DIR}/data"
+  check "${SPHARMMT_BACKUP_DIR}/postgres" test -d "${SPHARMMT_BACKUP_DIR}/postgres"
+
+  if data_disk_in_use; then
+    # Um volume de dados configurado mas desmontado é a falha mais
+    # perniciosa desta arquitectura: as escritas vão para o disco de
+    # sistema e desaparecem quando o volume voltar a montar.
+    check "volume de dados MONTADO"       is_mountpoint "$SPHARMMT_DATA_ROOT"
+    check "montagem persistente (fstab)"  bash -c "grep -qE '^[^#]*[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab"
+    check "fstab por UUID (não /dev/sdX)" bash -c "grep -E '[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab | grep -q '^UUID='"
+    check "fstab válido"                  findmnt --verify --quiet
+    check "volume abaixo de 80%"          bash -c "[ \$(df -P '${SPHARMMT_DATA_ROOT}' | awk 'NR==2 {gsub(\"%\",\"\",\$5); print \$5}') -lt 80 ]"
+    check "volume gravável"               bash -c "touch '${SPHARMMT_DATA_ROOT}/.spharmmt-wt' && rm -f '${SPHARMMT_DATA_ROOT}/.spharmmt-wt'"
+    check_warn "sem dados órfãos no layout antigo" \
+      bash -c "[ -z \"\$(ls -A '${SPHARMMT_ROOT}/postgres/data' 2>/dev/null)\" ]"
+  else
+    check_skip "volume de dados dedicado" "dados no mesmo volume do sistema"
+  fi
   check "owner ${SPHARMMT_USER}:${SPHARMMT_GROUP}" \
     bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_ROOT})\" = '${SPHARMMT_USER}:${SPHARMMT_GROUP}' ]"
   check "secrets = 0700 root:root" \
@@ -188,9 +208,9 @@ sec_volumes() {
   # O PostgreSQL recusa arrancar se o data directory tiver permissões mais
   # largas do que 0700/0750.
   check "postgres/data <= 0750" \
-    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}/postgres/data) -le 750 ]"
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_PG_DIR}/data) -le 750 ]"
   check "backups/postgres = 0700" \
-    bash -c "[ \$(stat -c '%a' ${SPHARMMT_ROOT}/backups/postgres) = 700 ]"
+    bash -c "[ \$(stat -c '%a' ${SPHARMMT_BACKUP_DIR}/postgres) = 700 ]"
   check "nada world-readable na árvore" \
     bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -perm -o+r -o -perm -o+w 2>/dev/null | head -1)\" ]"
   check "umask 027 em login.defs"        bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
@@ -320,17 +340,17 @@ sec_backups() {
   check "unit de backup não falhada"      bash -c "[ \"\$(systemctl is-failed spharmmt-backup.service 2>/dev/null)\" != failed ]"
   local d
   for d in daily weekly monthly; do
-    check "backups/postgres/${d}"         test -d "${SPHARMMT_ROOT}/backups/postgres/${d}"
+    check "backups/postgres/${d}"         test -d "${SPHARMMT_BACKUP_DIR}/postgres/${d}"
   done
-  check "política documentada"            test -f "${SPHARMMT_ROOT}/backups/POLICY.md"
+  check "política documentada"            test -f "${SPHARMMT_BACKUP_DIR}/POLICY.md"
 
   if [ "$HAS_PG" = "1" ]; then
     local n
-    n=$(find "${SPHARMMT_ROOT}/backups/postgres/daily" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    n=$(find "${SPHARMMT_BACKUP_DIR}/postgres/daily" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
     check "existe pelo menos um conjunto" bash -c "[ ${n} -gt 0 ]"
     if [ "$n" -gt 0 ]; then
       local newest
-      newest=$(find "${SPHARMMT_ROOT}/backups/postgres/daily" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+      newest=$(find "${SPHARMMT_BACKUP_DIR}/postgres/daily" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
       check "conjunto mais recente < 30h" \
         bash -c "[ \$(( ( \$(date +%s) - \$(stat -c %Y '${newest}') ) / 3600 )) -lt 30 ]"
       check "checksums do último conjunto conferem" \

@@ -34,7 +34,7 @@ DO_LIST=0
 DO_ALL=0
 DO_GLOBALS=0
 SKIP_SAFETY=0
-BACKUP_ROOT="${SPHARMMT_ROOT}/backups/postgres"
+BACKUP_ROOT="${SPHARMMT_BACKUP_DIR}/postgres"
 PG_SUPERUSER="postgres"
 
 usage() {
@@ -112,6 +112,7 @@ preflight() {
   step "Pré-condições"
   require_root
   require_cmd docker sha256sum
+  require_data_root_mounted
 
   container_running "$SPHARMMT_PG_CONTAINER" \
     || die_precond "container ${SPHARMMT_PG_CONTAINER} não está a correr — arranca a stack primeiro"
@@ -142,7 +143,7 @@ preflight() {
     die_precond "SHA256SUMS ausente em ${SET_DIR} — restauro recusado (backup não verificável)"
   fi
 
-  require_free_space "${SPHARMMT_ROOT}/backups" 2048
+  require_free_space "${SPHARMMT_BACKUP_DIR}" 2048
   ok "pré-condições satisfeitas"
 }
 
@@ -210,7 +211,7 @@ restore_one() {
   # Rede de segurança: dump da base actual antes de lhe tocar.
   if [ "$existed" = "1" ] && [ "$SKIP_SAFETY" != "1" ]; then
     local safety
-    safety="${SPHARMMT_ROOT}/backups/postgres/daily/pre-restore-$(date -u '+%Y%m%d-%H%M%S')-${dst_db}.dump"
+    safety="${SPHARMMT_BACKUP_DIR}/postgres/daily/pre-restore-$(date -u '+%Y%m%d-%H%M%S')-${dst_db}.dump"
     info "a tirar dump de segurança de ${dst_db}..."
     if pgx pg_dump -U "$PG_SUPERUSER" -d "$dst_db" -Fc --no-owner --no-acl > "${safety}.partial"; then
       mv "${safety}.partial" "$safety"

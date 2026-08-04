@@ -84,6 +84,18 @@ relatório e grava-o em `/opt/spharmmt/logs/monitoring/bootstrap-report-*.txt`.
 Se tiveres IP fixo no escritório, acrescenta `--admin-ip <o-teu-ip>`: restringe
 o SSH a essa origem e isenta-a do fail2ban.
 
+### Passo 3b — Disco de dados (só se a VPS tiver um segundo disco)
+
+O bootstrap diz-te se detectou discos livres. Se sim e quiseres dedicá-los aos
+dados — ver [Disco dedicado aos dados](#disco-dedicado-aos-dados-opcional):
+
+```bash
+./prepare-data-disk.sh                      # relatório, não altera nada
+./prepare-data-disk.sh --device /dev/sdb    # APAGA TUDO nesse disco
+```
+
+Fazê-lo **antes** do passo 4 evita ter de migrar dados depois.
+
 ### Passo 4 — Plataforma
 
 ```bash
@@ -195,6 +207,7 @@ sudo ./install-platform.sh --public-url https://app.spharmmt.app --yes
 | `bootstrap-vps.sh` | SO, timezone/locale/hostname, swap, unattended-upgrades, utilizador `deploy`, UFW, SSH por chave, fail2ban, Docker, `/opt/spharmmt`, permissões, logs, monitorização, backups | Não |
 | `install-docker.sh` | Docker Engine + Compose v2 do repositório oficial, `daemon.json`, grupo, rede | Não |
 | `install-platform.sh` | Configuração central, segredos, `platform.env`, scripts operacionais, timer de backup, sobe a stack se existir | Não |
+| `prepare-data-disk.sh` | Deteta discos livres (read-only por defeito); com `--device`, prepara um disco dedicado aos dados: GPT, ext4, `/data`, fstab por UUID | **Sim, com `--device`** |
 | `verify-platform.sh` | Checklist de 12 secções sobre todo o servidor | Não (só lê) |
 | `update-platform.sh` | Backup → snapshot de imagens → pull/build → up → espera healthchecks → rollback automático se falhar | Sim (com rollback) |
 | `backup-platform.sh` | `pg_dump -Fc` por base + globals + config, checksums, manifesto, retenção | Não |
@@ -261,13 +274,87 @@ sudo /opt/spharmmt/scripts/update-platform.sh --rollback
 
 ---
 
+## Disco dedicado aos dados (opcional)
+
+Numa VPS com dois discos — sistema em `/dev/sda`, um segundo disco vazio em
+`/dev/sdb` — vale a pena dedicar o segundo aos dados. A aplicação e a
+configuração ficam pequenas e recriáveis em `/opt/spharmmt`; o que cresce
+(PostgreSQL, backups) fica isolado num volume próprio, que se pode redimensionar,
+snapshotar ou mover sem tocar no sistema.
+
+**Nada disto acontece automaticamente.** O `bootstrap-vps.sh` deteta discos
+livres, diz que existem e como usá-los — e não lhes toca. Formatar é sempre um
+comando separado e deliberado.
+
+```bash
+# 1. Ver o que existe. READ-ONLY, não altera nada.
+sudo /opt/spharmmt/scripts/prepare-data-disk.sh
+
+# 2. Preparar o disco escolhido. APAGA TUDO nesse disco.
+sudo /opt/spharmmt/scripts/prepare-data-disk.sh --device /dev/sdb
+
+# 3. Fazer a plataforma passar a usá-lo
+sudo /opt/spharmmt/scripts/install-platform.sh --yes
+sudo /opt/spharmmt/scripts/verify-platform.sh
+```
+
+O passo 2 cria GPT → uma partição → ext4 (label `spharmmt-data`) → monta em
+`/data` → escreve no `/etc/fstab` **por UUID** → valida → cria
+`/data/postgres`, `/data/docker`, `/data/backups`.
+
+### Como o disco é recusado
+
+O script só aceita um disco **completamente** vazio. Aborta, dizendo porquê,
+se detetar: partições, filesystem, assinatura de LVM/RAID/LUKS, montagem
+activa, holders no `/sys`, uso como swap, se não for um disco inteiro (tem de
+ser `/dev/sdb`, não `/dev/sdb1`), se for o disco do sistema, ou se tiver menos
+de 10 GiB. Não sabe distinguir lixo do backup de alguém — por isso não tenta.
+
+A confirmação exige escrever o caminho exacto do dispositivo. `--yes` **não
+chega**: é preciso também `--confirm-erase`, para que nenhuma automação apague
+um disco por arrastamento.
+
+### Onde ficam as coisas
+
+| | Sem disco dedicado | Com disco dedicado |
+|---|---|---|
+| Aplicação, configuração, segredos, scripts | `/opt/spharmmt` | `/opt/spharmmt` |
+| PostgreSQL | `/opt/spharmmt/postgres` | `/data/postgres` |
+| Backups | `/opt/spharmmt/backups` | `/data/backups` |
+| Docker data-root | `/var/lib/docker` | `/var/lib/docker` (`/data/docker` reservado) |
+
+A resolução é feita em `lib/common.sh` e fixada em `platform.conf` pelo
+`install-platform.sh`. **Sem disco dedicado, todos os caminhos ficam exactamente
+onde sempre estiveram** — a alteração é retrocompatível.
+
+`/data/docker` é criado mas **não** é usado: mudar o data-root do Docker obriga
+a parar o daemon e mover dados, e este pacote nunca move dados.
+
+### A falha que esta arquitectura introduz
+
+Se `/data` não montar num arranque, o directório continua a existir — é o ponto
+de montagem. As escritas passam a ir para o disco de sistema **sem erro
+nenhum**, enchem-no, e no arranque seguinte esses dados ficam invisíveis por
+baixo da montagem.
+
+Contra isso: `require_data_root_mounted()` corre antes de qualquer escrita no
+`backup-platform.sh`, `restore-platform.sh` e `install-platform.sh`; o
+`healthcheck.sh` reporta **CRIT** e o `verify-platform.sh` falha se o volume
+estiver configurado e desmontado. A montagem usa `nofail`, para que um disco
+avariado não deixe a máquina presa no boot sem acesso SSH.
+
+### Migrar dados já existentes
+
+Não é automático, por desenho. Se já houver dados em `/opt/spharmmt` quando o
+disco entrar ao serviço, o `install-platform.sh` avisa e imprime o `rsync`
+sugerido — mas a decisão sobre qual é a fonte de verdade, e com a stack parada,
+é do operador.
+
 ## Estrutura em disco
 
 ```
-/opt/spharmmt/
+/opt/spharmmt/                  aplicação e configuração (pequeno, recriável)
 ├── app/            código/artefactos da aplicação
-├── postgres/       data/ (volume, 0700) · conf/ · init/
-├── backups/        postgres/{daily,weekly,monthly} · files/ · tmp/ · POLICY.md
 ├── logs/           app/ postgres/ proxy/ monitoring/ backups/
 ├── docker/         compose/ · env/ · build/
 ├── proxy/          conf/ · certs/
@@ -275,9 +362,17 @@ sudo /opt/spharmmt/scripts/update-platform.sh --rollback
 ├── monitoring/     checks/ · state/
 └── secrets/        0700 root:root — platform.secrets.env
 
+<DATA_ROOT>/                    dados (o que cresce)
+├── postgres/       data/ (volume, 0700) · conf/ · init/
+├── backups/        postgres/{daily,weekly,monthly} · files/ · tmp/ · POLICY.md
+└── docker/         reservado para o data-root do Docker (não aplicado)
+
 /etc/spharmmt/platform.conf     configuração central (lida por todos os scripts)
 /var/log/spharmmt/              logs dos scripts
 ```
+
+`<DATA_ROOT>` é `/data` quando há disco dedicado e `/opt/spharmmt` quando não
+há — ver [Disco dedicado aos dados](#disco-dedicado-aos-dados-opcional).
 
 Owner `deploy:spharmmt`, directórios `2750` (setgid, para o grupo ser herdado),
 `umask 027`. `secrets/` é `0700 root:root` — o `deploy` lê com sudo, e os

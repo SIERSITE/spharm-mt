@@ -75,6 +75,62 @@ if [ -r "$SPHARMMT_CONF_FILE" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
+# Data root — separação entre código/configuração e dados
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Numa VPS com disco dedicado aos dados, `/data` é o ponto de montagem desse
+# disco e é lá que vivem os dados que crescem (PostgreSQL, backups, volumes
+# Docker). `$SPHARMMT_ROOT` fica só com aplicação, configuração, scripts e
+# segredos — coisas pequenas, versionáveis e recriáveis.
+#
+# Resolução, por ordem:
+#   1. SPHARMMT_DATA_ROOT definido em platform.conf (fonte de verdade após
+#      install-platform.sh — explícito, não adivinhado)
+#   2. /data se for um ponto de montagem real
+#   3. $SPHARMMT_ROOT (comportamento de sempre — VPS de disco único)
+#
+# O caso 3 garante retrocompatibilidade total: sem disco dedicado, todos os
+# caminhos ficam exactamente onde estavam.
+
+is_mountpoint() {
+  findmnt -rno TARGET "$1" >/dev/null 2>&1
+}
+
+if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
+  if is_mountpoint /data; then
+    SPHARMMT_DATA_ROOT=/data
+  else
+    SPHARMMT_DATA_ROOT="$SPHARMMT_ROOT"
+  fi
+fi
+
+# Directórios de dados derivados. Sobreponíveis individualmente em
+# platform.conf para migrações parciais (ex.: backups noutro volume).
+: "${SPHARMMT_PG_DIR:=${SPHARMMT_DATA_ROOT}/postgres}"
+: "${SPHARMMT_BACKUP_DIR:=${SPHARMMT_DATA_ROOT}/backups}"
+: "${SPHARMMT_DOCKER_DATA_DIR:=${SPHARMMT_DATA_ROOT}/docker}"
+
+# `true` quando os dados vivem num volume separado de $SPHARMMT_ROOT.
+data_disk_in_use() { [ "$SPHARMMT_DATA_ROOT" != "$SPHARMMT_ROOT" ]; }
+
+# Guarda contra a falha mais perniciosa desta arquitectura: o volume de
+# dados não montar num arranque. O directório /data continua a existir (é o
+# ponto de montagem), as escritas passam a ir para o disco de sistema sem
+# erro nenhum, e no arranque seguinte — com o volume montado — esses dados
+# ficam invisíveis por baixo da montagem. Entretanto o disco de sistema
+# encheu. Qualquer escrita de dados tem de passar por aqui primeiro.
+require_data_root_mounted() {
+  data_disk_in_use || return 0
+  is_mountpoint "$SPHARMMT_DATA_ROOT" && return 0
+  err "${SPHARMMT_DATA_ROOT} está configurado como volume de dados mas NÃO está montado."
+  err "Escrever agora encheria o disco de sistema e os dados desapareceriam"
+  err "quando o volume voltasse a montar."
+  err "Diagnostica com:  findmnt ${SPHARMMT_DATA_ROOT} ; lsblk ; journalctl -b | grep -i mount"
+  err "Monta com:        sudo mount ${SPHARMMT_DATA_ROOT}"
+  die_precond "volume de dados não montado"
+}
+
+# ─────────────────────────────────────────────────────────────────────────
 # Estado interno
 # ─────────────────────────────────────────────────────────────────────────
 

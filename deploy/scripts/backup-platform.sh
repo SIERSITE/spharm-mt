@@ -66,8 +66,8 @@ done
 
 STAMP=$(date -u '+%Y%m%d-%H%M%S')
 SET_NAME="${STAMP}${LABEL:+-${LABEL}}"
-DAILY_DIR="${SPHARMMT_ROOT}/backups/postgres/daily"
-WORK_DIR="${SPHARMMT_ROOT}/backups/tmp/${SET_NAME}"
+DAILY_DIR="${SPHARMMT_BACKUP_DIR}/postgres/daily"
+WORK_DIR="${SPHARMMT_BACKUP_DIR}/tmp/${SET_NAME}"
 DEST_DIR="${DAILY_DIR}/${SET_NAME}"
 PG_SUPERUSER="postgres"
 DUMPED=0
@@ -80,6 +80,10 @@ preflight() {
   step "Pré-condições"
   require_root
   require_cmd docker sha256sum find awk
+
+  # Antes de qualquer escrita: se os dados vivem num volume dedicado, ele
+  # tem mesmo de estar montado.
+  require_data_root_mounted
 
   if ! container_running "$SPHARMMT_PG_CONTAINER"; then
     if container_exists "$SPHARMMT_PG_CONTAINER"; then
@@ -103,7 +107,7 @@ preflight() {
     || die_precond "POSTGRES_SUPERUSER_PASSWORD ausente em ${SPHARMMT_SECRETS_FILE}"
 
   # Um backup que enche o disco derruba o PostgreSQL.
-  local pct; pct=$(df -P "${SPHARMMT_ROOT}/backups" | awk 'NR==2 {gsub("%","",$5); print $5}')
+  local pct; pct=$(df -P "${SPHARMMT_BACKUP_DIR}" | awk 'NR==2 {gsub("%","",$5); print $5}')
   if [ "${pct:-0}" -ge "$MAX_DISK_PCT" ]; then
     die_precond "disco a ${pct}% (limite ${MAX_DISK_PCT}%) — a abortar antes de escrever"
   fi
@@ -262,13 +266,13 @@ promote() {
   local dow dom
   dow=$(date -u +%u); dom=$(date -u +%d)
   if [ "$dow" = "7" ]; then
-    cp -al "$DEST_DIR" "${SPHARMMT_ROOT}/backups/postgres/weekly/${SET_NAME}" 2>/dev/null \
-      || cp -a "$DEST_DIR" "${SPHARMMT_ROOT}/backups/postgres/weekly/${SET_NAME}"
+    cp -al "$DEST_DIR" "${SPHARMMT_BACKUP_DIR}/postgres/weekly/${SET_NAME}" 2>/dev/null \
+      || cp -a "$DEST_DIR" "${SPHARMMT_BACKUP_DIR}/postgres/weekly/${SET_NAME}"
     ok "promovido a weekly"
   fi
   if [ "$dom" = "01" ]; then
-    cp -al "$DEST_DIR" "${SPHARMMT_ROOT}/backups/postgres/monthly/${SET_NAME}" 2>/dev/null \
-      || cp -a "$DEST_DIR" "${SPHARMMT_ROOT}/backups/postgres/monthly/${SET_NAME}"
+    cp -al "$DEST_DIR" "${SPHARMMT_BACKUP_DIR}/postgres/monthly/${SET_NAME}" 2>/dev/null \
+      || cp -a "$DEST_DIR" "${SPHARMMT_BACKUP_DIR}/postgres/monthly/${SET_NAME}"
     ok "promovido a monthly"
   fi
 
@@ -287,16 +291,16 @@ promote() {
     fi
   }
   _prune "$DAILY_DIR" "$KEEP_DAILY"
-  _prune "${SPHARMMT_ROOT}/backups/postgres/weekly" "$KEEP_WEEKLY"
-  _prune "${SPHARMMT_ROOT}/backups/postgres/monthly" "$KEEP_MONTHLY"
+  _prune "${SPHARMMT_BACKUP_DIR}/postgres/weekly" "$KEEP_WEEKLY"
+  _prune "${SPHARMMT_BACKUP_DIR}/postgres/monthly" "$KEEP_MONTHLY"
 
   # Restos de execuções interrompidas.
-  find "${SPHARMMT_ROOT}/backups/tmp" -mindepth 1 -maxdepth 1 -type d -mtime +1 -exec rm -rf {} + 2>/dev/null || true
+  find "${SPHARMMT_BACKUP_DIR}/tmp" -mindepth 1 -maxdepth 1 -type d -mtime +1 -exec rm -rf {} + 2>/dev/null || true
 }
 
 summary() {
   local total
-  total=$(du -sh "${SPHARMMT_ROOT}/backups/postgres" 2>/dev/null | cut -f1)
+  total=$(du -sh "${SPHARMMT_BACKUP_DIR}/postgres" 2>/dev/null | cut -f1)
   printf '\n'
   ok "backup concluído: ${DUMPED} base(s), $(numfmt --to=iec "$TOTAL_BYTES" 2>/dev/null || echo "$TOTAL_BYTES B")"
   info "conjunto : ${DEST_DIR}"
