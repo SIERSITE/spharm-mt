@@ -88,7 +88,7 @@ root_disk() {
   local src
   src=$(findmnt -rno SOURCE / 2>/dev/null || true)
   [ -n "$src" ] || return 0
-  lsblk -rno PKNAME "$src" 2>/dev/null | head -1
+  lsblk -rno PKNAME "$src" 2>/dev/null | head -1 || true
 }
 
 # Um disco é "livre" quando não tem partições, nem filesystem, nem
@@ -205,7 +205,7 @@ validate_device() {
 
   # Tem de ser um disco inteiro, não uma partição: particionar /dev/sdb1
   # destruiria a partição-mãe de forma confusa.
-  local devtype; devtype=$(lsblk -dno TYPE "$dev" 2>/dev/null | head -1)
+  local devtype; devtype=$(lsblk -dno TYPE "$dev" 2>/dev/null | head -1 || true)
   [ "$devtype" = "disk" ] || die_precond "${dev} é do tipo '${devtype}', esperado 'disk' (passa o disco inteiro, não uma partição)"
 
   local rootd; rootd=$(root_disk)
@@ -214,7 +214,7 @@ validate_device() {
   # Cada motivo de recusa é reportado individualmente: o operador tem de
   # perceber PORQUE o disco não é elegível, para decidir com conhecimento.
   local parts fstype holders
-  parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l)
+  parts=$(lsblk -rno NAME "$dev" 2>/dev/null | tail -n +2 | wc -l || echo 0)
   if [ "$parts" -gt 0 ]; then
     err "${dev} tem ${parts} partição(ões):"
     lsblk -o NAME,FSTYPE,SIZE,LABEL,MOUNTPOINT "$dev" | sed 's/^/    /' >&2

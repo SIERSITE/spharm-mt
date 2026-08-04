@@ -97,7 +97,7 @@ snapshot_images() {
   dc ps --format '{{.Service}}' 2>/dev/null | while IFS= read -r svc; do
     [ -z "$svc" ] && continue
     local cid img
-    cid=$(dc ps -q "$svc" 2>/dev/null | head -1)
+    cid=$(dc ps -q "$svc" 2>/dev/null | head -1 || true)
     [ -z "$cid" ] && continue
     img=$(docker inspect -f '{{.Image}}' "$cid" 2>/dev/null || true)
     [ -n "$img" ] && printf '%s %s\n' "$svc" "$img"

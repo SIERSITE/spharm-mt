@@ -1397,7 +1397,7 @@ final_report() {
     printf 'SSH           : porta %s · endurecido=%s · root_desactivado=%s\n' \
       "$SSH_PORT" "$([ "$SSH_HARDENED" = 1 ] && echo sim || echo NAO)" \
       "$([ "$DISABLE_ROOT_LOGIN" = 1 ] && echo sim || echo nao)"
-    printf 'firewall      : %s\n' "$(ufw status 2>/dev/null | head -1)"
+    printf 'firewall      : %s\n' "$(ufw status 2>/dev/null | head -1 || true)"
     printf 'fail2ban      : %s\n' "$(fail2ban-client status 2>/dev/null | awk -F: '/Jail list/ {print $2}' | xargs || echo 'n/d')"
     printf 'docker        : %s\n' "$(docker --version 2>/dev/null || echo 'não instalado')"
     printf 'compose       : %s\n' "$(docker compose version --short 2>/dev/null || echo 'n/d')"

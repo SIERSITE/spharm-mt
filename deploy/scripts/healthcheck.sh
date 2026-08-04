@@ -157,7 +157,7 @@ if command -v docker >/dev/null 2>&1; then
     say OK "containers a correr: ${running}"
 
     # Espaço ocupado pelo Docker — cresce silenciosamente com imagens órfãs.
-    dsize=$(docker system df --format '{{.Size}}' 2>/dev/null | head -1)
+    dsize=$(docker system df --format '{{.Size}}' 2>/dev/null | head -1 || true)
     [ -n "${dsize:-}" ] && say OK "docker ocupa ${dsize}"
   else
     say CRIT "docker daemon NAO responde"
@@ -203,7 +203,9 @@ fi
 bdir="${SPHARMMT_BACKUP_DIR}/postgres/daily"
 if [ -d "$bdir" ]; then
   # Os dumps vivem em daily/<conjunto>/*.dump — daí a profundidade 2.
-  last=$(find "$bdir" -mindepth 1 -maxdepth 2 -type f -name '*.dump' 2>/dev/null | head -1)
+  # -print -quit em vez de `| head -1`: o find pára sozinho, sem consumidor
+  # a fechar o pipe — não há SIGPIPE possível.
+  last=$(find "$bdir" -mindepth 1 -maxdepth 2 -type f -name '*.dump' -print -quit 2>/dev/null)
   if [ -z "$last" ]; then
     if docker inspect "$SPHARMMT_PG_CONTAINER" >/dev/null 2>&1; then
       say WARN "sem backups em ${bdir} apesar de o postgres existir"
@@ -211,7 +213,7 @@ if [ -d "$bdir" ]; then
       say OK "sem backups ainda (postgres não instalado)"
     fi
   else
-    newest=$(find "$bdir" -mindepth 1 -maxdepth 2 -type f -name '*.dump' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+    newest=$(find "$bdir" -mindepth 1 -maxdepth 2 -type f -name '*.dump' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 || true)
     age_h=$(( ( $(date +%s) - ${newest%%.*} ) / 3600 ))
     if [ "$age_h" -gt "$BACKUP_MAX_AGE_H" ]; then
       say CRIT "backup mais recente tem ${age_h}h (limite ${BACKUP_MAX_AGE_H}h)"
@@ -223,7 +225,7 @@ fi
 
 # ─── Manutenção do SO ────────────────────────────────────────────────────
 if [ -f /var/run/reboot-required ]; then
-  say WARN "reboot pendente: $(tr '\n' ' ' < /var/run/reboot-required.pkgs 2>/dev/null | head -c 120)"
+  say WARN "reboot pendente: $(tr '\n' ' ' < /var/run/reboot-required.pkgs 2>/dev/null | head -c 120 || true)"
 else
   say OK "sem reboot pendente"
 fi

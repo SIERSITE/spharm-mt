@@ -228,22 +228,71 @@ EOF
 # 3. Segredos — gerados uma vez, nunca regenerados
 # ═════════════════════════════════════════════════════════════════════════
 
+# secret_value <chave> — valor actual da chave, ou vazio se ausente.
+# Lê de FICHEIRO (não de pipe), portanto sem risco de SIGPIPE. O `sub()`
+# remove só até ao primeiro `=`, preservando valores que contenham `=`
+# (o padding do base64, por exemplo).
+secret_value() {
+  local key=$1
+  [ -f "$SPHARMMT_SECRETS_FILE" ] || return 0
+  awk -v k="$key" 'index($0, k "=") == 1 { sub(/^[^=]*=/, ""); print; exit }' \
+    "$SPHARMMT_SECRETS_FILE" 2>/dev/null || true
+}
+
 # secret_ensure <chave> <gerador> [descrição]
-# Acrescenta a chave ao ficheiro de segredos apenas se ainda não existir.
+#
+# Recupera de uma execução parcial — que é exactamente o que a falha do
+# SIGPIPE deixou para trás:
+#   · chave com valor válido  → preservada, nunca regenerada
+#   · chave ausente           → gerada e acrescentada
+#   · chave com valor VAZIO   → linha removida e reescrita (não duplicada)
+#   · chave duplicada         → mantém a primeira ocorrência válida
+#
+# O valor NUNCA é impresso: nem no stdout, nem no ficheiro de log.
 secret_ensure() {
   local key=$1 value_cmd=$2 desc=${3:-}
-  if grep -qE "^${key}=" "$SPHARMMT_SECRETS_FILE" 2>/dev/null; then
+
+  local current; current=$(secret_value "$key")
+  if [ -n "$current" ]; then
     dbg "${key} já definido — preservado"
     return 0
   fi
+
   if [ "$DRY_RUN" = "1" ]; then info "[dry-run] geraria ${key}"; return 0; fi
+
+  # A chave existe mas está vazia (ou duplicada): remover TODAS as linhas
+  # antes de reescrever, senão ficavam duas definições da mesma variável e
+  # o `.env` passava a depender de qual delas o consumidor lê.
+  local had_empty=0
+  if grep -qE "^${key}=" "$SPHARMMT_SECRETS_FILE" 2>/dev/null; then
+    had_empty=1
+    sed -i "/^${key}=/d" "$SPHARMMT_SECRETS_FILE"
+  fi
+
+  # `$value_cmd` é do tipo "gen_password 40": a divisão em palavras é
+  # deliberada, é assim que o argumento chega ao gerador.
+  # shellcheck disable=SC2086
   local value; value=$($value_cmd)
-  [ -n "$desc" ] && printf '# %s\n' "$desc" >> "$SPHARMMT_SECRETS_FILE"
+  [ -n "$value" ] || die "gerador de ${key} devolveu vazio"
+
+  if [ -n "$desc" ] && ! grep -qF "# ${desc}" "$SPHARMMT_SECRETS_FILE" 2>/dev/null; then
+    printf '# %s\n' "$desc" >> "$SPHARMMT_SECRETS_FILE"
+  fi
   printf '%s=%s\n' "$key" "$value" >> "$SPHARMMT_SECRETS_FILE"
-  ok "${key} gerado"
+  # Modo reafirmado a cada escrita: o ficheiro nunca fica exposto, mesmo
+  # que uma execução anterior tenha morrido a meio.
+  chmod 0600 "$SPHARMMT_SECRETS_FILE"
+  chown root:root "$SPHARMMT_SECRETS_FILE"
+
+  if [ "$had_empty" = "1" ]; then
+    ok "${key} estava vazio — regenerado"
+  else
+    ok "${key} gerado"
+  fi
   # Lida no relatório final; declarada em lib/common.sh.
   # shellcheck disable=SC2034
   CHANGES_MADE=1
+  return 0
 }
 
 gen_secrets() {

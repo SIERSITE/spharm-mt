@@ -632,12 +632,40 @@ apt_ensure() {
 # Segredos
 # ─────────────────────────────────────────────────────────────────────────
 
-gen_hex()    { openssl rand -hex "${1:-32}"; }
-gen_base64() { openssl rand -base64 "${1:-32}" | tr -d '\n'; }
-# Password segura para Postgres: sem caracteres que exijam escaping em
-# URLs/YAML (@ : / ? # % & = ' " \ espaço). Alfanumérico é suficiente
-# com 40 chars (~238 bits de entropia).
-gen_password() { LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "${1:-40}"; }
+# NENHUM gerador pode usar uma pipeline com consumidor que termina cedo.
+#
+# A versão anterior era:
+#     LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 40
+# O `head` fecha o pipe ao fim de 40 bytes, o `tr` — que lê de uma fonte
+# INFINITA — recebe SIGPIPE e morre com 141. Com `set -o pipefail` a
+# pipeline devolve 141, a substituição de comando falha e o `set -e` aborta
+# o script. Foi assim que a geração de segredos rebentou com rc=141.
+#
+# Todos os geradores abaixo consomem saídas FINITAS: o produtor termina de
+# escrever antes de o consumidor sair, portanto não há SIGPIPE possível.
+
+gen_hex() { openssl rand -hex "${1:-32}"; }
+
+gen_base64() {
+  # `tr -d` lê o input todo — o openssl termina primeiro. Sem early exit.
+  openssl rand -base64 "${1:-32}" | tr -d '\n'
+}
+
+# Password para o Postgres: alfanumérica, para não exigir escaping em URLs
+# de ligação nem em YAML (@ : / ? # % & = ' " \ espaço). 40 caracteres de
+# [A-Za-z0-9] ≈ 238 bits de entropia.
+#
+# Cada volta consome uma saída finita do openssl; o filtro `tr` remove os
+# caracteres não-alfanuméricos do base64 (+ / = e newlines), o que encurta o
+# resultado — daí o laço até haver comprimento suficiente. O corte final é
+# feito em bash, sem processos, portanto o comprimento é exacto.
+gen_password() {
+  local len=${1:-40} out=""
+  while [ "${#out}" -lt "$len" ]; do
+    out="${out}$(openssl rand -base64 48 | LC_ALL=C tr -dc 'A-Za-z0-9')"
+  done
+  printf '%s' "${out:0:len}"
+}
 
 # ─────────────────────────────────────────────────────────────────────────
 # Checks e relatório

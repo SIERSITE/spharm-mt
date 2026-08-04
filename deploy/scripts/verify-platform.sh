@@ -238,7 +238,7 @@ sec_volumes() {
   check "secrets sem qualquer permissão de grupo" \
     bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -maxdepth 0 -perm /g+rwx 2>/dev/null)\" ]"
   check "ficheiros em secrets a 0600 root:root" \
-    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -type f \\( ! -perm 600 -o ! -user root -o ! -group root \\) 2>/dev/null | head -1)\" ]"
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -type f \\( ! -perm 600 -o ! -user root -o ! -group root \\) -print -quit 2>/dev/null)\" ]"
 
   # ── postgres/data ────────────────────────────────────────────────────
   # Expectativa DIFERENTE, de propósito: 2700 é aceite (o setgid mantém a
@@ -265,9 +265,9 @@ sec_volumes() {
     [ -e "$p" ] && sensitive="${sensitive} ${p}"
   done
   check "nada acessível a others em conteúdo sensível" \
-    bash -c "[ -z \"\$(find ${sensitive} -perm /o+rwx 2>/dev/null | head -1)\" ]"
+    bash -c "[ -z \"\$(find ${sensitive} -perm /o+rwx -print -quit 2>/dev/null)\" ]"
   check "nenhum ficheiro .env legível por others" \
-    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -name '*.env' -type f -perm /o+rwx 2>/dev/null | head -1)\" ]"
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -name '*.env' -type f -perm /o+rwx -print -quit 2>/dev/null)\" ]"
 
   check "umask 027 em login.defs"        bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
   check "setgid na raiz (herança de grupo)" \
@@ -406,7 +406,9 @@ sec_backups() {
     check "existe pelo menos um conjunto" bash -c "[ ${n} -gt 0 ]"
     if [ "$n" -gt 0 ]; then
       local newest
-      newest=$(find "${SPHARMMT_BACKUP_DIR}/postgres/daily" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+      # `|| true`: sob pipefail, o `head -1` fecha o pipe e o `sort` pode
+      # apanhar SIGPIPE (141) quando a listagem é grande.
+      newest=$(find "${SPHARMMT_BACKUP_DIR}/postgres/daily" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)
       check "conjunto mais recente < 30h" \
         bash -c "[ \$(( ( \$(date +%s) - \$(stat -c %Y '${newest}') ) / 3600 )) -lt 30 ]"
       check "checksums do último conjunto conferem" \
@@ -436,7 +438,7 @@ sec_logs() {
   check "directório de logs existe"       test -d "${SPHARMMT_ROOT}/logs"
   check "logs de scripts em ${SPHARMMT_LOG_DIR}" test -d "$SPHARMMT_LOG_DIR"
   check_warn "nenhum log acima de 200MB" \
-    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/logs /var/log -size +200M -name '*.log' 2>/dev/null | head -1)\" ]"
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/logs /var/log -size +200M -name '*.log' -print -quit 2>/dev/null)\" ]"
 }
 
 # ═════════════════════════════════════════════════════════════════════════
