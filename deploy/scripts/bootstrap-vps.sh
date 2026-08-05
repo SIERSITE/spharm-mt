@@ -1052,13 +1052,12 @@ step_structure() {
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
   enforce_secret_file_modes
 
-  # ── postgres/data: 2700 deploy:spharmmt ──────────────────────────────
-  # O PostgreSQL exige que o data directory não tenha bits para grupo nem
-  # para others (verifica S_IRWXG|S_IRWXO); o setgid não entra nessa
-  # máscara, portanto 2700 é aceite e mantém a herança de grupo para o
-  # conteúdo criado por membros do grupo spharmmt.
-  # A revisão de UID/GID fica para quando o container PostgreSQL existir.
-  ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700 "$owner"
+  # ── postgres/data: 0700, dono = utilizador postgres da imagem ────────
+  # NÃO é do `deploy`. O PostgreSQL do container corre como uid/gid 999 e
+  # um PGDATA com outro dono leva-o a PANIC no primeiro checkpoint — o
+  # arranque até parece correr, porque o entrypoint é root.
+  # Ver ensure_pgdata_dir em lib/common.sh.
+  ensure_pgdata_dir
   ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$owner"
   ensure_dir "${SPHARMMT_ROOT}/docker/env" 2750 "$owner"
 

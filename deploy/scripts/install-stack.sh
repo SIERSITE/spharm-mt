@@ -437,6 +437,25 @@ derive_secrets() {
   enforce_secret_file_modes
 }
 
+# persist_conf_key <chave> <valor> — grava em /etc/spharmmt/platform.conf.
+#
+# O platform.conf é escrito pelo install-platform.sh; aqui só se
+# acrescentam ou actualizam chaves individuais, sem lhe tocar no resto.
+# É o que faz o uid/gid do PostgreSQL sobreviver a uma reinstalação da
+# plataforma — sem isso, o install-platform.sh voltava a assumir o
+# default e a repor o dono errado no PGDATA.
+persist_conf_key() {
+  local key=$1 value=$2
+  [ -f "$SPHARMMT_CONF_FILE" ] || return 0
+  [ "$DRY_RUN" = "1" ] && return 0
+  if grep -qE "^${key}=" "$SPHARMMT_CONF_FILE"; then
+    sed -i "s|^${key}=.*|${key}=\"${value}\"|" "$SPHARMMT_CONF_FILE"
+  else
+    printf '%s="%s"\n' "$key" "$value" >> "$SPHARMMT_CONF_FILE"
+  fi
+  return 0
+}
+
 # ═════════════════════════════════════════════════════════════════════════
 # 4. stack.env — configuração de interpolação do compose
 # ═════════════════════════════════════════════════════════════════════════
@@ -573,6 +592,27 @@ build_images() {
 start_postgres() {
   step "7. PostgreSQL"
   [ "$SKIP_UP" = "1" ] && { info "ignorado (--skip-up)"; return 0; }
+
+  # ── Dono do PGDATA, lido da IMAGEM ───────────────────────────────────
+  # Não assumido: perguntado à imagem que o compose vai correr. Se um dia
+  # a imagem mudar de uid, isto acompanha sem ninguém ter de saber de cor
+  # que era 999.
+  local pg_image ids
+  pg_image=$(awk -F'image: ' '/image: postgres:/ {print $2; exit}' "$SPHARMMT_COMPOSE_FILE" | tr -d '\r')
+  pg_image=${pg_image:-postgres:17.6-bookworm}
+  if ids=$(pg_image_uid_gid "$pg_image"); then
+    SPHARMMT_PG_UID=${ids%%:*}
+    SPHARMMT_PG_GID=${ids##*:}
+    ok "utilizador postgres da imagem ${pg_image}: ${SPHARMMT_PG_UID}:${SPHARMMT_PG_GID}"
+    persist_conf_key SPHARMMT_PG_UID "$SPHARMMT_PG_UID"
+    persist_conf_key SPHARMMT_PG_GID "$SPHARMMT_PG_GID"
+  else
+    warn "não consegui ler o uid/gid de ${pg_image} — a usar ${SPHARMMT_PG_UID}:${SPHARMMT_PG_GID}"
+  fi
+
+  # Aplicado ANTES do arranque, e só com o servidor parado. Com o
+  # PostgreSQL de pé, ensure_pgdata_dir recusa-se a tocar e avisa.
+  ensure_pgdata_dir
 
   local first_run=0
   [ -d "${SPHARMMT_POSTGRES_DATA_DIR}/pgdata" ] || first_run=1

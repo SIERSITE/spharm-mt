@@ -414,8 +414,35 @@ sec_volumes() {
   # herança de grupo) desde que o owner seja o correcto e não haja bits
   # para "others". O PostgreSQL verifica S_IRWXG|S_IRWXO, e o setgid não
   # entra nessa máscara. UID/GID serão revistos quando o container existir.
-  check "postgres/data owner ${SPHARMMT_USER}:${SPHARMMT_GROUP}" \
-    bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_PG_DIR}/data)\" = '${SPHARMMT_USER}:${SPHARMMT_GROUP}' ]"
+  # Dono do PGDATA: uid NUMÉRICO do utilizador `postgres` da imagem (999),
+  # e não `deploy:spharmmt`. Comparar nomes não serve — o uid 999 do
+  # container pode nem ter nome no host, ou ter outro.
+  #
+  # Exigir `deploy:spharmmt` aqui era o que validava a configuração que
+  # punha o PostgreSQL em PANIC no primeiro checkpoint.
+  #
+  # Só o UID é comparado. O entrypoint da imagem faz `chown postgres` SEM
+  # grupo (`find "$PGDATA" \! -user postgres -exec chown postgres`), pelo
+  # que um cluster criado de raiz fica 999:0 e um corrigido à mão fica
+  # 999:999 — os dois funcionam. Com o modo a 0700 o grupo não tem acesso
+  # nenhum, portanto o seu valor não pode influenciar nada. Exigir gid 999
+  # reprovaria qualquer instalação nova.
+  local pgdata_gid; pgdata_gid=$(stat -c '%g' "${SPHARMMT_PG_DIR}/data" 2>/dev/null || echo '?')
+  info "PGDATA: $(stat -c '%a %u:%g' "${SPHARMMT_PG_DIR}/data" 2>/dev/null || echo '?') · gid ${pgdata_gid} é indiferente com modo 0700"
+  check "postgres/data owner uid ${SPHARMMT_PG_UID} (postgres da imagem)" \
+    bash -c "[ \"\$(stat -c '%u' ${SPHARMMT_PG_DIR}/data)\" = '${SPHARMMT_PG_UID}' ]"
+  # Confronta a configuração com a imagem que está mesmo a correr.
+  if container_running "$SPHARMMT_PG_CONTAINER"; then
+    check "uid configurado bate com o da imagem em execução" \
+      bash -c "[ \"\$(docker exec ${SPHARMMT_PG_CONTAINER} id -u postgres 2>/dev/null)\" = '${SPHARMMT_PG_UID}' ]"
+    # O teste decisivo, e o único que distingue "configurado bem" de
+    # "consegue mesmo escrever": um CHECKPOINT explícito toca no
+    # pg_control, que é exactamente onde aparecia o
+    # `PANIC: could not open control file "pg_control": Permission denied`.
+    # Pelo socket local o utilizador postgres não precisa de password.
+    check "CHECKPOINT escreve no PGDATA" \
+      docker exec "$SPHARMMT_PG_CONTAINER" psql -U postgres -d postgres -Atc "CHECKPOINT"
+  fi
   check "postgres/data em 0700 ou 2700" \
     bash -c "case \"\$(stat -c '%a' ${SPHARMMT_PG_DIR}/data)\" in 700|2700) exit 0;; *) exit 1;; esac"
   check "postgres/data sem bits para others (exigido pelo PostgreSQL)" \

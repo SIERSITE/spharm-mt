@@ -197,9 +197,12 @@ ensure_structure() {
     "${SPHARMMT_BACKUP_DIR}/files" "${SPHARMMT_BACKUP_DIR}/tmp"
   )
   for d in "${ddirs[@]}"; do ensure_dir "$d" 2750 "$OWNER"; done
-  # 2700: o PostgreSQL só recusa bits de grupo/others (S_IRWXG|S_IRWXO); o
-  # setgid não entra nessa máscara e mantém a herança de grupo.
-  ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700 "$OWNER"
+  # O PGDATA é a EXCEPÇÃO: pertence ao utilizador postgres da imagem
+  # (999:999), não ao `deploy`, e não é tocado com o servidor a correr.
+  # Ver ensure_pgdata_dir em lib/common.sh — repor `deploy:spharmmt` aqui
+  # levava o PostgreSQL a PANIC no primeiro checkpoint.
+  ensure_pgdata_dir
+  # Os backups são escritos pelo host, esses sim pelo `deploy`.
   ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$OWNER"
 
   # A política de backups é escrita pelo bootstrap-vps.sh, que corre ANTES
@@ -341,6 +344,13 @@ SPHARMMT_PG_DIR="${SPHARMMT_PG_DIR}"
 SPHARMMT_POSTGRES_DATA_DIR="${SPHARMMT_POSTGRES_DATA_DIR}"
 SPHARMMT_BACKUP_DIR="${SPHARMMT_BACKUP_DIR}"
 SPHARMMT_DOCKER_DATA_DIR="${SPHARMMT_DOCKER_DATA_DIR}"
+
+# Dono do PGDATA: o utilizador \`postgres\` DA IMAGEM, não o ${DEPLOY_USER}.
+# Lido da imagem pelo install-stack.sh e gravado aqui. Não editar à mão
+# sem parar a stack — um chown do PGDATA com o servidor a correr não
+# falha na altura e leva-o a PANIC no checkpoint seguinte.
+SPHARMMT_PG_UID="${SPHARMMT_PG_UID}"
+SPHARMMT_PG_GID="${SPHARMMT_PG_GID}"
 
 SPHARMMT_NETWORK="${SPHARMMT_NETWORK}"
 SPHARMMT_PG_CONTAINER="${SPHARMMT_PG_CONTAINER}"

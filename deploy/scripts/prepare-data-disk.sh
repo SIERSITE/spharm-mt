@@ -375,9 +375,11 @@ create_data_dirs() {
   fi
 
   ensure_dir "${MOUNT_POINT}/postgres" 2750 "$owner"
-  # 0700 é exigido pelo próprio PostgreSQL, que recusa arrancar com
-  # permissões mais largas no data directory.
-  ensure_dir "${MOUNT_POINT}/postgres/data" 0700 "$owner"
+  # 0700 é exigido pelo próprio PostgreSQL, e o dono é o utilizador
+  # `postgres` da imagem (999:999), NÃO o `deploy` — ver ensure_pgdata_dir
+  # em lib/common.sh. Com outro dono, o cluster arranca (o entrypoint é
+  # root) e entra em PANIC no primeiro checkpoint.
+  ensure_pgdata_dir "${MOUNT_POINT}/postgres/data"
   ensure_dir "${MOUNT_POINT}/postgres/conf" 2750 "$owner"
   ensure_dir "${MOUNT_POINT}/postgres/init" 2750 "$owner"
   ensure_dir "${MOUNT_POINT}/docker" 2750 root:root

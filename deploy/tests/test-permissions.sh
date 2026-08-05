@@ -189,9 +189,17 @@ test_scripts() {
   # shellcheck disable=SC2016
   assert "bootstrap fixa secrets a 0700 root:root" \
     grep -q 'ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root' "$bs"
+  # O PGDATA deixou de seguir a política de directórios do host. Pertence
+  # ao utilizador `postgres` da imagem (uid 999) e é tratado por
+  # ensure_pgdata_dir, que também se recusa a tocar-lhe com o servidor a
+  # correr. Repor `deploy:spharmmt` aqui levava o PostgreSQL a
+  #   PANIC: could not open control file "pg_control": Permission denied
+  # no primeiro checkpoint. Ver deploy/tests/live-pgdata.sh.
+  assert "bootstrap delega o PGDATA em ensure_pgdata_dir" \
+    grep -q 'ensure_pgdata_dir' "$bs"
   # shellcheck disable=SC2016
-  assert "bootstrap fixa postgres/data a 2700" \
-    grep -q 'ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700' "$bs"
+  refute "bootstrap NÃO chowna o PGDATA para o deploy" \
+    grep -qE 'ensure_dir "\$\{SPHARMMT_POSTGRES_DATA_DIR\}" [0-9]+ "\$owner"' "$bs"
   assert "verificador exige 700 root:root em secrets" \
     grep -q "700 root:root' \]" "$vp"
   assert "verificador aceita 700 ou 2700 em postgres/data" \

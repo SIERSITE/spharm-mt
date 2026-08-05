@@ -252,6 +252,49 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
 O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
 divergirem significa que um alojamento faz o que o outro não faz.
 
+### Dono do PGDATA
+
+`/data/postgres/data` **não pertence ao `deploy`.** Pertence ao utilizador
+`postgres` da imagem — uid **999** em `postgres:17-bookworm`.
+
+```
+2700 deploy:spharmmt  →  o cluster arranca (o entrypoint é root)
+                      →  PANIC: could not open control file "pg_control":
+                         Permission denied
+                      →  FATAL: could not stat data directory
+```
+
+Uma base que arranca bem e morre no primeiro checkpoint é o pior modo de
+falha: a mensagem não aponta para permissões e já há tráfego em cima.
+
+Regras, todas em `ensure_pgdata_dir` (`lib/common.sh`), usada pelo
+`bootstrap-vps.sh`, `install-platform.sh`, `prepare-data-disk.sh` e
+`install-stack.sh`:
+
+- modo **0700**, dono **uid 999**;
+- o uid vem da **imagem configurada** (`pg_image_uid_gid`), não é assumido,
+  e fica gravado em `platform.conf` (`SPHARMMT_PG_UID`/`_GID`);
+- **nenhum script toca no PGDATA com o PostgreSQL a correr.** Avisa e não
+  mexe — um `chown` a quente não falha na altura e leva o servidor a PANIC
+  no checkpoint seguinte. Para corrigir: parar a stack, correr o script,
+  voltar a subir.
+
+Só o **uid** é verificado. O entrypoint da imagem faz `chown postgres` sem
+grupo, portanto um cluster criado de raiz fica `999:0` e um corrigido à mão
+fica `999:999` — os dois funcionam, e com 0700 o grupo não tem acesso
+nenhum. Exigir gid 999 reprovaria qualquer instalação nova.
+
+O `verify-platform.sh` compara o uid numérico e corre um `CHECKPOINT`
+explícito, que é o único teste que distingue "configurado bem" de
+"consegue mesmo escrever".
+
+Reproduzido de ponta a ponta em `deploy/tests/live-pgdata.sh` (cluster a
+sério, volume descartável; precisa de Docker):
+
+```bash
+./deploy/tests/live-pgdata.sh
+```
+
 ### Permissões do reverse proxy
 
 | Caminho | Modo | Porquê |

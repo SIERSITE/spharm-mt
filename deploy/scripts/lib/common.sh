@@ -706,6 +706,106 @@ enforce_tls_key_modes() {
   return 0
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# PGDATA — dono e modo
+# ─────────────────────────────────────────────────────────────────────────
+#
+# O PGDATA NÃO pertence ao `deploy`. Pertence ao utilizador `postgres` da
+# imagem, que é uid/gid 999 em postgres:17-bookworm.
+#
+# O que aconteceu por não ser assim: a política genérica de estrutura
+# repunha `2700 deploy:spharmmt` no PGDATA. O entrypoint do container
+# arranca como root e consegue inicializar o cluster à mesma, portanto o
+# arranque parecia bem — mas os processos que escrevem depois correm como
+# uid 999 e ficam sem acesso ao directório. O resultado aparece só mais
+# tarde, no primeiro checkpoint:
+#
+#     PANIC: could not open control file "pg_control": Permission denied
+#     FATAL: could not stat data directory
+#
+# Uma base de dados que arranca e morre a meio da primeira escrita é o
+# pior modo de falha possível: o erro não aponta para permissões e o
+# operador já tem tráfego em cima.
+#
+# Estes valores são sobreponíveis em platform.conf, e o install-stack.sh
+# escreve-os lá depois de os LER DA IMAGEM configurada — se um dia a
+# imagem mudar de uid, a configuração acompanha sem ninguém ter de saber
+# de cor que era 999.
+: "${SPHARMMT_PG_UID:=999}"
+: "${SPHARMMT_PG_GID:=999}"
+
+# pg_image_uid_gid <imagem> — imprime "uid:gid" do utilizador postgres
+# dessa imagem. Devolve 1 se não conseguir perguntar.
+pg_image_uid_gid() {
+  local image=$1 out
+  has_cmd docker || return 1
+  out=$(docker run --rm --entrypoint sh "$image" -c 'id -u postgres; id -g postgres' 2>/dev/null) || return 1
+  local uid gid
+  uid=$(printf '%s\n' "$out" | sed -n '1p')
+  gid=$(printf '%s\n' "$out" | sed -n '2p')
+  case "${uid}${gid}" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s:%s' "$uid" "$gid"
+}
+
+# `true` quando o PostgreSQL está a servir. Enquanto estiver, NINGUÉM
+# mexe no PGDATA.
+pg_is_running() { container_running "$SPHARMMT_PG_CONTAINER"; }
+
+# ensure_pgdata_dir — cria/corrige o PGDATA, com uma regra absoluta:
+# NUNCA lhe toca com o PostgreSQL em execução.
+#
+# Um `chown` do directório com o servidor de pé não dá erro nenhum na
+# altura; o servidor só descobre no checkpoint seguinte, e aí entra em
+# PANIC. Alterar isto a quente troca uma configuração errada por uma base
+# de dados em baixo.
+ensure_pgdata_dir() {
+  local path="${1:-$SPHARMMT_POSTGRES_DATA_DIR}"
+  local want="${SPHARMMT_PG_UID}:${SPHARMMT_PG_GID}"
+
+  if [ -e "$path" ] && [ ! -d "$path" ]; then
+    die "$path existe e NÃO é um directório — intervenção manual necessária"
+  fi
+  if [ ! -d "$path" ]; then
+    run mkdir -p "$path"
+    ok "criado PGDATA ${path}"
+    CHANGES_MADE=1
+  fi
+  [ "$DRY_RUN" = "1" ] && { info "[dry-run] PGDATA ficaria 0700 ${want}"; return 0; }
+
+  # Só o UID conta. O entrypoint da imagem faz `chown postgres` SEM grupo,
+  # portanto um cluster criado de raiz fica 999:0 e um corrigido à mão
+  # fica 999:999 — os dois funcionam, e com modo 0700 o grupo não tem
+  # acesso nenhum. Comparar o par completo daria "errado" a instalações
+  # perfeitamente sãs.
+  local cur; cur=$(stat -c '%u' "$path" 2>/dev/null || echo '?')
+  local mode; mode=$(stat -c '%a' "$path" 2>/dev/null || echo '?')
+
+  if pg_is_running; then
+    if [ "$cur" = "$SPHARMMT_PG_UID" ] && { [ "$mode" = "700" ] || [ "$mode" = "2700" ]; }; then
+      dbg "PGDATA correcto (${mode}, uid ${cur}) e PostgreSQL a correr — não é tocado"
+    else
+      warn "PGDATA está ${mode} uid=${cur}, esperado 0700 uid=${SPHARMMT_PG_UID} — e o PostgreSQL está A CORRER"
+      warn "NÃO vai ser alterado: um chown/chmod do PGDATA com o servidor de pé"
+      warn "não falha na altura, mas leva-o a PANIC no checkpoint seguinte."
+      warn "Para corrigir: parar a stack, correr este script outra vez, e voltar a subir."
+    fi
+    return 0
+  fi
+
+  # PostgreSQL parado: é seguro acertar. Só o directório — o conteúdo é
+  # do cluster e não se lhe toca.
+  chmod a-s "$path" 2>/dev/null || true
+  chmod 0700 "$path"
+  chown "$want" "$path"
+  if [ "$cur" != "$SPHARMMT_PG_UID" ]; then
+    ok "PGDATA ${path} → 0700 ${want} (utilizador postgres da imagem)"
+    CHANGES_MADE=1
+  else
+    dbg "PGDATA já em 0700 com uid ${SPHARMMT_PG_UID}"
+  fi
+  return 0
+}
+
 # backup_file <path> — cópia .bak-<ts> antes de alterar. Só uma por execução.
 backup_file() {
   local path=$1

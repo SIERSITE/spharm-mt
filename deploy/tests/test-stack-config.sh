@@ -21,6 +21,13 @@
 #
 # Saída: 0 todos os casos passaram · 1 pelo menos um falhou
 
+# Os padrões de grep deste ficheiro procuram texto LITERAL no
+# código-fonte dos scripts: as variáveis NÃO podem expandir. SC2016 é
+# exactamente o comportamento pretendido, em todo o ficheiro.
+# Directiva no topo, antes do primeiro comando — é o único sítio onde o
+# ShellCheck a aplica ao ficheiro inteiro.
+# shellcheck disable=SC2016
+
 set -uo pipefail
 
 DEPLOY_DIR=${DEPLOY_DIR:-/tmp/deploy}
@@ -95,8 +102,6 @@ test_exposure() {
 
   assert "install-stack recusa um postgres com ports" \
     grep -q 'a base ficaria exposta' "${SCRIPTS_DIR}/install-stack.sh"
-  # Padrões de grep sobre código-fonte — as variáveis NÃO podem expandir.
-  # shellcheck disable=SC2016
   assert "stack.env nasce com PROXY_BIND=127.0.0.1" \
     grep -q 'PROXY_BIND=\${bind}' "${SCRIPTS_DIR}/install-stack.sh"
 }
@@ -291,7 +296,6 @@ test_backup_restore() {
   assert "backups montados no postgres"      grep -q '/backups:ro' "$COMPOSE"
   assert "montagem dos backups é read-only" \
     bash -c "service_block postgres | grep -q ':/backups:ro'"
-  # shellcheck disable=SC2016
   assert "BACKUP_DIR exportado para o compose" \
     grep -q 'BACKUP_DIR=\${SPHARMMT_BACKUP_DIR}' "${SCRIPTS_DIR}/install-stack.sh"
 }
@@ -308,6 +312,47 @@ test_postgres() {
   assert "init é idempotente (verifica antes)" grep -q 'exists_db' "$PG_INIT"
   assert "base do control plane criada"     grep -q 'POSTGRES_CONTROL_DB' "$PG_INIT"
   assert "PUBLIC revogado nas bases"        grep -q 'REVOKE ALL ON DATABASE' "$PG_INIT"
+  # ── Dono do PGDATA ───────────────────────────────────────────────────
+  # O PGDATA é do utilizador `postgres` DA IMAGEM (999), não do `deploy`.
+  # Repor deploy:spharmmt levava o servidor a
+  #   PANIC: could not open control file "pg_control": Permission denied
+  # no primeiro checkpoint — depois de arrancar bem, porque o entrypoint
+  # é root. Reproduzido em deploy/tests/live-pgdata.sh.
+  local common="${SCRIPTS_DIR}/lib/common.sh"
+  local platform="${SCRIPTS_DIR}/install-platform.sh"
+  local bootstrap="${SCRIPTS_DIR}/bootstrap-vps.sh"
+  local prepare="${SCRIPTS_DIR}/prepare-data-disk.sh"
+  local verify="${SCRIPTS_DIR}/verify-platform.sh"
+
+  assert "uid/gid do postgres definidos em common.sh" grep -q 'SPHARMMT_PG_UID:=999' "$common"
+  assert "existe ensure_pgdata_dir"                   grep -q '^ensure_pgdata_dir()' "$common"
+  assert "uid/gid lidos da imagem"                    grep -q '^pg_image_uid_gid()' "$common"
+  assert "guarda de servidor em execução"             grep -q '^pg_is_running()' "$common"
+  assert "recusa mexer com o PostgreSQL a correr" \
+    grep -q 'NÃO vai ser alterado' "$common"
+
+  # Nenhum script de estrutura pode voltar a chownar o PGDATA para o deploy.
+  local s
+  for s in "$platform" "$bootstrap" "$prepare"; do
+    refute "$(basename "$s"): não chowna o PGDATA para o deploy" \
+      grep -qE 'ensure_dir "\$\{?SPHARMMT_POSTGRES_DATA_DIR\}?" [0-9]+ "\$(owner|OWNER)"' "$s"
+    assert "$(basename "$s"): usa ensure_pgdata_dir" grep -q 'ensure_pgdata_dir' "$s"
+  done
+  refute "prepare-data-disk não chowna postgres/data para o deploy" \
+    grep -qE 'ensure_dir "\$\{MOUNT_POINT\}/postgres/data" [0-9]+ "\$owner"' "$prepare"
+
+  # O install-stack lê o uid da imagem e persiste-o.
+  assert "install-stack lê o uid da imagem"     grep -q 'pg_image_uid_gid "\$pg_image"' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack persiste no platform.conf" grep -q 'persist_conf_key SPHARMMT_PG_UID' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack aplica antes do arranque" \
+    bash -c "[ \$(grep -n 'ensure_pgdata_dir' '${SCRIPTS_DIR}/install-stack.sh' | head -1 | cut -d: -f1) -lt \$(grep -n 'dct up -d postgres' '${SCRIPTS_DIR}/install-stack.sh' | head -1 | cut -d: -f1) ]"
+
+  # O verificador compara NÚMEROS, não deploy:spharmmt.
+  refute "verify NÃO exige deploy:spharmmt no PGDATA" \
+    grep -q "postgres/data owner \${SPHARMMT_USER}" "$verify"
+  assert "verify compara o uid numérico"        grep -q "postgres/data owner uid \${SPHARMMT_PG_UID}" "$verify"
+  assert "verify corre um CHECKPOINT real"      grep -q 'CHECKPOINT escreve no PGDATA' "$verify"
+
   assert "afinação conservadora presente"   grep -q 'shared_buffers=' "$COMPOSE"
   assert "max_connections limitado"         grep -q 'max_connections=100' "$COMPOSE"
   assert "checksums de dados no initdb"     grep -q 'data-checksums' "$COMPOSE"
@@ -322,7 +367,6 @@ test_proxy() {
     bash -c "grep -A4 'location = /healthz' '$NGINX' | grep -q 'return 200'"
   # Reescrever o Host faria todos os pedidos resolverem para o mesmo
   # tenant — ou para nenhum.
-  # shellcheck disable=SC2016
   assert "Host original preservado"         grep -q 'proxy_set_header Host              \$host' "$NGINX"
   assert "cabeçalhos de tenant limpos na entrada" \
     grep -q 'proxy_set_header X-Tenant-Slug   ""' "$NGINX"
