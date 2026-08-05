@@ -170,17 +170,22 @@ ensure_structure() {
 
   # ── Código, configuração e segredos: sempre em $SPHARMMT_ROOT ────────
   ensure_dir "$SPHARMMT_ROOT" 2750 "$OWNER"
-  # `secrets` fica FORA desta lista: 2750 dar-lhe-ia setgid e permissões de
-  # grupo, precisamente o que não pode ter.
+  # `secrets` e `proxy/conf` ficam FORA desta lista. Cada um pela razão
+  # oposta, e nenhum dos dois tolera a política genérica:
+  #   · secrets    — 2750 dar-lhe-ia setgid e permissões de grupo;
+  #   · proxy/conf — 2750 não dá NADA a others, e o nginx dentro do
+  #                  container corre como utilizador `nginx` (uid 101),
+  #                  que não é o dono nem pertence ao grupo `spharmmt`.
   local dirs=(
     app
     logs logs/app logs/postgres logs/proxy logs/monitoring logs/backups
     docker docker/compose docker/env docker/build
     scripts scripts/lib monitoring monitoring/checks monitoring/state
-    proxy proxy/conf proxy/certs
+    proxy
   )
   for d in "${dirs[@]}"; do ensure_dir "${SPHARMMT_ROOT}/${d}" 2750 "$OWNER"; done
   ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root
+  ensure_proxy_dirs
   ok "aplicação e configuração em ${SPHARMMT_ROOT}"
 
   # ── Dados: em $SPHARMMT_DATA_ROOT ────────────────────────────────────
@@ -197,6 +202,16 @@ ensure_structure() {
   ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700 "$OWNER"
   ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$OWNER"
 
+  # A política de backups é escrita pelo bootstrap-vps.sh, que corre ANTES
+  # de haver disco de dados: nessa altura SPHARMMT_BACKUP_DIR era
+  # /opt/spharmmt/backups. Depois da convergência para /data, o ficheiro
+  # ficava no sítio antigo e o verificador procurava-o no novo — uma falha
+  # que só dizia "política documentada: ✗".
+  #
+  # Aqui, já depois de converge_data_root, escreve-se no caminho canónico.
+  # Nunca sobrepõe: se o operador anotou o destino externo, isso fica.
+  ensure_backup_policy
+
   if data_disk_in_use; then
     ensure_dir "$SPHARMMT_DOCKER_DATA_DIR" 2750 root:root
     ok "dados no disco dedicado ${SPHARMMT_DATA_ROOT} ($(df -Ph "$SPHARMMT_DATA_ROOT" | awk 'NR==2 {print $4}') livres)"
@@ -206,6 +221,55 @@ ensure_structure() {
     local free; free=$(df -Ph "$SPHARMMT_ROOT" | awk 'NR==2 {print $4}')
     info "espaço livre: ${free}. Há disco livre por usar? corre prepare-data-disk.sh"
   fi
+}
+
+# ensure_backup_policy — garante ${SPHARMMT_BACKUP_DIR}/POLICY.md.
+#
+# Idempotente e não-destrutiva: existindo, é deixada como está (pode ter
+# anotações do operador sobre o destino externo). Se houver uma cópia no
+# layout antigo e nenhuma no canónico, é MOVIDA — não é dado, é
+# documentação, e ter duas versões a divergir é pior do que ter uma.
+ensure_backup_policy() {
+  local canonical="${SPHARMMT_BACKUP_DIR}/POLICY.md"
+  local legacy="${SPHARMMT_ROOT}/backups/POLICY.md"
+
+  if [ -f "$canonical" ]; then
+    dbg "POLICY.md já existe em ${canonical}"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] escreveria ${canonical}"
+    return 0
+  fi
+
+  if [ -f "$legacy" ] && [ "$legacy" != "$canonical" ]; then
+    mv "$legacy" "$canonical"
+    chown "$OWNER" "$canonical"; chmod 0640 "$canonical"
+    ok "POLICY.md movida do layout antigo → ${canonical}"
+    return 0
+  fi
+
+  write_file "$canonical" 0640 "$OWNER" <<'EOF'
+# Política de backups — SPharm.MT
+
+## Retenção (implementada em scripts/backup-platform.sh)
+- daily/    14 dias
+- weekly/   8 semanas (domingo)
+- monthly/  12 meses (dia 1)
+
+## Regras
+- Este directório é STAGING, não é backup. Um backup só conta quando
+  existe fora desta máquina (regra 3-2-1). Destino externo por configurar.
+- Todo o ficheiro tem .sha256 ao lado; o restore recusa sem checksum válido.
+- Teste de restauro mensal obrigatório para uma base descartável.
+  Backup nunca testado = backup inexistente.
+- Abortar se o disco estiver acima de 85%.
+
+## Estado
+Directórios e scripts prontos. Envio para destino externo: POR FAZER.
+EOF
+  ok "política de backups em ${canonical}"
+  return 0
 }
 
 # Detecta dados deixados para trás no layout antigo. NUNCA os move: mover
@@ -655,6 +719,7 @@ postflight() {
   check "data root ${SPHARMMT_DATA_ROOT}"     test -d "$SPHARMMT_DATA_ROOT"
   check "postgres em ${SPHARMMT_POSTGRES_DATA_DIR}" test -d "$SPHARMMT_POSTGRES_DATA_DIR"
   check "backups em ${SPHARMMT_BACKUP_DIR}"   test -d "${SPHARMMT_BACKUP_DIR}/postgres"
+  check "política de backups no caminho canónico" test -f "${SPHARMMT_BACKUP_DIR}/POLICY.md"
   check "data root gravado na conf"           grep -qE '^SPHARMMT_DATA_ROOT=' "$SPHARMMT_CONF_FILE"
   if data_disk_in_use; then
     check "volume de dados montado"           is_mountpoint "$SPHARMMT_DATA_ROOT"

@@ -237,13 +237,126 @@ install_artifacts() {
     ok "init postgres → $(basename "$f")"
   done
 
-  ensure_dir "${SPHARMMT_ROOT}/proxy/conf" 2755 "$OWNER"
-  ensure_dir "${SPHARMMT_ROOT}/proxy/certs" 2750 "$OWNER"
-  for f in "${DOCKER_SRC}"/proxy/*.conf; do
-    [ -f "$f" ] || continue
-    run install -m 0644 -o "$SPHARMMT_USER" -g "$SPHARMMT_GROUP" "$f" "${SPHARMMT_ROOT}/proxy/conf/$(basename "$f")"
-    ok "proxy → $(basename "$f")"
+  # ── Proxy ────────────────────────────────────────────────────────────
+  # Instalação EXPLÍCITA, sem glob. Um `for f in .../*.conf` que não casa
+  # com nada não instala ficheiro nenhum e não diz nada: o nginx arranca
+  # sem `server {}`, não escuta em porto algum, e o sintoma é um
+  # "Connection refused" que não aponta para a configuração em falta.
+  # 0755/0644, nunca a política genérica 2750 — ver ensure_proxy_dirs em
+  # lib/common.sh para a razão (o nginx do container é outro uid).
+  ensure_proxy_dirs "$OWNER"
+
+  local src="${DOCKER_SRC}/proxy/spharmmt.conf"
+  [ -f "$src" ] || die_precond "configuração do nginx não encontrada em ${src}"
+  run install -m 0644 -o "$SPHARMMT_USER" -g "$SPHARMMT_GROUP" "$src" "$SPHARMMT_PROXY_CONF_FILE"
+  ok "proxy → ${SPHARMMT_PROXY_CONF_FILE}"
+  # Reafirmado depois de instalar: o `install` acima já põe 0644, mas
+  # ficheiros de execuções anteriores podem estar noutro modo.
+  ensure_proxy_dirs "$OWNER"
+
+  # Caminho antigo, FORA do que o compose monta. Um ficheiro lá dá a
+  # impressão de que a configuração está instalada quando o nginx nunca
+  # a chega a ver.
+  if [ -f "$SPHARMMT_PROXY_CONF_LEGACY" ] && [ "$DRY_RUN" != "1" ]; then
+    backup_file "$SPHARMMT_PROXY_CONF_LEGACY"
+    rm -f "$SPHARMMT_PROXY_CONF_LEGACY"
+    warn "removido ${SPHARMMT_PROXY_CONF_LEGACY} — estava fora do mount e nunca foi lido pelo nginx"
+  fi
+  return 0
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# 2b. Validação do proxy — ANTES de lhe tocar
+# ═════════════════════════════════════════════════════════════════════════
+#
+# Corre antes do `up`, e não depois: recriar o proxy com o conf.d vazio
+# derruba o que estava a servir e substitui-o por um nginx sem
+# `server {}`. Descobrir isso pelo healthcheck é descobrir tarde.
+validate_proxy_conf() {
+  step "2b. Configuração do nginx"
+
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] validaria ${SPHARMMT_PROXY_CONF_FILE} e correria nginx -t"
+    return 0
+  fi
+
+  [ -d "$SPHARMMT_PROXY_CONF_DIR" ] \
+    || die "${SPHARMMT_PROXY_CONF_DIR} não existe — é este o directório montado em /etc/nginx/conf.d"
+  [ -s "$SPHARMMT_PROXY_CONF_FILE" ] \
+    || die "${SPHARMMT_PROXY_CONF_FILE} ausente ou vazio — o nginx arrancaria sem nenhum server{}"
+
+  # O directório não pode estar vazio de .conf: é literalmente o que o
+  # nginx carrega com `include /etc/nginx/conf.d/*.conf`.
+  local nconf=0 f
+  for f in "$SPHARMMT_PROXY_CONF_DIR"/*.conf; do
+    [ -f "$f" ] && nconf=$((nconf + 1))
   done
+  [ "$nconf" -gt 0 ] || die "${SPHARMMT_PROXY_CONF_DIR} não tem nenhum .conf — conf.d ficaria vazio"
+  ok "${nconf} ficheiro(s) .conf em ${SPHARMMT_PROXY_CONF_DIR}"
+
+  # Conteúdo mínimo. Um .conf sintacticamente válido mas sem `server` nem
+  # `proxy_pass` passa no `nginx -t` e serve 404 a tudo.
+  # `missing_directives` e não `missing`: o `require_cmd` do common.sh usa
+  # `missing` como ARRAY e, com `-x`, o ShellCheck vê os dois nomes no
+  # mesmo âmbito (SC2178/SC2128).
+  local directive missing_directives=""
+  for directive in 'server' 'listen' 'location' 'proxy_pass'; do
+    grep -qE "^[[:space:]]*${directive}[[:space:]{]" "$SPHARMMT_PROXY_CONF_FILE" \
+      || missing_directives="${missing_directives} ${directive}"
+  done
+  [ -z "${missing_directives// /}" ] \
+    || die "configuração do nginx sem directivas essenciais:${missing_directives}"
+  ok "server · listen · location · proxy_pass presentes"
+
+  # Permissões vistas de FORA do dono. O bind mount preserva dono e modo,
+  # e o nginx do container é outro uid: um directório sem bits para
+  # "others" dá "Permission denied" no `ls /etc/nginx/conf.d` e o nginx
+  # carrega zero `server {}` sem se queixar.
+  local dmode fmode
+  dmode=$(stat -c '%a' "$SPHARMMT_PROXY_CONF_DIR")
+  fmode=$(stat -c '%a' "$SPHARMMT_PROXY_CONF_FILE")
+  info "modos: ${SPHARMMT_PROXY_CONF_DIR}=${dmode} · $(basename "$SPHARMMT_PROXY_CONF_FILE")=${fmode}"
+  [ -z "$(find "$SPHARMMT_PROXY_CONF_DIR" -maxdepth 0 ! -perm -o+rx 2>/dev/null)" ] \
+    || die "${SPHARMMT_PROXY_CONF_DIR} está a ${dmode}: sem r-x para others o nginx do container não a consegue ler"
+  [ -z "$(find "$SPHARMMT_PROXY_CONF_DIR" -maxdepth 1 -name '*.conf' ! -perm -o+r -print -quit 2>/dev/null)" ] \
+    || die "há .conf sem leitura para others em ${SPHARMMT_PROXY_CONF_DIR} — o nginx não os carregaria"
+  ok "conf.d atravessável e legível por qualquer uid (é configuração pública)"
+
+  # Prova prática, com o utilizador real do container: `ls` como `nginx`.
+  # Um teste feito como root passaria sempre e não diria nada.
+  local image
+  image=$(awk -F'image: ' '/image: nginx:/ {print $2; exit}' "$SPHARMMT_COMPOSE_FILE" | tr -d '\r')
+  image=${image:-nginx:1.29-alpine}
+  if docker run --rm --network none --user nginx \
+       -v "${SPHARMMT_PROXY_CONF_DIR}:/etc/nginx/conf.d:ro" \
+       "$image" ls /etc/nginx/conf.d >/dev/null 2>&1; then
+    ok "utilizador nginx consegue listar /etc/nginx/conf.d"
+  else
+    die "o utilizador nginx NÃO consegue listar /etc/nginx/conf.d (dir a ${dmode}) — era isto que deixava o proxy sem server{}"
+  fi
+
+  # `nginx -t` com EXACTAMENTE o mount do compose. Um teste que use outro
+  # caminho valida um cenário que não é o que vai correr.
+  local image
+  image=$(awk -F'image: ' '/image: nginx:/ {print $2; exit}' "$SPHARMMT_COMPOSE_FILE" | tr -d '\r')
+  image=${image:-nginx:1.29-alpine}
+  info "nginx -t (${image}) com ${SPHARMMT_PROXY_CONF_DIR} → /etc/nginx/conf.d"
+
+  # `--add-host web:127.0.0.1`: o nginx resolve os nomes dos `upstream`
+  # ao CARREGAR a configuração, e `web` ainda não está de pé nesta fase.
+  # Sem isto, o `nginx -t` falhava com "host not found in upstream" — um
+  # problema de ordem de arranque, não de configuração.
+  # `--network none`: isto valida sintaxe e estrutura, não conectividade.
+  local out rc=0
+  out=$(docker run --rm --network none --add-host "web:127.0.0.1" \
+          -v "${SPHARMMT_PROXY_CONF_DIR}:/etc/nginx/conf.d:ro" \
+          "$image" nginx -t 2>&1) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$out" | sed 's/^/    /'
+    die "nginx -t falhou — o proxy NÃO foi tocado"
+  fi
+  ok "nginx -t: configuração válida"
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -384,6 +497,11 @@ PORT=3000
 # ── Dados (bind mounts do PostgreSQL) ────────────────────────────────
 POSTGRES_DATA_DIR=${SPHARMMT_POSTGRES_DATA_DIR}
 POSTGRES_INIT_DIR=${SPHARMMT_PG_DIR}/init
+
+# Directório montado em /etc/nginx/conf.d. É daqui que o nginx carrega os
+# server{}; se estiver vazio, arranca e não escuta em porto nenhum.
+PROXY_CONF_DIR=${SPHARMMT_PROXY_CONF_DIR}
+PROXY_CERTS_DIR=${SPHARMMT_ROOT}/proxy/certs
 # Montado em /backups:ro dentro do PostgreSQL — é o que permite ao
 # restore-platform.sh usar pg_restore com -j (impossível a partir do stdin).
 BACKUP_DIR=${SPHARMMT_BACKUP_DIR}
@@ -558,7 +676,9 @@ postflight() {
   check "stack.env instalado"              test -f "$SPHARMMT_STACK_ENV_FILE"
   check "stack.env sem segredos"     bash -c "! grep -qE '^(AUTH_SECRET|TENANT_ENCRYPTION_SECRET|POSTGRES_[A-Z_]*PASSWORD|CRON_SECRET)=' $SPHARMMT_STACK_ENV_FILE"
   check "init do postgres instalado"       test -x "${SPHARMMT_PG_DIR}/init/10-databases.sh"
-  check "configuração do proxy instalada"  test -f "${SPHARMMT_ROOT}/proxy/conf/spharmmt.conf"
+  check "configuração do proxy no caminho canónico" test -f "$SPHARMMT_PROXY_CONF_FILE"
+  check "conf.d não vazio"                 bash -c "ls ${SPHARMMT_PROXY_CONF_DIR}/*.conf >/dev/null 2>&1"
+  check "caminho antigo do proxy removido" bash -c "[ ! -f '$SPHARMMT_PROXY_CONF_LEGACY' ]"
 
   for f in postgres.secrets.env app.secrets.env; do
     check "segredo derivado ${f}"          test -f "${SPHARMMT_ROOT}/secrets/${f}"
@@ -622,6 +742,7 @@ main() {
   preflight
   install_source
   install_artifacts
+  validate_proxy_conf
   derive_secrets
   write_stack_env
   validate_compose

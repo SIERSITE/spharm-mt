@@ -64,6 +64,18 @@ readonly EX_ABORTED=6
 # stack deixava de subir depois de uma reinstalação da plataforma.
 : "${SPHARMMT_STACK_ENV_FILE:=${SPHARMMT_ROOT}/docker/env/stack.env}"
 : "${SPHARMMT_SECRETS_FILE:=${SPHARMMT_ROOT}/secrets/platform.secrets.env}"
+# Configuração do nginx. CAMINHO CANÓNICO ÚNICO — quem escreve, quem
+# valida, quem monta e quem verifica leem todos daqui.
+#
+# O directório é o que o compose monta em /etc/nginx/conf.d. Se o
+# ficheiro não estiver LÁ DENTRO, o nginx arranca sem nenhum `server {}`,
+# não escuta em porto nenhum, e o único sintoma é um healthcheck com
+# "Connection refused" — que não diz nada sobre montagens.
+: "${SPHARMMT_PROXY_CONF_DIR:=${SPHARMMT_ROOT}/proxy/conf}"
+: "${SPHARMMT_PROXY_CONF_FILE:=${SPHARMMT_PROXY_CONF_DIR}/spharmmt.conf}"
+# Caminho ANTIGO, fora do mount. Existe só para ser detectado e removido.
+: "${SPHARMMT_PROXY_CONF_LEGACY:=${SPHARMMT_ROOT}/proxy/spharmmt.conf}"
+
 : "${SPHARMMT_PG_CONTAINER:=spharmmt-postgres}"
 : "${SPHARMMT_APP_CONTAINER:=spharmmt-app}"
 : "${SPHARMMT_PROXY_CONTAINER:=spharmmt-proxy}"
@@ -612,6 +624,85 @@ enforce_secret_file_modes() {
   else
     dbg "sem ficheiros em ${dir}"
   fi
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# Permissões do reverse proxy
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Definida UMA vez, aqui, porque o install-platform.sh e o install-stack.sh
+# criam ambos estes directórios — e duas cópias da mesma política divergem
+# assim que uma delas for corrigida.
+#
+# A POLÍTICA GENÉRICA 2750 NÃO SERVE PARA proxy/conf. Foi exactamente isso
+# que deixou o proxy em baixo numa instalação real:
+#
+#   /opt/spharmmt/proxy/conf  2750 deploy:spharmmt
+#
+# O bind mount preserva dono e modo do host, e com 2750 não há bits para
+# "others". O `ls /etc/nginx/conf.d` devolve "Permission denied", o nginx
+# não carrega nenhum `server {}`, arranca na mesma, não escuta na porta
+# 80, e o único sintoma é "Connection refused" no healthcheck.
+#
+# Porque é que o root do container não passa por cima disto: o processo
+# master do nginx arranca como root, mas o nosso compose faz
+# `cap_drop: ALL` — e DAC_OVERRIDE, a capability que permite ao root
+# ignorar os bits de permissão, vai nesse lote. Sem ela, o uid 0 é
+# tratado como "others" sobre um directório do uid 1000. É por isso que a
+# política genérica 2750 é fatal AQUI e passaria despercebida num
+# container sem endurecimento. Reproduzido em deploy/tests/live-proxy.sh.
+#
+#   proxy/conf   0755  — configuração PÚBLICA. Legível e atravessável por
+#                        qualquer uid; não tem nada de secreto.
+#   *.conf       0644
+#   proxy/certs  0750  — restrito: aqui vivem chaves privadas.
+#   chaves       0640 ou mais restrito.
+#
+# Sem setgid em proxy/conf: os ficheiros lá dentro não precisam de herdar
+# grupo e o bit só tornaria o modo mais difícil de ler.
+ensure_proxy_dirs() {
+  local owner="${1:-${SPHARMMT_USER}:${SPHARMMT_GROUP}}"
+
+  ensure_dir "$SPHARMMT_PROXY_CONF_DIR" 0755 "$owner"
+  ensure_dir "${SPHARMMT_ROOT}/proxy/certs" 0750 "$owner"
+  [ "$DRY_RUN" = "1" ] && return 0
+
+  # Modo reafirmado a cada execução: uma configuração instalada antes
+  # desta política pode ter ficado a 0640 e continuar invisível ao nginx.
+  local f
+  for f in "$SPHARMMT_PROXY_CONF_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    chmod 0644 "$f"
+    chown "$owner" "$f" 2>/dev/null || true
+  done
+
+  enforce_tls_key_modes "$owner"
+  return 0
+}
+
+# Chaves privadas TLS a 0640 ou mais restrito. O nginx lê-as como root (o
+# processo master arranca root e só os workers largam privilégios), por
+# isso não precisam de bits para others — e não os podem ter.
+enforce_tls_key_modes() {
+  local owner="${1:-${SPHARMMT_USER}:${SPHARMMT_GROUP}}"
+  local dir="${SPHARMMT_ROOT}/proxy/certs"
+  [ -d "$dir" ] || return 0
+  [ "$DRY_RUN" = "1" ] && return 0
+
+  local f n=0
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    # Só aperta quando está mais aberto do que 0640 — nunca afrouxa uma
+    # chave que o operador tenha deixado a 0600.
+    case "$(stat -c '%a' "$f" 2>/dev/null || echo 000)" in
+      600|400|640|440) ;;
+      *) chmod 0640 "$f"; chown "$owner" "$f" 2>/dev/null || true; n=$((n + 1)) ;;
+    esac
+  done < <(find "$dir" -maxdepth 1 -type f \
+             \( -name '*.key' -o -name 'privkey*.pem' -o -name '*-key.pem' \) 2>/dev/null)
+
+  [ "$n" -gt 0 ] && ok "${n} chave(s) TLS restringida(s) a 0640"
   return 0
 }
 

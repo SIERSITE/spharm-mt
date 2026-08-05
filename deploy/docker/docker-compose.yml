@@ -383,8 +383,16 @@ services:
       - "${PROXY_BIND:-127.0.0.1}:${PROXY_HTTP_PORT:-8080}:80"
 
     volumes:
-      - ${SPHARMMT_ROOT:-/opt/spharmmt}/proxy/conf:/etc/nginx/conf.d:ro
-      - ${SPHARMMT_ROOT:-/opt/spharmmt}/proxy/certs:/etc/nginx/certs:ro
+      # É DAQUI que o nginx carrega os `server {}` (o nginx.conf da imagem
+      # faz `include /etc/nginx/conf.d/*.conf`). Com o directório vazio, o
+      # nginx arranca, passa no `nginx -t`, e não escuta em porto nenhum —
+      # o único sintoma é "Connection refused" no healthcheck.
+      #
+      # O caminho vem de PROXY_CONF_DIR (escrito pelo install-stack.sh a
+      # partir de SPHARMMT_PROXY_CONF_DIR) para que só exista UMA
+      # definição dele. O default é o mesmo valor, escrito por extenso.
+      - ${PROXY_CONF_DIR:-/opt/spharmmt/proxy/conf}:/etc/nginx/conf.d:ro
+      - ${PROXY_CERTS_DIR:-/opt/spharmmt/proxy/certs}:/etc/nginx/certs:ro
 
     depends_on:
       web:

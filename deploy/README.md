@@ -252,6 +252,41 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
 O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
 divergirem significa que um alojamento faz o que o outro não faz.
 
+### Permissões do reverse proxy
+
+| Caminho | Modo | Porquê |
+|---|---|---|
+| `proxy/conf` | **0755** | Configuração pública. O nginx do container é outro uid e tem de a atravessar |
+| `proxy/conf/*.conf` | **0644** | Idem |
+| `proxy/certs` | 0750 | Restrito — é aqui que vivem chaves privadas |
+| `proxy/certs/*.key`, `privkey*.pem` | 0640 ou mais restrito | Aplicado por `enforce_tls_key_modes` |
+
+A política genérica **2750 não serve** para `proxy/conf`, e a razão não é
+óbvia: o processo master do nginx arranca como root, mas o compose faz
+`cap_drop: ALL` — e `DAC_OVERRIDE`, a capability que deixa o root ignorar
+os bits de permissão, vai nesse lote. Sem ela, o uid 0 é tratado como
+"others" sobre um directório do uid 1000:
+
+```
+/opt/spharmmt/proxy/conf  2750 deploy:spharmmt
+→ ls /etc/nginx/conf.d: Permission denied
+→ nenhum server {} carregado
+→ o nginx arranca e não escuta na porta 80
+→ healthcheck: Connection refused
+```
+
+O nginx **arranca na mesma** e o `nginx -t` **passa** — verificado: um
+`conf.d` vazio é sintaxe válida. É por isso que o `install-stack.sh`
+valida o conteúdo e as permissões, e prova o acesso com o utilizador
+`nginx` real, **antes** de recriar o container.
+
+Reproduzido de ponta a ponta em `deploy/tests/live-proxy.sh` (containers
+a sério; precisa de Docker, corre-se à mão):
+
+```bash
+./deploy/tests/live-proxy.sh
+```
+
 ### Guarda do `refresh-ipf`
 
 `REFRESH_IPF_MULTI_TENANT_ENABLED` decide o fluxo do

@@ -576,6 +576,55 @@ sec_proxy() {
   fi
   check "container a correr"              container_running "$SPHARMMT_PROXY_CONTAINER"
 
+  # ── Configuração: o elo que falhou em silêncio ───────────────────────
+  # O nginx com o conf.d vazio arranca, passa no `nginx -t`, e não escuta
+  # em porto nenhum. Verificar só que o container corre — ou até que o
+  # ficheiro existe no HOST — não distingue esse caso de um proxy a
+  # funcionar. É preciso olhar para o que está DENTRO do container.
+  check "ficheiro no caminho canónico (host)" test -f "$SPHARMMT_PROXY_CONF_FILE"
+
+  # Permissões: o bind mount preserva dono e modo, e o nginx do container
+  # é outro uid. Sem r-x para others, `ls /etc/nginx/conf.d` dá
+  # "Permission denied", zero server{} são carregados, e o nginx arranca
+  # na mesma sem escutar em porto nenhum.
+  check "conf.d atravessável por others (0755)" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_PROXY_CONF_DIR} -maxdepth 0 ! -perm -o+rx 2>/dev/null)\" ]"
+  check "ficheiros .conf legíveis por others (0644)" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_PROXY_CONF_DIR} -maxdepth 1 -name '*.conf' ! -perm -o+r -print -quit 2>/dev/null)\" ]"
+  check "conf.d NÃO escrivível por others" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_PROXY_CONF_DIR} -perm /o+w -print -quit 2>/dev/null)\" ]"
+  # certs é o oposto: restrito.
+  check "proxy/certs sem acesso para others" \
+    bash -c "[ ! -d ${SPHARMMT_ROOT}/proxy/certs ] || [ -z \"\$(find ${SPHARMMT_ROOT}/proxy/certs -maxdepth 0 -perm /o+rwx 2>/dev/null)\" ]"
+  check "chaves privadas TLS a 0640 ou mais restrito" \
+    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/proxy/certs -maxdepth 1 -type f \\( -name '*.key' -o -name 'privkey*.pem' -o -name '*-key.pem' \\) -perm /o+rwx -print -quit 2>/dev/null)\" ]"
+
+  # A prova que interessa, feita com o utilizador real do container.
+  check "utilizador nginx consegue listar /etc/nginx/conf.d" \
+    docker exec --user nginx "$SPHARMMT_PROXY_CONTAINER" ls /etc/nginx/conf.d
+
+  # Fonte real do bind mount, lida do container. Se alguém mudar o
+  # compose ou o PROXY_CONF_DIR, é aqui que se vê.
+  local mount_src
+  mount_src=$(docker inspect "$SPHARMMT_PROXY_CONTAINER" \
+    -f '{{range .Mounts}}{{if eq .Destination "/etc/nginx/conf.d"}}{{.Source}}{{end}}{{end}}' 2>/dev/null || true)
+  if [ -n "$mount_src" ]; then
+    info "conf.d montado a partir de: ${mount_src}"
+    check "mount de conf.d aponta para ${SPHARMMT_PROXY_CONF_DIR}" \
+      bash -c "[ '${mount_src}' = '${SPHARMMT_PROXY_CONF_DIR}' ]"
+  else
+    check "conf.d montado no container" false
+  fi
+
+  check "ficheiro presente DENTRO do container" \
+    docker exec "$SPHARMMT_PROXY_CONTAINER" test -f /etc/nginx/conf.d/spharmmt.conf
+  # `nginx -T` imprime a configuração efectiva já resolvida. Zero blocos
+  # `server {}` é exactamente o estado "arranca e não serve nada".
+  check "nginx -T contém pelo menos um server {}" \
+    bash -c "[ \"\$(docker exec ${SPHARMMT_PROXY_CONTAINER} nginx -T 2>/dev/null | grep -c 'server {')\" -gt 0 ]"
+  check "nginx -T contém proxy_pass para a aplicação" \
+    bash -c "docker exec ${SPHARMMT_PROXY_CONTAINER} nginx -T 2>/dev/null | grep -q 'proxy_pass'"
+
   # O porto publicado vem da configuração, não é assumido: enquanto a
   # stack não estiver validada, o proxy ouve em 127.0.0.1:8080 e o 80
   # continua fechado. Exigir o 80 aqui reportava uma falha onde está o
@@ -598,9 +647,13 @@ sec_proxy() {
       bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^443/tcp'"
   fi
 
-  check "healthz do proxy responde" \
-    bash -c "curl -fsS -o /dev/null -m 10 http://127.0.0.1:${port}/healthz"
-  check "aplicação servida através do proxy" \
+  # Códigos HTTP explícitos: um `curl -f` distingue 200 de erro, mas não
+  # distingue 200 de 204 nem diz o que veio. Aqui interessa o 200.
+  check "/healthz responde 200" \
+    bash -c "[ \"\$(curl -sS -o /dev/null -m 10 -w '%{http_code}' http://127.0.0.1:${port}/healthz)\" = 200 ]"
+  check "/api/health responde 200 através do proxy" \
+    bash -c "[ \"\$(curl -sS -o /dev/null -m 20 -w '%{http_code}' http://127.0.0.1:${port}/api/health)\" = 200 ]"
+  check "corpo de /api/health tem status" \
     bash -c "curl -fsS -m 20 http://127.0.0.1:${port}/api/health | grep -q '\"status\"'"
   return 0
 }
