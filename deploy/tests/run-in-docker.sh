@@ -60,7 +60,7 @@ RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends \
       -o Acquire::http::Timeout=30 -o Acquire::Retries=3 \
       ca-certificates openssh-client openssh-server ufw coreutils util-linux findutils grep sed gawk \
-      procps file tzdata locales curl gnupg \
+      procps file tzdata locales curl gnupg git \
  && rm -rf /var/lib/apt/lists/*
 EOF
 }
@@ -100,6 +100,12 @@ ln -sfn /work/package.json /tmp/package.json
 ln -sfn /work/scripts /tmp/scripts
 ln -sfn /work/lib /tmp/lib
 ln -sfn /work/app /tmp/app
+# O test-dockerfile-copy.sh verifica os COPY contra HEAD — o contexto de
+# build real do servidor, que sai de `git archive HEAD`. Precisa do
+# repositório com .git, montado em /work. O `safe.directory` é necessário
+# porque o dono dos ficheiros dentro do container não é o mesmo do host.
+export REPO_ROOT=/work
+git config --global --add safe.directory /work 2>/dev/null || true
 suite_rc=0
 for t in /tmp/deploy/tests/test-*.sh; do
   bash "$t" || suite_rc=1

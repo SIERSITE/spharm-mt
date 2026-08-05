@@ -133,12 +133,19 @@ RUN apt-get update \
 # Só o que as migrations e os scripts de tenancy tocam. Copiar o
 # repositório inteiro traria `.next`, notas e artefactos que nada disto
 # usa, e tornaria o cache inútil a cada alteração de UI.
+#
+# `scripts/` é copiado por sub-directório e não inteiro: destes dois saem
+# todos os caminhos de migração (ver deploy/tests/test-dockerfile-copy.sh,
+# que verifica que cada COPY existe mesmo em HEAD). Os restantes ~100
+# scripts ad-hoc de investigação não têm nada que ver com migrations.
 COPY package.json package-lock.json tsconfig.json ./
-COPY prisma.config.ts prisma-control.config.ts ./
+COPY prisma.config.ts ./
+COPY prisma-control.config.ts ./
 COPY prisma ./prisma
 COPY prisma-control ./prisma-control
 COPY lib ./lib
-COPY scripts ./scripts
+COPY scripts/control ./scripts/control
+COPY scripts/tenancy ./scripts/tenancy
 COPY --from=builder /app/generated ./generated
 
 COPY deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh

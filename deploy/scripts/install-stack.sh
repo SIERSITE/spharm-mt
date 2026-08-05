@@ -133,6 +133,36 @@ preflight() {
 # onde este script está. Razão: o `build.context` do compose é relativo ao
 # compose instalado, e o update-platform.sh reconstrói a partir dele sem
 # saber onde o repositório foi clonado.
+# Avisa quando a working tree diverge de HEAD. Não bloqueia: pode ser
+# perfeitamente legítimo ter trabalho por commitar num checkout. Mas o
+# que vai para o servidor é HEAD, e a diferença tem de ser VISÍVEL —
+# descobri-la através de um `COPY: not found` a meio de um build de 10
+# minutos é a pior forma possível.
+warn_uncommitted() {
+  local staged untracked modified
+  staged=$(git -C "$REPO_ROOT" diff --cached --name-only HEAD --diff-filter=A 2>/dev/null | wc -l)
+  modified=$(git -C "$REPO_ROOT" diff --name-only HEAD 2>/dev/null | wc -l)
+  untracked=$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null | wc -l)
+
+  if [ "$staged" -eq 0 ] && [ "$modified" -eq 0 ] && [ "$untracked" -eq 0 ]; then
+    ok "working tree limpa — HEAD é exactamente o que vai ser instalado"
+    return 0
+  fi
+
+  warn "a working tree DIVERGE de HEAD, e é HEAD que vai para o servidor:"
+  [ "$staged" -gt 0 ]    && warn "  ${staged} ficheiro(s) em stage mas por COMMITAR — NÃO serão instalados"
+  [ "$modified" -gt 0 ]  && warn "  ${modified} ficheiro(s) alterado(s) face a HEAD — a versão de HEAD é que conta"
+  [ "$untracked" -gt 0 ] && warn "  ${untracked} ficheiro(s) não versionado(s) — ignorados"
+
+  if [ "$staged" -gt 0 ]; then
+    warn "  em stage por commitar (primeiros 10):"
+    git -C "$REPO_ROOT" diff --cached --name-only HEAD --diff-filter=A 2>/dev/null \
+      | head -10 | while IFS= read -r f; do warn "    ${f}"; done
+  fi
+  warn "Se algum destes for necessário ao build, commita-o antes de continuar."
+  return 0
+}
+
 install_source() {
   step "1. Código da aplicação"
   ensure_dir "$APP_DIR" 2750 "$OWNER"
@@ -147,6 +177,14 @@ install_source() {
     # sem node_modules, sem .next, sem ficheiros locais por commitar.
     # Uma cópia recursiva traria centenas de MB e, pior, artefactos de
     # build da máquina de origem que não correspondem a este servidor.
+    #
+    # A CONSEQUÊNCIA, que já custou um build falhado: um ficheiro que
+    # existe no disco mas ainda não foi commitado NÃO chega aqui. O
+    # `prisma-control.config.ts` estava em `git add` sem commit — o build
+    # local passava (usa a working tree) e o da VPS falhava com
+    # "/prisma-control.config.ts: not found", sem qualquer indicação de
+    # que o problema era o commit em falta.
+    warn_uncommitted
     info "a exportar HEAD (${APP_REVISION}) para ${APP_DIR}..."
     rm -rf "${APP_DIR:?}"/*
     git -C "$REPO_ROOT" archive --format=tar HEAD | tar -x -C "$APP_DIR"
