@@ -68,6 +68,9 @@ done
 
 OWNER="${DEPLOY_USER}:${DEPLOY_GROUP}"
 
+# Marcado por converge_data_root(); lido no resumo final.
+DATA_ROOT_CONVERGED=0
+
 # ═════════════════════════════════════════════════════════════════════════
 preflight() {
   step "Pré-condições"
@@ -83,8 +86,85 @@ preflight() {
 }
 
 # ═════════════════════════════════════════════════════════════════════════
-# 1. Estrutura (idempotente — repete o que o bootstrap fez, sem destruir)
+# 0. Data root — convergência
 # ═════════════════════════════════════════════════════════════════════════
+#
+# O platform.conf tem precedência sobre a detecção (é a fonte de verdade
+# depois de instalado, para a plataforma não mudar de sítio se um arranque
+# falhar a montagem). Mas isso criava um ciclo: uma instalação feita ANTES
+# de o disco existir gravava "/opt/spharmmt", e a partir daí o valor
+# antigo era relido e regravado para sempre, mesmo com /data montado.
+#
+# Esta função quebra o ciclo de forma explícita e segura.
+converge_data_root() {
+  step "0. Data root"
+
+  local candidate; candidate=$(data_root_candidate)
+  local current="$SPHARMMT_DATA_ROOT"
+
+  info "configuração actual: ${current} (origem: ${SPHARMMT_DATA_ROOT_SOURCE})"
+
+  if [ -z "$candidate" ]; then
+    if [ -d "$SPHARMMT_DATA_MOUNT" ]; then
+      warn "${SPHARMMT_DATA_MOUNT} existe mas NÃO é um ponto de montagem — ignorado"
+      warn "uma pasta no disco do sistema não é um volume de dados; corre prepare-data-disk.sh"
+    fi
+    ok "sem disco de dados dedicado — dados em ${current}"
+    return 0
+  fi
+
+  info "disco de dados detectado em ${candidate} ($(findmnt -no SOURCE,FSTYPE --target "$candidate" 2>/dev/null | tr -s ' '))"
+
+  if [ "$current" = "$candidate" ]; then
+    ok "data root já aponta para ${candidate} — nada a convergir"
+    return 0
+  fi
+
+  # A partir daqui: há disco montado e a configuração aponta para outro sítio.
+  if ! data_disk_prepared "$candidate"; then
+    warn "${candidate} está montado mas sem a estrutura esperada (postgres/ e backups/)"
+    warn "convergência NÃO aplicada. Prepara o disco primeiro:"
+    warn "    sudo ${SCRIPT_DIR}/prepare-data-disk.sh --device <dev>"
+    return 0
+  fi
+
+  # Há dados reais no caminho antigo? Se sim, mudar a configuração deixaria
+  # dados órfãos num sítio e a plataforma a escrever noutro — dois locais
+  # activos, que é precisamente o que não pode acontecer.
+  local blockers; blockers=$(data_root_real_data "$current")
+  if [ -n "$blockers" ]; then
+    err "══════════════════════════════════════════════════════════════"
+    err " CONVERGÊNCIA RECUSADA — existem dados reais em ${current}"
+    err "══════════════════════════════════════════════════════════════"
+    err " Com dados: ${blockers}"
+    err ""
+    err " Mudar a configuração agora deixaria esses dados órfãos e a"
+    err " plataforma a escrever em ${candidate} — dois locais activos."
+    err " Nada foi alterado e NENHUM dado foi movido."
+    err ""
+    err " Migração, com a stack PARADA e depois de um backup verificado:"
+    err "   sudo systemctl stop spharmmt-backup.timer"
+    err "   sudo ${SPHARMMT_ROOT}/scripts/backup-platform.sh --yes --label pre-migracao"
+    err "   sudo rsync -aHAX --info=progress2 ${current}/postgres/ ${candidate}/postgres/"
+    err "   sudo rsync -aHAX --info=progress2 ${current}/backups/  ${candidate}/backups/"
+    err "   # validar contagens e checksums, e SÓ DEPOIS:"
+    err "   sudo mv ${current}/postgres ${current}/postgres.migrado"
+    err "   sudo mv ${current}/backups  ${current}/backups.migrado"
+    err "   sudo ${SCRIPT_DIR}/install-platform.sh --yes   # converge agora"
+    DIE_CODE=$EX_PRECOND die "data root não convergido (dados existentes em ${current})"
+  fi
+
+  # Seguro: só directórios vazios do lado antigo.
+  SPHARMMT_DATA_ROOT="$candidate"
+  recompute_data_paths
+  DATA_ROOT_CONVERGED=1
+  ok "CONVERGIDO: data root ${current} → ${candidate}"
+  ok "  postgres : ${SPHARMMT_POSTGRES_DATA_DIR}"
+  ok "  backups  : ${SPHARMMT_BACKUP_DIR}"
+  warn "nenhum dado foi copiado ou movido — ${current} não tinha dados reais"
+  return 0
+}
+
 ensure_structure() {
   step "1. Estrutura"
 
@@ -114,7 +194,7 @@ ensure_structure() {
   for d in "${ddirs[@]}"; do ensure_dir "$d" 2750 "$OWNER"; done
   # 2700: o PostgreSQL só recusa bits de grupo/others (S_IRWXG|S_IRWXO); o
   # setgid não entra nessa máscara e mantém a herança de grupo.
-  ensure_dir "${SPHARMMT_PG_DIR}/data" 2700 "$OWNER"
+  ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700 "$OWNER"
   ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$OWNER"
 
   if data_disk_in_use; then
@@ -194,6 +274,7 @@ SPHARMMT_SECRETS_FILE="${SPHARMMT_ROOT}/secrets/platform.secrets.env"
 # arranque. Se editares isto à mão, os dados NÃO são movidos.
 SPHARMMT_DATA_ROOT="${SPHARMMT_DATA_ROOT}"
 SPHARMMT_PG_DIR="${SPHARMMT_PG_DIR}"
+SPHARMMT_POSTGRES_DATA_DIR="${SPHARMMT_POSTGRES_DATA_DIR}"
 SPHARMMT_BACKUP_DIR="${SPHARMMT_BACKUP_DIR}"
 SPHARMMT_DOCKER_DATA_DIR="${SPHARMMT_DOCKER_DATA_DIR}"
 
@@ -384,7 +465,7 @@ SESSION_COOKIE_SAMESITE=lax
 # Separação deliberada: SPHARMMT_ROOT tem aplicação e configuração,
 # DATA_ROOT tem o que cresce. Numa VPS de disco único são o mesmo sítio.
 DATA_ROOT=${SPHARMMT_DATA_ROOT}
-POSTGRES_DATA_DIR=${SPHARMMT_PG_DIR}/data
+POSTGRES_DATA_DIR=${SPHARMMT_POSTGRES_DATA_DIR}
 POSTGRES_CONF_DIR=${SPHARMMT_PG_DIR}/conf
 POSTGRES_INIT_DIR=${SPHARMMT_PG_DIR}/init
 BACKUP_DIR=${SPHARMMT_BACKUP_DIR}
@@ -541,7 +622,7 @@ postflight() {
   check "estrutura ${SPHARMMT_ROOT}"          test -d "$SPHARMMT_ROOT"
   check "configuração central"                test -f "$SPHARMMT_CONF_FILE"
   check "data root ${SPHARMMT_DATA_ROOT}"     test -d "$SPHARMMT_DATA_ROOT"
-  check "postgres em ${SPHARMMT_PG_DIR}/data" test -d "${SPHARMMT_PG_DIR}/data"
+  check "postgres em ${SPHARMMT_POSTGRES_DATA_DIR}" test -d "$SPHARMMT_POSTGRES_DATA_DIR"
   check "backups em ${SPHARMMT_BACKUP_DIR}"   test -d "${SPHARMMT_BACKUP_DIR}/postgres"
   check "data root gravado na conf"           grep -qE '^SPHARMMT_DATA_ROOT=' "$SPHARMMT_CONF_FILE"
   if data_disk_in_use; then
@@ -579,6 +660,7 @@ main() {
   acquire_lock platform
   banner "install-platform"
   preflight
+  converge_data_root
   ensure_structure
   write_conf
   gen_secrets
@@ -592,6 +674,16 @@ main() {
   printf '\n'
   if [ "$rc" -eq 0 ]; then
     ok "plataforma instalada."
+    if [ "$DATA_ROOT_CONVERGED" = "1" ]; then
+      printf '\n'
+      warn "O DATA ROOT MUDOU nesta execução para ${SPHARMMT_DATA_ROOT}."
+      warn "  postgres : ${SPHARMMT_POSTGRES_DATA_DIR}"
+      warn "  backups  : ${SPHARMMT_BACKUP_DIR}"
+      warn "Nenhum dado foi movido (não havia nenhum no caminho anterior)."
+      warn "Confirma: sudo ${SPHARMMT_ROOT}/scripts/verify-platform.sh --section volumes"
+      printf '\n'
+    fi
+    info "Data root:       ${SPHARMMT_DATA_ROOT}"
     info "Segredos:        sudo cat ${SPHARMMT_SECRETS_FILE}"
     info "Configuração:    ${SPHARMMT_ENV_FILE}  ·  ${SPHARMMT_CONF_FILE}"
     info "Validar:         sudo ${SPHARMMT_ROOT}/scripts/verify-platform.sh"

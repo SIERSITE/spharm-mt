@@ -1058,7 +1058,7 @@ step_structure() {
   # máscara, portanto 2700 é aceite e mantém a herança de grupo para o
   # conteúdo criado por membros do grupo spharmmt.
   # A revisão de UID/GID fica para quando o container PostgreSQL existir.
-  ensure_dir "${SPHARMMT_PG_DIR}/data" 2700 "$owner"
+  ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700 "$owner"
   ensure_dir "${SPHARMMT_BACKUP_DIR}/postgres" 2700 "$owner"
   ensure_dir "${SPHARMMT_ROOT}/docker/env" 2750 "$owner"
 
@@ -1345,7 +1345,7 @@ validate() {
   done
   check "owner ${DEPLOY_USER}:${DEPLOY_GROUP}" bash -c "[ \"\$(stat -c '%U:%G' ${SPHARMMT_ROOT})\" = '${DEPLOY_USER}:${DEPLOY_GROUP}' ]"
   check "dados em ${SPHARMMT_DATA_ROOT}" test -d "$SPHARMMT_DATA_ROOT"
-  check "postgres em ${SPHARMMT_PG_DIR}" test -d "${SPHARMMT_PG_DIR}/data"
+  check "postgres em ${SPHARMMT_POSTGRES_DATA_DIR}" test -d "$SPHARMMT_POSTGRES_DATA_DIR"
   check "backups em ${SPHARMMT_BACKUP_DIR}" test -d "${SPHARMMT_BACKUP_DIR}/postgres"
   if data_disk_in_use; then
     check "disco de dados montado"      is_mountpoint "$SPHARMMT_DATA_ROOT"

@@ -42,8 +42,11 @@ CORE_SERVICES=${CORE_SERVICES:-"ssh docker containerd fail2ban systemd-journald"
 # Data root — mesma resolução de lib/common.sh, repetida aqui porque este
 # script é deliberadamente auto-contido. Sem disco dedicado, cai em
 # $SPHARMMT_ROOT e os caminhos ficam onde sempre estiveram.
+# `findmnt --target <p>` devolve o ponto de montagem que CONTÉM p; só é um
+# ponto de montagem se o resultado for igual a p. Uma pasta /data no disco
+# do sistema devolveria "/" — e mandaria os dados para o volume errado.
 if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
-  if findmnt -rno TARGET /data >/dev/null 2>&1; then
+  if [ -d /data ] && [ "$(findmnt -no TARGET --target /data 2>/dev/null)" = "/data" ]; then
     SPHARMMT_DATA_ROOT=/data
   else
     SPHARMMT_DATA_ROOT="$SPHARMMT_ROOT"
@@ -51,6 +54,7 @@ if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
 fi
 : "${SPHARMMT_BACKUP_DIR:=${SPHARMMT_DATA_ROOT}/backups}"
 : "${SPHARMMT_PG_DIR:=${SPHARMMT_DATA_ROOT}/postgres}"
+: "${SPHARMMT_POSTGRES_DATA_DIR:=${SPHARMMT_PG_DIR}/data}"
 
 STATE_DIR="${SPHARMMT_ROOT}/monitoring/state"
 mkdir -p "$STATE_DIR" 2>/dev/null || STATE_DIR="${TMPDIR:-/tmp}"

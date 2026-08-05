@@ -191,7 +191,7 @@ test_scripts() {
     grep -q 'ensure_dir "${SPHARMMT_ROOT}/secrets" 0700 root:root' "$bs"
   # shellcheck disable=SC2016
   assert "bootstrap fixa postgres/data a 2700" \
-    grep -q 'ensure_dir "${SPHARMMT_PG_DIR}/data" 2700' "$bs"
+    grep -q 'ensure_dir "${SPHARMMT_POSTGRES_DATA_DIR}" 2700' "$bs"
   assert "verificador exige 700 root:root em secrets" \
     grep -q "700 root:root' \]" "$vp"
   assert "verificador aceita 700 ou 2700 em postgres/data" \

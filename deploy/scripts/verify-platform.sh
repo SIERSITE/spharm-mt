@@ -247,14 +247,28 @@ sec_volumes() {
   done
   # Dados — em /data com disco dedicado, senão no mesmo sítio de sempre
   check "dados: ${SPHARMMT_DATA_ROOT}"    test -d "$SPHARMMT_DATA_ROOT"
-  check "${SPHARMMT_PG_DIR}/data"         test -d "${SPHARMMT_PG_DIR}/data"
+  check "${SPHARMMT_POSTGRES_DATA_DIR}"   test -d "$SPHARMMT_POSTGRES_DATA_DIR"
   check "${SPHARMMT_BACKUP_DIR}/postgres" test -d "${SPHARMMT_BACKUP_DIR}/postgres"
+
+  # Coerência entre o que está configurado e o que está montado. Uma
+  # instalação feita antes de o disco existir gravava /opt/spharmmt no
+  # platform.conf e nunca mais convergia — o disco ficava montado e vazio.
+  local detected; detected=$(data_root_candidate)
+  if [ -n "$detected" ] && [ "$detected" != "$SPHARMMT_DATA_ROOT" ]; then
+    check "data root coerente com o disco montado (${detected})" false
+    info "  configurado: ${SPHARMMT_DATA_ROOT} · montado: ${detected}"
+    info "  corrige com: sudo ${SPHARMMT_ROOT}/scripts/install-platform.sh --yes"
+  else
+    check "data root coerente com o que está montado" true
+  fi
 
   if data_disk_in_use; then
     # Um volume de dados configurado mas desmontado é a falha mais
     # perniciosa desta arquitectura: as escritas vão para o disco de
     # sistema e desaparecem quando o volume voltar a montar.
     check "volume de dados MONTADO"       is_mountpoint "$SPHARMMT_DATA_ROOT"
+    check "${SPHARMMT_DATA_MOUNT} é mountpoint real (não pasta)" \
+      bash -c "[ \"\$(findmnt -no TARGET --target '${SPHARMMT_DATA_MOUNT}' 2>/dev/null)\" = '${SPHARMMT_DATA_MOUNT}' ]"
     check "montagem persistente (fstab)"  bash -c "grep -qE '^[^#]*[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab"
     check "fstab por UUID (não /dev/sdX)" bash -c "grep -E '[[:space:]]${SPHARMMT_DATA_ROOT}[[:space:]]' /etc/fstab | grep -q '^UUID='"
     check "fstab válido"                  bash -c "findmnt --verify >/dev/null 2>&1"

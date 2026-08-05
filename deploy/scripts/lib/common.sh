@@ -92,8 +92,18 @@ fi
 # O caso 3 garante retrocompatibilidade total: sem disco dedicado, todos os
 # caminhos ficam exactamente onde estavam.
 
+# is_mountpoint <path> — true só se `path` for ELE PRÓPRIO um ponto de
+# montagem, não uma pasta dentro de outro.
+#
+# `findmnt --target <p>` resolve o ponto de montagem que CONTÉM `p`: para
+# uma pasta normal em `/` devolve `/`. Comparar esse resultado com o próprio
+# caminho é o que distingue "disco montado em /data" de "pasta /data no
+# disco do sistema" — a diferença que decide onde os dados vão parar.
 is_mountpoint() {
-  findmnt -rno TARGET "$1" >/dev/null 2>&1
+  local p=$1 target
+  [ -d "$p" ] || return 1
+  target=$(findmnt -no TARGET --target "$p" 2>/dev/null) || return 1
+  [ "$target" = "$p" ]
 }
 
 # Ficheiro de tabela de montagens. Variável apenas para os testes poderem
@@ -113,19 +123,76 @@ fstab_verify_ok() {
   findmnt --verify --tab-file "$FSTAB_FILE" >/dev/null 2>&1
 }
 
-if [ -z "${SPHARMMT_DATA_ROOT:-}" ]; then
-  if is_mountpoint /data; then
-    SPHARMMT_DATA_ROOT=/data
+: "${SPHARMMT_DATA_MOUNT:=/data}"
+
+# data_root_candidate — imprime o ponto de montagem do disco de dados, ou
+# nada. Exige montagem REAL: uma pasta `/data` no disco do sistema não
+# serve, e aceitá-la mandaria os dados para o volume errado.
+data_root_candidate() {
+  local p="$SPHARMMT_DATA_MOUNT" fstype
+  is_mountpoint "$p" || return 0
+  # Pseudo-filesystems não são volumes de dados.
+  fstype=$(findmnt -no FSTYPE --target "$p" 2>/dev/null || true)
+  case "$fstype" in
+    ''|tmpfs|overlay|squashfs|ramfs|devtmpfs) return 0 ;;
+  esac
+  printf '%s' "$p"
+}
+
+# data_disk_prepared <root> — tem a estrutura que o prepare-data-disk.sh cria.
+data_disk_prepared() {
+  [ -d "${1}/postgres" ] && [ -d "${1}/backups" ]
+}
+
+# data_root_real_data <root> — lista os caminhos com dados REAIS (não
+# directórios vazios). Vazio significa "seguro converger".
+data_root_real_data() {
+  local root=$1 out=""
+  [ -n "$(find "${root}/postgres/data" -mindepth 1 -print -quit 2>/dev/null)" ] \
+    && out="${out}${root}/postgres/data "
+  [ -n "$(find "${root}/backups/postgres" -mindepth 2 -print -quit 2>/dev/null)" ] \
+    && out="${out}${root}/backups/postgres "
+  printf '%s' "${out% }"
+}
+
+# Resolução do data root.
+#
+# ATENÇÃO À ORDEM: o platform.conf é carregado ACIMA e, se definir
+# SPHARMMT_DATA_ROOT, esta detecção era saltada. Uma instalação feita antes
+# de o disco existir gravava "/opt/spharmmt" no conf; a partir daí a
+# detecção nunca mais corria e o write_conf regravava o mesmo valor — um
+# ciclo que se auto-perpetuava e ignorava um /data montado.
+#
+# Agora regista-se a PROVENIÊNCIA do valor, e é o install-platform.sh que
+# decide converger (ver converge_data_root lá).
+# Lido pelo install-platform.sh (convergência) e pelo verificador.
+# shellcheck disable=SC2034
+if [ -n "${SPHARMMT_DATA_ROOT:-}" ]; then
+  SPHARMMT_DATA_ROOT_SOURCE=conf
+else
+  SPHARMMT_DATA_ROOT=$(data_root_candidate)
+  if [ -n "$SPHARMMT_DATA_ROOT" ]; then
+    SPHARMMT_DATA_ROOT_SOURCE=detectado
   else
     SPHARMMT_DATA_ROOT="$SPHARMMT_ROOT"
+    SPHARMMT_DATA_ROOT_SOURCE=default
   fi
 fi
 
 # Directórios de dados derivados. Sobreponíveis individualmente em
 # platform.conf para migrações parciais (ex.: backups noutro volume).
 : "${SPHARMMT_PG_DIR:=${SPHARMMT_DATA_ROOT}/postgres}"
+: "${SPHARMMT_POSTGRES_DATA_DIR:=${SPHARMMT_PG_DIR}/data}"
 : "${SPHARMMT_BACKUP_DIR:=${SPHARMMT_DATA_ROOT}/backups}"
 : "${SPHARMMT_DOCKER_DATA_DIR:=${SPHARMMT_DATA_ROOT}/docker}"
+
+# Recalcula os derivados depois de SPHARMMT_DATA_ROOT mudar (convergência).
+recompute_data_paths() {
+  SPHARMMT_PG_DIR="${SPHARMMT_DATA_ROOT}/postgres"
+  SPHARMMT_POSTGRES_DATA_DIR="${SPHARMMT_PG_DIR}/data"
+  SPHARMMT_BACKUP_DIR="${SPHARMMT_DATA_ROOT}/backups"
+  SPHARMMT_DOCKER_DATA_DIR="${SPHARMMT_DATA_ROOT}/docker"
+}
 
 # `true` quando os dados vivem num volume separado de $SPHARMMT_ROOT.
 data_disk_in_use() { [ "$SPHARMMT_DATA_ROOT" != "$SPHARMMT_ROOT" ]; }

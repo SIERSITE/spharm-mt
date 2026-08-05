@@ -79,8 +79,12 @@ if [ "$INTERACTIVE" = "1" ]; then
   exec docker run --rm -it -v "${MOUNT_SRC}:/work:ro" -w /work "$IMAGE" bash
 fi
 
+# --privileged: o test-data-root.sh monta um loop device com ext4 para
+# exercitar a distinção entre "pasta /data" e "volume montado em /data" —
+# que é precisamente o que se está a testar e um stub não reproduziria.
+# O container é descartável e não monta nada do host.
 rc=0
-docker run --rm -v "${MOUNT_SRC}:/work:ro" -w /work "$IMAGE" bash -c '
+docker run --rm --privileged -v "${MOUNT_SRC}:/work:ro" -w /work "$IMAGE" bash -c '
 set -e
 # O repositório é montado read-only; os scripts precisam de escrever em /tmp.
 cp -r /work/deploy /tmp/deploy
