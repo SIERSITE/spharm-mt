@@ -52,6 +52,45 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# ─────────────────────────────────────────────────────────────────────────
+# Secções
+# ─────────────────────────────────────────────────────────────────────────
+#
+# `--section monitoring` (em inglês) não correspondia a nenhuma secção: o
+# `want` devolvia falso em todas, zero verificações corriam, e o relatório
+# declarava sucesso. Um filtro que não corresponde a nada é um erro do
+# operador, não um servidor saudável.
+SECTIONS="sistema seguranca docker volumes segredos stack postgres proxy monitorizacao backups logs recursos"
+
+# Aceita o nome em inglês e algumas variantes óbvias.
+normalize_section() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    sistema|system)                       printf 'sistema' ;;
+    seguranca|segurança|security)         printf 'seguranca' ;;
+    docker)                               printf 'docker' ;;
+    volumes|permissoes|permissões|permissions) printf 'volumes' ;;
+    segredos|secrets)                     printf 'segredos' ;;
+    stack|compose)                        printf 'stack' ;;
+    postgres|postgresql|pg)               printf 'postgres' ;;
+    proxy)                                printf 'proxy' ;;
+    monitorizacao|monitorização|monitoring|monitor) printf 'monitorizacao' ;;
+    backups|backup)                       printf 'backups' ;;
+    logs|log)                             printf 'logs' ;;
+    recursos|resources)                   printf 'recursos' ;;
+    *)                                    return 1 ;;
+  esac
+  return 0
+}
+
+if [ -n "$ONLY_SECTION" ]; then
+  if ! ONLY_SECTION=$(normalize_section "$ONLY_SECTION"); then
+    err "secção desconhecida: '${ONLY_SECTION}'"
+    err "secções válidas: ${SECTIONS}"
+    err "(os nomes em inglês também são aceites: monitoring, security, secrets, resources, ...)"
+    finish "$EX_USAGE"
+  fi
+fi
+
 IS_ROOT=0; [ "$(id -u)" -eq 0 ] && IS_ROOT=1
 HAS_STACK=0; [ -f "$SPHARMMT_COMPOSE_FILE" ] && HAS_STACK=1
 HAS_PG=0; container_exists "$SPHARMMT_PG_CONTAINER" 2>/dev/null && HAS_PG=1

@@ -724,6 +724,17 @@ checks_warned() {
 report() {
   local title=${1:-Resultado}
   local total=${#_CHK_STATUS[@]} pass=0 fail=0 warnc=0 skip=0 i
+
+  # Zero verificações NÃO é sucesso. Acontecia com `--section <nome inválido>`:
+  # nenhuma secção correspondia, nada corria, e o relatório dava rc=0 —
+  # exactamente o resultado que um operador leria como "está tudo bem".
+  if [ "$total" -eq 0 ]; then
+    printf '\n%s══════════════════════════════════════════════════════════════%s\n' "$C_BOLD" "$C_RESET"
+    err "${title}: NENHUMA verificação foi executada"
+    err "Isto não é sucesso — é um filtro que não corresponde a nada, ou um bug."
+    printf '%s══════════════════════════════════════════════════════════════%s\n' "$C_BOLD" "$C_RESET"
+    return "$EX_POSTCOND"
+  fi
   for i in "${!_CHK_STATUS[@]}"; do
     case "${_CHK_STATUS[$i]}" in
       PASS) pass=$((pass+1)) ;;

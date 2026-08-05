@@ -18,6 +18,11 @@
 
 set -uo pipefail
 
+# Locale fixo: o output de várias ferramentas (ufw, systemctl) é traduzido,
+# e esta sonda faz parsing dele. Sob a unit systemd o ambiente é diferente
+# do de uma sessão interactiva — fixar aqui torna o resultado igual nos dois.
+export LC_ALL=C LANG=C
+
 # ─── Limiares (sobreponíveis por /etc/spharmmt/platform.conf) ────────────
 DISK_WARN=${DISK_WARN:-75};  DISK_CRIT=${DISK_CRIT:-90}
 INODE_WARN=${INODE_WARN:-80}
@@ -119,21 +124,90 @@ for s in $CORE_SERVICES; do
 done
 
 # ─── Firewall ────────────────────────────────────────────────────────────
-if command -v ufw >/dev/null 2>&1; then
-  if ufw status 2>/dev/null | grep -q '^Status: active'; then say OK "UFW activa"
-  else say CRIT "UFW INACTIVA"; fi
-fi
+#
+# `ufw status` EXIGE root. Esta sonda corre como `deploy` a partir da unit
+# systemd, portanto o comando falha com rc=1 e stderr "You need to be root
+# to run this script", sem escrever nada no stdout.
+#
+# A versão anterior era:
+#     ufw status 2>/dev/null | grep -q '^Status: active'  || say CRIT "UFW INACTIVA"
+# — descartava o stderr, ignorava o rc, e concluía "INACTIVA". Daí a
+# execução manual com sudo dizer OK e a mesma sonda pela unit dizer CRIT.
+#
+# REGRA: uma sonda que não consegue LER o estado nunca pode AFIRMAR que ele
+# é mau. Sem privilégios, recorre-se a sinais legíveis sem root.
+# UFW_CONF é variável apenas para o teste automatizado poder exercitar os
+# vários estados sem mexer na configuração real do sistema.
+: "${UFW_CONF:=/etc/ufw/ufw.conf}"
+
+check_firewall() {
+  command -v ufw >/dev/null 2>&1 || return 0
+
+  local errf out rc msg enabled
+  errf=$(mktemp)
+  out=$(ufw status 2>"$errf") && rc=0 || rc=$?
+  msg=$(tr '\n' ' ' < "$errf" | cut -c1-140)
+  rm -f "$errf"
+
+  if [ "$rc" -eq 0 ]; then
+    # Tolerante a locale: o ufw é traduzido (pt: "Estado: activo").
+    if printf '%s' "$out" | grep -qiE '^(status|estado):[[:space:]]*activ'; then
+      say OK "UFW activa"
+    else
+      say CRIT "UFW INACTIVA ($(printf '%s' "$out" | head -1 || true))"
+    fi
+    return 0
+  fi
+
+  # rc != 0 — não conseguimos consultar. Sinais alternativos, sem root:
+  #   · o serviço está activo?      systemctl is-active ufw
+  #   · está configurada para ligar? ENABLED em /etc/ufw/ufw.conf (legível)
+  enabled=$(awk -F= 'tolower($1) ~ /^enabled/ {print tolower($2)}' \
+              "$UFW_CONF" 2>/dev/null | tr -d '[:space:]')
+
+  if [ "$enabled" = "no" ]; then
+    say CRIT "UFW desactivada (ENABLED=no em ${UFW_CONF})"
+  elif systemctl is-active --quiet ufw 2>/dev/null && [ "$enabled" = "yes" ]; then
+    say OK "UFW activa (serviço activo + ENABLED=yes; 'ufw status' precisa de root, rc=${rc})"
+  else
+    # Nem confirmar nem desmentir: WARN (rc=1), nunca CRIT.
+    say WARN "estado da UFW indeterminado (ufw status rc=${rc}: ${msg:-sem stderr})"
+  fi
+  return 0
+}
+check_firewall
 
 # ─── fail2ban ────────────────────────────────────────────────────────────
-if command -v fail2ban-client >/dev/null 2>&1; then
-  jails=$(fail2ban-client status 2>/dev/null | awk -F: '/Jail list/ {print $2}' | xargs)
+# Mesma armadilha da UFW: `fail2ban-client status` precisa de acesso ao
+# socket de controlo, que como `deploy` normalmente não existe. "Não
+# consegui perguntar" e "não há jails" são coisas diferentes.
+check_fail2ban() {
+  command -v fail2ban-client >/dev/null 2>&1 || return 0
+
+  local errf out rc jails banned
+  errf=$(mktemp)
+  out=$(fail2ban-client status 2>"$errf") && rc=0 || rc=$?
+  rm -f "$errf"
+
+  if [ "$rc" -ne 0 ]; then
+    if systemctl is-active --quiet fail2ban 2>/dev/null; then
+      say OK "fail2ban activo (estado detalhado exige root, rc=${rc})"
+    else
+      say CRIT "fail2ban não está activo"
+    fi
+    return 0
+  fi
+
+  jails=$(printf '%s' "$out" | awk -F: '/Jail list/ {print $2}' | xargs)
   if [ -n "$jails" ]; then
     banned=$(fail2ban-client status sshd 2>/dev/null | awk -F: '/Currently banned/ {print $2}' | xargs)
     say OK "fail2ban jails: ${jails} (sshd banidos: ${banned:-0})"
   else
     say WARN "fail2ban sem jails activas"
   fi
-fi
+  return 0
+}
+check_fail2ban
 
 # ─── Docker ──────────────────────────────────────────────────────────────
 if command -v docker >/dev/null 2>&1; then
