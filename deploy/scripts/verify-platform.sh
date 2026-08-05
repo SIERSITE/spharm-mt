@@ -91,6 +91,122 @@ if [ -n "$ONLY_SECTION" ]; then
   fi
 fi
 
+# ─────────────────────────────────────────────────────────────────────────
+# Permissões — o que é sensível e o que não é
+# ─────────────────────────────────────────────────────────────────────────
+#
+# A varredura começou por ser a árvore inteira, o que acusava ficheiros
+# legitimamente legíveis (um README.md a 0644) e treinava qualquer pessoa
+# a ignorar o check. Foi reduzida ao que é mesmo sensível — e depois
+# ainda acusava dois casos correctos:
+#
+#   2755 deploy:spharmmt  /data/postgres/init
+#   755  deploy:spharmmt  /data/postgres/init/10-databases.sh
+#
+# Esses scripts NÃO são segredos e TÊM de ser legíveis e executáveis: o
+# entrypoint do container do PostgreSQL corre-os como utilizador
+# `postgres`, que não é o dono deles no host. Fechá-los partiria a
+# inicialização. `postgres/conf` está no mesmo caso.
+#
+# A exclusão é do DIRECTÓRIO, nunca do conteúdo sensível: qualquer
+# ficheiro com cara de credencial (*.env, chave privada, certificado)
+# continua a ser apanhado onde quer que esteja, incluindo dentro de
+# init/ e conf/. É isso que torna seguro excluí-los.
+
+# NOTA sobre o ShellCheck: as funções desta secção são invocadas
+# INDIRECTAMENTE, como argumento de `check "<label>" <fn>` — o
+# ShellCheck não segue essa indirecção e reporta SC2329 ("never
+# invoked"). Suprimido aqui, com esta justificação, e nunca globalmente.
+# O test-sensitive-perms.sh exercita todas elas.
+
+# Árvores onde NADA pode ser acessível a others.
+# shellcheck disable=SC2329
+sensitive_paths() {
+  local p
+  for p in "${SPHARMMT_ROOT}/secrets" \
+           "${SPHARMMT_ROOT}/docker/env" \
+           "${SPHARMMT_BACKUP_DIR}" \
+           "${SPHARMMT_POSTGRES_DATA_DIR}"; do
+    [ -e "$p" ] && printf '%s\n' "$p"
+  done
+  return 0
+}
+
+# `${SPHARMMT_PG_DIR}` (=/data/postgres) NÃO entra na lista acima: contém
+# `init/` e `conf/`, que são configuração pública. O que dela é sensível é
+# `postgres/data`, e esse está listado explicitamente.
+# shellcheck disable=SC2329
+no_world_access_in_sensitive() {
+  local roots=() p
+  while IFS= read -r p; do [ -n "$p" ] && roots+=("$p"); done < <(sensitive_paths)
+  [ "${#roots[@]}" -gt 0 ] || return 0
+  [ -z "$(find "${roots[@]}" -perm /o+rwx -print -quit 2>/dev/null)" ]
+}
+
+# Nomes que denunciam uma credencial. Procurados em TODA a árvore da
+# plataforma e dos dados — a exclusão de init/ e conf/ do check acima não
+# se aplica aqui, de propósito: uma chave privada esquecida em conf/ é
+# exactamente o caso que isto tem de apanhar.
+# shellcheck disable=SC2329
+credential_names() {
+  printf '%s\n' '*.env' '*.key' '*.pem' '*.p12' '*.pfx' '*.jks' '*.crt.key' \
+                '.pgpass' 'id_rsa' 'id_rsa*' 'id_ed25519' 'id_ed25519*' \
+                '*.keystore' 'privkey*.pem' '*-key.pem'
+}
+
+# Preenche CRED_EXPR com `( -name A -o -name B ... )` para o find.
+#
+# Um ARRAY, e não uma string passada a `eval`. A primeira versão montava
+# a expressão como texto: os parênteses ficavam sem aspas (o bash lia-os
+# como subshell) e os `*.env` eram expandidos pelo shell antes de o find
+# os ver. O comando rebentava, o stderr ia para /dev/null, e a função
+# devolvia "limpo" — um check que passava SEMPRE, incluindo com segredos
+# expostos. Com o array, cada padrão chega intacto ao find, que é quem
+# tem de fazer o glob.
+# shellcheck disable=SC2329
+_credential_expr() {
+  CRED_EXPR=( '(' )
+  local first=1 n
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    if [ "$first" = "1" ]; then first=0; else CRED_EXPR+=( '-o' ); fi
+    CRED_EXPR+=( -name "$n" )
+  done < <(credential_names)
+  CRED_EXPR+=( ')' )
+}
+
+# shellcheck disable=SC2329
+no_world_readable_credentials() {
+  local roots=() p
+  for p in "$SPHARMMT_ROOT" "$SPHARMMT_DATA_ROOT"; do
+    [ -d "$p" ] && roots+=("$p")
+  done
+  [ "${#roots[@]}" -gt 0 ] || return 0
+
+  local CRED_EXPR=(); _credential_expr
+  [ -z "$(find "${roots[@]}" -type f "${CRED_EXPR[@]}" -perm /o+rwx -print -quit 2>/dev/null)" ]
+}
+
+# shellcheck disable=SC2329
+_dir_has_no_credentials() {
+  local d=$1
+  [ -d "$d" ] || return 0
+  local CRED_EXPR=(); _credential_expr
+  [ -z "$(find "$d" -type f "${CRED_EXPR[@]}" -print -quit 2>/dev/null)" ]
+}
+
+# O directório de init é legível de propósito. Estas verificações
+# garantem que continua a ser SÓ scripts — se alguém lá deixar um .env ou
+# uma chave, a exclusão deixaria de ser segura e isto acusa-o.
+# shellcheck disable=SC2329
+init_dir_has_no_credentials() { _dir_has_no_credentials "${SPHARMMT_PG_DIR}/init"; }
+
+# `conf/` só pode ser excluído ENQUANTO não tiver credenciais. Um
+# `.pgpass`, um certificado de cliente ou uma chave de replicação lá
+# dentro mudam-lhe a natureza, e a exclusão passa a ser um buraco.
+# shellcheck disable=SC2329
+conf_dir_has_no_credentials() { _dir_has_no_credentials "${SPHARMMT_PG_DIR}/conf"; }
+
 IS_ROOT=0; [ "$(id -u)" -eq 0 ] && IS_ROOT=1
 HAS_STACK=0; [ -f "$SPHARMMT_COMPOSE_FILE" ] && HAS_STACK=1
 HAS_PG=0; container_exists "$SPHARMMT_PG_CONTAINER" 2>/dev/null && HAS_PG=1
@@ -309,18 +425,27 @@ sec_volumes() {
     bash -c "case \"\$(stat -c '%a' ${SPHARMMT_BACKUP_DIR}/postgres)\" in 700|2700) exit 0;; *) exit 1;; esac"
 
   # ── Conteúdo sensível ────────────────────────────────────────────────
-  # Só o que é mesmo sensível. Varrer a árvore inteira acusava ficheiros
-  # legitimamente legíveis (README.md a 0644, por exemplo) e treinava
-  # qualquer pessoa a ignorar este check.
-  local sensitive=""
-  for p in "${SPHARMMT_ROOT}/secrets" "${SPHARMMT_ROOT}/docker/env" \
-           "${SPHARMMT_BACKUP_DIR}" "${SPHARMMT_PG_DIR}"; do
-    [ -e "$p" ] && sensitive="${sensitive} ${p}"
-  done
-  check "nada acessível a others em conteúdo sensível" \
-    bash -c "[ -z \"\$(find ${sensitive} -perm /o+rwx -print -quit 2>/dev/null)\" ]"
-  check "nenhum ficheiro .env legível por others" \
-    bash -c "[ -z \"\$(find ${SPHARMMT_ROOT} -name '*.env' -type f -perm /o+rwx -print -quit 2>/dev/null)\" ]"
+  check "nada acessível a others em conteúdo sensível" no_world_access_in_sensitive
+  check "nenhuma credencial legível por others"        no_world_readable_credentials
+
+  # ── Excluídos, e porquê ──────────────────────────────────────────────
+  # Ficam de fora do check acima por serem configuração pública que o
+  # container tem de conseguir ler. A exclusão é declarada aqui, com
+  # verificações próprias, em vez de ficar implícita numa lista.
+  if [ -d "${SPHARMMT_PG_DIR}/init" ]; then
+    check "init do PostgreSQL sem ficheiros de credenciais" init_dir_has_no_credentials
+    # Legível sim, escrivível por others não: um init writable deixaria
+    # qualquer utilizador local executar SQL como superutilizador na
+    # próxima inicialização.
+    check "init do PostgreSQL não escrivível por others" \
+      bash -c "[ -z \"\$(find ${SPHARMMT_PG_DIR}/init -perm /o+w -print -quit 2>/dev/null)\" ]"
+    check_skip "init do PostgreSQL legível" "por design — corrido pelo container como utilizador postgres"
+  fi
+  if [ -d "${SPHARMMT_PG_DIR}/conf" ]; then
+    check "conf do PostgreSQL sem ficheiros de credenciais" conf_dir_has_no_credentials
+    check "conf do PostgreSQL não escrivível por others" \
+      bash -c "[ -z \"\$(find ${SPHARMMT_PG_DIR}/conf -perm /o+w -print -quit 2>/dev/null)\" ]"
+  fi
 
   check "umask 027 em login.defs"        bash -c "grep -qE '^UMASK\\s+027' /etc/login.defs"
   check "setgid na raiz (herança de grupo)" \
