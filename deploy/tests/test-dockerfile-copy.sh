@@ -47,13 +47,21 @@ bad_() { printf '  %s✗%s %s\n' "$C_R" "$C_0" "$1"; fail=$((fail+1)); }
 # Existência em HEAD
 # ═════════════════════════════════════════════════════════════════════════
 
-# in_head <caminho> — 0 se HEAD tem esse ficheiro OU um directório com
-# pelo menos um ficheiro lá dentro. Um directório vazio não existe em git
-# e também não existiria no contexto de build.
+# in_head <caminho> — 0 se HEAD tem esse caminho como ficheiro (blob) ou
+# directório (tree). Um directório vazio não existe em git, portanto um
+# `tree` implica sempre conteúdo.
+#
+# `cat-file -t` resolve os dois casos sem pipeline nenhuma. A alternativa
+# óbvia — `ls-tree -r | head -1` — reintroduzia a classe de falha do
+# SIGPIPE que já custou a geração de segredos.
 in_head() {
-  local path=$1
-  git -C "$REPO_ROOT" cat-file -e "HEAD:${path}" 2>/dev/null && return 0
-  [ -n "$(git -C "$REPO_ROOT" ls-tree -r --name-only HEAD -- "$path" 2>/dev/null | head -1)" ]
+  local path=$1 kind
+  # `COPY . .` copia o contexto inteiro. Em git, a raiz é `HEAD:` — com
+  # `HEAD:.` o cat-file devolve erro e o teste acusava a raiz de não
+  # existir.
+  case "$path" in .|./) path="" ;; *) path=${path#./} ;; esac
+  kind=$(git -C "$REPO_ROOT" cat-file -t "HEAD:${path}" 2>/dev/null) || return 1
+  [ "$kind" = "blob" ] || [ "$kind" = "tree" ]
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -169,8 +177,9 @@ main() {
     if ! in_head "$src"; then
       bad_ "linha ${line}: '${src}' NÃO existe em HEAD"
       if [ -e "${REPO_ROOT}/${src}" ]; then
-        printf '      existe no disco mas não está commitado — o `git archive HEAD`\n'
-        printf '      do install-stack.sh não o exporta e o build falha na VPS.\n'
+        printf '      existe no disco mas não está commitado. O install-stack.sh\n'
+        printf '      exporta com "git archive HEAD", que não o inclui: o build\n'
+        printf '      falha na VPS e passa localmente.\n'
       fi
       continue
     fi

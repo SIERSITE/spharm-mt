@@ -156,8 +156,17 @@ warn_uncommitted() {
 
   if [ "$staged" -gt 0 ]; then
     warn "  em stage por commitar (primeiros 10):"
-    git -C "$REPO_ROOT" diff --cached --name-only HEAD --diff-filter=A 2>/dev/null \
-      | head -10 | while IFS= read -r f; do warn "    ${f}"; done
+    # Sem `| head`: o git é um produtor que pode ter muitas linhas e o
+    # head fecha o pipe cedo — SIGPIPE, rc=141 sob pipefail. É a mesma
+    # classe de falha que rebentou a geração de segredos. A lista é
+    # pequena e finita: lê-se inteira e conta-se aqui.
+    local listed=0 f
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      listed=$((listed + 1))
+      [ "$listed" -le 10 ] && warn "    ${f}"
+    done < <(git -C "$REPO_ROOT" diff --cached --name-only HEAD --diff-filter=A 2>/dev/null)
+    [ "$listed" -gt 10 ] && warn "    ... e mais $((listed - 10))"
   fi
   warn "Se algum destes for necessário ao build, commita-o antes de continuar."
   return 0
