@@ -90,6 +90,14 @@ set -e
 cp -r /work/deploy /tmp/deploy
 chmod +x /tmp/deploy/scripts/*.sh /tmp/deploy/tests/*.sh
 export SCRIPTS_DIR=/tmp/deploy/scripts
+export DEPLOY_DIR=/tmp/deploy
+export DOCKER_DIR=/tmp/deploy/docker
+# O test-stack-config.sh lê também package.json e scripts/workers/ para
+# verificar que as migrations saíram do `build` e que o scheduler nasce
+# desligado. Esses ficheiros estão fora de deploy/, no repositório montado
+# em só-leitura — ligados aqui por caminho relativo (../).
+ln -sfn /work/package.json /tmp/package.json
+ln -sfn /work/scripts /tmp/scripts
 suite_rc=0
 for t in /tmp/deploy/tests/test-*.sh; do
   bash "$t" || suite_rc=1

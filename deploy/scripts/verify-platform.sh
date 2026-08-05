@@ -362,7 +362,7 @@ sec_stack() {
     check_skip "docker-compose da plataforma" "ainda não instalado (fase seguinte)"
     return 0
   fi
-  check "compose config válido"           dc config
+  check "compose config válido"           dc config --no-env-resolution
   local total running
   total=$(dc config --services 2>/dev/null | wc -l)
   running=$(dc ps -q 2>/dev/null | wc -l)
@@ -373,6 +373,41 @@ sec_stack() {
     bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' | grep -qx 'no'"
   check "limites de memória definidos" \
     bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' | grep -q ' 0\$'"
+  check "no-new-privileges em todos" \
+    bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.Name}} {{.HostConfig.SecurityOpt}}' | grep -qv 'no-new-privileges'"
+  check "limites de log definidos (json-file com rotação)" \
+    bash -c "! dc ps -q 2>/dev/null | xargs -r docker inspect -f '{{.Name}} {{index .HostConfig.LogConfig.Config \"max-size\"}}' | grep -qE ' \$'"
+
+  # ── Aplicação ────────────────────────────────────────────────────────
+  if container_exists "$SPHARMMT_APP_CONTAINER"; then
+    check "web a correr"                  container_running "$SPHARMMT_APP_CONTAINER"
+    check "web NÃO publica portos directamente" \
+      bash -c "[ -z \"\$(docker port ${SPHARMMT_APP_CONTAINER} 2>/dev/null)\" ]"
+    check "web corre como não-root" \
+      bash -c "[ \"\$(docker exec ${SPHARMMT_APP_CONTAINER} id -u 2>/dev/null)\" != '0' ]"
+    check "health endpoint responde" \
+      bash -c "docker exec ${SPHARMMT_APP_CONTAINER} node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+  else
+    check_skip "aplicação web" "container ainda não existe"
+  fi
+
+  # ── Worker / scheduler ───────────────────────────────────────────────
+  local worker=${SPHARMMT_WORKER_CONTAINER:-spharmmt-worker}
+  if container_exists "$worker"; then
+    check "worker a correr"               container_running "$worker"
+    check "worker corre como não-root" \
+      bash -c "[ \"\$(docker exec ${worker} id -u 2>/dev/null)\" != '0' ]"
+    # O estado do scheduler é lido no ambiente REAL do processo, não no
+    # ficheiro: é o que o worker vê que decide se dispara jobs.
+    if [ "$(docker exec "$worker" printenv SCHEDULER_ENABLED 2>/dev/null || echo 0)" = "1" ]; then
+      check_warn "scheduler LIGADO — confirma que é intencional" true
+    else
+      check "scheduler desligado (SCHEDULER_ENABLED≠1)" true
+    fi
+  else
+    check_skip "worker" "container ainda não existe"
+  fi
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -415,9 +450,34 @@ sec_proxy() {
     return 0
   fi
   check "container a correr"              container_running "$SPHARMMT_PROXY_CONTAINER"
-  check "porto 80 publicado"              bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^80/tcp'"
-  check_warn "porto 443 publicado (TLS)"  bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^443/tcp'"
-  check "responde em 127.0.0.1"           bash -c "curl -fsS -o /dev/null -m 10 http://127.0.0.1/ || curl -fsS -o /dev/null -m 10 -k https://127.0.0.1/"
+
+  # O porto publicado vem da configuração, não é assumido: enquanto a
+  # stack não estiver validada, o proxy ouve em 127.0.0.1:8080 e o 80
+  # continua fechado. Exigir o 80 aqui reportava uma falha onde está o
+  # comportamento pretendido.
+  local bind port
+  bind=$(awk -F= '/^PROXY_BIND=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
+  port=$(awk -F= '/^PROXY_HTTP_PORT=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
+  bind=${bind:-127.0.0.1}; port=${port:-8080}
+
+  check "porto ${port} publicado" \
+    bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q ':${port}\$'"
+
+  if [ "$bind" = "127.0.0.1" ]; then
+    check "fechado ao exterior (bind ${bind})" \
+      bash -c "! docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '0.0.0.0'"
+    check_skip "TLS (porto 443)" "acesso ainda por IP em HTTP"
+  else
+    check_warn "publicado em ${bind} — acessível fora do servidor" true
+    check_warn "porto 443 publicado (TLS)" \
+      bash -c "docker port ${SPHARMMT_PROXY_CONTAINER} 2>/dev/null | grep -q '^443/tcp'"
+  fi
+
+  check "healthz do proxy responde" \
+    bash -c "curl -fsS -o /dev/null -m 10 http://127.0.0.1:${port}/healthz"
+  check "aplicação servida através do proxy" \
+    bash -c "curl -fsS -m 20 http://127.0.0.1:${port}/api/health | grep -q '\"status\"'"
+  return 0
 }
 
 # ═════════════════════════════════════════════════════════════════════════

@@ -29,10 +29,21 @@ set -Eeuo pipefail
 DO_OS=0
 DO_ROLLBACK=0
 SKIP_BACKUP=0
+SKIP_MIGRATIONS=0
 NO_BUILD=0
 SERVICE=""
 HEALTH_TIMEOUT=180
 STATE_FILE="${SPHARMMT_ROOT}/monitoring/state/last-good-images.txt"
+
+# Wrapper do compose com o perfil `tools`, onde vive o serviço `migrate`.
+# Sem o perfil, o compose finge que esse serviço não existe — o `build`
+# ignora-o e o `run` responde "no such service".
+dct() {
+  local args=(-f "$SPHARMMT_COMPOSE_FILE" -p spharmmt --profile tools)
+  [ -f "$SPHARMMT_ENV_FILE" ] && args+=(--env-file "$SPHARMMT_ENV_FILE")
+  [ -f "$SPHARMMT_STACK_ENV_FILE" ] && args+=(--env-file "$SPHARMMT_STACK_ENV_FILE")
+  docker compose "${args[@]}" "$@"
+}
 
 usage() {
   cat <<EOF
@@ -42,6 +53,7 @@ Uso: sudo $0 [opções]
   --service <nome>     Actualiza apenas este serviço do compose
   --no-build           Não reconstrói imagens locais (só pull)
   --skip-backup        NÃO faz backup antes (desaconselhado)
+  --skip-migrations    Não aplica migrations (a app pode ficar sobre schema velho)
   --rollback           Repõe as imagens do último update bem sucedido
   --health-timeout <s> Espera máxima pelos healthchecks (default: ${HEALTH_TIMEOUT})
 $(common_flags_help)
@@ -55,6 +67,7 @@ while [ $# -gt 0 ]; do
     --service) SERVICE=${2:?}; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     --skip-backup) SKIP_BACKUP=1; shift ;;
+    --skip-migrations) SKIP_MIGRATIONS=1; shift ;;
     --rollback) DO_ROLLBACK=1; shift ;;
     --health-timeout) HEALTH_TIMEOUT=${2:?}; shift 2 ;;
     --help|-h) usage; exit 0 ;;
@@ -157,9 +170,34 @@ pull_and_deploy() {
   if [ "$NO_BUILD" != "1" ]; then
     info "a reconstruir imagens locais..."
     run dc build --pull "${svc[@]+"${svc[@]}"}"
+    # A imagem do migrator vive no perfil `tools` e o `dc build` não lhe
+    # toca. Deixá-la para trás significaria aplicar as migrations da
+    # versão ANTERIOR sobre o código novo — a pior combinação possível.
+    if [ -z "$SERVICE" ] && dct config --services 2>/dev/null | grep -qx migrate; then
+      run dct build --pull migrate
+    fi
+  fi
+
+  # Migrations ANTES de recriar a aplicação, e num container próprio.
+  # Se falharem, a versão antiga continua a servir sobre o schema que
+  # conhece; se corressem depois, haveria uma janela com código novo
+  # sobre schema velho.
+  if [ "$SKIP_MIGRATIONS" != "1" ] && [ -z "$SERVICE" ] \
+     && dct config --services 2>/dev/null | grep -qx migrate; then
+    info "a aplicar migrations..."
+    if [ "$DRY_RUN" = "1" ]; then
+      info "[dry-run] correria as migrations"
+    elif dct run --rm migrate; then
+      ok "migrations aplicadas"
+    else
+      err "migrations falharam — a aplicação NÃO foi actualizada"
+      return 1
+    fi
   fi
 
   info "a aplicar..."
+  # Sem `--profile tools`: o `migrate` é um trabalho pontual e não pode
+  # ficar de pé com a stack.
   run dc up -d --remove-orphans "${svc[@]+"${svc[@]}"}"
   ok "containers recriados"
 }
@@ -222,7 +260,7 @@ rollback() {
 postflight() {
   step "Validação"
   if [ -f "$SPHARMMT_COMPOSE_FILE" ]; then
-    check "compose config válido" dc config
+    check "compose config válido" dc config --no-env-resolution
     local total running
     total=$(dc config --services 2>/dev/null | wc -l)
     running=$(dc ps -q 2>/dev/null | wc -l)

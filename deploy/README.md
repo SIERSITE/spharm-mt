@@ -135,6 +135,123 @@ sudo /opt/spharmmt/scripts/bootstrap-vps.sh --disable-root-login --skip-upgrade 
 
 Só faz isto se a consola de emergência do passo 0 estiver confirmada.
 
+### Passo 8 — Stack aplicacional
+
+A partir do **checkout do repositório** (não de `/opt/spharmmt/scripts`: o
+`install-stack.sh` precisa do `Dockerfile`, do compose e dos scripts de init
+que estão ao lado dele).
+
+```bash
+cd /tmp/spharmmt && git pull
+cd deploy/scripts && sudo ./install-stack.sh --yes
+```
+
+O primeiro build demora — `npm ci`, `next build` e o Chromium do puppeteer.
+A sequência é: código → artefactos → segredos derivados → `stack.env` →
+build → PostgreSQL → **migrations num container próprio** → web, worker e
+proxy → validação.
+
+No fim, `verify-platform.sh` tem de dar 0 falhas e o acesso faz-se por túnel
+SSH, porque as portas 80/443 continuam fechadas:
+
+```powershell
+ssh -i $env:USERPROFILE\.ssh\spharmmt_prod -L 8080:127.0.0.1:8080 deploy@<IP_DA_VPS>
+# e abrir http://127.0.0.1:8080 no browser
+```
+
+### Passo 9 — Abrir ao exterior (só depois de o passo 8 validar)
+
+```bash
+sudo sed -i 's/^PROXY_BIND=.*/PROXY_BIND=0.0.0.0/;s/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=80/' \
+  /opt/spharmmt/docker/env/stack.env
+sudo ufw allow 80/tcp
+sudo /opt/spharmmt/scripts/update-platform.sh --no-build --skip-backup
+```
+
+O que fecha a porta é o **endereço de bind**, não a UFW: o Docker escreve
+regras iptables avaliadas antes das dela, e um `ports: 80:80` fica acessível
+à Internet mesmo com a UFW a negar.
+
+---
+
+## Stack aplicacional
+
+Cinco serviços, dos quais quatro sobem com a stack:
+
+| Serviço | Imagem | Exposto? | Notas |
+|---|---|---|---|
+| `postgres` | `postgres:17.6-bookworm` | **Não** — sem `ports:` | Dados em `/data/postgres/data`, afinado para 8 GB, `--data-checksums` |
+| `web` | `spharmmt-app:local` | Não — só o proxy lhe fala | Next standalone, utilizador não-root (UID 10001) |
+| `worker` | **a mesma** imagem da web | Não | Scheduler local; `SCHEDULER_ENABLED=0` |
+| `proxy` | `nginx:1.29-alpine` | `127.0.0.1:8080` | Único ponto de entrada |
+| `migrate` | `spharmmt-app:local-migrator` | — | Perfil `tools`; corre e termina |
+
+### Ficheiros de configuração, e quem é dono de cada um
+
+| Ficheiro | Escrito por | Papel |
+|---|---|---|
+| `/etc/spharmmt/platform.conf` | `install-platform.sh` | Caminhos e limiares, lido por todos os scripts |
+| `docker/env/platform.env` | `install-platform.sh` | Configuração de **runtime**, entregue dentro dos containers |
+| `docker/env/stack.env` | `install-stack.sh` | Só **interpolação** do compose (contexto de build, tag, bind) |
+| `secrets/platform.secrets.env` | `install-platform.sh` | **Fonte de verdade** dos segredos. Nunca regenerada |
+| `secrets/postgres.secrets.env` | `install-stack.sh` | Derivado: 2 chaves, só para o PostgreSQL |
+| `secrets/app.secrets.env` | `install-stack.sh` | Derivado: 6 chaves, sem a password de superutilizador |
+
+São dois ficheiros de ambiente e não um porque o `install-platform.sh`
+reescreve o `platform.env` por inteiro a cada execução: chaves da stack
+escritas lá desapareciam na reinstalação seguinte da plataforma.
+
+Os ficheiros derivados existem para dar a cada serviço só o que ele precisa.
+O PostgreSQL não vê `TENANT_ENCRYPTION_SECRET` (que decifra as credenciais
+de **todos** os tenants) e a aplicação não vê a password de superutilizador.
+
+### Segredos e `docker compose config`
+
+`docker compose config` **lê os `env_file` e imprime os valores** dentro de
+`environment:`. Para inspeccionar ou colar num relatório:
+
+```bash
+docker compose -f /opt/spharmmt/docker/compose/docker-compose.yml -p spharmmt \
+  --env-file /opt/spharmmt/docker/env/platform.env \
+  --env-file /opt/spharmmt/docker/env/stack.env \
+  config --no-env-resolution
+```
+
+### Migrations
+
+Nunca correm durante o `build` nem no arranque do servidor web. Correm num
+container próprio (`migrate`), uma vez, e o código de saída decide se a stack
+sobe. Ordem: control plane → base legacy → bases de tenant (a ausência de
+tenants não é erro).
+
+```bash
+cd /opt/spharmmt/docker/compose
+sudo docker compose -p spharmmt --profile tools \
+  --env-file /opt/spharmmt/docker/env/platform.env \
+  --env-file /opt/spharmmt/docker/env/stack.env \
+  run --rm migrate
+```
+
+### Scheduler
+
+Desligado. O worker arranca, diz que está desligado e fica ocioso.
+
+```bash
+# Ver o plano
+docker exec spharmmt-worker node scripts/workers/scheduler.mjs --list
+
+# Disparar um job à mão (ignora SCHEDULER_ENABLED de propósito —
+# é assim que se valida antes de ligar)
+docker exec spharmmt-worker node scripts/workers/scheduler.mjs --once refresh-ipf
+
+# Ligar, quando os dados estiverem migrados e validados
+sudo sed -i 's/^SCHEDULER_ENABLED=.*/SCHEDULER_ENABLED=1/' /opt/spharmmt/docker/env/platform.env
+sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
+```
+
+O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
+divergirem significa que um alojamento faz o que o outro não faz.
+
 ---
 
 ## Recuperação se a nova sessão SSH falhar
@@ -208,6 +325,7 @@ sudo ./install-platform.sh --public-url https://app.spharmmt.app --yes
 | `install-docker.sh` | Docker Engine + Compose v2 do repositório oficial, `daemon.json`, grupo, rede | Não |
 | `install-platform.sh` | Configuração central, segredos, `platform.env`, scripts operacionais, timer de backup, sobe a stack se existir | Não |
 | `prepare-data-disk.sh` | Deteta discos livres (read-only por defeito); com `--device`, prepara um disco dedicado aos dados: GPT, ext4, `/data`, fstab por UUID | **Sim, com `--device`** |
+| `install-stack.sh` | PostgreSQL + web + worker + proxy: código, artefactos, segredos derivados, build, migrations, arranque, validação. **Corre a partir do checkout**, não de `/opt` | Não |
 | `verify-platform.sh` | Checklist de 12 secções sobre todo o servidor | Não (só lê) |
 | `update-platform.sh` | Backup → snapshot de imagens → pull/build → up → espera healthchecks → rollback automático se falhar | Sim (com rollback) |
 | `backup-platform.sh` | `pg_dump -Fc` por base + globals + config, checksums, manifesto, retenção | Não |

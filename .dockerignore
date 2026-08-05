@@ -1,0 +1,53 @@
+# .dockerignore
+#
+# O contexto de build é a raiz do repositório (ver deploy/docker/Dockerfile).
+# Sem esta lista, o `docker build` envia node_modules, .next, .git e os
+# ficheiros de exemplo para o daemon antes de começar sequer — centenas de
+# MB por build, e o cache de camadas invalidado por qualquer alteração num
+# ficheiro que a imagem nem usa.
+#
+# CRÍTICO: `.env*` está excluído. Segredos entram na stack por `env_file`
+# em runtime, nunca dentro da imagem — uma imagem é copiável, exportável e
+# fica em registos.
+
+# ── Dependências e artefactos de build ───────────────────────────────
+node_modules
+.next
+out
+build
+dist-agent
+dist-admin
+agent/.build-cache
+*.tsbuildinfo
+
+# ── Controlo de versões e ferramentas ────────────────────────────────
+.git
+.gitignore
+.gitattributes
+.github
+.vscode
+.idea
+.claude
+
+# ── Segredos e configuração local ────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+
+# ── Nada disto entra numa imagem de produção ─────────────────────────
+notes
+docs
+logs
+example_files
+pilot-ingest
+deploy/tests
+*.log
+*.md
+!README.md
+
+# ── Específicos de Windows / wizard ──────────────────────────────────
+*.bat
+*.ps1
+admin-wizard
+.vercel

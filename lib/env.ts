@@ -243,6 +243,105 @@ export const ENV_CATALOG: EnvSpec[] = [
     level: "optional",
     description: "Standard Next.js. Production / development. Inferido pelo runner.",
   },
+  // ── Alojamento (self-hosted / Vercel) ──────────────────────────────
+  // Tudo o que muda entre alojamentos e é lido em RUNTIME. Ver
+  // lib/runtime-config.ts — nenhuma destas pode ser NEXT_PUBLIC_*, senão
+  // ficaria fixada no build e a mesma imagem deixaria de servir dois
+  // ambientes.
+  {
+    name: "PUBLIC_APP_URL",
+    scopes: ["web"],
+    level: "recommended",
+    description:
+      "URL público da plataforma, lido em runtime. Alimenta o label reservado da resolução de tenant e o default de SESSION_COOKIE_SECURE. Sem isto cai em NEXT_PUBLIC_APP_URL e depois em VERCEL_URL.",
+    example: "https://app.spharmmt.pt  ou  http://203.0.113.10",
+  },
+  {
+    name: "SESSION_COOKIE_SECURE",
+    scopes: ["web"],
+    level: "recommended",
+    description:
+      "'1' emite o cookie de sessão com `secure`. TEM de ser 0 enquanto o acesso for HTTP: um cookie secure sobre HTTP é descartado pelo browser sem erro e o login entra em ciclo. Sem valor, deduz de PUBLIC_APP_URL.",
+    example: "0",
+  },
+  {
+    name: "SESSION_COOKIE_SAMESITE",
+    scopes: ["web"],
+    level: "optional",
+    description: "lax (default) | strict | none. 'none' exige secure=1.",
+    example: "lax",
+  },
+  {
+    name: "SESSION_COOKIE_DOMAIN",
+    scopes: ["web"],
+    level: "optional",
+    description:
+      "Domínio do cookie. Definir só com wildcard DNS, para a sessão ser partilhada entre subdomínios de tenant.",
+    example: ".spharmmt.pt",
+  },
+  {
+    name: "TENANT_RESERVED_LABELS",
+    scopes: ["web"],
+    level: "optional",
+    description:
+      "CSV de labels de subdomínio que nunca são tenant, além dos base e do label de PUBLIC_APP_URL.",
+    example: "status,docs",
+  },
+  {
+    name: "TENANT_FALLBACK_ENABLED",
+    scopes: ["web"],
+    level: "optional",
+    description:
+      "'1' permite escolher o tenant por ?__tenant=<slug> e persisti-lo em cookie. Necessário enquanto não houver DNS wildcard — é o caso de um acesso por IP.",
+    example: "1",
+  },
+  {
+    name: "ALLOW_LEGACY_DATABASE_FALLBACK",
+    scopes: ["web"],
+    level: "optional",
+    description:
+      "'1' deixa a app cair em DATABASE_URL quando o tenant não resolve. Em produção multi-tenant tem de ficar a 0: servir a base legacy a quem pediu um tenant é fuga de dados silenciosa. Default: ligado fora de produção, desligado em produção.",
+    example: "0",
+  },
+  {
+    name: "TENANT_DB_SSLMODE",
+    scopes: ["web", "cli"],
+    level: "optional",
+    description:
+      "sslmode das connection strings dos tenants. 'require' em fornecedores geridos; 'disable' quando o PostgreSQL está na mesma rede Docker privada. Sem valor mantém a heurística antiga (TLS em tudo o que não for localhost) — que estava errada para hosts Docker.",
+    example: "disable",
+  },
+  {
+    name: "DATABASE_SSLMODE",
+    scopes: ["web", "cli"],
+    level: "optional",
+    description:
+      "sslmode usado ao construir DATABASE_URL / CONTROL_DATABASE_URL a partir das peças POSTGRES_*. Lido pelo entrypoint do container, não pela app.",
+    example: "disable",
+  },
+  {
+    name: "SCHEDULER_ENABLED",
+    scopes: ["cron"],
+    level: "optional",
+    description:
+      "'1' faz o worker local disparar os jobs periódicos. Default 0 — o worker arranca, diz que está desligado e não toca em dados. Não afecta a invocação manual dos endpoints, que continua a exigir CRON_SECRET.",
+    example: "0",
+  },
+  {
+    name: "APP_INTERNAL_URL",
+    scopes: ["cron"],
+    level: "optional",
+    description:
+      "URL pelo qual o worker alcança a aplicação na rede interna. Default http://web:3000. Não é o URL público — não depende de DNS, TLS nem do proxy.",
+    example: "http://web:3000",
+  },
+  {
+    name: "APP_REVISION",
+    scopes: ["web"],
+    level: "optional",
+    description:
+      "Revisão do código a correr, injectada no build da imagem e devolvida por /api/health. Permite confirmar qual o build activo sem entrar no servidor.",
+  },
 ];
 
 const CATALOG_BY_NAME = new Map(ENV_CATALOG.map((spec) => [spec.name, spec]));

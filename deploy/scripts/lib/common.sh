@@ -54,6 +54,15 @@ readonly EX_ABORTED=6
 : "${SPHARMMT_GROUP:=spharmmt}"
 : "${SPHARMMT_COMPOSE_FILE:=${SPHARMMT_ROOT}/docker/compose/docker-compose.yml}"
 : "${SPHARMMT_ENV_FILE:=${SPHARMMT_ROOT}/docker/env/platform.env}"
+# Segundo ficheiro de ambiente, com dono diferente e por isso separado:
+#   platform.env  — install-platform.sh. Configuração de RUNTIME, entregue
+#                   dentro dos containers (env_file do compose).
+#   stack.env     — install-stack.sh. Só INTERPOLAÇÃO do compose (caminho
+#                   do contexto de build, tag da imagem, bind do proxy).
+# Estavam os dois no mesmo ficheiro e o install-platform.sh, que o
+# reescreve por inteiro a cada execução, apagava as chaves da stack — a
+# stack deixava de subir depois de uma reinstalação da plataforma.
+: "${SPHARMMT_STACK_ENV_FILE:=${SPHARMMT_ROOT}/docker/env/stack.env}"
 : "${SPHARMMT_SECRETS_FILE:=${SPHARMMT_ROOT}/secrets/platform.secrets.env}"
 : "${SPHARMMT_PG_CONTAINER:=spharmmt-postgres}"
 : "${SPHARMMT_APP_CONTAINER:=spharmmt-app}"
@@ -527,10 +536,22 @@ compose_available() {
   [ -f "$SPHARMMT_COMPOSE_FILE" ] && has_cmd docker && docker compose version >/dev/null 2>&1
 }
 
-# Wrapper do docker compose com o ficheiro e env-file do projecto.
+# Wrapper do docker compose com o ficheiro e env-files do projecto.
+#
+# A ordem dos `--env-file` conta: o compose funde-os e o último ganha.
+# O stack.env vem depois porque é o que sabe onde está o contexto de
+# build e como o proxy está exposto neste servidor concreto.
+#
+# NENHUM destes dois ficheiros tem segredos: os segredos entram por
+# `env_file:` dentro de cada serviço.
+#
+# Isso NÃO torna o `docker compose config` seguro de partilhar — ele lê
+# os `env_file` e imprime os valores em `environment:`. Para inspeccionar
+# ou colar num relatório: `dc config --no-env-resolution`.
 dc() {
   local args=(-f "$SPHARMMT_COMPOSE_FILE" -p spharmmt)
   [ -f "$SPHARMMT_ENV_FILE" ] && args+=(--env-file "$SPHARMMT_ENV_FILE")
+  [ -f "$SPHARMMT_STACK_ENV_FILE" ] && args+=(--env-file "$SPHARMMT_STACK_ENV_FILE")
   docker compose "${args[@]}" "$@"
 }
 

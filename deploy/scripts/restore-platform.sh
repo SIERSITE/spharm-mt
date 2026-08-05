@@ -238,9 +238,33 @@ restore_one() {
   info "a restaurar (pode demorar — 4 GB levam vários minutos)..."
   local rc=0
   # --clean --if-exists: substitui o conteúdo sem exigir DROP DATABASE.
-  # -j 3: paraleliza em 3 workers (4 vCPU, deixando um livre).
-  pgx_in pg_restore -U "$PG_SUPERUSER" -d "$dst_db" \
-    --clean --if-exists --no-owner --no-acl --exit-on-error -j 3 < "$dump" >/dev/null 2>&1 || rc=$?
+  #
+  # -j (paralelo) EXIGE que o dump seja um ficheiro que o pg_restore possa
+  # reposicionar. A partir do stdin devolve sempre
+  #   "parallel restore from standard input is not supported"
+  # — o que fazia este comando falhar em todos os restauros.
+  #
+  # O compose monta ${BACKUP_DIR} em /backups:ro dentro do container, o
+  # que dá ao pg_restore um ficheiro real. Quando essa montagem não
+  # existir (conjunto trazido de fora, ou stack antiga), cai-se no stdin
+  # SEM -j: mais lento, mas funciona.
+  local in_container=""
+  if [ -n "${SPHARMMT_BACKUP_DIR:-}" ] && [ "${dump#"$SPHARMMT_BACKUP_DIR"/}" != "$dump" ]; then
+    local candidate="/backups/${dump#"$SPHARMMT_BACKUP_DIR"/}"
+    if docker exec "$SPHARMMT_PG_CONTAINER" test -f "$candidate" 2>/dev/null; then
+      in_container="$candidate"
+    fi
+  fi
+
+  if [ -n "$in_container" ]; then
+    info "restauro paralelo (-j 3) a partir de ${in_container}"
+    pgx pg_restore -U "$PG_SUPERUSER" -d "$dst_db" \
+      --clean --if-exists --no-owner --no-acl --exit-on-error -j 3 "$in_container" >/dev/null 2>&1 || rc=$?
+  else
+    warn "conjunto não visível dentro do container — restauro sequencial (mais lento)"
+    pgx_in pg_restore -U "$PG_SUPERUSER" -d "$dst_db" \
+      --clean --if-exists --no-owner --no-acl --exit-on-error < "$dump" >/dev/null 2>&1 || rc=$?
+  fi
 
   if [ "$rc" -ne 0 ]; then
     err "pg_restore falhou (rc=${rc}) para ${dst_db}"

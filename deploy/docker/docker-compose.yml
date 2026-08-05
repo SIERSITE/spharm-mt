@@ -1,0 +1,420 @@
+# deploy/docker/docker-compose.yml
+#
+# Stack self-hosted do SPharm.MT. Instalada em
+# /opt/spharmmt/docker/compose/docker-compose.yml por install-stack.sh e
+# invocada sempre através do wrapper `dc()` de deploy/scripts/lib/common.sh:
+#
+#     docker compose -f <este ficheiro> -p spharmmt --env-file platform.env ...
+#
+# ── Segredos ─────────────────────────────────────────────────────────
+# Duas fontes, com papéis distintos:
+#
+#   --env-file platform.env   fonte de INTERPOLAÇÃO (${VAR} neste ficheiro).
+#                             Contém apenas configuração não-secreta.
+#   env_file: [...]           variáveis entregues DENTRO do container.
+#                             É por aqui que as passwords entram.
+#
+# A distinção não é cosmética: um segredo interpolado ficaria escrito no
+# próprio ficheiro de configuração renderizado. Nenhum segredo é
+# interpolado aqui.
+#
+# ATENÇÃO ao validar: `docker compose config` LÊ os `env_file` e imprime
+# os valores dentro de `environment:`. Para validar sem os expor:
+#
+#     docker compose ... config --no-env-resolution
+#
+# É este o comando a usar em relatórios, capturas de ecrã e sessões
+# partilhadas.
+#
+# Cada serviço recebe só os segredos de que precisa (ver install-stack.sh,
+# que deriva os dois ficheiros a partir de platform.secrets.env): o
+# PostgreSQL não vê a chave que decifra as credenciais dos tenants, e a
+# aplicação não vê a password de superutilizador da base.
+#
+# ── Exposição ────────────────────────────────────────────────────────
+# NADA é publicado no exterior por defeito. O PostgreSQL não tem `ports`
+# de todo — só a rede interna. O proxy publica em 127.0.0.1 e só passa a
+# ouvir no exterior quando PROXY_BIND for mudado explicitamente.
+#
+# O Docker escreve regras iptables ANTES das da UFW: um `ports: 80:80`
+# fica acessível à Internet mesmo com a UFW a negar. É por isso que o
+# controlo aqui é o endereço de bind, e não a firewall.
+
+name: spharmmt
+
+# ═════════════════════════════════════════════════════════════════════
+# Blocos reutilizados
+# ═════════════════════════════════════════════════════════════════════
+
+x-logging: &default-logging
+  # Sem isto, um container em ciclo de erro enche o disco e derruba o
+  # PostgreSQL por falta de espaço — falha indirecta e difícil de ler.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-hardening: &default-hardening
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
+networks:
+  default:
+    # Criada por install-platform.sh. `external` é obrigatório: uma rede
+    # pré-existente sem as labels do compose faz o `up` falhar com
+    # "network was found but has incorrect label".
+    name: ${SPHARMMT_NETWORK:-spharmmt-net}
+    external: true
+
+services:
+  # ═══════════════════════════════════════════════════════════════════
+  # PostgreSQL
+  # ═══════════════════════════════════════════════════════════════════
+  postgres:
+    # Versão FIXA. `17` ou `latest` mudariam de major numa reconstrução
+    # e o PostgreSQL recusa arrancar sobre um PGDATA de outra major —
+    # falha no arranque, com os dados intactos mas o serviço em baixo.
+    image: postgres:17.6-bookworm
+    container_name: ${SPHARMMT_PG_CONTAINER:-spharmmt-postgres}
+    <<: *default-hardening
+    logging: *default-logging
+
+    # SEM `ports`. Deliberado e não negociável: a base é alcançável
+    # apenas pelos containers da rede `spharmmt-net`. Para lhe aceder a
+    # partir do host usa-se `docker compose exec postgres psql`, e a
+    # partir de fora um túnel SSH — nunca um porto publicado.
+
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      # Repassadas ao script de init (ver postgres/init/10-databases.sh).
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-spharmmt_app}
+      POSTGRES_CONTROL_DB: ${POSTGRES_CONTROL_DB:-spharmmt_control}
+      POSTGRES_LEGACY_DB: ${POSTGRES_LEGACY_DB:-spharmmt_legacy}
+      # Argumentos do initdb. Só têm efeito na PRIMEIRA inicialização.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+
+    env_file:
+      # POSTGRES_PASSWORD (superutilizador) + POSTGRES_APP_PASSWORD.
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/postgres.secrets.env
+
+    volumes:
+      - ${POSTGRES_DATA_DIR:-/opt/spharmmt/postgres/data}:/var/lib/postgresql/data
+      # Só de leitura: o entrypoint do PostgreSQL corre estes scripts, não
+      # tem razão para lhes tocar.
+      - ${POSTGRES_INIT_DIR:-/opt/spharmmt/postgres/init}:/docker-entrypoint-initdb.d:ro
+      # Backups em SÓ LEITURA. Existe por uma razão concreta: o
+      # `pg_restore` recusa-se a restaurar em paralelo (-j) a partir do
+      # stdin, e sem paralelismo um restauro de vários GB deixa de caber
+      # numa janela de manutenção. Com o conjunto visível como ficheiro
+      # dentro do container, o -j volta a ser possível.
+      # `:ro` porque quem escreve os backups é o host, nunca o PostgreSQL.
+      - ${BACKUP_DIR:-/opt/spharmmt/backups}:/backups:ro
+
+    # ── Afinação para 8 GB de RAM, com o PostgreSQL a receber ~2 GB ──
+    #
+    # Passada por linha de comando e não por ficheiro de configuração de
+    # propósito: um `config_file=` obriga a que o ficheiro esteja
+    # COMPLETO (e a redefinir hba_file/ident_file), e uma omissão faz o
+    # servidor não arrancar. Assim cada valor é explícito, sobrepõe-se ao
+    # default e aparece em `docker compose config`.
+    #
+    # Os valores são conservadores: a aplicação e o worker vivem na mesma
+    # máquina, e um PostgreSQL que reclame memória a mais fá-los morrer
+    # por OOM antes de dar erro nenhum.
+    command:
+      - postgres
+      # 25% da RAM atribuída ao serviço — o ponto de partida clássico.
+      - -c
+      - shared_buffers=512MB
+      # Não reserva nada: diz ao planeador quanto o SO provavelmente tem
+      # em cache. Com 8 GB no total e a app ao lado, 2 GB é honesto.
+      - -c
+      - effective_cache_size=2GB
+      # Por operação de ordenação/hash, e um pedido pode ter várias. Com
+      # 100 ligações, 8 MB é o tecto que não arrisca esgotar a RAM.
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=256MB
+      # 100 é folgado para 5-10 tenants. Cada ligação custa memória;
+      # subir isto sem subir a RAM é a forma mais comum de matar um
+      # PostgreSQL pequeno.
+      - -c
+      - max_connections=100
+      # SSD: o custo de um acesso aleatório está muito perto do
+      # sequencial. O default (4.0) assume discos rotativos e faz o
+      # planeador evitar índices que deveria usar.
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      # WAL e checkpoints: espalhar a escrita evita picos de I/O que se
+      # notam como latência na aplicação.
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - min_wal_size=256MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - checkpoint_completion_target=0.9
+      # 4 vCPU: paralelismo moderado. Deixa CPU para a aplicação.
+      - -c
+      - max_worker_processes=4
+      - -c
+      - max_parallel_workers=4
+      - -c
+      - max_parallel_workers_per_gather=2
+      # Observabilidade mínima: queries lentas e o que altera o schema.
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_checkpoints=on
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_line_prefix=%m [%p] %q%u@%d
+      - -c
+      - timezone=UTC
+
+    healthcheck:
+      # `-U`: sem utilizador, o pg_isready assume o do sistema (root) e
+      # devolve saudável mesmo com a autenticação partida.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_CONTROL_DB:-spharmmt_control} -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Generoso: a primeira inicialização cria duas bases e corre o
+      # script de init antes de aceitar ligações.
+      start_period: 60s
+
+    shm_size: 256mb
+    stop_grace_period: 60s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Migrations — one-shot, nunca sobe com a stack
+  # ═══════════════════════════════════════════════════════════════════
+  migrate:
+    # `profiles` mantém este serviço FORA do `up -d`. Corre-se
+    # explicitamente:  docker compose run --rm migrate
+    profiles: ["tools"]
+    image: ${APP_IMAGE:-spharmmt-app}:${APP_TAG:-local}-migrator
+    build:
+      # Relativo à pasta DESTE ficheiro quando não é absoluto. Em
+      # desenvolvimento `../..` é a raiz do repositório; instalado em
+      # /opt/spharmmt/docker/compose/ seria /opt/spharmmt, que não tem
+      # código nenhum — daí o install-stack.sh definir esta variável
+      # para /opt/spharmmt/app, onde deixa a árvore de código.
+      context: ${APP_BUILD_CONTEXT:-../..}
+      dockerfile: deploy/docker/Dockerfile
+      target: migrator
+      args:
+        APP_REVISION: ${APP_REVISION:-unknown}
+    # SEM container_name: este serviço é invocado com
+    # `docker compose run --rm migrate`, e o `run` recusa-se a arrancar
+    # um serviço com nome fixo (teria de gerar um nome único de qualquer
+    # forma para permitir execuções sobrepostas).
+    security_opt:
+      - no-new-privileges:true
+    # Sem restart: é um trabalho que termina. `unless-stopped` fá-lo-ia
+    # repetir migrations em ciclo.
+    restart: "no"
+    logging: *default-logging
+    env_file:
+      - ${SPHARMMT_ENV_FILE:-/opt/spharmmt/docker/env/platform.env}
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/app.secrets.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["migrate"]
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Aplicação web
+  # ═══════════════════════════════════════════════════════════════════
+  web:
+    image: ${APP_IMAGE:-spharmmt-app}:${APP_TAG:-local}
+    build:
+      # Relativo à pasta DESTE ficheiro quando não é absoluto. Em
+      # desenvolvimento `../..` é a raiz do repositório; instalado em
+      # /opt/spharmmt/docker/compose/ seria /opt/spharmmt, que não tem
+      # código nenhum — daí o install-stack.sh definir esta variável
+      # para /opt/spharmmt/app, onde deixa a árvore de código.
+      context: ${APP_BUILD_CONTEXT:-../..}
+      dockerfile: deploy/docker/Dockerfile
+      target: runner
+      args:
+        APP_REVISION: ${APP_REVISION:-unknown}
+        INSTALL_CHROMIUM: ${INSTALL_CHROMIUM:-1}
+    container_name: ${SPHARMMT_APP_CONTAINER:-spharmmt-app}
+    <<: *default-hardening
+    logging: *default-logging
+
+    # SEM `ports`. Só o proxy fala com a aplicação. Publicar o 3000
+    # daria um caminho que ignora o proxy — e com ele os cabeçalhos de
+    # segurança, os limites de tamanho e os logs de acesso.
+
+    env_file:
+      - ${SPHARMMT_ENV_FILE:-/opt/spharmmt/docker/env/platform.env}
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/app.secrets.env
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      # Toca no endpoint real (que por sua vez toca no control plane).
+      # Um healthcheck que só verifica se o porto abre declara saudável
+      # um processo que não consegue ler nada da base.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+    # SIGTERM chega ao Node (PID 1, via `exec` no entrypoint) e o Next
+    # fecha as ligações em curso antes de sair.
+    stop_grace_period: 30s
+
+    tmpfs:
+      # /tmp escrivível sem ser persistente: o puppeteer precisa dele
+      # para os perfis do Chromium.
+      - /tmp:rw,noexec,nosuid,size=256m
+
+    deploy:
+      resources:
+        limits:
+          cpus: "3.0"
+          memory: 3G
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Worker / scheduler — instalado, DESLIGADO
+  # ═══════════════════════════════════════════════════════════════════
+  worker:
+    # MESMA imagem da web, por construção: partilham o código, e uma
+    # segunda imagem seria uma segunda coisa a manter em sincronia e a
+    # divergir sem ninguém dar por isso.
+    image: ${APP_IMAGE:-spharmmt-app}:${APP_TAG:-local}
+    container_name: ${SPHARMMT_WORKER_CONTAINER:-spharmmt-worker}
+    <<: *default-hardening
+    logging: *default-logging
+
+    # SCHEDULER_ENABLED vem do platform.env e está a 0. O processo
+    # arranca, diz que está desligado e fica ocioso — instalado e pronto,
+    # sem tocar em dados. Ver scripts/workers/scheduler.mjs.
+    command: ["worker"]
+
+    env_file:
+      - ${SPHARMMT_ENV_FILE:-/opt/spharmmt/docker/env/platform.env}
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/app.secrets.env
+
+    environment:
+      # Fala com a web pela rede interna, não pelo URL público: assim não
+      # depende de DNS, de TLS nem do proxy estar de pé.
+      APP_INTERNAL_URL: http://web:${PORT:-3000}
+      SCHEDULER_HEARTBEAT_FILE: /tmp/scheduler-heartbeat
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
+    healthcheck:
+      # O heartbeat é escrito a cada tick, esteja o scheduler ligado ou
+      # não — um worker desligado está saudável, só não tem trabalho.
+      test:
+        - CMD
+        - node
+        - -e
+        - "const fs=require('node:fs');const f=process.env.SCHEDULER_HEARTBEAT_FILE||'/tmp/scheduler-heartbeat';process.exit(fs.existsSync(f) && Date.now()-fs.statSync(f).mtimeMs < 120000 ? 0 : 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    stop_grace_period: 30s
+
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Reverse proxy
+  # ═══════════════════════════════════════════════════════════════════
+  proxy:
+    image: nginx:1.29-alpine
+    container_name: ${SPHARMMT_PROXY_CONTAINER:-spharmmt-proxy}
+    <<: *default-hardening
+    logging: *default-logging
+
+    ports:
+      # FECHADO AO EXTERIOR por defeito: 127.0.0.1 significa que só o
+      # próprio servidor alcança isto. Validação inicial faz-se por
+      # túnel SSH:
+      #     ssh -L 8080:127.0.0.1:8080 deploy@<ip>
+      #
+      # Para abrir ao exterior, depois de a stack estar validada:
+      #     PROXY_BIND=0.0.0.0  PROXY_HTTP_PORT=80  em platform.env
+      #     sudo ufw allow 80/tcp
+      # (a UFW por si só não chega — o Docker escreve regras iptables
+      # avaliadas ANTES dela; é o bind que fecha, não a firewall.)
+      - "${PROXY_BIND:-127.0.0.1}:${PROXY_HTTP_PORT:-8080}:80"
+
+    volumes:
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/proxy/conf:/etc/nginx/conf.d:ro
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/proxy/certs:/etc/nginx/certs:ro
+
+    depends_on:
+      web:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    cap_drop:
+      - ALL
+    cap_add:
+      # O nginx larga privilégios para o utilizador `nginx` depois de
+      # abrir o porto; estas quatro são o mínimo para isso funcionar.
+      - CHOWN
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+
+    tmpfs:
+      - /var/cache/nginx:rw,nosuid,size=64m
+      - /var/run:rw,nosuid,size=8m
+
+    stop_grace_period: 15s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M

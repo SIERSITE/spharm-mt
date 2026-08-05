@@ -454,12 +454,23 @@ write_env() {
 # ── Identidade e URLs ────────────────────────────────────────────────
 NODE_ENV=production
 SPHARMMT_PUBLIC_ENDPOINT=${public_url}
+
+# PUBLIC_APP_URL é a chave CANÓNICA, lida em runtime (lib/runtime-config.ts).
+# NEXT_PUBLIC_APP_URL fica por compatibilidade, mas note-se que qualquer
+# NEXT_PUBLIC_* é substituída literalmente durante o \`next build\`: mudá-la
+# aqui não tem efeito nenhum sobre uma imagem já construída. É essa a razão
+# de existir a variável sem prefixo.
+PUBLIC_APP_URL=${public_url}
 NEXT_PUBLIC_APP_URL=${public_url}
 
 # Cookie de sessão: só pode ser secure sobre HTTPS. Com acesso por IP em
 # HTTP, secure=1 faz o browser descartar o cookie e o login entra em loop.
 SESSION_COOKIE_SECURE=${cookie_secure}
 SESSION_COOKIE_SAMESITE=lax
+
+# Labels de subdomínio que nunca são tenant, além das de base e do
+# primeiro label de PUBLIC_APP_URL (CSV, ver lib/runtime-config.ts).
+TENANT_RESERVED_LABELS=
 
 # ── Caminhos de dados no host (bind mounts do compose, fase seguinte) ─
 # Separação deliberada: SPHARMMT_ROOT tem aplicação e configuração,
@@ -485,6 +496,11 @@ DATABASE_SSLMODE=disable
 TENANT_DB_SSLMODE=disable
 TENANT_DB_HOST=postgres
 TENANT_DB_PORT=5432
+
+# Sem tenant resolvido, NÃO se serve a base legacy. Servir a base apontada
+# por DATABASE_URL a quem pediu um tenant seria mostrar dados de outro
+# cliente — e em silêncio, porque a página abre na mesma.
+ALLOW_LEGACY_DATABASE_FALLBACK=0
 
 # ── Scheduler local (substitui o Vercel Cron) ────────────────────────
 # DESLIGADO por defeito. Activa só depois de os dados estarem migrados e
@@ -523,6 +539,11 @@ install_scripts() {
     verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh
     healthcheck.sh
   )
+  # install-stack.sh NÃO é instalado aqui de propósito: precisa da árvore
+  # do repositório ao lado (Dockerfile, compose, init do PostgreSQL) e a
+  # partir de /opt/spharmmt não a encontraria. Corre-se sempre do
+  # checkout. Depois de instalada, a stack actualiza-se com
+  # update-platform.sh, que só precisa do compose.
   for s in "${scripts[@]}"; do
     if [ -f "${SCRIPT_DIR}/${s}" ]; then
       run install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "${SCRIPT_DIR}/${s}" "${dst}/${s}"

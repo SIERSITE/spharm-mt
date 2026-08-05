@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "scheduler": "node scripts/workers/scheduler.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "control:generate": "tsx scripts/control/generate.ts",
