@@ -252,6 +252,41 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
 O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
 divergirem significa que um alojamento faz o que o outro não faz.
 
+### Guarda do `refresh-ipf`
+
+`REFRESH_IPF_MULTI_TENANT_ENABLED` decide o fluxo do
+`/api/jobs/refresh-ipf`. **A 0 por defeito, e a ausência da variável
+também conta como 0.**
+
+| Valor | Fluxo |
+|---|---|
+| ausente, `0`, `false`, `no` | **legacy** single-DB contra `DATABASE_URL` — exactamente o que corre hoje na Vercel |
+| `1`, `true`, `yes` | multi-tenant: itera os tenants ACTIVE, com `SyncRun` e lock |
+
+A resposta traz `"mode": "legacy"` ou `"mode": "multi-tenant"`, o que
+permite confirmar o fluxo activo sem entrar no servidor:
+
+```bash
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  "http://127.0.0.1:8080/api/jobs/refresh-ipf?dry=1" | grep -o '"mode":"[^"]*"'
+```
+
+O mesmo build corre na Vercel, onde o cron continua agendado. Sem esta
+guarda, o disparo seguinte mudaria de comportamento sozinho — passaria a
+escrever nas bases dos tenants em vez da base actual, sem ninguém ter
+decidido isso.
+
+Ligar só depois de, **por esta ordem**: catálogo instalado, tenants reais
+criados, jobs validados à mão com `--once`, `SCHEDULER_ENABLED=1` nesta
+VPS, e o cron equivalente da Vercel desligado. Ligar antes do último
+ponto põe dois schedulers a escrever nas mesmas bases.
+
+```bash
+sudo sed -i 's/^REFRESH_IPF_MULTI_TENANT_ENABLED=.*/REFRESH_IPF_MULTI_TENANT_ENABLED=1/' \
+  /opt/spharmmt/docker/env/platform.env
+sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service web
+```
+
 ---
 
 ## Recuperação se a nova sessão SSH falhar

@@ -213,3 +213,24 @@ export function tenantDbSslMode(): string | null {
 export function schedulerEnabled(): boolean {
   return boolEnv("SCHEDULER_ENABLED", false);
 }
+
+/**
+ * `true` quando o `/api/jobs/refresh-ipf` deve correr o fluxo
+ * multi-tenant em vez do fluxo legacy single-DB.
+ *
+ * DESLIGADO por defeito, e a ausência da variável conta como desligado.
+ * O commit que introduziu o fluxo multi-tenant é implantado também na
+ * Vercel, onde o cron continua agendado: sem esta guarda, o disparo
+ * seguinte mudava de comportamento sozinho — passava a escrever nas
+ * bases dos tenants em vez da base actual, sem ninguém ter decidido
+ * isso. Uma alteração de comportamento em produção tem de ser um acto
+ * explícito, não um efeito secundário de um deploy.
+ *
+ * Ligar só depois de: catálogo instalado, tenants reais criados, jobs
+ * validados manualmente, scheduler da VPS activo e cron equivalente da
+ * Vercel desligado. Ligar antes do último ponto põe dois schedulers a
+ * escrever nas mesmas bases.
+ */
+export function refreshIpfMultiTenantEnabled(): boolean {
+  return boolEnv("REFRESH_IPF_MULTI_TENANT_ENABLED", false);
+}

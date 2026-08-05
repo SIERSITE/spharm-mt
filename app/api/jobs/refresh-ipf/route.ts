@@ -13,35 +13,54 @@
  *   · Se `CRON_SECRET` não estiver definido em env, o endpoint recusa
  *     **sempre** — defesa contra deploys mal-configurados.
  *
- * MULTI-TENANT (mudou): esta rota corria contra `legacyPrisma`, isto é,
- * contra a base apontada por `DATABASE_URL`, ignorando o control plane.
- * Num alojamento onde `DATABASE_URL` é a base legacy e os clientes reais
- * vivem cada um na sua, isso recalculava indicadores da base errada e
- * não recalculava nenhum dos tenants. Passa a iterar os tenants ACTIVE,
- * como `enrich-catalog` e `enrich-retail` já faziam.
+ * ─────────────────────────────────────────────────────────────────────
+ * DOIS FLUXOS, escolhidos por REFRESH_IPF_MULTI_TENANT_ENABLED
+ * ─────────────────────────────────────────────────────────────────────
  *
- * Ledger e lock: cada tenant tem a sua linha `SyncRun` com heartbeat, e
- * um tick que encontre outro em curso para o mesmo (tenant, source)
- * devolve `already_running` em vez de duplicar o trabalho. Sem isto, um
- * populate lento sobreposto ao tick seguinte reescrevia as mesmas linhas
- * e a duração média deixava de significar alguma coisa.
+ *   ausente ou falso (DEFAULT)  → fluxo LEGACY, single-DB, contra
+ *     `legacyPrisma` (isto é, `DATABASE_URL`). É EXACTAMENTE o
+ *     comportamento que está em produção na Vercel, incluindo o formato
+ *     da resposta e os códigos HTTP. Não itera tenants, não escreve no
+ *     ledger `SyncRun` e não usa lock.
  *
- * Estado HTTP: 200 quando todos os tenants correram e ficaram healthy;
- * 207 quando houve falhas parciais; 503 quando correu mas pelo menos um
- * read-model continua unhealthy (accionável, mas não é erro de servidor).
+ *   verdadeiro                  → fluxo MULTI-TENANT: itera os tenants
+ *     ACTIVE do control plane, cada um com a sua linha `SyncRun`, com
+ *     heartbeat e lock cooperativo.
+ *
+ * Porque é que o default é o legacy: o mesmo commit que introduziu o
+ * fluxo multi-tenant é implantado na Vercel, onde o cron continua
+ * agendado (`vercel.json`). Sem esta guarda, o disparo seguinte mudava
+ * de comportamento sozinho — passava a escrever nas bases dos tenants
+ * em vez da base actual, sem ninguém ter decidido isso. Uma alteração
+ * de comportamento em produção tem de ser um acto explícito.
+ *
+ * Ausência da variável é tratada como falso, deliberadamente: a
+ * configuração que falta nunca pode ser a que muda o comportamento.
+ *
+ * Condições para ligar (todas, por esta ordem): catálogo instalado,
+ * tenants reais criados, jobs validados manualmente com `--once`,
+ * scheduler da VPS activo, e o cron equivalente da Vercel desligado.
+ * Ligar antes de o cron da Vercel estar desligado põe dois schedulers a
+ * escrever nas mesmas bases.
+ *
+ * O que o fluxo multi-tenant corrige, quando for ligado: o legacy corre
+ * contra `DATABASE_URL`, que num alojamento multi-tenant é a base
+ * legacy — recalcula indicadores da base errada e de nenhum tenant.
  *
  * Não escreve UI nova. Não toca em encomendas. Sem writes noutras
  * tabelas — só upsert idempotente sobre `IndicadoresProdutoFarmacia`.
  *
  * Manual test:
  *   curl -i "http://localhost:3000/api/jobs/refresh-ipf?secret=$CRON_SECRET&dry=1"
- *   curl -i "http://localhost:3000/api/jobs/refresh-ipf?secret=$CRON_SECRET&onlySlugs=grupo-silveira"
+ *   REFRESH_IPF_MULTI_TENANT_ENABLED=1 curl -i "...&onlySlugs=grupo-silveira"
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { legacyPrisma } from "@/lib/prisma";
 import { runIpfPopulate } from "@/lib/operational/ipf-populate";
 import { getIpfFreshness } from "@/lib/operational/ipf-freshness";
 import { authorizeCronRequest } from "@/lib/jobs/cron-auth";
+import { refreshIpfMultiTenantEnabled } from "@/lib/runtime-config";
 import { forEachActiveTenant, type TenantIterSummary } from "@/lib/tenancy/for-each-tenant";
 import {
   startSyncRun,
@@ -60,36 +79,108 @@ export const dynamic = "force-dynamic";
 // folga para arranque a frio da base + connection pool.
 export const maxDuration = 300;
 
-type TenantHealth = {
+type PopulateSummary = {
+  dryRun: boolean;
+  farmacias: number;
+  produtoFarmacia: number;
+  rowsCalculated: number;
+  rowsUpserted: number;
+  rowsFailed: number;
+  batches: number;
+};
+
+type HealthSummary = {
   coverage: number;
   ageHours: number | null;
   totalIpfRows: number;
   isStale: boolean;
   isLowCoverage: boolean;
-  healthy: boolean;
   reasons: string[];
 };
+
+type ErrorPayload = {
+  ok: false;
+  error: string;
+  message?: string;
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// Fluxo LEGACY (default) — single-DB, formato de resposta preservado
+// ─────────────────────────────────────────────────────────────────────
+
+type LegacyPayload = {
+  ok: true;
+  /** "legacy" | "multi-tenant" — permite confirmar o fluxo sem entrar no servidor. */
+  mode: "legacy";
+  status: "healthy" | "unhealthy";
+  invokedAt: string;
+  durationMs: number;
+  populate: PopulateSummary;
+  health: HealthSummary;
+};
+
+async function handleLegacy(t0: number, dryRun: boolean): Promise<Response> {
+  try {
+    const result = await runIpfPopulate(legacyPrisma, { dryRun });
+    const fresh = await getIpfFreshness(legacyPrisma);
+
+    const payload: LegacyPayload = {
+      ok: true,
+      mode: "legacy",
+      status: fresh.healthy ? "healthy" : "unhealthy",
+      invokedAt: new Date(t0).toISOString(),
+      durationMs: Date.now() - t0,
+      populate: {
+        dryRun: result.dryRun,
+        farmacias: result.farmaciasCount,
+        produtoFarmacia: result.pfRowsCount,
+        rowsCalculated: result.rowsCalculated,
+        rowsUpserted: result.rowsUpserted,
+        rowsFailed: result.rowsFailed,
+        batches: result.batches,
+      },
+      health: {
+        coverage: Number(fresh.coverage.toFixed(4)),
+        ageHours: fresh.ageHours === null ? null : Number(fresh.ageHours.toFixed(2)),
+        totalIpfRows: fresh.totalIpfRows,
+        isStale: fresh.isStale,
+        isLowCoverage: fresh.isLowCoverage,
+        reasons: fresh.reasons,
+      },
+    };
+    // 200 quando healthy, 503 quando populate correu mas o read-model
+    // continua unhealthy (dry-run nunca actualiza o dataCalculo →
+    // ageHours fica alto; trata-se 503 também, accionável manual).
+    const status = fresh.healthy && result.rowsFailed === 0 ? 200 : 503;
+    return NextResponse.json(payload, { status });
+  } catch (err) {
+    console.error("[api/jobs/refresh-ipf] fatal", err);
+    const payload: ErrorPayload = {
+      ok: false,
+      error: "internal_error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+    return NextResponse.json(payload, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Fluxo MULTI-TENANT — atrás da guarda
+// ─────────────────────────────────────────────────────────────────────
 
 type TenantResult =
   | {
       ok: true;
       slug: string;
       nome: string;
-      populate: {
-        dryRun: boolean;
-        farmacias: number;
-        produtoFarmacia: number;
-        rowsCalculated: number;
-        rowsUpserted: number;
-        rowsFailed: number;
-        batches: number;
-      };
-      health: TenantHealth;
+      populate: PopulateSummary;
+      health: HealthSummary & { healthy: boolean };
     }
   | { ok: false; slug: string; nome: string; error: string };
 
-type SuccessPayload = {
+type MultiTenantPayload = {
   ok: true;
+  mode: "multi-tenant";
   status: "healthy" | "unhealthy";
   invokedAt: string;
   durationMs: number;
@@ -105,40 +196,11 @@ type SuccessPayload = {
   iterator: Omit<TenantIterSummary, "failures">;
 };
 
-type ErrorPayload = {
-  ok: false;
-  error: string;
-  message?: string;
-};
-
-function parseOptions(req: NextRequest): {
-  dryRun: boolean;
-  onlySlugs: string[] | undefined;
-} {
-  const url = req.nextUrl;
-  const onlySlugsRaw = url.searchParams.get("onlySlugs");
-  return {
-    dryRun: url.searchParams.get("dry") === "1",
-    onlySlugs: onlySlugsRaw
-      ? onlySlugsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
-      : undefined,
-  };
-}
-
-async function handle(req: NextRequest): Promise<Response> {
-  const t0 = Date.now();
-  const auth = authorizeCronRequest(req);
-  if (!auth.ok) {
-    const payload: ErrorPayload =
-      auth.reason === "missing_env"
-        ? { ok: false, error: "server_misconfigured", message: "CRON_SECRET not configured" }
-        : { ok: false, error: "unauthorized" };
-    const status = auth.reason === "missing_env" ? 503 : 401;
-    return NextResponse.json(payload, { status });
-  }
-
-  const { dryRun, onlySlugs } = parseOptions(req);
-
+async function handleMultiTenant(
+  t0: number,
+  dryRun: boolean,
+  onlySlugs: string[] | undefined,
+): Promise<Response> {
   const tenants: TenantResult[] = [];
   let iteratorSummary: TenantIterSummary;
   try {
@@ -191,8 +253,8 @@ async function handle(req: NextRequest): Promise<Response> {
               totalIpfRows: fresh.totalIpfRows,
               isStale: fresh.isStale,
               isLowCoverage: fresh.isLowCoverage,
-              healthy: fresh.healthy && result.rowsFailed === 0,
               reasons: fresh.reasons,
+              healthy: fresh.healthy && result.rowsFailed === 0,
             },
           });
         } catch (err) {
@@ -234,8 +296,9 @@ async function handle(req: NextRequest): Promise<Response> {
     { totalRowsUpserted: 0, totalRowsFailed: 0, unhealthyTenants: 0 },
   );
 
-  const payload: SuccessPayload = {
+  const payload: MultiTenantPayload = {
     ok: true,
+    mode: "multi-tenant",
     status: rollup.unhealthyTenants === 0 ? "healthy" : "unhealthy",
     invokedAt: new Date(t0).toISOString(),
     durationMs: Date.now() - t0,
@@ -261,6 +324,55 @@ async function handle(req: NextRequest): Promise<Response> {
   if (iteratorSummary.failed > 0) status = 207;
   else if (rollup.unhealthyTenants > 0) status = 503;
   return NextResponse.json(payload, { status });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+
+function parseOptions(req: NextRequest): {
+  dryRun: boolean;
+  onlySlugs: string[] | undefined;
+} {
+  const url = req.nextUrl;
+  const onlySlugsRaw = url.searchParams.get("onlySlugs");
+  return {
+    dryRun: url.searchParams.get("dry") === "1",
+    onlySlugs: onlySlugsRaw
+      ? onlySlugsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+      : undefined,
+  };
+}
+
+async function handle(req: NextRequest): Promise<Response> {
+  const t0 = Date.now();
+  const auth = authorizeCronRequest(req);
+  if (!auth.ok) {
+    const payload: ErrorPayload =
+      auth.reason === "missing_env"
+        ? { ok: false, error: "server_misconfigured", message: "CRON_SECRET not configured" }
+        : { ok: false, error: "unauthorized" };
+    const status = auth.reason === "missing_env" ? 503 : 401;
+    return NextResponse.json(payload, { status });
+  }
+
+  const { dryRun, onlySlugs } = parseOptions(req);
+
+  // A guarda é lida por invocação, não fixada no arranque: permite
+  // ligar e desligar sem reconstruir a imagem, e um pedido em curso
+  // nunca muda de fluxo a meio.
+  if (!refreshIpfMultiTenantEnabled()) {
+    // `onlySlugs` só faz sentido no fluxo multi-tenant. Aceitá-lo em
+    // silêncio aqui deixaria quem o passou convencido de que filtrou
+    // alguma coisa.
+    if (onlySlugs && onlySlugs.length > 0) {
+      console.warn(
+        "[api/jobs/refresh-ipf] onlySlugs ignorado: o fluxo multi-tenant está desligado " +
+          "(REFRESH_IPF_MULTI_TENANT_ENABLED)",
+      );
+    }
+    return handleLegacy(t0, dryRun);
+  }
+
+  return handleMultiTenant(t0, dryRun, onlySlugs);
 }
 
 // O scheduler dispara GET; manual pode usar POST. Aceitamos ambos.

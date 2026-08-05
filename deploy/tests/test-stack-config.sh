@@ -239,6 +239,38 @@ test_scheduler() {
   else
     printf '  (scheduler.mjs fora do alcance — saltado)\n'
   fi
+
+  # ── Guarda do refresh-ipf ────────────────────────────────────────────
+  # O mesmo build corre na Vercel, onde o cron continua agendado. Sem a
+  # guarda, o disparo seguinte mudava de comportamento sozinho e passava
+  # a escrever nas bases dos tenants em vez da base actual.
+  local rc="${DEPLOY_DIR}/../lib/runtime-config.ts"
+  local route="${DEPLOY_DIR}/../app/api/jobs/refresh-ipf/route.ts"
+
+  # Sem os ficheiros ao alcance, estas seis asserções seriam saltadas em
+  # silêncio — e um teste que não corre parece um teste que passa. Falhar
+  # é a única resposta honesta.
+  if [ ! -f "$rc" ] || [ ! -f "$route" ]; then
+    bad_ "ficheiros da guarda do refresh-ipf não alcançáveis (${rc}, ${route})"
+    return 1
+  fi
+
+  assert "guarda do refresh-ipf tem default falso" \
+    grep -q 'boolEnv("REFRESH_IPF_MULTI_TENANT_ENABLED", false)' "$rc"
+  assert "refresh-ipf mantém o caminho legacy"    grep -q 'handleLegacy' "$route"
+  assert "refresh-ipf tem o caminho multi-tenant" grep -q 'handleMultiTenant' "$route"
+  # A negação é o que garante que o default cai no legacy.
+  assert "multi-tenant só corre com a guarda ligada" \
+    grep -q 'if (!refreshIpfMultiTenantEnabled())' "$route"
+  assert "legacy continua a usar legacyPrisma"    grep -q 'runIpfPopulate(legacyPrisma' "$route"
+  assert "resposta identifica o fluxo (mode)"     grep -q 'mode: "legacy"' "$route"
+
+  assert "platform.env fixa a guarda a 0" \
+    grep -q '^REFRESH_IPF_MULTI_TENANT_ENABLED=0$' "${SCRIPTS_DIR}/install-platform.sh"
+  assert "platform.env fixa o scheduler a 0" \
+    grep -q '^SCHEDULER_ENABLED=0$' "${SCRIPTS_DIR}/install-platform.sh"
+  assert "platform.env fecha o fallback legacy" \
+    grep -q '^ALLOW_LEGACY_DATABASE_FALLBACK=0$' "${SCRIPTS_DIR}/install-platform.sh"
 }
 
 # ═════════════════════════════════════════════════════════════════════════

@@ -98,6 +98,8 @@ export DOCKER_DIR=/tmp/deploy/docker
 # em só-leitura — ligados aqui por caminho relativo (../).
 ln -sfn /work/package.json /tmp/package.json
 ln -sfn /work/scripts /tmp/scripts
+ln -sfn /work/lib /tmp/lib
+ln -sfn /work/app /tmp/app
 suite_rc=0
 for t in /tmp/deploy/tests/test-*.sh; do
   bash "$t" || suite_rc=1

@@ -328,6 +328,14 @@ export const ENV_CATALOG: EnvSpec[] = [
     example: "0",
   },
   {
+    name: "REFRESH_IPF_MULTI_TENANT_ENABLED",
+    scopes: ["cron"],
+    level: "optional",
+    description:
+      "'1' faz /api/jobs/refresh-ipf iterar os tenants ACTIVE; qualquer outro valor (ou ausência) mantém o fluxo legacy single-DB contra DATABASE_URL. Default 0 — o mesmo build corre na Vercel, onde o cron continua agendado, e a mudança de comportamento tem de ser explícita. Ligar só depois de catálogo, tenants, jobs validados, scheduler da VPS activo e cron da Vercel desligado.",
+    example: "0",
+  },
+  {
     name: "APP_INTERNAL_URL",
     scopes: ["cron"],
     level: "optional",

@@ -508,6 +508,16 @@ ALLOW_LEGACY_DATABASE_FALLBACK=0
 # cron nenhum.
 SCHEDULER_ENABLED=0
 
+# Fluxo do /api/jobs/refresh-ipf. A 0 corre o caminho legacy single-DB,
+# que é o que está em produção na Vercel. A 1 itera os tenants ACTIVE.
+#
+# Fica a 0 nesta fase mesmo aqui. Só passa a 1 depois de, por esta ordem:
+# catálogo instalado, tenants reais criados, jobs validados à mão,
+# SCHEDULER_ENABLED=1 nesta VPS, e o cron equivalente da Vercel
+# desligado. Ligar antes do último ponto põe dois schedulers a escrever
+# nas mesmas bases.
+REFRESH_IPF_MULTI_TENANT_ENABLED=0
+
 # ── Feature flags ────────────────────────────────────────────────────
 ENABLE_AGENT_BOOTSTRAP=0
 TENANT_FALLBACK_ENABLED=1
