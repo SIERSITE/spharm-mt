@@ -252,6 +252,63 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
 O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
 divergirem significa que um alojamento faz o que o outro não faz.
 
+### Primeiro administrador global
+
+A tabela `GlobalAdmin` do control plane nasce vazia, e não há forma de a
+preencher pela aplicação — quem entraria para o fazer ainda não existe.
+
+```bash
+cd /opt/spharmmt/docker/compose
+sudo docker compose -p spharmmt --profile tools \
+  --env-file /opt/spharmmt/docker/env/platform.env \
+  --env-file /opt/spharmmt/docker/env/stack.env \
+  run --rm -T migrate \
+  npm run --silent control:create-global-admin -- \
+    --email admin@spharm.pt --nome "Administrador Global" --yes
+```
+
+Sem `-T` há terminal e a password é pedida em **prompt oculto**, duas
+vezes. Com `-T` (ou em automação) é lida do **stdin, em duas linhas**:
+
+```bash
+printf '%s\n%s\n' "$PW" "$PW" | sudo docker compose ... run --rm -T migrate \
+  npm run --silent control:create-global-admin -- --email ... --nome ... --yes
+```
+
+Nunca por argumento: argumentos ficam no histórico da shell, no `ps` de
+qualquer utilizador da máquina e nos logs do sudo.
+
+Confirmar sem revelar o hash:
+
+```bash
+sudo docker compose -p spharmmt exec -T postgres \
+  psql -U postgres -d spharmmt_control -c \
+  'SELECT id, email, nome, estado, "createdAt" FROM "GlobalAdmin" ORDER BY "createdAt"'
+```
+
+Regras do script, e nenhuma é acidental:
+
+| Regra | Porquê |
+|---|---|
+| só cria com a tabela **vazia** | acrescentar outro exige `--allow-existing`, explícito |
+| **nunca** redefine passwords | um script de bootstrap que repõe credenciais é escalonamento de privilégios à espera de acontecer |
+| **nunca** faz upsert | ou cria uma linha nova, ou falha e diz porquê |
+| mostra o destino e exige confirmação | `dotenv` carrega o `.env` do repositório, que numa máquina de desenvolvimento aponta para **produção** |
+| só `CONTROL_DATABASE_URL` | a base legacy nunca é aberta |
+| bcrypt custo 10 | o mesmo do login; mínimo 8 caracteres, a mesma política da aplicação |
+
+Códigos de saída: `0` criado · `1` uso · `2` sem `CONTROL_DATABASE_URL` ·
+`3` já há admins · `4` password inválida ou confirmação diferente ·
+`5` email já registado · `6` falha de base de dados · `7` destino não
+confirmado.
+
+Testado de ponta a ponta em `deploy/tests/live-global-admin.sh`
+(PostgreSQL descartável; precisa de Docker):
+
+```bash
+./deploy/tests/live-global-admin.sh
+```
+
 ### Dono do PGDATA
 
 `/data/postgres/data` **não pertence ao `deploy`.** Pertence ao utilizador
