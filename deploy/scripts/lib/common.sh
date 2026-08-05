@@ -751,6 +751,45 @@ pg_image_uid_gid() {
 # mexe no PGDATA.
 pg_is_running() { container_running "$SPHARMMT_PG_CONTAINER"; }
 
+# ─────────────────────────────────────────────────────────────────────────
+# A POLÍTICA, num sítio só
+# ─────────────────────────────────────────────────────────────────────────
+#
+# `pgdata_owner_ok` é a ÚNICA definição de "o PGDATA está bem". Quem
+# corrige (ensure_pgdata_dir) e quem valida (verify-platform.sh) chamam
+# esta função — não podem ter cada um a sua leitura.
+#
+# Porquê: o install-stack.sh já aplicava uid 999 e o PostgreSQL passava
+# CHECKPOINT, e o verificador continuava a reprovar com "owner
+# deploy:spharmmt". Duas implementações da mesma regra divergem sempre;
+# a que valida acabou a reprovar o que a que corrige tinha acabado de
+# fazer bem.
+#
+# A regra:
+#   · owner uid == SPHARMMT_PG_UID (o utilizador postgres da imagem);
+#   · modo 0700 ou 2700.
+#
+# O GID é ignorado de propósito. O entrypoint da imagem faz
+# `chown postgres` SEM grupo, portanto um cluster criado de raiz fica
+# 999:0 e um corrigido à mão fica 999:999 — os dois funcionam, e com 0700
+# o grupo não tem acesso nenhum. Exigir gid 999 reprovaria qualquer
+# instalação nova.
+pgdata_owner_ok() {
+  local path="${1:-$SPHARMMT_POSTGRES_DATA_DIR}"
+  [ -d "$path" ] || return 1
+  local uid mode
+  uid=$(stat -c '%u' "$path" 2>/dev/null) || return 1
+  mode=$(stat -c '%a' "$path" 2>/dev/null) || return 1
+  [ "$uid" = "$SPHARMMT_PG_UID" ] || return 1
+  case "$mode" in 700|2700) return 0 ;; *) return 1 ;; esac
+}
+
+# pgdata_state [path] — "modo uid:gid", para mensagens e relatórios.
+pgdata_state() {
+  local path="${1:-$SPHARMMT_POSTGRES_DATA_DIR}"
+  stat -c '%a %u:%g' "$path" 2>/dev/null || printf '? ?:?'
+}
+
 # ensure_pgdata_dir — cria/corrige o PGDATA, com uma regra absoluta:
 # NUNCA lhe toca com o PostgreSQL em execução.
 #
@@ -772,19 +811,14 @@ ensure_pgdata_dir() {
   fi
   [ "$DRY_RUN" = "1" ] && { info "[dry-run] PGDATA ficaria 0700 ${want}"; return 0; }
 
-  # Só o UID conta. O entrypoint da imagem faz `chown postgres` SEM grupo,
-  # portanto um cluster criado de raiz fica 999:0 e um corrigido à mão
-  # fica 999:999 — os dois funcionam, e com modo 0700 o grupo não tem
-  # acesso nenhum. Comparar o par completo daria "errado" a instalações
-  # perfeitamente sãs.
-  local cur; cur=$(stat -c '%u' "$path" 2>/dev/null || echo '?')
-  local mode; mode=$(stat -c '%a' "$path" 2>/dev/null || echo '?')
+  # A avaliação é a de `pgdata_owner_ok` — a MESMA que o verificador usa.
+  local state; state=$(pgdata_state "$path")
 
   if pg_is_running; then
-    if [ "$cur" = "$SPHARMMT_PG_UID" ] && { [ "$mode" = "700" ] || [ "$mode" = "2700" ]; }; then
-      dbg "PGDATA correcto (${mode}, uid ${cur}) e PostgreSQL a correr — não é tocado"
+    if pgdata_owner_ok "$path"; then
+      dbg "PGDATA correcto (${state}) e PostgreSQL a correr — não é tocado"
     else
-      warn "PGDATA está ${mode} uid=${cur}, esperado 0700 uid=${SPHARMMT_PG_UID} — e o PostgreSQL está A CORRER"
+      warn "PGDATA está ${state}, esperado 0700 com uid ${SPHARMMT_PG_UID} — e o PostgreSQL está A CORRER"
       warn "NÃO vai ser alterado: um chown/chmod do PGDATA com o servidor de pé"
       warn "não falha na altura, mas leva-o a PANIC no checkpoint seguinte."
       warn "Para corrigir: parar a stack, correr este script outra vez, e voltar a subir."
@@ -792,17 +826,81 @@ ensure_pgdata_dir() {
     return 0
   fi
 
-  # PostgreSQL parado: é seguro acertar. Só o directório — o conteúdo é
-  # do cluster e não se lhe toca.
+  # PostgreSQL parado: já está bem? não se toca — evita reescrever o gid
+  # de um cluster criado pelo entrypoint (999:0), que é válido.
+  if pgdata_owner_ok "$path"; then
+    dbg "PGDATA já conforme (${state})"
+    return 0
+  fi
+
+  # Só o directório — o conteúdo é do cluster e não se lhe toca.
   chmod a-s "$path" 2>/dev/null || true
   chmod 0700 "$path"
   chown "$want" "$path"
-  if [ "$cur" != "$SPHARMMT_PG_UID" ]; then
-    ok "PGDATA ${path} → 0700 ${want} (utilizador postgres da imagem)"
-    CHANGES_MADE=1
-  else
-    dbg "PGDATA já em 0700 com uid ${SPHARMMT_PG_UID}"
-  fi
+  ok "PGDATA ${path}: ${state} → $(pgdata_state "$path") (utilizador postgres da imagem)"
+  CHANGES_MADE=1
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# Scripts operacionais instalados em ${SPHARMMT_ROOT}/scripts
+# ─────────────────────────────────────────────────────────────────────────
+#
+# O operador corre `sudo /opt/spharmmt/scripts/verify-platform.sh`, não o
+# do checkout. Se essa cópia não for refrescada, valida com regras de uma
+# versão anterior — foi assim que o verificador reprovou "postgres/data
+# owner deploy:spharmmt" depois de o install-stack.sh já ter posto o
+# PGDATA correcto: o repositório estava certo, a cópia instalada não.
+#
+# Definida aqui para que o install-platform.sh E o install-stack.sh
+# instalem exactamente o mesmo conjunto, da mesma maneira.
+#
+# `install-stack.sh` fica DE FORA de propósito: precisa da árvore do
+# repositório ao lado (Dockerfile, compose, init do PostgreSQL) e a partir
+# de /opt/spharmmt não a encontraria.
+SPHARMMT_OPERATIONAL_SCRIPTS="bootstrap-vps.sh install-docker.sh install-platform.sh prepare-data-disk.sh verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh healthcheck.sh"
+
+# install_operational_scripts <src_dir> <owner>
+install_operational_scripts() {
+  local src=$1 owner=$2
+  local dst="${SPHARMMT_ROOT}/scripts"
+  local user=${owner%%:*} group=${owner##*:}
+
+  ensure_dir "$dst" 2750 "$owner"
+  ensure_dir "${dst}/lib" 2750 "$owner"
+
+  local s n=0
+  for s in $SPHARMMT_OPERATIONAL_SCRIPTS; do
+    if [ -f "${src}/${s}" ]; then
+      run install -m 0750 -o "$user" -g "$group" "${src}/${s}" "${dst}/${s}"
+      n=$((n + 1))
+    else
+      warn "script ausente na origem: ${s}"
+    fi
+  done
+  run install -m 0640 -o "$user" -g "$group" "${src}/lib/common.sh" "${dst}/lib/common.sh"
+
+  # O healthcheck vive também em monitoring/checks — é o caminho que a
+  # unit systemd usa.
+  ensure_dir "${SPHARMMT_ROOT}/monitoring/checks" 2750 "$owner"
+  run install -m 0750 -o "$user" -g "$group" \
+    "${src}/healthcheck.sh" "${SPHARMMT_ROOT}/monitoring/checks/healthcheck.sh"
+
+  ok "${n} script(s) operacionais instalados em ${dst}"
+  return 0
+}
+
+# installed_scripts_current <src_dir> — 0 quando a cópia instalada é
+# byte-a-byte igual à do checkout. Torna a desactualização VISÍVEL em vez
+# de a deixar manifestar-se como uma validação com regras antigas.
+installed_scripts_current() {
+  local src=$1 dst="${SPHARMMT_ROOT}/scripts" s
+  [ -d "$dst" ] || return 1
+  for s in $SPHARMMT_OPERATIONAL_SCRIPTS; do
+    [ -f "${src}/${s}" ] || continue
+    cmp -s "${src}/${s}" "${dst}/${s}" || return 1
+  done
+  cmp -s "${src}/lib/common.sh" "${dst}/lib/common.sh" || return 1
   return 0
 }
 

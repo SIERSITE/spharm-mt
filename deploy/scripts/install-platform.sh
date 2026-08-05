@@ -614,35 +614,9 @@ EOF
 # ═════════════════════════════════════════════════════════════════════════
 install_scripts() {
   step "5. Scripts operacionais"
-  local dst="${SPHARMMT_ROOT}/scripts"
-  ensure_dir "$dst" 2750 "$OWNER"
-  ensure_dir "${dst}/lib" 2750 "$OWNER"
-
-  local scripts=(
-    bootstrap-vps.sh install-docker.sh install-platform.sh prepare-data-disk.sh
-    verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh
-    healthcheck.sh
-  )
-  # install-stack.sh NÃO é instalado aqui de propósito: precisa da árvore
-  # do repositório ao lado (Dockerfile, compose, init do PostgreSQL) e a
-  # partir de /opt/spharmmt não a encontraria. Corre-se sempre do
-  # checkout. Depois de instalada, a stack actualiza-se com
-  # update-platform.sh, que só precisa do compose.
-  for s in "${scripts[@]}"; do
-    if [ -f "${SCRIPT_DIR}/${s}" ]; then
-      run install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "${SCRIPT_DIR}/${s}" "${dst}/${s}"
-    else
-      warn "script ausente na origem: ${s}"
-    fi
-  done
-  run install -m 0640 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "${SCRIPT_DIR}/lib/common.sh" "${dst}/lib/common.sh"
-
-  # O healthcheck vive também em monitoring/checks (é o caminho que a unit
-  # systemd usa).
-  run install -m 0750 -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" \
-    "${SCRIPT_DIR}/healthcheck.sh" "${SPHARMMT_ROOT}/monitoring/checks/healthcheck.sh"
-
-  ok "scripts instalados em ${dst}"
+  # A lista e a forma de instalar vivem em lib/common.sh, partilhadas com
+  # o install-stack.sh — para que os dois instalem exactamente o mesmo.
+  install_operational_scripts "$SCRIPT_DIR" "$OWNER"
 }
 
 # ═════════════════════════════════════════════════════════════════════════

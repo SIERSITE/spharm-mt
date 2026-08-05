@@ -128,7 +128,15 @@ run_ensure_pgdata() {
       # \`}\` seguinte e partia o ensure_pgdata_dir ao meio.
       pg_is_running() { [ '${running}' = '1' ]; }
       SPHARMMT_PG_CONTAINER=x
-      eval \"\$(sed -n '/^ensure_pgdata_dir()/,/^}/p' /s/lib/common.sh)\"
+      # As TRÊS funções: o ensure_pgdata_dir delega a regra em
+      # pgdata_owner_ok e as mensagens em pgdata_state. Extrair só a
+      # primeira deixava as outras em falta — e o teste passava na mesma,
+      # porque \"comando não encontrado\" devolve não-zero e cai no mesmo
+      # ramo. Um teste que passa pela razão errada não é um teste.
+      eval \"\$(sed -n '/^pgdata_owner_ok()/,/^}/p;/^pgdata_state()/,/^}/p;/^ensure_pgdata_dir()/,/^}/p' /s/lib/common.sh)\"
+      for f in pgdata_owner_ok pgdata_state ensure_pgdata_dir; do
+        declare -F \"\$f\" >/dev/null || { printf 'FALHA: %s não foi extraída do common.sh\n' \"\$f\"; exit 1; }
+      done
       ensure_pgdata_dir
     " 2>&1
 }
@@ -166,6 +174,11 @@ main() {
   local before; before=$(pgdata_ownership)
   local out; out=$(run_ensure_pgdata 1)
   printf '%s\n' "$out" | sed 's/^/   /'
+  if printf '%s' "$out" | grep -qE 'command not found|não foi extraída'; then
+    bad_ "o harness não conseguiu carregar as funções do common.sh"
+  else
+    ok_ "funções do common.sh carregadas (é a implementação real)"
+  fi
   local after; after=$(pgdata_ownership)
 
   # ── 4. O ownership mantém-se ───────────────────────────────────────

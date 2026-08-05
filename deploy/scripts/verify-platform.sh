@@ -410,27 +410,16 @@ sec_volumes() {
     bash -c "[ -z \"\$(find ${SPHARMMT_ROOT}/secrets -type f \\( ! -perm 600 -o ! -user root -o ! -group root \\) -print -quit 2>/dev/null)\" ]"
 
   # ── postgres/data ────────────────────────────────────────────────────
-  # Expectativa DIFERENTE, de propósito: 2700 é aceite (o setgid mantém a
-  # herança de grupo) desde que o owner seja o correcto e não haja bits
-  # para "others". O PostgreSQL verifica S_IRWXG|S_IRWXO, e o setgid não
-  # entra nessa máscara. UID/GID serão revistos quando o container existir.
-  # Dono do PGDATA: uid NUMÉRICO do utilizador `postgres` da imagem (999),
-  # e não `deploy:spharmmt`. Comparar nomes não serve — o uid 999 do
-  # container pode nem ter nome no host, ou ter outro.
-  #
-  # Exigir `deploy:spharmmt` aqui era o que validava a configuração que
-  # punha o PostgreSQL em PANIC no primeiro checkpoint.
-  #
-  # Só o UID é comparado. O entrypoint da imagem faz `chown postgres` SEM
-  # grupo (`find "$PGDATA" \! -user postgres -exec chown postgres`), pelo
-  # que um cluster criado de raiz fica 999:0 e um corrigido à mão fica
-  # 999:999 — os dois funcionam. Com o modo a 0700 o grupo não tem acesso
-  # nenhum, portanto o seu valor não pode influenciar nada. Exigir gid 999
-  # reprovaria qualquer instalação nova.
-  local pgdata_gid; pgdata_gid=$(stat -c '%g' "${SPHARMMT_PG_DIR}/data" 2>/dev/null || echo '?')
-  info "PGDATA: $(stat -c '%a %u:%g' "${SPHARMMT_PG_DIR}/data" 2>/dev/null || echo '?') · gid ${pgdata_gid} é indiferente com modo 0700"
-  check "postgres/data owner uid ${SPHARMMT_PG_UID} (postgres da imagem)" \
-    bash -c "[ \"\$(stat -c '%u' ${SPHARMMT_PG_DIR}/data)\" = '${SPHARMMT_PG_UID}' ]"
+  # A regra vive TODA em `pgdata_owner_ok` (lib/common.sh): owner uid ==
+  # utilizador postgres da imagem, modo 0700 ou 2700, gid indiferente.
+  # Este ficheiro não tem — e não pode ter — a sua própria versão dela.
+  info "PGDATA: $(pgdata_state) · gid é indiferente com modo 0700"
+  # `pgdata_owner_ok` é a MESMA função que o ensure_pgdata_dir usa para
+  # decidir se corrige. Não há aqui uma segunda leitura da regra — foi
+  # precisamente isso que fez este verificador reprovar um PGDATA que o
+  # install-stack.sh tinha acabado de pôr correcto.
+  check "postgres/data conforme (0700, uid ${SPHARMMT_PG_UID}) — pgdata_owner_ok" \
+    pgdata_owner_ok
   # Confronta a configuração com a imagem que está mesmo a correr.
   if container_running "$SPHARMMT_PG_CONTAINER"; then
     check "uid configurado bate com o da imagem em execução" \
@@ -443,8 +432,8 @@ sec_volumes() {
     check "CHECKPOINT escreve no PGDATA" \
       docker exec "$SPHARMMT_PG_CONTAINER" psql -U postgres -d postgres -Atc "CHECKPOINT"
   fi
-  check "postgres/data em 0700 ou 2700" \
-    bash -c "case \"\$(stat -c '%a' ${SPHARMMT_PG_DIR}/data)\" in 700|2700) exit 0;; *) exit 1;; esac"
+  # O modo já é parte de `pgdata_owner_ok`; fica aqui só a garantia de que
+  # não há bits para "others", que é o que o próprio PostgreSQL recusa.
   check "postgres/data sem bits para others (exigido pelo PostgreSQL)" \
     bash -c "[ -z \"\$(find ${SPHARMMT_PG_DIR}/data -maxdepth 0 -perm /o+rwx 2>/dev/null)\" ]"
 

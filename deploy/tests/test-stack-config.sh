@@ -347,11 +347,38 @@ test_postgres() {
   assert "install-stack aplica antes do arranque" \
     bash -c "[ \$(grep -n 'ensure_pgdata_dir' '${SCRIPTS_DIR}/install-stack.sh' | head -1 | cut -d: -f1) -lt \$(grep -n 'dct up -d postgres' '${SCRIPTS_DIR}/install-stack.sh' | head -1 | cut -d: -f1) ]"
 
-  # O verificador compara NÚMEROS, não deploy:spharmmt.
+  # ── FONTE ÚNICA DE VERDADE ───────────────────────────────────────────
+  # A regra do PGDATA vive só em `pgdata_owner_ok`. Duas implementações
+  # divergiram uma vez — o install-stack.sh punha uid 999, o PostgreSQL
+  # passava CHECKPOINT, e o verificador reprovava com
+  # "postgres/data owner deploy:spharmmt".
+  assert "pgdata_owner_ok definida em common.sh"  grep -q '^pgdata_owner_ok()' "$common"
+  assert "ensure_pgdata_dir usa pgdata_owner_ok"  \
+    bash -c "sed -n '/^ensure_pgdata_dir()/,/^}/p' '$common' | grep -q 'pgdata_owner_ok'"
+  assert "verify usa pgdata_owner_ok"             grep -q 'check .* pgdata_owner_ok' "$verify"
+
+  # O verificador NÃO pode ter a sua própria leitura da regra.
   refute "verify NÃO exige deploy:spharmmt no PGDATA" \
     grep -q "postgres/data owner \${SPHARMMT_USER}" "$verify"
-  assert "verify compara o uid numérico"        grep -q "postgres/data owner uid \${SPHARMMT_PG_UID}" "$verify"
-  assert "verify corre um CHECKPOINT real"      grep -q 'CHECKPOINT escreve no PGDATA' "$verify"
+  refute "verify NÃO compara o uid por sua conta" \
+    bash -c "grep -E \"stat -c '%u' \\\$\\{SPHARMMT_PG_DIR\\}/data\" '$verify' | grep -q ."
+  refute "verify NÃO reimplementa o teste de modo do PGDATA" \
+    bash -c "grep -E \"stat -c '%a' \\\$\\{SPHARMMT_PG_DIR\\}/data\" '$verify' | grep -q ."
+  assert "verify corre um CHECKPOINT real"        grep -q 'CHECKPOINT escreve no PGDATA' "$verify"
+
+  # ── A cópia instalada não pode ficar para trás ───────────────────────
+  # O operador corre /opt/spharmmt/scripts/verify-platform.sh. Se só o
+  # install-platform.sh a refrescasse, um `git pull` + install-stack.sh
+  # deixava-a a validar com regras antigas — que foi o que aconteceu.
+  assert "instalação dos scripts numa função partilhada" \
+    grep -q '^install_operational_scripts()' "$common"
+  assert "install-platform usa-a"  grep -q 'install_operational_scripts' "$platform"
+  assert "install-stack TAMBÉM a usa" \
+    grep -q 'install_operational_scripts' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack valida que a cópia está actualizada" \
+    grep -q 'installed_scripts_current' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "verify-platform.sh está na lista instalada" \
+    grep -q 'SPHARMMT_OPERATIONAL_SCRIPTS=.*verify-platform.sh' "$common"
 
   assert "afinação conservadora presente"   grep -q 'shared_buffers=' "$COMPOSE"
   assert "max_connections limitado"         grep -q 'max_connections=100' "$COMPOSE"

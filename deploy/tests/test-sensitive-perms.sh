@@ -89,6 +89,58 @@ point_at_tree() {
 }
 
 # ═════════════════════════════════════════════════════════════════════════
+# A regra do PGDATA tem de ser UMA só
+# ═════════════════════════════════════════════════════════════════════════
+#
+# O install-stack.sh punha uid 999, o PostgreSQL passava CHECKPOINT, e o
+# verify-platform.sh reprovava com "postgres/data owner deploy:spharmmt":
+# duas implementações da mesma regra, e a que validava reprovava o que a
+# que corrigia tinha acabado de fazer bem.
+#
+# Aqui exercita-se a função REAL, extraída do common.sh, contra os estados
+# que interessam — incluindo o estado actual da VPS.
+test_pgdata_policy_single_source() {
+  printf '\n6. Regra do PGDATA (fonte única)\n'
+
+  local fn
+  fn=$(sed -n '/^pgdata_owner_ok()/,/^}/p' "${SCRIPTS_DIR}/lib/common.sh")
+  if ! printf '%s' "$fn" | grep -q 'SPHARMMT_PG_UID'; then
+    bad_ "não consegui extrair pgdata_owner_ok do common.sh"
+    return 1
+  fi
+  # shellcheck disable=SC1090  # código extraído em runtime, sem ficheiro
+  eval "$fn"
+  # Lida pela função extraída acima — o ShellCheck não vê essa ligação.
+  # shellcheck disable=SC2034
+  SPHARMMT_PG_UID=999
+  local d="${WORK}/pgdata"
+
+  _mk() { rm -rf "$d"; mkdir -p "$d"; chmod "$1" "$d"; }
+
+  # O estado REAL da VPS depois da correcção manual.
+  _mk 0700; chown 999:999 "$d" 2>/dev/null
+  if [ "$(stat -c '%u' "$d")" != "999" ]; then
+    printf '   (sem privilégios para chown — casos de owner saltados)\n'
+  else
+    assert "0700 999:999 (estado actual da VPS) é ACEITE"      pgdata_owner_ok "$d"
+    # O que o entrypoint da imagem deixa num cluster criado de raiz.
+    chown 999:0 "$d"
+    assert "0700 999:0 (cluster criado pelo entrypoint) é ACEITE" pgdata_owner_ok "$d"
+    chmod 2700 "$d"
+    assert "2700 999:0 é ACEITE (setgid não afecta o PostgreSQL)"  pgdata_owner_ok "$d"
+    # A configuração que punha a base em PANIC.
+    chmod 2700 "$d"; chown 1002:1001 "$d"
+    refute "2700 1002:1001 (deploy:spharmmt) é REJEITADO"       pgdata_owner_ok "$d"
+    chown 999:999 "$d"; chmod 0750 "$d"
+    refute "0750 é REJEITADO (o PostgreSQL recusa bits de grupo)" pgdata_owner_ok "$d"
+    chmod 0777 "$d"
+    refute "0777 é REJEITADO"                                   pgdata_owner_ok "$d"
+  fi
+
+  refute "caminho inexistente é REJEITADO"  pgdata_owner_ok "${WORK}/nao-existe"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
 main() {
   printf '\n=== Teste: varredura de permissões sensíveis ===\n'
 
@@ -190,6 +242,8 @@ main() {
   assert "inclui docker/env"       bash -c "printf '%s' '$list' | grep -q 'docker/env'"
   refute "NÃO inclui postgres/init"  bash -c "printf '%s' '$list' | grep -q 'postgres/init'"
   refute "NÃO inclui postgres/conf"  bash -c "printf '%s' '$list' | grep -q 'postgres/conf'"
+
+  test_pgdata_policy_single_source
 
   rm -rf "$WORK"
 

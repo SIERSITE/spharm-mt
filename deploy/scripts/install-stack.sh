@@ -254,6 +254,15 @@ install_artifacts() {
   # ficheiros de execuções anteriores podem estar noutro modo.
   ensure_proxy_dirs "$OWNER"
 
+  # ── Scripts operacionais ─────────────────────────────────────────────
+  # Refrescados AQUI também, e não só pelo install-platform.sh. O
+  # operador corre `sudo /opt/spharmmt/scripts/verify-platform.sh`, não o
+  # do checkout: sem isto, um `git pull` seguido de install-stack.sh
+  # deixava o verificador a validar com as regras da versão anterior — foi
+  # assim que ele reprovou um PGDATA que este mesmo script tinha acabado
+  # de pôr correcto.
+  install_operational_scripts "$SCRIPT_DIR" "$OWNER"
+
   # Caminho antigo, FORA do que o compose monta. Um ficheiro lá dá a
   # impressão de que a configuração está instalada quando o nginx nunca
   # a chega a ver.
@@ -714,6 +723,10 @@ postflight() {
   check "código instalado"                 test -f "${APP_DIR}/package.json"
   check "compose instalado"                test -f "$SPHARMMT_COMPOSE_FILE"
   check "stack.env instalado"              test -f "$SPHARMMT_STACK_ENV_FILE"
+  # A cópia que o operador corre tem de ser a deste checkout. Uma
+  # desactualizada valida com regras antigas e reprova o que está bem.
+  check "scripts em ${SPHARMMT_ROOT}/scripts iguais aos do checkout" \
+    installed_scripts_current "$SCRIPT_DIR"
   check "stack.env sem segredos"     bash -c "! grep -qE '^(AUTH_SECRET|TENANT_ENCRYPTION_SECRET|POSTGRES_[A-Z_]*PASSWORD|CRON_SECRET)=' $SPHARMMT_STACK_ENV_FILE"
   check "init do postgres instalado"       test -x "${SPHARMMT_PG_DIR}/init/10-databases.sh"
   check "configuração do proxy no caminho canónico" test -f "$SPHARMMT_PROXY_CONF_FILE"

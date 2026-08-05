@@ -167,12 +167,28 @@ test_healthcheck_as_unit() {
           PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
           bash "$hc" 2>&1) && rc=0 || rc=$?
 
-  printf '   rc=%s\n' "$rc"
+  # A mesma sonda como root, para comparação.
+  local out_root
+  out_root=$(env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+               bash "$hc" 2>&1) || true
+
+  local crit_deploy crit_root
+  crit_deploy=$(printf '%s\n' "$out" | grep -c '^CRIT' || true)
+  crit_root=$(printf '%s\n' "$out_root" | grep -c '^CRIT' || true)
+
+  printf '   rc=%s · CRIT como deploy=%s · CRIT como root=%s\n' "$rc" "$crit_deploy" "$crit_root"
+
   refute "não reporta 'UFW INACTIVA' por falta de privilégios" \
     bash -c "printf '%s' \"\$1\" | grep -q 'UFW INACTIVA'" _ "$out"
   assert "contrato de saída respeitado (rc <= 2)" test "$rc" -le 2
-  # rc=1 (WARN) é aceite pela unit via SuccessExitStatus=0 1; rc=2 não.
-  assert "sem privilégios não escala a CRIT (rc != 2)" test "$rc" -ne 2
+
+  # A pergunta é se a FALTA DE PRIVILÉGIOS acrescenta CRITs — não se o
+  # ambiente tem algum. Comparar com `rc != 2` amarrava o teste ao estado
+  # do host: um disco a 90% (limite de CRIT) fazia-o falhar por uma razão
+  # que nada tem que ver com privilégios, e passava só enquanto a máquina
+  # de quem o corre estivesse folgada.
+  assert "sem privilégios NÃO acrescenta CRITs (${crit_deploy} <= ${crit_root})" \
+    test "$crit_deploy" -le "$crit_root"
   assert "produz linhas de estado"      bash -c "printf '%s' \"\$1\" | grep -qE '^(OK|WARN|CRIT)' " _ "$out"
   assert "termina com o resumo"         bash -c "printf '%s' \"\$1\" | grep -q 'resultado: rc='" _ "$out"
 }
