@@ -218,6 +218,15 @@ services:
       target: migrator
       args:
         APP_REVISION: ${APP_REVISION:-unknown}
+        # NÃO é decorativo: o stage `migrator` faz
+        # `COPY --from=builder /app/generated`, portanto construí-lo
+        # constrói o `builder` e corre lá o `npm run build`. Sem estas
+        # duas, `docker compose build migrate` falha no próprio build
+        # (em produção o next.config.ts recusa-se a gerar um bundle sem
+        # origens autorizadas) — e falharia SÓ no migrate, o que faz
+        # parecer um problema das migrations.
+        SERVER_ACTIONS_ALLOWED_ORIGINS: ${SERVER_ACTIONS_ALLOWED_ORIGINS:-}
+        PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
     # SEM container_name: este serviço é invocado com
     # `docker compose run --rm migrate`, e o `run` recusa-se a arrancar
     # um serviço com nome fixo (teria de gerar um nome único de qualquer

@@ -530,7 +530,7 @@ APP_REVISION=${APP_REVISION}
 INSTALL_CHROMIUM=1
 
 # ── Build args que TÊM de entrar no bundle ───────────────────────────
-# O Next fixa `experimental.serverActions.allowedOrigins` no bundle do
+# O Next fixa experimental.serverActions.allowedOrigins no bundle do
 # servidor: não há forma de a ler em runtime. Copiadas do platform.env
 # (onde o operador as edita) para aqui, que é o que o compose interpola
 # como build arg. Mudar o platform.env exige reconstruir a imagem.
@@ -606,6 +606,88 @@ validate_compose() {
     die "o serviço postgres tem \`ports:\` — a base ficaria exposta. Recusado."
   fi
   ok "postgres sem portos publicados"
+
+  assert_build_args_propagated
+  return 0
+}
+
+# build_arg_value <serviço> <chave>
+#
+# Lê o valor JÁ INTERPOLADO de um build arg no `docker compose config`.
+# É de propósito que não usa `--no-env-resolution`: o que interessa aqui
+# é precisamente o valor depois da interpolação do stack.env — ver o
+# `${VAR:-}` no ficheiro do compose é ver a sintaxe, não a propagação.
+#
+# O output do compose NUNCA é impresso (resolve os env_file e traria as
+# passwords com ele): fica em variável e sai daqui só o campo pedido.
+build_arg_value() {
+  local svc=$1 key=$2
+  dct config 2>/dev/null | awk -v svc="$svc" -v key="$key" '
+    /^services:/            { in_services = 1; next }
+    in_services && /^  [A-Za-z0-9._-]+:[[:space:]]*$/ {
+      cur = $1; sub(/:$/, "", cur)
+      in_svc = (cur == svc); in_build = 0; in_args = 0; next
+    }
+    in_svc && /^    build:/     { in_build = 1; in_args = 0; next }
+    in_svc && /^    [A-Za-z]/   { in_build = 0; in_args = 0 }
+    in_build && /^      args:/  { in_args = 1; next }
+    in_build && /^      [A-Za-z]/ { in_args = 0 }
+    in_args && /^        [A-Za-z0-9_]+:/ {
+      line = $0; sub(/^[[:space:]]+/, "", line)
+      k = line; sub(/:.*$/, "", k)
+      if (k == key) {
+        v = line; sub(/^[^:]*:[[:space:]]*/, "", v)
+        gsub(/^"|"$/, "", v)
+        print v; found = 1; exit 0
+      }
+    }
+    # rc=1 = a chave NÃO existe naquele serviço. Distinto de "existe e
+    # está vazia", que sai com rc=0 e linha vazia — confundir os dois
+    # daria uma verificação que aprova um compose sem o build arg.
+    END { if (!found) exit 1 }
+  '
+}
+
+# Falha ANTES do build — que é o ponto: um `npm ci` seguido de um
+# `next build` são minutos, e descobrir só no fim que a imagem saiu sem
+# origens autorizadas custa esses minutos duas vezes.
+#
+# Os DOIS serviços são verificados. O `migrate` também constrói o
+# `builder` (COPY --from=builder), portanto também precisa das duas.
+assert_build_args_propagated() {
+  local svc key value origins pub bad=0
+
+  if [ "$DRY_RUN" = "1" ]; then
+    info "[dry-run] verificação dos build args ignorada (stack.env não foi escrito)"
+    return 0
+  fi
+
+  for svc in web migrate; do
+    local declared=1
+    for key in SERVER_ACTIONS_ALLOWED_ORIGINS PUBLIC_APP_URL; do
+      if ! build_arg_value "$svc" "$key" >/dev/null; then
+        err "o serviço ${svc} não declara o build arg ${key} em build.args"
+        declared=0; bad=1
+      fi
+    done
+    [ "$declared" = "1" ] || continue
+
+    origins=$(build_arg_value "$svc" SERVER_ACTIONS_ALLOWED_ORIGINS)
+    pub=$(build_arg_value "$svc" PUBLIC_APP_URL)
+
+    # Vazias as duas = o `next build` vai falhar em produção. Mais vale
+    # dizê-lo aqui, com o nome do ficheiro que se edita, do que deixar
+    # rebentar dentro do Docker com um stack trace do Next.
+    if [ -z "$origins" ] && [ -z "$pub" ]; then
+      err "serviço ${svc}: SERVER_ACTIONS_ALLOWED_ORIGINS e PUBLIC_APP_URL chegam vazios ao build"
+      err "corrigir em ${SPHARMMT_ENV_FILE} e voltar a correr este script"
+      bad=1
+    else
+      ok "${svc}: origens no build = ${origins:-(derivadas de ${pub})}"
+    fi
+  done
+
+  [ "$bad" = "0" ] || DIE_CODE=$EX_PRECOND die "build args por propagar — build não iniciado"
   return 0
 }
 

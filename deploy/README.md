@@ -437,6 +437,46 @@ a sério; precisa de Docker, corre-se à mão):
 ./deploy/tests/live-proxy.sh
 ```
 
+### Origens das Server Actions: por que o build tem de falhar
+
+`SERVER_ACTIONS_ALLOWED_ORIGINS` é a única configuração que **não** pode
+ser lida em runtime: o Next fixa `allowedOrigins` no bundle do servidor.
+Mudá-la obriga a **reconstruir a imagem** — um `docker compose up` não
+chega.
+
+O caminho tem cinco elos:
+
+```
+platform.env  →  install-stack.sh  →  stack.env  →  build arg  →  ARG/ENV  →  bundle
+ (o operador)      (lê e valida)      (compose)     (compose)    (Dockerfile)
+```
+
+Já se partiu duas vezes, e nenhuma das duas aparecia num grep:
+
+1. uma crase num comentário dentro do heredoc `<<EOF` matava o
+   instalador no passo 4 — o `stack.env` nunca chegava a ser escrito, e
+   o build seguia sem as variáveis. Coberto agora por
+   `deploy/tests/test-heredoc-safety.sh`;
+2. o serviço `migrate` não passava os build args. **O `migrate` também
+   precisa deles**: o stage `migrator` faz `COPY --from=builder`,
+   portanto construí-lo corre o `npm run build` — e sem origens esse
+   build falha, com um erro que parece das migrations.
+
+O `install-stack.sh` verifica agora a propagação **no `docker compose
+config` já interpolado**, antes de iniciar o build: ver a sintaxe
+`${VAR:-}` no ficheiro não prova que o valor chega lá.
+
+Prova de ponta a ponta, com imagens verdadeiras (precisa de Docker,
+corre-se à mão):
+
+```bash
+./deploy/tests/live-build-args.sh
+```
+
+Constrói os dois targets, lê o `required-server-files.json` de dentro da
+imagem e confirma que, com as variáveis vazias, **ambos os builds
+falham**.
+
 ### Guarda do `refresh-ipf`
 
 `REFRESH_IPF_MULTI_TENANT_ENABLED` decide o fluxo do

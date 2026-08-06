@@ -398,8 +398,21 @@ test_postgres() {
     grep -q 'ARG SERVER_ACTIONS_ALLOWED_ORIGINS' "$DOCKERFILE"
   assert "ARG é exportado como ENV antes do build" \
     bash -c "[ \$(grep -n 'ENV SERVER_ACTIONS_ALLOWED_ORIGINS' '$DOCKERFILE' | head -1 | cut -d: -f1) -lt \$(grep -n 'RUN npm run build' '$DOCKERFILE' | head -1 | cut -d: -f1) ]"
-  assert "compose passa a origem como build arg" \
-    grep -q 'SERVER_ACTIONS_ALLOWED_ORIGINS: ' "$COMPOSE"
+  # POR SERVIÇO, e não um grep ao ficheiro inteiro. A versão global
+  # («o compose menciona SERVER_ACTIONS_ALLOWED_ORIGINS algures») passava
+  # com o `web` a tê-lo e o `migrate` não — que foi exactamente o que
+  # aconteceu. E o `migrate` precisa mesmo: o stage `migrator` faz
+  # COPY --from=builder, portanto constrói o builder e corre lá o
+  # `npm run build`.
+  local svc key
+  for svc in web migrate; do
+    for key in SERVER_ACTIONS_ALLOWED_ORIGINS PUBLIC_APP_URL; do
+      assert "compose: ${svc} passa ${key} como build arg" \
+        bash -c "service_block ${svc} | awk '/^    build:/{b=1;next} b&&/^    [a-z]/{b=0} b' | grep -q '^ *${key}:'"
+    done
+  done
+  assert "migrator depende mesmo do builder (por isso precisa dos args)" \
+    grep -q 'COPY --from=builder' "$DOCKERFILE"
   assert "platform.env declara a variável" \
     grep -q '^SERVER_ACTIONS_ALLOWED_ORIGINS=' "$platform"
   assert "install-platform inclui o túnel 127.0.0.1 por defeito" \
@@ -410,6 +423,19 @@ test_postgres() {
     grep -q 'curinga global' "${SCRIPTS_DIR}/install-stack.sh"
   assert "install-stack exige a lista ou PUBLIC_APP_URL" \
     grep -q 'origens das Server Actions por definir' "${SCRIPTS_DIR}/install-stack.sh"
+
+  # A propagação é verificada CONTRA O COMPOSE RESOLVIDO, antes do build.
+  # Um `npm ci` + `next build` são minutos; descobrir no fim que a imagem
+  # saiu sem origens custa-os duas vezes.
+  local istack="${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack verifica os build args no compose resolvido" \
+    grep -q 'assert_build_args_propagated()' "$istack"
+  assert "a verificação é chamada" \
+    bash -c "grep -c '^ *assert_build_args_propagated\$' '$istack' | grep -qv '^0\$'"
+  assert "verificação ANTES do build (validate_compose precede build_images)" \
+    bash -c "[ \$(grep -n '^ *validate_compose\$' '$istack' | tail -1 | cut -d: -f1) -lt \$(grep -n '^ *build_images\$' '$istack' | tail -1 | cut -d: -f1) ]"
+  assert "distingue 'chave ausente' de 'chave vazia'" \
+    grep -q 'if (!found) exit 1' "$istack"
 
   assert "afinação conservadora presente"   grep -q 'shared_buffers=' "$COMPOSE"
   assert "max_connections limitado"         grep -q 'max_connections=100' "$COMPOSE"
