@@ -513,10 +513,35 @@ write_env() {
   local cookie_secure=0
   case "$PUBLIC_URL" in https://*) cookie_secure=1 ;; esac
 
+  local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
   local public_url="$PUBLIC_URL"
   if [ -z "$public_url" ]; then
-    local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     public_url="http://${ip:-127.0.0.1}"
+  fi
+
+  # Origens das Server Actions. Preserva o que o operador já lá tiver:
+  # esta lista é editada à mão sempre que entra um domínio novo, e
+  # sobrepô-la a cada reinstalação apagaria esse trabalho.
+  local server_actions_origins=""
+  if [ -r "$SPHARMMT_ENV_FILE" ]; then
+    server_actions_origins=$(awk -F= '/^SERVER_ACTIONS_ALLOWED_ORIGINS=/ {sub(/^[^=]*=/,""); print; exit}' "$SPHARMMT_ENV_FILE" || true)
+  fi
+  if [ -z "$server_actions_origins" ]; then
+    # Default para esta VPS: o acesso por túnel SSH (127.0.0.1:8080, o
+    # bind do proxy) e o IP público da máquina. Sem curingas.
+    local proxy_port="8080"
+    [ -r "$SPHARMMT_STACK_ENV_FILE" ] && \
+      proxy_port=$(awk -F= '/^PROXY_HTTP_PORT=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" || echo 8080)
+    server_actions_origins="127.0.0.1:${proxy_port:-8080}"
+    [ -n "$ip" ] && server_actions_origins="${server_actions_origins},${ip}"
+    # Com domínio configurado, ele entra também — sem substituir os
+    # anteriores, que continuam a ser o caminho de diagnóstico.
+    case "$PUBLIC_URL" in
+      http://*|https://*)
+        local host; host=${PUBLIC_URL#*://}; host=${host%%/*}
+        [ -n "$host" ] && server_actions_origins="${server_actions_origins},${host}"
+        ;;
+    esac
   fi
 
   write_file "$SPHARMMT_ENV_FILE" 0640 "$OWNER" <<EOF
@@ -545,6 +570,22 @@ SESSION_COOKIE_SAMESITE=lax
 # Labels de subdomínio que nunca são tenant, além das de base e do
 # primeiro label de PUBLIC_APP_URL (CSV, ver lib/runtime-config.ts).
 TENANT_RESERVED_LABELS=
+
+# Origens autorizadas a invocar Server Actions (CSV, sem protocolo).
+#
+# ATENÇÃO: é lida no BUILD da imagem, não em runtime — o Next fixa-a no
+# bundle do servidor. Mudar aqui só tem efeito depois de reconstruir:
+#     sudo <checkout>/deploy/scripts/install-stack.sh --yes
+#
+# Sem isto, o Origin do browser (127.0.0.1:8080 num túnel SSH) não bate
+# com o Host e cada submissão de formulário morre em
+# "Invalid Server Actions request".
+#
+# NUNCA usar "*": anula a única protecção do Next contra invocações de
+# Server Actions a partir de outras origens. Subdomínios usam *.dominio.pt.
+# Ao acrescentar um domínio, manter também o acesso por IP e por túnel
+# enquanto forem usados para diagnóstico.
+SERVER_ACTIONS_ALLOWED_ORIGINS=${server_actions_origins}
 
 # ── Caminhos de dados no host (bind mounts do compose, fase seguinte) ─
 # Separação deliberada: SPHARMMT_ROOT tem aplicação e configuração,

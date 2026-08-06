@@ -100,6 +100,7 @@ ln -sfn /work/package.json /tmp/package.json
 ln -sfn /work/scripts /tmp/scripts
 ln -sfn /work/lib /tmp/lib
 ln -sfn /work/app /tmp/app
+ln -sfn /work/next.config.ts /tmp/next.config.ts
 # O test-dockerfile-copy.sh verifica os COPY contra HEAD — o contexto de
 # build real do servidor, que sai de `git archive HEAD`. Precisa do
 # repositório com .git, montado em /work. O `safe.directory` é necessário

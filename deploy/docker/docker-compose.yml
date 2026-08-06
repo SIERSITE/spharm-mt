@@ -258,6 +258,10 @@ services:
       args:
         APP_REVISION: ${APP_REVISION:-unknown}
         INSTALL_CHROMIUM: ${INSTALL_CHROMIUM:-1}
+        # Entram no BUILD porque o Next fixa allowedOrigins no bundle do
+        # servidor. Mudá-las obriga a reconstruir a imagem.
+        SERVER_ACTIONS_ALLOWED_ORIGINS: ${SERVER_ACTIONS_ALLOWED_ORIGINS:-}
+        PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
     container_name: ${SPHARMMT_APP_CONTAINER:-spharmmt-app}
     <<: *default-hardening
     logging: *default-logging

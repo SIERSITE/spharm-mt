@@ -182,6 +182,25 @@ test_conf_content() {
   done
   assert "healthz não toca no upstream" \
     bash -c "grep -A4 'location = /healthz' '$NGINX' | grep -q 'return 200'"
+
+  # ── A armadilha da herança ───────────────────────────────────────────
+  # Em nginx, UM `proxy_set_header` num `location` cancela a herança de
+  # TODOS os do nível acima. O `location /` tinha um, e com ele perdia o
+  # Host: o nginx caía no default `$proxy_host` e a aplicação recebia
+  # `Host: spharmmt_web` — o nome do bloco upstream. Daí o
+  # "Invalid Server Actions request" e, em silêncio, a resolução de
+  # tenant por subdomínio a ler um host inexistente.
+  refute "location / NÃO tem proxy_set_header (cancelaria a herança)" \
+    bash -c "sed -n '/^    location \/ {/,/^    }/p' '$NGINX' | grep -qE '^\s*proxy_set_header'"
+  assert "a armadilha está documentada no ficheiro" \
+    bash -c "grep -q 'CANCELA a herança' '$NGINX'"
+  # Os cabeçalhos essenciais têm de estar no nível `server`, onde são
+  # herdados por todos os locations que não os redefinam.
+  local h
+  for h in 'Host' 'X-Real-IP' 'X-Forwarded-For' 'X-Forwarded-Proto'; do
+    assert "server define ${h}" \
+      bash -c "awk '/^server \{/,/^\}/' '$NGINX' | grep -qE '^\s*proxy_set_header\s+${h}\s'"
+  done
   assert "proxy_pass aponta para o upstream da web" grep -q 'proxy_pass http://spharmmt_web' "$NGINX"
 }
 

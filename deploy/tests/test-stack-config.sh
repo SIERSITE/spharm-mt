@@ -380,6 +380,37 @@ test_postgres() {
   assert "verify-platform.sh está na lista instalada" \
     grep -q 'SPHARMMT_OPERATIONAL_SCRIPTS=.*verify-platform.sh' "$common"
 
+  # ── Origens das Server Actions ───────────────────────────────────────
+  # Entram no BUILD: o Next fixa allowedOrigins no bundle do servidor.
+  # Sem elas, atrás do proxy o Origin do browser não bate com o Host e
+  # cada submissão de formulário morre em "Invalid Server Actions request".
+  # Sem o ficheiro ao alcance, estas asserções seriam saltadas em
+  # silêncio — e um teste que não corre parece um teste que passa.
+  local nextconf="${DEPLOY_DIR}/../next.config.ts"
+  if [ ! -f "$nextconf" ]; then
+    bad_ "next.config.ts não alcançável em ${nextconf}"
+  else
+    assert "next.config define allowedOrigins" grep -q 'allowedOrigins' "$nextconf"
+    refute "next.config NÃO tem curinga global escrito à mão" \
+      bash -c "grep -E 'allowedOrigins.*\[\s*\"\*\"' '$nextconf' | grep -q ."
+  fi
+  assert "Dockerfile recebe a origem como ARG" \
+    grep -q 'ARG SERVER_ACTIONS_ALLOWED_ORIGINS' "$DOCKERFILE"
+  assert "ARG é exportado como ENV antes do build" \
+    bash -c "[ \$(grep -n 'ENV SERVER_ACTIONS_ALLOWED_ORIGINS' '$DOCKERFILE' | head -1 | cut -d: -f1) -lt \$(grep -n 'RUN npm run build' '$DOCKERFILE' | head -1 | cut -d: -f1) ]"
+  assert "compose passa a origem como build arg" \
+    grep -q 'SERVER_ACTIONS_ALLOWED_ORIGINS: ' "$COMPOSE"
+  assert "platform.env declara a variável" \
+    grep -q '^SERVER_ACTIONS_ALLOWED_ORIGINS=' "$platform"
+  assert "install-platform inclui o túnel 127.0.0.1 por defeito" \
+    grep -q 'server_actions_origins="127.0.0.1:' "$platform"
+  assert "install-stack propaga para o stack.env" \
+    grep -q 'SERVER_ACTIONS_ALLOWED_ORIGINS=${SERVER_ACTIONS_ALLOWED_ORIGINS}' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack recusa curinga global" \
+    grep -q 'curinga global' "${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack exige a lista ou PUBLIC_APP_URL" \
+    grep -q 'origens das Server Actions por definir' "${SCRIPTS_DIR}/install-stack.sh"
+
   assert "afinação conservadora presente"   grep -q 'shared_buffers=' "$COMPOSE"
   assert "max_connections limitado"         grep -q 'max_connections=100' "$COMPOSE"
   assert "checksums de dados no initdb"     grep -q 'data-checksums' "$COMPOSE"

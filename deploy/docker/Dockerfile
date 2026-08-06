@@ -63,8 +63,22 @@ RUN npx prisma generate --config prisma.config.ts \
 ARG APP_REVISION=unknown
 ENV APP_REVISION=${APP_REVISION}
 
-# NENHUMA env de runtime é necessária aqui, e é assim de propósito: o
-# URL público, o modo SSL e as flags de sessão são lidos em runtime
+# Origens autorizadas a invocar Server Actions. É a ÚNICA configuração
+# que tem mesmo de entrar no build: o Next fixa-a no bundle do servidor e
+# não há forma de a ler em runtime.
+#
+# Sem ela, atrás do reverse proxy o `Origin` do browser não bate com o
+# `Host` e cada submissão de formulário morre em "Invalid Server Actions
+# request". Com NODE_ENV=production e nada definido, o build FALHA — de
+# propósito: mais vale falhar aqui do que entregar uma imagem onde
+# ninguém consegue autenticar-se.
+ARG SERVER_ACTIONS_ALLOWED_ORIGINS=""
+ARG PUBLIC_APP_URL=""
+ENV SERVER_ACTIONS_ALLOWED_ORIGINS=${SERVER_ACTIONS_ALLOWED_ORIGINS} \
+    PUBLIC_APP_URL=${PUBLIC_APP_URL}
+
+# As RESTANTES envs de runtime não são precisas aqui, e é assim de
+# propósito: o modo SSL e as flags de sessão são lidos em runtime
 # (lib/runtime-config.ts), para que a MESMA imagem sirva a VPS, um
 # domínio com TLS ou um ambiente de testes.
 RUN npm run build

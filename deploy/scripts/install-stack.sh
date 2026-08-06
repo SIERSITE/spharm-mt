@@ -486,6 +486,23 @@ write_stack_env() {
     return 0
   fi
 
+  # Lidas do platform.env, que é onde o operador as edita. Sem elas o
+  # `next build` falha (em produção não há default seguro) — o que é
+  # melhor do que entregar uma imagem onde ninguém consegue autenticar-se.
+  local SERVER_ACTIONS_ALLOWED_ORIGINS PUBLIC_APP_URL_VALUE
+  SERVER_ACTIONS_ALLOWED_ORIGINS=$(awk -F= '/^SERVER_ACTIONS_ALLOWED_ORIGINS=/ {sub(/^[^=]*=/,""); print; exit}' "$SPHARMMT_ENV_FILE" 2>/dev/null || true)
+  PUBLIC_APP_URL_VALUE=$(awk -F= '/^PUBLIC_APP_URL=/ {sub(/^[^=]*=/,""); print; exit}' "$SPHARMMT_ENV_FILE" 2>/dev/null || true)
+
+  if [ -z "$SERVER_ACTIONS_ALLOWED_ORIGINS" ] && [ -z "$PUBLIC_APP_URL_VALUE" ]; then
+    err "nem SERVER_ACTIONS_ALLOWED_ORIGINS nem PUBLIC_APP_URL estão em ${SPHARMMT_ENV_FILE}"
+    err "sem uma delas o build falha: o Next recusa Server Actions quando o Origin"
+    err "do browser não bate com o Host, e é sempre esse o caso atrás do proxy."
+    DIE_CODE=$EX_PRECOND die "origens das Server Actions por definir"
+  fi
+  case ",${SERVER_ACTIONS_ALLOWED_ORIGINS}," in
+    *,\*,*) DIE_CODE=$EX_PRECOND die "SERVER_ACTIONS_ALLOWED_ORIGINS contém um curinga global (*) — recusado" ;;
+  esac
+
   # A exposição do proxy é uma decisão do operador: se já a mudou, é
   # preservada. Reabrir o 127.0.0.1 por cima seria desfazer-lhe o
   # trabalho; fechá-lo por cima seria uma paragem não anunciada.
@@ -511,6 +528,14 @@ APP_IMAGE=spharmmt-app
 APP_TAG=${APP_TAG}
 APP_REVISION=${APP_REVISION}
 INSTALL_CHROMIUM=1
+
+# ── Build args que TÊM de entrar no bundle ───────────────────────────
+# O Next fixa `experimental.serverActions.allowedOrigins` no bundle do
+# servidor: não há forma de a ler em runtime. Copiadas do platform.env
+# (onde o operador as edita) para aqui, que é o que o compose interpola
+# como build arg. Mudar o platform.env exige reconstruir a imagem.
+SERVER_ACTIONS_ALLOWED_ORIGINS=${SERVER_ACTIONS_ALLOWED_ORIGINS}
+PUBLIC_APP_URL=${PUBLIC_APP_URL_VALUE}
 
 # ── Caminhos e nomes ─────────────────────────────────────────────────
 SPHARMMT_ROOT=${SPHARMMT_ROOT}

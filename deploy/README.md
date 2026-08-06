@@ -252,6 +252,56 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build --service worker
 O plano deste worker e o `vercel.json` têm de ser mudados em conjunto —
 divergirem significa que um alojamento faz o que o outro não faz.
 
+### Server Actions atrás do proxy
+
+Duas coisas distintas, e ambas davam `Invalid Server Actions request`.
+
+**1. O `Host` estava a ser reescrito.** Em nginx, **um** `proxy_set_header`
+dentro de um `location` **cancela a herança de todos** os do nível acima.
+O `location /` tinha um, e com ele perdia o `Host`: o nginx caía no
+default `$proxy_host` e a aplicação recebia `Host: spharmmt_web` — o nome
+do bloco `upstream`.
+
+```
+location /          →  host=spharmmt_web   xfh=(vazio)     ← partido
+location /_next/…   →  host=127.0.0.1      xfh=127.0.0.1   ← correcto
+```
+
+Isto também partia, em silêncio, a resolução de tenant por subdomínio.
+**Não acrescentar `proxy_set_header` a um `location` sem repetir todos os
+do bloco `server`** — há um teste que o impede.
+
+**2. `SERVER_ACTIONS_ALLOWED_ORIGINS`.** O Next compara o `Origin` do
+browser com o `Host`; atrás de um proxy divergem de forma legítima
+(acesso por IP, por túnel SSH, por um domínio que o container não
+conhece). A lista é a excepção explícita.
+
+| | |
+|---|---|
+| Formato | CSV, sem protocolo: `127.0.0.1:8080,164.132.85.211,app.spharm.pt,*.app.spharm.pt` |
+| Onde se edita | `docker/env/platform.env` |
+| Quando tem efeito | **só depois de reconstruir a imagem** — o Next fixa-a no bundle do servidor |
+| Curinga global | recusado (`*`, `**`, `*:*`) pelo próprio build e pelo `install-stack.sh` |
+| Curinga de subdomínio | permitido (`*.app.spharm.pt`) |
+| Sem a variável, em produção | usa o host de `PUBLIC_APP_URL`; se também faltar, **o build falha** |
+
+Falhar o build é deliberado: mais vale isso do que entregar uma imagem
+onde ninguém consegue autenticar-se.
+
+Mudar a lista:
+
+```bash
+sudo nano /opt/spharmmt/docker/env/platform.env    # SERVER_ACTIONS_ALLOWED_ORIGINS=
+cd /tmp/spharmmt/deploy/scripts && sudo ./install-stack.sh --yes
+```
+
+Verificar o que a imagem aceita, sem a desmontar:
+
+```bash
+sudo docker compose -p spharmmt exec -T web \
+  sh -c 'grep -o "\"allowedOrigins\":\[[^]]*\]" .next/required-server-files.json'
+```
+
 ### Primeiro administrador global
 
 A tabela `GlobalAdmin` do control plane nasce vazia, e não há forma de a

@@ -33,6 +33,7 @@
     "catalog:import": "tsx scripts/catalog-master/import-catalog.ts",
     "catalog:audit": "tsx scripts/catalog-master/audit-catalog.ts",
     "test:catalog-master": "tsx scripts/tests/test-catalog-master.ts",
+    "test:server-actions-origins": "tsx scripts/tests/test-server-actions-origins.ts",
     "aggregate:vendamensal": "tsx scripts/aggregate-vendamensal.ts",
     "ingest:list-orphans": "tsx scripts/list-orphan-products.ts",
     "ingest:backfill-services": "tsx scripts/backfill-non-stock-services.ts",
