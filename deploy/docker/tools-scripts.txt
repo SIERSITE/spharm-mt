@@ -1,0 +1,73 @@
+# deploy/docker/tools-scripts.txt
+#
+# Comandos do package.json que TÊM de funcionar dentro da imagem
+# `migrator` — a que corre no perfil `tools` do compose:
+#
+#   docker compose --profile tools run --rm migrate npm run <comando>
+#
+# Esta lista é a fonte de verdade da auditoria. O build da imagem resolve
+# cada nome no package.json, extrai o ficheiro de entrada e FALHA se
+# algum não existir na imagem (ver audit-tools-entrypoints.mjs).
+#
+# Porquê uma lista explícita e não «tudo o que está no package.json»:
+# o package.json tem ~60 comandos e a maioria são de desenvolvimento ou
+# ad-hoc de investigação. Copiar tudo para a imagem operacional seria
+# arrastar código que ninguém corre em produção. A lista diz, de forma
+# auditável, o que é operacional — e o build obriga a mantê-la honesta.
+#
+# A falha que motivou este ficheiro:
+#
+#   docker compose run --rm migrate npm run tenant:create
+#   ERR_MODULE_NOT_FOUND: /app/scripts/admin/create-client.ts
+#
+# O comando oficial de criação de tenants apontava para `scripts/admin`,
+# que o Dockerfile não copiava. Nada no build acusava isso: descobria-se
+# ao correr o comando, na VPS, no momento de criar o primeiro cliente.
+#
+# Ao acrescentar um comando aqui, garantir que o Dockerfile copia o
+# directório correspondente para o estágio `migrator`. O build diz
+# exactamente qual falta.
+
+# ── Migrations ───────────────────────────────────────────────────────
+# Sem ficheiro próprio (é o CLI do Prisma) — auditado como presente.
+db:migrate:deploy
+
+# ── Control plane ────────────────────────────────────────────────────
+control:generate
+control:migrate:deploy
+control:migrate:status
+control:create-global-admin
+
+# ── Tenants ──────────────────────────────────────────────────────────
+tenancy:provision
+tenancy:list
+tenancy:migrate-all
+tenancy:health
+tenancy:deactivate
+tenancy:reactivate
+tenancy:issue-ingest-key
+tenancy:cleanup-failed
+tenancy:smoke-resolver
+tenancy:debug-ingest-auth
+tenancy:status
+tenancy:add-farmacia
+tenancy:add-user
+tenant:onboard
+
+# ── Criação de cliente ───────────────────────────────────────────────
+# `tenant:create` e `tenancy:create` são o MESMO ficheiro. Os dois nomes
+# circulam na documentação de onboarding, portanto os dois são auditados.
+tenant:create
+tenancy:create
+
+# ── Operação ─────────────────────────────────────────────────────────
+admin:reset-user-password
+env:doctor
+
+# ── Fora desta lista, de propósito ───────────────────────────────────
+# agent:*         — corre na farmácia, não no servidor
+# admin-wizard:*  — PowerShell, corre na máquina do operador
+# catalog:*       — fase seguinte; entra aqui quando o catálogo entrar
+# ingest:*        — manutenção pontual de dados, não operação da stack
+# test:*, lint, typecheck, dev, build, start — desenvolvimento
+# scheduler       — corre no `runner` (serviço worker), não no migrator

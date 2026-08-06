@@ -240,6 +240,16 @@ services:
     env_file:
       - ${SPHARMMT_ENV_FILE:-/opt/spharmmt/docker/env/platform.env}
       - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/app.secrets.env
+      # SÓ AQUI. Leva POSTGRES_SUPERUSER_PASSWORD, de que
+      # `tenant:create --provider=local --create-db` precisa para o
+      # CREATE ROLE / CREATE DATABASE do tenant novo. O entrypoint deriva
+      # dela o POSTGRES_ADMIN_URL em memória — nunca em ficheiro, nunca
+      # no `docker compose config`.
+      #
+      # Acrescentar esta linha ao `web` ou ao `worker` dá superutilizador
+      # da base a processos que servem tráfego. Há um teste que falha se
+      # isso acontecer.
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/tools.secrets.env
     depends_on:
       postgres:
         condition: service_healthy

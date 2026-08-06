@@ -477,6 +477,121 @@ Constrói os dois targets, lê o `required-server-files.json` de dentro da
 imagem e confirma que, com as variáveis vazias, **ambos os builds
 falham**.
 
+### Comandos de administração (perfil `tools`)
+
+Os utilitários que já existiam continuam a ser **os** comandos. Não há
+fluxo paralelo nem versão self-hosted de nada: o que muda é onde correm.
+
+```bash
+sudo docker compose --profile tools run --rm migrate npm run <comando> -- <flags>
+```
+
+O que a imagem `migrator` serve está listado, um por linha, em
+[`deploy/docker/tools-scripts.txt`](docker/tools-scripts.txt). Essa lista
+não é decorativa: o build resolve cada comando no `package.json`, segue o
+**fecho transitivo dos imports** e falha se algum ficheiro não estiver na
+imagem.
+
+```
+[audit-tools] 22 entrypoints e 100 módulos verificados, todos presentes
+```
+
+Foi assim que se descobriu que `tenant:create` — o comando oficial de
+criação de clientes — apontava para `scripts/admin/create-client.ts`, que
+o Dockerfile não copiava. O sintoma aparecia só na VPS, a meio do
+onboarding:
+
+```
+ERR_MODULE_NOT_FOUND: /app/scripts/admin/create-client.ts
+```
+
+Para saber que ficheiros um comando novo arrasta consigo:
+
+```bash
+node deploy/docker/audit-tools-entrypoints.mjs . --list
+```
+
+**Suportado na imagem**: `db:migrate:deploy`, `control:*`, `tenancy:*`,
+`tenant:create`, `tenancy:create`, `tenant:onboard`,
+`admin:reset-user-password`, `env:doctor`.
+
+**Deliberadamente fora**: `agent:*` (corre na farmácia), `admin-wizard:*`
+(PowerShell, máquina do operador), `catalog:*` (entra quando o catálogo
+entrar), `ingest:*` (manutenção pontual), `test:*`/`lint`/`typecheck`/
+`dev`/`build`/`start` (desenvolvimento), `scheduler` (corre no `runner`).
+
+### Credenciais administrativas: `POSTGRES_ADMIN_URL`
+
+`tenant:create --provider=local --create-db` faz `CREATE ROLE` e
+`CREATE DATABASE`. Isso exige superutilizador — que o utilizador da
+aplicação não tem, e não deve ter.
+
+A ligação administrativa é **derivada em memória pelo entrypoint**, só
+nos modos de ferramentas, a partir de `POSTGRES_SUPERUSER_PASSWORD`:
+
+```
+secrets/tools.secrets.env   0600 root:root   montado SÓ pelo serviço migrate
+        │
+        └── entrypoint.sh → POSTGRES_ADMIN_URL (+ TENANT_DB_HOST/PORT)
+```
+
+Consequências, e são o ponto:
+
+- o URL **não existe em ficheiro nenhum** — nem no `stack.env`, nem no
+  `platform.env`, nem dentro da imagem;
+- não aparece em `docker compose config`, que é o output que se cola nas
+  mensagens a pedir ajuda;
+- o `web` e o `worker` não montam o ficheiro de onde ele sai, e o
+  entrypoint ainda lhes limpa `POSTGRES_ADMIN_URL`,
+  `POSTGRES_SUPERUSER_PASSWORD` e `POSTGRES_SUPERUSER` antes de arrancar.
+  Um erro de configuração deixa de ser uma escalada de privilégio;
+- o container é `--rm`: quando termina, o ambiente vai com ele.
+
+O contrato do CLI não mudou. `--provider=neon` e `--provider=manual`
+continuam a funcionar exactamente como antes, e sem superutilizador
+nenhum.
+
+### Criar o primeiro tenant
+
+```bash
+sudo docker compose --profile tools run --rm migrate \
+  npm run --silent tenant:create -- \
+    --slug sier \
+    --name "SIER" \
+    --admin-email <email-do-administrador> \
+    --farmacias "Farmácia A,Farmácia B" \
+    --provider=local --create-db
+```
+
+Correr **primeiro com `--dry-run`**: valida tudo e não escreve nada.
+
+A senha do administrador e a ingest key são impressas **uma única vez**.
+Omitir `--admin-password` para que seja gerada.
+
+Depois:
+
+```bash
+# schema da base do tenant
+... run --rm migrate npm run --silent tenancy:migrate-all
+
+# confirmar
+... run --rm migrate npm run --silent tenancy:list
+... run --rm migrate npm run --silent tenancy:status -- --tenant sier
+... run --rm migrate npm run --silent tenancy:health
+```
+
+Enquanto não houver subdomínios, o acesso faz-se por
+`http://<host>:8080/login?__tenant=sier` — exige
+`TENANT_FALLBACK_ENABLED=1` no `platform.env`.
+
+O ciclo completo — criar, migrar, listar, farmácias, utilizadores, reset
+de senha, ingest key, acesso HTTP, desactivar, reactivar — está coberto
+por um teste que levanta uma stack inteira e descartável:
+
+```bash
+./deploy/tests/live-tenant-lifecycle.sh    # 33 verificações
+```
+
 ### Guarda do `refresh-ipf`
 
 `REFRESH_IPF_MULTI_TENANT_ENABLED` decide o fluxo do

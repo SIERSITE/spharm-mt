@@ -171,6 +171,38 @@ test_secrets() {
   refute "web NÃO recebe os segredos do postgres" \
     bash -c "service_block web | grep -q 'postgres.secrets.env'"
 
+  # ── Fronteira de privilégio das ferramentas ──────────────────────────
+  # O `tools.secrets.env` leva a password de superutilizador, de que o
+  # `tenant:create --provider=local --create-db` precisa para o CREATE
+  # ROLE / CREATE DATABASE. Montá-lo no web ou no worker daria
+  # superutilizador da base a processos que servem tráfego: um RCE na
+  # aplicação passaria a valer o cluster inteiro em vez de uma base.
+  assert "migrate recebe tools.secrets.env" \
+    bash -c "service_block migrate | grep -q 'tools.secrets.env'"
+  refute "web NÃO recebe tools.secrets.env" \
+    bash -c "service_block web | grep -q 'tools.secrets.env'"
+  refute "worker NÃO recebe tools.secrets.env" \
+    bash -c "service_block worker | grep -q 'tools.secrets.env'"
+
+  local istack2="${SCRIPTS_DIR}/install-stack.sh"
+  assert "install-stack deriva tools.secrets.env" \
+    grep -q 'tools.secrets.env' "$istack2"
+  assert "tools.secrets.env nasce 0600 root:root" \
+    bash -c "grep -A3 'local tools_file=' '$istack2' | grep -q 'install -m 0600 -o root -g root'"
+  refute "POSTGRES_ADMIN_URL NÃO é escrito em ficheiro nenhum" \
+    bash -c "grep -rq 'POSTGRES_ADMIN_URL=' '$istack2' '${SCRIPTS_DIR}/install-platform.sh'"
+
+  # Derivado em memória, e só nos modos de ferramentas.
+  local ep="${DOCKER_DIR}/entrypoint.sh"
+  assert "entrypoint deriva POSTGRES_ADMIN_URL" \
+    grep -q 'ensure_admin_url()' "$ep"
+  assert "web larga as credenciais administrativas" \
+    bash -c "awk '/^  web\)/,/;;/' '$ep' | grep -q 'drop_admin_credentials'"
+  assert "worker larga as credenciais administrativas" \
+    bash -c "awk '/^  worker\)/,/;;/' '$ep' | grep -q 'drop_admin_credentials'"
+  refute "o entrypoint nunca regista o URL administrativo" \
+    bash -c "grep -E 'log .*\\\$POSTGRES_ADMIN_URL|log .*\\\$\{POSTGRES_ADMIN_URL' '$ep' | grep -q ."
+
   # Nenhum segredo pode ser INTERPOLADO: ficaria escrito no ficheiro de
   # configuração renderizado.
   refute "nenhum segredo interpolado no compose" \
@@ -436,6 +468,48 @@ test_postgres() {
     bash -c "[ \$(grep -n '^ *validate_compose\$' '$istack' | tail -1 | cut -d: -f1) -lt \$(grep -n '^ *build_images\$' '$istack' | tail -1 | cut -d: -f1) ]"
   assert "distingue 'chave ausente' de 'chave vazia'" \
     grep -q 'if (!found) exit 1' "$istack"
+
+  # ── Comandos do perfil tools ─────────────────────────────────────────
+  # A imagem migrator só copia sub-directórios escolhidos de scripts/.
+  # `tenant:create` aponta para scripts/admin/create-client.ts e faltava:
+  # o comando oficial de criação de tenants morria com
+  # ERR_MODULE_NOT_FOUND, e só na VPS.
+  local manifest="${DOCKER_DIR}/tools-scripts.txt"
+  local auditor="${DOCKER_DIR}/audit-tools-entrypoints.mjs"
+  assert "manifesto dos comandos operacionais existe" test -f "$manifest"
+  assert "auditor de entrypoints existe"              test -f "$auditor"
+  assert "o build corre a auditoria" \
+    grep -q 'RUN node deploy/docker/audit-tools-entrypoints.mjs' "$DOCKERFILE"
+  assert "a auditoria corre DEPOIS dos COPY do migrator" \
+    bash -c "[ \$(grep -n 'RUN node deploy/docker/audit-tools' '$DOCKERFILE' | cut -d: -f1) -gt \$(grep -n 'COPY scripts/admin' '$DOCKERFILE' | cut -d: -f1) ]"
+  assert "tenant:create está no manifesto" \
+    grep -qx 'tenant:create' "$manifest"
+  assert "o Dockerfile copia o entrypoint do tenant:create" \
+    grep -q 'scripts/admin/create-client.ts' "$DOCKERFILE"
+  assert "o Dockerfile copia o entrypoint do reset-user-password" \
+    grep -q 'scripts/admin/reset-user-password.ts' "$DOCKERFILE"
+  # Copiar a pasta inteira traria 43 scripts ad-hoc de investigação.
+  refute "NÃO copia scripts/admin inteiro" \
+    bash -c "grep -qE '^COPY scripts/admin \./scripts/admin\$' '$DOCKERFILE'"
+
+  # Todo o comando do manifesto tem de existir no package.json — senão o
+  # manifesto deixa de descrever o que a imagem serve.
+  local pkg="${DEPLOY_DIR}/../package.json" cmdname
+  if [ ! -f "$pkg" ]; then
+    bad_ "package.json não alcançável em ${pkg}"
+  else
+    while read -r cmdname; do
+      [ -n "$cmdname" ] || continue
+      assert "package.json define ${cmdname}" \
+        grep -q "\"${cmdname}\":" "$pkg"
+    done < <(sed 's/#.*$//' "$manifest" | tr -d ' \t' | grep .)
+  fi
+
+  # O fixture do live-tenant-lifecycle.sh assume TENANT_DB_SSLMODE=disable
+  # porque é o que o install-platform.sh escreve. Se um deixar de o fazer,
+  # o outro passa a testar uma configuração que ninguém tem.
+  assert "install-platform escreve TENANT_DB_SSLMODE" \
+    grep -q '^TENANT_DB_SSLMODE=' "$platform"
 
   assert "afinação conservadora presente"   grep -q 'shared_buffers=' "$COMPOSE"
   assert "max_connections limitado"         grep -q 'max_connections=100' "$COMPOSE"

@@ -427,6 +427,30 @@ derive_secrets() {
   chmod 0600 "$pg_file"; chown root:root "$pg_file"
   ok "postgres.secrets.env (2 chaves, 0600 root:root)"
 
+  # ── Ferramentas administrativas ──────────────────────────────────────
+  # Ficheiro TERCEIRO, montado SÓ pelo serviço `migrate`. Leva a password
+  # de superutilizador porque `tenant:create --provider=local --create-db`
+  # tem de fazer CREATE ROLE e CREATE DATABASE — coisas que o utilizador
+  # da aplicação não pode (e não deve poder) fazer.
+  #
+  # Não vai para o app.secrets.env porque esse é montado pelo web e pelo
+  # worker, que servem tráfego. Um RCE na aplicação passaria a valer o
+  # superutilizador da base inteira em vez de uma base só.
+  #
+  # O POSTGRES_ADMIN_URL não é escrito aqui nem em lado nenhum: é
+  # derivado em memória pelo entrypoint, nos modos de ferramentas.
+  local tools_file="${SPHARMMT_ROOT}/secrets/tools.secrets.env"
+  install -m 0600 -o root -g root /dev/null "$tools_file"
+  {
+    printf '# %s\n' "$tools_file"
+    printf '# DERIVADO de %s por install-stack.sh. Não editar à mão.\n' "$SPHARMMT_SECRETS_FILE"
+    printf '# Montado APENAS pelo serviço `migrate` (perfil tools).\n'
+    printf '# NUNCA pelo web nem pelo worker.\n'
+    printf 'POSTGRES_SUPERUSER_PASSWORD=%s\n' "$POSTGRES_SUPERUSER_PASSWORD"
+  } >> "$tools_file"
+  chmod 0600 "$tools_file"; chown root:root "$tools_file"
+  ok "tools.secrets.env (1 chave, 0600 root:root, só o migrate)"
+
   install -m 0600 -o root -g root /dev/null "$app_file"
   {
     printf '# %s\n' "$app_file"

@@ -139,11 +139,41 @@ function parseProviderKind(raw: string | undefined): ProviderKind | undefined {
   throw new Error(`--provider inválido: "${raw}". Usa neon|manual|local.`);
 }
 
-async function main() {
-  requireControlEnv();
+const USAGE = `Cria um cliente (tenant) novo: base de dados, admin e farmácias iniciais.
 
+Uso:
+  npm run tenant:create -- --slug X --name "Y" --admin-email E [outros]
+
+Obrigatórias:
+  --slug            identificador curto, minúsculas (ex.: farmacias-braga)
+  --name, --nome    nome do cliente (ex.: "Grupo Farmácias de Braga")
+  --admin-email     email do primeiro administrador do cliente
+
+Base de dados (escolher uma):
+  --provider        neon | manual | local
+  --database-url    postgresql://USER:PASS@HOST/DB?sslmode=require
+  --create-db       cria a base no provider configurado
+
+Opcionais:
+  --farmacias       "Nome A,Nome B"   farmácias criadas de início
+  --admin-password  omitir para gerar uma senha (mostrada UMA vez)
+  --admin-nome      nome do administrador
+  --region          ex.: eu-west-2
+  --dry-run         valida e mostra o plano, sem escrever nada
+  --json            output em JSON
+  --quiet           sem progresso
+  --help, -h        esta ajuda
+
+A senha do admin e a ingest key são mostradas UMA única vez.`;
+
+async function main() {
+  // `--help` ANTES do requireControlEnv(): pedir ajuda não pode exigir
+  // CONTROL_DATABASE_URL nem TENANT_ENCRYPTION_SECRET. É também o que
+  // torna este comando verificável dentro do container migrator sem
+  // tocar em base de dados nenhuma — ver deploy/tests/live-tools-run.sh.
   const { values } = parseArgs({
     options: {
+      help: { type: "boolean", short: "h", default: false },
       slug: { type: "string" },
       // `--nome` e `--name` ambos aceites; `--name` é o nome preferido no
       // doc de onboarding por consistência com os outros comandos.
@@ -165,18 +195,20 @@ async function main() {
     allowPositionals: false,
   });
 
+  if (values.help) {
+    console.log(USAGE);
+    process.exit(0);
+    return;
+  }
+
+  requireControlEnv();
+
   const slug = values.slug;
   const nome = values.nome ?? values.name;
   const adminEmail = values["admin-email"];
 
   if (!slug || !nome || !adminEmail) {
-    console.error(
-      'Uso: --slug X --name "Y" --admin-email E [outros]\n' +
-        '  Provider (escolhe um): --provider=neon|manual|local | --database-url "..." | --create-db\n' +
-        '  Farmácias iniciais  : --farmacias "Nome A,Nome B,Nome C"\n' +
-        '  Senha admin         : --admin-password XXX  (omite para gerar)\n' +
-        '  Outros              : --admin-nome "Nome", --region eu-west-2, --dry-run, --json, --quiet'
-    );
+    console.error(USAGE);
     process.exit(1);
     return;
   }

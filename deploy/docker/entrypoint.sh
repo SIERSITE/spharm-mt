@@ -74,6 +74,77 @@ ensure_db_urls() {
   log "postgres ${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432} · legacy=${POSTGRES_LEGACY_DB:-<url>} · control=${POSTGRES_CONTROL_DB:-<url>} · sslmode=${DATABASE_SSLMODE:-<default>}"
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# Runtime administrativo (SÓ nos modos de ferramentas)
+# ─────────────────────────────────────────────────────────────────────
+#
+# `tenant:create --provider=local --create-db` precisa de uma ligação de
+# superutilizador para o CREATE ROLE / CREATE DATABASE do tenant novo
+# (ver lib/db-providers/local-postgres.ts). O contrato do CLI já existe e
+# não muda: ele lê POSTGRES_ADMIN_URL e TENANT_DB_HOST.
+#
+# O que muda é de onde vêm. Derivadas AQUI, em memória, a partir da
+# password de superutilizador que só o serviço `migrate` monta
+# (secrets/tools.secrets.env, 0600 root:root). Consequências:
+#
+#   · POSTGRES_ADMIN_URL não existe em ficheiro nenhum — nem no
+#     stack.env, nem no platform.env, nem na imagem;
+#   · não aparece em `docker compose config`, que é o output que as
+#     pessoas colam em mensagens quando pedem ajuda;
+#   · o web e o worker nunca a vêem, porque nem sequer montam o ficheiro
+#     de onde ela sai (e são limpos abaixo, por precaução).
+#
+# NUNCA registar o URL: leva a password. O log diz o utilizador e o
+# destino, que é o que serve para diagnosticar.
+ensure_admin_url() {
+  if [ -n "${POSTGRES_ADMIN_URL:-}" ]; then
+    log "administração: POSTGRES_ADMIN_URL definido explicitamente (não derivado)"
+    return 0
+  fi
+
+  if [ -z "${POSTGRES_SUPERUSER_PASSWORD:-}" ]; then
+    # NÃO é erro. Os fluxos `--provider=neon` e `--provider=manual` não
+    # precisam de superutilizador nenhum, e as migrations também não.
+    log "administração: sem POSTGRES_SUPERUSER_PASSWORD — só --provider=neon|manual"
+    return 0
+  fi
+
+  local admin_user=${POSTGRES_SUPERUSER:-postgres}
+  # Base de manutenção: ligar a `postgres` e não à do control plane. Um
+  # CREATE DATABASE não pode correr dentro da base que se está a usar
+  # como alvo, e a `postgres` existe sempre.
+  POSTGRES_ADMIN_URL=$(
+    ADMIN_USER="$admin_user" ADMIN_PASSWORD="$POSTGRES_SUPERUSER_PASSWORD" \
+    ADMIN_DB="${POSTGRES_ADMIN_DB:-postgres}" \
+    node -e '
+      const enc = encodeURIComponent;
+      const host = process.env.POSTGRES_HOST || "postgres";
+      const port = process.env.POSTGRES_PORT || "5432";
+      const ssl  = (process.env.DATABASE_SSLMODE || "").trim();
+      let url = `postgresql://${enc(process.env.ADMIN_USER)}:${enc(process.env.ADMIN_PASSWORD)}@${host}:${port}/${process.env.ADMIN_DB}`;
+      if (ssl) url += `?sslmode=${enc(ssl)}`;
+      process.stdout.write(url);
+    '
+  )
+  export POSTGRES_ADMIN_URL
+
+  # O provider `local` precisa das duas: o URL para ADMINISTRAR e o host
+  # que vai ficar gravado na ligação do tenant. São conceitos distintos —
+  # daí não as deduzir uma da outra dentro do provider.
+  export TENANT_DB_HOST=${TENANT_DB_HOST:-${POSTGRES_HOST:-postgres}}
+  export TENANT_DB_PORT=${TENANT_DB_PORT:-${POSTGRES_PORT:-5432}}
+
+  log "administração: POSTGRES_ADMIN_URL derivado (${admin_user}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_ADMIN_DB:-postgres}), tenants em ${TENANT_DB_HOST}:${TENANT_DB_PORT}"
+}
+
+# Defesa em profundidade para os serviços que servem tráfego. Se algum
+# dia alguém acrescentar o ficheiro de segredos errado ao `env_file` do
+# web, o processo continua a não receber credenciais de superutilizador:
+# um bug de configuração deixa de ser uma escalada de privilégios.
+drop_admin_credentials() {
+  unset POSTGRES_ADMIN_URL POSTGRES_SUPERUSER_PASSWORD POSTGRES_SUPERUSER
+}
+
 # Espera activa pelo PostgreSQL. O `depends_on: service_healthy` do
 # compose já cobre o arranque normal; isto cobre o reinício do Postgres
 # com a aplicação de pé, em que o container não é recriado.
@@ -105,6 +176,7 @@ shift || true
 
 case "$mode" in
   web)
+    drop_admin_credentials
     ensure_db_urls
     log "a arrancar o servidor Next em ${HOSTNAME:-0.0.0.0}:${PORT:-3000}"
     # `exec` para que o Node fique com o PID 1 e receba SIGTERM
@@ -114,6 +186,7 @@ case "$mode" in
     ;;
 
   worker)
+    drop_admin_credentials
     ensure_db_urls
     log "a arrancar o worker (SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-0})"
     exec node scripts/workers/scheduler.mjs "$@"
@@ -121,6 +194,7 @@ case "$mode" in
 
   migrate)
     ensure_db_urls
+    ensure_admin_url
     wait_for_postgres
 
     # Ordem obrigatória: o control plane primeiro. É ele que regista os
@@ -147,6 +221,7 @@ case "$mode" in
 
   shell)
     ensure_db_urls
+    ensure_admin_url
     exec bash "$@"
     ;;
 
@@ -155,6 +230,7 @@ case "$mode" in
     # `docker compose run --rm migrate npm run tenancy:list` sem ter de
     # acrescentar um modo por cada script.
     ensure_db_urls
+    ensure_admin_url
     exec "$mode" "$@"
     ;;
 esac

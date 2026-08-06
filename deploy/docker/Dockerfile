@@ -144,14 +144,25 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Só o que as migrations e os scripts de tenancy tocam. Copiar o
+# Só o que as migrations e os comandos operacionais tocam. Copiar o
 # repositório inteiro traria `.next`, notas e artefactos que nada disto
 # usa, e tornaria o cache inútil a cada alteração de UI.
 #
-# `scripts/` é copiado por sub-directório e não inteiro: destes dois saem
-# todos os caminhos de migração (ver deploy/tests/test-dockerfile-copy.sh,
-# que verifica que cada COPY existe mesmo em HEAD). Os restantes ~100
-# scripts ad-hoc de investigação não têm nada que ver com migrations.
+# `scripts/` é copiado por sub-directório e não inteiro (ver
+# deploy/tests/test-dockerfile-copy.sh, que verifica que cada COPY existe
+# mesmo em HEAD). O que entra é o que os comandos de
+# deploy/docker/tools-scripts.txt precisam — e o RUN de auditoria no fim
+# deste estágio prova que não falta nenhum.
+#
+# `scripts/admin` faltava, e o sintoma só aparecia na VPS, ao criar o
+# primeiro cliente:
+#   npm run tenant:create → ERR_MODULE_NOT_FOUND /app/scripts/admin/create-client.ts
+#
+# Copiam-se FICHEIROS e não a pasta: `scripts/admin` tem 45 ficheiros e
+# 43 são ad-hoc de investigação, que nada têm que ver com operar a stack.
+# Os dois que entram são os que os comandos operacionais usam — e não é
+# palpite: `audit-tools-entrypoints.mjs --list` calcula o fecho
+# transitivo dos imports e diz exactamente quais são.
 COPY package.json package-lock.json tsconfig.json ./
 COPY prisma.config.ts ./
 COPY prisma-control.config.ts ./
@@ -160,7 +171,15 @@ COPY prisma-control ./prisma-control
 COPY lib ./lib
 COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
+COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts ./scripts/admin/
+COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 COPY --from=builder /app/generated ./generated
+
+# Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro
+# de entrada AQUI. Falhar agora custa um build; não falhar custa
+# descobrir na VPS, com o operador a meio de um onboarding.
+COPY deploy/docker/tools-scripts.txt deploy/docker/audit-tools-entrypoints.mjs ./deploy/docker/
+RUN node deploy/docker/audit-tools-entrypoints.mjs /app
 
 COPY deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
