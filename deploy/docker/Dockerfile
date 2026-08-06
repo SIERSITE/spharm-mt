@@ -115,6 +115,79 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# ── CLI do Prisma e migrations ───────────────────────────────────────
+# POST /api/admin/v1/tenants cria um cliente, e criar um cliente inclui
+# aplicar o schema à base nova. O workflow faz isso com
+# `npx prisma migrate deploy` (ver scripts/tenancy/_shared.ts,
+# runPrismaForTenant) — um subprocesso, não uma API programática: o
+# Prisma 7 não expõe migrate de forma programática estável.
+#
+# O standalone do Next traz só o que o traçado provou ser usado em
+# runtime, e o CLI do Prisma não entra nisso. Sem estas linhas a criação
+# falha no passo `apply-migrations` com a base já criada — o pior sítio
+# possível para falhar. Reproduzido em stack real antes de acrescentar.
+#
+# Custo assumido: ~150 MB de imagem, e o processo que serve tráfego passa
+# a ter ferramentas de DDL. Não é privilégio novo — o `web` já tem o role
+# de aprovisionamento (CREATEDB+CREATEROLE) desde que a criação de
+# clientes passou a ser feita por API. O que muda é a conveniência de
+# quem já tivesse execução de código lá dentro.
+# O CLI é instalado numa ÁRVORE PRÓPRIA, e não copiado pacote a pacote
+# de `deps`. Duas tentativas falhadas explicam porquê:
+#
+#   1. copiar `node_modules/prisma` + `@prisma` deixava de fora as
+#      dependências transitivas → "Cannot find module 'pathe'";
+#   2. copiar `node_modules/.bin/prisma` desreferenciava o symlink e o
+#      CLI procurava os seus assets dentro de `.bin/` →
+#      "ENOENT ... .bin/prisma_schema_build_bg.wasm".
+#
+# Perseguir a lista de dependências à mão é um jogo sem fim. Um `npm
+# install` isolado resolve a árvore correctamente, e em /opt não pode
+# colidir com o node_modules traçado do standalone.
+#
+# A versão vem do package.json (mesmo intervalo do lockfile). O CLI aqui
+# só corre `migrate deploy`.
+#
+# Os dois symlinks para /app/node_modules existem porque o CLI carrega
+# `prisma.config.ts` a partir do cwd, e esse ficheiro faz
+# `import "dotenv/config"` e `import { defineConfig } from "prisma/config"`
+# — os dois têm de resolver a partir de /app. O Node resolve pelo
+# realpath, portanto as dependências de cada um continuam a vir de /opt,
+# sem contaminar o node_modules traçado do standalone.
+#
+# E o config É mesmo preciso: `prisma/schema.prisma` NÃO declara `url` no
+# bloco datasource — quem a fornece é o config, a partir de DATABASE_URL.
+COPY --chown=nextjs:nodejs package.json ./package.json
+RUN PRISMA_VERSION=$(node -p "require('/app/package.json').devDependencies.prisma || require('/app/package.json').dependencies.prisma") \
+ && DOTENV_VERSION=$(node -p "require('/app/package.json').dependencies.dotenv") \
+ && npm install --prefix /opt/prisma-cli --no-save --no-audit --no-fund \
+      "prisma@${PRISMA_VERSION}" "dotenv@${DOTENV_VERSION}" \
+ && mkdir -p /app/node_modules/.bin \
+ && ln -sf /opt/prisma-cli/node_modules/prisma/build/index.js /app/node_modules/.bin/prisma \
+ && rm -rf /app/node_modules/prisma /app/node_modules/dotenv \
+ && ln -sfn /opt/prisma-cli/node_modules/prisma /app/node_modules/prisma \
+ && ln -sfn /opt/prisma-cli/node_modules/dotenv /app/node_modules/dotenv \
+ && chown -h nextjs:nodejs /app/node_modules/.bin/prisma \
+      /app/node_modules/prisma /app/node_modules/dotenv
+
+# Prova, no build, de que o CLI carrega mesmo. Sem isto a falha aparecia
+# em produção, a meio de uma criação de cliente, com a base do tenant já
+# criada — e cada diagnóstico custava reconstruir a stack inteira.
+#
+# Foram precisas cinco voltas para lá chegar: symlink desreferenciado,
+# `.bin` inexistente, dependências transitivas em falta, e por fim o
+# `dotenv` que o Next traça PARCIALMENTE (fica com `lib/` e sem
+# `config.js`), sobre o qual um `ln -sfn` criava um link aninhado em vez
+# de substituir. Nenhuma delas era visível sem correr.
+RUN cd /app \
+ && node -e "require.resolve('dotenv/config')" \
+ && node -e "require.resolve('prisma/config')" \
+ && node node_modules/.bin/prisma --version >/dev/null \
+ && echo "[build] CLI do Prisma operacional no runner"
+COPY --chown=nextjs:nodejs prisma ./prisma
+COPY --chown=nextjs:nodejs prisma-control ./prisma-control
+COPY --chown=nextjs:nodejs prisma.config.ts prisma-control.config.ts ./
+
 # Scheduler (JS puro, sem dependências) e entrypoint.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/workers/scheduler.mjs ./scripts/workers/scheduler.mjs
 COPY --chown=nextjs:nodejs deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -171,7 +244,8 @@ COPY prisma-control ./prisma-control
 COPY lib ./lib
 COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
-COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts ./scripts/admin/
+COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts \
+     scripts/admin/package-agent.ts ./scripts/admin/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 COPY --from=builder /app/generated ./generated
 

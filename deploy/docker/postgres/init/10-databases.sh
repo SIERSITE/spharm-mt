@@ -87,6 +87,55 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────
+# 1b. Role de aprovisionamento
+# ─────────────────────────────────────────────────────────────────────
+#
+# Criar um cliente novo exige CREATE ROLE + CREATE DATABASE. Quem o pede
+# é a API de administração, que corre no serviço `web` — e o `web` NÃO
+# pode ter a password de superutilizador.
+#
+# Este role é o meio-termo: pode criar bases e roles, e mais nada. Não é
+# superutilizador, não faz replicação, não lê ficheiros do servidor, não
+# desliga o servidor.
+#
+# Sobre o CREATEROLE: a partir do PostgreSQL 16 um role com CREATEROLE só
+# administra os roles que ele próprio criou, e não pode conceder
+# SUPERUSER. Em versões anteriores isto era uma escalada conhecida — é
+# uma das razões para esta stack fixar a versão maior.
+#
+# O que isto acrescenta ao alcance de um RCE no `web`: criar e destruir
+# bases. NÃO acrescenta leitura de dados de tenants — o `web` já os lê
+# todos por desenho (é ele que serve cada tenant, decifrando as
+# credenciais com TENANT_ENCRYPTION_SECRET). O delta real é
+# disponibilidade, não confidencialidade.
+#
+# Sem password definida, o role não é criado e a criação de clientes por
+# API responde com um erro claro. Não é fatal: os fluxos `manual` e
+# `neon` não precisam dele.
+PROVISIONER_USER=${POSTGRES_PROVISIONER_USER:-spharmmt_provisioner}
+PROVISIONER_PASSWORD=${POSTGRES_PROVISIONER_PASSWORD:-}
+
+if [ -z "$PROVISIONER_PASSWORD" ]; then
+  log "POSTGRES_PROVISIONER_PASSWORD não definida — role de aprovisionamento não criado"
+elif exists_role "$PROVISIONER_USER"; then
+  log "role ${PROVISIONER_USER} já existe — password reposta a partir dos segredos"
+  psql_super <<-SQL
+	ALTER ROLE "${PROVISIONER_USER}" WITH LOGIN PASSWORD '${PROVISIONER_PASSWORD}';
+	SQL
+else
+  log "a criar role ${PROVISIONER_USER} (CREATEDB + CREATEROLE, sem superuser)"
+  psql_super <<-SQL
+	CREATE ROLE "${PROVISIONER_USER}"
+	  LOGIN
+	  NOSUPERUSER
+	  CREATEDB
+	  CREATEROLE
+	  NOREPLICATION
+	  PASSWORD '${PROVISIONER_PASSWORD}';
+	SQL
+fi
+
+# ─────────────────────────────────────────────────────────────────────
 # 2. Bases da plataforma
 # ─────────────────────────────────────────────────────────────────────
 create_db() {

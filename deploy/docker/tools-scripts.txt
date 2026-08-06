@@ -64,6 +64,22 @@ tenancy:create
 admin:reset-user-password
 env:doctor
 
+# ── Pacote do agent ──────────────────────────────────────────────────
+# ATENÇÃO ao que esta linha garante e ao que não garante. A auditoria
+# prova que o CÓDIGO está na imagem — o entrypoint e todos os módulos
+# que ele importa. Não prova que corre: o `package-agent` copia de
+# `dist-agent/SPharmMT-Agent/`, um directório de BUILD que a imagem não
+# tem. Para o usar no servidor é preciso extrair lá o ZIP base:
+#
+#   unzip /opt/spharmmt/agent-base/spharmmt-agent-base.zip \
+#         -d <dir>/dist-agent/SPharmMT-Agent
+#
+# O caminho normal do Admin Wizard NÃO passa por aqui: o wizard pede o
+# `agent-package` à API (que só emite a chave e devolve o config) e monta
+# o ZIP na máquina do técnico, a partir do template servido em
+# /agent-base/.
+admin:package-agent
+
 # ── Fora desta lista, de propósito ───────────────────────────────────
 # agent:*         — corre na farmácia, não no servidor
 # admin-wizard:*  — PowerShell, corre na máquina do operador

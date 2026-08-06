@@ -145,6 +145,53 @@ drop_admin_credentials() {
   unset POSTGRES_ADMIN_URL POSTGRES_SUPERUSER_PASSWORD POSTGRES_SUPERUSER
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# Aprovisionamento (SÓ no `web`)
+# ─────────────────────────────────────────────────────────────────────
+#
+# POST /api/admin/v1/tenants cria um cliente, e criar um cliente exige
+# CREATE ROLE + CREATE DATABASE. Esse pedido chega ao serviço `web` — que
+# não pode ter a password de superutilizador.
+#
+# A saída é um role intermédio: `spharmmt_provisioner`, com CREATEDB e
+# CREATEROLE e mais nada (ver postgres/init/10-databases.sh). O `web`
+# recebe a password DELE, nunca a do superutilizador, e monta o
+# POSTGRES_ADMIN_URL aqui, em memória.
+#
+# Porque é que isto é aceitável, e vale a pena ser explícito: o que o
+# role acrescenta ao alcance de um RCE no `web` é criar e destruir bases.
+# NÃO acrescenta leitura de dados — o `web` já lê todos os tenants por
+# desenho, é ele que os serve. O delta é disponibilidade, não
+# confidencialidade.
+#
+# O `worker` não recebe nada disto: não expõe API nenhuma.
+ensure_provisioner_url() {
+  if [ -n "${POSTGRES_ADMIN_URL:-}" ]; then return 0; fi
+  if [ -z "${POSTGRES_PROVISIONER_PASSWORD:-}" ]; then
+    log "aprovisionamento: sem POSTGRES_PROVISIONER_PASSWORD — criar clientes por API vai falhar com erro explícito"
+    return 0
+  fi
+
+  local prov_user=${POSTGRES_PROVISIONER_USER:-spharmmt_provisioner}
+  POSTGRES_ADMIN_URL=$(
+    ADMIN_USER="$prov_user" ADMIN_PASSWORD="$POSTGRES_PROVISIONER_PASSWORD" \
+    ADMIN_DB="${POSTGRES_ADMIN_DB:-postgres}" \
+    node -e '
+      const enc = encodeURIComponent;
+      const host = process.env.POSTGRES_HOST || "postgres";
+      const port = process.env.POSTGRES_PORT || "5432";
+      const ssl  = (process.env.DATABASE_SSLMODE || "").trim();
+      let url = `postgresql://${enc(process.env.ADMIN_USER)}:${enc(process.env.ADMIN_PASSWORD)}@${host}:${port}/${process.env.ADMIN_DB}`;
+      if (ssl) url += `?sslmode=${enc(ssl)}`;
+      process.stdout.write(url);
+    '
+  )
+  export POSTGRES_ADMIN_URL
+  export TENANT_DB_HOST=${TENANT_DB_HOST:-${POSTGRES_HOST:-postgres}}
+  export TENANT_DB_PORT=${TENANT_DB_PORT:-${POSTGRES_PORT:-5432}}
+  log "aprovisionamento: POSTGRES_ADMIN_URL derivado (${prov_user}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}), tenants em ${TENANT_DB_HOST}:${TENANT_DB_PORT}"
+}
+
 # Espera activa pelo PostgreSQL. O `depends_on: service_healthy` do
 # compose já cobre o arranque normal; isto cobre o reinício do Postgres
 # com a aplicação de pé, em que o container não é recriado.
@@ -177,6 +224,7 @@ shift || true
 case "$mode" in
   web)
     drop_admin_credentials
+    ensure_provisioner_url
     ensure_db_urls
     log "a arrancar o servidor Next em ${HOSTNAME:-0.0.0.0}:${PORT:-3000}"
     # `exec` para que o Node fique com o PID 1 e receba SIGTERM
@@ -187,6 +235,8 @@ case "$mode" in
 
   worker)
     drop_admin_credentials
+    # Sem aprovisionamento: o worker nao expoe API e nao cria clientes.
+    unset POSTGRES_PROVISIONER_PASSWORD
     ensure_db_urls
     log "a arrancar o worker (SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-0})"
     exec node scripts/workers/scheduler.mjs "$@"

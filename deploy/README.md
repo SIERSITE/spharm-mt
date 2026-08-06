@@ -551,6 +551,34 @@ O contrato do CLI não mudou. `--provider=neon` e `--provider=manual`
 continuam a funcionar exactamente como antes, e sem superutilizador
 nenhum.
 
+### Admin Wizard contra a VPS: o acesso por IP NÃO chega
+
+O wizard autentica-se com `ADMIN_API_TOKENS` — um bearer token enviado em
+**todos** os pedidos, incluindo os que criam clientes e devolvem senhas e
+ingest keys. Em HTTP simples, esse token e esses segredos viajam em claro
+por toda a rede entre o técnico e o servidor.
+
+Portanto, uma de duas, e não há terceira:
+
+**Túnel SSH** (o que usar já, antes de haver domínio):
+
+```bash
+ssh -L 8080:127.0.0.1:8080 deploy@<ip-da-vps>
+# no wizard: endpoint = http://127.0.0.1:8080
+```
+
+O `PROXY_BIND=127.0.0.1` do `platform.env` garante que não há mais nada a
+escutar de fora — o túnel é a única porta.
+
+**HTTPS público** (quando houver domínio): descomentar o bloco TLS em
+`proxy/spharmmt.conf`, pôr os certificados em `/opt/spharmmt/proxy/certs`,
+`PROXY_BIND=0.0.0.0`, `SESSION_COOKIE_SECURE=1` e
+`PUBLIC_APP_URL=https://…`.
+
+**Abrir o porto 8080 ao mundo sem TLS não é uma alternativa aceitável**:
+expõe o token de administração da plataforma inteira a qualquer
+intermediário de rede.
+
 ### Criar o primeiro tenant
 
 ```bash

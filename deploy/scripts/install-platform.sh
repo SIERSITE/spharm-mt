@@ -481,6 +481,7 @@ EOF
   secret_ensure TENANT_ENCRYPTION_SECRET    "gen_hex 32"      "AES-256-GCM de Tenant.dbPassEncrypted — NAO RODAR"
   secret_ensure EMAIL_CONFIG_SECRET         "gen_hex 32"      "Cifra das credenciais SMTP por farmácia"
   secret_ensure ADMIN_API_TOKEN             "gen_hex 32"      "Token do Admin Wizard (ADMIN_API_TOKENS)"
+  secret_ensure POSTGRES_PROVISIONER_PASSWORD "gen_password 40" "Role que cria bases de tenants (CREATEDB+CREATEROLE, sem superuser)"
 
   if [ "$ROTATE_CRON_SECRET" = "1" ] && [ "$DRY_RUN" != "1" ]; then
     backup_file "$SPHARMMT_SECRETS_FILE"
@@ -636,6 +637,28 @@ REFRESH_IPF_MULTI_TENANT_ENABLED=0
 # ── Feature flags ────────────────────────────────────────────────────
 ENABLE_AGENT_BOOTSTRAP=0
 TENANT_FALLBACK_ENABLED=1
+
+# ── ZIP base do agent ────────────────────────────────────────────────
+# De onde o Admin Wizard descarrega o template do agent para depois lhe
+# injectar o agent.config.json. Servido pelo PRÓPRIO servidor
+# (/agent-base/, ver proxy/spharmmt.conf) e não pela Vercel Blob — é
+# assim que a instalação de uma farmácia deixa de depender de
+# infra-estrutura externa.
+#
+# O nome do ficheiro é ESTÁVEL de propósito. Publicar uma revisão nova é
+# copiar o ZIP para este nome:
+#
+#   sudo install -m 0644 -o deploy -g spharmmt \\
+#     spharmmt-agent-base-rev<N>.zip \\
+#     ${SPHARMMT_ROOT}/agent-base/spharmmt-agent-base.zip
+#
+# Assim a configuração não muda a cada revisão, e a revisão fica
+# registada dentro do próprio pacote. Enquanto não houver ficheiro lá, a
+# aba "Agent ZIP" do wizard diz que o servidor não devolveu baseAgentUrl.
+#
+# Apontar a um object storage externo continua a ser possível: basta
+# substituir este valor por um URL absoluto.
+AGENT_BASE_ZIP_URL=${public_url}/agent-base/spharmmt-agent-base.zip
 
 # ── Recursos ─────────────────────────────────────────────────────────
 # 8 GB de RAM no total: ~2 GB Postgres, ~3 GB app, resto para SO e picos.

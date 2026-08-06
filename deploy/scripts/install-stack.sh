@@ -402,7 +402,8 @@ derive_secrets() {
   local missing_secrets=""
   local k
   for k in POSTGRES_SUPERUSER_PASSWORD POSTGRES_APP_PASSWORD AUTH_SECRET \
-           TENANT_ENCRYPTION_SECRET EMAIL_CONFIG_SECRET CRON_SECRET ADMIN_API_TOKEN; do
+           TENANT_ENCRYPTION_SECRET EMAIL_CONFIG_SECRET CRON_SECRET ADMIN_API_TOKEN \
+           POSTGRES_PROVISIONER_PASSWORD; do
     [ -n "$(printenv "$k" 2>/dev/null || true)" ] || missing_secrets="${missing_secrets} ${k}"
   done
   [ -z "${missing_secrets// /}" ] || die_precond "segredos em falta em ${SPHARMMT_SECRETS_FILE}:${missing_secrets}"
@@ -423,9 +424,13 @@ derive_secrets() {
     # mesmo valor, com o nome que cada lado exige.
     printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_SUPERUSER_PASSWORD"
     printf 'POSTGRES_APP_PASSWORD=%s\n' "$POSTGRES_APP_PASSWORD"
+    # Com esta, o script de init cria o role de aprovisionamento
+    # (CREATEDB + CREATEROLE, SEM superuser) que a API de administração
+    # usa para criar a base de um cliente novo.
+    printf 'POSTGRES_PROVISIONER_PASSWORD=%s\n' "$POSTGRES_PROVISIONER_PASSWORD"
   } >> "$pg_file"
   chmod 0600 "$pg_file"; chown root:root "$pg_file"
-  ok "postgres.secrets.env (2 chaves, 0600 root:root)"
+  ok "postgres.secrets.env (3 chaves, 0600 root:root)"
 
   # ── Ferramentas administrativas ──────────────────────────────────────
   # Ficheiro TERCEIRO, montado SÓ pelo serviço `migrate`. Leva a password
@@ -463,9 +468,14 @@ derive_secrets() {
     printf 'EMAIL_CONFIG_SECRET=%s\n' "$EMAIL_CONFIG_SECRET"
     printf 'CRON_SECRET=%s\n' "$CRON_SECRET"
     printf 'ADMIN_API_TOKENS=%s\n' "$ADMIN_API_TOKEN"
+    # NÃO é a password de superutilizador. É um role que só pode criar
+    # bases e roles, e existe porque a criação de clientes passou a ser
+    # feita pela API — que corre no `web`. O entrypoint descarta-a no
+    # worker: só o web precisa dela.
+    printf 'POSTGRES_PROVISIONER_PASSWORD=%s\n' "$POSTGRES_PROVISIONER_PASSWORD"
   } >> "$app_file"
   chmod 0600 "$app_file"; chown root:root "$app_file"
-  ok "app.secrets.env (6 chaves, 0600 root:root)"
+  ok "app.secrets.env (7 chaves, 0600 root:root)"
 
   enforce_secret_file_modes
 }
@@ -579,6 +589,10 @@ POSTGRES_INIT_DIR=${SPHARMMT_PG_DIR}/init
 # server{}; se estiver vazio, arranca e não escuta em porto nenhum.
 PROXY_CONF_DIR=${SPHARMMT_PROXY_CONF_DIR}
 PROXY_CERTS_DIR=${SPHARMMT_ROOT}/proxy/certs
+# Montado em só-leitura no nginx e servido em /agent-base/. É daqui que o
+# Admin Wizard descarrega o template do agent — sem passar por object
+# storage externo.
+AGENT_BASE_DIR=${SPHARMMT_ROOT}/agent-base
 # Montado em /backups:ro dentro do PostgreSQL — é o que permite ao
 # restore-platform.sh usar pg_restore com -j (impossível a partir do stdin).
 BACKUP_DIR=${SPHARMMT_BACKUP_DIR}

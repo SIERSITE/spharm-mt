@@ -666,6 +666,12 @@ ensure_proxy_dirs() {
 
   ensure_dir "$SPHARMMT_PROXY_CONF_DIR" 0755 "$owner"
   ensure_dir "${SPHARMMT_ROOT}/proxy/certs" 0750 "$owner"
+  # ZIP base do agent, montado no nginx em só-leitura e servido em
+  # /agent-base/. 0755 pela mesma razão que o conf: o utilizador do
+  # container (uid 101) tem de atravessar o directório, e com
+  # `cap_drop: ALL` nem o root lá dentro tem DAC_OVERRIDE para
+  # contornar um bit em falta.
+  ensure_dir "${SPHARMMT_ROOT}/agent-base" 0755 "$owner"
   [ "$DRY_RUN" = "1" ] && return 0
 
   # Modo reafirmado a cada execução: uma configuração instalada antes

@@ -165,6 +165,43 @@ if (Test-Path $OutExe) {
   exit 1
 }
 
+# ─── Registo de correspondencia fonte <-> EXE ─────────────────────────
+#
+# O .exe e um binario opaco: ninguem, a olhar para HEAD, consegue dizer
+# de que .ps1 saiu. Ja aconteceu ficar em HEAD um .exe sem o .ps1 ao lado
+# -- e o .exe e precisamente o que o tecnico executa por duplo-click.
+#
+# Este ficheiro fecha essa lacuna: guarda o SHA-256 da fonte e do
+# binario no momento do build. O teste deploy/tests/test-wizard-build.sh
+# recusa um HEAD onde a fonte tenha mudado sem rebuild.
+#
+# O que isto NAO prova: que o .exe foi mesmo compilado a partir daquela
+# fonte (o ps2exe nao e reprodutivel -- embute timestamps). Prova que o
+# par (fonte, binario) commitado e o par que existia no build. Para
+# garantia forte, reconstruir e comparar comportamento.
+$srcHash = (Get-FileHash -Algorithm SHA256 -Path $Src).Hash.ToLower()
+$exeHash = (Get-FileHash -Algorithm SHA256 -Path $OutExe).Hash.ToLower()
+$commit = ""
+try { $commit = (& git rev-parse --short HEAD 2>$null) } catch {}
+$info = [ordered]@{
+  source       = "admin-wizard/SPharmMT-Admin-Wizard.ps1"
+  sourceSha256 = $srcHash
+  exe          = "dist-admin/SPharmMT-Admin-Wizard.exe"
+  exeSha256    = $exeHash
+  ps2exe       = [string]$module.Version
+  builtAtUtc   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  gitCommit    = [string]$commit
+}
+$infoPath = Join-Path (Split-Path $OutExe -Parent) "BUILD-INFO.json"
+# UTF-8 sem BOM: o teste le isto com ferramentas POSIX.
+[System.IO.File]::WriteAllText(
+  $infoPath,
+  (($info | ConvertTo-Json -Depth 4) + "`n"),
+  (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "[OK] BUILD-INFO.json -> $infoPath" -ForegroundColor Green
+Write-Host "     fonte: $srcHash"
+Write-Host "     exe  : $exeHash"
+
 Write-Host ""
 Write-Host "─── Build concluido ───" -ForegroundColor Cyan
 Write-Host "  Executavel : $OutExe"

@@ -12,6 +12,14 @@
  * Upload directo do Node para o Blob (com o RW token) — NÃO passa por
  * função serverless, logo não há limite de 4.5 MB. Suporta multipart.
  *
+ * SELF-HOSTED: com `--dest`, o ZIP é escrito num directório local em vez
+ * de ir para a Vercel. Na VPS esse directório é servido pelo nginx em
+ * /agent-base/ — e assim instalar uma farmácia deixa de depender de
+ * object storage externo. O token do Blob passa a ser preciso apenas
+ * para quem publica na Vercel.
+ *
+ *   npm run agent:publish-base -- --dest /opt/spharmmt/agent-base
+ *
  * Uso:
  *   # auto-detecta o único spharmmt-agent-base-rev*.zip em dist-agent/
  *   npm run agent:publish-base
@@ -29,7 +37,15 @@
 
 import "dotenv/config";
 import { parseArgs } from "node:util";
-import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  existsSync,
+  statSync,
+  writeFileSync,
+  renameSync,
+  chmodSync,
+} from "node:fs";
 import path from "node:path";
 import { put } from "@vercel/blob";
 
@@ -69,10 +85,62 @@ function resolveZipPath(explicit?: string): string {
 
 async function main(): Promise<void> {
   const { values } = parseArgs({
-    options: { file: { type: "string" } },
+    options: {
+      file: { type: "string" },
+      // Modo self-hosted: em vez de enviar para a Vercel Blob, escreve o
+      // ZIP num directório local — tipicamente
+      // /opt/spharmmt/agent-base, que o nginx serve em /agent-base/.
+      // Não é um comando novo: é o mesmo `agent:publish-base` com outro
+      // destino, para que exista UM sítio onde se publica o agent.
+      dest: { type: "string" },
+      // Nome com que fica no destino. O default é estável de propósito:
+      // a configuração (AGENT_BASE_ZIP_URL) não muda a cada revisão, e a
+      // revisão fica registada dentro do próprio pacote.
+      as: { type: "string" },
+    },
     strict: true,
   });
 
+  // ── Publicação local (VPS) ──────────────────────────────────────────
+  if (values.dest) {
+    const zipPath = resolveZipPath(values.file);
+    const destDir = path.resolve(values.dest);
+    if (!existsSync(destDir) || !statSync(destDir).isDirectory()) {
+      fail(`--dest não é um directório existente: ${destDir}`);
+    }
+    const targetName = values.as ?? "spharmmt-agent-base.zip";
+    if (!/^[A-Za-z0-9._-]+\.zip$/.test(targetName)) {
+      // O nginx só serve /agent-base/<nome>.zip com este alfabeto; um
+      // nome fora dele ficaria publicado e inalcançável.
+      fail(`--as inválido: "${targetName}". Só [A-Za-z0-9._-] e terminar em .zip`);
+    }
+    const target = path.join(destDir, targetName);
+    const sizeMB = statSync(zipPath).size / 1024 / 1024;
+
+    console.log("─".repeat(72));
+    console.log("publish-agent-base → directório local (self-hosted)");
+    console.log("─".repeat(72));
+    console.log(`  origem  : ${path.relative(process.cwd(), zipPath)} (${sizeMB.toFixed(1)} MB)`);
+    console.log(`  destino : ${target}`);
+
+    // Escrita atómica: um ficheiro temporário no MESMO directório e
+    // depois rename. Sem isto, quem descarregasse durante a cópia
+    // apanhava um ZIP truncado — e o erro apareceria na farmácia, ao
+    // extrair, não aqui.
+    const tmp = `${target}.tmp-${process.pid}`;
+    writeFileSync(tmp, readFileSync(zipPath));
+    renameSync(tmp, target);
+    // 0644: o nginx corre como uid 101 e tem de o ler.
+    chmodSync(target, 0o644);
+
+    console.log("");
+    console.log("✓ Publicado localmente");
+    console.log(`  Servido em : <PUBLIC_APP_URL>/agent-base/${targetName}`);
+    console.log(`  Confirmar  : curl -sI <PUBLIC_APP_URL>/agent-base/${targetName}`);
+    return;
+  }
+
+  // ── Publicação na Vercel Blob (modo original) ───────────────────────
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
     fail(

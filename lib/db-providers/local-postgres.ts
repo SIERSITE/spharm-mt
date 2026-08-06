@@ -51,6 +51,23 @@ export class LocalPostgresProvider implements DatabaseProvider {
         `CREATE ROLE ${quoteIdent(dbUser)} LOGIN PASSWORD ${quoteLiteral(dbPassword)}`
       );
       roleCreated = true;
+
+      // Necessário quando o role administrativo NÃO é superutilizador —
+      // que é o caso desde que a criação de clientes passou a poder vir
+      // da API (o serviço `web` usa um role com CREATEDB + CREATEROLE e
+      // mais nada).
+      //
+      // A partir do PostgreSQL 16, quem cria um role com CREATEROLE fica
+      // com ADMIN OPTION sobre ele mas SEM SET — e `CREATE DATABASE ...
+      // OWNER x` exige poder fazer SET ROLE x. Sem esta linha:
+      //
+      //   ERROR: must be able to SET ROLE "spharmmt_t_<slug>"
+      //
+      // Reproduzido num PostgreSQL 17.6 limpo, com e sem esta linha.
+      // Para um superutilizador é inofensiva: ele já podia SET ROLE, e o
+      // GRANT é aceite na mesma (verificado).
+      await admin.query(`GRANT ${quoteIdent(dbUser)} TO CURRENT_USER WITH SET TRUE`);
+
       await admin.query(
         `CREATE DATABASE ${quoteIdent(dbName)} OWNER ${quoteIdent(dbUser)}`
       );
