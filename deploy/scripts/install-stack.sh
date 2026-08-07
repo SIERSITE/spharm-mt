@@ -250,6 +250,46 @@ install_artifacts() {
   [ -f "$src" ] || die_precond "configuração do nginx não encontrada em ${src}"
   run install -m 0644 -o "$SPHARMMT_USER" -g "$SPHARMMT_GROUP" "$src" "$SPHARMMT_PROXY_CONF_FILE"
   ok "proxy → ${SPHARMMT_PROXY_CONF_FILE}"
+
+  # Directivas partilhadas, incluídas de dentro de cada server{}. A
+  # extensão .inc mantém-nas fora do glob `*.conf` do nginx.conf — como
+  # `.conf`, seriam carregadas ao nível http e o nginx não arrancava.
+  #
+  # Instalado SEMPRE, mesmo que spharmmt-tls.conf ainda não exista: o
+  # spharmmt.conf já o inclui, e sem o ficheiro o nginx morre no arranque
+  # com "open() ... failed".
+  local inc_src="${DOCKER_SRC}/proxy/spharmmt-proxy-common.inc"
+  [ -f "$inc_src" ] || die_precond "directivas partilhadas do nginx não encontradas em ${inc_src}"
+  run install -m 0644 -o "$SPHARMMT_USER" -g "$SPHARMMT_GROUP" \
+    "$inc_src" "${SPHARMMT_PROXY_CONF_DIR}/spharmmt-proxy-common.inc"
+  ok "proxy → ${SPHARMMT_PROXY_CONF_DIR}/spharmmt-proxy-common.inc"
+
+  # spharmmt-tls.conf NÃO é instalado aqui, de propósito. Só entra
+  # quando os certificados existirem (fase 5 de notes/https-public-plan.md);
+  # instalá-lo antes faria o nginx recusar arrancar por ssl_certificate
+  # inexistente, e o proxy é o único caminho de entrada da plataforma.
+  #
+  # Mas se JÁ estiver instalado de uma execução anterior, é refrescado —
+  # senão um `git pull` com correcções ao TLS não chegava à VPS.
+  if [ -f "${SPHARMMT_PROXY_CONF_DIR}/spharmmt-tls.conf" ]; then
+    local tls_src="${DOCKER_SRC}/proxy/spharmmt-tls.conf"
+    if [ -f "$tls_src" ]; then
+      run install -m 0644 -o "$SPHARMMT_USER" -g "$SPHARMMT_GROUP" \
+        "$tls_src" "${SPHARMMT_PROXY_CONF_DIR}/spharmmt-tls.conf"
+      ok "proxy → ${SPHARMMT_PROXY_CONF_DIR}/spharmmt-tls.conf (actualizado)"
+    fi
+  else
+    info "spharmmt-tls.conf não instalado — HTTPS ainda não activado"
+  fi
+
+  # Webroot do ACME. Criado sempre: o compose monta-o, e um bind mount
+  # cujo caminho não existe é criado pelo Docker como root, ficando o
+  # certbot sem conseguir escrever lá.
+  if [ "$DRY_RUN" != "1" ]; then
+    mkdir -p "${SPHARMMT_ROOT}/proxy/acme/.well-known/acme-challenge"
+    chown -R "${SPHARMMT_USER}:${SPHARMMT_GROUP}" "${SPHARMMT_ROOT}/proxy/acme"
+    chmod 0755 "${SPHARMMT_ROOT}/proxy/acme"
+  fi
   # Reafirmado depois de instalar: o `install` acima já põe 0644, mas
   # ficheiros de execuções anteriores podem estar noutro modo.
   ensure_proxy_dirs "$OWNER"
@@ -540,13 +580,15 @@ write_stack_env() {
   # A exposição do proxy é uma decisão do operador: se já a mudou, é
   # preservada. Reabrir o 127.0.0.1 por cima seria desfazer-lhe o
   # trabalho; fechá-lo por cima seria uma paragem não anunciada.
-  local bind="127.0.0.1" port="8080"
+  local bind="127.0.0.1" port="8080" https_port="443"
   if [ -f "$SPHARMMT_STACK_ENV_FILE" ]; then
-    local prev_bind prev_port
+    local prev_bind prev_port prev_https
     prev_bind=$(awk -F= '/^PROXY_BIND=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" || true)
     prev_port=$(awk -F= '/^PROXY_HTTP_PORT=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" || true)
+    prev_https=$(awk -F= '/^PROXY_HTTPS_PORT=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" || true)
     [ -n "$prev_bind" ] && bind="$prev_bind"
     [ -n "$prev_port" ] && port="$prev_port"
+    [ -n "$prev_https" ] && https_port="$prev_https"
   fi
 
   write_file "$SPHARMMT_STACK_ENV_FILE" 0640 "$OWNER" <<EOF
@@ -609,6 +651,14 @@ BACKUP_DIR=${SPHARMMT_BACKUP_DIR}
 #   sudo ${SPHARMMT_ROOT}/scripts/update-platform.sh --no-build
 PROXY_BIND=${bind}
 PROXY_HTTP_PORT=${port}
+# Porto HTTPS. Publicado sempre, mas só responde depois de
+# spharmmt-tls.conf estar instalado em ${SPHARMMT_PROXY_CONF_DIR} — e
+# esse ficheiro só pode entrar depois de existirem os certificados, ou o
+# nginx recusa arrancar e a plataforma fica sem proxy.
+PROXY_HTTPS_PORT=${https_port}
+# Webroot do desafio ACME (HTTP-01), montado em /var/www/acme no nginx.
+# É por aqui que passa a emissão e CADA renovação do certificado.
+ACME_DIR=${SPHARMMT_ROOT}/proxy/acme
 EOF
 
   ok "configuração da stack em ${SPHARMMT_STACK_ENV_FILE}"

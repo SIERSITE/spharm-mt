@@ -404,6 +404,12 @@ services:
       # (a UFW por si só não chega — o Docker escreve regras iptables
       # avaliadas ANTES dela; é o bind que fecha, não a firewall.)
       - "${PROXY_BIND:-127.0.0.1}:${PROXY_HTTP_PORT:-8080}:80"
+      # HTTPS. O porto é publicado sempre, mas só há quem responda nele
+      # depois de spharmmt-tls.conf estar instalado — antes disso a
+      # ligação é recusada, o que é inofensivo. O ficheiro TLS só pode
+      # ser instalado depois de os certificados existirem: o nginx
+      # recusa arrancar com um ssl_certificate inexistente.
+      - "${PROXY_BIND:-127.0.0.1}:${PROXY_HTTPS_PORT:-443}:443"
 
     volumes:
       # É DAQUI que o nginx carrega os `server {}` (o nginx.conf da imagem
@@ -423,6 +429,11 @@ services:
       # agent.config.json (que leva a ingest key) é injectado no ZIP
       # DEPOIS, na máquina do técnico.
       - ${AGENT_BASE_DIR:-/opt/spharmmt/agent-base}:/usr/share/nginx/agent-base:ro
+      # Webroot do desafio ACME (HTTP-01). O certbot escreve aqui no
+      # host; o nginx serve daqui em /.well-known/acme-challenge/. É por
+      # este caminho que passa a emissão E cada renovação — se o mount
+      # desaparecer, a renovação falha e o certificado expira em 90 dias.
+      - ${ACME_DIR:-/opt/spharmmt/proxy/acme}:/var/www/acme:ro
 
     depends_on:
       web:
