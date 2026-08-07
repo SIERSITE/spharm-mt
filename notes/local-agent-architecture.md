@@ -71,7 +71,7 @@ Permanece útil para:
 
 | Env | Obrigatória | Notas |
 |---|---|---|
-| `SPHARMMT_ENDPOINT` | sim | Base URL pública da SaaS (ex: `https://app.spharmmt.pt`). Sem trailing slash. |
+| `SPHARMMT_ENDPOINT` | sim | Base URL pública da SaaS (ex: `https://app.spharmmt.com`). Sem trailing slash. |
 | `SPHARMMT_TENANT_SLUG` | sim | Slug do tenant ao qual este agent pertence. Header `X-Tenant-Slug`. |
 | `SPHARMMT_INGEST_KEY` | sim | API key emitida pela Platform Admin Tool. Header `Authorization: Bearer <key>`. |
 | `SPHARMMT_AGENT_VERSION` | opcional | Identificador da versão do binário, reportado no heartbeat. |

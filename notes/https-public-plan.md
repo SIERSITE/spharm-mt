@@ -1,7 +1,7 @@
-# HTTPS público — admin.spharmmt.pt e app.spharmmt.pt
+# HTTPS público — admin.spharmmt.com e app.spharmmt.com
 
-Plano de execução. **Nada disto foi executado ainda.** Entregue para
-aprovação antes de tocar em DNS, certificados ou na VPS.
+Plano de execução, fase a fase, com o operador a correr os comandos e
+validação de cada resultado antes de avançar. DNS já resolvido.
 
 Objectivo: eliminar a dependência do túnel SSH para o Admin Wizard,
 separando o domínio administrativo do operacional.
@@ -10,38 +10,44 @@ VPS: `164.132.85.211`, raiz da plataforma em `/opt/spharmmt`.
 
 ---
 
-## 0. Pré-requisitos — POR SATISFAZER (verificado 2026-08-07)
+## 0. Pré-requisitos
 
-A execução foi autorizada e **parou antes da fase 0**. Três bloqueios,
-confirmados contra a VPS real em modo apenas-leitura:
+O domínio passou a ser **`.com`** (era `.pt` nas versões anteriores
+deste documento). Todas as referências foram actualizadas.
 
-### 0.1 O domínio `spharmmt.pt` não existe — BLOQUEANTE
-
-Não é falta de registos `A`: a zona não existe.
+### 0.1 DNS — RESOLVIDO (verificado 2026-08-07)
 
 ```
-admin.spharmmt.pt  -> NXDOMAIN
-app.spharmmt.pt    -> NXDOMAIN
-spharmmt.pt  SOA   -> "O nome DNS não existe"
-spharmmt.pt  NS    -> não existe
+admin.spharmmt.com  @1.1.1.1 -> 164.132.85.211   @8.8.8.8 -> 164.132.85.211
+app.spharmmt.com    @1.1.1.1 -> 164.132.85.211   @8.8.8.8 -> 164.132.85.211
+zona spharmmt.com   NS  kim.ns.cloudflare.com, sage.ns.cloudflare.com
+CAA                 nenhum (qualquer CA pode emitir)
 ```
 
-`sier.pt` resolve normalmente (`130.185.81.63`), portanto o problema não
-é do resolver. `spharmmt.app` também não existe.
+Confirmado em dois resolvers independentes.
 
-Sem domínio delegado, o Let's Encrypt não consegue validar nada. **Tem
-de ser registado e delegado antes da fase 1**, e só depois criados os
-dois registos `A` da secção 1.
+**A zona está na Cloudflare, mas os registos devolvem o IP de origem** —
+ou seja, estão em modo *DNS only*, sem o proxy laranja. É o que este
+plano pressupõe. Se o proxy da Cloudflare for ligado:
 
-### 0.2 `sudo` exige password — BLOQUEANTE
+- o HTTP-01 deixa de chegar à VPS da forma esperada;
+- o certificado do Let's Encrypt na origem deixa de ser o que o browser
+  vê (passa a ser o da Cloudflare);
+- o `X-Forwarded-For` passa a vir da Cloudflare e o `$remote_addr` deixa
+  de ser o cliente real.
+
+Não ligar o proxy sem rever este documento.
+
+### 0.2 `sudo` exige password — EXECUÇÃO PELO OPERADOR
 
 O utilizador `deploy` autentica por chave (`~/.ssh/spharmmt_prod_nova`),
-mas `sudo -n` responde `a password is required`. Todas as fases
-precisam de `sudo`: `ufw`, `certbot`, `install-stack.sh`, cópia dos
-certificados, `systemd`.
+mas `sudo -n` responde `a password is required`. Todas as fases precisam
+de `sudo`: `ufw`, `certbot`, `install-stack.sh`, cópia dos certificados,
+`systemd`.
 
-Os comandos deste plano têm de ser executados por quem tem essa
-password.
+Decisão: **os comandos são executados pelo operador**, uma fase de cada
+vez, com validação de cada resultado antes de avançar. Sem partilha de
+password e sem regras temporárias de sudoers.
 
 ### 0.3 Caminhos corrigidos
 
@@ -82,15 +88,15 @@ disco        / 54G livres · /data 49G livres
 
 | Tipo | Nome | Valor | TTL |
 |------|------|-------|-----|
-| `A` | `admin.spharmmt.pt` | `164.132.85.211` | 300 |
-| `A` | `app.spharmmt.pt` | `164.132.85.211` | 300 |
+| `A` | `admin.spharmmt.com` | `164.132.85.211` | 300 |
+| `A` | `app.spharmmt.com` | `164.132.85.211` | 300 |
 
 São só estes dois. Sem `AAAA` (a VPS não tem IPv6 nesta stack), sem
 `CNAME`, sem wildcard.
 
-**Porquê sem `*.app.spharmmt.pt`:** os tenants resolvem-se pelo primeiro
+**Porquê sem `*.app.spharmmt.com`:** os tenants resolvem-se pelo primeiro
 label do subdomínio (`lib/runtime-config.ts`), portanto o alvo final é
-`sier.app.spharmmt.pt`. Mas um certificado wildcard não pode ser emitido
+`sier.app.spharmmt.com`. Mas um certificado wildcard não pode ser emitido
 por HTTP-01 — obriga a desafio DNS-01 com credencial de API do
 fornecedor de DNS. Como `TENANT_FALLBACK_ENABLED=1` já resolve o tenant
 por cookie/query, o wildcard não é necessário nesta fase e fica para
@@ -99,8 +105,8 @@ quando os Agents entrarem.
 Confirmar propagação antes de pedir o certificado:
 
 ```bash
-dig +short admin.spharmmt.pt @1.1.1.1
-dig +short app.spharmmt.pt   @1.1.1.1
+dig +short admin.spharmmt.com @1.1.1.1
+dig +short app.spharmmt.com   @1.1.1.1
 # ambos têm de devolver exactamente: 164.132.85.211
 ```
 
@@ -135,13 +141,13 @@ Wizard. Fica registado para não parecer que passa a ter efeito.
 
 | Domínio | Serve | Devolve 404 |
 |---------|-------|-------------|
-| `admin.spharmmt.pt` | `/api/admin/*`, `/agent-base/*`, `/healthz` | aplicação web, `/api/ingest/*` |
-| `app.spharmmt.pt` | aplicação web, `/api/ingest/*`, `/_next/*`, `/healthz` | `/api/admin/*` |
+| `admin.spharmmt.com` | `/api/admin/*`, `/agent-base/*`, `/healthz` | aplicação web, `/api/ingest/*` |
+| `app.spharmmt.com` | aplicação web, `/api/ingest/*`, `/_next/*`, `/healthz` | `/api/admin/*` |
 
 Consequência: o `AGENT_BASE_ZIP_URL` passa a apontar para
-`admin.spharmmt.pt/agent-base/…`, porque quem descarrega o template é o
+`admin.spharmmt.com/agent-base/…`, porque quem descarrega o template é o
 Wizard. O `SPHARMMT_PUBLIC_ENDPOINT` (destino de ingestão dos Agents)
-aponta para `app.spharmmt.pt`. É esta a separação que se quer.
+aponta para `app.spharmmt.com`. É esta a separação que se quer.
 
 Risco: se algum caminho administrativo não estiver na lista, deixa de
 responder no domínio admin. Mitigado por validar cada função do Wizard
@@ -198,12 +204,12 @@ Editar `/opt/spharmmt/docker/env/platform.env` (o ficheiro diz explicitamente
 que é seguro editar à mão):
 
 ```ini
-PUBLIC_APP_URL=https://app.spharmmt.pt
-NEXT_PUBLIC_APP_URL=https://app.spharmmt.pt
-SPHARMMT_PUBLIC_ENDPOINT=https://app.spharmmt.pt
-ADMIN_API_URL=https://admin.spharmmt.pt
-AGENT_BASE_ZIP_URL=https://admin.spharmmt.pt/agent-base/spharmmt-agent-base-rev44.zip
-SERVER_ACTIONS_ALLOWED_ORIGINS=127.0.0.1:8080,164.132.85.211,admin.spharmmt.pt,app.spharmmt.pt
+PUBLIC_APP_URL=https://app.spharmmt.com
+NEXT_PUBLIC_APP_URL=https://app.spharmmt.com
+SPHARMMT_PUBLIC_ENDPOINT=https://app.spharmmt.com
+ADMIN_API_URL=https://admin.spharmmt.com
+AGENT_BASE_ZIP_URL=https://admin.spharmmt.com/agent-base/spharmmt-agent-base-rev44.zip
+SERVER_ACTIONS_ALLOWED_ORIGINS=127.0.0.1:8080,164.132.85.211,admin.spharmmt.com,app.spharmmt.com
 SESSION_COOKIE_SECURE=0
 ```
 
@@ -250,8 +256,8 @@ Confirmar que o desafio ACME é servido nos dois nomes:
 
 ```bash
 echo teste | sudo tee /opt/spharmmt/proxy/acme/.well-known/acme-challenge/probe >/dev/null
-curl -s http://admin.spharmmt.pt/.well-known/acme-challenge/probe   # teste
-curl -s http://app.spharmmt.pt/.well-known/acme-challenge/probe     # teste
+curl -s http://admin.spharmmt.com/.well-known/acme-challenge/probe   # teste
+curl -s http://app.spharmmt.com/.well-known/acme-challenge/probe     # teste
 sudo rm -f /opt/spharmmt/proxy/acme/.well-known/acme-challenge/probe
 ```
 
@@ -264,7 +270,7 @@ Ensaio primeiro. O `--dry-run` não gasta o limite de emissões:
 ```bash
 sudo apt-get update && sudo apt-get install -y certbot
 sudo certbot certonly --webroot -w /opt/spharmmt/proxy/acme \
-  -d admin.spharmmt.pt -d app.spharmmt.pt \
+  -d admin.spharmmt.com -d app.spharmmt.com \
   --agree-tos --no-eff-email -m grp.cc.spharm@sier.pt --dry-run
 ```
 
@@ -272,7 +278,7 @@ Só se o ensaio passar:
 
 ```bash
 sudo certbot certonly --webroot -w /opt/spharmmt/proxy/acme \
-  -d admin.spharmmt.pt -d app.spharmmt.pt \
+  -d admin.spharmmt.com -d app.spharmmt.com \
   --agree-tos --no-eff-email -m grp.cc.spharm@sier.pt
 ```
 
@@ -306,12 +312,12 @@ sudo /opt/spharmmt/scripts/update-platform.sh --no-build
 Validação:
 
 ```bash
-curl -sI https://admin.spharmmt.pt/healthz | head -1        # 200
-curl -sI https://app.spharmmt.pt/healthz   | head -1        # 200
-curl -s -o /dev/null -w '%{http_code}\n' https://admin.spharmmt.pt/api/admin/v1/tenants   # 401 (sem token)
-curl -s -o /dev/null -w '%{http_code}\n' https://app.spharmmt.pt/api/admin/v1/tenants     # 404 (separação)
-curl -s -o /dev/null -w '%{http_code}\n' https://admin.spharmmt.pt/login                  # 404 (separação)
-echo | openssl s_client -connect admin.spharmmt.pt:443 -servername admin.spharmmt.pt 2>/dev/null \
+curl -sI https://admin.spharmmt.com/healthz | head -1        # 200
+curl -sI https://app.spharmmt.com/healthz   | head -1        # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://admin.spharmmt.com/api/admin/v1/tenants   # 401 (sem token)
+curl -s -o /dev/null -w '%{http_code}\n' https://app.spharmmt.com/api/admin/v1/tenants     # 404 (separação)
+curl -s -o /dev/null -w '%{http_code}\n' https://admin.spharmmt.com/login                  # 404 (separação)
+echo | openssl s_client -connect admin.spharmmt.com:443 -servername admin.spharmmt.com 2>/dev/null \
   | openssl x509 -noout -dates -subject -ext subjectAltName
 ```
 
@@ -329,7 +335,7 @@ sudo sed -i 's/^SESSION_COOKIE_SECURE=.*/SESSION_COOKIE_SECURE=1/' /opt/spharmmt
 sudo /opt/spharmmt/scripts/update-platform.sh --no-build
 ```
 
-Runtime, sem reconstruir. Testar o login em `https://app.spharmmt.pt`
+Runtime, sem reconstruir. Testar o login em `https://app.spharmmt.com`
 **antes** de fechar a sessão SSH.
 
 ### Fase 7 — renovação automática
@@ -347,7 +353,7 @@ possível do lado do cliente.
 
 ### Fase 8 — Wizard
 
-Base URL para `https://admin.spharmmt.pt`. Sem túnel, sem SSH.
+Base URL para `https://admin.spharmmt.com`. Sem túnel, sem SSH.
 
 ---
 

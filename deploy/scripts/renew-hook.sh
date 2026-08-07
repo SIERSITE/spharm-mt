@@ -21,7 +21,7 @@
 
 set -euo pipefail
 
-DOMAIN="${SPHARMMT_CERT_DOMAIN:-admin.spharmmt.pt}"
+DOMAIN="${SPHARMMT_CERT_DOMAIN:-admin.spharmmt.com}"
 LIVE_DIR="/etc/letsencrypt/live/${DOMAIN}"
 CERTS_DIR="${SPHARMMT_ROOT:-/opt/spharmmt}/proxy/certs"
 PROXY_CONTAINER="${SPHARMMT_PROXY_CONTAINER:-spharmmt-proxy}"

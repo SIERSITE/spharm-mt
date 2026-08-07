@@ -153,7 +153,7 @@ Project ID é fixo por ambiente (vive em `NEON_PROJECT_ID`). Permite ter project
 │   · TenantEvent action='created' meta={ provider, region, … }   │
 ├────────────────────────────────────────────────────────────────┤
 │ Step 8  OUTPUT FINAL                                            │
-│   · URL do dashboard cliente: https://<slug>.spharmmt.pt        │
+│   · URL do dashboard cliente: https://<slug>.spharmmt.com        │
 │   · Admin email + password (UMA VEZ)                            │
 │   · Ingest key em claro (UMA VEZ)                               │
 │   · Lista de farmácias com cuid                                 │
