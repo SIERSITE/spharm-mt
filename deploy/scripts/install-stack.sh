@@ -285,10 +285,25 @@ install_artifacts() {
   # Webroot do ACME. Criado sempre: o compose monta-o, e um bind mount
   # cujo caminho não existe é criado pelo Docker como root, ficando o
   # certbot sem conseguir escrever lá.
+  #
+  # LEGÍVEL POR TODOS, e a árvore INTEIRA — não só o directório de topo.
+  # O worker do nginx corre com outro uid (101) e não pertence ao grupo
+  # spharmmt; sem `o=rX` não consegue atravessar nem ler, e o desafio
+  # devolve 403. Com o umask 0007 do utilizador de deploy, um `mkdir -p`
+  # cria `drwxr-s---` e os ficheiros `-rw-rw----` — exactamente o caso.
+  #
+  # Não há segredo nenhum aqui: o conteúdo do desafio ACME é público por
+  # desenho, e é o Let's Encrypt que o vai buscar pela Internet. É o
+  # oposto de proxy/certs, onde a chave privada não pode ter acesso para
+  # `others` (ver verify-platform.sh).
+  #
+  # `X` maiúsculo no chmod: aplica +x só a directórios, deixando os
+  # ficheiros sem bit de execução.
   if [ "$DRY_RUN" != "1" ]; then
     mkdir -p "${SPHARMMT_ROOT}/proxy/acme/.well-known/acme-challenge"
     chown -R "${SPHARMMT_USER}:${SPHARMMT_GROUP}" "${SPHARMMT_ROOT}/proxy/acme"
-    chmod 0755 "${SPHARMMT_ROOT}/proxy/acme"
+    chmod -R u=rwX,g=rX,o=rX "${SPHARMMT_ROOT}/proxy/acme"
+    ok "webroot ACME em ${SPHARMMT_ROOT}/proxy/acme (legível pelo nginx)"
   fi
   # Reafirmado depois de instalar: o `install` acima já põe 0644, mas
   # ficheiros de execuções anteriores podem estar noutro modo.
