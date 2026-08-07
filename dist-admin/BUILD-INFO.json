@@ -1,9 +1,9 @@
 {
     "source":  "admin-wizard/SPharmMT-Admin-Wizard.ps1",
-    "sourceSha256":  "1b93cd455acbe213da14c7a9666938b8e9456134198fdbedddb759b8f034d2ac",
+    "sourceSha256":  "8a16bf6ca73141afab338b056c6a332f5527c256a72cbbc2470691324f037b34",
     "exe":  "dist-admin/SPharmMT-Admin-Wizard.exe",
-    "exeSha256":  "56a9cd301679c2d2ae13c3123de44c713d4e7d4e9beed067c69f21cda003bb8c",
+    "exeSha256":  "a0ba16cdeb3a22583ea60f95f691db237f68e39e1bbabd72437d545a2bae2acb",
     "ps2exe":  "1.0.17",
-    "builtAtUtc":  "2026-08-07T08:52:30Z",
-    "gitCommit":  "42e0c35"
+    "builtAtUtc":  "2026-08-07T10:18:04Z",
+    "gitCommit":  "c3409b1"
 }

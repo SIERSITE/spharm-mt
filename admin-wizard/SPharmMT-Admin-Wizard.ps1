@@ -231,6 +231,26 @@ function Save-Saas {
   return (Write-WizardConfig -Config $c)
 }
 
+# Modo escolhido pelo operador, persistido. Existe porque a
+# auto-deteccao do repositorio nao e uma boa forma de decidir isto: a
+# maquina do tecnico TEM o repositorio (e o .env dele aponta para o
+# ambiente antigo), e mesmo assim o que se quer e falar com a VPS.
+#
+# Auto-detectar o repo passava a listar os tenants do control plane
+# antigo -- demo-neon, grupo-silveira, piloto-demo -- em vez dos da VPS.
+function Get-SavedMode {
+  $c = Read-WizardConfig
+  if ($c.ContainsKey("mode")) { return ([string]$c["mode"]).Trim().ToLower() }
+  return ""
+}
+
+function Save-Mode {
+  param([string]$Mode)
+  $c = Read-WizardConfig
+  $c["mode"] = ([string]$Mode).Trim().ToLower()
+  return (Write-WizardConfig -Config $c)
+}
+
 # Wrap o bootstrap inteiro num try/catch que mostra dialogo de
 # diagnostico em vez de stacktrace bruto se algo falhar.
 $ScriptDir = $null
@@ -265,13 +285,28 @@ try {
   #   Nao exige repo/package.json/Node/npm/Git. NUNCA pede a pasta do repo.
   # DEV: shell-out aos scripts npm. So quando ha repo (ou forcado).
   # Override explicito: SPHARMMT_WIZARD_MODE = dev | standalone.
+  # PRECEDENCIA, da mais forte para a mais fraca:
+  #   1. SPHARMMT_WIZARD_MODE  — absoluta. Ganha sempre.
+  #   2. escolha guardada pelo operador (botao "Modo..." no cabecalho)
+  #   3. auto-deteccao do repositorio
+  #
+  # A auto-deteccao ficou em ULTIMO de proposito. Ter o repositorio na
+  # maquina nao significa querer usa-lo: o .env local aponta para o
+  # ambiente antigo, e o wizard acabava a listar os tenants de la
+  # (demo-neon, grupo-silveira, piloto-demo) contra uma VPS nova e vazia.
   $forcedMode = ""
   if ($env:SPHARMMT_WIZARD_MODE) { $forcedMode = ([string]$env:SPHARMMT_WIZARD_MODE).Trim().ToLower() }
-  if ($forcedMode -eq "dev") { $script:Mode = "DEV" }
-  elseif ($forcedMode -eq "standalone") { $script:Mode = "STANDALONE" }
-  elseif ($RepoRoot) { $script:Mode = "DEV" }
-  else { $script:Mode = "STANDALONE" }
-  $BootstrapDiagnostics += " | mode=$($script:Mode)"
+  $savedMode = ""
+  try { $savedMode = Get-SavedMode } catch { $savedMode = "" }
+
+  $script:ModeSource = ""
+  if ($forcedMode -eq "dev")             { $script:Mode = "DEV";        $script:ModeSource = "SPHARMMT_WIZARD_MODE" }
+  elseif ($forcedMode -eq "standalone")  { $script:Mode = "STANDALONE"; $script:ModeSource = "SPHARMMT_WIZARD_MODE" }
+  elseif ($savedMode -eq "dev")          { $script:Mode = "DEV";        $script:ModeSource = "escolha guardada" }
+  elseif ($savedMode -eq "standalone")   { $script:Mode = "STANDALONE"; $script:ModeSource = "escolha guardada" }
+  elseif ($RepoRoot)                     { $script:Mode = "DEV";        $script:ModeSource = "auto-deteccao do repo" }
+  else                                   { $script:Mode = "STANDALONE"; $script:ModeSource = "sem repo" }
+  $BootstrapDiagnostics += " | mode=$($script:Mode) (origem: $($script:ModeSource))"
 
   # DEV forcado sem repo: oferecer escolher a pasta (util ao developer).
   # Se recusar, cai para STANDALONE em vez de abortar. Em STANDALONE puro
@@ -778,7 +813,9 @@ function Sync-HeaderLabel {
   $repoLbl.Text = $(if ($script:Mode -eq "DEV") {
       "modo: DEV (npm) | repo: $RepoRoot"
     } else {
-      "modo: STANDALONE (HTTPS) | SaaS: " + $(if ($script:SaasBaseUrl) { $script:SaasBaseUrl } else { "(nao configurado)" })
+      # Nota: a Base URL fica VISIVEL no cabecalho. Saber contra que
+      # servidor se esta a trabalhar nao pode exigir abrir um dialogo.
+      "modo: STANDALONE (API) | Base URL: " + $(if ($script:SaasBaseUrl) { $script:SaasBaseUrl } else { "(nao configurada)" })
     })
 }
 
@@ -793,6 +830,12 @@ $tenantCb.Location = New-Object System.Drawing.Point(790, 7)
 $tenantCb.Size = New-Object System.Drawing.Size(200, 26)
 $tenantCb.DropDownStyle = "DropDownList"
 $header.Controls.Add($tenantCb)
+
+$modeBtn = New-Object System.Windows.Forms.Button
+$modeBtn.Text = "Modo..."
+$modeBtn.Location = New-Object System.Drawing.Point(995, 34)
+$modeBtn.Size = New-Object System.Drawing.Size(68, 24)
+$header.Controls.Add($modeBtn)
 
 $refreshBtn = New-Object System.Windows.Forms.Button
 $refreshBtn.Text = "Refresh"
@@ -1273,6 +1316,78 @@ function Refresh-Tenants {
 }
 
 $refreshBtn.Add_Click({ Refresh-Tenants })
+
+function Show-ModeDialog {
+  # Escolha explicita do modo, persistida. O reinicio e exigido de
+  # proposito: o modo decide directorios de dados, de logs e de output,
+  # todos fixados no arranque. Trocar a meio deixaria o wizard num estado
+  # meio-inicializado -- pior do que pedir para reabrir.
+  $f = New-Object System.Windows.Forms.Form
+  $f.Text = "Modo de funcionamento"
+  $f.Size = New-Object System.Drawing.Size(560, 300)
+  $f.StartPosition = "CenterParent"
+  $f.FormBorderStyle = "FixedDialog"
+  $f.MaximizeBox = $false; $f.MinimizeBox = $false
+
+  $lbl = New-Object System.Windows.Forms.Label
+  $lbl.Text = "Modo actual: $($script:Mode)   (origem: $($script:ModeSource))"
+  $lbl.Location = New-Object System.Drawing.Point(14, 14)
+  $lbl.Size = New-Object System.Drawing.Size(520, 20)
+  $f.Controls.Add($lbl)
+
+  $rbStand = New-Object System.Windows.Forms.RadioButton
+  $rbStand.Text = "STANDALONE (API) -- fala com a Base URL. Nao usa o repositorio."
+  $rbStand.Location = New-Object System.Drawing.Point(14, 48)
+  $rbStand.Size = New-Object System.Drawing.Size(520, 24)
+  $rbStand.Checked = ($script:Mode -eq "STANDALONE")
+  $f.Controls.Add($rbStand)
+
+  $rbDev = New-Object System.Windows.Forms.RadioButton
+  $rbDev.Text = "DEV (npm) -- corre comandos npm no repositorio local."
+  $rbDev.Location = New-Object System.Drawing.Point(14, 76)
+  $rbDev.Size = New-Object System.Drawing.Size(520, 24)
+  $rbDev.Checked = ($script:Mode -eq "DEV")
+  $f.Controls.Add($rbDev)
+
+  $warn = New-Object System.Windows.Forms.Label
+  $warn.Location = New-Object System.Drawing.Point(14, 108)
+  $warn.Size = New-Object System.Drawing.Size(520, 76)
+  $warn.ForeColor = [System.Drawing.Color]::DarkRed
+  $warn.Text = "DEV usa o .env do repositorio, que pode apontar para outro servidor.`r`nPara trabalhar contra a VPS self-hosted, escolhe STANDALONE (API)."
+  $f.Controls.Add($warn)
+
+  $envLbl = New-Object System.Windows.Forms.Label
+  $envLbl.Location = New-Object System.Drawing.Point(14, 186)
+  $envLbl.Size = New-Object System.Drawing.Size(520, 20)
+  $envLbl.ForeColor = [System.Drawing.Color]::Gray
+  $envLbl.Text = $(if ($env:SPHARMMT_WIZARD_MODE) {
+      "SPHARMMT_WIZARD_MODE=$($env:SPHARMMT_WIZARD_MODE) -- tem precedencia sobre esta escolha."
+    } else { "SPHARMMT_WIZARD_MODE nao esta definida." })
+  $f.Controls.Add($envLbl)
+
+  $okBtn = New-Object System.Windows.Forms.Button
+  $okBtn.Text = "Guardar"; $okBtn.Location = New-Object System.Drawing.Point(330, 218)
+  $okBtn.Size = New-Object System.Drawing.Size(90, 28)
+  $okBtn.DialogResult = [System.Windows.Forms.DialogResult]::OK
+  $f.Controls.Add($okBtn); $f.AcceptButton = $okBtn
+
+  $cancelBtn = New-Object System.Windows.Forms.Button
+  $cancelBtn.Text = "Cancelar"; $cancelBtn.Location = New-Object System.Drawing.Point(430, 218)
+  $cancelBtn.Size = New-Object System.Drawing.Size(90, 28)
+  $cancelBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+  $f.Controls.Add($cancelBtn); $f.CancelButton = $cancelBtn
+
+  if ($f.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+
+  $chosen = $(if ($rbDev.Checked) { "dev" } else { "standalone" })
+  [void](Save-Mode -Mode $chosen)
+  Write-WizardLog "modo guardado: $chosen"
+  [System.Windows.Forms.MessageBox]::Show(
+    "Modo guardado: $($chosen.ToUpper()).`r`n`r`nFecha e reabre o wizard para aplicar.",
+    "Modo de funcionamento", "OK", "Information") | Out-Null
+}
+
+$modeBtn.Add_Click({ try { Show-ModeDialog } catch { Show-HandlerError $_ "dialogo-modo" } })
 $tenantCb.Add_SelectedIndexChanged({ Sync-TenantLabels })
 
 # --- Operacoes ----------------------------------------------------
@@ -1296,6 +1411,22 @@ function Run-NpmInTab {
     [bool]$ExpectJson = $false
   )
   if ($null -eq $CmdArgs) { $CmdArgs = @() }
+
+  # GUARDA ESTRUTURAL. Cada handler ja faz `return` depois do ramo da
+  # API, mas isso e uma promessa que se perde quando alguem acrescentar
+  # um handler novo e esquecer o return. Aqui a promessa e verificada.
+  #
+  # Em STANDALONE nao ha repositorio de confianca: correr `npm run` usava
+  # o .env local, que aponta para OUTRO control plane. E assim que
+  # apareciam tenants que nao existem na VPS.
+  if ($script:Mode -eq "STANDALONE") {
+    $msg = "BLOQUEADO: '$Script' e um comando npm e o wizard esta em modo STANDALONE (API)."
+    Append-Output $Box $msg ([System.Drawing.Color]::IndianRed)
+    Append-Output $Box "Em STANDALONE tudo passa pela Base URL configurada. Nenhum npm e executado." ([System.Drawing.Color]::Gainsboro)
+    Write-WizardLog "[$Label] BLOQUEADO: tentativa de npm em modo STANDALONE" "ERROR"
+    Set-Status "Comando npm bloqueado em modo STANDALONE." ([System.Drawing.Color]::DarkRed)
+    return $null
+  }
 
   Set-Status "A correr: $Label" ([System.Drawing.Color]::DarkBlue)
   Set-AllButtonsEnabled $false
