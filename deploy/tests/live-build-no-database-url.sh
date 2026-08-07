@@ -45,10 +45,15 @@ note() { printf '          %s\n' "$1"; }
 
 TMP=$(mktemp -d)
 SRC="${TMP}/src"        # estado commitado, extraído aqui
-TMP_D="$TMP"; SRC_D="$SRC"
+TMP_D="$TMP"; SRC_D="$SRC"; REPO_G="$REPO_ROOT"; SRC_W="$SRC"
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 if command -v cygpath >/dev/null 2>&1; then
   TMP_D=$(cygpath -w "$TMP"); SRC_D=$(cygpath -w "$SRC")
+  # O git do Windows é um binário nativo: com MSYS_NO_PATHCONV=1 (que o
+  # docker exige) os caminhos POSIX deixam de ser convertidos e ele
+  # responde "cannot change to '/c/...': No such file or directory".
+  REPO_G=$(cygpath -m "$REPO_ROOT")
+  SRC_W=$(cygpath -m "$SRC")
 fi
 
 cleanup() {
@@ -68,8 +73,8 @@ echo
 
 # ── Estado commitado, não a árvore de trabalho ───────────────────────
 mkdir -p "$SRC"
-if git -C "$REPO_ROOT" archive HEAD | tar -x -C "$SRC" 2>/dev/null; then
-  HEADSHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+if git -C "$REPO_G" archive HEAD | tar -x -C "$SRC" 2>/dev/null; then
+  HEADSHA=$(git -C "$REPO_G" rev-parse HEAD)
   ok_ "estado commitado extraído (${HEADSHA:0:12})"
 else
   bad_ "git archive HEAD falhou"; exit 1
@@ -77,7 +82,7 @@ fi
 
 # Se a árvore de trabalho diferir do commitado nos ficheiros que este
 # teste cobre, dizê-lo alto: é a situação que produziu o bug.
-DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- package.json deploy/docker/Dockerfile 2>/dev/null)
+DIRTY=$(git -C "$REPO_G" status --porcelain -- package.json deploy/docker/Dockerfile 2>/dev/null)
 if [ -n "$DIRTY" ]; then
   note "AVISO: há alterações por commitar em package.json/Dockerfile —"
   note "este teste ignora-as de propósito, porque a VPS também as ignora:"
@@ -85,7 +90,15 @@ if [ -n "$DIRTY" ]; then
 fi
 
 # ── O script de build não pode tocar na base ────────────────────────
-BUILD_SCRIPT=$(node -e "console.log(require('${SRC}/package.json'.replace(/\\\\/g,'/')).scripts.build)" 2>/dev/null)
+# O node é binário nativo do Windows: precisa do caminho em formato
+# Windows, não do POSIX. Com o caminho errado devolvia vazio em silêncio,
+# e as três verificações seguintes davam falha sem nada a ver com o
+# produto. Se vier vazio, dizemos que as asserções não são fiáveis em vez
+# de as deixar concluir.
+BUILD_SCRIPT=$(node -p "require(process.argv[1]).scripts.build || ''" "${SRC_W}/package.json" 2>/dev/null | tr -d '\r')
+if [ -z "$BUILD_SCRIPT" ]; then
+  bad_ "não consegui ler scripts.build do package.json extraído — asserções seguintes não fiáveis"
+fi
 note "build = ${BUILD_SCRIPT}"
 case "$BUILD_SCRIPT" in
   *"migrate deploy"*) bad_ "o script de build ainda corre 'migrate deploy'" ;;
@@ -101,7 +114,7 @@ case "$BUILD_SCRIPT" in
 esac
 
 # Continua a haver forma explícita de aplicar migrações à mão.
-if node -e "process.exit(require('${SRC}/package.json'.replace(/\\\\/g,'/')).scripts['db:migrate:deploy']?0:1)" 2>/dev/null; then
+if [ -n "$(node -p "require(process.argv[1]).scripts['db:migrate:deploy'] || ''" "${SRC_W}/package.json" 2>/dev/null | tr -d '\r')" ]; then
   ok_ "existe 'db:migrate:deploy' para aplicar migrações explicitamente"
 else
   bad_ "não há forma explícita de correr 'prisma migrate deploy'"

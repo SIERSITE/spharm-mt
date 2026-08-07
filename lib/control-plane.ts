@@ -37,12 +37,43 @@ function buildClient(): PrismaClient {
   return new PrismaClient({ adapter });
 }
 
-export const controlPrisma: PrismaClient =
-  globalForControl.controlPrisma ?? buildClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForControl.controlPrisma = controlPrisma;
+function resolveControlPrisma(): PrismaClient {
+  if (!globalForControl.controlPrisma) {
+    globalForControl.controlPrisma = buildClient();
+  }
+  return globalForControl.controlPrisma;
 }
+
+/**
+ * Cliente do control plane, construído na PRIMEIRA UTILIZAÇÃO.
+ *
+ * Era construído no carregamento do módulo, e isso tornava
+ * `CONTROL_DATABASE_URL` uma dependência de BUILD: o `next build` avalia
+ * os módulos das rotas para recolher metadados, este atirava, e a imagem
+ * não se conseguia construir sem uma base de dados à mão. Uma imagem que
+ * precisa da produção para ser compilada não pode ser promovida entre
+ * ambientes nem reconstruída num servidor novo.
+ *
+ * O Proxy mantém a API: quem escreve `controlPrisma.tenant.findMany()`
+ * não muda nada; a construção acontece no primeiro acesso a uma
+ * propriedade, já em runtime, e a mensagem de erro continua a mesma.
+ */
+export const controlPrisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = resolveControlPrisma();
+    const value = Reflect.get(client as object, prop, receiver);
+    // Os métodos de topo ($connect, $queryRaw, ...) perdem o `this` se
+    // forem devolvidos em bruto através do Proxy. Os delegates de modelo
+    // são objectos e passam intactos.
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+  set(_target, prop, value) {
+    return Reflect.set(resolveControlPrisma() as object, prop, value);
+  },
+  has(_target, prop) {
+    return Reflect.has(resolveControlPrisma() as object, prop);
+  },
+});
 
 // ─────────────────────────────────────────────────────────────────
 // Helpers
@@ -99,10 +130,17 @@ export async function listTenants(filter?: {
  * com `decryptTenantSecret`. Usado pelo resolver em runtime e pelos
  * scripts de migrate-all / backup / health-check.
  *
- * Heurística SSL: hosts não-locais (Neon, RDS, qualquer fornecedor
- * gerido) exigem TLS — anexamos `?sslmode=require` por defeito. Hosts
- * locais (localhost/127.x/IPv6 loopback) ficam sem para não quebrar
- * dev environments sem TLS configurado.
+ * SSL — `TENANT_DB_SSLMODE` decide, e é o caminho a usar em qualquer
+ * alojamento novo. Valores típicos: `require` (Neon, RDS, qualquer
+ * fornecedor gerido) e `disable` (Postgres na mesma rede Docker privada,
+ * onde o tráfego não sai do host e não há certificado a gerir).
+ *
+ * Sem essa variável mantém-se a heurística histórica: hosts não-locais
+ * levam `sslmode=require`, hosts locais (localhost/127.x/loopback IPv6)
+ * ficam sem. A heurística estava errada precisamente no caso
+ * self-hosted — `postgres` é um nome de serviço Docker, não casa com o
+ * padrão de "local", e a ligação a TODOS os tenants falhava a negociar
+ * TLS contra um servidor que não o tem.
  */
 const LOCAL_HOST_REGEX = /^(localhost|127(?:\.\d+){3}|::1|\[::1\])$/i;
 
@@ -111,6 +149,11 @@ export function buildTenantConnectionString(tenant: TenantRecord): string {
   const user = encodeURIComponent(tenant.dbUser);
   const pass = encodeURIComponent(password);
   const base = `postgresql://${user}:${pass}@${tenant.dbHost}:${tenant.dbPort}/${tenant.dbName}`;
+
+  const configured = process.env.TENANT_DB_SSLMODE?.trim();
+  if (configured) {
+    return `${base}?sslmode=${encodeURIComponent(configured)}`;
+  }
   return LOCAL_HOST_REGEX.test(tenant.dbHost) ? base : `${base}?sslmode=require`;
 }
 
