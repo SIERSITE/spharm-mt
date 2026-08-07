@@ -100,10 +100,23 @@ export async function prepareAgentPackage(
     throw new AdminApiError(400, "key deve ser 64 chars hex (256-bit)", "bad_request");
   }
 
-  const endpoint =
-    input.endpoint?.trim() ||
-    process.env.SPHARMMT_PUBLIC_ENDPOINT ||
-    "https://app.spharmmt.app";
+  // Sem fallback para um endereço em código. Um default aqui silencioso
+  // produzia um agent.config.json a apontar para OUTRO servidor —
+  // instalado numa farmácia, o sintoma seria "os dados não aparecem",
+  // sem nada a indicar que o ZIP estava a falar com o sítio errado.
+  //
+  // Ordem: o que o operador pediu explicitamente, senão a configuração
+  // deste servidor. Se nenhuma existir, é erro de configuração e diz-se.
+  const endpoint = input.endpoint?.trim() || process.env.SPHARMMT_PUBLIC_ENDPOINT?.trim() || "";
+  if (!endpoint) {
+    throw new AdminApiError(
+      500,
+      "SPHARMMT_PUBLIC_ENDPOINT não está configurado no servidor, e não foi indicado um endpoint no pedido. " +
+        "Sem ele o agent.config.json não sabe para onde enviar os dados. " +
+        "Definir SPHARMMT_PUBLIC_ENDPOINT em docker/env/platform.env (o install-platform.sh escreve-o) e reiniciar a stack.",
+      "endpoint_not_configured"
+    );
+  }
   if (!/^https?:\/\//.test(endpoint)) {
     throw new AdminApiError(400, `endpoint inválido: ${endpoint}`, "bad_request");
   }

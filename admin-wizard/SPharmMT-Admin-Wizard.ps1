@@ -1045,8 +1045,17 @@ $tabD.Controls.Add((New-Label "(escolher da lista; envia por ID)" 610 48 300))
 $script:dFarmaciaMap = @{}
 
 $tabD.Controls.Add((New-Label "Endpoint SaaS:" 12 80 120))
-$dEndpoint = New-TextBox 140 78 460 "https://app.spharmmt.app"
+# VAZIO de proposito. Com um default aqui, o ZIP saia configurado para
+# esse endereco mesmo contra outro servidor -- e este campo tem
+# PRECEDENCIA sobre o SPHARMMT_PUBLIC_ENDPOINT do servidor. Era assim que
+# um ZIP gerado a partir da VPS ficava a apontar para o ambiente antigo.
+#
+# Vazio = o servidor decide, a partir da sua propria configuracao, que e
+# a resposta certa em praticamente todos os casos. Preencher aqui e a
+# excepcao, nao a regra.
+$dEndpoint = New-TextBox 140 78 460 ""
 $tabD.Controls.Add($dEndpoint)
+$tabD.Controls.Add((New-Label "(vazio = usa o endpoint configurado no servidor)" 140 102 460))
 
 $tabD.Controls.Add((New-Label "Healthcheck URL:" 12 112 120))
 $dHealth = New-TextBox 140 110 720 ""
@@ -1497,7 +1506,10 @@ function Show-SaasConfigDialog {
   $txtU = New-Object System.Windows.Forms.TextBox
   $txtU.Location = New-Object System.Drawing.Point(125, 64)
   $txtU.Size = New-Object System.Drawing.Size(465, 24)
-  $txtU.Text = $(if ($InitialUrl) { $InitialUrl } else { "https://app.spharmmt.app" })
+  # Sem default: o operador escreve o endereco do servidor a que se quer
+  # ligar. Um endereco pre-preenchido convida a aceita-lo sem ler, e era
+  # o do ambiente antigo.
+  $txtU.Text = $(if ($InitialUrl) { $InitialUrl } else { "" })
   $dlg.Controls.Add($txtU)
 
   $lblT = New-Object System.Windows.Forms.Label
@@ -1960,7 +1972,12 @@ $dPkgBtn.Add_Click({
   $endpoint = $dEndpoint.Text.Trim()
   $health = $dHealth.Text.Trim()
   if (-not $farm) { [System.Windows.Forms.MessageBox]::Show("Nome da farmacia em falta.", "Validacao", "OK", "Warning") | Out-Null; return }
-  if (-not $endpoint -or $endpoint -notmatch '^https?://') { [System.Windows.Forms.MessageBox]::Show("Endpoint invalido.", "Validacao", "OK", "Warning") | Out-Null; return }
+  # Vazio e VALIDO: significa "usa o endpoint do servidor". So se preencher
+  # e que tem de ser um URL -- meio-preenchido e engano, nao intencao.
+  if ($endpoint -and $endpoint -notmatch '^https?://') {
+    [System.Windows.Forms.MessageBox]::Show("Endpoint invalido: tem de comecar por http:// ou https://.`r`n`r`nDeixa vazio para usar o endpoint configurado no servidor.", "Validacao", "OK", "Warning") | Out-Null
+    return
+  }
 
   $rotate = $dKeyRotate.Checked
   $key = $dKeyText.Text.Trim()
@@ -1988,7 +2005,8 @@ $dPkgBtn.Add_Click({
     }
   }
 
-  $cmdArgs = @("--tenant=$t", "--farmacia=$farm", "--endpoint=$endpoint")
+  $cmdArgs = @("--tenant=$t", "--farmacia=$farm")
+  if ($endpoint) { $cmdArgs += "--endpoint=$endpoint" }
   if ($health) { $cmdArgs += "--healthcheck-url=$health" }
   if ($rotate) { $cmdArgs += "--rotate" } else { $cmdArgs += "--key=$key" }
   if ($dSqlHost.Text.Trim()) { $cmdArgs += "--sql-host=$($dSqlHost.Text.Trim())" }
@@ -1997,7 +2015,10 @@ $dPkgBtn.Add_Click({
   if ($dSqlUser.Text.Trim()) { $cmdArgs += "--sql-user=$($dSqlUser.Text.Trim())" }
 
   if ($script:Mode -eq "STANDALONE") {
-    $reqBody = @{ endpoint = $endpoint }
+    # `endpoint` so entra no corpo se o operador o tiver escrito. Ausente,
+    # o servidor usa o SPHARMMT_PUBLIC_ENDPOINT dele.
+    $reqBody = @{}
+    if ($endpoint) { $reqBody["endpoint"] = $endpoint }
     # Preferir ID (imune a encoding); fallback para nome livre.
     $fid = $null
     if ($script:dFarmaciaMap -and $script:dFarmaciaMap.ContainsKey($farm)) { $fid = $script:dFarmaciaMap[$farm] }

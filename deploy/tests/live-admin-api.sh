@@ -110,6 +110,12 @@ TENANT_DB_SSLMODE=disable
 TENANT_DB_HOST=postgres
 TENANT_DB_PORT=5432
 AGENT_BASE_ZIP_URL=http://127.0.0.1:${HTTP_PORT}/agent-base/spharmmt-agent-base.zip
+# Escrita pelo install-platform.sh numa VPS real. É daqui que sai o
+# `saas.endpoint` do agent.config.json quando o operador não indica um.
+# Sem ela o `agent-package` responde 500 endpoint_not_configured — de
+# propósito: um ZIP com o endereço errado só dá sintoma na farmácia,
+# semanas depois, como "os dados não aparecem".
+SPHARMMT_PUBLIC_ENDPOINT=http://127.0.0.1:${HTTP_PORT}
 EOF
 
 cat >"${TMP}/secrets/app.secrets.env" <<EOF
