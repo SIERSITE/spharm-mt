@@ -56,7 +56,8 @@
     "agent:discover": "tsx agent/src/cli.ts discover",
     "agent:health": "tsx agent/src/cli.ts health",
     "agent:package": "node agent/build.mjs",
-    "agent:publish-base": "tsx scripts/admin/upload-agent-base.ts"
+    "agent:publish-base": "tsx scripts/admin/upload-agent-base.ts",
+    "test:tenant-resolution": "tsx scripts/tests/test-tenant-resolution.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.6.0",
