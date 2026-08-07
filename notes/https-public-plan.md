@@ -10,6 +10,74 @@ VPS: `164.132.85.211`, raiz da plataforma em `/opt/spharmmt`.
 
 ---
 
+## 0. Pré-requisitos — POR SATISFAZER (verificado 2026-08-07)
+
+A execução foi autorizada e **parou antes da fase 0**. Três bloqueios,
+confirmados contra a VPS real em modo apenas-leitura:
+
+### 0.1 O domínio `spharmmt.pt` não existe — BLOQUEANTE
+
+Não é falta de registos `A`: a zona não existe.
+
+```
+admin.spharmmt.pt  -> NXDOMAIN
+app.spharmmt.pt    -> NXDOMAIN
+spharmmt.pt  SOA   -> "O nome DNS não existe"
+spharmmt.pt  NS    -> não existe
+```
+
+`sier.pt` resolve normalmente (`130.185.81.63`), portanto o problema não
+é do resolver. `spharmmt.app` também não existe.
+
+Sem domínio delegado, o Let's Encrypt não consegue validar nada. **Tem
+de ser registado e delegado antes da fase 1**, e só depois criados os
+dois registos `A` da secção 1.
+
+### 0.2 `sudo` exige password — BLOQUEANTE
+
+O utilizador `deploy` autentica por chave (`~/.ssh/spharmmt_prod_nova`),
+mas `sudo -n` responde `a password is required`. Todas as fases
+precisam de `sudo`: `ufw`, `certbot`, `install-stack.sh`, cópia dos
+certificados, `systemd`.
+
+Os comandos deste plano têm de ser executados por quem tem essa
+password.
+
+### 0.3 Caminhos corrigidos
+
+A primeira versão deste plano assumiu caminhos tirados das variáveis do
+repositório, sem os confrontar com a VPS. O real é outro:
+
+| Assumido (errado) | Real |
+|---|---|
+| `/opt/spharmmt/env/platform.env` | `/opt/spharmmt/docker/env/platform.env` |
+| `/opt/spharmmt/env/stack.env` | `/opt/spharmmt/docker/env/stack.env` |
+
+Também: o compose vive em `/opt/spharmmt/docker/compose/docker-compose.yml`
+e o contexto de build é `/opt/spharmmt/app` (que **não** é um checkout
+git — não tem `.git`).
+
+Consequência se não fosse corrigido: os `sed -i` da fase 2 falhavam, e o
+`tee -a` da fase 5 **criava um ficheiro novo no sítio errado** — a stack
+ficava sem `PROXY_HTTPS_PORT` e o sintoma só aparecia mais tarde.
+
+### 0.4 Estado actual da VPS (apenas leitura, nada alterado)
+
+```
+containers   spharmmt-{app,proxy,worker,postgres}  todos healthy (22h)
+proxy        80/tcp -> 127.0.0.1:8080  (fechado ao exterior)
+proxy/conf   só spharmmt.conf — falta spharmmt-proxy-common.inc
+proxy/certs  vazio
+certbot      não instalado
+URLs         PUBLIC_APP_URL / SPHARMMT_PUBLIC_ENDPOINT = http://164.132.85.211
+             AGENT_BASE_ZIP_URL = http://127.0.0.1:8080/... (só pelo túnel)
+             ADMIN_API_URL  ausente
+SESSION_COOKIE_SECURE=0     SCHEDULER_ENABLED=0     TENANT_FALLBACK_ENABLED=1
+disco        / 54G livres · /data 49G livres
+```
+
+---
+
 ## 1. Registos DNS a criar
 
 | Tipo | Nome | Valor | TTL |
@@ -112,8 +180,8 @@ não avançar para a seguinte.
 
 ```bash
 sudo /opt/spharmmt/scripts/backup-platform.sh --label pre-https
-sudo cp /opt/spharmmt/env/platform.env  /root/platform.env.pre-https
-sudo cp /opt/spharmmt/env/stack.env     /root/stack.env.pre-https
+sudo cp /opt/spharmmt/docker/env/platform.env  /root/platform.env.pre-https
+sudo cp /opt/spharmmt/docker/env/stack.env     /root/stack.env.pre-https
 sudo cp -r /opt/spharmmt/proxy/conf     /root/proxy-conf.pre-https
 ```
 
@@ -126,7 +194,7 @@ cd /tmp && rm -rf spharmmt && git clone https://github.com/SIERSITE/spharm-mt.gi
 cd /tmp/spharmmt && git log -1 --format='%H %s'
 ```
 
-Editar `/opt/spharmmt/env/platform.env` (o ficheiro diz explicitamente
+Editar `/opt/spharmmt/docker/env/platform.env` (o ficheiro diz explicitamente
 que é seguro editar à mão):
 
 ```ini
@@ -162,7 +230,7 @@ failed`, porque o `spharmmt.conf` inclui-o.
 ls -l /opt/spharmmt/proxy/conf/
 # tem de listar: spharmmt.conf  E  spharmmt-proxy-common.inc
 ls -ld /opt/spharmmt/proxy/acme
-grep -E '^(PROXY_HTTPS_PORT|ACME_DIR)=' /opt/spharmmt/env/stack.env
+grep -E '^(PROXY_HTTPS_PORT|ACME_DIR)=' /opt/spharmmt/docker/env/stack.env
 sudo docker exec spharmmt-proxy nginx -t
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/healthz   # 200
 ```
@@ -170,8 +238,8 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/healthz   # 200
 ### Fase 2 — abrir o 80 (só ACME + redirect)
 
 ```bash
-sudo sed -i 's/^PROXY_BIND=.*/PROXY_BIND=0.0.0.0/'     /opt/spharmmt/env/stack.env
-sudo sed -i 's/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=80/' /opt/spharmmt/env/stack.env
+sudo sed -i 's/^PROXY_BIND=.*/PROXY_BIND=0.0.0.0/'     /opt/spharmmt/docker/env/stack.env
+sudo sed -i 's/^PROXY_HTTP_PORT=.*/PROXY_HTTP_PORT=80/' /opt/spharmmt/docker/env/stack.env
 sudo mkdir -p /opt/spharmmt/proxy/acme
 sudo chown deploy:spharmmt /opt/spharmmt/proxy/acme
 sudo ufw allow 80/tcp
@@ -230,7 +298,7 @@ ls -l /opt/spharmmt/proxy/certs/
 ```bash
 sudo cp /tmp/spharmmt/deploy/docker/proxy/spharmmt-tls.conf /opt/spharmmt/proxy/conf/
 sudo docker exec spharmmt-proxy nginx -t     # validar ANTES de aplicar
-echo 'PROXY_HTTPS_PORT=443' | sudo tee -a /opt/spharmmt/env/stack.env
+echo 'PROXY_HTTPS_PORT=443' | sudo tee -a /opt/spharmmt/docker/env/stack.env
 sudo ufw allow 443/tcp
 sudo /opt/spharmmt/scripts/update-platform.sh --no-build
 ```
@@ -257,7 +325,7 @@ sudo ufw status numbered
 ### Fase 6 — cookie seguro (só depois do HTTPS confirmado)
 
 ```bash
-sudo sed -i 's/^SESSION_COOKIE_SECURE=.*/SESSION_COOKIE_SECURE=1/' /opt/spharmmt/env/platform.env
+sudo sed -i 's/^SESSION_COOKIE_SECURE=.*/SESSION_COOKIE_SECURE=1/' /opt/spharmmt/docker/env/platform.env
 sudo /opt/spharmmt/scripts/update-platform.sh --no-build
 ```
 
@@ -290,7 +358,7 @@ elas, porque o bind local nunca é removido.
 
 | Falha em | Reverter com | Efeito |
 |----------|--------------|--------|
-| Fase 1 (build) | `cp /root/platform.env.pre-https /opt/spharmmt/env/platform.env` + `install-stack.sh --yes` | Volta ao estado anterior (~10 min de reconstrução) |
+| Fase 1 (build) | `cp /root/platform.env.pre-https /opt/spharmmt/docker/env/platform.env` + `install-stack.sh --yes` | Volta ao estado anterior (~10 min de reconstrução) |
 | Fase 2 (80) | `PROXY_BIND=127.0.0.1`, `PROXY_HTTP_PORT=8080`, `ufw delete allow 80/tcp`, `update-platform.sh --no-build` | Fecha ao exterior outra vez |
 | Fase 3 (certbot) | Nada a desfazer — o certbot não altera a stack | Repetir depois de corrigir DNS/webroot |
 | Fase 5 (TLS) | `rm /opt/spharmmt/proxy/conf/spharmmt-tls.conf` + `update-platform.sh --no-build` | Volta a HTTP; a stack fica de pé |
@@ -299,8 +367,8 @@ elas, porque o bind local nunca é removido.
 Rollback total:
 
 ```bash
-sudo cp /root/platform.env.pre-https /opt/spharmmt/env/platform.env
-sudo cp /root/stack.env.pre-https    /opt/spharmmt/env/stack.env
+sudo cp /root/platform.env.pre-https /opt/spharmmt/docker/env/platform.env
+sudo cp /root/stack.env.pre-https    /opt/spharmmt/docker/env/stack.env
 sudo rm -f /opt/spharmmt/proxy/conf/spharmmt-tls.conf
 sudo rm -f /etc/letsencrypt/renewal-hooks/deploy/spharmmt.sh
 sudo ufw delete allow 80/tcp; sudo ufw delete allow 443/tcp
