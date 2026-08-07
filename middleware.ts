@@ -27,72 +27,29 @@ import { NextResponse, type NextRequest } from "next/server";
  * credenciais válidas não há acesso, e a consola admin exige
  * LEGACY_TENANT (logo o fallback não dá escalonamento de privilégios).
  *
- * Labels reservadas que NUNCA são tratadas como tenant: ver
- * BASE_RESERVED_LABELS, mais o label do host público e as de
- * TENANT_RESERVED_LABELS.
+ * Labels reservadas que NUNCA são tratadas como tenant:
+ *   www, admin, api, spharmmt, spharm-mt, localhost, 127
  *
- * CRÍTICO: o primeiro label do host da PRÓPRIA plataforma tem de ser
- * reservado. Sendo o subdomínio prioritário, um host como
- * `spharm-mt.vercel.app` resolvia sempre slug="spharm-mt" → cache miss →
- * legacy, curto-circuitando o fallback de query/cookie (o login do piloto
- * nunca chegava a ser consultado). Reservá-lo faz o apex devolver null no
+ * CRÍTICO: o host de produção é `spharm-mt.vercel.app`, cujo PRIMEIRO
+ * label é `spharm-mt` (COM hífen). Sem o reservar, o subdomínio (que é
+ * prioritário) resolvia sempre slug="spharm-mt" → cache miss → legacy,
+ * curto-circuitando o fallback de query/cookie (o login do piloto nunca
+ * chegava a ser consultado). Reservá-lo faz o apex devolver null no
  * subdomínio e deixa o fallback (?__tenant → cookie) entrar em acção.
  *
- * Esse label deixou de estar escrito à mão: vem de `PUBLIC_APP_URL`, para
- * que a resolução funcione igual em `*.vercel.app`, num domínio próprio
- * ou num IP nu. `TENANT_RESERVED_LABELS` (CSV) acrescenta outros sem
- * tocar em código.
- *
- * Este ficheiro corre em Edge e lê `process.env.X` de forma ESTÁTICA de
- * propósito — o equivalente dinâmico vive em `lib/runtime-config.ts`, que
- * o middleware não pode importar sem arrastar dependências Node.
- *
- * Se nenhuma estratégia resolver, o header fica por escrever e a
- * resolução do cliente decide (ver `lib/tenant-registry.ts` — em produção
- * NÃO cai silenciosamente na base legacy).
+ * Se nenhuma estratégia resolver, o header fica por escrever e o
+ * getPrisma() cai no legacy fallback.
  */
 
-const BASE_RESERVED_LABELS = [
+const RESERVED_LABELS = new Set([
   "www",
   "admin",
   "api",
-  "app",
-  "static",
-  "assets",
   "spharmmt",
-  "spharm-mt",
+  "spharm-mt", // host da própria plataforma (spharm-mt.vercel.app) — não é tenant
   "localhost",
   "127",
-];
-
-/** Primeiro label do host público configurado, se houver. */
-function platformLabel(): string | null {
-  const url = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.toLowerCase().split(".")[0] || null;
-  } catch {
-    return null;
-  }
-}
-
-function buildReservedLabels(): Set<string> {
-  const set = new Set(BASE_RESERVED_LABELS);
-  const own = platformLabel();
-  if (own) set.add(own);
-  const extra = process.env.TENANT_RESERVED_LABELS;
-  if (extra) {
-    for (const raw of extra.split(",")) {
-      const label = raw.trim().toLowerCase();
-      if (label) set.add(label);
-    }
-  }
-  return set;
-}
-
-// Calculado uma vez por instância: as envs não mudam durante a vida do
-// processo, e isto está no caminho de TODOS os requests.
-const RESERVED_LABELS = buildReservedLabels();
+]);
 
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{1,40}[a-z0-9]$/;
 
@@ -104,26 +61,6 @@ function fallbackEnabled(): boolean {
     process.env.TENANT_FALLBACK_ENABLED === "1" ||
     process.env.TENANT_FALLBACK_ENABLED === "true"
   );
-}
-
-/**
- * `secure` do cookie `__tenant`, com a MESMA regra do cookie de sessão
- * (`lib/runtime-config.ts`) — replicada aqui porque o middleware é Edge.
- *
- * Deduzir de `NODE_ENV === "production"`, como estava, era exactamente o
- * errado no cenário que motiva o fallback: acesso por IP em HTTP com
- * NODE_ENV=production. O browser descartava o cookie em silêncio, o
- * `?__tenant=` tinha de ser repetido em cada pedido e a navegação
- * normal caía sempre em "sem tenant".
- */
-function cookieSecure(): boolean {
-  const explicit = process.env.SESSION_COOKIE_SECURE;
-  if (explicit !== undefined && explicit !== "") {
-    return explicit === "1" || explicit === "true" || explicit === "yes";
-  }
-  const url = process.env.PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (url) return url.startsWith("https://");
-  return process.env.NODE_ENV === "production";
 }
 
 /** Valida + normaliza um slug candidato. Rejeita reservados e formato inválido. */
@@ -226,7 +163,7 @@ export function middleware(req: NextRequest): NextResponse {
     res.cookies.set(TENANT_COOKIE, slug, {
       httpOnly: true,
       sameSite: "lax",
-      secure: cookieSecure(),
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: TENANT_COOKIE_MAX_AGE,
     });

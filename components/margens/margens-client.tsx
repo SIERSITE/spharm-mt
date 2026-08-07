@@ -411,7 +411,17 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
               <tr key={`${r.cnp}:${r.farmaciaId}`}>
                 <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
                 <td className="py-2 pr-3 text-slate-800">{r.designacao}</td>
-                <td className="py-2 pr-3 text-slate-600">{r.categoria ?? "—"}</td>
+                <td className="py-2 pr-3 text-slate-600">
+                  <div className="flex flex-col leading-tight">
+                    <span>{r.categoria ?? "—"}</span>
+                    {/* Nivel 2 (grupo) por baixo do Nivel 1 quando difere — */}
+                    {/* o resolver devolve `grupo === categoria` se só houver  */}
+                    {/* um nível, evita repetição visual.                     */}
+                    {r.grupo && r.grupo !== r.categoria ? (
+                      <span className="text-[10px] text-slate-400">{r.grupo}</span>
+                    ) : null}
+                  </div>
+                </td>
                 <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>

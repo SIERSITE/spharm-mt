@@ -1,0 +1,86 @@
+──────────────────────────────────────────────────────────────────────────
+INFOMED Listagem Browse — HTTP-only pagination
+──────────────────────────────────────────────────────────────────────────
+  dryRun:        false
+  resume:        false
+  limitPages:    (no limit)
+  rateLimitMs:   500
+  outFile:       C:\projetos\spharm-mt\scripts\data\infomed-listagem.json
+
+[1] Bootstrap session...
+    JSESSIONID:   Il026qmJq_WN-PgKn1fz8gqzoZbY8D...
+    ViewState:    7279123671911880433:-2650772098972410027...
+
+[2] Submit initial (page 1)...
+    total registos:    9656
+    pages expected:    966
+    page 1 rows:       10
+    sample row:        medId=636382  "Abacavir Generis MG"
+
+[3] Paginating pages 2..966
+    page    2/966  rows=+10  total=20  rate=0.90/s  eta=17.9min
+    page    3/966  rows=+10  total=30  rate=0.98/s  eta=16.4min
+    page    4/966  rows=+10  total=40  rate=1.01/s  eta=15.8min
+    page    5/966  rows=+10  total=50  rate=1.05/s  eta=15.3min
+    page   20/966  rows=+10  total=200  rate=1.08/s  eta=14.6min
+    page   40/966  rows=+10  total=400  rate=1.11/s  eta=13.9min
+    page   60/966  rows=+10  total=600  rate=1.10/s  eta=13.7min
+    page   80/966  rows=+10  total=800  rate=1.08/s  eta=13.7min
+    page  100/966  rows=+10  total=1000  rate=1.09/s  eta=13.2min
+    page  120/966  rows=+10  total=1200  rate=1.07/s  eta=13.1min
+    page  140/966  rows=+10  total=1400  rate=1.06/s  eta=12.9min
+    page  160/966  rows=+10  total=1600  rate=1.07/s  eta=12.5min
+    page  180/966  rows=+10  total=1800  rate=1.06/s  eta=12.3min
+    page  200/966  rows=+10  total=2000  rate=1.07/s  eta=12.0min
+    page  220/966  rows=+10  total=2200  rate=1.07/s  eta=11.6min
+    page  240/966  rows=+10  total=2400  rate=1.07/s  eta=11.3min
+    page  260/966  rows=+10  total=2600  rate=1.06/s  eta=11.1min
+    page  280/966  rows=+10  total=2800  rate=1.07/s  eta=10.7min
+    page  300/966  rows=+10  total=3000  rate=1.07/s  eta=10.3min
+    page  320/966  rows=+10  total=3200  rate=1.07/s  eta=10.0min
+    page  340/966  rows=+10  total=3400  rate=1.08/s  eta=9.7min
+    page  360/966  rows=+10  total=3600  rate=1.07/s  eta=9.5min
+    page  380/966  rows=+10  total=3800  rate=1.06/s  eta=9.2min
+    page  400/966  rows=+10  total=4000  rate=1.06/s  eta=8.9min
+    page  420/966  rows=+10  total=4200  rate=1.06/s  eta=8.6min
+    page  440/966  rows=+10  total=4400  rate=1.07/s  eta=8.2min
+    page  460/966  rows=+10  total=4600  rate=1.07/s  eta=7.9min
+    page  480/966  rows=+10  total=4800  rate=1.07/s  eta=7.6min
+    page  500/966  rows=+10  total=5000  rate=1.07/s  eta=7.2min
+    page  520/966  rows=+10  total=5200  rate=1.07/s  eta=6.9min
+    page  540/966  rows=+10  total=5400  rate=1.07/s  eta=6.6min
+    page  560/966  rows=+10  total=5600  rate=1.08/s  eta=6.3min
+    page  580/966  rows=+10  total=5800  rate=1.08/s  eta=6.0min
+    page  600/966  rows=+10  total=6000  rate=1.08/s  eta=5.7min
+    page  620/966  rows=+10  total=6200  rate=1.08/s  eta=5.3min
+    page  640/966  rows=+10  total=6400  rate=1.08/s  eta=5.0min
+    page  660/966  rows=+10  total=6600  rate=1.08/s  eta=4.7min
+    page  680/966  rows=+10  total=6800  rate=1.08/s  eta=4.4min
+    page  700/966  rows=+10  total=7000  rate=1.08/s  eta=4.1min
+    page  720/966  rows=+10  total=7200  rate=1.09/s  eta=3.8min
+    page  740/966  rows=+10  total=7400  rate=1.09/s  eta=3.5min
+    page  760/966  rows=+10  total=7600  rate=1.09/s  eta=3.2min
+    page  780/966  rows=+10  total=7800  rate=1.09/s  eta=2.9min
+    page  800/966  rows=+10  total=8000  rate=1.09/s  eta=2.5min
+    page  820/966  rows=+10  total=8200  rate=1.09/s  eta=2.2min
+    page  840/966  rows=+10  total=8400  rate=1.09/s  eta=1.9min
+    page  860/966  rows=+10  total=8600  rate=1.09/s  eta=1.6min
+    page  880/966  rows=+10  total=8800  rate=1.08/s  eta=1.3min
+    page  900/966  rows=+10  total=9000  rate=1.08/s  eta=1.0min
+    page  920/966  rows=+10  total=9200  rate=1.08/s  eta=0.7min
+    page  940/966  rows=+10  total=9400  rate=1.08/s  eta=0.4min
+    page  960/966  rows=+10  total=9600  rate=1.08/s  eta=0.1min
+    page  966/966  rows=+6  total=9656  rate=1.07/s  eta=0.0min
+
+──────────────────────────────────────────────────────────────────────────
+RESUMO
+──────────────────────────────────────────────────────────────────────────
+  pages processed:     966/966
+  rows extracted:      9656
+  med_ids únicos:      9656
+  failed pages:        0
+  elapsed:             899.0s
+  rate:                1.07 pages/s
+  output:              C:\projetos\spharm-mt\scripts\data\infomed-listagem.json
+  mode:                LIVE
+──────────────────────────────────────────────────────────────────────────

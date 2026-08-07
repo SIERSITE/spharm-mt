@@ -14,6 +14,7 @@ import { resolveCategoria } from "@/lib/categoria-resolver";
 import {
   avgDaily,
   coverageDays,
+  EXCESSO_COVERAGE_DAYS,
   WINDOW_90D,
 } from "@/lib/operational/metrics-shared";
 import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
@@ -284,22 +285,31 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
 }
 
 export type ExcessosOptions = {
-  /** Coverage threshold in days; products with coverage > thresholdDays are excess. Default 90. */
+  /**
+   * Coverage threshold in days; products with coverage > thresholdDays are
+   * excess. Default = `EXCESSO_COVERAGE_DAYS` (180), partilhado com
+   * Inventário e Dashboard via `lib/operational/metrics-shared.ts`.
+   */
   thresholdDays?: number;
   /** Target coverage in days for the "excess quantity" calculation. Default 30. */
   targetDays?: number;
 };
 
 /**
- * Excess stock identification: products where coverage > thresholdDays
- * (default 90). The dashboard's "Excess stock" section calls this with
- * thresholdDays=60. farmaciaDestino shows the other pharmacy if it could
- * absorb some of the excess.
+ * Excess stock identification: products where coverage > thresholdDays.
+ *
+ * Default `thresholdDays = EXCESSO_COVERAGE_DAYS` (180) — mesma regra usada
+ * por Inventário (`classifyEstado→EXCESSO`) e pelo Dashboard (filtro
+ * `excess-stock-canonical`). Single source of truth em
+ * `lib/operational/metrics-shared.ts`.
+ *
+ * `farmaciaDestino` mostra a outra farmácia se puder absorver parte do
+ * excesso. As prioridades alta/média/baixa são relativas ao threshold base.
  */
 export async function getExcessosData(
   options?: ExcessosOptions,
 ): Promise<TransferSuggestionRow[]> {
-  const thresholdDays = options?.thresholdDays ?? 90;
+  const thresholdDays = options?.thresholdDays ?? EXCESSO_COVERAGE_DAYS;
   const targetDays = options?.targetDays ?? 30;
 
   const prisma = await getPrisma();
@@ -350,8 +360,14 @@ export async function getExcessosData(
       const destStock = destino ? Math.round(toF(destino.stockAtual)) : 0;
       const destNecessidade = destino && destCoverage < targetDays ? Math.round((targetDays - destCoverage) * (destino.avgDaily || 0)) : 0;
 
+      // Prioridade relativa ao threshold base — mantém a ordenação útil
+      // qualquer que seja `thresholdDays` (default 180 ⇒ alta>360, media>270).
       const prioridade: Priority =
-        entry.coverage > 180 ? "alta" : entry.coverage > 120 ? "media" : "baixa";
+        entry.coverage > thresholdDays * 2
+          ? "alta"
+          : entry.coverage > thresholdDays * 1.5
+            ? "media"
+            : "baixa";
 
       const finalQty = Math.min(excessQty, Math.round(toF(entry.stockAtual)));
       const valorUnlocked =

@@ -21,6 +21,21 @@ import {
 
 // ─── Tipos da listagem ───────────────────────────────────────────────────────
 
+/**
+ * Estado de retirado per-produto, agregado a partir de `flagRetirado` de
+ * todas as `ProdutoFarmacia` do produto (modelo canónico 2026-06):
+ *
+ *   · `none`     — nenhuma `ProdutoFarmacia` tem `flagRetirado=true`.
+ *   · `partial`  — pelo menos uma tem `true` mas nem todas.
+ *   · `all`      — todas as `ProdutoFarmacia` do produto têm `true`.
+ *
+ * Catálogo continua a mostrar todos os produtos. A UI distingue:
+ *   · `all`     → badge "Retirado" global.
+ *   · `partial` → indicação por farmácia.
+ *   · `none`    → sem badge.
+ */
+export type CatalogoRetiradoStatus = "none" | "partial" | "all";
+
 export type CatalogoRow = {
   id: string;
   cnp: number;
@@ -41,6 +56,8 @@ export type CatalogoRow = {
   pvpMin: number | null;
   /** Quantidade de farmácias com o produto registado. */
   farmaciasCount: number;
+  /** Estado canónico de retirado, agregado às farmácias do produto. */
+  retiradoStatus: CatalogoRetiradoStatus;
 };
 
 export type CatalogoListFilters = {
@@ -150,7 +167,7 @@ export async function loadCatalogoListData(
         classificacaoNivel1: { select: { nome: true } },
         classificacaoNivel2: { select: { nome: true } },
         produtosFarmacia: {
-          select: { pvp: true, farmaciaId: true },
+          select: { pvp: true, farmaciaId: true, flagRetirado: true },
         },
       },
       orderBy: [{ designacao: "asc" }],
@@ -165,6 +182,19 @@ export async function loadCatalogoListData(
       .filter((n): n is number => n !== null && Number.isFinite(n) && n > 0);
     const pvpMin = pvps.length > 0 ? Math.min(...pvps) : null;
     const farmaciasCount = new Set(p.produtosFarmacia.map((pf) => pf.farmaciaId)).size;
+
+    // Agregação canónica (modelo 2026-06): produto retirado quando todas
+    // as farmácias o têm com flagRetirado=true; parcial quando só algumas;
+    // none quando nenhuma. Sem PF, considera-se "none" (sinal de catálogo
+    // global sem ligação operacional, não retirado).
+    let retiradoStatus: CatalogoRetiradoStatus = "none";
+    if (p.produtosFarmacia.length > 0) {
+      const retiradosCount = p.produtosFarmacia.filter((pf) => pf.flagRetirado).length;
+      if (retiradosCount === 0) retiradoStatus = "none";
+      else if (retiradosCount === p.produtosFarmacia.length) retiradoStatus = "all";
+      else retiradoStatus = "partial";
+    }
+
     return {
       id: p.id,
       cnp: p.cnp,
@@ -183,6 +213,7 @@ export async function loadCatalogoListData(
       estado: p.estado,
       pvpMin,
       farmaciasCount,
+      retiradoStatus,
     };
   });
 
@@ -204,6 +235,8 @@ export type CatalogoArticlePresenca = {
   pvp: number | null;
   pmc: number | null;
   stockAtual: number | null;
+  /** Flag canónica do modelo 2026-06 — true = retirado nesta farmácia. */
+  flagRetirado: boolean;
 };
 
 export type CatalogoArticle = {
@@ -235,6 +268,8 @@ export type CatalogoArticle = {
   classificacaoNivel1: { id: string; nome: string } | null;
   classificacaoNivel2: { id: string; nome: string } | null;
   presencas: CatalogoArticlePresenca[];
+  /** Agregação canónica de retirado sobre as presenças. */
+  retiradoStatus: CatalogoRetiradoStatus;
 };
 
 export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle | null> {
@@ -252,6 +287,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
           pvp: true,
           pmc: true,
           stockAtual: true,
+          flagRetirado: true,
           farmacia: { select: { nome: true } },
         },
         orderBy: { farmacia: { nome: "asc" } },
@@ -295,6 +331,22 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
       pvp: pf.pvp == null ? null : Number(pf.pvp),
       pmc: pf.pmc == null ? null : Number(pf.pmc),
       stockAtual: pf.stockAtual == null ? null : Number(pf.stockAtual),
+      flagRetirado: pf.flagRetirado,
     })),
+    retiradoStatus: aggregateRetiradoStatus(p.produtosFarmacia),
   };
+}
+
+/**
+ * Agrega `flagRetirado` das `ProdutoFarmacia` num único estado canónico.
+ * Sem PF (catálogo global puro) → `none` por defeito.
+ */
+function aggregateRetiradoStatus(
+  pfs: ReadonlyArray<{ flagRetirado: boolean }>,
+): CatalogoRetiradoStatus {
+  if (pfs.length === 0) return "none";
+  const retirados = pfs.filter((pf) => pf.flagRetirado).length;
+  if (retirados === 0) return "none";
+  if (retirados === pfs.length) return "all";
+  return "partial";
 }

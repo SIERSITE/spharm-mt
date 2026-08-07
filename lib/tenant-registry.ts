@@ -4,7 +4,6 @@
 // `lib/tenant-context.ts`.
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { legacyDatabaseFallbackAllowed } from "@/lib/runtime-config";
 
 /**
  * Registry em memória dos PrismaClients por tenant, com lazy warm-up.
@@ -25,37 +24,14 @@ import { legacyDatabaseFallbackAllowed } from "@/lib/runtime-config";
  *   4. Novos tenants provisionados após o warm-up NÃO aparecem até
  *      ao próximo restart do processo. Nesta fase é aceitável.
  *
- * Legacy fallback — CONDICIONAL, e por defeito DESLIGADO em produção:
- *   · slug === null                    → legacy, se permitido
- *   · slug não encontrado no cache     → legacy, se permitido
- *   · warm-up falhou                   → legacy, se permitido
+ * Legacy fallback:
+ *   · slug === null                    → legacy (BD de dev actual)
+ *   · slug não encontrado no cache     → legacy (com warn em dev)
+ *   · warm-up falhou                   → legacy
  *
- * O "legacy" é construído a partir de `process.env.DATABASE_URL`.
- *
- * Porque é que deixou de ser incondicional: num alojamento multi-tenant,
- * `DATABASE_URL` aponta para uma base concreta. Cair nela porque o slug
- * não resolveu serve dados de OUTRO cliente a quem pediu um tenant — e
- * fá-lo em silêncio, porque a página abre na mesma. Um erro explícito é
- * sempre preferível a uma resposta errada.
- *
- * `ALLOW_LEGACY_DATABASE_FALLBACK=1` repõe o comportamento antigo (é o
- * default fora de produção, onde é o modo de trabalho normal). Ver
- * `lib/runtime-config.ts`.
+ * O "legacy" é construído a partir de `process.env.DATABASE_URL`,
+ * mantendo compat total com o singleton antigo de `lib/prisma.ts`.
  */
-
-/**
- * Erro atirado quando não há tenant resolvido e o fallback não é
- * permitido. Distinto de qualquer erro de Prisma para que os callers
- * possam responder 404/400 em vez de 500.
- */
-export class TenantResolutionError extends Error {
-  readonly slug: string | null;
-  constructor(slug: string | null, detail: string) {
-    super(detail);
-    this.name = "TenantResolutionError";
-    this.slug = slug;
-  }
-}
 
 type CacheEntry = { client: PrismaClient; slug: string };
 
@@ -130,52 +106,26 @@ async function ensureWarm(): Promise<void> {
 }
 
 /**
- * Cai no cliente legacy, ou atira se isso não for permitido.
- *
- * `reason` entra na mensagem para que o log diga qual dos dois casos
- * ocorreu — "sem tenant no request" e "slug desconhecido" pedem acções
- * diferentes ao operador.
- */
-function fallbackOrThrow(slug: string | null, reason: string): PrismaClient {
-  if (legacyDatabaseFallbackAllowed()) {
-    if (slug && process.env.NODE_ENV !== "production") {
-      console.warn(
-        `[tenant-registry] slug "${slug}" não está no cache — a cair no legacy.\n` +
-          "  Se o tenant foi provisionado após o arranque, reinicia o dev server."
-      );
-    }
-    return getLegacyClient();
-  }
-  throw new TenantResolutionError(
-    slug,
-    `${reason}. O fallback para DATABASE_URL está desligado ` +
-      "(ALLOW_LEGACY_DATABASE_FALLBACK), portanto não há base a servir. " +
-      "Acede pelo subdomínio do tenant ou, sem DNS wildcard, com " +
-      "?__tenant=<slug> e TENANT_FALLBACK_ENABLED=1."
-  );
-}
-
-/**
- * Ponto de entrada principal. Recebe o slug corrente (null = sem tenant
- * no request) e devolve um PrismaClient pronto.
- *
- * Atira `TenantResolutionError` quando não há tenant e o fallback legacy
- * não é permitido — ver a nota no topo do ficheiro.
+ * Ponto de entrada principal. Recebe o slug corrente (null = legacy)
+ * e devolve um PrismaClient pronto. Nunca atira — em qualquer caso
+ * de erro, cai no legacy.
  */
 export async function getTenantPrismaOrLegacy(slug: string | null): Promise<PrismaClient> {
   if (!slug) {
-    return fallbackOrThrow(null, "Nenhum tenant resolvido para este pedido");
+    return getLegacyClient();
   }
 
   await ensureWarm();
   const entry = cache.get(slug);
   if (entry) return entry.client;
 
-  return fallbackOrThrow(
-    slug,
-    `O tenant "${slug}" não existe, não está ACTIVE, ou foi provisionado ` +
-      "depois do arranque deste processo"
-  );
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      `[tenant-registry] slug "${slug}" não está no cache — a cair no legacy.\n` +
+        "  Se o tenant foi provisionado após o arranque, reinicia o dev server."
+    );
+  }
+  return getLegacyClient();
 }
 
 /**

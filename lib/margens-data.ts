@@ -39,6 +39,15 @@
  *     nulas e estado = IVA_POR_APURAR.
  *   · Margem % suprimida em estados PARCIAL, SEM_CUSTO e IVA_POR_APURAR.
  *   · Produtos sem custo/IVA aparecem como linha (não excluídos).
+ *
+ * Produtos retirados (modelo canónico 2026-06):
+ *   · Default deveria excluir `pf.flagRetirado=true`, mas a query parte
+ *     de `agg` (VendaMensal no período), pelo que toda linha agregada
+ *     tem por definição vendas no período. O conjunto resultante já
+ *     respeita "excluir retirados excepto se houver vendas no período".
+ *   · Não há filtro `flagRetirado` adicional aqui — é redundante e o
+ *     LEFT JOIN a ProdutoFarmacia continua a enriquecer com pmc/puc/iva
+ *     mesmo para produtos retirados que tiveram vendas no período.
  */
 
 import { getPrisma } from "@/lib/prisma";

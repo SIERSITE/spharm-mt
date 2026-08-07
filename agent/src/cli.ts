@@ -19,6 +19,8 @@
  *   · sales-summary-preview (GROUP BY TipoDoc+EntidadeID + TOP 10 docs)
  *   · bootstrap-dry-run  (preview canónico da 1ª ingestão — sem escrita)
  *   · bootstrap-upload   (1ª ingestão REAL, idempotente, gated por feature flag)
+ *   · products-upload    (rev45: SÓ produtos → /bootstrap/products, idempotente, retry+shrink)
+ *   · stock-upload       (SÓ stock → /bootstrap/stock, idempotente)
  *   · daily-sync        (sync incremental diário, reusa endpoints bootstrap)
  *   · daily-sync-dry-run (preview do daily-sync sem POST)
  *   · health
@@ -40,6 +42,7 @@ import { salesPreview } from "./commands/sales-preview.js";
 import { salesSummaryPreview } from "./commands/sales-summary-preview.js";
 import { bootstrapDryRun } from "./commands/bootstrap-dry-run.js";
 import { bootstrapUpload } from "./commands/bootstrap-upload.js";
+import { productsUpload } from "./commands/products-upload.js";
 import { stockUpload } from "./commands/stock-upload.js";
 import { fullSync } from "./commands/full-sync.js";
 import { dailySync, dailySyncDryRun } from "./commands/daily-sync.js";
@@ -113,6 +116,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "bootstrap-upload": {
     run: bootstrapUpload,
     desc: "1ª ingestão REAL para a SaaS. Idempotente. Requer ENABLE_AGENT_BOOTSTRAP=1.",
+  },
+  "products-upload": {
+    run: productsUpload,
+    desc: "rev45: upload SÓ de produtos → /bootstrap/products. NÃO envia stock/sales. Batch 25 + retry+backoff+shrink. Idempotente. Refresh IVA per-farmácia.",
   },
   "stock-upload": {
     run: stockUpload,

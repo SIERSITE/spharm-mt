@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt" xmlns="http://www.w3.org/1999/xhtml"><head id="j_idt2"><link type="text/css" rel="stylesheet" href="/INFOMED-fo/javax.faces.resource/fa/font-awesome.css.xhtml?ln=primefaces&amp;v=7.0" /><link type="text/css" rel="stylesheet" href="/INFOMED-fo/javax.faces.resource/components.css.xhtml?ln=primefaces&amp;v=7.0" /><script type="text/javascript" src="/INFOMED-fo/javax.faces.resource/jquery/jquery.js.xhtml?ln=primefaces&amp;v=7.0"></script><script type="text/javascript" src="/INFOMED-fo/javax.faces.resource/jquery/jquery-plugins.js.xhtml?ln=primefaces&amp;v=7.0"></script><script type="text/javascript" src="/INFOMED-fo/javax.faces.resource/core.js.xhtml?ln=primefaces&amp;v=7.0"></script><script type="text/javascript" src="/INFOMED-fo/javax.faces.resource/components.js.xhtml?ln=primefaces&amp;v=7.0"></script><link type="text/css" rel="stylesheet" href="/INFOMED-fo/javax.faces.resource/infomed.css.xhtml?ln=styles" media="all" /><script type="text/javascript" src="/INFOMED-fo/javax.faces.resource/jsf.js.xhtml?ln=javax.faces"></script><script type="text/javascript">if(window.PrimeFaces){PrimeFaces.settings.locale='pt';}</script>
+
+	<title>Infomed</title>
+
+	<meta name="description" content="A Infomed é atualizada diariamente a partir da base de dados interna do Infarmed. Este Instituto desenvolve todos os esforços para garantir a atualização e correção desta informação, mas podem ocorrer erros pontuais. O Infarmed não pode ser responsabilizado por quaisquer dados online que não estejam claros, corretos ou atualizados. Se detetar algum erro na Infomed, por favor, informe-nos." />
+	<meta name="keywords" content="Infomed, Infarmed, SNS, CNFT, DGS, NOCs, informação, Medicamento, Grupos Terapêuticos, Patologias, utente, igualdade de acesso aos medicamentos, saúde" />
+	<meta name="robots" content="index, follow" />
+
+	
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+	<meta name="msapplication-TileColor" content="#ffffff" />
+	<meta name="msapplication-TileImage" content="images/favicon/ms-icon-144x144.png" />
+	<meta name="theme-color" content="#ffffff" />
+
+
+	
+	<link rel="stylesheet" type="text/css" href="styles/bootstrap.min.css" />
+
+	
+	<link rel="stylesheet" type="text/css" href="styles/all.min.css" />
+
+	
+	<link rel="stylesheet" type="text/css" href="styles/primeicons.css" />
+
+	
+	<link rel="stylesheet" type="text/css" href="styles/infomed.css" />
+
+	<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet" />
+	<link href="https://fonts.googleapis.com/css?family=Raleway" rel="stylesheet" />
+
+	<link rel="apple-touch-icon" sizes="57x57" href="images/favicon/apple-icon-57x57.png" />
+	<link rel="apple-touch-icon" sizes="60x60" href="images/favicon/apple-icon-60x60.png" />
+	<link rel="apple-touch-icon" sizes="72x72" href="images/favicon/apple-icon-72x72.png" />
+	<link rel="apple-touch-icon" sizes="76x76" href="images/favicon/apple-icon-76x76.png" />
+	<link rel="apple-touch-icon" sizes="114x114" href="images/favicon/apple-icon-114x114.png" />
+	<link rel="apple-touch-icon" sizes="120x120" href="images/favicon/apple-icon-120x120.png" />
+	<link rel="apple-touch-icon" sizes="144x144" href="images/favicon/apple-icon-144x144.png" />
+	<link rel="apple-touch-icon" sizes="152x152" href="images/favicon/apple-icon-152x152.png" />
+	<link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-icon-180x180.png" />
+	<link rel="icon" type="image/png" sizes="192x192" href="images/favicon/android-icon-192x192.png" />
+	<link rel="icon" type="image/png" sizes="32x32" href="images/favicon/favicon-32x32.png" />
+	<link rel="icon" type="image/png" sizes="96x96" href="images/favicon/favicon-96x96.png" />
+	<link rel="icon" type="image/png" sizes="16x16" href="images/favicon/favicon-16x16.png" />
+	<link rel="manifest" href="images/favicon/manifest.json" />
+
+	<script type="text/javascript" src="js/popper.min.js"></script>
+	<script type="text/javascript" src="js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="js/modernizr-custom.js"></script>
+	<script type="text/javascript" src="js/breadcrumbs-movement.js"></script>
+	<script type="text/javascript" src="https://extranet.infarmed.pt/web/js/web-template/cookies.js"></script>
+        <script type="text/javascript" src="https://srvwebmonit.infarmed.pt/js/infomed/INFOMED-wa.js"></script><div id="waitingBlocker" class="ui-dialog ui-widget ui-widget-content ui-corner-all ui-shadow ui-hidden-container bg-transparent-10"><div class="ui-dialog-content ui-widget-content" id="waitingBlocker_content">
+		<div style="text-align: center">
+			<br /> <br /> <br /> <br /> <br /> <br /> <br /> <br /> <br />
+			<br /> <br /> <br /> <br /> <br /> <img src="./images/loading-400px.gif" alt="loading" height="80px" /><br />
+		</div></div></div><script id="waitingBlocker_s" type="text/javascript">$(function(){PrimeFaces.cw("Dialog","statusDialog",{id:"waitingBlocker",draggable:false,resizable:false,modal:true});});</script>
+
+	
+	<link rel="stylesheet" type="text/css" href="styles/print.css" media="print" />
+	<link rel="stylesheet" type="text/css" href="styles/precos.css" media="all" /></head><body>
+
+	<a class="skip-to-content-link" href="#panel-detalhes">
+		Voltar para o conteúdo </a><div id="neighborhoodPopup" class="ui-dialog ui-widget ui-widget-content ui-corner-all ui-shadow ui-hidden-container" style="background-color: #e1e1e175;text-align: -webkit-center; min-block-size: -webkit-fill-available;"><div class="ui-dialog-titlebar ui-widget-header ui-helper-clearfix ui-corner-top"><span id="neighborhoodPopup_title" class="ui-dialog-title"><span id="precosValidosDialogHeader">Preços Válidos</span></span><a href="#" class="ui-dialog-titlebar-icon ui-dialog-titlebar-close ui-corner-all" aria-label="Close"><span class="ui-icon ui-icon-closethick"></span></a></div><div class="ui-dialog-content ui-widget-content" id="neighborhoodPopup_content"><html lang="pt" xmlns="http://www.w3.org/1999/xhtml"><head id="j_idt14"><link type="text/css" rel="stylesheet" href="/INFOMED-fo/javax.faces.resource/fa/font-awesome.css.xhtml?ln=primefaces&amp;v=7.0" /><script type="text/javascript">if(window.PrimeFaces){PrimeFaces.settings.locale='pt';}</script></head><body>
+
+	<div style="background-color: white;">
+
+		<br />
+
+		<div class="ui-dialog-content ui-widget-content ui-df-content"><div id="j_idt18" class="ui-panelgrid ui-widget panelColumnsPrecosValidos"><div id="j_idt18_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 precos-validos-label ui-g-12 ui-md-6"><label id="j_idt19" class="ui-outputlabel ui-widget" style="text-shadow: none;">Nome do Medicamento:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 precos-validos-info ui-g-12 ui-md-6"><label id="j_idt20" class="ui-outputlabel ui-widget" style="float: left !important; text-align: left !important; vertical-align: top; padding-left: 0px; color: #444;"></label></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 precos-validos-label ui-g-12 ui-md-6"><label id="j_idt21" class="ui-outputlabel ui-widget" style="text-shadow: none;">Número de Registo:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 precos-validos-info ui-g-12 ui-md-6"><label id="j_idt22" class="ui-outputlabel ui-widget" style="float: left !important; text-align: left !important; vertical-align: top; padding-left: 0px; color: #444;"></label></div></div></div></div>
+
+			<br /><span id="tab1Precos_summary" class="ui-datatable-summary">Preços PVP</span><div id="tab1Precos" class="ui-datatable ui-widget precos-validos-datatable" style="width: 90%;margin-right: auto;margin-left: auto;"><div class="ui-datatable-tablewrapper"><table role="grid" summary="Preços PVP" aria-describedby="tab1Precos_summary"><thead id="tab1Precos_head"><tr role="row"><th id="tab1Precos:j_idt24" class="ui-state-default" role="columnheader" aria-label="Preço (PVP)" scope="col"><span class="ui-column-title">Preço (PVP)</span></th><th id="tab1Precos:j_idt26" class="ui-state-default" role="columnheader" aria-label="Data de Início" scope="col"><span class="ui-column-title">Data de Início</span></th></tr></thead><tbody id="tab1Precos_data" class="ui-datatable-data ui-widget-content"><tr class="ui-widget-content ui-datatable-empty-message"><td colspan="2">Sem preços válidos.</td></tr></tbody></table></div></div><script id="tab1Precos_s" type="text/javascript">$(function(){PrimeFaces.cw("DataTable","widget_tab1Precos",{id:"tab1Precos",groupColumnIndexes:[],disableContextMenuIfEmpty:false});});</script>
+				
+				<br /> <br /> <br /><span id="tab2Precos_summary" class="ui-datatable-summary">Preços Notificados</span><div id="tab2Precos" class="ui-datatable ui-widget precos-validos-datatable" style="width: 90%;margin-right: auto;margin-left: auto;"><div class="ui-datatable-tablewrapper"><table role="grid" summary="Preços Notificados" aria-describedby="tab2Precos_summary"><thead id="tab2Precos_head"><tr role="row"><th id="tab2Precos:j_idt30" class="ui-state-default" role="columnheader" aria-label="" scope="col"><span class="ui-column-title"></span></th><th id="tab2Precos:j_idt32" class="ui-state-default" role="columnheader" aria-label="Data de Início" scope="col"><span class="ui-column-title">Data de Início</span></th><th id="tab2Precos:j_idt34" class="ui-state-default" role="columnheader" aria-label="Data de Fim" scope="col"><span class="ui-column-title">Data de Fim</span></th></tr></thead><tbody id="tab2Precos_data" class="ui-datatable-data ui-widget-content"><tr class="ui-widget-content ui-datatable-empty-message"><td colspan="3">Sem preços válidos.</td></tr></tbody></table></div></div><script id="tab2Precos_s" type="text/javascript">$(function(){PrimeFaces.cw("DataTable","widget_tab2Precos",{id:"tab2Precos",groupColumnIndexes:[],disableContextMenuIfEmpty:false});});</script>
+				<br /> <br /> <br /><span id="tab3Precos_summary" class="ui-datatable-summary">Preços Válidos</span><div id="tab3Precos" class="ui-datatable ui-widget precos-validos-datatable" style="width: 90%;margin-right: auto;margin-left: auto;"><div class="ui-datatable-tablewrapper"><table role="grid" summary="Preços Válidos" aria-describedby="tab3Precos_summary"><thead id="tab3Precos_head"><tr role="row"><th id="tab3Precos:j_idt38" class="ui-state-default" role="columnheader" aria-label="" scope="col"><span class="ui-column-title"></span></th><th id="tab3Precos:j_idt40" class="ui-state-default" role="columnheader" aria-label="Data de Início" scope="col"><span class="ui-column-title">Data de Início</span></th><th id="tab3Precos:j_idt42" class="ui-state-default" role="columnheader" aria-label="Data de Fim" scope="col"><span class="ui-column-title">Data de Fim</span></th></tr></thead><tbody id="tab3Precos_data" class="ui-datatable-data ui-widget-content"><tr class="ui-widget-content ui-datatable-empty-message"><td colspan="3">Sem preços válidos.</td></tr></tbody></table></div></div><script id="tab3Precos_s" type="text/javascript">$(function(){PrimeFaces.cw("DataTable","widget_tab3Precos",{id:"tab3Precos",groupColumnIndexes:[],disableContextMenuIfEmpty:false});});</script>
+				<br /> <br /> <br />
+
+			
+		</div>
+
+	</div>
+
+
+	<script type="text/javascript">
+	//<![CDATA[
+		$(document).ready(function() {
+			$(".ui-icon-closethick").removeClass().addClass("fa fa-fw fa-close");
+		});
+
+		//]]>   
+	</script></body>
+</html></div></div><script id="neighborhoodPopup_s" type="text/javascript">$(function(){PrimeFaces.cw("Dialog","dlgneighborhood",{id:"neighborhoodPopup",resizable:false,modal:true,position:"center",onHide:function(){ovBodyAuto();},onShow:function(){ovBodyHidden();}});});</script>
+		<div class="slave">
+			<div id="slave" class="slave jumbotron jumbotron-fluid">
+				<div class="container">
+					<div class="row" style="display: ruby;">
+						<div class="col-8" style="display: inline-block;">
+								<a href="index.xhtml" title="Home"> <img src="images/infomed-logo-cropped.png" height="100px" title="Infomed" class="img-responsive infomed-logo" alt="Infomed" />
+								</a>
+
+						</div>
+						<div class="col-4" style="vertical-align: top; display: inline-block;">
+							<div id="languages" class="languages-div text-right mt-2">
+									<div class="d-none d-lg-block"><a href="/INFOMED-fo/guia-condicoes-utilizacao.xhtml" class="ui-link ui-widget">Guia e condições de utilização</a>
+									</div>
+<form id="langForm" name="langForm" method="post" action="/INFOMED-fo/detalhes-medicamento.xhtml" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="langForm" value="langForm" />
+<button id="langForm:changeLanguageSubmit" name="langForm:changeLanguageSubmit" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" onclick="PrimeFaces.ab({s:&quot;langForm:changeLanguageSubmit&quot;,f:&quot;langForm&quot;});return false;" style="display: none;" type="submit"><span class="ui-button-text ui-c"></span></button><script id="langForm:changeLanguageSubmit_s" type="text/javascript">$(function(){PrimeFaces.cw("CommandButton","widget_langForm_changeLanguageSubmit",{id:"langForm:changeLanguageSubmit"});});</script><a id="langForm:langPT_selected" href="#" class="ui-commandlink ui-widget" onclick="PrimeFaces.ab({s:&quot;langForm:langPT_selected&quot;,f:&quot;langForm&quot;});return false;" style="margin-right:20px; font-weight: bold;">PT</a><a id="langForm:langEN_not_selected" href="#" class="ui-commandlink ui-widget" onclick="PrimeFaces.ab({s:&quot;langForm:langEN_not_selected&quot;,f:&quot;langForm&quot;});return false;">EN</a><input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:0" value="6425482890800644303:-1571923883947807831" autocomplete="off" />
+</form>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="breadcrumbs" class="breadcrumbs breadcrumbs-alto">
+			<div role="contentinfo" class="separator">
+				<div class="container-full">
+					<div class="homepageSeparator">
+						<div class="container">
+							<div class="p-10">
+									<a href="index.xhtml" title="Home"><span class="fa fa-home"></span></a>
+									<span class="fa fa-angle-double-right"></span><img id="j_idt67" width="3px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" /><a href="/INFOMED-fo/pesquisa-avancada.xhtml" class="ui-link ui-widget">Pesquisa Avançada</a>
+									<span class="fa fa-angle-double-right"></span>
+									Detalhes do Medicamento
+								
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+
+		
+
+
+
+		<div class="container"><div id="panel-detalhes" class="ui-panel ui-widget ui-widget-content ui-corner-all panel-detalhes" data-widget="widget_panel_detalhes"><div id="panel-detalhes_content" class="ui-panel-content ui-widget-content">
+				<div class="row">
+
+					<div class="col-md-10" id="pageTitleDetalhe" style="display: inline-flex; margin-left: -18px !important;">
+						<h1 style="float: left;">
+							Detalhes do Medicamento: <strong>Primovist</strong><img id="j_idt74" width="10px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" /><div id="j_idt75" class="ui-tooltip ui-widget ui-tooltip-top"><div class="ui-tooltip-arrow"></div><div class="ui-tooltip-text ui-shadow ui-corner-all">Medicamento sujeito a monitorização adicional</div></div><script id="j_idt75_s" type="text/javascript">$(function(){PrimeFaces.cw("Tooltip","widget_j_idt75",{id:"j_idt75",showEffect:"fade",hideEffect:"fade",target:"dispSegurancaIcon",position:"top"});});</script><img id="j_idt76" width="26px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+						</h1>
+						
+						<div id="alertaEmbInfo">
+						</div>
+<form id="detalheMedRCMTopForm" name="detalheMedRCMTopForm" method="post" action="/INFOMED-fo/detalhes-medicamento.xhtml" enctype="application/x-www-form-urlencoded" style="margin-top: 18px; width: 24px; float: left;" target="_blank">
+<input type="hidden" name="detalheMedRCMTopForm" value="detalheMedRCMTopForm" />
+<button id="detalheMedRCMTopForm:docIconRCMSubmit" name="detalheMedRCMTopForm:docIconRCMSubmit" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" onclick="PrimeFaces.ab({s:&quot;detalheMedRCMTopForm:docIconRCMSubmit&quot;,f:&quot;detalheMedRCMTopForm&quot;});return false;" style="display: none;" type="submit"><span class="ui-button-text ui-c"></span></button><script id="detalheMedRCMTopForm:docIconRCMSubmit_s" type="text/javascript">$(function(){PrimeFaces.cw("CommandButton","widget_detalheMedRCMTopForm_docIconRCMSubmit",{id:"detalheMedRCMTopForm:docIconRCMSubmit"});});</script><a id="detalheMedRCMTopForm:detalheMedTopRcmIcon" href="#" class="ui-commandlink ui-widget" onclick="PrimeFaces.addSubmitParam('detalheMedRCMTopForm',{'detalheMedRCMTopForm:detalheMedTopRcmIcon':'detalheMedRCMTopForm:detalheMedTopRcmIcon'}).submit('detalheMedRCMTopForm','_blank');return false;" target="_blank"><img id="detalheMedRCMTopForm:imgRcm" src="images/rcm-icon.png?pfdrid_c=true" alt="" height="24px" /><div id="detalheMedRCMTopForm:j_idt90" class="ui-tooltip ui-widget ui-tooltip-top"><div class="ui-tooltip-arrow"></div><div class="ui-tooltip-text ui-shadow ui-corner-all">Resumo das Características do Medicamento</div></div><script id="detalheMedRCMTopForm:j_idt90_s" type="text/javascript">$(function(){PrimeFaces.cw("Tooltip","widget_detalheMedRCMTopForm_j_idt90",{id:"detalheMedRCMTopForm:j_idt90",showEffect:"fade",hideEffect:"fade",target:"detalheMedRCMTopForm:imgRcm",position:"top"});});</script></a><input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:1" value="6425482890800644303:-1571923883947807831" autocomplete="off" />
+</form><img id="j_idt95" width="5px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+<form id="detalheMedFiTopForm" name="detalheMedFiTopForm" method="post" action="/INFOMED-fo/detalhes-medicamento.xhtml" enctype="application/x-www-form-urlencoded" style="margin-top: 18px; width: 24px; float: left;" target="_blank">
+<input type="hidden" name="detalheMedFiTopForm" value="detalheMedFiTopForm" />
+<button id="detalheMedFiTopForm:docIconFiSubmit" name="detalheMedFiTopForm:docIconFiSubmit" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" onclick="PrimeFaces.ab({s:&quot;detalheMedFiTopForm:docIconFiSubmit&quot;,f:&quot;detalheMedFiTopForm&quot;});return false;" style="display: none;" type="submit"><span class="ui-button-text ui-c"></span></button><script id="detalheMedFiTopForm:docIconFiSubmit_s" type="text/javascript">$(function(){PrimeFaces.cw("CommandButton","widget_detalheMedFiTopForm_docIconFiSubmit",{id:"detalheMedFiTopForm:docIconFiSubmit"});});</script><a id="detalheMedFiTopForm:detalheMedTopFiIcon" href="#" class="ui-commandlink ui-widget" onclick="PrimeFaces.addSubmitParam('detalheMedFiTopForm',{'detalheMedFiTopForm:detalheMedTopFiIcon':'detalheMedFiTopForm:detalheMedTopFiIcon'}).submit('detalheMedFiTopForm','_blank');return false;" target="_blank"><img id="detalheMedFiTopForm:imgFi" src="images/fi-icon.png?pfdrid_c=true" alt="" height="24px" /><div id="detalheMedFiTopForm:j_idt96" class="ui-tooltip ui-widget ui-tooltip-top"><div class="ui-tooltip-arrow"></div><div class="ui-tooltip-text ui-shadow ui-corner-all">Folheto Informativo</div></div><script id="detalheMedFiTopForm:j_idt96_s" type="text/javascript">$(function(){PrimeFaces.cw("Tooltip","widget_detalheMedFiTopForm_j_idt96",{id:"detalheMedFiTopForm:j_idt96",showEffect:"fade",hideEffect:"fade",target:"detalheMedFiTopForm:imgFi",position:"top"});});</script></a><input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:2" value="6425482890800644303:-1571923883947807831" autocomplete="off" />
+</form><img id="j_idt97" width="5px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+<form id="detalheMedMmrTopForm" name="detalheMedMmrTopForm" method="post" action="/INFOMED-fo/detalhes-medicamento.xhtml" enctype="application/x-www-form-urlencoded" style="margin-top: 18px; width: 24px; float: left;">
+<input type="hidden" name="detalheMedMmrTopForm" value="detalheMedMmrTopForm" />
+<button id="detalheMedMmrTopForm:docIconMeSubmit" name="detalheMedMmrTopForm:docIconMeSubmit" class="ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" onclick="PrimeFaces.ab({s:&quot;detalheMedMmrTopForm:docIconMeSubmit&quot;,f:&quot;detalheMedMmrTopForm&quot;});return false;" style="display: none;" type="submit"><span class="ui-button-text ui-c"></span></button><script id="detalheMedMmrTopForm:docIconMeSubmit_s" type="text/javascript">$(function(){PrimeFaces.cw("CommandButton","widget_detalheMedMmrTopForm_docIconMeSubmit",{id:"detalheMedMmrTopForm:docIconMeSubmit"});});</script>
+
+							<a id="detalheMedMmrTopIcon" style="cursor: pointer;" class="js-scroll-bottom"><img id="detalheMedMmrTopForm:imgMe" src="images/mmr-transparente6.png?pfdrid_c=true" alt="" height="21px" style="margin-top: 1px" /><div id="detalheMedMmrTopForm:j_idt99" class="ui-tooltip ui-widget ui-tooltip-top"><div class="ui-tooltip-arrow"></div><div class="ui-tooltip-text ui-shadow ui-corner-all">Medidas adicionais de Minimização do Risco</div></div><script id="detalheMedMmrTopForm:j_idt99_s" type="text/javascript">$(function(){PrimeFaces.cw("Tooltip","widget_detalheMedMmrTopForm_j_idt99",{id:"detalheMedMmrTopForm:j_idt99",showEffect:"fade",hideEffect:"fade",target:"detalheMedMmrTopForm:imgMe",position:"top"});});</script>
+							</a><input type="hidden" name="javax.faces.ViewState" id="j_id1:javax.faces.ViewState:3" value="6425482890800644303:-1571923883947807831" autocomplete="off" />
+</form>
+
+					</div>
+
+					<div class="col-md-2" style="text-align: right; align-self: center; padding: 0px;">
+
+						<em id="btn-voltar" class="fas fa-reply btn btn-link icon-voltar" style="text-align: right !important; cursor: pointer;"></em>
+
+					</div>
+
+				</div>
+
+				<div class="row">
+
+					<div id="accordion" style="width: 100%;">
+
+						
+						<div class="card">
+							<div class="card-header card-header-big" data-toggle="collapse" aria-expanded="true" aria-controls="collapseOne" href="#collapseOne">
+								<a class="collapsed card-link" data-toggle="collapse" aria-expanded="true" aria-controls="collapseOne" href="#collapseOne">
+									<span class="float-right"> 
+										<em class="fa fa-arrow-up font-awesome"></em>
+									</span> 
+									Informação Geral
+								</a>
+							</div>
+							<div id="collapseOne" class="collapse show" data-parent="">
+								<div class="card-body"><div id="j_idt106" class="ui-panelgrid ui-widget panelColumns"><div id="j_idt106_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt107" class="ui-outputlabel ui-widget">Substância Ativa/DCI:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt108" class="ui-outputlabel ui-widget labelTexto">Ácido gadoxético</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt109" class="ui-outputlabel ui-widget">Forma Farmacêutica:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt110" class="ui-outputlabel ui-widget labelTexto">Solução injetável</label></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt111" class="ui-outputlabel ui-widget">Nome do Medicamento:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="detalheMedNomeMed" class="ui-outputlabel ui-widget labelTexto">Primovist</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt112" class="ui-outputlabel ui-widget">Dosagem:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt113" class="ui-outputlabel ui-widget labelTexto">0.25 mmol/ml</label></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt114" class="ui-outputlabel ui-widget">Titular de AIM:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt115" class="ui-outputlabel ui-widget labelTexto">Bayer Portugal, Lda.</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt116" class="ui-outputlabel ui-widget">Genérico:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><span class="Não"><label id="j_idt118" class="ui-outputlabel ui-widget labelTexto">Não</label></span></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="viaLabel" class="ui-outputlabel ui-widget">Via(s) de Administração:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><div id="viasAdm" class="ui-datagrid ui-widget gridColumn"><div id="viasAdm_content" class="ui-datagrid-content ui-widget-content"><table class="ui-datagrid-data"><tbody><tr class="ui-datagrid-row"><td class="ui-datagrid-column"><label id="viasAdm:0:j_idt119" class="ui-outputlabel ui-widget labelTexto">Via intravenosa</label></td></tr></tbody></table></div></div><script id="viasAdm_s" type="text/javascript">$(function(){PrimeFaces.cw("DataGrid","widget_viasAdm",{id:"viasAdm"});});</script></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt121" class="ui-outputlabel ui-widget">Grupo de Produto:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt123" class="ui-outputlabel ui-widget labelTexto">N/A</label></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt124" class="ui-outputlabel ui-widget">Número de Processo:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt125" class="ui-outputlabel ui-widget labelTexto">SE/H/0429/001</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt126" class="ui-outputlabel ui-widget">Margem Terapêutica Estreita:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt127" class="ui-outputlabel ui-widget labelTexto">Não</label></div></div></div></div>
+
+
+								</div>
+							</div>
+						</div>
+
+						
+						<div class="card">
+							<div class="card-header card-header-big" data-toggle="collapse" aria-expanded="true" aria-controls="collapseTwo" href="#collapseTwo">
+								<a class="collapsed card-link" data-toggle="collapse" aria-expanded="true" aria-controls="collapseTwo" href="#collapseTwo">
+									<span class="float-right">
+										<em class="fa fa-arrow-up font-awesome"></em>
+									</span>
+									Estado
+								</a>
+							</div>
+							<div id="collapseTwo" class="collapse show" data-parent="">
+								<div class="card-body"><div id="j_idt129" class="ui-panelgrid ui-widget panelColumns"><div id="j_idt129_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt130" class="ui-outputlabel ui-widget">AIM:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt131" class="ui-outputlabel ui-widget labelTexto"><span style="font-weight:bold;color: #444;text-align: left;">Autorizado</span></label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt136" class="ui-outputlabel ui-widget" style="float:right; place-self: center;">Data:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt137" class="ui-outputlabel ui-widget labelTexto">02/02/2005</label></div></div></div></div>
+								</div>
+							</div>
+						</div>
+
+						
+						<div class="card">
+							<div class="card-header card-header-big" data-toggle="collapse" aria-expanded="true" aria-controls="collapseThree" href="#collapseThree">
+								<a class="collapsed card-link" data-toggle="collapse" aria-expanded="true" aria-controls="collapseThree" href="#collapseThree">
+									<span class="float-right">
+										<em class="fa fa-arrow-up font-awesome"></em>
+									</span>
+									Classificação
+								</a>
+							</div>
+							<div id="collapseThree" class="collapse show" data-parent="">
+								<div class="card-body"><div id="j_idt141" class="ui-panelgrid ui-widget panelColumns"><div id="j_idt141_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt142" class="ui-outputlabel ui-widget">Classificação Quanto à Dispensa:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><div id="dispId" class="ui-datagrid ui-widget gridColumn"><div id="dispId_content" class="ui-datagrid-content ui-widget-content"><table class="ui-datagrid-data"><tbody><tr class="ui-datagrid-row"><td class="ui-datagrid-column"><label id="dispId:0:classifDispensa" class="ui-outputlabel ui-widget labelTexto">MSRM
+												<em class="pi pi-info font-size-14" style="color: #0ca7c2; font-weight: 700 !important;"></em><div id="dispId:0:j_idt147" class="ui-tooltip ui-widget ui-tooltip-right"><div class="ui-tooltip-arrow"></div><div class="ui-tooltip-text ui-shadow ui-corner-all">Medicamento sujeito a receita médica</div></div><script id="dispId:0:j_idt147_s" type="text/javascript">$(function(){PrimeFaces.cw("Tooltip","widget_dispId_0_j_idt147",{id:"dispId:0:j_idt147",showEffect:"fade",hideEffect:"fade",target:"dispId:0:classifDispensa"});});</script></label></td></tr></tbody></table></div></div><script id="dispId_s" type="text/javascript">$(function(){PrimeFaces.cw("DataGrid","widget_dispId",{id:"dispId"});});</script></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt154" class="ui-outputlabel ui-widget">Classificação Estupefaciente:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt155" class="ui-outputlabel ui-widget labelTexto">Não se aplica</label></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt156" class="ui-outputlabel ui-widget">Classificação ATC:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><div id="atcId" class="ui-datagrid ui-widget gridColumn"><div id="atcId_content" class="ui-datagrid-content ui-widget-content"><table class="ui-datagrid-data"><tbody><tr class="ui-datagrid-row"><td class="ui-datagrid-column"><label id="atcId:0:j_idt157" class="ui-outputlabel ui-widget labelTexto">V08CA10 - gadoxetic acid</label></td></tr></tbody></table></div></div><script id="atcId_s" type="text/javascript">$(function(){PrimeFaces.cw("DataGrid","widget_atcId",{id:"atcId"});});</script></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt159" class="ui-outputlabel ui-widget">Classificação Farmacoterapêutica:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><div id="cftId" class="ui-datagrid ui-widget gridColumn"><div id="cftId_content" class="ui-datagrid-content ui-widget-content"><table class="ui-datagrid-data"><tbody><tr class="ui-datagrid-row"><td class="ui-datagrid-column"><label id="cftId:0:j_idt160" class="ui-outputlabel ui-widget labelTexto">19.2 - Meios de contraste para imagem por ressonância magnética</label></td></tr></tbody></table></div></div><script id="cftId_s" type="text/javascript">$(function(){PrimeFaces.cw("DataGrid","widget_cftId",{id:"cftId"});});</script></div></div><div class="ui-g"><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt162" class="ui-outputlabel ui-widget">Duração do Tratamento:</label></div><div class="ui-panelgrid-cell p-col-12 p-md-6 p-xl-6 ui-g-12 ui-md-3"><label id="j_idt163" class="ui-outputlabel ui-widget labelTexto">Curta ou Média Duração</label></div></div></div></div>
+								</div>
+							</div>
+						</div>
+
+						
+						<div class="card">
+							<div class="card-header card-header-big" data-toggle="collapse" aria-expanded="true" aria-controls="collapseFour" href="#collapseFour">
+								<a class="collapsed card-link" data-toggle="collapse" aria-expanded="true" aria-controls="collapseFour" href="#collapseFour">
+									<span class="float-right"> 
+										<em class="fa fa-arrow-up font-awesome"></em>
+									</span>
+									Composição Qualitativa e Quantitativa em Substâncias Ativas
+								</a>
+							</div>
+							<div id="collapseFour" class="collapse show" data-parent="">
+								<div class="card-body">
+									
+									<div><div id="compsTable" class="ui-datagrid ui-widget" style="text-align-last: center;"><div id="compsTable_content" class="ui-datagrid-content ui-widget-content"><table class="ui-datagrid-data"><tbody><tr class="ui-datagrid-row"><td class="ui-datagrid-column">
+
+											<div class="row composicao-ecra-grande">
+
+												<div class="col-md-6 col-sm-6 col-6" style="padding-right: 0px; float: left;"><label id="compsTable:0:j_idt166" class="ui-outputlabel ui-widget" style="float:right;color: #444;font-weight: bold; text-align-last: right; text-align: right;">Gadoxetato dissódico</label>
+
+
+												</div>
+												<div class="col-md-1 col-sm-1 col-1" style="flex: 0 0 2.333333%; max-width: 2.333333%; padding-left: 0px; padding-right: 0px; text-align: center; float: left;"><label id="compsTable:0:j_idt168" class="ui-outputlabel ui-widget" style="color: #444;font-weight: bold;"> - </label>
+
+												</div>
+												<div class="col-md-5 col-sm-5 col-5" style="padding-left: 0px; padding-right: 0px; float: left;"><label id="compsTable:0:j_idt170" class="ui-outputlabel ui-widget" style="float:left;color: #444;font-weight: bold;">181.43 mg/ml</label>
+
+												</div>
+
+											</div>
+
+											<div class="row composicao-ecra-pequeno"><label id="compsTable:0:j_idt172" class="ui-outputlabel ui-widget" style="float:left;color: #444;font-weight: bold; text-align-last: left; text-align: left; margin-left: 15px;">Gadoxetato dissódico - 181.43 mg/ml</label>
+											</div></td></tr></tbody></table></div></div><script id="compsTable_s" type="text/javascript">$(function(){PrimeFaces.cw("DataGrid","widget_compsTable",{id:"compsTable"});});</script>
+									</div>
+								</div>
+							</div>
+						</div><div id="embalagemPanel" class="ui-outputpanel ui-widget">
+						<div id="areaEmbalagens" class="card">
+							<div class="card-header card-header-big" data-toggle="collapse" aria-expanded="true" aria-controls="collapseFive" href="#collapseFive">
+								<a class="collapsed card-link" data-toggle="collapse" aria-expanded="true" aria-controls="collapseFive" href="#collapseFive">
+									<span class="float-right">
+										<em class="fa fa-arrow-up font-awesome"></em>
+									</span>
+									Apresentações
+								</a>
+							</div>
+							<div id="collapseFive" class="collapse show" data-parent="">
+								<div class="card-body">
+									
+									<div id="emb-text" style="font-weight: bold;">10 apresentações
+									</div>
+<form id="carousel-big" name="carousel-big" method="post" action="/INFOMED-fo/detalhes-medicamento.xhtml" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="carousel-big" value="carousel-big" />
+
+	
+											<div id="carousel" data-interval="false" style="text-align: center;" class="carousel slide carousel-grande" data-ride="carousel">
+												<div class="carousel-inner">
+	
+														<div class="carousel-item">
+															<div class="d-block w-100" style="display: inline-flex !important; float: inherit;"><div id="carousel-big:j_idt187:0:j_idt189:0:j_idt190" class="ui-panelgrid ui-widget ui-panelgrid-blank embalagem-main-panel" style="width:33%;margin:10px 0px; float: left;"><div class="ui-panelgrid-header ui-widget-header"><div id="carousel-big:j_idt187:0:j_idt189:0:j_idt191" class="ui-panel ui-widget ui-widget-content ui-corner-all card-header-comercializado" data-widget="widget_carousel_big_j_idt187_0_j_idt189_0_j_idt191"><div id="carousel-big:j_idt187:0:j_idt189:0:j_idt191_content" class="ui-panel-content ui-widget-content"><span class="btn btn-link">Seringa pré-cheia</span>
+
+                           <div></div>
+
+                           <div></div><span class="btn btn-link" style="padding-top: 0px;">1 unidade(s) - 10 ml</span>
+
+                           <div></div><span id="carousel-big:j_idt187:0:j_idt189:0:comercToolTip" class="text-card-header">Comercializado</span></div></div><script id="carousel-big:j_idt187:0:j_idt189:0:j_idt191_s" type="text/javascript">$(function(){PrimeFaces.cw("Panel","widget_carousel_big_j_idt187_0_j_idt189_0_j_idt191",{id:"carousel-big:j_idt187:0:j_idt189:0:j_idt191"});});</script></div><div id="carousel-big:j_idt187:0:j_idt189:0:j_idt190_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt208" class="ui-outputlabel ui-widget" style="float: right; padding-right: 0px; text-align: right;">Número de Registo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="align-self: center;">5321088</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt210" class="ui-outputlabel ui-widget" style="float: right;">CNPEM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">50108050</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt212" class="ui-outputlabel ui-widget" style="float: right;">CHNM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">10068989</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt214" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Dispositivo Segurança:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span class="alinhar-topo-embalagem" style="place-self: center;">Não</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt216" class="ui-outputlabel ui-widget" style="float: right;">Comparticipação:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6">0%</div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt219" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Grupo Homogéneo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span id="carousel-big:j_idt187:0:j_idt189:0:grupoHomId" style="place-self: center;">N/A</span></div></div></div><div class="ui-panelgrid-footer ui-widget-header">
+                           <div id="preco-panel" class="font-size-12" style="background-color: #f1f1f1; width: 100%; padding: 8px; height: 128px;">
+
+                                  <h2 class="h4-style" style="margin-bottom: 0px;">Preços
+                                  </h2>
+
+
+
+                                  <div style="height: 70px;">
+                                       <div class="row" style="height:20px;">
+                                        	<div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; "><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt228" class="ui-outputlabel ui-widget">PVP:</label>
+                                            </div>
+                                            <div class="col-md-6 col-6 condicoes-value" style="padding-left: 10px;"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt230" class="ui-outputlabel ui-widget labelTexto">N/A</label>
+                                             </div>
+                                   		</div>                                             
+                                  
+
+								</div>
+
+                                  
+                                  <div id="precosValidosCell" class="precos-validos-panel" style="margin-top: 0px; margin-right: -15px; float: right;">
+                                  </div>
+
+                           </div><img id="carousel-big:j_idt187:0:j_idt189:0:j_idt253" width="6px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                     <div class="card" id="condicoesArmazenamento">
+                           <div class="card-header card-header-condicoes arrow-hover" aria-expanded="false" aria-controls="collapseCondicoes">
+                                  <a class="card-link condicoes-link" aria-expanded="true" aria-controls="collapseCondicoes">
+                                         Condições de Armazenamento <span class="float-right"> <em class="fa fa-arrow-down"></em>
+                                  </span>
+                                  </a>
+                           </div>
+
+                           <div id="collapseCondicoes" class="card-content-condicoes" style="display: none;" data-parent="">
+                                  <div class="card-body">
+                                         <div class="row" style="margin-top: -22px; margin-left: -20px; margin-right: -20px;">
+                                                <div class="condicoes-panel font-size-12" style="background-color: #f1f1f1; width: 100%; padding: 0px; margin-top: 2px; height: 120px; overflow-y: scroll; overflow-x: hidden;">
+                                                       <div class="form-group" style="margin-top: 2px; margin-bottom: 0px; width: 95%;">
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; "><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt258" class="ui-outputlabel ui-widget">Tipo de Apresentação: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt260" class="ui-outputlabel ui-widget labelTexto">fechada </label>
+                                                                                  </div>
+                                                                           </div>
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px;"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt264" class="ui-outputlabel ui-widget">Prazo de Validade: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt266" class="ui-outputlabel ui-widget labelTexto">5 Ano(s)  </label>
+
+                                                                                  </div>
+                                                                           </div>
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; padding-top: 0px;"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt278" class="ui-outputlabel ui-widget" style="text-align: right; padding-top: 0px;">Condições: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value" style="margin-top: -2px;"><label id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt280" class="ui-outputlabel ui-widget labelTexto">Não necessita de precauções especiais </label>
+                                                                                  </div><img id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt282" width="6px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                                                                           </div><img id="carousel-big:j_idt187:0:j_idt189:0:j_idt255:0:j_idt284" height="5px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                                                       </div>
+                                                </div>
+                                         </div>
+                                  </div>
+                           </div>
+                     </div></div></div><div id="carousel-big:j_idt187:0:j_idt189:1:j_idt190" class="ui-panelgrid ui-widget ui-panelgrid-blank embalagem-main-panel" style="width:33%;margin:10px 0px; float: left;"><div class="ui-panelgrid-header ui-widget-header"><div id="carousel-big:j_idt187:0:j_idt189:1:j_idt191" class="ui-panel ui-widget ui-widget-content ui-corner-all card-header-nao-comercializado" data-widget="widget_carousel_big_j_idt187_0_j_idt189_1_j_idt191"><div id="carousel-big:j_idt187:0:j_idt189:1:j_idt191_content" class="ui-panel-content ui-widget-content"><span class="btn btn-link">Seringa pré-cheia</span>
+
+                           <div></div>
+
+                           <div></div><span class="btn btn-link" style="padding-top: 0px;">1 unidade(s) - 10 ml</span>
+
+                           <div></div><span class="text-card-header">Não Comercializado</span></div></div><script id="carousel-big:j_idt187:0:j_idt189:1:j_idt191_s" type="text/javascript">$(function(){PrimeFaces.cw("Panel","widget_carousel_big_j_idt187_0_j_idt189_1_j_idt191",{id:"carousel-big:j_idt187:0:j_idt189:1:j_idt191"});});</script></div><div id="carousel-big:j_idt187:0:j_idt189:1:j_idt190_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt208" class="ui-outputlabel ui-widget" style="float: right; padding-right: 0px; text-align: right;">Número de Registo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="align-self: center;">5920426</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt210" class="ui-outputlabel ui-widget" style="float: right;">CNPEM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">50108050</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt212" class="ui-outputlabel ui-widget" style="float: right;">CHNM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">10068989</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt214" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Dispositivo Segurança:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span class="alinhar-topo-embalagem" style="place-self: center;">Sim</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt216" class="ui-outputlabel ui-widget" style="float: right;">Comparticipação:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6">0%</div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt219" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Grupo Homogéneo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span id="carousel-big:j_idt187:0:j_idt189:1:grupoHomId" style="place-self: center;">N/A</span></div></div></div><div class="ui-panelgrid-footer ui-widget-header">
+                           <div id="preco-panel" class="font-size-12" style="background-color: #f1f1f1; width: 100%; padding: 8px; height: 128px;">
+
+                                  <h2 class="h4-style" style="margin-bottom: 0px;">Preços
+                                  </h2>
+
+
+
+                                  <div style="height: 70px;">
+                                       <div class="row" style="height:20px;">
+                                        	<div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; "><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt228" class="ui-outputlabel ui-widget">PVP:</label>
+                                            </div>
+                                            <div class="col-md-6 col-6 condicoes-value" style="padding-left: 10px;"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt230" class="ui-outputlabel ui-widget labelTexto">N/A</label>
+                                             </div>
+                                   		</div>                                             
+                                  
+
+								</div>
+
+                                  
+                                  <div id="precosValidosCell" class="precos-validos-panel" style="margin-top: 0px; margin-right: -15px; float: right;">
+                                  </div>
+
+                           </div><img id="carousel-big:j_idt187:0:j_idt189:1:j_idt253" width="6px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                     <div class="card" id="condicoesArmazenamento">
+                           <div class="card-header card-header-condicoes arrow-hover" aria-expanded="false" aria-controls="collapseCondicoes">
+                                  <a class="card-link condicoes-link" aria-expanded="true" aria-controls="collapseCondicoes">
+                                         Condições de Armazenamento <span class="float-right"> <em class="fa fa-arrow-down"></em>
+                                  </span>
+                                  </a>
+                           </div>
+
+                           <div id="collapseCondicoes" class="card-content-condicoes" style="display: none;" data-parent="">
+                                  <div class="card-body">
+                                         <div class="row" style="margin-top: -22px; margin-left: -20px; margin-right: -20px;">
+                                                <div class="condicoes-panel font-size-12" style="background-color: #f1f1f1; width: 100%; padding: 0px; margin-top: 2px; height: 120px; overflow-y: scroll; overflow-x: hidden;">
+                                                       <div class="form-group" style="margin-top: 2px; margin-bottom: 0px; width: 95%;">
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; "><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt258" class="ui-outputlabel ui-widget">Tipo de Apresentação: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt260" class="ui-outputlabel ui-widget labelTexto">fechada </label>
+                                                                                  </div>
+                                                                           </div>
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px;"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt264" class="ui-outputlabel ui-widget">Prazo de Validade: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt266" class="ui-outputlabel ui-widget labelTexto">5 Ano(s)  </label>
+
+                                                                                  </div>
+                                                                           </div>
+                                                                           <div class="row">
+                                                                                  <div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; padding-top: 0px;"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt278" class="ui-outputlabel ui-widget" style="text-align: right; padding-top: 0px;">Condições: </label>
+                                                                                  </div>
+                                                                                  <div class="col-md-6 col-6 condicoes-value" style="margin-top: -2px;"><label id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt280" class="ui-outputlabel ui-widget labelTexto">Não necessita de precauções especiais </label>
+                                                                                  </div><img id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt282" width="6px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                                                                           </div><img id="carousel-big:j_idt187:0:j_idt189:1:j_idt255:0:j_idt284" height="5px" alt="" src="/INFOMED-fo/javax.faces.resource/spacer/dot_clear.gif.xhtml?ln=primefaces&amp;v=7.0" />
+                                                       </div>
+                                                </div>
+                                         </div>
+                                  </div>
+                           </div>
+                     </div></div></div><div id="carousel-big:j_idt187:0:j_idt189:2:j_idt190" class="ui-panelgrid ui-widget ui-panelgrid-blank embalagem-main-panel" style="width:33%;margin:10px 0px; float: left;"><div class="ui-panelgrid-header ui-widget-header"><div id="carousel-big:j_idt187:0:j_idt189:2:j_idt191" class="ui-panel ui-widget ui-widget-content ui-corner-all card-header-nao-comercializado" data-widget="widget_carousel_big_j_idt187_0_j_idt189_2_j_idt191"><div id="carousel-big:j_idt187:0:j_idt189:2:j_idt191_content" class="ui-panel-content ui-widget-content"><span class="btn btn-link">Seringa pré-cheia</span>
+
+                           <div></div>
+
+                           <div></div><span class="btn btn-link" style="padding-top: 0px;">1 unidade(s) - 7.5 ml</span>
+
+                           <div></div><span class="text-card-header">Não Comercializado</span></div></div><script id="carousel-big:j_idt187:0:j_idt189:2:j_idt191_s" type="text/javascript">$(function(){PrimeFaces.cw("Panel","widget_carousel_big_j_idt187_0_j_idt189_2_j_idt191",{id:"carousel-big:j_idt187:0:j_idt189:2:j_idt191"});});</script></div><div id="carousel-big:j_idt187:0:j_idt189:2:j_idt190_content" class="ui-panelgrid-content ui-widget-content ui-grid ui-grid-responsive"><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt208" class="ui-outputlabel ui-widget" style="float: right; padding-right: 0px; text-align: right;">Número de Registo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="align-self: center;">5320783</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt210" class="ui-outputlabel ui-widget" style="float: right;">CNPEM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">50108026</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt212" class="ui-outputlabel ui-widget" style="float: right;">CHNM:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span style="place-self: center;">10068996</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt214" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Dispositivo Segurança:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span class="alinhar-topo-embalagem" style="place-self: center;">Não</span></div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt216" class="ui-outputlabel ui-widget" style="float: right;">Comparticipação:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6">0%</div></div><div class="ui-g"><div class="ui-panelgrid-cell label ui-g-12 ui-md-6"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt219" class="ui-outputlabel ui-widget" style="float: right;text-align: right;">Grupo Homogéneo:</label></div><div class="ui-panelgrid-cell col-value ui-g-12 ui-md-6"><span id="carousel-big:j_idt187:0:j_idt189:2:grupoHomId" style="place-self: center;">N/A</span></div></div></div><div class="ui-panelgrid-footer ui-widget-header">
+                           <div id="preco-panel" class="font-size-12" style="background-color: #f1f1f1; width: 100%; padding: 8px; height: 128px;">
+
+                                  <h2 class="h4-style" style="margin-bottom: 0px;">Preços
+                                  </h2>
+
+
+
+                                  <div style="height: 70px;">
+                                       <div class="row" style="height:20px;">
+                                        	<div class="col-md-6 col-6 condicoes-text" style="text-align: right; padding-right: 0px; "><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt228" class="ui-outputlabel ui-widget">PVP:</label>
+                                            </div>
+                                            <div class="col-md-6 col-6 condicoes-value" style="padding-left: 10px;"><label id="carousel-big:j_idt187:0:j_idt189:2:j_idt230" class="ui-outputlabel ui-widget labelTexto">N/A</label>
+                                             </div>
+                                   		</div>                                             
+             

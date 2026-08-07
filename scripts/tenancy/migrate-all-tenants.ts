@@ -42,15 +42,32 @@ async function migrateOne(tenant: TenantRecord, dryRun: boolean): Promise<Outcom
   const r = runPrismaForTenant(args, url);
 
   if (r.status !== 0) {
-    const detail = (r.stderr || r.stdout || "").slice(-400).trim();
+    const stdout = r.stdout?.trim() ?? "";
+    const stderr = r.stderr?.trim() ?? "";
+
+    // Output completo para o console — operador precisa para diagnosticar.
+    // O `TenantEvent.meta` continua truncado a 400 chars por hygiene da BD
+    // (DB não é log store). Esta cópia ao stdout é só para a sessão.
+    console.error(`\n── prisma output (tenant=${tenant.slug}, exit=${r.status}) ──`);
+    if (stdout) {
+      console.error("[stdout]");
+      console.error(stdout);
+    }
+    if (stderr) {
+      console.error("[stderr]");
+      console.error(stderr);
+    }
+    console.error("── end output ──");
+
+    const truncatedForDb = (stderr || stdout).slice(-400);
     if (!dryRun) {
       await logTenantEvent({
         tenantId: tenant.id,
         action: "migration_failed",
-        meta: { exitCode: r.status, stderr: detail },
+        meta: { exitCode: r.status, stderr: truncatedForDb },
       });
     }
-    return { slug: tenant.slug, status: "error", detail };
+    return { slug: tenant.slug, status: "error", detail: truncatedForDb };
   }
 
   if (!dryRun) {

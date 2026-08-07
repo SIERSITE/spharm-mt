@@ -2,11 +2,21 @@ import "dotenv/config";
 import { spawnSync } from "node:child_process";
 
 /**
- * Corre um comando `prisma` CLI contra o CONTROL schema. Resolve
- * o problema de DATABASE_URL override injectando o valor de
- * CONTROL_DATABASE_URL na env antes do spawn — o prisma.config.ts
- * do projecto usa process.env.DATABASE_URL, portanto isto faz com
- * que a mesma config sirva os dois planos sem duplicação de ficheiros.
+ * Corre um comando `prisma` CLI contra o CONTROL schema usando a config
+ * dedicada `prisma-control.config.ts` (que aponta para
+ * `prisma-control/schema.prisma` + `prisma-control/migrations` + reads
+ * CONTROL_DATABASE_URL como datasource).
+ *
+ * IMPORTANTE: NÃO passar `--schema` aqui. Em Prisma 7, se ambos
+ * `--config` e `--schema` forem passados, o resolver de paths fica
+ * inconsistente — `migrations.path` da config ganha mas alguns
+ * comandos usam o `--schema` como referência para introspect. Manter
+ * só `--config` e deixar a config controlar tudo.
+ *
+ * Histórico: havia um bug crítico em que `--schema prisma-control/...`
+ * sem `--config` carregava `prisma.config.ts` (app) por default e
+ * aplicava migrations de `prisma/migrations` à BD de control. Ver
+ * comentário em `prisma-control.config.ts`.
  *
  * Uso:
  *   runPrismaControl(["migrate", "deploy"])
@@ -21,10 +31,10 @@ export function runPrismaControl(prismaArgs: string[]): void {
     process.exit(1);
   }
 
-  const args = [...prismaArgs, "--schema", "prisma-control/schema.prisma"];
+  const args = [...prismaArgs, "--config", "prisma-control.config.ts"];
   const result = spawnSync("npx", ["prisma", ...args], {
     stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: controlUrl },
+    env: process.env,
     shell: process.platform === "win32",
   });
   if (result.status !== 0) {

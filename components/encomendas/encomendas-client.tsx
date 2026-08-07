@@ -497,6 +497,24 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
           </p>
         </section>
 
+        {/*
+         * Aviso permanente de posicionamento (fecho 2026-06): este módulo
+         * é um assistente operacional, não um motor de decisão automática.
+         * Quantidades sugeridas são orientativas e ignoram condições
+         * comerciais (descontos, MOQ, campanhas, prazos). A decisão final
+         * é sempre humana — ver header de lib/encomendas-data.ts.
+         */}
+        <section
+          role="note"
+          aria-label="Aviso sobre as sugestões de encomenda"
+          className="rounded-[14px] border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-[12px] leading-snug text-amber-900 shadow-[0_2px_8px_rgba(252,211,77,0.10)]"
+        >
+          <span className="font-semibold">Assistente operacional.</span>{" "}
+          As quantidades sugeridas baseiam-se em cobertura e rotação. Não
+          contemplam descontos, MOQ, campanhas nem prazos do fornecedor —
+          valide condições comerciais antes de finalizar a encomenda.
+        </section>
+
         <section className="rounded-[20px] border border-white/70 bg-white/84 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-[0.95fr_0.95fr_auto]">

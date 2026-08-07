@@ -151,9 +151,20 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
                 Ficha mestre do artigo
               </div>
-              <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-                {article.designacao}
-              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
+                  {article.designacao}
+                </h1>
+                {article.retiradoStatus === "all" ? (
+                  <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700">
+                    Retirado
+                  </span>
+                ) : article.retiradoStatus === "partial" ? (
+                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                    Retirado parcial
+                  </span>
+                ) : null}
+              </div>
               <p className="text-[13px] text-slate-600">
                 CNP {article.cnp}
                 {article.fabricante && (
@@ -313,6 +324,7 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               <thead className="border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 <tr>
                   <th className="px-4 py-2.5 font-semibold">Farmácia</th>
+                  <th className="px-3 py-2.5 font-semibold">Estado</th>
                   <th className="px-3 py-2.5 font-semibold">Designação local</th>
                   <th className="px-3 py-2.5 text-right font-semibold">PVP</th>
                   <th className="px-3 py-2.5 text-right font-semibold">PMC</th>
@@ -323,6 +335,17 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
                 {article.presencas.map((pf) => (
                   <tr key={pf.farmaciaId} className="hover:bg-slate-50/70">
                     <td className="px-4 py-2 font-medium text-slate-800">{pf.farmaciaNome}</td>
+                    <td className="px-3 py-2">
+                      {pf.flagRetirado ? (
+                        <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                          Retirado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          Activo
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-[12px] text-slate-600">
                       {or(pf.designacaoLocal)}
                     </td>

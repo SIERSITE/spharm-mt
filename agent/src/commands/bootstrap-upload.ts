@@ -49,10 +49,44 @@ const PRODUCTS_BATCH = 50;
 const STOCK_BATCH = 100;
 const SALES_BATCH = 200;
 
+// rev45 — limites de retry/shrink quando `runProductsPipeline` é
+// invocado com `retry: true` (caminho usado por `products-upload`).
+// Reusamos a mesma curva do `stocksmov-upload` rev35: 4 tentativas com
+// backoff exponencial 1s/2s/4s/8s, shrink até floor de 10. Floor mais
+// baixo que stocksmov (25) porque cada item products é mais pesado
+// SaaS-side (2 upserts) e o cold-start do Neon costuma castigar mais.
+const MAX_RETRIES = 4;
+const BACKOFF_BASE_MS = 1_000;
+const MIN_PRODUCTS_BATCH = 10;
+
 // HTTP timeout per batch — 120s dá folga para 60s de processamento
 // server-side + latência + retry buffer. Fetch aborta antes só se
 // Vercel ficar verdadeiramente preso.
 const BATCH_TIMEOUT_MS = 120_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Mesma heurística do `stocksmov.ts:isTransientError` rev35 — qualquer
+ * erro de rede embrulhado por `http-client.ts` ("falha de rede: ...")
+ * cai dentro do regex, incluindo o `Failed to cancel request in 5000ms`
+ * que o undici emite quando o socket não fecha após `abort()`. Para
+ * SaaS responses, só re-tenta 4xx/5xx transientes — 401/403/404/422
+ * são falhas terminais.
+ */
+function isTransientError(err: unknown): boolean {
+  if (err instanceof SaasApiError) {
+    return [408, 425, 429, 500, 502, 503, 504].includes(err.statusCode);
+  }
+  if (err instanceof Error) {
+    return /falha de rede|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|aborted|socket hang up|fetch failed|timeout|cancel/i.test(
+      err.message,
+    );
+  }
+  return false;
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Tipos de payload (espelho dos canónicos SPharm.MT)
@@ -434,13 +468,22 @@ export async function runProductsPipeline(
   pool: SqlPool,
   client: SaasClient,
   farmaciaId: string,
-  opts?: { dryRun?: boolean }
+  opts?: { dryRun?: boolean; batchSize?: number; retry?: boolean }
 ): Promise<PipelineTotals> {
   const dryRun = opts?.dryRun === true;
+  // rev45 — batch/retry configuráveis. Caller `products-upload` passa
+  // batchSize=25 + retry=true para sobreviver a cold-starts longos do
+  // Neon. `bootstrap-upload` (caller original) não passa opts e fica
+  // com o comportamento legacy (50, sem retry).
+  const initialBatchSize = Math.max(MIN_PRODUCTS_BATCH, opts?.batchSize ?? PRODUCTS_BATCH);
+  const enableRetry = opts?.retry === true;
+  let currentBatchSize = initialBatchSize;
   const totals = emptyTotals();
   let lastCodigoId = -1;
   console.log(DOUBLE_RULE);
-  console.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})${dryRun ? " [DRY-RUN]" : ""}`);
+  console.log(
+    `▶ Pipeline 1: PRODUTOS (batch=${currentBatchSize}${enableRetry ? ", retry+backoff+shrink" : ""})${dryRun ? " [DRY-RUN]" : ""}`,
+  );
   console.log(DOUBLE_RULE);
 
   // rev42 — IVA via JOIN explícito a dbo.IVA (master canónica confirmada
@@ -465,7 +508,7 @@ export async function runProductsPipeline(
     const rs = await pool
       .request()
       .input("lastId", sql.Int, lastCodigoId)
-      .input("n", sql.Int, PRODUCTS_BATCH)
+      .input("n", sql.Int, currentBatchSize)
       .query<{
         externalProductId: number;
         cnp: number | null;
@@ -535,7 +578,9 @@ export async function runProductsPipeline(
     if (dryRun) {
       totals.batches++;
       console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
-    } else {
+    } else if (!enableRetry) {
+      // Caminho legacy (bootstrap-upload original): 1 tentativa, sem
+      // backoff. Erros transientes propagam ao caller que aborta tudo.
       const response = await client.bootstrapProducts({ farmaciaId, items }, BATCH_TIMEOUT_MS);
       accumulate(totals, response);
       console.log(
@@ -546,6 +591,59 @@ export async function runProductsPipeline(
           console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
         }
       }
+    } else {
+      // rev45 — retry+backoff+shrink. Reusa o padrão validado em
+      // stocksmov-upload rev35. Idempotente via UPSERT server-side
+      // (Produto + ProdutoFarmacia por (farmaciaId, externalProductId)).
+      let attemptResponse: BootstrapBatchResponse | null = null;
+      let attemptError: unknown = null;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          attemptResponse = await client.bootstrapProducts(
+            { farmaciaId, items },
+            BATCH_TIMEOUT_MS,
+          );
+          attemptError = null;
+          break;
+        } catch (err) {
+          attemptError = err;
+          if (!isTransientError(err) || attempt === MAX_RETRIES) break;
+          const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
+          const reason =
+            err instanceof SaasApiError
+              ? `HTTP ${err.statusCode}`
+              : err instanceof Error
+                ? err.message.slice(0, 80)
+                : "unknown";
+          console.log(
+            `  ↳ batch (size=${currentBatchSize}, lastId=${lastCodigoId}) tentativa ${attempt}/${MAX_RETRIES} falhou (${reason}); backoff ${backoff}ms`,
+          );
+          await sleep(backoff);
+        }
+      }
+
+      if (attemptResponse === null) {
+        if (isTransientError(attemptError) && currentBatchSize > MIN_PRODUCTS_BATCH) {
+          const newSize = Math.max(MIN_PRODUCTS_BATCH, Math.floor(currentBatchSize / 2));
+          console.log(
+            `  ↳ shrink: ${currentBatchSize} → ${newSize} (lastId ${lastCodigoId} preservado, idempotente via UPSERT)`,
+          );
+          currentBatchSize = newSize;
+          continue; // NÃO avançar keyset — re-le com batch menor
+        }
+        // Não-transiente ou já em MIN_PRODUCTS_BATCH — propaga.
+        throw attemptError;
+      }
+
+      accumulate(totals, attemptResponse);
+      console.log(
+        `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${attemptResponse.accepted} upserted=${attemptResponse.upserted} skipped=${attemptResponse.skipped.length} errors=${attemptResponse.errors.length}`
+      );
+      if (attemptResponse.errors.length > 0) {
+        for (const e of attemptResponse.errors.slice(0, 3)) {
+          console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+        }
+      }
     }
 
     // Avançar keyset pelo último CodigoID lido (rows ordenados ASC)
@@ -553,7 +651,7 @@ export async function runProductsPipeline(
     if (last && typeof last.externalProductId === "number") {
       lastCodigoId = last.externalProductId;
     }
-    if (rs.recordset.length < PRODUCTS_BATCH) break;
+    if (rs.recordset.length < currentBatchSize) break;
   }
   return totals;
 }

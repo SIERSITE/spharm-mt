@@ -1,0 +1,911 @@
+﻿2026-05-15 10:26:15 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 10:26:15 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 10:26:15 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 10:26:15 [INFO] npm 
+2026-05-15 10:26:20 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 10:26:20 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 10:26:20 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 10:26:20 [INFO] npm 
+2026-05-15 10:26:32 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 10:26:32 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\admin-wizard (via PSScriptRoot)
+2026-05-15 10:26:32 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=ConsoleHost CompiledExe=True
+2026-05-15 10:26:32 [INFO] npm 
+2026-05-15 10:30:51 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 10:30:51 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 10:30:51 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 10:30:51 [INFO] npm 
+2026-05-15 10:44:33 [INFO] npm 
+2026-05-15 10:47:13 [INFO] wizard terminado
+2026-05-15 11:00:48 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 11:00:48 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 11:00:48 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 11:00:48 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 11:00:48 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 11:00:53 [INFO] [tenancy:list] DONE exit=0 elapsed=4777ms stdout=1887B stderr=647B
+2026-05-15 11:00:53 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+  {
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbRegion": null,
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "dbUser": "neondb_owner",
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "lastBackupAt": null,
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "dbPort": 5432,
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 11:00:53 [INFO] [tenancy:list] STDERR[0..2000]:
+(node:3160) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+To prepare for this change:
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+2026-05-15 11:20:08 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 11:20:08 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 11:20:08 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 11:20:08 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 11:20:08 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 11:20:11 [INFO] [tenancy:list] DONE exit=0 elapsed=3241ms stdout=1887B stderr=647B
+2026-05-15 11:20:11 [INFO] [tenancy:list] STDOUT[0..2000]:
+  {
+[
+    "slug": "demo-neon",
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "nifGrupo": null,
+    "dbPort": 5432,
+    "estado": "ACTIVE",
+    "dbUser": "neondb_owner",
+    "dbName": "spharmmt_t_demo_neon",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "dbRegion": null,
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "nome": "Demo Neon",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "nifGrupo": null,
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "estado": "ACTIVE",
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 11:20:11 [INFO] [tenancy:list] STDERR[0..2000]:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2824) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+To prepare for this change:
+
+2026-05-15 11:20:11 [WARN] [tenancy:list] JSON parse: extracted no valid object/array from stdout
+2026-05-15 11:21:07 [INFO] [tenancy:create grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:create -- --slug=grupo-silveira --name=Grupo Silveira --admin-email=grp.cc.sw@sier.pt --provider=neon --json --quiet --region=eu-west-2 --farmacias=Farmácia Silveirense, Farmácia Segurado --dry-run
+2026-05-15 11:21:09 [INFO] [tenancy:create grupo-silveira] DONE exit=0 elapsed=1204ms stdout=119B stderr=0B
+2026-05-15 11:21:09 [INFO] [tenancy:create grupo-silveira] STDOUT[0..2000]:
+{
+  "ok": true,
+  "durationMs": 0,
+  "slug": "grupo-silveira",
+  "provider": "neon"
+}
+  "step": "dry-run-done",
+
+2026-05-15 11:22:32 [INFO] [tenancy:create grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:create -- --slug=grupo-silveira --name=Grupo Silveira --admin-email=grp.cc.sw@sier.pt --provider=neon --json --quiet --region=eu-west-2 --farmacias=Farmácia Silveirense, Farmácia Segurado
+2026-05-15 11:22:36 [INFO] [tenancy:create grupo-silveira] DONE exit=1 elapsed=4346ms stdout=381B stderr=648B
+2026-05-15 11:22:36 [INFO] [tenancy:create grupo-silveira] STDOUT[0..2000]:
+{
+  "ok": false,
+  "step": "create-database",
+  "slug": "grupo-silveira",
+  "provider": "neon",
+  "error": "neon.createDatabase falhou: Neon: DB criada mas SELECT 1 falhou — \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `3D000`. Message: `database \"spharmmt_t_grupo_silveira\" does not exist`",
+  "durationMs": 3238,
+  "rollbackStatus": "n/a"
+}
+
+2026-05-15 11:22:36 [INFO] [tenancy:create grupo-silveira] STDERR[0..2000]:
+(node:14532) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 11:31:15 [INFO] wizard terminado
+2026-05-15 11:51:59 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 11:51:59 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 11:52:00 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 11:52:00 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 11:52:00 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 11:52:04 [INFO] [tenancy:list] DONE exit=0 elapsed=4176ms stdout=1887B stderr=647B
+2026-05-15 11:52:04 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+  {
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbName": "spharmmt_t_demo_neon",
+    "dbPort": 5432,
+    "dbRegion": null,
+    "dbUser": "neondb_owner",
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "dbUser": "neondb_owner",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 11:52:04 [INFO] [tenancy:list] STDERR[0..2000]:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(node:2916) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+
+2026-05-15 11:59:16 [INFO] wizard terminado
+2026-05-15 12:07:39 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 12:07:39 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 12:07:39 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 12:07:39 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 12:07:39 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 12:07:41 [INFO] [tenancy:list] DONE exit=0 elapsed=1833ms stdout=1887B stderr=648B
+2026-05-15 12:07:41 [INFO] [tenancy:list] STDOUT[0..2000]:
+  {
+[
+    "slug": "demo-neon",
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "nifGrupo": null,
+    "nome": "Demo Neon",
+    "estado": "ACTIVE",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbRegion": null,
+    "dbUser": "neondb_owner",
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastHealthCheckAt": null,
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentIp": "89.154.96.42",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+  {
+  },
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "lastAgentVersion": null,
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbPort": 5432,
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 12:07:41 [INFO] [tenancy:list] STDERR[0..2000]:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+To prepare for this change:
+(node:10856) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+
+2026-05-15 12:07:41 [WARN] [tenancy:list] JSON parse: extracted no valid object/array from stdout
+2026-05-15 12:08:40 [INFO] [tenancy:create grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:create -- --slug=grupo-silveira --name=Grupo Silveira --admin-email=grp.cc.sw@sier.pt --provider=neon --json --quiet --region=eu-west-2 --farmacias=Farmácia Silveirense, Farmácia Segurado
+2026-05-15 12:08:46 [INFO] [tenancy:create grupo-silveira] DONE exit=1 elapsed=6153ms stdout=1449B stderr=749B
+2026-05-15 12:08:46 [INFO] [tenancy:create grupo-silveira] STDOUT[0..2000]:
+  "slug": "grupo-silveira",
+{
+  "step": "create-database",
+  "durationMs": 5109,
+  "provider": "neon",
+  "ok": false,
+  "error": "neon.createDatabase falhou: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `3D000`. Message: `database \"spharmmt_t_grupo_silveira\" does not exist`\n\nCleanup automático:\n  DB    spharmmt_t_grupo_silveira: FALHOU (Neon API DELETE /projects/weathered-hat-62448919/branches/br-purple-flower-abbcqm5k/databases/spharmmt_t_grupo_silveira → HTTP 423: {\"request_id\":\"60210730-0fd6-40f1-83bc-6cd82684c866\",\"code\":\"\",\"message\":\"project already has running conflicting operations, scheduling of new ones is prohibited\"})\n  role  spharmmt_grupo_silveira: FALHOU (Neon API DELETE /projects/weathered-hat-62448919/branches/br-purple-flower-abbcqm5k/roles/spharmmt_grupo_silveira → HTTP 422: {\"request_id\":\"f0006eb3-47b6-4cde-ad69-5625a8b05ac5\",\"code\":\"ROLE_OWNS_OBJECTS\",\"message\":\"cannot delete role that is owner of a database; role_name:\\\"spharmmt_grupo_silveira\\\", db_name:\\\"spharmmt_t_grupo_silveira\\\"\"})\n\nAVISO: recursos Neon podem ter ficado ghost — remove manualmente no dashboard https://console.neon.tech/ → projecto → Databases/Roles antes de re-tentar criar tenant \"grupo-silveira\".\n\nPara limpar control plane se ficou registo PROVISIONING/FAILED: npm run tenancy:cleanup-failed -- --slug grupo-silveira --confirm",
+  "rollbackStatus": "n/a"
+}
+
+2026-05-15 12:08:46 [INFO] [tenancy:create grupo-silveira] STDERR[0..2000]:
+(node:15208) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[neon] createDatabase: HTTP 423 (operação concorrente no project), retry 1/5 em 1751ms (elapsed 0s)
+
+2026-05-15 12:13:25 [INFO] wizard terminado
+2026-05-15 12:22:41 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 12:22:41 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 12:22:41 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 12:22:41 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 12:22:41 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 12:22:45 [INFO] [tenancy:list] DONE exit=0 elapsed=3690ms stdout=1887B stderr=648B
+2026-05-15 12:22:45 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+    "id": "cmp2scz0f0000bclqxtmyyind",
+  {
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbUser": "neondb_owner",
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "dbRegion": null,
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "lastBackupAt": null,
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "dbUser": "neondb_owner",
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+  }
+]
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+
+2026-05-15 12:22:45 [INFO] [tenancy:list] STDERR[0..2000]:
+(node:10264) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+To prepare for this change:
+
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+
+2026-05-15 12:22:45 [WARN] [tenancy:list] JSON parse: extracted no valid object/array from stdout
+2026-05-15 12:23:27 [INFO] [tenancy:create grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:create -- --slug=grupo-silveira --name=Grupo Silveira --admin-email=grp.cc.sw@sier.pt --provider=neon --json --quiet --region=eu-west-2 --farmacias=Farmácia Silveirense, Farmácia Segurado
+2026-05-15 12:23:33 [INFO] [tenancy:create grupo-silveira] DONE exit=1 elapsed=6090ms stdout=1449B stderr=748B
+2026-05-15 12:23:33 [INFO] [tenancy:create grupo-silveira] STDOUT[0..2000]:
+{
+  "ok": false,
+  "durationMs": 5048,
+  "provider": "neon",
+  "slug": "grupo-silveira",
+  "step": "create-database",
+  "error": "neon.createDatabase falhou: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `3D000`. Message: `database \"spharmmt_t_grupo_silveira\" does not exist`\n\nCleanup automático:\n  DB    spharmmt_t_grupo_silveira: FALHOU (Neon API DELETE /projects/weathered-hat-62448919/branches/br-purple-flower-abbcqm5k/databases/spharmmt_t_grupo_silveira → HTTP 423: {\"request_id\":\"3ca164f8-0720-41ed-b6d8-0ce68e92c19b\",\"code\":\"\",\"message\":\"project already has running conflicting operations, scheduling of new ones is prohibited\"})\n  role  spharmmt_grupo_silveira: FALHOU (Neon API DELETE /projects/weathered-hat-62448919/branches/br-purple-flower-abbcqm5k/roles/spharmmt_grupo_silveira → HTTP 422: {\"request_id\":\"580b0258-030a-45b9-9e02-e2ff4fe7cab5\",\"code\":\"ROLE_OWNS_OBJECTS\",\"message\":\"cannot delete role that is owner of a database; role_name:\\\"spharmmt_grupo_silveira\\\", db_name:\\\"spharmmt_t_grupo_silveira\\\"\"})\n\nAVISO: recursos Neon podem ter ficado ghost — remove manualmente no dashboard https://console.neon.tech/ → projecto → Databases/Roles antes de re-tentar criar tenant \"grupo-silveira\".\n\nPara limpar control plane se ficou registo PROVISIONING/FAILED: npm run tenancy:cleanup-failed -- --slug grupo-silveira --confirm",
+}
+  "rollbackStatus": "n/a"
+
+2026-05-15 12:23:33 [INFO] [tenancy:create grupo-silveira] STDERR[0..2000]:
+(node:8004) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[neon] createDatabase: HTTP 423 (operação concorrente no project), retry 1/5 em 1804ms (elapsed 0s)
+
+2026-05-15 12:23:33 [WARN] [tenancy:create grupo-silveira] JSON parse: extracted no valid object/array from stdout
+2026-05-15 12:30:20 [INFO] wizard terminado
+2026-05-15 12:43:34 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 12:43:34 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 12:43:34 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 12:43:34 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 12:43:35 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 12:43:36 [INFO] [tenancy:list] DONE exit=0 elapsed=1450ms stdout=1835B stderr=638B
+2026-05-15 12:43:36 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+  {
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 12:43:36 [INFO] [tenancy:list] STDERR[0..2000]:
+(node:6108) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 13:01:55 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
+2026-05-15 13:01:55 [INFO] bootstrap: AppRoot=C:\projetos\spharm-mt\dist-admin (via Environment.GetCommandLineArgs[0])
+2026-05-15 13:01:55 [INFO] runtime: PSVersion=5.1.26100.7920 PSEdition=Desktop HostName=PSRunspace-Host CompiledExe=True
+2026-05-15 13:01:55 [INFO] npm: C:\Program Files\nodejs\npm.cmd
+2026-05-15 13:01:55 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 13:01:58 [INFO] [tenancy:list] DONE exit=0 elapsed=2404ms stdout=1835B stderr=638B
+2026-05-15 13:01:58 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+  {
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_piloto_demo",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260508104513_add_regulatory_acquisition_job",
+    "provisionedAt": "2026-05-12T11:22:34.140Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Q9RfVCZiKCqmphDPbD2Y7.H.cBGjPy9/tcOtkCsfazSa1.KPWh5Fy",
+    "ingestApiKeyIssuedAt": "2026-05-12T11:27:58.331Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T11:22:13.612Z",
+    "updatedAt": "2026-05-12T11:27:58.340Z"
+  }
+]
+
+2026-05-15 13:01:58 [INFO] [tenancy:list] STDERR[0..2000]:
+(node:3888) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 13:02:43 [INFO] [tenancy:create grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:create -- --slug=grupo-silveira --name=Grupo Silveira --admin-email=grp.cc.sw@sier.pt --provider=neon --json --quiet --region=eu-west-2 --farmacias=Farmácia Silveirense, Farmácia Segurado
+2026-05-15 13:03:13 [INFO] [tenancy:create grupo-silveira] DONE exit=0 elapsed=30427ms stdout=602B stderr=1216B
+2026-05-15 13:03:13 [INFO] [tenancy:create grupo-silveira] STDOUT[0..2000]:
+{
+  "ok": true,
+  "step": "done",
+  "durationMs": 29413,
+  "slug": "grupo-silveira",
+  "provider": "neon",
+  "tenantId": "cmp6vbipp0000j4lqyqnkvhyc",
+  "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+  "farmaciasCreated": [
+    {
+      "nome": "Farmácia Silveirense",
+      "id": "cmp6vbywq0002j4lqxw7l3rv4"
+    },
+    {
+      "nome": "Farmácia Segurado",
+      "id": "cmp6vbyy70003j4lqu6ky8tex"
+    }
+  ],
+  "adminEmail": "grp.cc.sw@sier.pt",
+  "adminPassword": "4jv6etHvUciCuASZ",
+  "ingestKey": "ed2d7e3574f4661485b6912034884ed0181c1b692b0a9e8f3d89e2be0e406eb1",
+  "smokeOk": true
+}
+
+2026-05-15 13:03:13 [INFO] [tenancy:create grupo-silveira] STDERR[0..2000]:
+(node:13648) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[neon] createDatabase: HTTP 423 (operação concorrente no project), retry 1/5 em 1692ms (elapsed 0s)
+[neon smoke] aguardando project quiet: 1 op(s) activa(s) (elapsed 0s/60s)
+[neon smoke] project quiet apos 2s
+[neon smoke] attempt 1/10 -- SELECT 1 postgresql:***@ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech/spharmmt_t_grupo_silveira?ch
+[neon smoke] OK na attempt 1 (total 2s)
+(node:13648) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+
+2026-05-15 14:11:39 [INFO] [tenancy:list] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:list -- --json
+2026-05-15 14:11:41 [INFO] [tenancy:list] DONE exit=0 elapsed=2431ms stdout=2743B stderr=638B
+2026-05-15 14:11:41 [INFO] [tenancy:list] STDOUT[0..2000]:
+[
+  {
+    "id": "cmp2scz0f0000bclqxtmyyind",
+    "slug": "demo-neon",
+    "nome": "Demo Neon",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_demo_neon",
+    "dbUser": "neondb_owner",
+    "dbRegion": null,
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-12T15:28:59.985Z",
+    "lastMigratedAt": "2026-05-14T13:36:51.551Z",
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$Gr.9WNxO9.4JIC9BS6RuteTUWkhigtWBEX4hACIhYLBCFr/QhKzX.",
+    "ingestApiKeyIssuedAt": "2026-05-14T13:44:23.536Z",
+    "lastAgentHeartbeatAt": "2026-05-14T16:49:18.929Z",
+    "lastAgentIp": "89.154.96.42",
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-12T15:28:55.359Z",
+    "updatedAt": "2026-05-14T16:49:18.939Z"
+  },
+  {
+    "id": "cmp6vbipp0000j4lqyqnkvhyc",
+    "slug": "grupo-silveira",
+    "nome": "Grupo Silveira",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "dbHost": "ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech",
+    "dbPort": 5432,
+    "dbName": "spharmmt_t_grupo_silveira",
+    "dbUser": "spharmmt_grupo_silveira",
+    "dbRegion": null,
+    "schemaVersion": "20260514180000_pipeline_run_idempotency_key",
+    "provisionedAt": "2026-05-15T12:03:13.450Z",
+    "lastMigratedAt": null,
+    "lastHealthCheckAt": null,
+    "lastHealthStatus": null,
+    "lastBackupAt": null,
+    "ingestApiKeyHash": "$2b$10$q0RV5c/7WyYA6r63BzVW3.SfJyzFVowoqPGSrCj1/NNlEYn0696yK",
+    "ingestApiKeyIssuedAt": "2026-05-15T12:03:12.290Z",
+    "lastAgentHeartbeatAt": null,
+    "lastAgentIp": null,
+    "lastAgentVersion": null,
+    "createdAt": "2026-05-15T12:02:51.133Z",
+    "updatedAt": "2026-05-15T12:03:13.451Z"
+  },
+  {
+    "id": "cmp2jjpwr0000r8lqufvzd3ff",
+    "slug": "piloto-demo",
+    "nome": "Grupo Piloto Demo",
+    "nifGrupo": null,
+    "estado": "ACTIVE",
+    "
+2026-05-15 14:11:41 [INFO] [tenancy:list] STDERR[0..2000]:
+(node:5668) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 14:16:34 [INFO] [status grupo-silveira] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:status -- --tenant=grupo-silveira
+2026-05-15 14:16:37 [INFO] [status grupo-silveira] DONE exit=0 elapsed=2901ms stdout=1622B stderr=639B
+2026-05-15 14:16:37 [INFO] [status grupo-silveira] STDOUT[0..2000]:
+──────────────────────────────────────────────────────────────────────────────
+tenancy:status — grupo-silveira
+──────────────────────────────────────────────────────────────────────────────
+
+Control plane
+────────────────────────────────────────
+  ✓ estado          : ACTIVE
+     nome            : Grupo Silveira
+     id              : cmp6vbipp0000j4lqyqnkvhyc
+     DB              : spharmmt_t_grupo_silveira@ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech:5432
+     provisionedAt   : 2026-05-15 12:03:13
+     schemaVersion   : 20260514180000_pipeline_run_idempotency_key
+     region          : —
+  ✓ ingest key      : gerada em 2026-05-15 12:03:12
+
+Tenant DB
+────────────────────────────────────────
+  ✓ conectividade  : OK
+  ✓ migrations     : 18 aplicadas, última: 20260514180000_pipeline_run_idempotency_key
+  ✓ farmácias      : 2 ATIVO
+      · Farmácia Segurado                      —          ATIVO
+      · Farmácia Silveirense                   —          ATIVO
+
+Pipeline
+────────────────────────────────────────
+  · daily-pipeline (auto)        (sem execuções)
+  · aggregate-month              (sem execuções)
+  · daily-sync (standalone)      (sem execuções)
+
+Dados
+────────────────────────────────────────
+  · VendaMensal rows total       : 0
+  · mês mais recente agregado     : —
+  ✓ staging UNKNOWN              : 0
+  ✓ staging operational orphans  : 0
+  · staging non-stock services    : 0
+
+Próximos passos
+────────────────────────────────────────
+  → gerar pacote agent e instalar no PC:
+     npm run admin:package-agent -- --tenant grupo-silveira --farmacia "<nome>" --rotate
+
+Status global: ✓ OK
+
+2026-05-15 14:16:37 [INFO] [status grupo-silveira] STDERR[0..2000]:
+(node:11372) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 14:19:40 [INFO] [add-user grupo-silveira / grp.cc.spharm@sier.pt] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent tenancy:add-user -- --tenant=grupo-silveira --email=grp.cc.spharm@sier.pt --nome=SoftReis --role=GESTOR_GRUPO --password=[REDACTED]
+2026-05-15 14:19:43 [INFO] [add-user grupo-silveira / grp.cc.spharm@sier.pt] DONE exit=0 elapsed=2472ms stdout=984B stderr=639B
+2026-05-15 14:19:43 [INFO] [add-user grupo-silveira / grp.cc.spharm@sier.pt] STDOUT[0..2000]:
+────────────────────────────────────────────────────────────────────────
+add-user — grupo-silveira
+────────────────────────────────────────────────────────────────────────
+Tenant       : Grupo Silveira (id=cmp6vbipp0000j4lqyqnkvhyc)
+DB           : spharmmt_t_grupo_silveira@ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech:5432
+Email        : grp.cc.spharm@sier.pt
+Nome         : SoftReis
+Role         : GESTOR_GRUPO
+Farmácia     : (nenhuma)
+
+
+✓ Utilizador criado
+  id              : cmp6y2d740000zslq3f9y3u0z
+  email           : grp.cc.spharm@sier.pt
+  nome            : SoftReis
+  perfil          : GESTOR_GRUPO
+  dataCriacao     : 2026-05-15T13:19:42.928Z
+  mustChange      : true (login força reset)
+
+Password: usada a fornecida via --password (não impressa).
+
+Próximos passos:
+  · Login em /login (com o slug "grupo-silveira" no contexto)
+  · Reset da password no primeiro login (mustChangePassword=true)
+  · Ver estado: npm run tenancy:status -- --tenant grupo-silveira
+
+2026-05-15 14:19:43 [INFO] [add-user grupo-silveira / grp.cc.spharm@sier.pt] STDERR[0..2000]:
+(node:15544) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 14:26:18 [INFO] [package-agent grupo-silveira / Farmácia Silveirense] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent admin:package-agent -- --tenant=grupo-silveira --farmacia=Farmácia Silveirense --endpoint=https://spharm-mt.vercel.app/ --key=[REDACTED] --sql-host=192.168.100.101 --sql-port=1433 --sql-database=SPharm_Silveirense --sql-user=spharm
+2026-05-15 14:26:26 [INFO] [package-agent grupo-silveira / Farmácia Silveirense] DONE exit=0 elapsed=7873ms stdout=1476B stderr=639B
+2026-05-15 14:26:26 [INFO] [package-agent grupo-silveira / Farmácia Silveirense] STDOUT[0..2000]:
+──────────────────────────────────────────────────────────────────────────────
+package-agent — grupo-silveira → dist-agent\clients\grupo-silveira-2026-05-15-37a8ed
+──────────────────────────────────────────────────────────────────────────────
+
+▶ Copy base agent → C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-37a8ed
+▶ Zip → dist-agent\clients\grupo-silveira-2026-05-15-37a8ed.zip
+  26.5 MB
+
+──────────────────────────────────────────────────────────────────────────────
+✓ PACOTE CRIADO
+──────────────────────────────────────────────────────────────────────────────
+Tenant       : Grupo Silveira (slug=grupo-silveira)
+Farmácia     : Farmácia Silveirense
+Endpoint     : https://spharm-mt.vercel.app/
+Healthcheck  : (não configurado)
+SQL Server   : host=192.168.100.101 db=SPharm_Silveirense
+  ⚠ password placeholder — operador completa no PC da farmácia
+Output dir   : C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-37a8ed
+ZIP          : C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-37a8ed.zip
+
+Ingest key   : (usaste --key explicitamente; sem mudança no control plane)
+
+Próximos passos no PC da farmácia:
+  1. Copiar grupo-silveira-2026-05-15-37a8ed.zip para C:\spharmmt\agent\
+  2. Extrair
+  3. Editar agent.config.json e completar sqlServer.password
+  4. Correr run-test-connection.bat para validar
+  5. Configurar Task Scheduler com run-daily-pipeline-auto.bat
+     (ver docs/daily-pipeline-task-scheduler.md)
+
+2026-05-15 14:26:26 [INFO] [package-agent grupo-silveira / Farmácia Silveirense] STDERR[0..2000]:
+(node:12232) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 14:27:29 [INFO] [package-agent grupo-silveira / Farmácia Segurado] START cwd=C:\projetos\spharm-mt cmd=C:\Program Files\nodejs\npm.cmd run --silent admin:package-agent -- --tenant=grupo-silveira --farmacia=Farmácia Segurado --endpoint=https://spharm-mt.vercel.app/ --key=[REDACTED] --sql-host=192.168.100.101 --sql-port=1433 --sql-database=SPharm_Silveirense --sql-user=spharm
+2026-05-15 14:27:36 [INFO] [package-agent grupo-silveira / Farmácia Segurado] DONE exit=0 elapsed=6985ms stdout=1473B stderr=639B
+2026-05-15 14:27:36 [INFO] [package-agent grupo-silveira / Farmácia Segurado] STDOUT[0..2000]:
+──────────────────────────────────────────────────────────────────────────────
+package-agent — grupo-silveira → dist-agent\clients\grupo-silveira-2026-05-15-6b6290
+──────────────────────────────────────────────────────────────────────────────
+
+▶ Copy base agent → C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-6b6290
+▶ Zip → dist-agent\clients\grupo-silveira-2026-05-15-6b6290.zip
+  26.5 MB
+
+──────────────────────────────────────────────────────────────────────────────
+✓ PACOTE CRIADO
+──────────────────────────────────────────────────────────────────────────────
+Tenant       : Grupo Silveira (slug=grupo-silveira)
+Farmácia     : Farmácia Segurado
+Endpoint     : https://spharm-mt.vercel.app/
+Healthcheck  : (não configurado)
+SQL Server   : host=192.168.100.101 db=SPharm_Silveirense
+  ⚠ password placeholder — operador completa no PC da farmácia
+Output dir   : C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-6b6290
+ZIP          : C:\projetos\spharm-mt\dist-agent\clients\grupo-silveira-2026-05-15-6b6290.zip
+
+Ingest key   : (usaste --key explicitamente; sem mudança no control plane)
+
+Próximos passos no PC da farmácia:
+  1. Copiar grupo-silveira-2026-05-15-6b6290.zip para C:\spharmmt\agent\
+  2. Extrair
+  3. Editar agent.config.json e completar sqlServer.password
+  4. Correr run-test-connection.bat para validar
+  5. Configurar Task Scheduler com run-daily-pipeline-auto.bat
+     (ver docs/daily-pipeline-task-scheduler.md)
+
+2026-05-15 14:27:36 [INFO] [package-agent grupo-silveira / Farmácia Segurado] STDERR[0..2000]:
+(node:11428) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+2026-05-15 16:17:54 [INFO] wizard terminado

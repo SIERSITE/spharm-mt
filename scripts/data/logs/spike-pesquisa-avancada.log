@@ -1,0 +1,22 @@
+──────────────────────────────────────────────────────────────────────────
+Spike — pesquisa-avancada-form
+──────────────────────────────────────────────────────────────────────────
+  headful: false
+  out:     C:\projetos\spharm-mt\scripts\data\spike-pesquisa-avancada
+
+[0] GET https://extranet.infarmed.pt/INFOMED-fo/index.xhtml
+
+[1] Navegar para https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml
+    status: 200
+    url:    https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml
+
+[2] Snapshot DOM do pesquisa-avancada
+    bytes HTML: 1296026
+    forms detectados: 2
+      · form id="langForm" inputs=2 buttons=1
+      · form id="mainForm" inputs=37 buttons=2
+
+[fatal] pesquisa-avancada-form NÃO encontrado no DOM.
+Forms presentes:
+  - langForm
+  - mainForm

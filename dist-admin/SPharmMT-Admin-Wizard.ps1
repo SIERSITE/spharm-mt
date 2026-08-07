@@ -214,12 +214,69 @@ function Write-WizardConfig {
   } catch { return $false }
 }
 
+# --- Proteccao do admin token (DPAPI) -----------------------------
+# O token da API administrativa da acesso a criacao de tenants e a
+# emissao de ingest keys. Em texto simples no %APPDATA% qualquer
+# processo a correr como o utilizador -- ou quem copie o perfil, ou um
+# backup do disco -- fica com ele. DPAPI CurrentUser cifra-o com a
+# credencial de login do Windows: o blob so e legivel pelo MESMO
+# utilizador na MESMA maquina, e um config.json copiado para outro sitio
+# nao serve para nada.
+#
+# A entropia adicional e uma constante desta aplicacao. Nao e um segredo
+# (esta aqui a vista); serve para que um blob DPAPI produzido por outra
+# aplicacao do mesmo utilizador nao possa ser colado neste ficheiro e
+# desencriptado por engano.
+
+$script:DpapiEntropy = [System.Text.Encoding]::UTF8.GetBytes("SPharmMT.AdminWizard.v1")
+
+function Protect-WizardSecret {
+  # String em claro -> base64 do blob DPAPI. $null se falhar ou vazio.
+  param([string]$Plain)
+  if (-not $Plain) { return $null }
+  try {
+    Add-Type -AssemblyName System.Security -ErrorAction Stop
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Plain)
+    $prot = [System.Security.Cryptography.ProtectedData]::Protect(
+      $bytes, $script:DpapiEntropy,
+      [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+    return [Convert]::ToBase64String($prot)
+  } catch { return $null }
+}
+
+function Unprotect-WizardSecret {
+  # base64 do blob DPAPI -> string em claro. $null se nao for
+  # desencriptavel (outro utilizador, outra maquina, blob corrompido).
+  param([string]$Protected)
+  if (-not $Protected) { return $null }
+  try {
+    Add-Type -AssemblyName System.Security -ErrorAction Stop
+    $prot = [Convert]::FromBase64String($Protected)
+    $bytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
+      $prot, $script:DpapiEntropy,
+      [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+    return [System.Text.Encoding]::UTF8.GetString($bytes)
+  } catch { return $null }
+}
+
 function Get-SavedSaas {
   # @{ BaseUrl; Token } do config persistido. Campos null se ausentes.
+  #
+  # O token vem de adminTokenProtected (DPAPI). Instalacoes anteriores
+  # gravaram-no em claro em adminToken: essas sao lidas uma ultima vez e
+  # imediatamente migradas -- ver Convert-LegacyTokenToDpapi, chamada no
+  # arranque. Nunca voltamos a escrever adminToken.
   $c = Read-WizardConfig
+  $tok = $null
+  if ($c.ContainsKey("adminTokenProtected")) {
+    $tok = Unprotect-WizardSecret ([string]$c["adminTokenProtected"])
+  }
+  if (-not $tok -and $c.ContainsKey("adminToken")) {
+    $tok = [string]$c["adminToken"]   # legado, a caminho de ser migrado
+  }
   return @{
     BaseUrl = $(if ($c.ContainsKey("saasBaseUrl")) { [string]$c["saasBaseUrl"] } else { $null })
-    Token   = $(if ($c.ContainsKey("adminToken")) { [string]$c["adminToken"] } else { $null })
+    Token   = $tok
   }
 }
 
@@ -227,8 +284,34 @@ function Save-Saas {
   param([string]$BaseUrl, [string]$Token)
   $c = Read-WizardConfig
   $c["saasBaseUrl"] = $BaseUrl
-  $c["adminToken"] = $Token
+  $prot = Protect-WizardSecret $Token
+  if ($prot) {
+    $c["adminTokenProtected"] = $prot
+    # Nao deixar o valor em claro para tras quando se migra/actualiza.
+    if ($c.ContainsKey("adminToken")) { [void]$c.Remove("adminToken") }
+  } elseif ($Token) {
+    # DPAPI indisponivel: preferimos nao persistir a gravar em claro. O
+    # token continua em memoria, esta sessao funciona, a proxima volta a
+    # pedir. Guardar em claro seria exactamente o que se quer evitar.
+    if ($c.ContainsKey("adminToken")) { [void]$c.Remove("adminToken") }
+    if ($c.ContainsKey("adminTokenProtected")) { [void]$c.Remove("adminTokenProtected") }
+  }
   return (Write-WizardConfig -Config $c)
+}
+
+function Convert-LegacyTokenToDpapi {
+  # Se existir um adminToken em claro de uma versao anterior, re-grava-o
+  # protegido e apaga o campo em claro. Idempotente e silencioso.
+  # Devolve $true se migrou alguma coisa.
+  try {
+    $c = Read-WizardConfig
+    if (-not $c.ContainsKey("adminToken")) { return $false }
+    $plain = [string]$c["adminToken"]
+    if (-not $plain) { [void]$c.Remove("adminToken"); [void](Write-WizardConfig -Config $c); return $false }
+    $url = $(if ($c.ContainsKey("saasBaseUrl")) { [string]$c["saasBaseUrl"] } else { "" })
+    [void](Save-Saas -BaseUrl $url -Token $plain)
+    return $true
+  } catch { return $false }
 }
 
 # Modo escolhido pelo operador, persistido. Existe porque a
@@ -339,6 +422,9 @@ try {
     $script:DataDir = $base
     $LogDir = Join-Path $base "logs"
     $script:OutputDir = Join-Path $base "output"
+    # Migrar um token em claro de uma versao anterior ANTES de o ler, para
+    # que o ficheiro deixe de o conter logo neste arranque.
+    $script:TokenMigrated = Convert-LegacyTokenToDpapi
     $saas = Get-SavedSaas
     $script:SaasBaseUrl = $saas.BaseUrl
     $script:AdminToken = $saas.Token
@@ -1239,8 +1325,10 @@ function Set-AllButtonsEnabled {
   foreach ($b in @($aBtn, $bAddBtn, $bListBtn, $cAddBtn, $dPkgBtn, $eStatusBtn, $ePrecheckBtn, $refreshBtn)) {
     $b.Enabled = $Enabled
   }
-  # Criar tenant nao existe em STANDALONE (provisioning fica em dev/trusted).
-  if ($script:Mode -eq "STANDALONE") { $aBtn.Enabled = $false }
+  # SEM excepcao para o "Criar tenant". Existia uma -- o botao ficava
+  # desactivado em STANDALONE -- de quando criar tenants so era possivel
+  # por npm no repositorio. Com POST /api/admin/v1/tenants deixou de o
+  # ser: e mais uma operacao da API, como todas as outras desta lista.
 }
 
 function Set-Status {
@@ -2256,13 +2344,10 @@ Write-WizardLog ("runtime: PSVersion={0} PSEdition={1} HostName={2} CompiledExe=
   [bool]([Environment]::GetCommandLineArgs()[0] -match '\.exe$'))
 Write-WizardLog ("npm: " + $(if ($script:NpmCommand) { $script:NpmCommand } else { "NOT FOUND in PATH" }))
 
-# Em STANDALONE: Criar tenant nao se aplica (provisioning fica em dev).
 if ($script:Mode -eq "STANDALONE") {
-  $aBtn.Enabled = $false
   try {
-    Append-Output $aOut "Criar tenant nao esta disponivel em modo STANDALONE." ([System.Drawing.Color]::Khaki)
-    Append-Output $aOut "O provisionamento de tenants novos corre no ambiente dev/trusted." ([System.Drawing.Color]::Gainsboro)
-    Append-Output $aOut "Usa as tabs B-E (farmacias, utilizadores, agent ZIP, status, precheck)." ([System.Drawing.Color]::Gainsboro)
+    Append-Output $aOut "Criar tenant: POST /api/admin/v1/tenants (servidor configurado no cabecalho)." ([System.Drawing.Color]::Gainsboro)
+    Append-Output $aOut "A senha do administrador e a ingest key sao mostradas UMA vez, no fim." ([System.Drawing.Color]::Gainsboro)
   } catch {}
 }
 

@@ -1,0 +1,37 @@
+──────────────────────────────────────────────────────────────────────────
+Spike v3 — POST-submit DOM + paginação + med_guid resolution
+──────────────────────────────────────────────────────────────────────────
+
+[init] GET https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml
+
+[paginator]
+    rppDD options: []
+    paginator text inicial: "A mostrar 0 - 0 de um total de 0 registos. Está a visualizar a página 1 de 1"
+
+[T1] Submit com Titular="Bayer"
+    rows visíveis: 10
+    paginator: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+    first row structure:
+      ri=0 medId=37119 name="Aspirina Direkt"
+      links na row:
+        href="#" onclick="PrimeFaces.ab({s:"mainForm:dt-medicamentos:0:linkNome",f:"mainForm",p:"mainForm:..."
+        data attrs: {}
+        href="#" onclick="PrimeFaces.addSubmitParam('mainForm',{'mainForm:dt-medicamentos:0:pesqAvancadaDa..."
+        data attrs: {}
+        href="#" onclick="PrimeFaces.addSubmitParam('mainForm',{'mainForm:dt-medicamentos:0:pesqAvancadaDa..."
+        data attrs: {}
+    [snapshot] v3-dom-after-bayer-submit.html (1309kb)
+
+[T2] rppDD máximo é 10 — paginação obrigatória
+
+[T3] Avançar para página 2
+    paginator: "A mostrar 11 - 20 de um total de 85 registos. Está a visualizar a página 2 de 9"
+    first row pag 2: medId=56942 name="Eylea"
+
+[T4] Click row 0 → ver med_guid na navegação
+    URL após click: https://extranet.infarmed.pt/INFOMED-fo/detalhes-medicamento.xhtml
+    med_guid NÃO está na URL (session-resolved provavelmente)
+
+[posts] capturados 0 POSTs ao pesquisa-avancada.xhtml
+
+Spike v3 completa.

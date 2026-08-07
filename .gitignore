@@ -50,3 +50,6 @@ notes/*.final-html.html
 /dist-agent
 /agent/.build-cache
 /agent/agent.config.json
+
+.vercel
+.env*.local

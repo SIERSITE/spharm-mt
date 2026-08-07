@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { getPrisma } from "@/lib/prisma";
 import { createSessionToken, LEGACY_TENANT } from "@/lib/auth";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
-import { sessionCookieOptions } from "@/lib/runtime-config";
 
 type LoginState = {
   error: string;
@@ -156,11 +155,13 @@ export async function loginAction(
   });
 
   const cookieStore = await cookies();
-  // `secure: false` estava fixo no código: correcto em HTTP, e uma falha
-  // de segurança assim que houvesse TLS. Passa a vir de
-  // SESSION_COOKIE_SECURE / PUBLIC_APP_URL — ver lib/runtime-config.ts.
-  // O maxAge acompanha a expiração do JWT (8h) definida em lib/auth.ts.
-  cookieStore.set("session", token, sessionCookieOptions(60 * 60 * 8));
+  cookieStore.set("session", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    path: "/",
+    maxAge: 60 * 60 * 8,
+  });
 
   redirect("/dashboard");
 }

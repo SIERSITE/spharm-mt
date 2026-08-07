@@ -32,6 +32,24 @@ export const WINDOW_90D = 90 as const;
 export const WINDOW_30D = 30 as const;
 
 /**
+ * Threshold canónico de EXCESSO de cobertura (em dias).
+ *
+ * Um produto é classificado como excesso quando `coverageDays > EXCESSO_COVERAGE_DAYS`.
+ * Valor decidido no fecho funcional (2026-06): **180 dias** (semestre conservador).
+ *
+ * Substitui os 3 thresholds divergentes que existiam:
+ *   - Dashboard / `stock-shared.ts` filtro "excess-stock-60d" → 60 dias
+ *   - `transferencias-data.ts:getExcessosData` default → 90 dias
+ *   - `inventario-data.ts:EXCESSO_DAYS` → 180 dias
+ *
+ * A unificação garante que o mesmo produto não pode aparecer como "EXCESSO"
+ * num relatório e como "NORMAL" noutro. Qualquer caller que precise de um
+ * threshold diferente passa-o explicitamente como argumento — mas o default
+ * em todos os relatórios oficiais é esta constante.
+ */
+export const EXCESSO_COVERAGE_DAYS = 180 as const;
+
+/**
  * Sanitiza um valor numérico: NaN/Infinity/negativos → 0.
  *
  * Usado nos boundaries do módulo. Cálculos internos assumem números

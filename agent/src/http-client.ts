@@ -132,6 +132,35 @@ export class SaasClient {
   }
 
   /**
+   * POST /api/ingest/v1/bootstrap/products/finalize
+   *
+   * Sweep pós-`products-upload`. Marca como `flagRetirado=true` todas as
+   * `ProdutoFarmacia(farmaciaId=X)` não tocadas nesta corrida — i.e.,
+   * produtos que existiam em corridas passadas mas que o ERP já não
+   * envia (filtro `Retirado=0 AND Processa_Stocks<>0` no agent).
+   *
+   * Chamado UMA vez por farmácia no fim da corrida, com o `runStartedAt`
+   * capturado **antes** do primeiro batch. Idempotente.
+   *
+   * NÃO toca em `Produto.estado` (decisão arquitectural 2026-06).
+   */
+  async bootstrapProductsFinalize(
+    body: { farmaciaId: string; runStartedAt: string },
+    timeoutMs?: number,
+  ): Promise<{
+    ok: true;
+    farmaciaId: string;
+    runStartedAt: string;
+    retiredCount: number;
+    durationMs: number;
+  }> {
+    return this.request("POST", "/api/ingest/v1/bootstrap/products/finalize", {
+      body,
+      timeoutMs,
+    });
+  }
+
+  /**
    * POST /api/ingest/v1/bootstrap/stock
    * Batch upsert de stock (per-armazém → agregado server-side por
    * externalProductId). Body: { farmaciaId, items: StockPayload[] }.

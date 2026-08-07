@@ -333,12 +333,23 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
             <div className="h-9 w-9 shrink-0 rounded-md border border-dashed border-slate-200 bg-slate-50" />
           )}
           <div className="min-w-0">
-            <Link
-              href={`/catalogo/artigo/${row.cnp}`}
-              className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
-            >
-              {row.designacao}
-            </Link>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Link
+                href={`/catalogo/artigo/${row.cnp}`}
+                className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
+              >
+                {row.designacao}
+              </Link>
+              {row.retiradoStatus === "all" ? (
+                <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                  Retirado
+                </span>
+              ) : row.retiradoStatus === "partial" ? (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                  Retirado parcial
+                </span>
+              ) : null}
+            </div>
             <div className="text-[11px] text-slate-500">
               {[row.formaFarmaceutica, row.dosagem, row.embalagem]
                 .filter(Boolean)

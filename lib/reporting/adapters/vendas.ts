@@ -6,28 +6,19 @@
  * Toda a lógica de HTML/PDF/Excel/Email vive em lib/reporting/*.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * DECISÕES DE CONTEÚDO
+ * FECHO 2026-06: colunas mensais dinâmicas
  *
- *  Jan/Fev/Mar/Abr e "Total Unidades" são UNIDADES (quantidade vendida
- *  em cada mês), não valor monetário. Vêm directamente de
- *  VendaMensal.quantidade em lib/vendas-data.ts. Estavam erradamente
- *  formatados como currency na versão anterior — agora usam `number`.
+ *  As colunas Jan/Fev/Mar/Abr fixas foram removidas. O caller passa
+ *  `buckets: { ano, mes }[]` — exactamente o mesmo array devolvido pelo
+ *  loader em `SalesPeriodHeader.buckets` — e o adapter gera dinamicamente
+ *  N colunas com chaves estáveis `m_YYYYMM` e labels "Mmm/YY". Os rows
+ *  recebem o mesmo número de campos `m_YYYYMM`.
  *
  *  PVP é o único valor monetário verdadeiramente fiável: vem de
  *  ProdutoFarmacia.pvp. Mantido como currency.
  *
- *  Colunas removidas nesta versão executiva do relatório:
- *    - Fabricante → estava a mostrar fornecedorOrigem (grossista). A
- *      correcção real é no pipeline de enriquecimento. Até lá, não
- *      mostrar é melhor que mostrar algo errado.
- *    - Fornecedor → vem de familiaOrigem que é ambíguo; inconsistente
- *      entre ficheiros de origem.
- *    - Categoria → mistura de taxonomias das farmácias, ainda não
- *      canónica. O worker de enriquecimento vai resolver; enquanto não
- *      resolver, fica fora do relatório executivo.
- *
  *  Colunas mantidas:
- *    Código, Descrição, PVP, Jan, Fev, Mar, Abr, Total Unidades, Stock,
+ *    Código, Descrição, PVP, N × mês (dinâmico), Total Unidades, Stock,
  *    Farmácia — suficiente para leitura operacional.
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -40,19 +31,38 @@ import type {
   ReportSummaryItem,
 } from "../report-types";
 
-// Shape das linhas agregadas da página Vendas.
-// Mantemos um tipo mínimo — o componente só precisa destes campos.
+const MONTH_LABELS_PT = [
+  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+];
+
+function bucketColumnKey(b: { ano: number; mes: number }): string {
+  // Chave estável "m_YYYYMM" — segura como property name e ordenável.
+  return `m_${b.ano}${String(b.mes).padStart(2, "0")}`;
+}
+
+function bucketColumnLabel(b: { ano: number; mes: number }): string {
+  const yy = String(b.ano).slice(-2);
+  return `${MONTH_LABELS_PT[b.mes - 1]}/${yy}`;
+}
+
+/** Bucket mensal — mesma shape que `SalesMonthBucket` no loader. */
+export type VendasAdapterMonthBucket = {
+  ano: number;
+  mes: number;
+  quantidade: number;
+};
+
 export type VendasAdapterRow = {
   codigo: string;
   descricao: string;
   pvp: number;
-  jan: number;
-  fev: number;
-  mar: number;
-  abr: number;
-  totalVendas: number;      // unidades totais (jan+fev+mar+abr)
+  /** Buckets na mesma ordem que `buckets` passado a `buildVendasReport`. */
+  meses: VendasAdapterMonthBucket[];
+  totalVendas: number;
   existencia: number;
-  unidadesVendidas: number; // alias de totalVendas; mantido para retrocompat
+  /** Alias legado — pode estar ausente, recomputamos a partir de `totalVendas`. */
+  unidadesVendidas?: number;
   fornecedor: string;
   fabricante: string;
   categoria: string;
@@ -67,6 +77,7 @@ export type VendasAdapterFilters = {
   fabricantesSelecionados?: string[];
   categoriasSelecionadas?: string[];
   artigo?: string;
+  /** ISO yyyy-mm-dd — refletido no subtitle e na lista de filtros. */
   dataInicio?: string;
   dataFim?: string;
   agruparPor?: string;
@@ -76,26 +87,52 @@ export type VendasAdapterFilters = {
 };
 
 /**
- * Larguras em percentagem do total da tabela (landscape A4, ~277mm úteis).
- * Usadas pelo renderer HTML via <colgroup>. Soma = 100%.
- *
- *   Código       7%   Descrição    28%   PVP          7%
- *   Jan          6%   Fev           6%   Mar          6%   Abr          6%
- *   Total Unid.  9%   Stock         7%   Farmácia    18%
- *                                                    = 100%
+ * Larguras-base (sem buckets). As N colunas mensais distribuem o espaço
+ * restante uniformemente — calculado em `buildColumns`.
  */
-const VENDAS_COLUMNS: ReportColumn[] = [
-  { key: "codigo",      label: "Código",        format: "text",     width: 7 },
-  { key: "descricao",   label: "Descrição",     format: "text",     width: 28 },
-  { key: "pvp",         label: "PVP",           format: "currency", width: 7 },
-  { key: "jan",         label: "Jan",           format: "integer",  width: 6, showTotal: true },
-  { key: "fev",         label: "Fev",           format: "integer",  width: 6, showTotal: true },
-  { key: "mar",         label: "Mar",           format: "integer",  width: 6, showTotal: true },
-  { key: "abr",         label: "Abr",           format: "integer",  width: 6, showTotal: true },
-  { key: "totalVendas", label: "Total Unid.",   format: "integer",  width: 9, showTotal: true },
-  { key: "existencia",  label: "Stock",         format: "integer",  width: 7 },
-  { key: "farmacia",    label: "Farmácia",      format: "text",     width: 18 },
-];
+const BASE_WIDTH_FIXED_COLS = {
+  codigo: 7,
+  descricao: 28,
+  pvp: 7,
+  totalVendas: 9,
+  existencia: 7,
+  farmacia: 18,
+};
+
+function buildColumns(
+  buckets: { ano: number; mes: number }[],
+): ReportColumn[] {
+  // Espaço total restante para os meses = 100 - somatório das colunas fixas
+  const fixedTotal =
+    BASE_WIDTH_FIXED_COLS.codigo +
+    BASE_WIDTH_FIXED_COLS.descricao +
+    BASE_WIDTH_FIXED_COLS.pvp +
+    BASE_WIDTH_FIXED_COLS.totalVendas +
+    BASE_WIDTH_FIXED_COLS.existencia +
+    BASE_WIDTH_FIXED_COLS.farmacia;
+  const remaining = Math.max(6, 100 - fixedTotal);
+  const perMonth = buckets.length > 0
+    ? Math.max(3, Math.floor(remaining / buckets.length))
+    : 6;
+
+  const monthColumns: ReportColumn[] = buckets.map((b) => ({
+    key: bucketColumnKey(b),
+    label: bucketColumnLabel(b),
+    format: "integer" as const,
+    width: perMonth,
+    showTotal: true,
+  }));
+
+  return [
+    { key: "codigo",      label: "Código",      format: "text",     width: BASE_WIDTH_FIXED_COLS.codigo },
+    { key: "descricao",   label: "Descrição",   format: "text",     width: BASE_WIDTH_FIXED_COLS.descricao },
+    { key: "pvp",         label: "PVP",         format: "currency", width: BASE_WIDTH_FIXED_COLS.pvp },
+    ...monthColumns,
+    { key: "totalVendas", label: "Total Unid.", format: "integer",  width: BASE_WIDTH_FIXED_COLS.totalVendas, showTotal: true },
+    { key: "existencia",  label: "Stock",       format: "integer",  width: BASE_WIDTH_FIXED_COLS.existencia },
+    { key: "farmacia",    label: "Farmácia",    format: "text",     width: BASE_WIDTH_FIXED_COLS.farmacia },
+  ];
+}
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string): string {
   if (!list || list.length === 0) return labelTodas;
@@ -127,7 +164,7 @@ function buildFilters(
   });
   if (f.fornecedoresSelecionados && f.fornecedoresSelecionados.length > 0) {
     out.push({
-      label: "Fornecedores",
+      label: "Distribuidores",
       value: joinList(f.fornecedoresSelecionados, universe.fornecedores.length, "Todos"),
     });
   }
@@ -172,6 +209,12 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
 
 export function buildVendasReport(input: {
   rows: VendasAdapterRow[];
+  /**
+   * Mesma lista de buckets devolvida pelo loader em
+   * `SalesPeriodHeader.buckets`. Determina (a) as colunas mensais
+   * geradas e (b) a ordem dos valores em cada `row.meses`.
+   */
+  buckets: { ano: number; mes: number }[];
   filters: VendasAdapterFilters;
   universe: {
     farmacias: string[];
@@ -186,18 +229,29 @@ export function buildVendasReport(input: {
    */
   organization: string;
 }): Report {
-  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
-    codigo: r.codigo,
-    descricao: r.descricao,
-    pvp: r.pvp,
-    jan: r.jan,
-    fev: r.fev,
-    mar: r.mar,
-    abr: r.abr,
-    totalVendas: r.totalVendas,
-    existencia: r.existencia,
-    farmacia: r.farmacia,
-  }));
+  // Mapeia cada row para o formato dinâmico de ReportRow (chaves m_YYYYMM
+  // alinhadas com as colunas geradas em `buildColumns`).
+  const rowsForReport: ReportRow[] = input.rows.map((r) => {
+    const base: ReportRow = {
+      codigo: r.codigo,
+      descricao: r.descricao,
+      pvp: r.pvp,
+      totalVendas: r.totalVendas,
+      existencia: r.existencia,
+      farmacia: r.farmacia,
+    };
+    // Indexação por posição (segura porque o loader devolve `meses` na
+    // mesma ordem de `buckets`); fallback por (ano,mes) match se faltar.
+    input.buckets.forEach((b, i) => {
+      const fromPos = r.meses[i];
+      const matched =
+        fromPos && fromPos.ano === b.ano && fromPos.mes === b.mes
+          ? fromPos
+          : r.meses.find((m) => m.ano === b.ano && m.mes === b.mes);
+      base[bucketColumnKey(b)] = matched?.quantidade ?? 0;
+    });
+    return base;
+  });
 
   const subtitle =
     input.filters.dataInicio && input.filters.dataFim
@@ -210,7 +264,7 @@ export function buildVendasReport(input: {
     generatedAt: new Date(),
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
-    columns: VENDAS_COLUMNS,
+    columns: buildColumns(input.buckets),
     rows: rowsForReport,
     meta: {
       slug: "vendas",

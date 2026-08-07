@@ -39,7 +39,7 @@ export default async function DashboardPage() {
         {/* Top: split layout — executive summary (left) + chart card (right) */}
         <section className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
           <ExecutiveSummary
-            pharmaciesCount={data.pharmaciesCount}
+            outOfStockCount={data.criticalAlerts.outOfStockCount}
             transferSuggestionsTotal={data.optimization.transferSuggestionsTotal}
             atRiskCount={data.criticalAlerts.atRiskCount}
             excessStockValueEur={data.excess.excessStockValueEur}

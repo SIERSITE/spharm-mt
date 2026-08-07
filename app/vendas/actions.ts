@@ -12,10 +12,11 @@
  * trigger explícito que substitui o eager load.
  */
 
-import { getVendasData, type VendasFilters, type SalesReportRow } from "@/lib/vendas-data";
+import { getVendasData, type SalesReportResult } from "@/lib/vendas-data";
+import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 export async function runVendasReport(
-  filters: VendasFilters
-): Promise<SalesReportRow[]> {
+  filters: SharedReportFilters
+): Promise<SalesReportResult> {
   return getVendasData(filters);
 }

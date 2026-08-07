@@ -1,0 +1,16 @@
+Tenant id
+cmp6vbipp0000j4lqyqnkvhyc
+
+Ingest Key
+ed2d7e3574f4661485b6912034884ed0181c1b692b0a9e8f3d89e2be0e406eb1
+
+Admin Pass
+4jv6etHvUciCuASZ
+
+Admin Email:
+grp.cc.sw@sier.pt
+
+grp.cc.spharm@sier.pt
+.SIER2026
+
+6f3884bc58c862f6fd5ca793b569dfb026d0b33f46c8ac7e20e4d5b3669573da

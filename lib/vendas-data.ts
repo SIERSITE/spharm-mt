@@ -1,34 +1,49 @@
 /**
  * lib/vendas-data.ts
- * Server-side data fetching for the vendas page.
+ * Server-side data fetching para a página Vendas.
  *
- * Carrega o universo completo de VendaMensal (jan–abr 2026) por
- * produto+farmacia das farmácias activas, sem limite artificial.
- * A tabela e o relatório recebem o dataset real — qualquer filtro
- * e agrupamento é aplicado no cliente em cima do universo completo.
+ * ─── FECHO 2026-06: período dinâmico ─────────────────────────────────────────
  *
- * Se no futuro o volume ficar pesado, o caminho correcto é mover
- * filtros/paginação para SQL (não reintroduzir um LIMIT arbitrário).
+ * Removido o pivot fixo Jan/Fev/Mar/Abr 2026. A query agora pivota dinamicamente
+ * sobre a janela `[from, to]` recebida nos filtros (mesmo padrão de
+ * `lib/margens-data.ts`). A saída inclui um array `meses` por linha, com tantos
+ * elementos quantos meses houver no período — a UI renderiza N colunas.
+ *
+ * Filtros suportados (canónicos via `SharedReportFilters`):
+ *   farmaciaNomes, from, to, categorias, fabricantes, distribuidores, pesquisa,
+ *   apenasSemClassif.
+ *
+ * Default temporal: início do ano corrente → mês corrente (igual a Margens).
+ *
+ * Pré-filtros de produto (categorias / fabricantes / distribuidores / pesquisa /
+ * semClassif) correm SQL-side antes do pivot — mesma estratégia de Margens
+ * para não puxar produtos que vão ser descartados a seguir.
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
-/** Matches the SalesReportRow type used by the vendas client component. */
+/** Linha por (CNP × farmácia) com vendas decompostas por mês no período. */
+export type SalesMonthBucket = {
+  /** Ano calendário (ex: 2026). */
+  ano: number;
+  /** Mês 1-12. */
+  mes: number;
+  /** Unidades vendidas no mês (já arredondado a inteiro). */
+  quantidade: number;
+};
+
 export type SalesReportRow = {
   codigo: string;
   descricao: string;
   pvp: number;
-  /** Vendas de Janeiro (2026) */
-  jan: number;
-  /** Vendas de Fevereiro (2026) */
-  fev: number;
-  /** Vendas de Março (2026) */
-  mar: number;
-  /** Vendas de Abril (2026) */
-  abr: number;
+  /** Buckets mês-a-mês na ordem cronológica do período seleccionado. */
+  meses: SalesMonthBucket[];
+  /** Soma das `meses[].quantidade`. */
   totalVendas: number;
   existencia: number;
+  /** Alias legado de totalVendas — preservado para callers existentes. */
   unidadesVendidas: number;
   fornecedor: string;
   fabricante: string;
@@ -37,28 +52,93 @@ export type SalesReportRow = {
   grupo: string;
 };
 
+/**
+ * Header do período devolvido junto com as linhas — permite à UI e ao
+ * adapter de exportação saberem **quais** meses esperar em cada `row.meses`,
+ * sem precisarem de inferir a partir das datas.
+ */
+export type SalesPeriodHeader = {
+  /** Início efectivo aplicado (ISO yyyy-mm-dd). */
+  from: string;
+  /** Fim efectivo aplicado (ISO yyyy-mm-dd, último dia do mês `toMes`). */
+  to: string;
+  /** Lista de buckets na mesma ordem que aparece em `row.meses`. */
+  buckets: { ano: number; mes: number }[];
+};
+
+export type SalesReportResult = {
+  period: SalesPeriodHeader;
+  rows: SalesReportRow[];
+};
+
 function toF(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-export type VendasFilters = {
-  /**
-   * Lista de NOMES de farmácia a incluir. Se vazia/omitida, usa todas
-   * as farmácias activas (excluindo "Farmácia Teste") — equivale a
-   * "todas seleccionadas". Usar nomes (não ids) porque é o que o
-   * cliente conhece a partir de farmaciasInfo.
-   */
-  farmaciaNomes?: string[];
-};
+/**
+ * Converte ISO yyyy-mm-dd para índice `ano*12 + mes` (mesma fórmula que
+ * `lib/margens-data.ts:ymToIndex` — mantida em paralelo para evitar acoplar
+ * Vendas a um helper específico de Margens).
+ */
+function ymToIndex(iso: string | undefined, fallback: { y: number; m: number }): number {
+  if (iso) {
+    const m = /^(\d{4})-(\d{2})/.exec(iso);
+    if (m) return parseInt(m[1], 10) * 12 + parseInt(m[2], 10);
+  }
+  return fallback.y * 12 + fallback.m;
+}
+
+function indexToYM(idx: number): { ano: number; mes: number } {
+  const ano = Math.floor((idx - 1) / 12);
+  const mes = ((idx - 1) % 12) + 1;
+  return { ano, mes };
+}
+
+function lastDayOfMonthIso(ano: number, mes: number): string {
+  // Dia 0 do mês seguinte = último dia do mês actual. UTC para evitar TZ.
+  const d = new Date(Date.UTC(ano, mes, 0));
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
 
 export async function getVendasData(
-  filters: VendasFilters = {}
-): Promise<SalesReportRow[]> {
+  filters: SharedReportFilters = {}
+): Promise<SalesReportResult> {
   const prisma = await getPrisma();
-  // Active pharmacies (excluding test). Restringimos cedo aos nomes
-  // pedidos pelo cliente para evitar trazer o universo todo do SQL
-  // quando o utilizador só quer 1-2 farmácias.
+
+  // ── Período: default = início do ano corrente → mês corrente ────────
+  const now = new Date();
+  const defFrom = { y: now.getUTCFullYear(), m: 1 };
+  const defTo = { y: now.getUTCFullYear(), m: now.getUTCMonth() + 1 };
+  const minIdx = ymToIndex(filters.from, defFrom);
+  const maxIdx = ymToIndex(filters.to, defTo);
+
+  // Lista canónica de buckets mês-a-mês — fonte única para UI + adapter.
+  const buckets: { ano: number; mes: number }[] = [];
+  if (maxIdx >= minIdx) {
+    for (let i = minIdx; i <= maxIdx; i++) {
+      buckets.push(indexToYM(i));
+    }
+  }
+  const periodFrom = buckets[0]
+    ? `${buckets[0].ano}-${String(buckets[0].mes).padStart(2, "0")}-01`
+    : `${defFrom.y}-01-01`;
+  const periodTo = buckets[buckets.length - 1]
+    ? lastDayOfMonthIso(
+        buckets[buckets.length - 1].ano,
+        buckets[buckets.length - 1].mes,
+      )
+    : lastDayOfMonthIso(defTo.y, defTo.m);
+  const period: SalesPeriodHeader = { from: periodFrom, to: periodTo, buckets };
+
+  if (buckets.length === 0) {
+    return { period, rows: [] };
+  }
+
+  // ── Farmácias activas (filtradas cedo pelos nomes pedidos) ──────────
   const farmacias = await prisma.farmacia.findMany({
     where: {
       estado: "ATIVO",
@@ -73,53 +153,135 @@ export async function getVendasData(
   });
   const farmaciaIds = farmacias.map((f) => f.id);
   const farmaciaNameById = new Map(farmacias.map((f) => [f.id, f.nome]));
-  if (farmaciaIds.length === 0) return [];
+  if (farmaciaIds.length === 0) return { period, rows: [] };
 
-  // Fixed column months: jan–abr 2026
-  const COLS = [
-    { ano: 2026, mes: 1 },
-    { ano: 2026, mes: 2 },
-    { ano: 2026, mes: 3 },
-    { ano: 2026, mes: 4 },
-  ];
+  // ── Pré-filtros de produto (categorias / fabricantes / semClassif /
+  //    pesquisa). Mesmo padrão de lib/margens-data.ts:189-232. Encolhe
+  //    o universo antes do pivot pesado em VendaMensal.
+  let produtoIdFilter: string[] | null = null;
+  if (filters.categorias && filters.categorias.length > 0) {
+    const classifs = await prisma.classificacao.findMany({
+      where: { tipo: "NIVEL_1", estado: "ATIVO", nome: { in: filters.categorias } },
+      select: { id: true },
+    });
+    const classifIds = classifs.map((c) => c.id);
+    if (classifIds.length === 0) return { period, rows: [] };
+    const produtos = await prisma.produto.findMany({
+      where: { classificacaoNivel1Id: { in: classifIds } },
+      select: { id: true },
+    });
+    produtoIdFilter = produtos.map((p) => p.id);
+    if (produtoIdFilter.length === 0) return { period, rows: [] };
+  }
+  if (filters.apenasSemClassif) {
+    const produtos = await prisma.produto.findMany({
+      where: {
+        classificacaoNivel1Id: null,
+        estado: { not: "INATIVO" },
+        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
+      },
+      select: { id: true },
+    });
+    produtoIdFilter = produtos.map((p) => p.id);
+    if (produtoIdFilter.length === 0) return { period, rows: [] };
+  }
+  if (filters.fabricantes && filters.fabricantes.length > 0) {
+    const fabs = await prisma.fabricante.findMany({
+      where: { nomeNormalizado: { in: filters.fabricantes }, estado: "ATIVO" },
+      select: { id: true },
+    });
+    const fabIds = fabs.map((f) => f.id);
+    if (fabIds.length === 0) return { period, rows: [] };
+    const produtos = await prisma.produto.findMany({
+      where: {
+        fabricanteId: { in: fabIds },
+        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
+      },
+      select: { id: true },
+    });
+    produtoIdFilter = produtos.map((p) => p.id);
+    if (produtoIdFilter.length === 0) return { period, rows: [] };
+  }
+  // Pesquisa (CNP exacto ou ILIKE designação) também pré-filtra o universo.
+  if (filters.pesquisa && filters.pesquisa.trim()) {
+    const q = filters.pesquisa.trim();
+    const asNumber = Number(q);
+    const produtos = await prisma.produto.findMany({
+      where: {
+        ...(Number.isFinite(asNumber) && Number.isInteger(asNumber)
+          ? { OR: [{ cnp: asNumber }, { designacao: { contains: q, mode: "insensitive" } }] }
+          : { designacao: { contains: q, mode: "insensitive" } }),
+        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
+      },
+      select: { id: true },
+    });
+    produtoIdFilter = produtos.map((p) => p.id);
+    if (produtoIdFilter.length === 0) return { period, rows: [] };
+  }
+  // Distribuidor (fornecedorOrigem em PF) — corre via filtro em PF mais
+  // abaixo (não pré-encolhe Produto, porque mesmo produto pode ter
+  // distribuidor diferente por farmácia).
 
-  // Raw query: pivot VendaMensal into jan/fev/mar/abr per produto+farmacia
-  type PivotRow = {
+  // ── Query principal: SUM dinâmico por (produtoId, farmaciaId, ano, mes)
+  //    no período `[minIdx, maxIdx]`. O pivot final é feito em memória —
+  //    `buckets` define a ordem das colunas no output. SQL devolve só as
+  //    linhas com pelo menos 1 venda no período (filtra noise).
+  type AggRow = {
     produtoId: string;
     farmaciaId: string;
-    jan: number;
-    fev: number;
-    mar: number;
-    abr: number;
-    total: number;
+    ano: number;
+    mes: number;
+    quantidade: number;
   };
-
-  const pivotRows = await prisma.$queryRaw<PivotRow[]>(Prisma.sql`
+  const prodIdCond = produtoIdFilter
+    ? Prisma.sql`AND vm."produtoId" = ANY(${produtoIdFilter})`
+    : Prisma.empty;
+  const aggRows = await prisma.$queryRaw<AggRow[]>(Prisma.sql`
     SELECT
       vm."produtoId",
       vm."farmaciaId",
-      SUM(CASE WHEN vm.ano = 2026 AND vm.mes = 1 THEN vm.quantidade ELSE 0 END)::float AS jan,
-      SUM(CASE WHEN vm.ano = 2026 AND vm.mes = 2 THEN vm.quantidade ELSE 0 END)::float AS fev,
-      SUM(CASE WHEN vm.ano = 2026 AND vm.mes = 3 THEN vm.quantidade ELSE 0 END)::float AS mar,
-      SUM(CASE WHEN vm.ano = 2026 AND vm.mes = 4 THEN vm.quantidade ELSE 0 END)::float AS abr,
-      SUM(CASE WHEN vm.ano = 2026 AND vm.mes IN (1,2,3,4) THEN vm.quantidade ELSE 0 END)::float AS total
+      vm.ano,
+      vm.mes,
+      SUM(vm.quantidade)::float AS quantidade
     FROM "VendaMensal" vm
     WHERE
       vm."farmaciaId" = ANY(${farmaciaIds})
-      AND vm.ano = 2026
-      AND vm.mes IN (1,2,3,4)
-    GROUP BY vm."produtoId", vm."farmaciaId"
-    HAVING SUM(CASE WHEN vm.ano = 2026 AND vm.mes IN (1,2,3,4) THEN vm.quantidade ELSE 0 END) > 0
-    ORDER BY total DESC
+      AND (vm.ano * 12 + vm.mes) BETWEEN ${minIdx} AND ${maxIdx}
+      ${prodIdCond}
+    GROUP BY vm."produtoId", vm."farmaciaId", vm.ano, vm.mes
+    HAVING SUM(vm.quantidade) > 0
   `);
 
-  if (pivotRows.length === 0) return [];
+  if (aggRows.length === 0) return { period, rows: [] };
 
-  // Fetch product metadata — incluindo o fabricante CANÓNICO via relação
-  // Produto.fabricante (Fabricante.nomeNormalizado). NUNCA usar
-  // ProdutoFarmacia.fornecedorOrigem como fabricante: esse é o grossista
-  // (OCP, Empifarma, Alliance...).
-  const produtoIds = [...new Set(pivotRows.map((r) => r.produtoId))];
+  // ── Agrupa por (produtoId, farmaciaId) e indexa cada mês ──────────
+  type Acc = {
+    produtoId: string;
+    farmaciaId: string;
+    byBucket: Map<string, number>;
+    total: number;
+  };
+  const bucketKey = (ano: number, mes: number) => `${ano}-${mes}`;
+  const accByKey = new Map<string, Acc>();
+  for (const r of aggRows) {
+    const key = `${r.produtoId}:${r.farmaciaId}`;
+    let acc = accByKey.get(key);
+    if (!acc) {
+      acc = {
+        produtoId: r.produtoId,
+        farmaciaId: r.farmaciaId,
+        byBucket: new Map(),
+        total: 0,
+      };
+      accByKey.set(key, acc);
+    }
+    const q = Math.round(toF(r.quantidade));
+    acc.byBucket.set(bucketKey(r.ano, r.mes), q);
+    acc.total += q;
+  }
+
+  // ── Metadata do produto (canónica) + ProdutoFarmacia (PVP/stock/origem)
+  const produtoIds = [...new Set(Array.from(accByKey.values()).map((a) => a.produtoId))];
   const produtos = await prisma.produto.findMany({
     where: { id: { in: produtoIds } },
     select: {
@@ -127,20 +289,21 @@ export async function getVendasData(
       cnp: true,
       designacao: true,
       fabricante: { select: { nomeNormalizado: true } },
-      // Necessário para o resolver canónico de categoria (lib/categoria-resolver.ts).
-      // Não é opcional — é a fonte de verdade quando preenchida.
       classificacaoNivel1: { select: { nome: true } },
       classificacaoNivel2: { select: { nome: true } },
     },
   });
   const produtoById = new Map(produtos.map((p) => [p.id, p]));
 
-  // Fetch ProdutoFarmacia for stock + pvp + categoriaOrigem
+  const pfWhere: Prisma.ProdutoFarmaciaWhereInput = {
+    produtoId: { in: produtoIds },
+    farmaciaId: { in: farmaciaIds },
+  };
+  if (filters.distribuidores && filters.distribuidores.length > 0) {
+    pfWhere.fornecedorOrigem = { in: filters.distribuidores };
+  }
   const pfRecords = await prisma.produtoFarmacia.findMany({
-    where: {
-      produtoId: { in: produtoIds },
-      farmaciaId: { in: farmaciaIds },
-    },
+    where: pfWhere,
     select: {
       produtoId: true,
       farmaciaId: true,
@@ -154,49 +317,47 @@ export async function getVendasData(
   });
   const pfByKey = new Map(pfRecords.map((r) => [`${r.produtoId}:${r.farmaciaId}`, r]));
 
+  // Quando há filtro de distribuidor, descarta acc cujos pares
+  // (produto, farmácia) não estão em pfByKey (i.e., não correspondem ao
+  // distribuidor seleccionado naquela farmácia).
+  const distribuidorFilterActive =
+    !!filters.distribuidores && filters.distribuidores.length > 0;
+
   const rows: SalesReportRow[] = [];
-  for (const pr of pivotRows) {
-    const produto = produtoById.get(pr.produtoId);
+  for (const acc of accByKey.values()) {
+    const produto = produtoById.get(acc.produtoId);
     if (!produto) continue;
-    const pf = pfByKey.get(`${pr.produtoId}:${pr.farmaciaId}`);
-    const farmaciaNome = farmaciaNameById.get(pr.farmaciaId) ?? "—";
+    const pf = pfByKey.get(`${acc.produtoId}:${acc.farmaciaId}`);
+    if (distribuidorFilterActive && !pf) continue;
+    const farmaciaNome = farmaciaNameById.get(acc.farmaciaId) ?? "—";
 
-    const jan = Math.round(toF(pr.jan));
-    const fev = Math.round(toF(pr.fev));
-    const mar = Math.round(toF(pr.mar));
-    const abr = Math.round(toF(pr.abr));
-    const total = jan + fev + mar + abr;
+    const meses: SalesMonthBucket[] = buckets.map((b) => ({
+      ano: b.ano,
+      mes: b.mes,
+      quantidade: acc.byBucket.get(bucketKey(b.ano, b.mes)) ?? 0,
+    }));
+    const totalVendas = meses.reduce((s, m) => s + m.quantidade, 0);
 
-    // pvp: from ProdutoFarmacia, fallback from pmc
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
 
-    // Categoria/grupo via resolver canónico partilhado (lib/categoria-resolver.ts).
-    // Mesma regra em toda a app: canónico > origem do importer.
     const { categoria, grupo } = resolveCategoria({
       classificacaoNivel1: produto.classificacaoNivel1,
       classificacaoNivel2: produto.classificacaoNivel2,
       categoriaOrigem: pf?.categoriaOrigem,
       subcategoriaOrigem: pf?.subcategoriaOrigem,
     });
-    // Fornecedor/grossista (OCP, Empifarma, Alliance...) — fica como
-    // contexto de abastecimento. Vem de ProdutoFarmacia.fornecedorOrigem.
     const fornecedor = pf?.fornecedorOrigem ?? "";
-    // Fabricante CANÓNICO — vem da relação Produto.fabricante (tabela
-    // Fabricante normalizada). Nunca de ProdutoFarmacia.
     const fabricante = produto.fabricante?.nomeNormalizado ?? "";
 
     rows.push({
       codigo: String(produto.cnp),
       descricao: produto.designacao,
       pvp,
-      jan,
-      fev,
-      mar,
-      abr,
-      totalVendas: total,
+      meses,
+      totalVendas,
       existencia,
-      unidadesVendidas: total,
+      unidadesVendidas: totalVendas,
       fornecedor,
       fabricante,
       categoria,
@@ -205,13 +366,7 @@ export async function getVendasData(
     });
   }
 
-  return rows;
+  // Ordenação default: mais vendidos primeiro. UI pode reordenar.
+  rows.sort((a, b) => b.totalVendas - a.totalVendas);
+  return { period, rows };
 }
-
-/** Ignored by eslint — col definitions kept for reference */
-export const _cols = [
-  { label: "Jan", ano: 2026, mes: 1 },
-  { label: "Fev", ano: 2026, mes: 2 },
-  { label: "Mar", ano: 2026, mes: 3 },
-  { label: "Abr", ano: 2026, mes: 4 },
-];

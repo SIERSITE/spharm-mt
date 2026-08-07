@@ -1,0 +1,70 @@
+──────────────────────────────────────────────────────────────────────────
+Spike v4 — direct ?med_id=X + rppDD>10
+──────────────────────────────────────────────────────────────────────────
+
+[0] Bootstrap session + Bayer search
+    paginator: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+
+[1] Inspeccionar rows: MED_ID + procurar med_guid hints
+    10 rows lidas:
+      ri=0 medId=37119 "Aspirina Direkt"
+      ri=1 medId=29131 "Aspirina GR 100mg Comprimidos Gastrorres"
+      ri=2 medId=593221 "Aspirina Xpress"
+      ri=3 medId=55377 "Aspirina Xpress"
+      ri=4 medId=32695 "Migraspirina"
+      ri=5 medId=641 "Aspirina C"
+      ri=6 medId=631342 "Aspirina Complex"
+      ri=7 medId=38503 "Primovist"
+      ri=8 medId=716764 "Beyonttra"
+      ri=9 medId=714625 "Eylea"
+    med_guid hints em data-* attrs: 0
+
+    MED_IDs únicos para testar: 37119, 29131, 593221, 55377, 32695, 641, 631342, 38503, 716764, 714625
+
+[2] Session cookies: JSESSIONID=ndFMkVQGMdIi4Zb-TAAYMnoz85DI1VCUqgwXeqln...
+
+[3] Testar GET https://extranet.infarmed.pt/INFOMED-fo/detalhes-medicamento.xhtml?<param>=<MED_ID>
+
+    Resultados:
+    param      medId    status    bytes hasDetail nome
+    med_id     37119       200    81147 ✗        Aspirina Direkt
+    med_id     29131       200   114999 ✗        Aspirina GR 100mg Comprimidos Gastrorresistentes
+    med_id     593221      200   185145 ✗        Aspirina Xpress
+    med_id     55377       200   167717 ✗        Aspirina Xpress
+    med_id     32695       200   109943 ✗        Migraspirina
+    med_id     641         200    82537 ✗        Aspirina C
+    med_id     631342      200   118574 ✗        Aspirina Complex
+    med_id     38503       200   348813 ✗        Primovist
+    med_id     716764      200    89874 ✗        Beyonttra
+    med_id     714625      200   100388 ✗        Eylea
+    id         37119       200   100388 ✗        Eylea
+    med_guid   37119       200    21493 ✗        
+    guid       37119       200    21493 ✗        
+    medId      37119       200    21493 ✗        
+    MED_ID     37119       200    21493 ✗        
+
+[4] Click row → capturar PrimeFaces.ab POST + response
+    URL após click: https://extranet.infarmed.pt/INFOMED-fo/detalhes-medicamento.xhtml
+    JSESSIONID antes: ndFMkVQGMdIi4Zb-TAAY...
+    JSESSIONID após:  ndFMkVQGMdIi4Zb-TAAY...
+    ✗ med_guid NÃO presente na response do click
+
+[5] Testar rppDD = 25, 50, 100
+    rppDD exists: false
+    rppDD options: []
+
+    -- tentar rppDD=25 --
+    option 25 não está no dropdown — forçando via JS
+      rows observadas: 10  paginator: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+
+    -- tentar rppDD=50 --
+    option 50 não está no dropdown — forçando via JS
+      rows observadas: 10  paginator: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+
+    -- tentar rppDD=100 --
+    option 100 não está no dropdown — forçando via JS
+      rows observadas: 10  paginator: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+
+──────────────────────────────────────────────────────────────────────────
+Spike v4 completa.
+──────────────────────────────────────────────────────────────────────────

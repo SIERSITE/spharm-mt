@@ -13,19 +13,21 @@
  * servidor possam continuar a importar de um único sítio se preferirem.
  */
 
+import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
+
 // ─── Filtros canónicos (partilhados com /stock?filter=… e dashboard) ─────────
 
 export type StockFilter =
   | "out-of-stock"
   | "at-risk"
-  | "excess-stock-60d"
+  | "excess-stock-canonical"
   | "no-movement-3m"
   | "below-min";
 
 export const STOCK_FILTER_LABELS: Record<StockFilter, string> = {
   "out-of-stock": "Em rotura (com vendas recentes)",
   "at-risk": "Em risco (cobertura < 7 dias)",
-  "excess-stock-60d": "Excesso de stock (cobertura > 60 dias)",
+  "excess-stock-canonical": `Excesso de stock (cobertura > ${EXCESSO_COVERAGE_DAYS} dias)`,
   "no-movement-3m": "Sem movimento (90 dias)",
   "below-min": "Abaixo do stock mínimo",
 };
@@ -34,7 +36,7 @@ export function isStockFilter(v: unknown): v is StockFilter {
   return (
     v === "out-of-stock" ||
     v === "at-risk" ||
-    v === "excess-stock-60d" ||
+    v === "excess-stock-canonical" ||
     v === "no-movement-3m" ||
     v === "below-min"
   );
@@ -73,8 +75,8 @@ export function matchStockFilter(row: StockRowEnriched, filter: StockFilter): bo
       return row.stockAtual <= 0 && row.salesQty90d > 0;
     case "at-risk":
       return row.stockAtual > 0 && row.coverage != null && row.coverage < 7;
-    case "excess-stock-60d":
-      return row.coverage != null && row.coverage > 60;
+    case "excess-stock-canonical":
+      return row.coverage != null && row.coverage > EXCESSO_COVERAGE_DAYS;
     case "no-movement-3m":
       return row.stockAtual > 0 && row.salesQty90d <= 0;
     case "below-min":

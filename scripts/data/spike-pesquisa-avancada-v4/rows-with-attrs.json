@@ -1,0 +1,92 @@
+[
+  {
+    "ri": "0",
+    "medId": "37119",
+    "nome": "Aspirina Direkt",
+    "dataAttrs": {
+      "tr@data-ri": "0",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_0_panelNome"
+    }
+  },
+  {
+    "ri": "1",
+    "medId": "29131",
+    "nome": "Aspirina GR 100mg Comprimidos Gastrorres",
+    "dataAttrs": {
+      "tr@data-ri": "1",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_1_panelNome"
+    }
+  },
+  {
+    "ri": "2",
+    "medId": "593221",
+    "nome": "Aspirina Xpress",
+    "dataAttrs": {
+      "tr@data-ri": "2",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_2_panelNome"
+    }
+  },
+  {
+    "ri": "3",
+    "medId": "55377",
+    "nome": "Aspirina Xpress",
+    "dataAttrs": {
+      "tr@data-ri": "3",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_3_panelNome"
+    }
+  },
+  {
+    "ri": "4",
+    "medId": "32695",
+    "nome": "Migraspirina",
+    "dataAttrs": {
+      "tr@data-ri": "4",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_4_panelNome"
+    }
+  },
+  {
+    "ri": "5",
+    "medId": "641",
+    "nome": "Aspirina C",
+    "dataAttrs": {
+      "tr@data-ri": "5",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_5_panelNome"
+    }
+  },
+  {
+    "ri": "6",
+    "medId": "631342",
+    "nome": "Aspirina Complex",
+    "dataAttrs": {
+      "tr@data-ri": "6",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_6_panelNome"
+    }
+  },
+  {
+    "ri": "7",
+    "medId": "38503",
+    "nome": "Primovist",
+    "dataAttrs": {
+      "tr@data-ri": "7",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_7_panelNome"
+    }
+  },
+  {
+    "ri": "8",
+    "medId": "716764",
+    "nome": "Beyonttra",
+    "dataAttrs": {
+      "tr@data-ri": "8",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_8_panelNome"
+    }
+  },
+  {
+    "ri": "9",
+    "medId": "714625",
+    "nome": "Eylea",
+    "dataAttrs": {
+      "tr@data-ri": "9",
+      "div@data-widget": "widget_mainForm_dt_medicamentos_9_panelNome"
+    }
+  }
+]

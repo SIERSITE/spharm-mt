@@ -86,15 +86,7 @@ export async function openAdminClient(): Promise<pg.Client> {
   return client;
 }
 
-/**
- * Constrói URL Postgres a partir de {host, port, dbName, user, password}.
- *
- * `TENANT_DB_SSLMODE` é anexado quando definido, para que a URL gravada
- * no provisionamento seja a MESMA que o runtime constrói
- * (`buildTenantConnectionString` em lib/control-plane.ts). Sem isso, o
- * `prisma migrate deploy` do provisionamento e a app em runtime podiam
- * discordar sobre TLS e só uma das duas ligava.
- */
+/** Constrói URL Postgres a partir de {host, port, dbName, user, password}. */
 export function buildPgUrl(opts: {
   host: string;
   port: number;
@@ -102,9 +94,7 @@ export function buildPgUrl(opts: {
   user: string;
   password: string;
 }): string {
-  const base = `postgresql://${encodeURIComponent(opts.user)}:${encodeURIComponent(opts.password)}@${opts.host}:${opts.port}/${opts.dbName}`;
-  const sslmode = process.env.TENANT_DB_SSLMODE?.trim();
-  return sslmode ? `${base}?sslmode=${encodeURIComponent(sslmode)}` : base;
+  return `postgresql://${encodeURIComponent(opts.user)}:${encodeURIComponent(opts.password)}@${opts.host}:${opts.port}/${opts.dbName}`;
 }
 
 /**

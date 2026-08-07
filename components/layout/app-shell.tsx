@@ -31,23 +31,29 @@ type AppShellProps = {
   isPlatformAdmin?: boolean;
 };
 
+// Estrutura final do fecho funcional (2026-06): 5 secções estáveis +
+// Plataforma condicional. "Extrato" não aparece no menu — vive como
+// detalhe dentro de /stock/artigo/[cnp] (decisão de fecho: nenhuma rota
+// nova). Rotas órfãs /analise-operacional e /relatorios/vendas-mensais
+// foram removidas neste mesmo passo.
 const navigation = [
   {
-    section: "ANÁLISE",
+    // Dashboard vive como item-raiz, sem rótulo de secção (single-item).
+    section: null,
+    items: [{ label: "Dashboard", href: "/dashboard", icon: BarChart3 }],
+  },
+  {
+    section: "OPERAÇÃO",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: BarChart3 },
       { label: "Stock", href: "/stock", icon: Boxes },
-      { label: "Vendas", href: "/vendas", icon: FileText },
       { label: "Devoluções", href: "/devolucoes", icon: RotateCcw },
     ],
   },
   {
-    // Apenas os dois relatórios oficiais. As rotas /analise-operacional
-    // e /relatorios/vendas-mensais permanecem acessíveis por URL (não
-    // apagamos módulos, só os tiramos do menu lateral).
     section: "RELATÓRIOS",
     items: [
-      { label: "Inventário de Stock", href: "/relatorios/inventario", icon: Boxes },
+      { label: "Vendas", href: "/vendas", icon: FileText },
+      { label: "Inventário", href: "/relatorios/inventario", icon: Boxes },
       { label: "Margens", href: "/relatorios/margens", icon: Percent },
     ],
   },
@@ -73,9 +79,20 @@ const navigation = [
   },
 ];
 
-const platformGroup = {
+const platformGroup: NavGroup = {
   section: "PLATAFORMA",
   items: [{ label: "Admin", href: "/admin", icon: ShieldCheck }],
+};
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: typeof BarChart3;
+};
+type NavGroup = {
+  /** null = item raiz sem rótulo de secção (Dashboard). */
+  section: string | null;
+  items: NavItem[];
 };
 
 export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
@@ -104,11 +121,13 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
 
           <div className="flex-1 px-4 py-6">
             <nav className="space-y-8">
-              {groups.map((group) => (
-                <div key={group.section}>
-                  <div className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f99a1]">
-                    {group.section}
-                  </div>
+              {groups.map((group, gIdx) => (
+                <div key={group.section ?? `__root_${gIdx}`}>
+                  {group.section ? (
+                    <div className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f99a1]">
+                      {group.section}
+                    </div>
+                  ) : null}
 
                   <div className="space-y-1">
                     {group.items.map((item) => {

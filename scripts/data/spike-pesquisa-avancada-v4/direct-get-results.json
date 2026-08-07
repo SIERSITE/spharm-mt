@@ -1,0 +1,122 @@
+[
+  {
+    "paramName": "med_id",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 81147,
+    "hasDetail": false,
+    "extractedNome": "Aspirina Direkt"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "29131",
+    "status": 200,
+    "bytes": 114999,
+    "hasDetail": false,
+    "extractedNome": "Aspirina GR 100mg Comprimidos Gastrorresistentes"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "593221",
+    "status": 200,
+    "bytes": 185145,
+    "hasDetail": false,
+    "extractedNome": "Aspirina Xpress"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "55377",
+    "status": 200,
+    "bytes": 167717,
+    "hasDetail": false,
+    "extractedNome": "Aspirina Xpress"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "32695",
+    "status": 200,
+    "bytes": 109943,
+    "hasDetail": false,
+    "extractedNome": "Migraspirina"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "641",
+    "status": 200,
+    "bytes": 82537,
+    "hasDetail": false,
+    "extractedNome": "Aspirina C"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "631342",
+    "status": 200,
+    "bytes": 118574,
+    "hasDetail": false,
+    "extractedNome": "Aspirina Complex"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "38503",
+    "status": 200,
+    "bytes": 348813,
+    "hasDetail": false,
+    "extractedNome": "Primovist"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "716764",
+    "status": 200,
+    "bytes": 89874,
+    "hasDetail": false,
+    "extractedNome": "Beyonttra"
+  },
+  {
+    "paramName": "med_id",
+    "medId": "714625",
+    "status": 200,
+    "bytes": 100388,
+    "hasDetail": false,
+    "extractedNome": "Eylea"
+  },
+  {
+    "paramName": "id",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 100388,
+    "hasDetail": false,
+    "extractedNome": "Eylea"
+  },
+  {
+    "paramName": "med_guid",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 21493,
+    "hasDetail": false,
+    "extractedNome": null
+  },
+  {
+    "paramName": "guid",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 21493,
+    "hasDetail": false,
+    "extractedNome": null
+  },
+  {
+    "paramName": "medId",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 21493,
+    "hasDetail": false,
+    "extractedNome": null
+  },
+  {
+    "paramName": "MED_ID",
+    "medId": "37119",
+    "status": 200,
+    "bytes": 21493,
+    "hasDetail": false,
+    "extractedNome": null
+  }
+]

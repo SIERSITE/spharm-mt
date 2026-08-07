@@ -2,6 +2,30 @@
  * lib/encomendas-data.ts
  * Server-side data para a página Encomendas.
  *
+ * ───────────────────────────────────────────────────────────────────────
+ * POSICIONAMENTO OPERACIONAL (fecho 2026-06)
+ *
+ * Este módulo alimenta um **assistente operacional**, NÃO um motor de
+ * decisão automática. A página de Encomendas fornece sinais quantitativos
+ * (cobertura, rotação, fornecedor habitual, substituições internas) que
+ * ajudam o farmacêutico a preparar uma proposta de encomenda — mas a
+ * decisão final é sempre humana.
+ *
+ * Em particular, este módulo NÃO conhece:
+ *   · Condições comerciais activas (descontos, MOQ, campanhas, prazos de
+ *     pagamento, bónus de quantidade) — `condicoesFornecedor` devolve [].
+ *   · Histórico de compras recente para o mesmo fornecedor — `ultimasCompras`
+ *     devolve []. Quando existir CompraMensal será populado.
+ *   · Disponibilidade real do fornecedor / rupturas no armazenista —
+ *     calcula apenas com base no que está em stock no SaaS.
+ *   · Estratégia comercial da farmácia (substituição preferida por marca
+ *     própria, prioridade a fornecedores específicos, etc.).
+ *
+ * Por isso as quantidades sugeridas devem ser interpretadas como
+ * **orientativas, não prescritivas**. A UI explicita esta limitação ao
+ * utilizador (ver `components/encomendas/encomendas-client.tsx`).
+ * ───────────────────────────────────────────────────────────────────────
+ *
  * Devolve linhas (cnp, farmácia) com stock, rotação média (3 meses),
  * cobertura, fornecedor habitual, fabricante canónico e movimentos
  * dos últimos 6 meses. Mesmas garantias de Vendas/Transferências:

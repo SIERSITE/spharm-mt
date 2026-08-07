@@ -38,6 +38,7 @@ import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
 import { normalizeIva, TAXA_IVA_BUCKETS, type TaxaIvaCanonica } from "@/lib/iva";
+import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 export type EstadoInventario =
@@ -150,7 +151,9 @@ export type InventarioResult = {
 };
 
 const SEM_MOV_DAYS = 180;
-const EXCESSO_DAYS = 180;
+// Excesso: usa a constante canónica partilhada (180 dias). Single source of
+// truth — ver lib/operational/metrics-shared.ts:EXCESSO_COVERAGE_DAYS.
+const EXCESSO_DAYS = EXCESSO_COVERAGE_DAYS;
 const VENDAS_WINDOW_DAYS = 90;
 
 function toF(v: unknown): number {

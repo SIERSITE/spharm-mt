@@ -1,0 +1,24 @@
+{
+  "rppSelectInfo": {
+    "exists": false,
+    "options": [],
+    "currentValue": null
+  },
+  "rppResults": [
+    {
+      "rpp": 25,
+      "rowsObserved": 10,
+      "paginator": "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+    },
+    {
+      "rpp": 50,
+      "rowsObserved": 10,
+      "paginator": "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+    },
+    {
+      "rpp": 100,
+      "rowsObserved": 10,
+      "paginator": "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+    }
+  ]
+}

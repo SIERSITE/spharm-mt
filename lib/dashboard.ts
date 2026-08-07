@@ -17,8 +17,10 @@
  *     todos os KPIs de stock. /stock?filter=<key> mostra o mesmo
  *     conjunto.
  *   · getTransferenciasData / getExcessosData (lib/transferencias-data)
- *     — alimentam Optimization. /transferencias e /excessos?days=60 são
- *     os destinos.
+ *     — alimentam Optimization. /transferencias e /excessos são os
+ *     destinos. O default de cobertura (`EXCESSO_COVERAGE_DAYS=180`)
+ *     é partilhado por Dashboard / Excessos / Inventário — single source
+ *     of truth em `lib/operational/metrics-shared.ts`.
  *
  * Out of scope: o KPI de "estimated order value" usa apenas campos do
  * schema (`stockMinimo`, `stockAtual`, custo). NÃO duplica a lógica de
@@ -157,11 +159,12 @@ export type DashboardData = {
     top: DashboardInternalSubstitution[];
   };
 
-  // Excessos / stock parado — o destino operacional é /excessos?days=60.
+  // Excessos / stock parado — o destino operacional é /excessos (default
+  // EXCESSO_COVERAGE_DAYS=180; ver lib/operational/metrics-shared.ts).
   excess: {
-    /** Σ stockAtual × custo para produtos com cobertura > 60 dias. */
+    /** Σ stockAtual × custo para produtos com cobertura > EXCESSO_COVERAGE_DAYS. */
     excessStockValueEur: number;
-    /** Número de produtos com cobertura > 60 dias. */
+    /** Número de produtos com cobertura > EXCESSO_COVERAGE_DAYS. */
     excessStockCount: number;
     /** Número de produtos com stockAtual > 0 e sem vendas em 90 dias. */
     noMovementCount: number;
@@ -531,7 +534,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   const atRiskRows = stockRows.filter((r) => matchStockFilter(r, "at-risk"));
 
   // ── Excessos / stock parado ───────────────────────────────────────────
-  const excessRows = stockRows.filter((r) => matchStockFilter(r, "excess-stock-60d"));
+  const excessRows = stockRows.filter((r) => matchStockFilter(r, "excess-stock-canonical"));
   const excessStockValueEur = excessRows.reduce(
     (sum, r) => sum + r.stockAtual * unitCost(r),
     0,

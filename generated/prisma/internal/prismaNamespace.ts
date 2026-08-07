@@ -3908,6 +3908,9 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   categoriaOrigem: 'categoriaOrigem',
   subcategoriaOrigem: 'subcategoriaOrigem',
   fornecedorOrigem: 'fornecedorOrigem',
+  taxaIvaPercent: 'taxaIvaPercent',
+  taxaIvaSource: 'taxaIvaSource',
+  taxaIvaUpdatedAt: 'taxaIvaUpdatedAt',
   dataAtualizacao: 'dataAtualizacao',
   dataCriacao: 'dataCriacao'
 } as const

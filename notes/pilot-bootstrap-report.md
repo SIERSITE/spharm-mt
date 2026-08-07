@@ -55,17 +55,18 @@ Este documento serve dois propósitos:
 
 ## 1. FASE 1 — Infra Real (a executar por ti)
 
-### 1.1 Provisionar 1 control DB + 1 tenant DB inicial no Neon
+### 1.1 Provisionar control DB + tenant DB(s) no Neon
 
 No dashboard Neon (`https://console.neon.tech/`), projecto existente:
 
-```sql
--- 1. Conecta como role admin do projecto
--- 2. Cria DB do control plane
-CREATE DATABASE spharmmt_control;
-```
+**Control plane:**
+- Criar database `spharmmt_control` (via Neon UI ou `CREATE DATABASE spharmmt_control;`)
 
-Não criar DBs tenant manualmente — `provision-tenant.ts` faz isso.
+**Tenant piloto (Neon não suporta CREATE ROLE + SET ROLE para outros roles do projecto, por isso o script `--create-db` falha com `42501`):**
+1. Cria database: ex `spharmmt_t_piloto_demo`
+2. Cria role: ex `spharmmt_piloto_demo` + password (UI Neon)
+3. Atribui essa role como OWNER do DB criado (UI Neon)
+4. Copia a connection string completa (com `sslmode=require`) — vai passar ao script via `--database-url`
 
 ### 1.2 Popular `.env` (local) ou Vercel env (prod)
 
@@ -80,14 +81,11 @@ PLATFORM_ADMIN_EMAILS="<existente>"
 # Novos — copiar e adaptar
 CONTROL_DATABASE_URL="postgresql://<role>:<pw>@ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech/spharmmt_control?sslmode=require&channel_binding=require"
 
-# POSTGRES_ADMIN_URL é a connection com privilégios CREATEDB/CREATEROLE.
-# Em Neon, o role inicial do projecto tem ambos por default.
-# Usa a DB 'postgres' ou 'neondb' como db de admin.
-POSTGRES_ADMIN_URL="postgresql://<admin-role>:<pw>@ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-
-# Host onde provision-tenant cria DBs tenant.
-TENANT_DB_HOST="ep-polished-lake-abw2ul5z-pooler.eu-west-2.aws.neon.tech"
-# TENANT_DB_PORT (opcional, default 5432)
+# POSTGRES_ADMIN_URL e TENANT_DB_HOST só são necessários para o modo
+# legacy --create-db (self-hosted Postgres). Em Neon usa-se --database-url
+# e estes ficam opcionais. Deixa em branco se só vais usar Neon.
+# POSTGRES_ADMIN_URL=""
+# TENANT_DB_HOST=""
 
 # Chave de cifra para Tenant.dbPassEncrypted.
 # Gerar com: openssl rand -hex 32
@@ -138,27 +136,32 @@ Fixes aplicados:          _____
 
 ## 2. FASE 2 — Tenant Piloto Real
 
-### 2.1 Onboard
+### 2.1 Onboard (modo Neon `--database-url`)
+
+Pré-requisito: DB+role já criados no Neon (§1.1) e URL completa anotada.
 
 ```bash
 npm run tenant:onboard -- \
-  --slug=<slug-piloto> \
-  --nome="<Nome do Grupo>" \
-  --admin-email=<email> \
-  --farmacia-inicial="Farmácia Principal"
+  --slug piloto-demo \
+  --nome "Grupo Piloto Demo" \
+  --admin-email admin@piloto.pt \
+  --database-url "postgresql://spharmmt_piloto_demo:PW@HOST/spharmmt_t_piloto_demo?sslmode=require" \
+  --farmacia-inicial "Farmácia Principal"
 ```
 
 **Esperado:**
-- `[1/2] Provisioning` → OK em <30s (inclui criar Farmácia inicial)
+- `[1/2] Provisioning` → OK em <30s (testa conectividade + migra schema + seed admin + farmácia inicial)
 - `[2/2] Smoke test` → OK em <5s
 - Imprime admin password UMA VEZ (anotar)
 - Imprime cuid da farmácia inicial (anotar)
 - Imprime checklist de 7 passos pós-onboard
 
-> O flag `--farmacia-inicial` foi adicionado durante a preparação
-> deste piloto para destrancar o passo seguinte (ingest exige
-> farmaciaId existente). Sem este flag o tenant fica sem farmácias e
-> o primeiro upload falha com 404.
+> Notas:
+>  · O flag `--database-url` é o caminho primário para Neon. O alternativo `--create-db` só funciona em Postgres self-hosted com permissões de super-user (Neon partilhado bloqueia com `42501 must be able to SET ROLE`).
+>  · O flag `--farmacia-inicial` foi adicionado durante a preparação do piloto. Sem ele o tenant fica sem farmácias e o primeiro upload falha com 404.
+>  · Se um tenant ficar em `PROVISIONING`/`FAILED` (ex: erro de URL, network blip):
+>    `npm run tenancy:cleanup-failed -- --slug piloto-demo` (dry-run)
+>    `npm run tenancy:cleanup-failed -- --slug piloto-demo --confirm` (apaga)
 
 ### 2.2 Issue ingest key
 

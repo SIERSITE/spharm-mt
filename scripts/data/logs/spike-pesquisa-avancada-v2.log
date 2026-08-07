@@ -1,0 +1,80 @@
+──────────────────────────────────────────────────────────────────────────
+Spike v2 — pesquisa-avancada (mainForm)
+──────────────────────────────────────────────────────────────────────────
+
+[init] GET https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml
+    url: https://extranet.infarmed.pt/INFOMED-fo/pesquisa-avancada.xhtml
+    title: Infomed
+    baseline rows: 0  paginator: "A mostrar 0 - 0 de um total de 0 registos. Está a visualizar a página 1 de 1"
+
+  ─── ATC starts 'C' (cardiovascular) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC starts 'N' (SNC) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC starts 'J' (anti-infecciosos) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC starts 'A' (digestivo) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC starts 'D' (dermatológicos) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC starts 'H' (hormonas) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC C09 (IECA/ARA) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── ATC J01 (antibióticos) ───
+    rows visíveis: 10  total (paginator): 9656
+    paginator text: "A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966"
+    primeiros nomes: "Abacavir Generis MG", "Abacavir Mylan MG", "Ziagen", "Abacavir + Lamivudina Aurovitas MG", "Abacavir + Lamivudina Mylan MG"
+
+  ─── Titular Bayer ───
+    rows visíveis: 10  total (paginator): 85
+    paginator text: "A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9"
+    primeiros nomes: "Aspirina Direkt", "Aspirina GR 100mg Comprimidos Gastrorres", "Aspirina Xpress", "Aspirina Xpress", "Migraspirina"
+
+  ─── Titular Sanofi ───
+    rows visíveis: 10  total (paginator): 92
+    paginator text: "A mostrar 1 - 10 de um total de 92 registos. Está a visualizar a página 1 de 10"
+    primeiros nomes: "Depakine", "Depakine", "Depakine Chrono 300", "Depakine Chrono 500", "Depakine Chronosphere"
+
+  ─── Pesquisa sem filtros (listagem completa) ───
+    rows visíveis: 10  total (paginator): 92
+    paginator text: "A mostrar 1 - 10 de um total de 92 registos. Está a visualizar a página 1 de 10"
+    primeiros nomes: "Depakine", "Depakine", "Depakine Chrono 300", "Depakine Chrono 500", "Depakine Chronosphere"
+
+[summary]
+test                  rows   total paginator
+──────────────────────────────────────────────────────────────────────────
+atc-C                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-N                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-J                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-A                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-D                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-H                   10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-C09                 10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+atc-J01                 10    9656 A mostrar 1 - 10 de um total de 9656 registos. Está a visualizar a página 1 de 966
+titular-Bayer           10      85 A mostrar 1 - 10 de um total de 85 registos. Está a visualizar a página 1 de 9
+titular-Sanofi          10      92 A mostrar 1 - 10 de um total de 92 registos. Está a visualizar a página 1 de 10
+empty                   10      92 A mostrar 1 - 10 de um total de 92 registos. Está a visualizar a página 1 de 10
+
+Spike v2 completa.

@@ -175,12 +175,17 @@ function SeeAllLink({ href, label }: { href: string; label: string }) {
 // ─── Top: Executive summary (left) ───────────────────────────────────────────
 
 export function ExecutiveSummary({
-  pharmaciesCount,
+  outOfStockCount,
   transferSuggestionsTotal,
   atRiskCount,
   excessStockValueEur,
 }: {
-  pharmaciesCount: number;
+  /**
+   * Produtos com `stockAtual <= 0` E vendas nos últimos 90 dias —
+   * rotura real (não SEM_STOCK histórico). Vem de
+   * `lib/dashboard.ts:criticalAlerts.outOfStockCount`.
+   */
+  outOfStockCount: number;
   transferSuggestionsTotal: number;
   atRiskCount: number;
   excessStockValueEur: number;
@@ -207,9 +212,11 @@ export function ExecutiveSummary({
 
       <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiTile
-          label="Farmácias"
-          value={fmtNumber(pharmaciesCount)}
-          sublabel="em análise"
+          label="Em rotura"
+          value={fmtNumber(outOfStockCount)}
+          sublabel="com vendas recentes"
+          href={outOfStockCount > 0 ? "/stock?filter=out-of-stock" : undefined}
+          tone={outOfStockCount > 0 ? "warn" : "ok"}
         />
         <KpiTile
           label="Transferências"
@@ -228,8 +235,8 @@ export function ExecutiveSummary({
         <KpiTile
           label="Valor em excesso"
           value={fmtEur(excessStockValueEur)}
-          sublabel="cobertura > 60d"
-          href={excessStockValueEur > 0 ? "/excessos?days=60" : undefined}
+          sublabel="cobertura > 180d"
+          href={excessStockValueEur > 0 ? "/excessos" : undefined}
           tone={excessStockValueEur > 0 ? "warn" : "ok"}
         />
       </div>

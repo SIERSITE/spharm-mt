@@ -1,0 +1,306 @@
+[
+  {
+    "formId": "langForm",
+    "action": "/INFOMED-fo/pesquisa-avancada.xhtml",
+    "inputs": [
+      {
+        "id": "",
+        "name": "langForm",
+        "type": "hidden",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "j_id1:javax.faces.ViewState:0",
+        "name": "javax.faces.ViewState",
+        "type": "hidden",
+        "placeholder": null,
+        "tag": "input"
+      }
+    ],
+    "buttons": [
+      {
+        "id": "langForm:changeLanguageSubmit",
+        "type": "submit",
+        "text": ""
+      }
+    ]
+  },
+  {
+    "formId": "mainForm",
+    "action": "/INFOMED-fo/pesquisa-avancada.xhtml",
+    "inputs": [
+      {
+        "id": "",
+        "name": "mainForm",
+        "type": "hidden",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:dci_input",
+        "name": "mainForm:dci_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:ff_focus",
+        "name": "mainForm:ff_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:ff_input",
+        "name": "mainForm:ff_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:dosagem_input",
+        "name": "mainForm:dosagem_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:medicamento_input",
+        "name": "mainForm:medicamento_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:taim_input",
+        "name": "mainForm:taim_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:num-processo",
+        "name": "mainForm:num-processo",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:vias-admin_focus",
+        "name": "mainForm:vias-admin_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:vias-admin_input",
+        "name": "mainForm:vias-admin_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:grupo-produto_focus",
+        "name": "mainForm:grupo-produto_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:grupo-produto_input",
+        "name": "mainForm:grupo-produto_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:generico_focus",
+        "name": "mainForm:generico_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:generico_input",
+        "name": "mainForm:generico_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:numero-registro",
+        "name": "mainForm:numero-registro",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:cnpem",
+        "name": "mainForm:cnpem",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:chnm",
+        "name": "mainForm:chnm",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:margem-terap_focus",
+        "name": "mainForm:margem-terap_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:margem-terap_input",
+        "name": "mainForm:margem-terap_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:monit-adicional_focus",
+        "name": "mainForm:monit-adicional_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:monit-adicional_input",
+        "name": "mainForm:monit-adicional_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:exist-docs-mmr_focus",
+        "name": "mainForm:exist-docs-mmr_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:exist-docs-mmr_input",
+        "name": "mainForm:exist-docs-mmr_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:estado-aim_focus",
+        "name": "mainForm:estado-aim_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:estado-aim_input",
+        "name": "mainForm:estado-aim_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:estado-aim-de_input",
+        "name": "mainForm:estado-aim-de_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:estado-aim-a_input",
+        "name": "mainForm:estado-aim-a_input",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:estado-comercializacao_focus",
+        "name": "mainForm:estado-comercializacao_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:estado-comercializacao_input",
+        "name": "mainForm:estado-comercializacao_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:classif-dispensa_focus",
+        "name": "mainForm:classif-dispensa_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:classif-dispensa_input",
+        "name": "mainForm:classif-dispensa_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:classif-farmacoterapeutica_focus",
+        "name": "mainForm:classif-farmacoterapeutica_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:classif-farmacoterapeutica_input",
+        "name": "mainForm:classif-farmacoterapeutica_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:classif-atc_focus",
+        "name": "mainForm:classif-atc_focus",
+        "type": "text",
+        "placeholder": null,
+        "tag": "input"
+      },
+      {
+        "id": "mainForm:classif-atc_input",
+        "name": "mainForm:classif-atc_input",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "mainForm:dt-medicamentos:j_id7",
+        "name": "mainForm:dt-medicamentos_rppDD",
+        "type": "select-one",
+        "placeholder": null,
+        "tag": "select"
+      },
+      {
+        "id": "j_id1:javax.faces.ViewState:1",
+        "name": "javax.faces.ViewState",
+        "type": "hidden",
+        "placeholder": null,
+        "tag": "input"
+      }
+    ],
+    "buttons": [
+      {
+        "id": "mainForm:btnDoSearch",
+        "type": "submit",
+        "text": "Pesquisar"
+      },
+      {
+        "id": "mainForm:btnDoClear",
+        "type": "submit",
+        "text": "Limpar"
+      }
+    ]
+  }
+]

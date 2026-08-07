@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "44";
+const AGENT_REV = "45";
 
 function readGitShortCommit() {
   try {
@@ -931,6 +931,74 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // products-upload — rev45. Upload SÓ de produtos (catalogo + IVA).
+  // Sem datas (catalogo = snapshot). CONFIRMO. Batch 25 + retry+shrink.
+  // Caso de uso: refresh ProdutoFarmacia.taxaIvaPercent sem mexer em
+  // stock/vendas/agregações.
+  const productsUploadBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — products-upload (interactivo + CONFIRMO)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   products-upload — UPLOAD SO DE PRODUTOS (rev45)`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Vai POSTar SO o catalogo de produtos para a SaaS SPharm.MT:`,
+    `echo   - UPSERT Produto ^(catalogo global^)`,
+    `echo   - UPSERT ProdutoFarmacia ^(PVP/PMC/PUC + taxaIvaPercent^)`,
+    `echo   - Idempotente: re-run produz o mesmo estado`,
+    `echo   - NAO envia stock, sales-lines, compras nem devolucoes`,
+    `echo.`,
+    `echo Comportamento ^(rev45^):`,
+    `echo   - batch HTTP inicial = 25 ^(vs 50 do bootstrap-upload^)`,
+    `echo   - retry + backoff 1s/2s/4s/8s em 502/503/504/timeout/cancel`,
+    `echo   - shrink em metade ate floor 10 quando os retries esgotam`,
+    `echo   - "Failed to cancel request in 5000ms" tratado como transient`,
+    `echo.`,
+    `echo Caso de uso primario: refresh ProdutoFarmacia.taxaIvaPercent`,
+    `echo sem ter de re-correr bootstrap-upload ou full-sync.`,
+    `echo.`,
+    `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
+    `echo Pre-requisito: run-iva-audit.bat OK ^(confirma dbo.IVA master + JOIN^).`,
+    `echo Usa a config actual do agent ^(SPHARMMT_FARMACIA^).`,
+    `echo.`,
+    `echo --- CONFIRMACAO ---`,
+    `echo Vai escrever no catalogo SaaS ^(Produto + ProdutoFarmacia^).`,
+    `set "CONFIRM="`,
+    `set /p "CONFIRM=Escreve CONFIRMO ^(em maiusculas^) para prosseguir: "`,
+    `if not "%CONFIRM%"=="CONFIRMO" (`,
+    `  echo.`,
+    `  echo Confirmacao invalida. Aborta sem escrever.`,
+    `  pause`,
+    `  exit /b 1`,
+    `)`,
+    `echo.`,
+    `node.exe agent.cjs products-upload`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Upload OK. Idempotente: re-run nao duplica.`,
+    `  echo Proximo passo: correr no SaaS:`,
+    `  echo   npx tsx scripts/admin/recover-iva-produtos.ts --slug=^<tenant^> --apply`,
+    `) else (`,
+    `  echo Falhou ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-products-upload.bat"),
+    productsUploadBat,
+    "utf8"
+  );
+
   // full-sync — onboarding completo (produtos→...→agregações) numa execução.
   // Idempotente, retomável por fase. Pergunta --from/--to + flags de
   // agregação. UPLOAD pede CONFIRMO; DRY-RUN não escreve nada.
@@ -1682,7 +1750,7 @@ function writeBatchWrappers() {
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
 
-  log(`  ✓ ${Object.keys(wrappers).length + 21} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores x2 + compras x2 + devolucoes-fornecedor x2 + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload)`);
+  log(`  ✓ ${Object.keys(wrappers).length + 22} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores x2 + compras x2 + devolucoes-fornecedor x2 + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload + products-upload)`);
 }
 
 function copyNodeExe(srcExe) {
@@ -1724,6 +1792,7 @@ function writeReadme() {
     `  run-sales-summary-preview.bat   PREVIEW agregado por TipoDoc+EntidadeID + TOP 10 docs. Pergunta datas.`,
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
+    `  run-products-upload.bat         (rev45) Upload SO de produtos -> /bootstrap/products. NAO envia stock/sales. Batch 25 + retry+shrink. CONFIRMO.`,
     `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
     `  run-full-sync-dry-run.bat       ONBOARDING preview: corre TODAS as fases sem escrever. Pergunta datas.`,
     `  run-full-sync-upload.bat        ONBOARDING completo REAL: produtos->...->agregacoes. Idempotente, retomavel. CONFIRMO.`,

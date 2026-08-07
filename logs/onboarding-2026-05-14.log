@@ -1,0 +1,6 @@
+﻿2026-05-14 15:17:59 [INFO] wizard arrancado
+2026-05-14 15:17:59 [INFO] npm run --silent tenancy:status -- --tenant=demo-neon
+2026-05-14 15:18:03 [INFO] status tenant=demo-neon
+2026-05-14 15:18:03 [INFO] wizard terminado pelo operador
+2026-05-14 15:20:50 [INFO] wizard arrancado
+2026-05-14 15:20:51 [INFO] wizard terminado pelo operador

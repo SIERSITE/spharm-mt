@@ -18,13 +18,7 @@ Dockerfile      text eol=lf
 Dockerfile.*    text eol=lf
 *.yml           text eol=lf
 *.yaml          text eol=lf
-.dockerignore   text eol=lf
 deploy/**       text eol=lf
-
-# Corre dentro dos containers Linux (worker/scheduler). O Node tolera CRLF
-# no corpo do ficheiro, mas não na linha do shebang se for executado
-# directamente — e um `\r` invisível não é um erro que se diagnostique bem.
-*.mjs           text eol=lf
 
 # Scripts PowerShell mantêm CRLF (executados em Windows).
 *.ps1           text eol=crlf

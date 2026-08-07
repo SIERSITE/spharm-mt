@@ -17,6 +17,11 @@ import {
   formatFarmaciaHeader,
   type FarmaciaInfo,
 } from "@/lib/farmacias-header";
+import type {
+  SalesMonthBucket,
+  SalesPeriodHeader,
+  SalesReportRow as ServerSalesReportRow,
+} from "@/lib/vendas-data";
 
 type Agrupamento =
   | "artigo"
@@ -30,14 +35,15 @@ type Ordenacao = "totalVendas" | "descricao" | "codigo" | "existencia";
 type ModoVisualizacao = "tabela" | "relatorio";
 type AmbitoAnalise = "farmacia" | "grupo" | "comparativo";
 
-type SalesReportRow = {
+// Alias local — mantém os callers do componente independentes do nome do
+// tipo no loader. Estrutura idêntica (campos `meses` dinâmicos).
+type SalesReportRow = ServerSalesReportRow;
+
+type AggregatedRow = {
   codigo: string;
   descricao: string;
   pvp: number;
-  jan: number;
-  fev: number;
-  mar: number;
-  abr: number;
+  meses: SalesMonthBucket[];
   totalVendas: number;
   existencia: number;
   unidadesVendidas: number;
@@ -48,23 +54,56 @@ type SalesReportRow = {
   grupo: string;
 };
 
-type AggregatedRow = {
-  codigo: string;
-  descricao: string;
-  pvp: number;
-  jan: number;
-  fev: number;
-  mar: number;
-  abr: number;
-  totalVendas: number;
-  existencia: number;
-  unidadesVendidas: number;
-  fornecedor: string;
-  fabricante: string;
-  categoria: string;
-  farmacia: string;
-  grupo: string;
-};
+// ─── Helpers de datas / labels ───────────────────────────────────────────────
+
+/** ISO yyyy-mm-dd do 1º dia do ano corrente (UTC). */
+function defaultDataInicio(): string {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-01-01`;
+}
+
+/** ISO yyyy-mm-dd do último dia do mês corrente (UTC). */
+function defaultDataFim(): string {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() + 1;
+  // dia 0 do mês seguinte = último dia do mês actual
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+}
+
+const MONTH_LABELS_PT = [
+  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+];
+
+function bucketLabel(b: { ano: number; mes: number }): string {
+  // "Jan/26" — curto suficiente para 12+ colunas caberem horizontalmente.
+  const yy = String(b.ano).slice(-2);
+  return `${MONTH_LABELS_PT[b.mes - 1]}/${yy}`;
+}
+
+function bucketKey(b: { ano: number; mes: number }): string {
+  return `${b.ano}-${String(b.mes).padStart(2, "0")}`;
+}
+
+/** Soma a posição `i` de `row.meses` em todas as `rows`. */
+function sumBucket(rows: Pick<SalesReportRow, "meses">[], i: number): number {
+  return rows.reduce((acc, r) => acc + (r.meses[i]?.quantidade ?? 0), 0);
+}
+
+/** Cria um array de buckets vazio coerente com o header de período. */
+function emptyMesesForPeriod(header: SalesPeriodHeader): SalesMonthBucket[] {
+  return header.buckets.map((b) => ({ ano: b.ano, mes: b.mes, quantidade: 0 }));
+}
+
+/** Diferença em dias entre dois ISO yyyy-mm-dd (inclusivo). */
+function daysInclusive(fromIso: string, toIso: string): number {
+  const a = Date.parse(`${fromIso}T00:00:00Z`);
+  const b = Date.parse(`${toIso}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 0;
+  return Math.floor((b - a) / 86_400_000) + 1;
+}
 
 function toggleValue(
   value: string,
@@ -90,27 +129,23 @@ export function VendasClient({
   // ─────────────────────────────────────────────────────────────────
   // Estado lazy: nada de Vendas é carregado até clicar em "Gerar".
   // `rows` começa vazio e só se preenche pelo retorno da server action.
+  // `periodHeader` espelha o período efectivamente devolvido pelo loader
+  // — define as colunas da tabela e a estrutura de cada `row.meses`.
   // `hasGenerated` controla o gate visual entre estado neutro e
   // tabela/relatório. `isPending` vem de useTransition para o spinner.
   // ─────────────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SalesReportRow[]>([]);
+  const [periodHeader, setPeriodHeader] = useState<SalesPeriodHeader | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
 
-  // Alias para minimizar diff: o resto do componente continua a ler
-  // de `initialRows`, mas é o array dinâmico do estado.
   const initialRows = rows;
 
-  // Universo de opções dos filtros — descartar valores vazios.
   const uniqNonEmpty = (xs: string[]) =>
     Array.from(new Set(xs.map((x) => x?.trim()).filter((x): x is string => !!x))).sort(
       (a, b) => a.localeCompare(b, "pt-PT")
     );
-  // Os 4 universos vêm TODOS do servidor via props leves — DISTINCTs
-  // baratos sobre ProdutoFarmacia/Fabricante/Classificacao. O utilizador
-  // pode parametrizar totalmente o relatório antes de correr a query
-  // pesada de VendaMensal.
   const farmacias = uniqNonEmpty(farmaciasInfo.map((f) => f.nome));
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
@@ -122,17 +157,19 @@ export function VendasClient({
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
   const [artigo, setArtigo] = useState("");
-  const [dataInicio, setDataInicio] = useState("2026-01-01");
-  const [dataFim, setDataFim] = useState("2026-04-09");
+  const [dataInicio, setDataInicio] = useState(defaultDataInicio());
+  const [dataFim, setDataFim] = useState(defaultDataFim());
   const [agruparPor, setAgruparPor] = useState<Agrupamento>("artigo");
   const [ordenarPor, setOrdenarPor] = useState<Ordenacao>("totalVendas");
   const [apenasComVendas, setApenasComVendas] = useState(true);
   const [apenasComStock, setApenasComStock] = useState(false);
   const [incluirTotais, setIncluirTotais] = useState(true);
-  const [compararPeriodoAnterior, setCompararPeriodoAnterior] = useState(false);
   const [modoVisualizacao, setModoVisualizacao] =
     useState<ModoVisualizacao>("tabela");
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+
+  // Buckets de meses para render — só existe depois de gerar.
+  const buckets = periodHeader?.buckets ?? [];
 
   const baseFiltered = useMemo(() => {
     return initialRows.filter((row) => {
@@ -237,37 +274,40 @@ export function VendasClient({
       grouped.get(key)!.push(row);
     }
 
-    const aggregated = Array.from(grouped.entries()).map(([key, rows]) => {
-      const first = rows[0];
-      return {
-        codigo: agruparPor === "artigo" ? first.codigo : key,
-        descricao:
-          agruparPor === "artigo"
-            ? first.descricao
-            : agruparPor === "grupo"
-              ? key
-              : agruparPor === "fornecedor"
-                ? key
-                : agruparPor === "fabricante"
-                  ? key
-                  : agruparPor === "categoria"
-                    ? key
-                    : key,
-        pvp: first.pvp,
-        jan: rows.reduce((s, r) => s + r.jan, 0),
-        fev: rows.reduce((s, r) => s + r.fev, 0),
-        mar: rows.reduce((s, r) => s + r.mar, 0),
-        abr: rows.reduce((s, r) => s + r.abr, 0),
-        totalVendas: rows.reduce((s, r) => s + r.totalVendas, 0),
-        existencia: rows.reduce((s, r) => s + r.existencia, 0),
-        unidadesVendidas: rows.reduce((s, r) => s + r.unidadesVendidas, 0),
-        fornecedor: first.fornecedor,
-        fabricante: first.fabricante,
-        categoria: first.categoria,
-        farmacia: first.farmacia,
-        grupo: first.grupo,
-      };
-    });
+    const aggregated: AggregatedRow[] = Array.from(grouped.entries()).map(
+      ([key, groupedRows]) => {
+        const first = groupedRows[0];
+        // Soma posição-a-posição respeitando a ordem dos buckets.
+        const meses: SalesMonthBucket[] = (periodHeader?.buckets ?? []).map(
+          (b, i) => ({
+            ano: b.ano,
+            mes: b.mes,
+            quantidade: groupedRows.reduce(
+              (s, r) => s + (r.meses[i]?.quantidade ?? 0),
+              0,
+            ),
+          }),
+        );
+        const totalVendas = meses.reduce((s, m) => s + m.quantidade, 0);
+        return {
+          codigo: agruparPor === "artigo" ? first.codigo : key,
+          descricao:
+            agruparPor === "artigo"
+              ? first.descricao
+              : key,
+          pvp: first.pvp,
+          meses,
+          totalVendas,
+          existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
+          unidadesVendidas: totalVendas,
+          fornecedor: first.fornecedor,
+          fabricante: first.fabricante,
+          categoria: first.categoria,
+          farmacia: first.farmacia,
+          grupo: first.grupo,
+        };
+      },
+    );
 
     return aggregated.filter((row) => {
       if (apenasComVendas && row.totalVendas <= 0) return false;
@@ -284,6 +324,7 @@ export function VendasClient({
     apenasComVendas,
     apenasComStock,
     initialRows,
+    periodHeader,
   ]);
 
   const currentRows = ambito === "grupo" ? groupRows : baseFiltered;
@@ -314,7 +355,14 @@ export function VendasClient({
       0
     );
     const referencias = orderedRows.length;
-    const mediaDiaria = totalUnidades / 99;
+    // Média diária baseada na janela real seleccionada — devolvida pelo
+    // loader em `periodHeader` (clamp ao período efectivamente aplicado,
+    // que pode diferir do que o utilizador escreveu se as datas forem
+    // re-normalizadas).
+    const dias = periodHeader
+      ? Math.max(1, daysInclusive(periodHeader.from, periodHeader.to))
+      : Math.max(1, daysInclusive(dataInicio, dataFim));
+    const mediaDiaria = totalUnidades / dias;
 
     return {
       totalVendido,
@@ -322,7 +370,7 @@ export function VendasClient({
       referencias,
       mediaDiaria,
     };
-  }, [orderedRows]);
+  }, [orderedRows, periodHeader, dataInicio, dataFim]);
 
   const comparativoRows = useMemo(() => {
     return initialRows
@@ -422,16 +470,29 @@ export function VendasClient({
       grouped.get(row.farmacia)!.push(row);
     }
 
-    return Array.from(grouped.entries()).map(([farmacia, rows]) => ({
-      farmacia,
-      jan: sum(rows.map((r) => r.jan)),
-      fev: sum(rows.map((r) => r.fev)),
-      mar: sum(rows.map((r) => r.mar)),
-      abr: sum(rows.map((r) => r.abr)),
-      totalVendas: sum(rows.map((r) => r.totalVendas)),
-      existencia: sum(rows.map((r) => r.existencia)),
-      totalValor: rows.reduce((acc, row) => acc + row.totalVendas * row.pvp, 0),
-    }));
+    return Array.from(grouped.entries()).map(([farmacia, groupedRows]) => {
+      const meses: SalesMonthBucket[] = (periodHeader?.buckets ?? []).map(
+        (b, i) => ({
+          ano: b.ano,
+          mes: b.mes,
+          quantidade: groupedRows.reduce(
+            (s, r) => s + (r.meses[i]?.quantidade ?? 0),
+            0,
+          ),
+        }),
+      );
+      const totalVendas = meses.reduce((s, m) => s + m.quantidade, 0);
+      return {
+        farmacia,
+        meses,
+        totalVendas,
+        existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
+        totalValor: groupedRows.reduce(
+          (acc, row) => acc + row.totalVendas * row.pvp,
+          0,
+        ),
+      };
+    });
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
@@ -441,6 +502,7 @@ export function VendasClient({
     apenasComVendas,
     apenasComStock,
     initialRows,
+    periodHeader,
   ]);
 
   const filtrosAtivosCount =
@@ -452,24 +514,38 @@ export function VendasClient({
   const showFarmaciaColumnInReport =
     ambito === "comparativo" || farmaciasSelecionadas.length !== 1;
 
-  // Trigger explícito: chama a server action e armazena o resultado.
-  // É a ÚNICA porta de entrada para os dados de Vendas — não há eager
-  // load no servidor.
+  // Trigger explícito: chama a server action com o conjunto canónico
+  // de filtros (`SharedReportFilters`). Período e filtros de
+  // categoria/fabricante/distribuidor/pesquisa correm SQL-side; a UI
+  // só faz refinamento client-side (toggles, agrupamento, ordenação).
   const handleGerar = () => {
     setGenerationError(null);
     startTransition(async () => {
       try {
+        const allFarmaciasSelected =
+          farmaciasSelecionadas.length === 0 ||
+          farmaciasSelecionadas.length >= farmacias.length;
         const result = await runVendasReport({
-          farmaciaNomes:
-            farmaciasSelecionadas.length > 0 && farmaciasSelecionadas.length < farmacias.length
-              ? farmaciasSelecionadas
+          farmaciaNomes: allFarmaciasSelected ? undefined : farmaciasSelecionadas,
+          from: dataInicio || undefined,
+          to: dataFim || undefined,
+          categorias:
+            categoriasSelecionadas.length > 0 ? categoriasSelecionadas : undefined,
+          fabricantes:
+            fabricantesSelecionados.length > 0 ? fabricantesSelecionados : undefined,
+          distribuidores:
+            fornecedoresSelecionados.length > 0
+              ? fornecedoresSelecionados
               : undefined,
+          pesquisa: artigo.trim() ? artigo.trim() : undefined,
         });
-        setRows(result);
+        setRows(result.rows);
+        setPeriodHeader(result.period);
         setHasGenerated(true);
       } catch (err) {
         setGenerationError(err instanceof Error ? err.message : String(err));
         setRows([]);
+        setPeriodHeader(null);
       }
     });
   };
@@ -579,6 +655,7 @@ export function VendasClient({
                 report={() =>
                   buildVendasReport({
                     rows: orderedRows,
+                    buckets,
                     filters: {
                       ambito,
                       farmaciasSelecionadas,
@@ -586,8 +663,8 @@ export function VendasClient({
                       fabricantesSelecionados,
                       categoriasSelecionadas,
                       artigo,
-                      dataInicio,
-                      dataFim,
+                      dataInicio: periodHeader?.from ?? dataInicio,
+                      dataFim: periodHeader?.to ?? dataFim,
                       agruparPor,
                       ordenarPor,
                       apenasComVendas,
@@ -726,12 +803,6 @@ export function VendasClient({
               onChange={setIncluirTotais}
               compact
             />
-            <ToggleRow
-              label="Comparar período anterior"
-              checked={compararPeriodoAnterior}
-              onChange={setCompararPeriodoAnterior}
-              compact
-            />
 
             <div className="ml-auto flex flex-wrap items-center gap-3 text-[13px] text-slate-600">
               <span>
@@ -828,21 +899,9 @@ export function VendasClient({
               </div>
             </div>
 
-            <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-y-auto">
+            <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto">
               {ambito !== "comparativo" ? (
-                <table className="min-w-full table-fixed text-left">
-                  <colgroup>
-                    <col className="w-[10%]" />
-                    <col className="w-[30%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[7%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[8%]" />
-                  </colgroup>
-
+                <table className="min-w-full text-left">
                   <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Código</th>
@@ -850,18 +909,14 @@ export function VendasClient({
                       <th className="px-2 py-2.5 text-center font-semibold">
                         PVP
                       </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Jan
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Fev
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Mar
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Abr
-                      </th>
+                      {buckets.map((b) => (
+                        <th
+                          key={`th-${bucketKey(b)}`}
+                          className="px-2 py-2.5 text-center font-semibold"
+                        >
+                          {bucketLabel(b)}
+                        </th>
+                      ))}
                       <th className="px-2 py-2.5 text-center font-semibold">
                         Tot. Ven.
                       </th>
@@ -891,11 +946,6 @@ export function VendasClient({
                               {row.descricao}
                             </Link>
                             <div className="text-[12px] text-slate-500">
-                              {/* Linha secundária: contexto operacional —
-                                  só farmácia no ambito por farmácia e
-                                  categoria (com subcategoria se existir)
-                                  no ambito grupo. Grossista foi removido
-                                  — não pertence aqui. */}
                               {ambito === "farmacia"
                                 ? row.farmacia
                                 : row.grupo && row.grupo !== row.categoria
@@ -907,10 +957,14 @@ export function VendasClient({
                         <td className="px-2 py-2.5 text-center">
                           {formatMoney(row.pvp)} €
                         </td>
-                        <td className="px-2 py-2.5 text-center">{row.jan}</td>
-                        <td className="px-2 py-2.5 text-center">{row.fev}</td>
-                        <td className="px-2 py-2.5 text-center">{row.mar}</td>
-                        <td className="px-2 py-2.5 text-center">{row.abr}</td>
+                        {row.meses.map((m, i) => (
+                          <td
+                            key={`td-${row.codigo}-${index}-${i}`}
+                            className="px-2 py-2.5 text-center"
+                          >
+                            {m.quantidade}
+                          </td>
+                        ))}
                         <td className="px-2 py-2.5 text-center font-semibold text-slate-900">
                           {row.totalVendas}
                         </td>
@@ -925,18 +979,14 @@ export function VendasClient({
                         <td className="px-4 py-2.5" colSpan={3}>
                           Totais
                         </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.jan))}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.fev))}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.mar))}
-                        </td>
-                        <td className="px-2 py-2.5 text-center">
-                          {sum(orderedRows.map((r) => r.abr))}
-                        </td>
+                        {buckets.map((b, i) => (
+                          <td
+                            key={`total-tabela-${bucketKey(b)}`}
+                            className="px-2 py-2.5 text-center"
+                          >
+                            {sumBucket(orderedRows, i)}
+                          </td>
+                        ))}
                         <td className="px-2 py-2.5 text-center">
                           {sum(orderedRows.map((r) => r.totalVendas))}
                         </td>
@@ -948,36 +998,20 @@ export function VendasClient({
                   </tbody>
                 </table>
               ) : (
-                <table className="min-w-full table-fixed text-left">
-                  <colgroup>
-                    <col className="w-[12%]" />
-                    <col className="w-[28%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[6%]" />
-                  </colgroup>
-
+                <table className="min-w-full text-left">
                   <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Código</th>
                       <th className="px-3 py-2.5 font-semibold">Descrição</th>
                       <th className="px-3 py-2.5 font-semibold">Farmácia</th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Jan
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Fev
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Mar
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
-                        Abr
-                      </th>
+                      {buckets.map((b) => (
+                        <th
+                          key={`th-comp-${bucketKey(b)}`}
+                          className="px-2 py-2.5 text-center font-semibold"
+                        >
+                          {bucketLabel(b)}
+                        </th>
+                      ))}
                       <th className="px-2 py-2.5 text-center font-semibold">
                         Tot. Ven.
                       </th>
@@ -1002,10 +1036,14 @@ export function VendasClient({
                           </Link>
                         </td>
                         <td className="px-3 py-2.5">{row.farmacia}</td>
-                        <td className="px-2 py-2.5 text-center">{row.jan}</td>
-                        <td className="px-2 py-2.5 text-center">{row.fev}</td>
-                        <td className="px-2 py-2.5 text-center">{row.mar}</td>
-                        <td className="px-2 py-2.5 text-center">{row.abr}</td>
+                        {row.meses.map((m, i) => (
+                          <td
+                            key={`td-comp-${row.codigo}-${row.farmacia}-${i}`}
+                            className="px-2 py-2.5 text-center"
+                          >
+                            {m.quantidade}
+                          </td>
+                        ))}
                         <td className="px-2 py-2.5 text-center font-semibold text-slate-900">
                           {row.totalVendas}
                         </td>
@@ -1048,13 +1086,13 @@ export function VendasClient({
                               : "Comparativo"}
                         </div>
                         <div className="mt-1 text-[12px] text-slate-600">
-                          Período: De {formatDatePt(dataInicio)} até{" "}
-                          {formatDatePt(dataFim)}
+                          Período: De {formatDatePt(periodHeader?.from ?? dataInicio)} até{" "}
+                          {formatDatePt(periodHeader?.to ?? dataFim)}
                         </div>
                       </div>
 
                       <div className="text-right text-[12px] text-slate-500">
-                        <div>{formatDatePt("2026-04-09")}</div>
+                        <div>{new Date().toLocaleDateString("pt-PT")}</div>
                         <div className="mt-1">Moeda: Euro</div>
                       </div>
                     </div>
@@ -1068,10 +1106,14 @@ export function VendasClient({
                             <th className="px-3 py-2 font-semibold">Código</th>
                             <th className="px-3 py-2 font-semibold">Descrição</th>
                             <th className="px-3 py-2 font-semibold">Farmácia</th>
-                            <th className="px-3 py-2 text-center font-semibold">Jan</th>
-                            <th className="px-3 py-2 text-center font-semibold">Fev</th>
-                            <th className="px-3 py-2 text-center font-semibold">Mar</th>
-                            <th className="px-3 py-2 text-center font-semibold">Abr</th>
+                            {buckets.map((b) => (
+                              <th
+                                key={`rep-comp-th-${bucketKey(b)}`}
+                                className="px-3 py-2 text-center font-semibold"
+                              >
+                                {bucketLabel(b)}
+                              </th>
+                            ))}
                             <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
                             <th className="px-3 py-2 text-center font-semibold">Exist.</th>
                           </tr>
@@ -1083,10 +1125,14 @@ export function VendasClient({
                               <td className="whitespace-nowrap px-3 py-1.5">{row.codigo}</td>
                               <td className="px-3 py-1.5">{row.descricao}</td>
                               <td className="px-3 py-1.5">{row.farmacia}</td>
-                              <td className="px-3 py-1.5 text-center">{row.jan}</td>
-                              <td className="px-3 py-1.5 text-center">{row.fev}</td>
-                              <td className="px-3 py-1.5 text-center">{row.mar}</td>
-                              <td className="px-3 py-1.5 text-center">{row.abr}</td>
+                              {row.meses.map((m, i) => (
+                                <td
+                                  key={`rep-comp-td-${row.codigo}-${row.farmacia}-${i}`}
+                                  className="px-3 py-1.5 text-center"
+                                >
+                                  {m.quantidade}
+                                </td>
+                              ))}
                               <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
                               <td className="px-3 py-1.5 text-center">{row.existencia}</td>
                             </tr>
@@ -1104,10 +1150,14 @@ export function VendasClient({
                               <th className="px-3 py-2 font-semibold">Farmácia</th>
                             )}
 
-                            <th className="px-3 py-2 text-center font-semibold">Jan</th>
-                            <th className="px-3 py-2 text-center font-semibold">Fev</th>
-                            <th className="px-3 py-2 text-center font-semibold">Mar</th>
-                            <th className="px-3 py-2 text-center font-semibold">Abr</th>
+                            {buckets.map((b) => (
+                              <th
+                                key={`rep-th-${bucketKey(b)}`}
+                                className="px-3 py-2 text-center font-semibold"
+                              >
+                                {bucketLabel(b)}
+                              </th>
+                            ))}
                             <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
                             <th className="px-3 py-2 text-center font-semibold">Exist.</th>
                           </tr>
@@ -1123,10 +1173,14 @@ export function VendasClient({
                                 <td className="px-3 py-1.5">{row.farmacia}</td>
                               )}
 
-                              <td className="px-3 py-1.5 text-center">{row.jan}</td>
-                              <td className="px-3 py-1.5 text-center">{row.fev}</td>
-                              <td className="px-3 py-1.5 text-center">{row.mar}</td>
-                              <td className="px-3 py-1.5 text-center">{row.abr}</td>
+                              {row.meses.map((m, i) => (
+                                <td
+                                  key={`rep-td-${row.codigo}-${index}-${i}`}
+                                  className="px-3 py-1.5 text-center"
+                                >
+                                  {m.quantidade}
+                                </td>
+                              ))}
                               <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
                               <td className="px-3 py-1.5 text-center">{row.existencia}</td>
                             </tr>
@@ -1140,18 +1194,14 @@ export function VendasClient({
                               >
                                 Totais
                               </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.jan))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.fev))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.mar))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(orderedRows.map((r) => r.abr))}
-                              </td>
+                              {buckets.map((b, i) => (
+                                <td
+                                  key={`rep-total-${bucketKey(b)}`}
+                                  className="px-3 py-2 text-center"
+                                >
+                                  {sumBucket(orderedRows, i)}
+                                </td>
+                              ))}
                               <td className="px-3 py-2 text-center">
                                 {sum(orderedRows.map((r) => r.totalVendas))}
                               </td>
@@ -1187,10 +1237,14 @@ export function VendasClient({
                         <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.14em] text-slate-500">
                           <tr>
                             <th className="px-3 py-2 font-semibold">Farmácia</th>
-                            <th className="px-3 py-2 text-center font-semibold">Jan</th>
-                            <th className="px-3 py-2 text-center font-semibold">Fev</th>
-                            <th className="px-3 py-2 text-center font-semibold">Mar</th>
-                            <th className="px-3 py-2 text-center font-semibold">Abr</th>
+                            {buckets.map((b) => (
+                              <th
+                                key={`rep-farm-th-${bucketKey(b)}`}
+                                className="px-3 py-2 text-center font-semibold"
+                              >
+                                {bucketLabel(b)}
+                              </th>
+                            ))}
                             <th className="px-3 py-2 text-center font-semibold">Tot. Ven.</th>
                             <th className="px-3 py-2 text-center font-semibold">Exist.</th>
                             <th className="px-3 py-2 text-center font-semibold">Valor</th>
@@ -1202,10 +1256,14 @@ export function VendasClient({
                               <td className="px-3 py-1.5 font-medium text-slate-900">
                                 {row.farmacia}
                               </td>
-                              <td className="px-3 py-1.5 text-center">{row.jan}</td>
-                              <td className="px-3 py-1.5 text-center">{row.fev}</td>
-                              <td className="px-3 py-1.5 text-center">{row.mar}</td>
-                              <td className="px-3 py-1.5 text-center">{row.abr}</td>
+                              {row.meses.map((m, i) => (
+                                <td
+                                  key={`rep-farm-td-${row.farmacia}-${i}`}
+                                  className="px-3 py-1.5 text-center"
+                                >
+                                  {m.quantidade}
+                                </td>
+                              ))}
                               <td className="px-3 py-1.5 text-center">{row.totalVendas}</td>
                               <td className="px-3 py-1.5 text-center">{row.existencia}</td>
                               <td className="px-3 py-1.5 text-center">
@@ -1221,18 +1279,14 @@ export function VendasClient({
                           {incluirTotais && (
                             <tr className="bg-slate-50 font-semibold text-slate-900">
                               <td className="px-3 py-2">Totais</td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(reportByFarmacia.map((r) => r.jan))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(reportByFarmacia.map((r) => r.fev))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(reportByFarmacia.map((r) => r.mar))}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                {sum(reportByFarmacia.map((r) => r.abr))}
-                              </td>
+                              {buckets.map((b, i) => (
+                                <td
+                                  key={`rep-farm-total-${bucketKey(b)}`}
+                                  className="px-3 py-2 text-center"
+                                >
+                                  {sumBucket(reportByFarmacia, i)}
+                                </td>
+                              ))}
                               <td className="px-3 py-2 text-center">
                                 {sum(reportByFarmacia.map((r) => r.totalVendas))}
                               </td>
@@ -1265,6 +1319,10 @@ export function VendasClient({
     </AppShell>
   );
 }
+
+// emptyMesesForPeriod é exportado caso adapters/tests precisem dele
+// (mantém-se aqui apenas para uso interno se vier a precisar).
+void emptyMesesForPeriod;
 
 function CompactSelect({
   label,
