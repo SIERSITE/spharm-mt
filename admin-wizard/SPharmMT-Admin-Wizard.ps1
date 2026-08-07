@@ -285,15 +285,19 @@ try {
   #   Nao exige repo/package.json/Node/npm/Git. NUNCA pede a pasta do repo.
   # DEV: shell-out aos scripts npm. So quando ha repo (ou forcado).
   # Override explicito: SPHARMMT_WIZARD_MODE = dev | standalone.
-  # PRECEDENCIA, da mais forte para a mais fraca:
-  #   1. SPHARMMT_WIZARD_MODE  — absoluta. Ganha sempre.
-  #   2. escolha guardada pelo operador (botao "Modo..." no cabecalho)
-  #   3. auto-deteccao do repositorio
+  # STANDALONE (API) e o modo do produto. DEV existe para quem
+  # desenvolve, e passou a exigir um pedido EXPLICITO:
   #
-  # A auto-deteccao ficou em ULTIMO de proposito. Ter o repositorio na
-  # maquina nao significa querer usa-lo: o .env local aponta para o
-  # ambiente antigo, e o wizard acabava a listar os tenants de la
-  # (demo-neon, grupo-silveira, piloto-demo) contra uma VPS nova e vazia.
+  #   1. SPHARMMT_WIZARD_MODE=dev        variavel de ambiente
+  #   2. escolha guardada = dev          botao "Modo..." no cabecalho
+  #   3. tudo o resto                    STANDALONE
+  #
+  # A auto-deteccao do repositorio deixou de decidir seja o que for.
+  # Ter o repositorio na maquina nao significa querer usa-lo: o .env
+  # local aponta para outro control plane, e o wizard acabava a listar os
+  # tenants de la (demo-neon, grupo-silveira, piloto-demo) contra uma VPS
+  # nova e vazia. O repositorio continua a ser localizado -- e preciso
+  # para o modo DEV quando alguem o escolhe -- mas nao manda no modo.
   $forcedMode = ""
   if ($env:SPHARMMT_WIZARD_MODE) { $forcedMode = ([string]$env:SPHARMMT_WIZARD_MODE).Trim().ToLower() }
   $savedMode = ""
@@ -304,8 +308,7 @@ try {
   elseif ($forcedMode -eq "standalone")  { $script:Mode = "STANDALONE"; $script:ModeSource = "SPHARMMT_WIZARD_MODE" }
   elseif ($savedMode -eq "dev")          { $script:Mode = "DEV";        $script:ModeSource = "escolha guardada" }
   elseif ($savedMode -eq "standalone")   { $script:Mode = "STANDALONE"; $script:ModeSource = "escolha guardada" }
-  elseif ($RepoRoot)                     { $script:Mode = "DEV";        $script:ModeSource = "auto-deteccao do repo" }
-  else                                   { $script:Mode = "STANDALONE"; $script:ModeSource = "sem repo" }
+  else                                   { $script:Mode = "STANDALONE"; $script:ModeSource = "default" }
   $BootstrapDiagnostics += " | mode=$($script:Mode) (origem: $($script:ModeSource))"
 
   # DEV forcado sem repo: oferecer escolher a pasta (util ao developer).
