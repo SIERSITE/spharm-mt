@@ -19,7 +19,48 @@
    ============================================================================ */
 
 
+/* -- PASSO 0 -----------------------------------------------------------------
+   COMEÇAR AQUI. Se der resposta, os passos 1 a 4 não chegam a ser precisos.
+
+   Vistas, procedimentos e funções guardam o texto da sua própria definição
+   dentro da base. Se o SPharm compõe a ficha do artigo com uma delas, a
+   lógica está escrita ali e lê-se — não é preciso observá-la a correr.
+
+   Read-only. Não precisa de sysadmin, nem de abrir o SPharm, nem de
+   apanhar o momento certo. Basta uma conta que leia a base.
+
+   Isto NÃO procura tabelas nem chaves. Procura a lógica.
+   --------------------------------------------------------------------------*/
+
+SELECT
+    o.type_desc                              AS tipo,       -- VIEW / SQL_STORED_PROCEDURE / FUNCTION
+    SCHEMA_NAME(o.schema_id) + '.' + o.name  AS objecto,
+    LEN(m.definition)                        AS tamanho,
+    m.definition                             AS logica
+FROM sys.sql_modules AS m
+JOIN sys.objects     AS o ON o.object_id = m.object_id
+WHERE m.definition LIKE '%GrupoHom%'
+   OR m.definition LIKE '%SPRAct%'
+   OR m.definition LIKE '%Generico%'
+   OR m.definition LIKE '%[^A-Za-z]DCI[^A-Za-z]%'
+   OR m.definition LIKE '%[^A-Za-z]ATC[^A-Za-z]%'
+   OR m.definition LIKE '%Substancia%'
+   OR m.definition LIKE '%GamaFabricante%'
+ORDER BY tipo, objecto;
+GO
+
+/* Ler a coluna [logica] dos resultados. O que interessa é a forma como o
+   objecto liga Stocks aos quatro campos — tipicamente duas ou três linhas
+   de JOIN. Enviar essas linhas. O resto da definição não é preciso.
+
+   Zero linhas aqui NÃO quer dizer que a lógica não exista: pode estar na
+   aplicação em vez da base. Quer dizer apenas que não está guardada como
+   vista, procedimento ou função — e aí seguem-se os passos 1 a 4. */
+
+
 /* -- PASSO 1 -----------------------------------------------------------------
+   Só se o PASSO 0 vier vazio ou inconclusivo.
+
    Criar e arrancar a captura. Filtrada pela base, para não apanhar tráfego
    de outras aplicações no mesmo servidor.
    --------------------------------------------------------------------------*/
