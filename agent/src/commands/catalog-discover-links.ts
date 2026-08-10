@@ -235,7 +235,61 @@ export async function catalogDiscoverLinks(): Promise<number> {
       out.push(t);
     }
 
-    // 3. Ecrã: o essencial para decidir; o detalhe fica no JSON.
+    // 3. GRAFO COMPLETO de FKs do esquema.
+    //
+    // A pergunta certa não é "em que tabela está o Grupo Homogéneo" mas
+    // "qual é o caminho relacional de Stocks até lá". Aqui está o grafo
+    // inteiro, sem filtro por nome, e a partir dele os caminhos de e para
+    // Stocks até 4 saltos.
+    console.log("\n[GRAFO] todas as FKs declaradas no esquema");
+    const arestas = await q<{ de: string; deCol: string; para: string; paraCol: string }>(
+      pool,
+      `SELECT ps.name + '.' + pt.name AS de, pc.name AS deCol,
+              rs.name + '.' + rt.name AS para, rc.name AS paraCol
+       FROM sys.foreign_keys fk
+       JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+       JOIN sys.tables pt ON pt.object_id = fk.parent_object_id
+       JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
+       JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
+       JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
+       JOIN sys.columns pc ON pc.object_id=fkc.parent_object_id AND pc.column_id=fkc.parent_column_id
+       JOIN sys.columns rc ON rc.object_id=fkc.referenced_object_id AND rc.column_id=fkc.referenced_column_id
+       ORDER BY 1, 2`,
+    );
+    console.log(`   ${arestas.length} FKs em todo o esquema`);
+
+    // Caminhos a partir de e para dbo.Stocks, até 4 saltos, sem ciclos.
+    const viz = new Map<string, Array<{ para: string; via: string }>>();
+    for (const a of arestas) {
+      for (const [x, y, via] of [
+        [a.de, a.para, `${a.deCol}->${a.paraCol}`],
+        [a.para, a.de, `${a.paraCol}<-${a.deCol}`],
+      ] as const) {
+        if (!viz.has(x)) viz.set(x, []);
+        viz.get(x)!.push({ para: y, via });
+      }
+    }
+    const caminhos: string[] = [];
+    const anda = (no: string, trilho: string[], vistos: Set<string>) => {
+      if (trilho.length >= 4) return;
+      for (const e of viz.get(no) ?? []) {
+        if (vistos.has(e.para)) continue;
+        const t = [...trilho, `${no} --[${e.via}]--> ${e.para}`];
+        caminhos.push(t.join("  |  "));
+        anda(e.para, t, new Set([...vistos, e.para]));
+      }
+    };
+    anda("dbo.Stocks", [], new Set(["dbo.Stocks"]));
+    const interessantes = caminhos.filter((c) => /GrupoHom|SPRAct|DCI|Generico/i.test(c));
+    console.log(`   caminhos a partir de dbo.Stocks (ate 4 saltos): ${caminhos.length}`);
+    console.log(`   dos quais tocam GrupoHom/SPRAct/DCI/Generico: ${interessantes.length}`);
+    for (const c of interessantes.slice(0, 40)) console.log(`     ${c}`);
+    if (!interessantes.length) {
+      console.log("     NENHUM. Se o total de FKs for baixo, este ERP nao declara");
+      console.log("     as relacoes, e a ligacao tera de sair da medicao por conteudo acima.");
+    }
+
+    // 4. Ecrã: o essencial para decidir; o detalhe fica no JSON.
     for (const t of out.sort((a, b) => b.linhas - a.linhas)) {
       console.log(`\n${t.tabela}  (${t.linhas} linhas)  [${t.encontradaPor.join(", ")}]`);
       console.log(`   PK: ${t.pk.join(" + ") || "(nenhuma)"}`);
@@ -254,7 +308,15 @@ export async function catalogDiscoverLinks(): Promise<number> {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     if (!existsSync("./run")) mkdirSync("./run", { recursive: true });
     const p = path.join("./run", `catalog-discover-links-${ts}.json`);
-    writeFileSync(p, JSON.stringify({ geradoEm: ts, colunasProcuradas: COLUNAS_CHAVE, tabelas: out }, null, 2), "utf8");
+    writeFileSync(
+      p,
+      JSON.stringify(
+        { geradoEm: ts, colunasProcuradas: COLUNAS_CHAVE, grafoFks: arestas, caminhosDesdeStocks: caminhos, tabelas: out },
+        null,
+        2,
+      ),
+      "utf8",
+    );
     console.log(`\n${RULE}`);
     console.log(`  JSON: ${p}`);
     console.log(RULE);
