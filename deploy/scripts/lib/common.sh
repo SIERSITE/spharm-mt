@@ -656,8 +656,9 @@ enforce_secret_file_modes() {
 #   proxy/conf   0755  — configuração PÚBLICA. Legível e atravessável por
 #                        qualquer uid; não tem nada de secreto.
 #   *.conf       0644
-#   proxy/certs  0750  — restrito: aqui vivem chaves privadas.
-#   chaves       0640 ou mais restrito.
+#   proxy/certs  0711  — atravessável, NÃO listável. Ver abaixo.
+#   fullchain    0644
+#   privkey      0640 ou mais restrito.
 #
 # Sem setgid em proxy/conf: os ficheiros lá dentro não precisam de herdar
 # grupo e o bit só tornaria o modo mais difícil de ler.
@@ -665,7 +666,23 @@ ensure_proxy_dirs() {
   local owner="${1:-${SPHARMMT_USER}:${SPHARMMT_GROUP}}"
 
   ensure_dir "$SPHARMMT_PROXY_CONF_DIR" 0755 "$owner"
-  ensure_dir "${SPHARMMT_ROOT}/proxy/certs" 0750 "$owner"
+  # 0711 e não 0750. Pela mesma razão que o `proxy/conf` é 0755: com
+  # `cap_drop: ALL` o nginx não tem DAC_OVERRIDE, e sobre um directório
+  # do uid 1000 o uid do container conta como "others". Sem bit de
+  # execução em others não ATRAVESSA o directório, e nem chega a tentar
+  # abrir os ficheiros — o modo de fullchain.pem e privkey.pem passa a
+  # ser irrelevante. O nginx recusa arrancar e a plataforma fica sem
+  # caminho de entrada.
+  #
+  # 0711 dá travessia sem dar listagem: sem bit de leitura em others,
+  # ninguém enumera o conteúdo do directório. A protecção das chaves fica
+  # onde deve ficar, no modo dos próprios ficheiros (0640, garantido por
+  # enforce_tls_key_modes).
+  #
+  # 0750 já regressou aqui mais do que uma vez em reinstalações e o
+  # sintoma — nginx que não arranca — não aponta para as permissões.
+  # Fixado em deploy/tests/test-proxy-certs-mode.sh.
+  ensure_dir "${SPHARMMT_ROOT}/proxy/certs" 0711 "$owner"
   # ZIP base do agent, montado no nginx em só-leitura e servido em
   # /agent-base/. 0755 pela mesma razão que o conf: o utilizador do
   # container (uid 101) tem de atravessar o directório, e com
