@@ -66,6 +66,7 @@ import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
 import { ivaAudit } from "./commands/iva-audit.js";
 import { catalogAudit } from "./commands/catalog-audit.js";
 import { catalogDiscoverLinks } from "./commands/catalog-discover-links.js";
+import { captureProductQuery } from "./commands/capture-product-query.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -186,6 +187,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "catalog-discover-links": {
     run: catalogDiscoverLinks,
     desc: "rev49: descoberta READ-ONLY de relacoes por METADADOS (sys.columns/foreign_keys/indexes). Caca GrupoHomID, SPRActID, Codigo, CNP, CodigoProduto, ProdutoID, StockID em todas as tabelas e testa por CONTEUDO a ligacao a dbo.Stocks. Gera ./run/catalog-discover-links-<ts>.json.",
+  },
+  "capture-product-query": {
+    run: captureProductQuery,
+    desc: "rev50: captura a query que o SPharm executa ao abrir a ficha de um produto (Extended Events, cria e apaga a sessao sozinho). Gera run/product-query.sql. Requer login com VIEW SERVER STATE + ALTER ANY EVENT SESSION.",
   },
   "fornecedores-dry-run": {
     run: fornecedoresDryRun,
