@@ -258,8 +258,17 @@ type PipelineTotals = {
   skipped: number;
   errors: number;
   durationMs: number;
+  /** rev46 — produtos novos e actualizados no catálogo central. */
+  novos: number;
+  atualizados: number;
   /** rev46 — campos do catálogo central escritos a partir do ERP. */
-  catalogo: { dci: number; codigoATC: number; grupoHomogeneo: number; fabricante: number };
+  catalogo: {
+    fabricante: number;
+    dci: number;
+    codigoATC: number;
+    grupoHomogeneo: number;
+    productType: number;
+  };
   /** Campos não tocados por já terem fonte de confiança igual ou superior. */
   catalogoPreservados: number;
 };
@@ -267,7 +276,9 @@ type PipelineTotals = {
 function emptyTotals(): PipelineTotals {
   return {
     batches: 0, read: 0, accepted: 0, upserted: 0, skipped: 0, errors: 0, durationMs: 0,
-    catalogo: { dci: 0, codigoATC: 0, grupoHomogeneo: 0, fabricante: 0 },
+    novos: 0,
+    atualizados: 0,
+    catalogo: { fabricante: 0, dci: 0, codigoATC: 0, grupoHomogeneo: 0, productType: 0 },
     catalogoPreservados: 0,
   };
 }
@@ -279,9 +290,11 @@ function accumulate(t: PipelineTotals, r: BootstrapBatchResponse): void {
   t.skipped += r.skipped.length;
   t.errors += r.errors.length;
   t.durationMs += r.durationMs;
+  t.novos += r.produtosNovos ?? 0;
+  t.atualizados += r.produtosAtualizados ?? 0;
   const c = r.catalogoErp;
   if (c) {
-    for (const campo of ["dci", "codigoATC", "grupoHomogeneo", "fabricante"] as const) {
+    for (const campo of ["fabricante", "dci", "codigoATC", "grupoHomogeneo", "productType"] as const) {
       t.catalogo[campo] += (c.preenchidos?.[campo] ?? 0) + (c.substituidos?.[campo] ?? 0);
     }
     t.catalogoPreservados += Object.values(c.preservados ?? {}).reduce((a, b) => a + b, 0);
@@ -297,15 +310,22 @@ export function renderTotals(label: string, t: PipelineTotals): void {
   console.log(`  Errors             : ${t.errors}`);
   console.log(`  Tempo agregado SaaS: ${t.durationMs} ms`);
   const cat = t.catalogo;
-  const totalCat = cat.dci + cat.codigoATC + cat.grupoHomogeneo + cat.fabricante;
-  if (totalCat > 0 || t.catalogoPreservados > 0) {
-    console.log(`  ── Catálogo central enriquecido a partir do ERP ──`);
-    console.log(`  DCI                : ${cat.dci}`);
-    console.log(`  ATC                : ${cat.codigoATC}`);
-    console.log(`  Grupo Homogeneo    : ${cat.grupoHomogeneo}`);
-    console.log(`  Fabricante         : ${cat.fabricante}`);
-    console.log(`  TOTAL campos       : ${totalCat}`);
-    console.log(`  Preservados        : ${t.catalogoPreservados} (fonte igual ou mais forte)`);
+  const totalCat =
+    cat.fabricante + cat.dci + cat.codigoATC + cat.grupoHomogeneo + cat.productType;
+  if (totalCat > 0 || t.catalogoPreservados > 0 || t.novos > 0) {
+    console.log("");
+    console.log("  ══ Fase 1 — catálogo central enriquecido pelo ERP ══");
+    console.log(`  Produtos processados : ${t.read}`);
+    console.log(`  Produtos novos       : ${t.novos}`);
+    console.log(`  Produtos actualizados: ${t.atualizados}`);
+    console.log(`  ── Campos preenchidos pelo ERP ──`);
+    console.log(`  Fabricante           : ${cat.fabricante}`);
+    console.log(`  DCI                  : ${cat.dci}`);
+    console.log(`  ATC                  : ${cat.codigoATC}`);
+    console.log(`  Grupo Homogeneo      : ${cat.grupoHomogeneo}`);
+    console.log(`  ProductType          : ${cat.productType}`);
+    console.log(`  TOTAL campos         : ${totalCat}`);
+    console.log(`  Preservados          : ${t.catalogoPreservados} (fonte igual ou superior)`);
   }
   if (t.errors > 0) console.log(`  ⚠ ${label}: ${t.errors} erros — ver detalhes acima`);
 }

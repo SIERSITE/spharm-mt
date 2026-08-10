@@ -30,6 +30,7 @@
  */
 
 import type { PrismaClient } from "@/generated/prisma/client";
+import { classifyProductType, CLASSIFICATION_VERSION } from "@/lib/catalog-classifier";
 
 /** Confiança atribuída ao ERP da farmácia como fonte de catálogo. */
 export const ERP_CONFIDENCE = 0.9;
@@ -40,7 +41,7 @@ export const ERP_SOURCE = "spharm_erp";
 const MIN_CNP = 2_000_000;
 
 /** Campos que este caminho pode escrever. */
-const CAMPOS = ["dci", "codigoATC", "grupoHomogeneo", "fabricante"] as const;
+const CAMPOS = ["dci", "codigoATC", "grupoHomogeneo", "fabricante", "productType"] as const;
 type Campo = (typeof CAMPOS)[number];
 
 export type ErpCatalogRow = {
@@ -63,7 +64,7 @@ export type ErpCatalogResult = {
 };
 
 function zeros(): Record<Campo, number> {
-  return { dci: 0, codigoATC: 0, grupoHomogeneo: 0, fabricante: 0 };
+  return { dci: 0, codigoATC: 0, grupoHomogeneo: 0, fabricante: 0, productType: 0 };
 }
 
 export function limpar(v: string | null): string | null {
@@ -102,6 +103,31 @@ export function normalizarFabricante(v: string | null): string | null {
 }
 
 export type Decisao = "preencher" | "substituir" | "preservar" | "nada";
+
+/**
+ * Precedência do tipo de produto, isolada para poder ser testada.
+ *
+ * Ao contrário dos outros campos, aqui a confiança do valor existente é
+ * legível directamente em `Produto.productTypeConfidence`. A regra é uma
+ * só e não admite excepções: NUNCA despromover. Uma classificação por
+ * consenso de marca (0.75) não pode substituir uma por flag MSRM (0.99),
+ * por mais recente que seja.
+ *
+ * OUTRO nunca é escrito: não é uma classificação, é a ausência de uma.
+ */
+export function decidirTipo(
+  novoTipo: string,
+  novaConf: number,
+  tipoActual: string | null,
+  confActual: number | null,
+): Decisao {
+  if (novoTipo === "OUTRO") return "nada";
+  if (tipoActual === null) return "preencher";
+  if (novaConf > (confActual ?? 0)) {
+    return tipoActual === novoTipo ? "nada" : "substituir";
+  }
+  return tipoActual === novoTipo ? "nada" : "preservar";
+}
 
 /**
  * A regra de escrita, isolada da base de dados para poder ser testada.
@@ -172,6 +198,14 @@ export async function applyErpCatalogFields(
       codigoATC: true,
       grupoHomogeneo: true,
       fabricanteId: true,
+      // Necessários para classificar o tipo com os sinais do ERP.
+      designacao: true,
+      flagMSRM: true,
+      flagMNSRM: true,
+      flagGenerico: true,
+      tipoArtigo: true,
+      productType: true,
+      productTypeConfidence: true,
       // O nome normalizado é preciso para comparar com o do ERP: sem ele
       // cada corrida veria "valor diferente" e reescreveria o mesmo
       // fabricante para sempre.
@@ -235,6 +269,8 @@ export async function applyErpCatalogFields(
     const fortes = fortesPorProduto.get(produto.id) ?? new Set<string>();
 
     const dados: Record<string, string | null> = {};
+    // Separado de `dados` porque leva números e não só strings.
+    const dadosExtra: Record<string, string | number> = {};
     const escritos: string[] = [];
 
     const decidir = (
@@ -275,11 +311,56 @@ export async function applyErpCatalogFields(
       !!reg?.titularAim,
     );
 
+    // ── ProductType ────────────────────────────────────────────────
+    //
+    // O ERP dá os sinais mais fortes que existem para decidir o que um
+    // produto é: flagMSRM/MNSRM, genérico, ATC e grupo homogéneo. Aplicar
+    // o classificador aqui evita que o builder vá descobrir depois, por
+    // texto, algo que a farmácia já sabia.
+    //
+    // Precedência pela própria confiança, que já está gravada em
+    // Produto.productTypeConfidence: só escreve se o campo estiver vazio
+    // ou se a nova classificação for MAIS confiante. Nunca despromove.
+    // Reutiliza os valores do ERP recém-decididos acima (ATC, grupo
+    // homogéneo) mesmo antes de estarem gravados — é a informação mais
+    // fresca que existe sobre este produto.
+    const atcParaTipo = (dados.codigoATC as string | undefined) ?? produto.codigoATC;
+    const ghParaTipo = (dados.grupoHomogeneo as string | undefined) ?? produto.grupoHomogeneo;
+    const cls = classifyProductType({
+      designacao: produto.designacao,
+      tipoArtigo: produto.tipoArtigo,
+      flagMSRM: produto.flagMSRM,
+      flagMNSRM: produto.flagMNSRM,
+      codigoATC: atcParaTipo,
+      flagGenerico: produto.flagGenerico,
+      hasRegulatoryRecord: !!reg,
+      hasGrupoHomogeneo: !!ghParaTipo,
+    });
+    // OUTRO não é uma classificação, é a ausência de uma: gravá-lo
+    // transformaria "não sei" em "já tratado".
+    const acaoTipo = decidirTipo(
+      cls.productType,
+      cls.confidence,
+      produto.productType,
+      produto.productTypeConfidence,
+    );
+    if (acaoTipo === "preencher" || acaoTipo === "substituir") {
+      dadosExtra.productType = cls.productType;
+      dadosExtra.productTypeConfidence = cls.confidence;
+      dadosExtra.classificationSource = cls.classificationSource;
+      dadosExtra.classificationVersion = CLASSIFICATION_VERSION;
+      escritos.push("productType");
+      if (acaoTipo === "preencher") res.preenchidos.productType++;
+      else res.substituidos.productType++;
+    } else if (acaoTipo === "preservar") {
+      res.preservados.productType++;
+    }
+
     if (escritos.length === 0) continue;
 
     await prisma.produto.update({
       where: { id: produto.id },
-      data: { ...dados, dataAtualizacao: new Date() },
+      data: { ...dados, ...dadosExtra, dataAtualizacao: new Date() },
     });
     await prisma.enrichmentSourceLog.create({
       data: {

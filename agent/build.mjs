@@ -1920,9 +1920,15 @@ async function main() {
     log("");
     log(`✓ Artefacto base da release: dist-agent/${base.zipName}`);
     log("Próximos passos (uma vez por release):");
-    log(`  1. Upload de dist-agent/${base.zipName} para object storage`);
-    log(`     (Vercel Blob / S3 / URL estática).`);
-    log(`  2. Definir AGENT_BASE_ZIP_URL=<url do zip> no Vercel + redeploy.`);
+    // A plataforma é self-hosted. O ZIP é servido pelo próprio nginx, no
+    // domínio administrativo, com nome de ficheiro ESTÁVEL: a revisão vive
+    // dentro do pacote e nunca no URL. Não há nada a configurar por
+    // release — o AGENT_BASE_ZIP_URL é gerado pelo install-platform.sh e
+    // não muda.
+    log(`  1. Copiar para a VPS:`);
+    log(`       scp dist-agent/${base.zipName} deploy@<vps>:/tmp/`);
+    log(`  2. Instalar com o nome ESTÁVEL (substitui a revisão anterior):`);
+    log(`       sudo install -m 0644 -o deploy -g spharmmt /tmp/${base.zipName} /opt/spharmmt/agent-base/spharmmt-agent-base.zip`);
     log(`  3. O Admin Wizard (STANDALONE) gera os ZIPs por farmácia sozinho.`);
   } catch (err) {
     logErr(err instanceof Error ? err.message : String(err));

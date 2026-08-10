@@ -159,6 +159,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
 
   // Contagens do enriquecimento a partir do ERP, declaradas aqui para
   // sobreviverem ao bloco try e chegarem à resposta.
+  let produtosNovos = 0;
+  let produtosAtualizados = 0;
   let catalogoErp: {
     candidatos: number;
     preenchidos: Record<string, number>;
@@ -218,6 +220,15 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   //    Update aditivo: campos fortes do catálogo (dci, codigoATC, etc.) e
   //    campos de stock NÃO são tocados. Fallback per-row se o bulk falhar.
   try {
+    // Novos vs actualizados: o upsert não distingue, e a distinção é o que
+    // mostra se uma farmácia está a trazer catálogo novo ou a reforçar o
+    // que já existe. Contado ANTES do upsert, senão já não há diferença.
+    const cnpsDoLote = dedup.map((a) => a.cnp);
+    produtosAtualizados = await ctx.prisma.produto.count({
+      where: { cnp: { in: cnpsDoLote } },
+    });
+    produtosNovos = cnpsDoLote.length - produtosAtualizados;
+
     const cnpToId = await bulkUpsertProdutosByCnp(
       ctx.prisma,
       dedup.map((a) => ({
@@ -404,5 +415,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // rev46 — contagens do enriquecimento a partir do ERP, para o técnico
   // ver no ecrã do agent quantos campos entraram, sem ir à base de dados.
   // Campo extra e opcional: agents antigos ignoram-no.
-  return NextResponse.json(catalogoErp ? { ...response, catalogoErp } : response);
+  return NextResponse.json(
+    catalogoErp
+      ? { ...response, produtosNovos, produtosAtualizados, catalogoErp }
+      : { ...response, produtosNovos, produtosAtualizados },
+  );
 });

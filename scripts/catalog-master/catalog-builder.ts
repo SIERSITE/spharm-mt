@@ -403,6 +403,16 @@ async function main(): Promise<void> {
     from "Produto" p left join "RegulatoryRecord" r on r.cnp = p.cnp
     where p.cnp >= $1 and p.estado <> 'INATIVO' and p."validadoManualmente" = false
       and p.cnp <> all($3::int[])
+      -- Segunda fase, e só isso. A primeira é a ingestão: o ERP da
+      -- farmácia já entrega fabricante, DCI, ATC, grupo homogéneo e tipo
+      -- durante o products-upload. Ir à Internet buscar o que a farmácia
+      -- já sabia é trabalho a dobrar e de pior qualidade. Aqui só entram
+      -- produtos a quem falta mesmo alguma coisa.
+      and (p."classificacaoNivel1Id" is null
+           or p."fabricanteId" is null
+           or p."imagemUrl" is null
+           or (p."productType" = 'MEDICAMENTO'
+               and (p.dci is null or p."codigoATC" is null or p."grupoHomogeneo" is null)))
     order by (p.cnp::bigint * 7919) % 100003
     limit $2`, [MIN_CNP, args.limit, [...done]]);
 
