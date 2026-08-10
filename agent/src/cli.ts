@@ -64,6 +64,7 @@ import {
 import { movimentosAudit } from "./commands/movimentos-audit.js";
 import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
 import { ivaAudit } from "./commands/iva-audit.js";
+import { catalogAudit } from "./commands/catalog-audit.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -176,6 +177,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "iva-audit": {
     run: ivaAudit,
     desc: "rev41: auditoria estrutural fiscal do ERP — descobre a tabela mestre do IVA via FKs + domain matching + scoring. Read-only. Gera ./run/iva-audit-<ts>.{md,json}.",
+  },
+  "catalog-audit": {
+    run: catalogAudit,
+    desc: "rev46: auditoria estrutural do catálogo regulamentar — localiza DCI, ATC, Grupo Homogéneo e Fabricante em Stocks e nas tabelas de lookup, via sys.columns + FKs + taxa de preenchimento. Read-only. Gera ./run/catalog-audit-<ts>.{md,json}.",
   },
   "fornecedores-dry-run": {
     run: fornecedoresDryRun,

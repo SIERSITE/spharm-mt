@@ -54,6 +54,7 @@ import {
   type ProdutoFarmaciaProductRow,
 } from "@/lib/ingest/bulk";
 import { normalizeIva } from "@/lib/iva";
+import { applyErpCatalogFields } from "@/lib/ingest/catalog-from-erp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,17 @@ type ProductPayload = {
    * existente em BD via COALESCE.
    */
   taxaIva: unknown;
+  /**
+   * rev46 — catálogo regulamentar lido do próprio ERP (DCI, ATC, Grupo
+   * Homogéneo, Fabricante). O agent descobre as colunas em runtime; um
+   * campo ausente na instalação chega como null e não escreve nada.
+   * Agents ≤ rev45 não enviam de todo — os campos ficam undefined e o
+   * catálogo mantém-se como está.
+   */
+  dci: unknown;
+  codigoATC: unknown;
+  grupoHomogeneo: unknown;
+  fabricante: unknown;
 };
 
 export const POST = withIntegrationAuth(async (ctx, req) => {
@@ -139,6 +151,10 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     fornecedorOrigem: string | null;
     /** {6, 13, 23, null}. null se agent não enviou ou valor não-canónico. */
     taxaIvaPercent: number | null;
+    dci: string | null;
+    codigoATC: string | null;
+    grupoHomogeneo: string | null;
+    fabricante: string | null;
   };
 
   // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
@@ -178,6 +194,10 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       fornecedorExternalId: asIntOrNull(raw.fornecedorHabitualId),
       fornecedorOrigem: asStringOrNull(raw.fornecedorHabitualNome),
       taxaIvaPercent,
+      dci: asStringOrNull(raw.dci),
+      codigoATC: asStringOrNull(raw.codigoATC),
+      grupoHomogeneo: asStringOrNull(raw.grupoHomogeneo),
+      fabricante: asStringOrNull(raw.fabricante),
     });
   }
 
@@ -199,6 +219,44 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         flagMnsrmNCompart: a.flagMnsrmNCompart,
       }))
     );
+
+    // rev46 — o ERP da farmácia já conhece DCI, ATC, Grupo Homogéneo e
+    // Fabricante. Corre DEPOIS do upsert do Produto, para que os produtos
+    // criados agora também sejam enriquecidos na mesma passagem.
+    //
+    // Nunca substitui dados de confiança igual ou superior: a decisão está
+    // em applyErpCatalogFields, que lê a proveniência existente do
+    // RegulatoryRecord e do EnrichmentSourceLog. Uma falha aqui não pode
+    // derrubar a ingestão de produtos e stock — é enriquecimento, não o
+    // contrato do endpoint.
+    try {
+      const erp = await applyErpCatalogFields(
+        ctx.prisma,
+        dedup.map((a) => ({
+          cnp: a.cnp,
+          dci: a.dci,
+          codigoATC: a.codigoATC,
+          grupoHomogeneo: a.grupoHomogeneo,
+          fabricante: a.fabricante,
+        })),
+      );
+      const escritos =
+        Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +
+        Object.values(erp.substituidos).reduce((x, y) => x + y, 0);
+      if (escritos > 0 || erp.candidatos > 0) {
+        console.log(
+          `[bootstrap/products] catálogo ERP: ${erp.candidatos} candidatos, ` +
+            `${escritos} campos escritos, ` +
+            `${Object.values(erp.preservados).reduce((x, y) => x + y, 0)} preservados por fonte mais forte`,
+        );
+      }
+    } catch (err) {
+      console.error(
+        "[bootstrap/products] enriquecimento a partir do ERP falhou (ingestão continua):",
+        err instanceof Error ? err.message : err,
+      );
+    }
+
     const pfRows: ProdutoFarmaciaProductRow[] = [];
     for (const a of dedup) {
       const produtoId = cnpToId.get(a.cnp);

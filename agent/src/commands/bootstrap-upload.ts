@@ -113,6 +113,20 @@ type ProductPayload = {
    * detectada (rev39 fallback) ou quando o produto não tem taxa no ERP.
    */
   taxaIva: number | null;
+  /**
+   * rev46 — catálogo regulamentar vindo do próprio ERP. O SPharm local já
+   * conhece estes quatro campos; reconstruí-los pela Internet é trabalho a
+   * dobrar e de pior qualidade. Cada campo é `null` quando a coluna não
+   * existe nesta instalação — nunca inventado.
+   *
+   * A localização das colunas é descoberta em runtime (`discoverCatalogPlan`),
+   * porque os nomes variam entre instalações Softreis. Para ver o que existe
+   * numa instalação concreta: `agent catalog-audit`.
+   */
+  dci: string | null;
+  codigoATC: string | null;
+  grupoHomogeneo: string | null;
+  fabricante: string | null;
 };
 
 type StockPayload = {
@@ -296,6 +310,71 @@ type IvaJoinPlan = {
   masterPk: string | null;          // ex.: "IVA id"
   masterRateColumn: string | null;  // ex.: "Taxa"
 };
+
+/**
+ * rev46 — plano de leitura do catálogo regulamentar (DCI, ATC, Grupo
+ * Homogéneo, Fabricante) a partir do ERP.
+ *
+ * Mesmo princípio da descoberta do IVA e do movimentos-audit rev32: os
+ * nomes das colunas variam entre instalações Softreis, por isso são
+ * descobertos em `sys.columns` e não escritos à mão. Coluna que não
+ * existe cai a NULL no SELECT em vez de partir a query.
+ *
+ * Para cada conceito escolhe-se a coluna TEXTUAL com nome mais
+ * específico. Colunas numéricas são ignoradas de propósito: um código
+ * interno do ERP (17) não é uma DCI nem um ATC, e enviá-lo poluiria o
+ * catálogo central com valores sem significado fora daquela instalação.
+ * Quando o valor real vive numa tabela de lookup, `catalog-audit` mostra
+ * a chave e o JOIN pode ser acrescentado aqui com evidência.
+ */
+type CatalogPlan = {
+  dci: string | null;
+  atc: string | null;
+  grupoHomogeneo: string | null;
+  fabricante: string | null;
+};
+
+async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
+  const r = await pool.request().query<{ nome: string; tipo: string }>(`
+    SELECT c.name AS nome, ty.name AS tipo
+    FROM sys.columns c
+    JOIN sys.tables t  ON c.object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    JOIN sys.types ty  ON c.user_type_id = ty.user_type_id
+    WHERE s.name = 'dbo' AND t.name = 'Stocks'
+    ORDER BY c.column_id
+  `);
+  const textuais = r.recordset.filter((c) => /char|text/i.test(c.tipo));
+
+  /** Primeira coluna textual que case com um dos padrões, por ordem de preferência. */
+  const escolher = (padroes: RegExp[]): string | null => {
+    for (const p of padroes) {
+      const hit = textuais.find((c) => p.test(c.nome));
+      if (hit) return hit.nome;
+    }
+    return null;
+  };
+
+  return {
+    dci: escolher([/^dci$/i, /dci/i, /subst.nc/i, /princ.pio/i]),
+    atc: escolher([/^atc$/i, /atc/i]),
+    grupoHomogeneo: escolher([/grupo\s*homog/i, /homog/i, /^gh$/i]),
+    fabricante: escolher([/fabricante/i, /laborat/i, /titular/i, /marca/i]),
+  };
+}
+
+function logCatalogPlan(plan: CatalogPlan): void {
+  const f = (label: string, col: string | null) =>
+    console.log(`     ${label.padEnd(16)} ${col ? `Stocks.[${col}]` : "✗ não detectada — enviado NULL"}`);
+  console.log("  Plano de catálogo regulamentar (rev46):");
+  f("DCI:", plan.dci);
+  f("ATC:", plan.atc);
+  f("Grupo Homogéneo:", plan.grupoHomogeneo);
+  f("Fabricante:", plan.fabricante);
+  if (!plan.dci && !plan.atc && !plan.grupoHomogeneo && !plan.fabricante) {
+    console.log("     Nenhum campo detectado — corre `agent catalog-audit` para ver o que existe.");
+  }
+}
 
 async function discoverIvaJoinPlan(pool: SqlPool): Promise<IvaJoinPlan> {
   // 1. Coluna IVA em Stocks (qualquer coluna com 'iva' no nome — preferimos
@@ -494,6 +573,14 @@ export async function runProductsPipeline(
   const ivaPlan = await discoverIvaJoinPlan(pool);
   logIvaPlan(ivaPlan);
 
+  const catalogPlan = await discoverCatalogPlan(pool);
+  logCatalogPlan(catalogPlan);
+  const col = (c: string | null) => (c ? `s.[${c}]` : `CAST(NULL AS NVARCHAR(200))`);
+  const dciSelect = col(catalogPlan.dci);
+  const atcSelect = col(catalogPlan.atc);
+  const ghSelect = col(catalogPlan.grupoHomogeneo);
+  const fabricanteSelect = col(catalogPlan.fabricante);
+
   const ivaJoinClause =
     ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
       ? `LEFT JOIN [dbo].[${ivaPlan.masterTable}] iva_master
@@ -524,6 +611,10 @@ export async function runProductsPipeline(
         fornecedorHabitualId: number | null;
         fornecedorHabitualNome: string | null;
         taxaIva: unknown;
+        dci: unknown;
+        codigoATC: unknown;
+        grupoHomogeneo: unknown;
+        fabricante: unknown;
       }>(`
         SELECT TOP (@n)
           s.CodigoID                   AS externalProductId,
@@ -539,7 +630,11 @@ export async function runProductsPipeline(
           s.[MNSRM_NCompart]           AS mnsrmNCompart,
           ars.[Fornecedor Habitual]    AS fornecedorHabitualId,
           f.[Nome Abreviado]           AS fornecedorHabitualNome,
-          ${ivaSelect}                 AS taxaIva
+          ${ivaSelect}                 AS taxaIva,
+          ${dciSelect}                 AS dci,
+          ${atcSelect}                 AS codigoATC,
+          ${ghSelect}                  AS grupoHomogeneo,
+          ${fabricanteSelect}          AS fabricante
         FROM [dbo].[Stocks] s
         OUTER APPLY (
           SELECT TOP 1 [Fornecedor Habitual]
@@ -573,6 +668,10 @@ export async function runProductsPipeline(
       fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
       taxaIva: numOrNull(r.taxaIva),
+      dci: strOrNull(r.dci),
+      codigoATC: strOrNull(r.codigoATC),
+      grupoHomogeneo: strOrNull(r.grupoHomogeneo),
+      fabricante: strOrNull(r.fabricante),
     }));
 
     if (dryRun) {
