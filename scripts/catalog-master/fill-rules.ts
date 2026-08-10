@@ -117,6 +117,63 @@ async function main() {
   for (const r of fabExistentes.rows) if (!fabCache.has(r.n)) fabCache.set(r.n, r.id);
   console.log(`fabricantes conhecidos: ${fabCache.size}\n`);
 
+  // ── Marca → laboratório, aprendido do próprio catálogo ───────────────
+  //
+  // Num catálogo de farmácia a marca no início da designação é, na
+  // prática, o laboratório: "Bioderma Atoderm ...", "GUM Junior ...".
+  // Em vez de adivinhar, aprende-se o mapeamento a partir dos produtos
+  // que JÁ têm fabricante atribuído por fonte fiável, e propaga-se aos
+  // restantes da mesma marca. Não inventa nada: só alarga informação já
+  // verificada a produtos irmãos.
+  //
+  // Só marcas com consenso forte — ≥90% dos produtos da marca a apontar
+  // para o mesmo fabricante e pelo menos 2 produtos. Marcas ambíguas
+  // (revendedores, marcas brancas com vários titulares) ficam de fora.
+  function marcaDe(designacao: string): string {
+    const p = designacao
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      // "CH.71606000040 TET FISIOL" — prefixo de código do fornecedor.
+      .replace(/^ch\.\d+\s*/, "")
+      .split(/[\s\-/,;:.()[\]]+/)
+      .filter(Boolean);
+    if (!p[0]) return "";
+    // Marcas de duas letras só identificam com a palavra seguinte
+    // ("b braun", "a derma", "th pharma").
+    return p[0].length <= 2 && p[1] ? `${p[0]} ${p[1]}` : p[0];
+  }
+
+  // Aprender sobre o catálogo INTEIRO, não só sobre `rows`: `rows` só traz
+  // produtos com algum campo em falta, e os produtos já completos são
+  // precisamente a melhor evidência de que marca pertence a que laboratório.
+  const comFab = await db.query<{ designacao: string; fabricanteId: string }>(
+    `select p.designacao, p."fabricanteId"
+       from "Produto" p
+      where p.cnp >= $1 and p."fabricanteId" is not null`,
+    [MIN_CNP],
+  );
+  const votos = new Map<string, Map<string, number>>();
+  for (const p of comFab.rows) {
+    const m = marcaDe(p.designacao);
+    if (m.length < 3) continue;
+    if (!votos.has(m)) votos.set(m, new Map());
+    const v = votos.get(m)!;
+    v.set(p.fabricanteId, (v.get(p.fabricanteId) ?? 0) + 1);
+  }
+  const marcaParaFab = new Map<string, string>();
+  let marcasAmbiguas = 0;
+  for (const [m, v] of votos) {
+    const ord = [...v].sort((a, b) => b[1] - a[1]);
+    const total = ord.reduce((s, x) => s + x[1], 0);
+    if (ord[0][1] / total >= 0.9 && ord[0][1] >= 2) marcaParaFab.set(m, ord[0][0]);
+    else marcasAmbiguas++;
+  }
+  console.log(
+    `marcas com laboratório consensual: ${marcaParaFab.size} ` +
+      `(${marcasAmbiguas} ambíguas descartadas)\n`,
+  );
+
   async function resolverFabricante(nome: string): Promise<string | null> {
     const n = norm(nome);
     if (n.length < 2 || n.length > 60) return null;
@@ -162,6 +219,8 @@ async function main() {
   const porMetodo = new Map<string, number>();
   let semTipo = 0;
   let mapperNull = 0;
+  let labPorRegulamentar = 0;
+  let labPorMarca = 0;
 
   for (const p of rows) {
     const u: Update = { id: p.id, n1: null, n2: null, fab: null, dci: null, atc: null };
@@ -209,12 +268,21 @@ async function main() {
       }
     }
 
-    // Laboratório, DCI e ATC — fonte regulamentar
+    // Laboratório: primeiro a fonte regulamentar (titular da AIM), que é
+    // mais autoritária; só se não houver, a propagação por marca.
     if (!p.fabricanteId && p.regTitular) {
       const fid = await resolverFabricante(p.regTitular);
       if (fid) {
         u.fab = fid;
         campos.laboratorio++;
+        labPorRegulamentar++;
+      }
+    } else if (!p.fabricanteId) {
+      const fid = marcaParaFab.get(marcaDe(p.designacao));
+      if (fid) {
+        u.fab = fid;
+        campos.laboratorio++;
+        labPorMarca++;
       }
     }
     if (!p.dci && p.regDci) {
@@ -233,6 +301,7 @@ async function main() {
   console.log("campos a preencher:");
   for (const [k, v] of Object.entries(campos)) console.log(`  ${String(v).padStart(6)}  ${k}`);
   console.log(`  ${String(total).padStart(6)}  TOTAL\n`);
+  console.log(`  laboratório: ${labPorRegulamentar} por titular da AIM, ${labPorMarca} por marca consensual`);
   console.log(`produtos ainda sem productType (mapper não corre): ${semTipo}`);
   console.log(`mapper devolveu null (sinal insuficiente): ${mapperNull}`);
 

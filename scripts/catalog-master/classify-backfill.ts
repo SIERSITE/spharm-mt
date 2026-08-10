@@ -84,11 +84,60 @@ async function main() {
   );
   console.log(`por classificar: ${rows.length}`);
 
+  // ── Consenso de marca, aprendido do catálogo já classificado ─────────
+  //
+  // Quando uma marca tem vários produtos já classificados e todos (ou
+  // quase) são do mesmo tipo, os irmãos por classificar são do mesmo
+  // tipo. Não é heurística sobre palavras: é propagação de classificações
+  // já estabelecidas para produtos da mesma marca.
+  //
+  // Exige >= 2 produtos já classificados e >= 90% de acordo. Marcas com
+  // gamas mistas (um laboratório que faz medicamento e cosmético) não
+  // atingem o consenso e ficam de fora — é o comportamento certo.
+  const CONSENSO_MIN = 0.9;
+  const PRODUTOS_MIN = 2;
+
+  function marcaDe(designacao: string): string {
+    const p = designacao
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/^ch\.\d+\s*/, "")
+      .split(/[\s\-/,;:.()[\]]+/)
+      .filter(Boolean);
+    if (!p[0]) return "";
+    return p[0].length <= 2 && p[1] ? `${p[0]} ${p[1]}` : p[0];
+  }
+
+  const classificados = await db.query<{ designacao: string; productType: string }>(
+    `select p.designacao, p."productType" from "Produto" p
+      where p.cnp >= $1 and p."productType" is not null`,
+    [MIN_CNP],
+  );
+  const votos = new Map<string, Map<string, number>>();
+  for (const p of classificados.rows) {
+    const m = marcaDe(p.designacao);
+    if (m.length < 3) continue;
+    if (!votos.has(m)) votos.set(m, new Map());
+    const v = votos.get(m)!;
+    v.set(p.productType, (v.get(p.productType) ?? 0) + 1);
+  }
+  const marcaParaTipo = new Map<string, ProductType>();
+  for (const [m, v] of votos) {
+    const ord = [...v].sort((a, b) => b[1] - a[1]);
+    const total = ord.reduce((s, x) => s + x[1], 0);
+    if (ord[0][1] / total >= CONSENSO_MIN && ord[0][1] >= PRODUTOS_MIN) {
+      marcaParaTipo.set(m, ord[0][0] as ProductType);
+    }
+  }
+  console.log(`marcas com tipo consensual: ${marcaParaTipo.size}`);
+
   const escrever: Array<{ id: string; tipo: ProductType; conf: number; fonte: string }> = [];
   const porTipo = new Map<string, number>();
   const porFonte = new Map<string, number>();
   let semSinal = 0;
   let abaixoLimiar = 0;
+  let porConsenso = 0;
 
   for (const r of rows) {
     const res = classifyProductType({
@@ -102,23 +151,35 @@ async function main() {
       hasGrupoHomogeneo: r.grupoHomogeneo != null,
     });
 
-    if (res.productType === "OUTRO") {
+    let productType = res.productType;
+    let confidence = res.confidence;
+    let fonte: string = res.classificationSource;
+
+    // O classificador não viu nada, mas a marca pode já estar decidida
+    // pelos irmãos. Confiança deliberadamente abaixo da de qualquer sinal
+    // regulamentar: é inferência por vizinhança, não facto sobre o produto.
+    if (productType === "OUTRO") {
+      const porMarca = marcaParaTipo.get(marcaDe(r.designacao));
+      if (porMarca) {
+        productType = porMarca;
+        confidence = 0.75;
+        fonte = "BRAND_CONSENSUS";
+        porConsenso++;
+      }
+    }
+
+    if (productType === "OUTRO") {
       semSinal++;
       continue;
     }
-    if (res.confidence < MIN_CONFIDENCE) {
+    if (confidence < MIN_CONFIDENCE) {
       abaixoLimiar++;
       continue;
     }
 
-    escrever.push({
-      id: r.id,
-      tipo: res.productType,
-      conf: res.confidence,
-      fonte: res.classificationSource,
-    });
-    porTipo.set(res.productType, (porTipo.get(res.productType) ?? 0) + 1);
-    porFonte.set(res.classificationSource, (porFonte.get(res.classificationSource) ?? 0) + 1);
+    escrever.push({ id: r.id, tipo: productType, conf: confidence, fonte });
+    porTipo.set(productType, (porTipo.get(productType) ?? 0) + 1);
+    porFonte.set(fonte, (porFonte.get(fonte) ?? 0) + 1);
   }
 
   const pad = (n: number) => String(n).padStart(6);

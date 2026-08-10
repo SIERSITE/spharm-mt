@@ -56,10 +56,10 @@ function check(
 
 console.log("=== volume de embalagem NÃO é dosagem (regressão v1.5) ===");
 // Produtos reais do catálogo, todos classificados MEDICAMENTO antes da v1.5.
-// Fica OUTRO — sem marca conhecida e "Ch" é ambíguo (champô vs chá). O que
-// importa aqui é que 200ml não o torna MEDICAMENTO.
-check("champô 200ml", base("Tricovel Tricoage 45+ Ch Fortificante 200ml"), "OUTRO", { semDosagem: true });
-check("emoliente 15g", base("Neostrata Skin Ac Line Lift St 2 Emol 15g"), "OUTRO", { semDosagem: true });
+// Tricovel entrou no dicionário de marcas; o que este caso fixa é que os
+// 200ml continuam a ser embalagem e não dosagem.
+check("champô 200ml", base("Tricovel Tricoage 45+ Ch Fortificante 200ml"), "DERMOCOSMETICA", { semDosagem: true });
+check("emoliente 15g", base("Neostrata Skin Ac Line Lift St 2 Emol 15g"), "DERMOCOSMETICA", { semDosagem: true });
 check("spray 400ml", base("Pic Solution Gelo Inst Spray 400ml"), "OUTRO", { semDosagem: true });
 check("gel de banho 300ml", base("Policalm Gel Banho 300ml"), "HIGIENE_CUIDADO", { semDosagem: true });
 check("creme de bebé 200ml", base("Klorane Bebe Cr Hidrat Vit 200ml"), "DERMOCOSMETICA", { semDosagem: true });

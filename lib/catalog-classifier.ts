@@ -190,6 +190,9 @@ const KEYWORDS_SUPLEMENTO = new Set([
   "l-carnitina", "l carnitina", "triptofano", "lisina",
   "astaxantina", "luteina", "licopeno", "resveratrol",
   // Marcas de suplementos alimentares (Maio 2026 — adicionado para
+  // Nutrição clínica e suplementos presentes neste catálogo
+  "fresubin", "fortimel", "resource", "nutrisens", "aquilea", "easyslim",
+  "depuralina", "arkocapsulas", "absorvit", "centrum", "supradyn",
   // detecção de produtos mis-classificados como MEDICAMENTO)
   "solgar",
 ]);
@@ -218,6 +221,19 @@ const KEYWORDS_DERMOCOSMETICA = new Set([
   "tonico facial", "micellar", "micelar",
   "bb cream", "cc cream",
   "autobronzeador", "bronzeador", "after sun",
+  // Marcas presentes neste catálogo (Agosto 2026). Dicionário fechado e
+  // curado a partir das marcas realmente existentes no universo por
+  // classificar — não é especulação sobre o mercado.
+  "lrposay", "dercos", "rene furterer", "furterer", "babe", "elancyl",
+  "aveeno", "biomaris", "neostrata", "heliocare", "heliocare360",
+  "ureadin", "martiderm", "letiat4", "letibalm", "endocare", "galenic",
+  "apoteca", "savaii", "halibut", "oleoban", "lauroderme", "barral",
+  "piz buin", "epitheliu", "letisr", "leti",
+  // Capilar e coloração — cosmética na taxonomia interna
+  "tricovel", "bioscalin", "phytocolor", "phytokeratine", "pharmastyle",
+  "vitaliacolor", "ecrinal",
+  // Gama TH (Th Pharma) — cosmética, solar, verniz, maquilhagem
+  "th pharma", "th vitalia", "th sun", "th nailvarnish", "th matte",
   "limpeza facial", "esfoliante", "mascara facial",
 ]);
 
@@ -234,6 +250,10 @@ const KEYWORDS_DISPOSITIVO_MEDICO = new Set([
   "tira de glicemia", "tiras de glicemia", "tiras reativas",
   "aparelho auditivo", "saco de ostomia", "ostomia",
   "colchao antiescaras", "almofada antiescaras",
+  // Marcas de dispositivos e consumíveis presentes neste catálogo
+  "masteraid", "cpss", "nexcare", "urgo", "molicare", "tena", "hartmann",
+  "saco gelo", "rolltex", "rollflex", "preservativo", "preserv", "durex",
+  "control senses",
   "libre", "freestyle libre",
 ]);
 
@@ -248,6 +268,9 @@ const KEYWORDS_HIGIENE_CUIDADO = new Set([
   "creme depilatorio", "depilacao",
   "absorvente", "tampao",
   "gel intimo", "higiene intima",
+  // Marcas de higiene oral e íntima presentes neste catálogo
+  "gum", "elgydium", "sensodyne", "fluocaril", "lacer", "corega",
+  "curaprox", "kin", "oral b", "lactacyd", "saugella", "dentifrica",
   "lenco humido", "toalhete",
 ]);
 
@@ -260,6 +283,9 @@ const KEYWORDS_ORTOPEDIA = new Set([
   "meias de compressao", "meias compressao",
   "tala", "talas", "ortotese",
   "bengala", "andarilho", "cadeira de rodas",
+  // Marcas de ortopedia e compressão presentes neste catálogo
+  "ibici", "juzo", "mediven", "futuro", "peeth", "epitact", "aquamed",
+  "cotoveleira", "cotov", "pulso elast", "joelho elast", "segreta",
   "sapato ortopedico",
 ]);
 
@@ -269,6 +295,11 @@ const KEYWORDS_PUERICULTURA = new Set([
   "leite infantil", "leite em po para bebe", "leite para bebe",
   "papa", "papinha",
   "creme de muda fraldas", "pomada muda fraldas", "pomada fralda",
+  // Marcas de puericultura e leites infantis presentes neste catálogo
+  "nutriben", "suavinex", "nuk", "avent", "aptamil", "novalac", "miltina",
+  "medela", "holle",
+  // Abreviaturas do ERP: "CHUP GOTA FUN +4M", "TET FISIOL", "BIB FISIOL"
+  "chup", "tet", "bib",
   "colonia bebe", "creme bebe", "gel bebe", "shampoo bebe",
 ]);
 
