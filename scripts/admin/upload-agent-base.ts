@@ -20,12 +20,14 @@
  *
  *   npm run agent:publish-base -- --dest /opt/spharmmt/agent-base
  *
- * Uso:
- *   # auto-detecta o único spharmmt-agent-base-rev*.zip em dist-agent/
- *   npm run agent:publish-base
+ * Uso (self-hosted — o caminho normal):
+ *   npm run agent:publish-base -- --dest /opt/spharmmt/agent-base
  *
  *   # ou ficheiro explícito
- *   npm run agent:publish-base -- --file dist-agent/spharmmt-agent-base-rev26.zip
+ *   npm run agent:publish-base -- --file dist-agent/spharmmt-agent-base-rev46.zip --dest /opt/spharmmt/agent-base
+ *
+ * Publicar na Vercel Blob exige --blob explícito. A plataforma de
+ * produção é self-hosted e não deve depender de object storage externo.
  *
  * Env:
  *   BLOB_READ_WRITE_TOKEN   token RW do Blob store (vercel_blob_rw_...).
@@ -93,6 +95,8 @@ async function main(): Promise<void> {
       // Não é um comando novo: é o mesmo `agent:publish-base` com outro
       // destino, para que exista UM sítio onde se publica o agent.
       dest: { type: "string" },
+      // Publicar na Vercel Blob. Explícito de propósito — ver nota abaixo.
+      blob: { type: "boolean", default: false },
       // Nome com que fica no destino. O default é estável de propósito:
       // a configuração (AGENT_BASE_ZIP_URL) não muda a cada revisão, e a
       // revisão fica registada dentro do próprio pacote.
@@ -140,7 +144,38 @@ async function main(): Promise<void> {
     return;
   }
 
-  // ── Publicação na Vercel Blob (modo original) ───────────────────────
+  // ── Publicação na Vercel Blob ───────────────────────────────────────
+  //
+  // A plataforma de produção é self-hosted. O ZIP base do agent é servido
+  // pelo nginx em https://admin.spharmmt.com/agent-base/, e o
+  // AGENT_BASE_ZIP_URL é gerado pelo install-platform.sh — não há nada a
+  // configurar por release.
+  //
+  // Este caminho já foi o default, e por isso foi corrido duas vezes por
+  // engano depois de a plataforma ter deixado de usar a Vercel. Passa a
+  // exigir `--blob` explícito: um erro de memória deixa de bastar para
+  // reintroduzir uma dependência externa na arquitectura.
+  if (!values.blob) {
+    fail(
+      [
+        "publicar na Vercel Blob exige --blob explicito.",
+        "",
+        "  A plataforma e self-hosted. Para publicar o agent base:",
+        "",
+        "    scp dist-agent/spharmmt-agent-base-rev<N>.zip deploy@<vps>:/tmp/",
+        "    sudo install -m 0644 -o deploy -g spharmmt \\",
+        "      /tmp/spharmmt-agent-base-rev<N>.zip \\",
+        "      /opt/spharmmt/agent-base/spharmmt-agent-base.zip",
+        "",
+        "  Ou, com acesso ao directorio montado:",
+        "    npm run agent:publish-base -- --dest /opt/spharmmt/agent-base",
+        "",
+        "  O nome do ficheiro e ESTAVEL: a revisao vive dentro do pacote,",
+        "  nunca no URL.",
+      ].join("\n"),
+    );
+  }
+
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
     fail(
