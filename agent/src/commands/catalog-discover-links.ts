@@ -55,7 +55,19 @@ type Tabela = {
   fksSaida: Fk[];
   fksEntrada: Fk[];
   amostra: Array<Record<string, unknown>>;
-  ligacoesAStocks?: Array<{ coluna: string; contra: string; testados: number; casam: number; pct: string }>;
+  ligacoesAStocks?: Array<{
+    coluna: string;
+    contra: string;
+    testados: number;
+    casam: number;
+    pct: string;
+    /** Linhas totais / valores distintos / máximo de linhas por valor. */
+    linhasTotais: number;
+    valoresDistintos: number;
+    maxLinhasPorValor: number;
+    /** 1:1 quando cada valor aparece uma vez; N:1 multiplica o produto. */
+    cardinalidade: string;
+  }>;
 };
 
 async function q<T>(pool: SqlPool, text: string, p?: { n: string; v: string }): Promise<T[]> {
@@ -184,12 +196,36 @@ export async function catalogDiscoverLinks(): Promise<number> {
             const testados = Number(r[0]?.testados ?? 0);
             const casam = Number(r[0]?.casam ?? 0);
             if (testados > 0 && casam > 0) {
+              // Fan-out: sem isto não se distingue uma ligação 1:1 de uma
+              // que multiplica cada produto por N linhas. Um JOIN cego a
+              // uma relação N:1 duplica o produto no resultado, e o
+              // sintoma só aparece depois de escrever.
+              const card = await q<{ total: number; distintos: number; maxPorValor: number }>(
+                pool,
+                // SUM(n) e nao COUNT(*): o subselect ja agrupa, portanto
+                // COUNT(*) contaria valores distintos e nao linhas.
+                `SELECT ISNULL(SUM(n), 0) AS total,
+                        COUNT(*) AS distintos,
+                        ISNULL(MAX(n), 0) AS maxPorValor
+                 FROM (SELECT [${c.coluna}] AS v, COUNT(*) AS n
+                       FROM [${sch}].[${tab}] WITH (NOLOCK)
+                       WHERE [${c.coluna}] IS NOT NULL
+                       GROUP BY [${c.coluna}]) g`,
+              );
+              const total = Number(card[0]?.total ?? 0);
+              const distintos = Number(card[0]?.distintos ?? 0);
+              const maxPorValor = Number(card[0]?.maxPorValor ?? 0);
               t.ligacoesAStocks.push({
                 coluna: c.coluna,
                 contra: `Stocks.[${alvo}]`,
                 testados,
                 casam,
                 pct: `${((casam / testados) * 100).toFixed(1)}%`,
+                linhasTotais: total,
+                valoresDistintos: distintos,
+                maxLinhasPorValor: maxPorValor,
+                cardinalidade:
+                  maxPorValor <= 1 ? "1:1 (nao multiplica)" : `N:1 (ate ${maxPorValor} linhas por valor)`,
               });
             }
           }
@@ -207,7 +243,10 @@ export async function catalogDiscoverLinks(): Promise<number> {
       for (const f of t.fksSaida) console.log(`   FK-> [${f.deColuna}] -> ${f.paraTabela}.[${f.paraColuna}]`);
       for (const f of t.fksEntrada) console.log(`   FK<- ${f.paraTabela}.[${f.paraColuna}] <- [${f.deColuna}]`);
       for (const l of t.ligacoesAStocks ?? []) {
-        console.log(`   LIGA? [${l.coluna}] vs ${l.contra}: ${l.casam}/${l.testados} (${l.pct})`);
+        console.log(
+          `   LIGA? [${l.coluna}] vs ${l.contra}: ${l.casam}/${l.testados} (${l.pct}) ` +
+            `| ${l.valoresDistintos} distintos de ${l.linhasTotais} | ${l.cardinalidade}`,
+        );
       }
       for (const r of t.amostra.slice(0, 3)) console.log(`   ex: ${JSON.stringify(r).slice(0, 180)}`);
     }
