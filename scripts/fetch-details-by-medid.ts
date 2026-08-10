@@ -16,7 +16,8 @@
  * Defaults:
  *   --parallel=3        (workers concorrentes)
  *   --rate-limit-ms=300 (cada worker espera 300ms entre requests; 3×=10/s)
- *   --resume            (skip MED_IDs já em details file)
+ *   (retoma sempre)     MED_IDs já colhidos são saltados
+ *   --fresh             descarta o ficheiro e recomeça do zero (destrutivo)
  *   --filter=ervp       ("ervp" = cross-match com Produto ERP em Outros Medicamentos;
  *                        "all" = todos; default "ervp")
  *
@@ -53,7 +54,10 @@ const DEFAULT_RATE_LIMIT_MS = 300;
 type Args = {
   parallel: number;
   rateLimitMs: number;
+  /** @deprecated retomar é o default; a flag é aceite como no-op. */
   resume: boolean;
+  /** Descartar o que já foi colhido e recomeçar do zero. Explícito. */
+  fresh: boolean;
   limit: number | null;
   filter: "ervp" | "all";
   dryRun: boolean;
@@ -63,14 +67,16 @@ function parseArgs(): Args {
   const out: Args = {
     parallel: DEFAULT_PARALLEL,
     rateLimitMs: DEFAULT_RATE_LIMIT_MS,
-    resume: false,
+    resume: true,
+    fresh: false,
     limit: null,
     filter: "ervp",
     dryRun: false,
   };
   for (const a of process.argv.slice(2)) {
     if (a === "--dry-run") out.dryRun = true;
-    else if (a === "--resume") out.resume = true;
+    else if (a === "--resume") out.resume = true; // no-op: já é o default
+    else if (a === "--fresh") out.fresh = true;
     else if (a.startsWith("--parallel=")) {
       const n = parseInt(a.split("=")[1], 10);
       if (!isNaN(n) && n >= 1 && n <= 10) out.parallel = n;
@@ -388,9 +394,23 @@ async function main() {
     console.log(`    Limit aplicado: ${queue.length}`);
   }
 
-  // Resume: skip já feitos
-  const details = args.resume ? loadDetails() : emptyDetails();
-  if (args.resume) {
+  // Retomar é o comportamento por omissão, e tem de ser.
+  //
+  // Antes, `--resume` era opt-in e uma corrida sem a flag começava de
+  // `emptyDetails()` e reescrevia o ficheiro por cima — 5 242 detalhes
+  // (~24 min de crawl ao INFARMED) desapareciam em silêncio, sem aviso
+  // nem confirmação. Aconteceu. Só havia como recuperar porque o ficheiro
+  // está em git.
+  //
+  // Recomeçar do zero passa a exigir `--fresh`, explícito. `--resume`
+  // continua aceite e é no-op, para não partir invocações existentes.
+  const details = args.fresh ? emptyDetails() : loadDetails();
+  if (args.fresh && Object.keys(loadDetails().details).length > 0) {
+    console.log(
+      `    --fresh: a descartar ${Object.keys(loadDetails().details).length} detalhes já colhidos.`,
+    );
+  }
+  {
     const alreadyDone = new Set(Object.keys(details.details).filter((k) => !details.details[k].error));
     queue = queue.filter((e) => !alreadyDone.has(String(e.medId)));
     console.log(`    Resume: ${alreadyDone.size} já feitos; restam ${queue.length}`);

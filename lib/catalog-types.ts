@@ -45,6 +45,13 @@ export type ClassificationSource =
   | "ATC_CODE"     // codigoATC presente
   | "TIPO_ARTIGO"  // tipoArtigo mapeado na tabela de equivalências
   | "TEXT_PATTERN" // padrão na designação (dosagem, forma, keywords)
+  /**
+   * Dicionário fechado de fabricantes de material clínico, com marca
+   * reconhecida no início da designação e referência do fabricante no
+   * texto. Não é "text pattern": o vocabulário é uma lista curada e
+   * finita de fabricantes, não inferência sobre palavras soltas.
+   */
+  | "MANUFACTURER_DICT"
   | "EXTERNAL"     // confirmado por fonte externa
   | "MANUAL";      // definido manualmente por utilizador
 
