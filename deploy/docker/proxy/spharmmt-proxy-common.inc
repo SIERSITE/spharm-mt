@@ -46,7 +46,19 @@ proxy_set_header Connection        "";
 # A aplicação nunca deve receber estes vindos de fora: são calculados
 # aqui, e aceitá-los do cliente deixaria qualquer um escolher o seu
 # próprio tenant.
-proxy_set_header X-Tenant-Slug   "";
+#
+# EXCEPÇÃO, para a API dos Agents (/api/ingest/, /api/outbox/): aí o
+# X-Tenant-Slug NÃO é privilégio, é credencial. A chave é comparada por
+# bcrypt contra o hash DAQUELE tenant, portanto declarar um slug sem ter
+# a chave correspondente não dá acesso a nada. Apagá-lo cegamente fazia
+# toda a API dos Agents responder 401 missing_credentials — a chave
+# chegava, o tenant não.
+#
+# O valor vem de $spharmmt_tenant_slug, que cada `server` põe a "" e só
+# as `location` da API dos Agents preenchem. Usar uma variável em vez de
+# repetir esta lista dentro de cada location evita a armadilha descrita
+# a seguir.
+proxy_set_header X-Tenant-Slug   $spharmmt_tenant_slug;
 proxy_set_header X-Tenant-Source "";
 
 # ATENÇÃO, e não é intuitivo: em nginx, UM `proxy_set_header` dentro de
