@@ -53,3 +53,6 @@ notes/*.final-html.html
 
 .vercel
 .env*.local
+
+# Catalog builder artefacts (cache, checkpoint, logs — regenerable)
+/.catalog-builder

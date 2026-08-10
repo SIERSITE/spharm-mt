@@ -34,7 +34,13 @@ import type {
 // 1.4 (Abril 2026): policy de limiares relaxada — persistência grava com
 // confidence ≥ 0.50 e marca VERIFIED a partir de 0.75. Bump força weekly
 // reverify a re-avaliar produtos classificados antes desta política.
-export const CLASSIFICATION_VERSION = "1.4";
+// 1.5 (Agosto 2026): DOSAGE_PATTERN deixa de aceitar `ml`/`g` isolados —
+// eram volume de embalagem, não dosagem, e classificavam 4 655 produtos de
+// dermocosmética/higiene/dispositivos como MEDICAMENTO. Acrescentado o
+// vocabulário abreviado de forma farmacêutica do ERP (COMP, CAPS, XAR, AMP,
+// SUP, ...), comparado só por token exacto. Novos sinais regulamentares:
+// flagGenerico, hasRegulatoryRecord, hasGrupoHomogeneo.
+export const CLASSIFICATION_VERSION = "1.5";
 
 // ─── Tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -44,6 +50,18 @@ export type ProductClassificationInput = {
   flagMSRM: boolean;
   flagMNSRM: boolean;
   codigoATC: string | null;
+  /**
+   * Genérico segundo o ERP (Stocks). Um genérico é, por definição, um
+   * medicamento — flag regulamentar, não inferência textual.
+   */
+  flagGenerico?: boolean;
+  /**
+   * O CNP existe no RegulatoryRecord (INFARMED). Registo regulamentar:
+   * se o INFARMED conhece o CNP, é medicamento.
+   */
+  hasRegulatoryRecord?: boolean;
+  /** Grupo homogéneo atribuído — só existe para medicamentos. */
+  hasGrupoHomogeneo?: boolean;
   /**
    * Sinais internos agregados a partir de ProdutoFarmacia.*Origem.
    *
@@ -68,11 +86,31 @@ function normalizeKey(s: string): string {
 
 // ─── Vocabulários ─────────────────────────────────────────────────────────────
 
-/** Padrão de dosagem farmacêutica: número + unidade clínica */
+/**
+ * DOSAGEM CLÍNICA (potência) — número + unidade de *quantidade de substância*.
+ *
+ * NÃO confundir com o volume/peso da embalagem. Um champô de "200ml" e um
+ * creme de "15g" não têm dosagem nenhuma: `200ml` é o conteúdo do frasco.
+ * Aceitar `ml`/`g` isolados como dosagem classificava dermocosmética,
+ * higiene e dispositivos como MEDICAMENTO em massa (medido: 4 655 produtos,
+ * ex. "Tricovel Tricoage Ch Fortificante 200ml", "Pic Solution Spray 400ml").
+ *
+ * Só conta como dosagem:
+ *   - unidade de massa/actividade sub-grama: mg, mcg, µg, UI, IU, mEq, mmol
+ *   - percentagem: 0,5%
+ *   - concentração explícita (razão): 10 mg/ml, 40 mg/g, 25 mcg/dose, 9 mg/ml
+ * `g` e `ml` só contam do lado ESQUERDO de uma razão (ex. "1 g/100 ml").
+ */
 const DOSAGE_PATTERN =
-  /\b\d+[\.,]?\d*\s*(mg|mcg|µg|g\b|ml\b|ui\b|iu\b|meq|mmol|%\b)(\s*\/\s*(ml|g|mg|l))?\b/i;
+  /\b\d+[.,]?\d*\s*(?:(?:mg|mcg|µg|ug|ui|iu|meq|mmol)\b|%|(?:g|ml|l)\s*\/\s*\d*[.,]?\d*\s*(?:ml|l|g|mg|dose|kg|m2|h)\b)/i;
 
-/** Formas farmacêuticas que indicam MEDICAMENTO com alta confiança */
+/** Volume/peso da embalagem — explicitamente NÃO é sinal de medicamento. */
+const PACKAGE_SIZE_PATTERN = /\b\d+[.,]?\d*\s*(?:ml|l|g|kg)\b/i;
+
+/**
+ * Formas farmacêuticas por extenso que indicam MEDICAMENTO com alta confiança.
+ * Comparadas por token E por substring (são longas: não geram falsos positivos).
+ */
 const MED_FORMS_HIGH = new Set([
   "comprimido", "comprimidos", "capsula", "capsulas",
   "xarope", "supositorio", "supositórios", "injetavel", "injetável",
@@ -82,6 +120,31 @@ const MED_FORMS_HIGH = new Set([
   "inalador", "aerossol para inalacao", "po para inalacao",
   "adesivo transdermico", "sistema transdermico",
   "ovulos", "ovulo", "globulos", "globulo",
+]);
+
+/**
+ * Abreviaturas de forma farmacêutica usadas pelo ERP português. O catálogo
+ * real escreve "SIRDALUD MR CAPS LM 6 MG X 30", nunca "cápsula" por extenso —
+ * sem este vocabulário o classificador não via forma farmacêutica nenhuma.
+ *
+ * Comparadas SÓ por token exacto, nunca por substring: "amp" apanharia
+ * "shampoo"/"campo", "sup" apanharia "superfoods", "comp" apanharia
+ * "composição". A tokenização já parte por espaços e pontuação, por isso
+ * "Comp." e "CAPS," chegam aqui como "comp" e "caps".
+ */
+const MED_FORMS_ABBREV = new Set([
+  "comp", "comps", "compr", "comprs", "cp", "cps",
+  "caps", "capsul",
+  "sup", "supos", "supo",
+  "amp", "amps",
+  "xar", "xpe",
+  "inj", "injet",
+  "drag", "drg",
+  "pst", "past",
+  "gran", "granul",
+  "eferv", "efer",
+  "lib prol", "comp rev", "sol inj", "susp inj", "sol oral", "po sol",
+  "gastrorresistente", "revest",
 ]);
 
 /** Formas que podem ser medicamento OU cosmético — não decisivas sozinhas */
@@ -340,6 +403,24 @@ function classifyCore(
     return { productType: type, confidence, classificationSource: source, classificationVersion: CLASSIFICATION_VERSION, signals, hints: generateHints(type, input.designacao) };
   }
 
+  // 2b. Registo no INFARMED pelo CNP — ground truth regulamentar.
+  if (input.hasRegulatoryRecord) {
+    signals.push("regulatoryRecord");
+    return { productType: "MEDICAMENTO", confidence: 0.96, classificationSource: "ATC_CODE", classificationVersion: CLASSIFICATION_VERSION, signals, hints: generateHints("MEDICAMENTO", input.designacao) };
+  }
+
+  // 2c. Grupo homogéneo — atribuído pelo INFARMED só a medicamentos.
+  if (input.hasGrupoHomogeneo) {
+    signals.push("grupoHomogeneo");
+    return { productType: "MEDICAMENTO", confidence: 0.95, classificationSource: "ATC_CODE", classificationVersion: CLASSIFICATION_VERSION, signals, hints: generateHints("MEDICAMENTO", input.designacao) };
+  }
+
+  // 2d. Genérico segundo o ERP — por definição, medicamento.
+  if (input.flagGenerico) {
+    signals.push("flagGenerico");
+    return { productType: "MEDICAMENTO", confidence: 0.95, classificationSource: "FLAG_MSRM", classificationVersion: CLASSIFICATION_VERSION, signals, hints: generateHints("MEDICAMENTO", input.designacao) };
+  }
+
   // 3. tipoArtigo mapeável
   if (input.tipoArtigo) {
     const mapped = TIPO_ARTIGO_MAP[normalizeKey(input.tipoArtigo)];
@@ -357,6 +438,12 @@ function classifyCore(
   const hasDosagePattern = DOSAGE_PATTERN.test(input.designacao);
   if (hasDosagePattern) signals.push("dosage_pattern");
 
+  // Volume/peso de embalagem registado como sinal explicitamente NEUTRO, para
+  // ficar visível em auditoria que foi visto e descartado.
+  if (!hasDosagePattern && PACKAGE_SIZE_PATTERN.test(input.designacao)) {
+    signals.push("package_size_only");
+  }
+
   let hasMedFormHigh = false;
   let hasMedFormAmbiguous = false;
   for (const form of MED_FORMS_HIGH) {
@@ -364,6 +451,16 @@ function classifyCore(
       hasMedFormHigh = true;
       signals.push(`med_form_high:${form}`);
       break;
+    }
+  }
+  // Abreviaturas do ERP: token exacto apenas (ver nota em MED_FORMS_ABBREV).
+  if (!hasMedFormHigh) {
+    for (const abbrev of MED_FORMS_ABBREV) {
+      if (tokens.has(abbrev)) {
+        hasMedFormHigh = true;
+        signals.push(`med_form_abbrev:${abbrev}`);
+        break;
+      }
     }
   }
   if (!hasMedFormHigh) {
@@ -397,8 +494,12 @@ function classifyCore(
   if (scoreOrt >= 1)  return build("ORTOPEDIA", 0.80, source, signals, input.designacao);
   if (scoreDM >= 1)   return build("DISPOSITIVO_MEDICO", 0.80, source, signals, input.designacao);
 
+  // Um suplemento em cápsulas continua a ser um suplemento. A forma
+  // farmacêutica não desempata aqui: "SOLGAR VIT K2 100MCG 50 CAPS" e
+  // "Superfoods Spirulina Gold Comp X180" têm forma E dosagem e não são
+  // medicamentos. Quando são mesmo medicamento, um sinal regulamentar
+  // (MSRM/ATC/genérico) já resolveu isto acima e nunca chegamos aqui.
   if (scoreSupl >= 1) {
-    if (hasMedFormHigh && scoreSupl < 2) return build("MEDICAMENTO", 0.75, source, signals, input.designacao);
     return build("SUPLEMENTO", scoreSupl >= 2 ? 0.82 : 0.72, source, signals, input.designacao);
   }
 
