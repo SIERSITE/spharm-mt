@@ -30,6 +30,7 @@ set -Eeuo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 PUBLIC_URL=""
+ADMIN_URL=""
 DEPLOY_USER="$SPHARMMT_USER"
 DEPLOY_GROUP="$SPHARMMT_GROUP"
 SKIP_COMPOSE=0
@@ -39,7 +40,11 @@ usage() {
   cat <<EOF
 Uso: sudo $0 [opções]
 
-  --public-url <url>       URL público da plataforma (ex.: https://app.spharmmt.app).
+  --public-url <url>       URL público da plataforma (ex.: https://app.spharmmt.com).
+  --admin-url <url>        URL do domínio ADMINISTRATIVO (ex.: https://admin.spharmmt.com).
+                           É por aqui que o Wizard descarrega o ZIP base do agent.
+                           Omitido: derivado do --public-url trocando o primeiro
+                           rótulo por "admin" (app.x.com -> admin.x.com).
                            Sem domínio ainda? Deixa em branco — fica http://<ip>
                            e o cookie de sessão continua não-secure (correcto para HTTP).
   --deploy-user <nome>     Default: ${DEPLOY_USER}
@@ -58,6 +63,7 @@ while [ $# -gt 0 ]; do
   if parse_common_flag "$1"; then shift; continue; fi
   case "$1" in
     --public-url) PUBLIC_URL=${2:?}; shift 2 ;;
+    --admin-url) ADMIN_URL=${2:?}; shift 2 ;;
     --deploy-user) DEPLOY_USER=${2:?}; shift 2 ;;
     --skip-compose) SKIP_COMPOSE=1; shift ;;
     --rotate-cron-secret) ROTATE_CRON_SECRET=1; shift ;;
@@ -313,6 +319,10 @@ write_conf() {
   [ -r "$SPHARMMT_CONF_FILE" ] && existing_url=$(awk -F= '/^SPHARMMT_PUBLIC_URL=/ {gsub(/"/,"",$2); print $2}' "$SPHARMMT_CONF_FILE" || true)
   [ -z "$PUBLIC_URL" ] && PUBLIC_URL="$existing_url"
 
+  local existing_admin=""
+  [ -r "$SPHARMMT_CONF_FILE" ] && existing_admin=$(awk -F= '/^SPHARMMT_ADMIN_URL=/ {gsub(/"/,"",$2); print $2}' "$SPHARMMT_CONF_FILE" || true)
+  [ -z "$ADMIN_URL" ] && ADMIN_URL="$existing_admin"
+
   write_file "$SPHARMMT_CONF_FILE" 0644 root:root <<EOF
 # /etc/spharmmt/platform.conf
 # Configuração central lida por TODOS os scripts de deploy do SPharm.MT.
@@ -358,6 +368,11 @@ SPHARMMT_APP_CONTAINER="${SPHARMMT_APP_CONTAINER}"
 SPHARMMT_PROXY_CONTAINER="${SPHARMMT_PROXY_CONTAINER}"
 
 SPHARMMT_PUBLIC_URL="${PUBLIC_URL}"
+# Domínio ADMINISTRATIVO. Separado do público de propósito: o nginx só
+# serve /api/admin/ e /agent-base/ aqui, e devolve 404 a ambos no domínio
+# da aplicação. Derivar o ZIP base do agent a partir do URL público dava
+# 404 ao Wizard, silenciosamente.
+SPHARMMT_ADMIN_URL="${ADMIN_URL}"
 
 # Retenção de backups (ver backup-platform.sh)
 BACKUP_KEEP_DAILY=14
@@ -520,6 +535,12 @@ write_env() {
     public_url="http://${ip:-127.0.0.1}"
   fi
 
+  # Ver derive_admin_url() em lib/common.sh: o /agent-base/ e o /api/admin/
+  # só existem no domínio administrativo, e o URL público dava 404.
+  local admin_url
+  admin_url=$(derive_admin_url "$public_url" "$ADMIN_URL")
+  info "dominio administrativo (ZIP base do agent): ${admin_url}"
+
   # Origens das Server Actions. Preserva o que o operador já lá tiver:
   # esta lista é editada à mão sempre que entra um domínio novo, e
   # sobrepô-la a cada reinstalação apagaria esse trabalho.
@@ -652,13 +673,16 @@ TENANT_FALLBACK_ENABLED=1
 #     spharmmt-agent-base-rev<N>.zip \\
 #     ${SPHARMMT_ROOT}/agent-base/spharmmt-agent-base.zip
 #
-# Assim a configuração não muda a cada revisão, e a revisão fica
-# registada dentro do próprio pacote. Enquanto não houver ficheiro lá, a
-# aba "Agent ZIP" do wizard diz que o servidor não devolveu baseAgentUrl.
+# A revisão NUNCA entra no URL. Vive dentro do pacote (manifest e
+# `agent --version`), e é só aí que deve ser lida. Um URL versionado
+# obrigaria a editar esta configuração a cada release, e os Wizards já
+# instalados continuariam a descarregar para sempre a revisão que estava
+# em vigor no dia em que foram configurados.
 #
-# Apontar a um object storage externo continua a ser possível: basta
-# substituir este valor por um URL absoluto.
-AGENT_BASE_ZIP_URL=${public_url}/agent-base/spharmmt-agent-base.zip
+# Servido pelo domínio ADMINISTRATIVO: o nginx devolve 404 a /agent-base/
+# no domínio da aplicação. Enquanto não houver ficheiro lá, a aba
+# "Agent ZIP" do wizard diz que o servidor não devolveu baseAgentUrl.
+AGENT_BASE_ZIP_URL=${admin_url}/agent-base/spharmmt-agent-base.zip
 
 # ── Recursos ─────────────────────────────────────────────────────────
 # 8 GB de RAM no total: ~2 GB Postgres, ~3 GB app, resto para SO e picos.

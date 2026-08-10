@@ -1204,3 +1204,58 @@ common_flags_help() {
     --help, -h       Esta ajuda
 EOF
 }
+
+# ── Domínio administrativo ───────────────────────────────────────────
+#
+# derive_admin_url <url_publico> [url_admin_explicito]
+#
+# O nginx serve /api/admin/ e /agent-base/ SÓ no domínio administrativo e
+# devolve 404 a ambos no domínio da aplicação. Derivar o ZIP base do agent
+# a partir do URL público dava um 404 ao Wizard — sem erro na instalação,
+# só um Wizard que não gera ZIPs.
+#
+# Ordem: explícito > convenção > URL público.
+#
+# A convenção troca o primeiro rótulo do host por "admin":
+#   https://app.spharmmt.com  ->  https://admin.spharmmt.com
+# Só se aplica a hosts com três ou mais rótulos. Em "exemplo.pt" não há
+# rótulo a substituir, e inventar "admin.exemplo.pt" seria adivinhar um
+# domínio que pode não existir nem ter certificado.
+#
+# Sem domínio (instalação por IP, túnel SSH, teste) não há separação de
+# domínios: admin e aplicação são o mesmo endereço e o /agent-base/ é
+# servido pelo vhost de diagnóstico. Devolver o URL público é aqui a
+# resposta certa, não um fallback defensivo.
+derive_admin_url() {
+  local public_url="${1:-}" explicit="${2:-}"
+  if [ -n "$explicit" ]; then printf '%s
+' "$explicit"; return 0; fi
+  case "$public_url" in
+    http://*|https://*) ;;
+    *) printf '%s
+' "$public_url"; return 0 ;;
+  esac
+  local scheme rest host hostname
+  scheme=${public_url%%://*}
+  rest=${public_url#*://}
+  host=${rest%%/*}
+  hostname=${host%%:*}   # sem porta
+
+  # Um IPv4 tem três pontos e casaria com o padrão de subdomínio:
+  # 164.132.85.211 viraria "admin.132.85.211", um endereço que não existe.
+  # Numa instalação por IP não há domínios nem separação de vhosts.
+  case "$hostname" in
+    *[!0-9.]*) ;;                                  # tem letras: é um nome
+    *) printf '%s
+' "$public_url"; return 0 ;;   # só dígitos e pontos: IP
+  esac
+
+  case "$hostname" in
+    admin.*) printf '%s
+' "$public_url" ;;
+    *.*.*)   printf '%s
+' "${scheme}://admin.${hostname#*.}${host#"$hostname"}" ;;
+    *)       printf '%s
+' "$public_url" ;;
+  esac
+}
