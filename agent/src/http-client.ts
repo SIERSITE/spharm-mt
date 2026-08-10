@@ -630,4 +630,15 @@ export type BootstrapBatchResponse = {
   skipped: Array<{ index: number; reason: string; externalId?: number }>;
   errors: Array<{ index: number; reason: string; externalId?: number; message: string }>;
   durationMs: number;
+  /**
+   * rev46 — contagens do enriquecimento do catálogo central a partir do
+   * ERP (DCI, ATC, Grupo Homogéneo, Fabricante). Opcional: só vem de
+   * servidores rev46+, e só quando houve candidatos.
+   */
+  catalogoErp?: {
+    candidatos: number;
+    preenchidos: Record<string, number>;
+    substituidos: Record<string, number>;
+    preservados: Record<string, number>;
+  };
 };

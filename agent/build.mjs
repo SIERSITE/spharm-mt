@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "45";
+const AGENT_REV = "46";
 
 function readGitShortCommit() {
   try {
@@ -209,6 +209,10 @@ function writeBatchWrappers() {
     "run-stock-preview.bat": "stock-preview",
     "run-movimentos-audit.bat": "movimentos-audit",
     "run-iva-audit.bat": "iva-audit",
+    // rev46 — localiza DCI, ATC, Grupo Homogéneo e Fabricante no schema do
+    // ERP. Read-only. Tem de correr ANTES do products-upload para se saber
+    // o que a instalação expõe.
+    "run-catalog-audit.bat": "catalog-audit",
     "run-health.bat": "health",
   };
   const preamble = [
@@ -959,11 +963,15 @@ function writeBatchWrappers() {
     `echo   - shrink em metade ate floor 10 quando os retries esgotam`,
     `echo   - "Failed to cancel request in 5000ms" tratado como transient`,
     `echo.`,
-    `echo Caso de uso primario: refresh ProdutoFarmacia.taxaIvaPercent`,
-    `echo sem ter de re-correr bootstrap-upload ou full-sync.`,
+    `echo Novo na rev46 - catalogo regulamentar do proprio ERP:`,
+    `echo   - DCI, ATC, Grupo Homogeneo e Fabricante lidos de dbo.Stocks`,
+    `echo   - colunas descobertas em runtime; ausente = NULL, nunca inventado`,
+    `echo   - no fim mostra quantos campos entraram no catalogo central`,
+    `echo   - nunca substitui dados de confianca igual ou superior`,
     `echo.`,
     `echo Requer: ENABLE_AGENT_BOOTSTRAP=1 no SaaS.`,
-    `echo Pre-requisito: run-iva-audit.bat OK ^(confirma dbo.IVA master + JOIN^).`,
+    `echo Pre-requisito 1: run-iva-audit.bat OK ^(confirma dbo.IVA master + JOIN^).`,
+    `echo Pre-requisito 2: run-catalog-audit.bat OK ^(mostra que campos existem^).`,
     `echo Usa a config actual do agent ^(SPHARMMT_FARMACIA^).`,
     `echo.`,
     `echo --- CONFIRMACAO ---`,
@@ -1792,7 +1800,8 @@ function writeReadme() {
     `  run-sales-summary-preview.bat   PREVIEW agregado por TipoDoc+EntidadeID + TOP 10 docs. Pergunta datas.`,
     `  run-bootstrap-dry-run.bat       DRY-RUN da 1a ingestao: payloads canonicos + counts + alerts. Pergunta datas.`,
     `  run-bootstrap-upload.bat        INGESTAO REAL para a SaaS. Pergunta datas E confirmacao explicita.`,
-    `  run-products-upload.bat         (rev45) Upload SO de produtos -> /bootstrap/products. NAO envia stock/sales. Batch 25 + retry+shrink. CONFIRMO.`,
+    `  run-catalog-audit.bat           (rev46) Auditoria READ-ONLY: localiza DCI, ATC, Grupo Homogeneo e Fabricante em dbo.Stocks e nas tabelas de lookup. Gera run\catalog-audit-<ts>.md. Correr ANTES de products-upload.`,
+    `  run-products-upload.bat         (rev46) Upload SO de produtos -> /bootstrap/products. NAO envia stock/sales. Batch 25 + retry+shrink. CONFIRMO.`,
     `  run-stock-upload.bat            Upload SO de stock (snapshot) -> /bootstrap/stock. NAO envia products/sales. CONFIRMO.`,
     `  run-full-sync-dry-run.bat       ONBOARDING preview: corre TODAS as fases sem escrever. Pergunta datas.`,
     `  run-full-sync-upload.bat        ONBOARDING completo REAL: produtos->...->agregacoes. Idempotente, retomavel. CONFIRMO.`,

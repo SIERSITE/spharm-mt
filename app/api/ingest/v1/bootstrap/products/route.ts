@@ -157,6 +157,15 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     fabricante: string | null;
   };
 
+  // Contagens do enriquecimento a partir do ERP, declaradas aqui para
+  // sobreviverem ao bloco try e chegarem à resposta.
+  let catalogoErp: {
+    candidatos: number;
+    preenchidos: Record<string, number>;
+    substituidos: Record<string, number>;
+    preservados: Record<string, number>;
+  } | null = null;
+
   // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
   //    sem CNP o produto não entra no catálogo.
   const accepted: Accepted[] = [];
@@ -243,6 +252,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       const escritos =
         Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +
         Object.values(erp.substituidos).reduce((x, y) => x + y, 0);
+      catalogoErp = erp;
       if (escritos > 0 || erp.candidatos > 0) {
         console.log(
           `[bootstrap/products] catálogo ERP: ${erp.candidatos} candidatos, ` +
@@ -391,5 +401,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     errors,
     durationMs,
   };
-  return NextResponse.json(response);
+  // rev46 — contagens do enriquecimento a partir do ERP, para o técnico
+  // ver no ecrã do agent quantos campos entraram, sem ir à base de dados.
+  // Campo extra e opcional: agents antigos ignoram-no.
+  return NextResponse.json(catalogoErp ? { ...response, catalogoErp } : response);
 });

@@ -258,10 +258,18 @@ type PipelineTotals = {
   skipped: number;
   errors: number;
   durationMs: number;
+  /** rev46 — campos do catálogo central escritos a partir do ERP. */
+  catalogo: { dci: number; codigoATC: number; grupoHomogeneo: number; fabricante: number };
+  /** Campos não tocados por já terem fonte de confiança igual ou superior. */
+  catalogoPreservados: number;
 };
 
 function emptyTotals(): PipelineTotals {
-  return { batches: 0, read: 0, accepted: 0, upserted: 0, skipped: 0, errors: 0, durationMs: 0 };
+  return {
+    batches: 0, read: 0, accepted: 0, upserted: 0, skipped: 0, errors: 0, durationMs: 0,
+    catalogo: { dci: 0, codigoATC: 0, grupoHomogeneo: 0, fabricante: 0 },
+    catalogoPreservados: 0,
+  };
 }
 
 function accumulate(t: PipelineTotals, r: BootstrapBatchResponse): void {
@@ -271,6 +279,13 @@ function accumulate(t: PipelineTotals, r: BootstrapBatchResponse): void {
   t.skipped += r.skipped.length;
   t.errors += r.errors.length;
   t.durationMs += r.durationMs;
+  const c = r.catalogoErp;
+  if (c) {
+    for (const campo of ["dci", "codigoATC", "grupoHomogeneo", "fabricante"] as const) {
+      t.catalogo[campo] += (c.preenchidos?.[campo] ?? 0) + (c.substituidos?.[campo] ?? 0);
+    }
+    t.catalogoPreservados += Object.values(c.preservados ?? {}).reduce((a, b) => a + b, 0);
+  }
 }
 
 export function renderTotals(label: string, t: PipelineTotals): void {
@@ -281,6 +296,17 @@ export function renderTotals(label: string, t: PipelineTotals): void {
   console.log(`  Skipped            : ${t.skipped}`);
   console.log(`  Errors             : ${t.errors}`);
   console.log(`  Tempo agregado SaaS: ${t.durationMs} ms`);
+  const cat = t.catalogo;
+  const totalCat = cat.dci + cat.codigoATC + cat.grupoHomogeneo + cat.fabricante;
+  if (totalCat > 0 || t.catalogoPreservados > 0) {
+    console.log(`  ── Catálogo central enriquecido a partir do ERP ──`);
+    console.log(`  DCI                : ${cat.dci}`);
+    console.log(`  ATC                : ${cat.codigoATC}`);
+    console.log(`  Grupo Homogeneo    : ${cat.grupoHomogeneo}`);
+    console.log(`  Fabricante         : ${cat.fabricante}`);
+    console.log(`  TOTAL campos       : ${totalCat}`);
+    console.log(`  Preservados        : ${t.catalogoPreservados} (fonte igual ou mais forte)`);
+  }
   if (t.errors > 0) console.log(`  ⚠ ${label}: ${t.errors} erros — ver detalhes acima`);
 }
 
