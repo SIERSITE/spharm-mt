@@ -30,13 +30,23 @@
    apanhar o momento certo. Basta uma conta que leia a base.
 
    Isto NÃO procura tabelas nem chaves. Procura a lógica.
+
+   ESTA É A ÚLTIMA TENTATIVA DE DESCOBERTA ESTRUTURAL. Se não produzir a
+   chave de ligação, segue-se o PASSO 1 e mais nada. Não há PASSO 0.1, nem
+   nova ferramenta, nem outra auditoria.
+
+   Correr os três blocos e enviar os três resultados como vêm. Não é
+   preciso ler nem interpretar SQL: os blocos já extraem o que interessa.
    --------------------------------------------------------------------------*/
 
+
+-- 0A · Que objectos mencionam os campos procurados.
+--      Uma linha por objecto. Se vier vazio, ir directo ao PASSO 1.
+
 SELECT
-    o.type_desc                              AS tipo,       -- VIEW / SQL_STORED_PROCEDURE / FUNCTION
+    o.type_desc                              AS tipo,   -- VIEW / PROCEDURE / FUNCTION
     SCHEMA_NAME(o.schema_id) + '.' + o.name  AS objecto,
-    LEN(m.definition)                        AS tamanho,
-    m.definition                             AS logica
+    LEN(m.definition)                        AS tamanho
 FROM sys.sql_modules AS m
 JOIN sys.objects     AS o ON o.object_id = m.object_id
 WHERE m.definition LIKE '%GrupoHom%'
@@ -49,13 +59,80 @@ WHERE m.definition LIKE '%GrupoHom%'
 ORDER BY tipo, objecto;
 GO
 
-/* Ler a coluna [logica] dos resultados. O que interessa é a forma como o
-   objecto liga Stocks aos quatro campos — tipicamente duas ou três linhas
-   de JOIN. Enviar essas linhas. O resto da definição não é preciso.
 
-   Zero linhas aqui NÃO quer dizer que a lógica não exista: pode estar na
-   aplicação em vez da base. Quer dizer apenas que não está guardada como
-   vista, procedimento ou função — e aí seguem-se os passos 1 a 4. */
+-- 0B · Que tabelas cada um desses objectos lê.
+--      Vem do próprio SQL Server, já resolvido. Sem parsing.
+
+SELECT DISTINCT
+    SCHEMA_NAME(o.schema_id) + '.' + o.name AS objecto,
+    d.referenced_entity_name                AS tabela_lida
+FROM sys.sql_modules                 AS m
+JOIN sys.objects                     AS o ON o.object_id = m.object_id
+JOIN sys.sql_expression_dependencies AS d ON d.referencing_id = m.object_id
+WHERE (m.definition LIKE '%GrupoHom%'
+    OR m.definition LIKE '%SPRAct%'
+    OR m.definition LIKE '%Generico%'
+    OR m.definition LIKE '%[^A-Za-z]DCI[^A-Za-z]%'
+    OR m.definition LIKE '%[^A-Za-z]ATC[^A-Za-z]%'
+    OR m.definition LIKE '%Substancia%'
+    OR m.definition LIKE '%GamaFabricante%')
+ORDER BY objecto, tabela_lida;
+GO
+
+
+-- 0C · A chave e os JOINs, extraídos automaticamente.
+--      Devolve só as linhas de FROM / JOIN / ON dessas definições — é onde
+--      vive a relação. O resto da definição (select list, filtros, UI) fica
+--      de fora de propósito.
+
+WITH numeros AS (
+    SELECT TOP (200000)
+           ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i
+    FROM sys.all_columns AS a CROSS JOIN sys.all_columns AS b
+),
+candidatos AS (
+    SELECT o.object_id,
+           SCHEMA_NAME(o.schema_id) + '.' + o.name AS objecto,
+           REPLACE(m.definition, CHAR(13), '') + CHAR(10) AS txt
+    FROM sys.sql_modules AS m
+    JOIN sys.objects     AS o ON o.object_id = m.object_id
+    WHERE m.definition LIKE '%GrupoHom%'
+       OR m.definition LIKE '%SPRAct%'
+       OR m.definition LIKE '%Generico%'
+       OR m.definition LIKE '%[^A-Za-z]DCI[^A-Za-z]%'
+       OR m.definition LIKE '%[^A-Za-z]ATC[^A-Za-z]%'
+       OR m.definition LIKE '%Substancia%'
+       OR m.definition LIKE '%GamaFabricante%'
+),
+linhas AS (
+    SELECT c.objecto,
+           n.i AS posicao,
+           LTRIM(RTRIM(SUBSTRING(
+               c.txt, n.i,
+               CHARINDEX(CHAR(10), c.txt, n.i) - n.i))) AS linha
+    FROM candidatos AS c
+    JOIN numeros    AS n ON n.i <= LEN(c.txt)
+    WHERE n.i = 1 OR SUBSTRING(c.txt, n.i - 1, 1) = CHAR(10)
+)
+SELECT objecto, posicao, LEFT(linha, 500) AS linha
+FROM linhas
+WHERE linha <> ''
+  AND (linha LIKE '%JOIN%'
+    OR linha LIKE '%FROM %'
+    OR linha LIKE '% ON %'
+    OR linha LIKE '%GrupoHom%'
+    OR linha LIKE '%SPRAct%'
+    OR linha LIKE '%GamaFabricante%'
+    OR linha LIKE '%[^A-Za-z]DCI[^A-Za-z]%'
+    OR linha LIKE '%[^A-Za-z]ATC[^A-Za-z]%')
+ORDER BY objecto, posicao;
+GO
+
+/* Enviar 0A, 0B e 0C tal como saírem.
+
+   Zero linhas NÃO quer dizer que a lógica não exista: quer dizer que não
+   está guardada como vista, procedimento ou função. Nesse caso, PASSO 1 —
+   sem paragens intermédias. */
 
 
 /* -- PASSO 1 -----------------------------------------------------------------
