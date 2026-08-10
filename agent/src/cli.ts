@@ -65,7 +65,7 @@ import { movimentosAudit } from "./commands/movimentos-audit.js";
 import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
 import { ivaAudit } from "./commands/iva-audit.js";
 import { catalogAudit } from "./commands/catalog-audit.js";
-import { catalogProbeLinks } from "./commands/catalog-probe-links.js";
+import { catalogDiscoverLinks } from "./commands/catalog-discover-links.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -183,9 +183,9 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
     run: catalogAudit,
     desc: "rev46: auditoria estrutural do catálogo regulamentar — localiza DCI, ATC, Grupo Homogéneo e Fabricante em Stocks e nas tabelas de lookup, via sys.columns + FKs + taxa de preenchimento. Read-only. Gera ./run/catalog-audit-<ts>.{md,json}.",
   },
-  "catalog-probe-links": {
-    run: catalogProbeLinks,
-    desc: "rev48: probe READ-ONLY das ligacoes que o catalog-audit nao provou (Stocks->Grupo Homogeneo, tblSPRActGenerico->DCI). Procura por estrutura e conteudo, nao por nomenclatura. Gera ./run/catalog-probe-links-<ts>.json.",
+  "catalog-discover-links": {
+    run: catalogDiscoverLinks,
+    desc: "rev49: descoberta READ-ONLY de relacoes por METADADOS (sys.columns/foreign_keys/indexes). Caca GrupoHomID, SPRActID, Codigo, CNP, CodigoProduto, ProdutoID, StockID em todas as tabelas e testa por CONTEUDO a ligacao a dbo.Stocks. Gera ./run/catalog-discover-links-<ts>.json.",
   },
   "fornecedores-dry-run": {
     run: fornecedoresDryRun,
