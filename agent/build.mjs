@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "47";
+const AGENT_REV = "48";
 
 function readGitShortCommit() {
   try {
@@ -213,6 +213,7 @@ function writeBatchWrappers() {
     // ERP. Read-only. Tem de correr ANTES do products-upload para se saber
     // o que a instalação expõe.
     "run-catalog-audit.bat": "catalog-audit",
+    "run-catalog-probe-links.bat": "catalog-probe-links",
     "run-health.bat": "health",
   };
   const preamble = [

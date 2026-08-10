@@ -377,7 +377,19 @@ type CatalogPlan = {
   dci: string | null;
   atc: string | null;
   grupoHomogeneo: string | null;
+  /** Coluna textual directa em Stocks (raro). */
   fabricante: string | null;
+  /**
+   * rev48 — fabricante por lookup, confirmado pelo catalog-audit da
+   * Silveirense: Stocks.[GamaFabricanteID] (smallint, 98,8% preenchido,
+   * 1084 distintos) contra dbo.tblGamaFabricante, PK GamaFabricanteID do
+   * mesmo tipo, texto em [Descricao] varchar(74).
+   *
+   * Não há FK declarada — o Softreis quase não as declara — por isso a
+   * ligação é confirmada por três evidências e não pela nomenclatura:
+   * nome igual, tipo igual, e a coluna do lado do lookup é a PK.
+   */
+  fabricanteFk: { stocksColumn: string; table: string; pk: string; textColumn: string } | null;
 };
 
 async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
@@ -406,7 +418,51 @@ async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
     atc: escolher([/^atc$/i, /atc/i]),
     grupoHomogeneo: escolher([/grupo\s*homog/i, /homog/i, /^gh$/i]),
     fabricante: escolher([/fabricante/i, /laborat/i, /titular/i, /marca/i]),
+    fabricanteFk: await discoverFabricanteFk(pool, r.recordset),
   };
+}
+
+/**
+ * Procura o par (coluna de código em Stocks, tabela de lookup) para o
+ * fabricante. Exige as três evidências, e devolve null se faltar uma —
+ * sem lookup confirmado o payload leva fabricante=null em vez de um
+ * código interno que não significa nada fora desta instalação.
+ */
+async function discoverFabricanteFk(
+  pool: SqlPool,
+  stocksCols: Array<{ nome: string; tipo: string }>,
+): Promise<CatalogPlan["fabricanteFk"]> {
+  const candidatas = stocksCols.filter(
+    (c) => /fabricante|laborat|titular/i.test(c.nome) && /int/i.test(c.tipo),
+  );
+  for (const col of candidatas) {
+    // A tabela de lookup tem o nome da coluna sem o sufixo ID.
+    const base = col.nome.replace(/id$/i, "");
+    const r = await pool.request().input("b", sql.NVarChar, `%${base}%`).query<{
+      tabela: string; pk: string; texto: string;
+    }>(`
+      SELECT TOP 1
+        t.name AS tabela,
+        pkc.name AS pk,
+        txt.name AS texto
+      FROM sys.tables t
+      JOIN sys.schemas s ON s.schema_id = t.schema_id
+      JOIN sys.indexes i ON i.object_id = t.object_id AND i.is_primary_key = 1
+      JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+      JOIN sys.columns pkc ON pkc.object_id = ic.object_id AND pkc.column_id = ic.column_id
+      JOIN sys.columns txt ON txt.object_id = t.object_id
+      JOIN sys.types ty ON ty.user_type_id = txt.user_type_id
+      WHERE s.name = 'dbo' AND t.name LIKE @b
+        AND pkc.name = '${col.nome.replace(/'/g, "''")}'
+        AND ty.name IN ('varchar','nvarchar','char','nchar')
+      ORDER BY txt.max_length DESC
+    `);
+    const hit = r.recordset[0];
+    if (hit) {
+      return { stocksColumn: col.nome, table: hit.tabela, pk: hit.pk, textColumn: hit.texto };
+    }
+  }
+  return null;
 }
 
 function logCatalogPlan(plan: CatalogPlan): void {
@@ -417,6 +473,10 @@ function logCatalogPlan(plan: CatalogPlan): void {
   f("ATC:", plan.atc);
   f("Grupo Homogéneo:", plan.grupoHomogeneo);
   f("Fabricante:", plan.fabricante);
+  if (plan.fabricanteFk) {
+    const k = plan.fabricanteFk;
+    console.log(`     ${"Fabricante (FK):".padEnd(16)} Stocks.[${k.stocksColumn}] -> ${k.table}.[${k.pk}] -> [${k.textColumn}]`);
+  }
   if (!plan.dci && !plan.atc && !plan.grupoHomogeneo && !plan.fabricante) {
     console.log("     Nenhum campo detectado — corre `agent catalog-audit` para ver o que existe.");
   }
@@ -625,7 +685,16 @@ export async function runProductsPipeline(
   const dciSelect = col(catalogPlan.dci);
   const atcSelect = col(catalogPlan.atc);
   const ghSelect = col(catalogPlan.grupoHomogeneo);
-  const fabricanteSelect = col(catalogPlan.fabricante);
+  // Coluna directa se existir; senão o texto do lookup confirmado.
+  const fabricanteSelect = catalogPlan.fabricante
+    ? `s.[${catalogPlan.fabricante}]`
+    : catalogPlan.fabricanteFk
+      ? `fab_lk.[${catalogPlan.fabricanteFk.textColumn}]`
+      : `CAST(NULL AS NVARCHAR(200))`;
+  const fabricanteJoin = !catalogPlan.fabricante && catalogPlan.fabricanteFk
+    ? `LEFT JOIN [dbo].[${catalogPlan.fabricanteFk.table}] fab_lk
+         ON fab_lk.[${catalogPlan.fabricanteFk.pk}] = s.[${catalogPlan.fabricanteFk.stocksColumn}]`
+    : ``;
 
   const ivaJoinClause =
     ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
@@ -690,6 +759,7 @@ export async function runProductsPipeline(
         ) ars
         LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
         ${ivaJoinClause}
+        ${fabricanteJoin}
         WHERE s.[Retirado] = 0
           AND s.[Processa_Stocks] <> 0
           AND s.CodigoID > @lastId
