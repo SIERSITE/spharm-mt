@@ -246,6 +246,11 @@ COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
 COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts \
      scripts/admin/package-agent.ts ./scripts/admin/
+# Idem para `scripts/catalog-master`: dos 11 ficheiros, 9 são de
+# investigação do catálogo (builders, matrizes, relatórios). Só estes
+# dois são operacionais — correm no servidor, contra a base do tenant.
+COPY scripts/catalog-master/seed-utilizacoes.ts \
+     scripts/catalog-master/backfill-utilizacoes.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 COPY --from=builder /app/generated ./generated
 

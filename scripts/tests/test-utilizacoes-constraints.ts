@@ -13,13 +13,21 @@
  */
 import "dotenv/config";
 import pg from "pg";
+import { AlvoRecusado, descreverAlvo, resolverAlvoDb } from "../../lib/catalog/target-db";
 
 async function main() {
   const argv = process.argv.slice(2);
-  const dbName =
-    argv.find((a) => a.startsWith("--db="))?.split("=")[1] ?? "spharmmt_t_grupo_silveira";
-  const url = process.env.DATABASE_URL!.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
-  const db = new pg.Client({ connectionString: url });
+  let alvo;
+  try {
+    alvo = resolverAlvoDb(argv);
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n${err.message}\n`);
+      process.exit(2);
+    }
+    throw err;
+  }
+  const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
 
   let pass = 0;
@@ -29,7 +37,7 @@ async function main() {
     else { fail++; console.log(`  [FALHA] ${l}${d ? `\n            ${d}` : ""}`); }
   };
 
-  console.log(`Base: ${dbName}\n`);
+  console.log(`${descreverAlvo(alvo)}\n`);
   console.log("=== as restrições existem ===");
 
   const { rows: idx } = await db.query<{ indexname: string; indexdef: string }>(

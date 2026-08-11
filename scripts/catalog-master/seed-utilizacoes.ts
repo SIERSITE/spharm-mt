@@ -19,18 +19,27 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { UTILIZACOES } from "../../lib/catalog/utilizacoes";
+import { AlvoRecusado, descreverAlvo, resolverAlvoDb } from "../../lib/catalog/target-db";
 
 async function main() {
   const argv = process.argv.slice(2);
-  const dbName =
-    argv.find((a) => a.startsWith("--db="))?.split("=")[1] ?? "spharmmt_t_grupo_silveira";
   const dryRun = argv.includes("--dry-run");
 
-  const url = process.env.DATABASE_URL!.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
-  const db = new pg.Client({ connectionString: url });
+  let alvo;
+  try {
+    alvo = resolverAlvoDb(argv);
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n${err.message}\n`);
+      process.exit(2);
+    }
+    throw err;
+  }
+
+  const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
 
-  console.log(`Base: ${dbName}${dryRun ? "  (dry-run — nada é escrito)" : ""}`);
+  console.log(`${descreverAlvo(alvo)}${dryRun ? "   (dry-run — nada é escrito)" : ""}`);
   console.log(`Vocabulário: ${UTILIZACOES.length} utilizações\n`);
 
   const { rows: antes } = await db.query<{ slug: string; estado: string }>(

@@ -60,6 +60,13 @@ tenant:onboard
 tenant:create
 tenancy:create
 
+# ── Catálogo ─────────────────────────────────────────────────────────
+# Vocabulário de utilizações e o backfill que o aplica ao catálogo do
+# tenant. Correm no servidor, contra o PostgreSQL local, e exigem
+# `--db=<base>` explícito — não há base por omissão.
+catalog:seed-utilizacoes
+catalog:backfill-utilizacoes
+
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
 env:doctor

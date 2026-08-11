@@ -27,6 +27,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { UTILIZACOES_POR_SLUG } from "../../lib/catalog/utilizacoes";
+import { AlvoRecusado, descreverAlvo, resolverAlvoDb } from "../../lib/catalog/target-db";
 import {
   MIN_CONFIANCA,
   REGRAS_ATC,
@@ -125,15 +126,23 @@ function avaliar(p: ProdutoRow): Candidata[] {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const dbName =
-    argv.find((a) => a.startsWith("--db="))?.split("=")[1] ?? "spharmmt_t_grupo_silveira";
   const dryRun = argv.includes("--dry-run");
 
-  const url = process.env.DATABASE_URL!.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
-  const db = new pg.Client({ connectionString: url });
+  let alvo;
+  try {
+    alvo = resolverAlvoDb(argv);
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n${err.message}\n`);
+      process.exit(2);
+    }
+    throw err;
+  }
+
+  const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
 
-  console.log(`Base: ${dbName}${dryRun ? "   (dry-run — nada é escrito)" : ""}`);
+  console.log(`${descreverAlvo(alvo)}${dryRun ? "   (dry-run — nada é escrito)" : ""}`);
   console.log(`Limiar de confiança: ${MIN_CONFIANCA}\n`);
 
   const { rows: vocab } = await db.query<{ id: string; slug: string }>(
