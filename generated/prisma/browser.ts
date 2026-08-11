@@ -38,6 +38,38 @@ export type FabricanteAlias = Prisma.FabricanteAliasModel
  */
 export type Classificacao = Prisma.ClassificacaoModel
 /**
+ * Model Utilizacao
+ * Utilização/necessidade — vocabulário CONTROLADO, para pesquisa
+ * operacional ao balcão ("produtos para tosse", "dor", "alergias").
+ * 
+ * Não é taxonomia. A árvore `Classificacao` responde a "o que é este
+ * produto?" e cada produto tem exactamente um lugar nela. Isto responde
+ * a "para que serve?", e um produto tem tantas respostas quantas as
+ * necessidades que cobre — um xarope pode servir tosse seca e irritação
+ * da garganta sem deixar de ser um só artigo num só ramo da árvore.
+ * Misturar as duas coisas obrigaria a duplicar produtos na taxonomia ou
+ * a inventar subcategorias por sintoma, que é o que se quer evitar.
+ * 
+ * Vocabulário fechado: as linhas vêm de `lib/catalog/utilizacoes.ts` e
+ * entram por seed. Não há caminho de escrita que crie utilizações a
+ * partir de texto do utilizador — sem isso, "tosse", "Tosse" e "p/
+ * tosse" viravam três facetas em três meses.
+ * 
+ * O `slug` é a chave partilhada entre tenants: cada tenant tem a sua
+ * base, mas `tosse` significa o mesmo em todas, e um relatório de grupo
+ * pode agregar sem tradução.
+ */
+export type Utilizacao = Prisma.UtilizacaoModel
+/**
+ * Model ProdutoUtilizacao
+ * Produto <-> Utilização. N:N puro, com proveniência.
+ * 
+ * A proveniência não é decoração: sem ela, uma associação inferida por
+ * regra e uma validada por um farmacêutico ficam indistinguíveis, e a
+ * próxima passagem automática sobrescreve a segunda com a primeira.
+ */
+export type ProdutoUtilizacao = Prisma.ProdutoUtilizacaoModel
+/**
  * Model InfarmedSnapshot
  * Snapshot local do catálogo INFARMED de medicamentos (Portugal).
  * 

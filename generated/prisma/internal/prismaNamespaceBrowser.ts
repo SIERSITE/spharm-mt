@@ -55,6 +55,8 @@ export const ModelName = {
   Fabricante: 'Fabricante',
   FabricanteAlias: 'FabricanteAlias',
   Classificacao: 'Classificacao',
+  Utilizacao: 'Utilizacao',
+  ProdutoUtilizacao: 'ProdutoUtilizacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
   RegulatoryAcquisitionJob: 'RegulatoryAcquisitionJob',
@@ -184,6 +186,33 @@ export const ClassificacaoScalarFieldEnum = {
 } as const
 
 export type ClassificacaoScalarFieldEnum = (typeof ClassificacaoScalarFieldEnum)[keyof typeof ClassificacaoScalarFieldEnum]
+
+
+export const UtilizacaoScalarFieldEnum = {
+  id: 'id',
+  slug: 'slug',
+  nome: 'nome',
+  descricao: 'descricao',
+  sinonimos: 'sinonimos',
+  grupo: 'grupo',
+  estado: 'estado',
+  ordem: 'ordem',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type UtilizacaoScalarFieldEnum = (typeof UtilizacaoScalarFieldEnum)[keyof typeof UtilizacaoScalarFieldEnum]
+
+
+export const ProdutoUtilizacaoScalarFieldEnum = {
+  produtoId: 'produtoId',
+  utilizacaoId: 'utilizacaoId',
+  fonte: 'fonte',
+  confianca: 'confianca',
+  dataCriacao: 'dataCriacao'
+} as const
+
+export type ProdutoUtilizacaoScalarFieldEnum = (typeof ProdutoUtilizacaoScalarFieldEnum)[keyof typeof ProdutoUtilizacaoScalarFieldEnum]
 
 
 export const InfarmedSnapshotScalarFieldEnum = {

@@ -388,6 +388,8 @@ export const ModelName = {
   Fabricante: 'Fabricante',
   FabricanteAlias: 'FabricanteAlias',
   Classificacao: 'Classificacao',
+  Utilizacao: 'Utilizacao',
+  ProdutoUtilizacao: 'ProdutoUtilizacao',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
   RegulatoryAcquisitionJob: 'RegulatoryAcquisitionJob',
@@ -441,7 +443,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -738,6 +740,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ClassificacaoCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ClassificacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    Utilizacao: {
+      payload: Prisma.$UtilizacaoPayload<ExtArgs>
+      fields: Prisma.UtilizacaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UtilizacaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UtilizacaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        findFirst: {
+          args: Prisma.UtilizacaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UtilizacaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        findMany: {
+          args: Prisma.UtilizacaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>[]
+        }
+        create: {
+          args: Prisma.UtilizacaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        createMany: {
+          args: Prisma.UtilizacaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UtilizacaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>[]
+        }
+        delete: {
+          args: Prisma.UtilizacaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        update: {
+          args: Prisma.UtilizacaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.UtilizacaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UtilizacaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UtilizacaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.UtilizacaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UtilizacaoPayload>
+        }
+        aggregate: {
+          args: Prisma.UtilizacaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUtilizacao>
+        }
+        groupBy: {
+          args: Prisma.UtilizacaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UtilizacaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UtilizacaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UtilizacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    ProdutoUtilizacao: {
+      payload: Prisma.$ProdutoUtilizacaoPayload<ExtArgs>
+      fields: Prisma.ProdutoUtilizacaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProdutoUtilizacaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProdutoUtilizacaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        findFirst: {
+          args: Prisma.ProdutoUtilizacaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProdutoUtilizacaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        findMany: {
+          args: Prisma.ProdutoUtilizacaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>[]
+        }
+        create: {
+          args: Prisma.ProdutoUtilizacaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        createMany: {
+          args: Prisma.ProdutoUtilizacaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProdutoUtilizacaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>[]
+        }
+        delete: {
+          args: Prisma.ProdutoUtilizacaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        update: {
+          args: Prisma.ProdutoUtilizacaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProdutoUtilizacaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProdutoUtilizacaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProdutoUtilizacaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProdutoUtilizacaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoUtilizacaoPayload>
+        }
+        aggregate: {
+          args: Prisma.ProdutoUtilizacaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProdutoUtilizacao>
+        }
+        groupBy: {
+          args: Prisma.ProdutoUtilizacaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProdutoUtilizacaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProdutoUtilizacaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProdutoUtilizacaoCountAggregateOutputType> | number
         }
       }
     }
@@ -3667,6 +3817,33 @@ export const ClassificacaoScalarFieldEnum = {
 export type ClassificacaoScalarFieldEnum = (typeof ClassificacaoScalarFieldEnum)[keyof typeof ClassificacaoScalarFieldEnum]
 
 
+export const UtilizacaoScalarFieldEnum = {
+  id: 'id',
+  slug: 'slug',
+  nome: 'nome',
+  descricao: 'descricao',
+  sinonimos: 'sinonimos',
+  grupo: 'grupo',
+  estado: 'estado',
+  ordem: 'ordem',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type UtilizacaoScalarFieldEnum = (typeof UtilizacaoScalarFieldEnum)[keyof typeof UtilizacaoScalarFieldEnum]
+
+
+export const ProdutoUtilizacaoScalarFieldEnum = {
+  produtoId: 'produtoId',
+  utilizacaoId: 'utilizacaoId',
+  fonte: 'fonte',
+  confianca: 'confianca',
+  dataCriacao: 'dataCriacao'
+} as const
+
+export type ProdutoUtilizacaoScalarFieldEnum = (typeof ProdutoUtilizacaoScalarFieldEnum)[keyof typeof ProdutoUtilizacaoScalarFieldEnum]
+
+
 export const InfarmedSnapshotScalarFieldEnum = {
   id: 'id',
   cnp: 'cnp',
@@ -5020,6 +5197,8 @@ export type GlobalOmitConfig = {
   fabricante?: Prisma.FabricanteOmit
   fabricanteAlias?: Prisma.FabricanteAliasOmit
   classificacao?: Prisma.ClassificacaoOmit
+  utilizacao?: Prisma.UtilizacaoOmit
+  produtoUtilizacao?: Prisma.ProdutoUtilizacaoOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   regulatoryRecord?: Prisma.RegulatoryRecordOmit
   regulatoryAcquisitionJob?: Prisma.RegulatoryAcquisitionJobOmit
