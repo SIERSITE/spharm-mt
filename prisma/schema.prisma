@@ -435,6 +435,46 @@ model ProdutoUtilizacao {
   @@index([fonte])
 }
 
+/// Uma linha por execução de um backfill de catálogo.
+///
+/// Existe para responder a "estamos a melhorar?" — uma cobertura de 21%
+/// não diz nada isolada; 18% → 21% → 37% diz tudo. Sem isto, cada corrida
+/// imprime números no terminal e perde-os, e a única forma de comparar é
+/// procurar mensagens antigas.
+///
+/// Não usa PipelineRun: esse é por farmácia e exige `farmaciaId`, e um
+/// backfill de catálogo corre sobre o catálogo inteiro do tenant.
+model CatalogoBackfillRun {
+  id String @id @default(cuid())
+
+  /// Que backfill correu — "utilizacoes", "classificacao", …
+  kind        String
+  executadoEm DateTime @default(now())
+
+  produtosAnalisados    Int
+  produtosClassificados Int
+  associacoes           Int
+  /// Candidatas que as regras produziram mas ficaram abaixo do limiar.
+  /// Contar isto é o que distingue "não há sinal" de "há sinal fraco".
+  recusadas Int
+
+  /// Redundante face aos dois primeiros, mas guardado à mesma: um dia a
+  /// definição de "analisado" muda e a série histórica tem de continuar
+  /// a ser lida como foi calculada na altura.
+  coberturaPercent Float
+
+  /// Limiar em vigor nessa corrida. Sem ele, uma subida de cobertura pode
+  /// ser trabalho novo ou apenas o limiar ter descido.
+  limiarConfianca Float?
+  /// Commit ou revisão das regras, quando conhecido.
+  versaoRegras String?
+
+  /// Detalhe livre: TOP utilizações, recusadas por regra, cobertura por tipo.
+  detalhes Json @default("{}")
+
+  @@index([kind, executadoEm])
+}
+
 /// Snapshot local do catálogo INFARMED de medicamentos (Portugal).
 ///
 /// Origem: ficheiro descarregado do portal INFARMED (INFOMED / Open Data).

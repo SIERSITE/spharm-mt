@@ -94,6 +94,19 @@ export type Utilizacao = Prisma.UtilizacaoModel
  */
 export type ProdutoUtilizacao = Prisma.ProdutoUtilizacaoModel
 /**
+ * Model CatalogoBackfillRun
+ * Uma linha por execução de um backfill de catálogo.
+ * 
+ * Existe para responder a "estamos a melhorar?" — uma cobertura de 21%
+ * não diz nada isolada; 18% → 21% → 37% diz tudo. Sem isto, cada corrida
+ * imprime números no terminal e perde-os, e a única forma de comparar é
+ * procurar mensagens antigas.
+ * 
+ * Não usa PipelineRun: esse é por farmácia e exige `farmaciaId`, e um
+ * backfill de catálogo corre sobre o catálogo inteiro do tenant.
+ */
+export type CatalogoBackfillRun = Prisma.CatalogoBackfillRunModel
+/**
  * Model InfarmedSnapshot
  * Snapshot local do catálogo INFARMED de medicamentos (Portugal).
  * 

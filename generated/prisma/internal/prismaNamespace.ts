@@ -390,6 +390,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
+  CatalogoBackfillRun: 'CatalogoBackfillRun',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
   RegulatoryAcquisitionJob: 'RegulatoryAcquisitionJob',
@@ -443,7 +444,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -888,6 +889,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProdutoUtilizacaoCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProdutoUtilizacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    CatalogoBackfillRun: {
+      payload: Prisma.$CatalogoBackfillRunPayload<ExtArgs>
+      fields: Prisma.CatalogoBackfillRunFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoBackfillRunFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoBackfillRunFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoBackfillRunFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoBackfillRunFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoBackfillRunFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoBackfillRunCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoBackfillRunCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoBackfillRunCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoBackfillRunDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        update: {
+          args: Prisma.CatalogoBackfillRunUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoBackfillRunDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoBackfillRunUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoBackfillRunUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoBackfillRunUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoBackfillRunPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoBackfillRunAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoBackfillRun>
+        }
+        groupBy: {
+          args: Prisma.CatalogoBackfillRunGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoBackfillRunGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoBackfillRunCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoBackfillRunCountAggregateOutputType> | number
         }
       }
     }
@@ -3844,6 +3919,23 @@ export const ProdutoUtilizacaoScalarFieldEnum = {
 export type ProdutoUtilizacaoScalarFieldEnum = (typeof ProdutoUtilizacaoScalarFieldEnum)[keyof typeof ProdutoUtilizacaoScalarFieldEnum]
 
 
+export const CatalogoBackfillRunScalarFieldEnum = {
+  id: 'id',
+  kind: 'kind',
+  executadoEm: 'executadoEm',
+  produtosAnalisados: 'produtosAnalisados',
+  produtosClassificados: 'produtosClassificados',
+  associacoes: 'associacoes',
+  recusadas: 'recusadas',
+  coberturaPercent: 'coberturaPercent',
+  limiarConfianca: 'limiarConfianca',
+  versaoRegras: 'versaoRegras',
+  detalhes: 'detalhes'
+} as const
+
+export type CatalogoBackfillRunScalarFieldEnum = (typeof CatalogoBackfillRunScalarFieldEnum)[keyof typeof CatalogoBackfillRunScalarFieldEnum]
+
+
 export const InfarmedSnapshotScalarFieldEnum = {
   id: 'id',
   cnp: 'cnp',
@@ -4598,19 +4690,19 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
 export const NullableJsonNullValueInput = {
   DbNull: DbNull,
   JsonNull: JsonNull
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
-
-
-export const JsonNullValueInput = {
-  JsonNull: JsonNull
-} as const
-
-export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -4778,20 +4870,6 @@ export type ListEnumTipoClassificacaoFieldRefInput<$PrismaModel> = FieldRefInput
 
 
 /**
- * Reference to a field of type 'AcquisitionJobStatus'
- */
-export type EnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus'>
-    
-
-
-/**
- * Reference to a field of type 'AcquisitionJobStatus[]'
- */
-export type ListEnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus[]'>
-    
-
-
-/**
  * Reference to a field of type 'Json'
  */
 export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
@@ -4802,6 +4880,20 @@ export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'J
  * Reference to a field of type 'QueryMode'
  */
 export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
+ * Reference to a field of type 'AcquisitionJobStatus'
+ */
+export type EnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'AcquisitionJobStatus[]'
+ */
+export type ListEnumAcquisitionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'AcquisitionJobStatus[]'>
     
 
 
@@ -5199,6 +5291,7 @@ export type GlobalOmitConfig = {
   classificacao?: Prisma.ClassificacaoOmit
   utilizacao?: Prisma.UtilizacaoOmit
   produtoUtilizacao?: Prisma.ProdutoUtilizacaoOmit
+  catalogoBackfillRun?: Prisma.CatalogoBackfillRunOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   regulatoryRecord?: Prisma.RegulatoryRecordOmit
   regulatoryAcquisitionJob?: Prisma.RegulatoryAcquisitionJobOmit

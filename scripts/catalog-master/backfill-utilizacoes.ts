@@ -23,6 +23,8 @@
  *   npx tsx scripts/catalog-master/backfill-utilizacoes.ts [--db=<base>] [--dry-run]
  */
 import "dotenv/config";
+import { execSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { UTILIZACOES_POR_SLUG } from "../../lib/catalog/utilizacoes";
 import {
@@ -49,6 +51,17 @@ type ProdutoRow = {
 };
 
 type Candidata = { utilizacao: string; confianca: number; regra: string };
+
+/** Commit das regras. Sem isto, uma subida de cobertura não é atribuível. */
+function versaoRegras(): string | null {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
+}
 
 function normalizar(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -247,6 +260,48 @@ async function main() {
   }
 
   if (!dryRun) {
+    // Histórico: é o que permite ler 18% -> 21% -> 37% em vez de olhar
+    // para 21% e não saber se é bom.
+    await db.query(
+      `insert into "CatalogoBackfillRun"
+         (id, kind, "produtosAnalisados", "produtosClassificados", associacoes,
+          recusadas, "coberturaPercent", "limiarConfianca", "versaoRegras", detalhes)
+       values ($1, 'utilizacoes', $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        randomUUID(),
+        produtos.length,
+        produtosCom,
+        totalAssociacoes,
+        recusadas,
+        Number(((produtosCom / produtos.length) * 100).toFixed(2)),
+        MIN_CONFIANCA,
+        versaoRegras(),
+        JSON.stringify({
+          porTipo: Object.fromEntries([...porTipo].map(([k, v]) => [k, v])),
+          topUtilizacoes: Object.fromEntries(top),
+          recusadasPorRegra: Object.fromEntries(recusadasPorRegra),
+        }),
+      ],
+    );
+
+    const { rows: hist } = await db.query<{
+      executadoEm: Date; coberturaPercent: number; associacoes: number; recusadas: number;
+    }>(
+      `select "executadoEm", "coberturaPercent", associacoes, recusadas
+         from "CatalogoBackfillRun"
+        where kind = 'utilizacoes'
+        order by "executadoEm" desc
+        limit 8`,
+    );
+    console.log("\n── Histórico ──────────────────────────────────────────────");
+    for (const h of hist.reverse()) {
+      const d = h.executadoEm.toISOString().slice(0, 16).replace("T", " ");
+      console.log(
+        `  ${d}   cobertura ${String(h.coberturaPercent).padStart(6)}%   ` +
+          `assoc ${String(h.associacoes).padStart(6)}   recusadas ${String(h.recusadas).padStart(5)}`,
+      );
+    }
+
     console.log("\n── Escrita ────────────────────────────────────────────────");
     console.log(`  escritas ou actualizadas               ${escritas}`);
     console.log(`  inalteradas (iguais, mais fortes ou manuais)  ${naoAlteradas}`);
