@@ -13,13 +13,15 @@
  * CASCADE trabalho de classificação que ninguém pediu para desfazer.
  *
  * Uso:
- *   npx tsx scripts/catalog-master/seed-utilizacoes.ts [--db=<base>] [--dry-run]
+ *   Produção (VPS):     npm run catalog:seed-utilizacoes -- --tenant=<slug> [--dry-run]
+ *   Desenvolvimento:    npx tsx scripts/catalog-master/seed-utilizacoes.ts --db=<base> [--dry-run]
  */
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { UTILIZACOES } from "../../lib/catalog/utilizacoes";
-import { AlvoRecusado, descreverAlvo, resolverAlvoDb } from "../../lib/catalog/target-db";
+import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -27,7 +29,7 @@ async function main() {
 
   let alvo;
   try {
-    alvo = resolverAlvoDb(argv);
+    alvo = await resolverAlvo(argv, { getTenantBySlug, buildTenantConnectionString });
   } catch (err) {
     if (err instanceof AlvoRecusado) {
       console.error(`\n${err.message}\n`);

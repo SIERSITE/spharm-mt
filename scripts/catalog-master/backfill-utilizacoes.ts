@@ -20,14 +20,16 @@
  * regulatória e não pode alimentar a faceta.
  *
  * Uso:
- *   npx tsx scripts/catalog-master/backfill-utilizacoes.ts [--db=<base>] [--dry-run]
+ *   Produção (VPS):     npm run catalog:backfill-utilizacoes -- --tenant=<slug> [--dry-run]
+ *   Desenvolvimento:    npx tsx scripts/catalog-master/backfill-utilizacoes.ts --db=<base> [--dry-run]
  */
 import "dotenv/config";
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { UTILIZACOES_POR_SLUG } from "../../lib/catalog/utilizacoes";
-import { AlvoRecusado, descreverAlvo, resolverAlvoDb } from "../../lib/catalog/target-db";
+import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import {
   MIN_CONFIANCA,
   REGRAS_ATC,
@@ -130,7 +132,7 @@ async function main() {
 
   let alvo;
   try {
-    alvo = resolverAlvoDb(argv);
+    alvo = await resolverAlvo(argv, { getTenantBySlug, buildTenantConnectionString });
   } catch (err) {
     if (err instanceof AlvoRecusado) {
       console.error(`\n${err.message}\n`);

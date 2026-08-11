@@ -29,6 +29,10 @@ export type AlvoDb = {
   base: string;
   /** true quando o alvo NÃO é o PostgreSQL de produção. */
   externo: boolean;
+  /** Slug do tenant, quando o destino foi resolvido por ele. */
+  tenant?: string;
+  /** Utilizador da ligação. Impresso para o operador ver com quem entra. */
+  utilizador?: string;
 };
 
 /** Hosts que não podem ser destino de produção. */
@@ -58,9 +62,72 @@ export function ehHostExterno(host: string): boolean {
 }
 
 /**
+ * Alvo a partir do slug do tenant, com as credenciais DO TENANT.
+ *
+ * É este o caminho normal em produção. O `DATABASE_URL` do container
+ * traz o utilizador `spharmmt_app`, que serve o control plane e a base
+ * legacy e NÃO tem CONNECT às bases dos tenants — de propósito, para que
+ * um processo que serve tráfego não alcance dados de outro cliente.
+ * Trocar só o nome da base nessa string dá um erro de ligação que parece
+ * a base não existir, quando o que falta é a credencial certa.
+ *
+ * A password vem cifrada do control plane e é decifrada com
+ * `TENANT_ENCRYPTION_SECRET`, exactamente como no `tenancy:migrate-all`.
+ * Nada de alargar permissões ao `spharmmt_app`.
+ */
+export async function resolverAlvoTenant<T extends TenantParaLigacao>(
+  argv: readonly string[],
+  deps: {
+    getTenantBySlug: (slug: string) => Promise<T | null>;
+    buildTenantConnectionString: (t: T) => string;
+  },
+): Promise<AlvoDb> {
+  const slug = argv.find((a) => a.startsWith("--tenant="))?.slice(9)?.trim();
+  if (!slug) {
+    throw new AlvoRecusado(
+      "Falta --tenant=<slug>.\n" +
+        "O destino é identificado pelo tenant, não pelo nome da base: é do\n" +
+        "control plane que vêm a base, o host e a credencial que lhe pertence.",
+    );
+  }
+
+  const tenant = await deps.getTenantBySlug(slug);
+  if (!tenant) {
+    throw new AlvoRecusado(`Tenant '${slug}' não existe no control plane.`);
+  }
+
+  const url = deps.buildTenantConnectionString(tenant);
+  const host = tenant.dbHost;
+  const externo = ehHostExterno(host);
+
+  if (externo && !argv.includes("--permitir-externo")) {
+    throw new AlvoRecusado(
+      `Recusado: o tenant '${slug}' está em ${host}, que não é o PostgreSQL de produção.\n` +
+        "Se é mesmo aí que queres escrever: --permitir-externo",
+    );
+  }
+
+  return { url, host, base: tenant.dbName, externo, tenant: slug, utilizador: tenant.dbUser };
+}
+
+/** O que `resolverAlvoTenant` precisa de saber de um tenant. */
+export type TenantParaLigacao = {
+  slug: string;
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
+  dbPassEncrypted: string;
+};
+
+/**
  * Lê `--db=<base>` de argv e o `DATABASE_URL` do ambiente, e devolve o
  * alvo. Lança se faltar a base, se faltar o `DATABASE_URL`, ou se o host
  * não for de produção sem `--permitir-externo`.
+ *
+ * Caminho secundário: mantém o utilizador do `DATABASE_URL`, portanto só
+ * serve quando essa credencial tem mesmo acesso à base indicada —
+ * tipicamente desenvolvimento. Em produção usa-se `--tenant=<slug>`.
  */
 export function resolverAlvoDb(argv: readonly string[]): AlvoDb {
   const base = argv.find((a) => a.startsWith("--db="))?.slice(5)?.trim();
@@ -93,7 +160,41 @@ export function resolverAlvoDb(argv: readonly string[]): AlvoDb {
   return { url, host, base, externo };
 }
 
-/** Cabeçalho obrigatório: quem corre isto vê onde vai escrever. */
+/** Cabeçalho obrigatório: quem corre isto vê onde vai escrever, e com quem. */
 export function descreverAlvo(alvo: AlvoDb): string {
-  return `Destino: ${alvo.base} @ ${alvo.host}${alvo.externo ? "   *** EXTERNO — não é produção ***" : ""}`;
+  const quem = alvo.utilizador ? ` como ${alvo.utilizador}` : "";
+  const qual = alvo.tenant ? ` (tenant ${alvo.tenant})` : "";
+  return (
+    `Destino: ${alvo.base} @ ${alvo.host}${quem}${qual}` +
+    (alvo.externo ? "   *** EXTERNO — não é produção ***" : "")
+  );
+}
+
+/**
+ * Escolhe o resolvedor conforme os argumentos. `--tenant` e `--db` são
+ * alternativas, não complementos: aceitar os dois deixaria dúvida sobre
+ * qual mandou, e é dessa dúvida que nascem escritas na base errada.
+ */
+export async function resolverAlvo<T extends TenantParaLigacao>(
+  argv: readonly string[],
+  deps: {
+    getTenantBySlug: (slug: string) => Promise<T | null>;
+    buildTenantConnectionString: (t: T) => string;
+  },
+): Promise<AlvoDb> {
+  const temTenant = argv.some((a) => a.startsWith("--tenant="));
+  const temDb = argv.some((a) => a.startsWith("--db="));
+
+  if (temTenant && temDb) {
+    throw new AlvoRecusado("--tenant e --db são alternativas. Escolhe um.");
+  }
+  if (temTenant) return resolverAlvoTenant(argv, deps);
+  if (temDb) return resolverAlvoDb(argv);
+
+  throw new AlvoRecusado(
+    "Falta o destino.\n" +
+      "  --tenant=<slug>   credenciais do tenant, vindas do control plane (produção)\n" +
+      "  --db=<base>       usa o utilizador do DATABASE_URL (desenvolvimento)\n" +
+      "Não há destino por omissão.",
+  );
 }
