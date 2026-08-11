@@ -229,3 +229,25 @@ IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = 'SPharmMT_FichaP
 GO
 
 /* Apagar também os ficheiros C:\Temp\SPharmMT_FichaProduto*.xel. */
+
+
+/* ============================================================================
+   CRITÉRIO DE SAÍDA — vale para o PASSO 0 e para o PASSO 1
+
+   Encontrada a relação, respondem-se quatro perguntas ANTES de escrever
+   código. Falhando uma, não se implementa:
+
+     1. Qual é a tabela de origem?
+     2. Qual é a chave exacta do JOIN?
+     3. Porque é que se sabe que essa chave está correcta?
+        (a definição escreve o ON, ou a captura mostra o ERP a executá-lo —
+        percentagem de correspondência entre colunas não serve)
+     4. Quantos produtos reais desta farmácia ficam resolvidos por ele?
+
+   A 4 é uma medição, não uma dedução: um COUNT sobre a relação já
+   observada, contra os produtos activos. Distingue o caminho certo de um
+   caminho parcial — foi o que deu 17 824 / 18 038 no Fabricante.
+
+   Respondidas as quatro, implementam-se os LEFT JOIN mínimos no
+   products-upload, remove-se o código de descoberta, e a fase termina.
+   ============================================================================ */
