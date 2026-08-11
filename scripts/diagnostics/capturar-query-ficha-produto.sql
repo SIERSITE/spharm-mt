@@ -31,9 +31,18 @@
 
    Isto NÃO procura tabelas nem chaves. Procura a lógica.
 
-   ESTA É A ÚLTIMA TENTATIVA DE DESCOBERTA ESTRUTURAL. Se não produzir a
-   chave de ligação, segue-se o PASSO 1 e mais nada. Não há PASSO 0.1, nem
-   nova ferramenta, nem outra auditoria.
+   ESTA É A ÚLTIMA TENTATIVA DE DESCOBERTA ESTRUTURAL. Não há PASSO 0.1,
+   nem nova ferramenta, nem outra auditoria.
+
+   Dois resultados possíveis, e só dois:
+     · dá a chave de ligação  → implementam-se os LEFT JOIN;
+     · 0A vem vazio           → a lógica não está guardada na base; PASSO 1.
+   Qualquer outra coisa (0A com objectos mas 0C sem chave legível) conta
+   como NÃO RESPONDIDO e vai também para o PASSO 1, de imediato.
+
+   A chave só é aceite se a evidência for observada: a definição escreve o
+   ON, ou a captura mostra o ERP a executá-lo. Percentagem de
+   correspondência entre colunas NÃO é evidência de chave.
 
    Correr os três blocos e enviar os três resultados como vêm. Não é
    preciso ler nem interpretar SQL: os blocos já extraem o que interessa.
