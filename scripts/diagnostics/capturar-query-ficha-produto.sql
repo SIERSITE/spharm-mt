@@ -145,7 +145,12 @@ GO
 
 
 /* -- PASSO 1 -----------------------------------------------------------------
-   Só se o PASSO 0 vier vazio ou inconclusivo.
+   ALVO: o botão "Ver DCI", não a ficha do artigo.
+
+   A ficha carrega dezenas de queries — preços, stocks, histórico, UI. O
+   "Ver DCI" faz uma coisa só: pega num artigo e lista os que partilham a
+   mesma DCI. Para o fazer TEM de resolver a ligação artigo -> DCI, e é a
+   única coisa que faz. Menos ruído, e a resposta é a mesma.
 
    Criar e arrancar a captura. Filtrada pela base, para não apanhar tráfego
    de outras aplicações no mesmo servidor.
@@ -172,9 +177,11 @@ GO
 
 
 /* -- PASSO 2 -----------------------------------------------------------------
-   Ir ao SPharm e abrir a ficha de UM produto que mostre DCI e/ou Grupo
-   Homogéneo. Um medicamento genérico, para os campos virem preenchidos.
-   Fechar a ficha. Voltar aqui.
+   Ir ao SPharm, abrir um medicamento com DCI visível (um Paracetamol serve)
+   e carregar em "Ver DCI". Esperar que a lista apareça. Voltar aqui.
+
+   Quanto mais curta for a janela entre o PASSO 1 e este, menos ruído. Não
+   navegar por mais nada pelo meio.
    --------------------------------------------------------------------------*/
 
 ALTER EVENT SESSION [SPharmMT_FichaProduto] ON SERVER STATE = STOP;

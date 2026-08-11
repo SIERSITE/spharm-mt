@@ -376,7 +376,6 @@ type IvaJoinPlan = {
 type CatalogPlan = {
   dci: string | null;
   atc: string | null;
-  grupoHomogeneo: string | null;
   /** Coluna textual directa em Stocks (raro). */
   fabricante: string | null;
   /**
@@ -390,7 +389,30 @@ type CatalogPlan = {
    * nome igual, tipo igual, e a coluna do lado do lookup é a PK.
    */
   fabricanteFk: { stocksColumn: string; table: string; pk: string; textColumn: string } | null;
+  /**
+   * rev52 — Grupo Homogéneo. Relação OBSERVADA na Silveirense em
+   * 2026-08-11, não inferida por nomenclatura:
+   *
+   *   Stocks.[GrupoHomID] -> dbo.Stocks_GrupoHom.[GrupoHomID] -> [Descr]
+   *
+   * Porque está correcta: os dois lados contêm o mesmo código de domínio
+   * (GH0052, GH0379) e não um inteiro que possa coincidir por acaso; o
+   * lookup tem 1 002 linhas, zero GrupoHomID repetidos, logo o LEFT JOIN
+   * não multiplica produtos. Medido: 18 743 produtos, 6 916 com
+   * GrupoHomID, 3 944 resolvidos pelo lookup.
+   *
+   * Não é procurado por padrão de nome — foi exactamente isso que fez o
+   * catalog-audit falhar esta coluna (nenhum de %homog%, %grupo hom%, %gh%
+   * casa com "GrupoHomID"). Aqui só se confirma que existe.
+   */
+  grupoHomogeneoLookup: boolean;
 };
+
+/** Nomes fixos porque foram observados, não adivinhados. */
+const GH = { coluna: "GrupoHomID", tabela: "Stocks_GrupoHom", texto: "Descr" } as const;
+
+/** Sentinela do ERP para "sem grupo homogéneo". */
+const GH_SEM_GRUPO = "GH0000";
 
 async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
   const r = await pool.request().query<{ nome: string; tipo: string }>(`
@@ -416,10 +438,28 @@ async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
   return {
     dci: escolher([/^dci$/i, /dci/i, /subst.nc/i, /princ.pio/i]),
     atc: escolher([/^atc$/i, /atc/i]),
-    grupoHomogeneo: escolher([/grupo\s*homog/i, /homog/i, /^gh$/i]),
     fabricante: escolher([/fabricante/i, /laborat/i, /titular/i, /marca/i]),
     fabricanteFk: await discoverFabricanteFk(pool, r.recordset),
+    grupoHomogeneoLookup: await confirmarLookupGrupoHomogeneo(pool),
   };
+}
+
+/**
+ * Confirma que a relação do Grupo Homogéneo existe nesta instalação. Não
+ * procura nada: verifica os três nomes observados. Faltando um, o campo
+ * vai NULL em vez de o upload rebentar numa instalação diferente.
+ */
+async function confirmarLookupGrupoHomogeneo(pool: SqlPool): Promise<boolean> {
+  const r = await pool.request().query<{ emStocks: number; noLookup: number }>(`
+    SELECT
+      (SELECT COUNT(*) FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.Stocks') AND name = '${GH.coluna}')      AS emStocks,
+      (SELECT COUNT(*) FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.${GH.tabela}')
+          AND name IN ('${GH.coluna}', '${GH.texto}'))                            AS noLookup
+  `);
+  const x = r.recordset[0];
+  return Number(x?.emStocks ?? 0) === 1 && Number(x?.noLookup ?? 0) === 2;
 }
 
 /**
@@ -471,14 +511,20 @@ function logCatalogPlan(plan: CatalogPlan): void {
   console.log("  Plano de catálogo regulamentar (rev46):");
   f("DCI:", plan.dci);
   f("ATC:", plan.atc);
-  f("Grupo Homogéneo:", plan.grupoHomogeneo);
   f("Fabricante:", plan.fabricante);
+  console.log(
+    `     ${"Grupo Homog. :".padEnd(16)} ${
+      plan.grupoHomogeneoLookup
+        ? `Stocks.[${GH.coluna}] -> ${GH.tabela}.[${GH.coluna}] -> [${GH.texto}]  (${GH_SEM_GRUPO} = sem grupo)`
+        : "✗ lookup ausente — enviado NULL"
+    }`,
+  );
   if (plan.fabricanteFk) {
     const k = plan.fabricanteFk;
     console.log(`     ${"Fabricante (FK):".padEnd(16)} Stocks.[${k.stocksColumn}] -> ${k.table}.[${k.pk}] -> [${k.textColumn}]`);
   }
-  if (!plan.dci && !plan.atc && !plan.grupoHomogeneo && !plan.fabricante) {
-    console.log("     Nenhum campo detectado — corre `agent catalog-audit` para ver o que existe.");
+  if (!plan.dci && !plan.atc && !plan.grupoHomogeneoLookup && !plan.fabricante && !plan.fabricanteFk) {
+    console.log("     Nenhum campo detectado nesta instalação — o catálogo vai sem enriquecimento do ERP.");
   }
 }
 
@@ -684,7 +730,19 @@ export async function runProductsPipeline(
   const col = (c: string | null) => (c ? `s.[${c}]` : `CAST(NULL AS NVARCHAR(200))`);
   const dciSelect = col(catalogPlan.dci);
   const atcSelect = col(catalogPlan.atc);
-  const ghSelect = col(catalogPlan.grupoHomogeneo);
+  // Grupo Homogéneo: descrição do lookup, nunca o código interno — GH0052
+  // não significa nada fora desta instalação; "Paracetamol | A101 | Oral |
+  // 1000 mg" significa em todas.
+  const ghSelect = catalogPlan.grupoHomogeneoLookup
+    ? `gh_lk.[${GH.texto}]`
+    : `CAST(NULL AS NVARCHAR(200))`;
+  // A sentinela fica de fora do JOIN: "sem grupo" tem de chegar ao SaaS
+  // como NULL e não como uma descrição de grupo que não existe.
+  const ghJoin = catalogPlan.grupoHomogeneoLookup
+    ? `LEFT JOIN [dbo].[${GH.tabela}] gh_lk
+         ON gh_lk.[${GH.coluna}] = s.[${GH.coluna}]
+        AND s.[${GH.coluna}] <> '${GH_SEM_GRUPO}'`
+    : ``;
   // Coluna directa se existir; senão o texto do lookup confirmado.
   const fabricanteSelect = catalogPlan.fabricante
     ? `s.[${catalogPlan.fabricante}]`
@@ -760,6 +818,7 @@ export async function runProductsPipeline(
         LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
         ${ivaJoinClause}
         ${fabricanteJoin}
+        ${ghJoin}
         WHERE s.[Retirado] = 0
           AND s.[Processa_Stocks] <> 0
           AND s.CodigoID > @lastId
