@@ -232,6 +232,80 @@ GO
 
 
 /* ============================================================================
+   MEDIÇÃO — Grupo Homogéneo (relação já observada)
+
+   Não é descoberta. A relação está observada: dbo.Stocks.GrupoHomID e
+   dbo.Stocks_GrupoHom.GrupoHomID contêm os mesmos identificadores (GH0052,
+   GH0379). Falta só o que o critério de saída exige antes de escrever
+   código: qual é a coluna descritiva (pergunta 2) e quantos produtos reais
+   ficam resolvidos (pergunta 4).
+
+   Correr os três blocos e enviar. É a última coisa antes de implementar.
+   ============================================================================ */
+
+
+-- M1 · Colunas e conteúdo de dbo.Stocks_GrupoHom.
+--      Identifica a coluna descritiva a trazer para o LEFT JOIN.
+
+SELECT c.name AS coluna, t.name AS tipo, c.max_length AS tamanho, c.is_nullable AS aceita_null
+FROM sys.columns AS c
+JOIN sys.types   AS t ON t.user_type_id = c.user_type_id
+WHERE c.object_id = OBJECT_ID('dbo.Stocks_GrupoHom')
+ORDER BY c.column_id;
+
+SELECT TOP 10 * FROM dbo.Stocks_GrupoHom;
+GO
+
+
+-- M2 · Cobertura real. Responde à pergunta 4.
+
+SELECT
+    COUNT(*)                                                        AS produtos_total,
+    SUM(CASE WHEN s.GrupoHomID IS NOT NULL
+              AND LTRIM(RTRIM(s.GrupoHomID)) <> '' THEN 1 ELSE 0 END) AS com_grupohomid,
+    SUM(CASE WHEN g.GrupoHomID IS NOT NULL THEN 1 ELSE 0 END)         AS resolvidos_pelo_join
+FROM dbo.Stocks AS s
+LEFT JOIN dbo.Stocks_GrupoHom AS g ON g.GrupoHomID = s.GrupoHomID;
+
+-- Multiplicação de linhas: tem de dar 0. Se der mais, o JOIN duplica
+-- produtos e a relação não é 1:1 — nesse caso não se implementa assim.
+SELECT COUNT(*) AS grupohomid_repetidos_no_lookup
+FROM (SELECT GrupoHomID FROM dbo.Stocks_GrupoHom
+      GROUP BY GrupoHomID HAVING COUNT(*) > 1) AS x;
+GO
+
+
+-- M3 · TODAS as colunas de dbo.Stocks, com taxa de preenchimento.
+--      Sem filtros por nome. Foi o filtro por nome que fez o catalog-audit
+--      falhar GrupoHomID (nenhum de %homog%, %grupo hom%, %gh% casa com
+--      "GrupoHomID"). Um filtro por nome só encontra o que já se sabia
+--      procurar. Isto lista tudo e deixa a evidência falar — é aqui que a
+--      DCI e o ATC aparecem, se estiverem em Stocks.
+
+DECLARE @sql nvarchar(max) = N'';
+SELECT @sql = @sql
+     + CASE WHEN @sql = N'' THEN N'' ELSE N' UNION ALL ' END
+     + N'SELECT ' + QUOTENAME(c.name, '''') + N' AS coluna, '
+     + QUOTENAME(t.name, '''') + N' AS tipo, '
+     + N'COUNT(' + QUOTENAME(c.name) + N') AS preenchidas, '
+     + N'COUNT(DISTINCT ' + QUOTENAME(c.name) + N') AS distintos '
+     + N'FROM dbo.Stocks'
+FROM sys.columns AS c
+JOIN sys.types   AS t ON t.user_type_id = c.user_type_id
+WHERE c.object_id = OBJECT_ID('dbo.Stocks')
+  AND t.name NOT IN ('text','ntext','image','xml','geography','geometry')
+ORDER BY c.column_id;
+
+SET @sql = N'SELECT * FROM (' + @sql + N') AS r ORDER BY preenchidas DESC, coluna;';
+EXEC sp_executesql @sql;
+GO
+
+/* No resultado do M3 interessa qualquer coluna com muitos valores
+   preenchidos e muitos valores distintos cujo nome não tenha sido
+   reconhecido antes. Enviar o resultado completo — a triagem é minha. */
+
+
+/* ============================================================================
    CRITÉRIO DE SAÍDA — vale para o PASSO 0 e para o PASSO 1
 
    Encontrada a relação, respondem-se quatro perguntas ANTES de escrever
