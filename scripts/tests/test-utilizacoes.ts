@@ -13,6 +13,13 @@
  * Uso: npx tsx scripts/tests/test-utilizacoes.ts
  */
 import { UTILIZACOES, GRUPOS, resolverUtilizacao } from "../../lib/catalog/utilizacoes";
+import {
+  REGRAS_ATC,
+  REGRAS_CATEGORIA,
+  REGRAS_SUBCATEGORIA,
+  REGRAS_SUBSTANCIA,
+  REGRAS_TEXTO,
+} from "../../lib/catalog/utilizacoes-regras";
 
 let pass = 0;
 let fail = 0;
@@ -75,6 +82,42 @@ check(
   ambiguos.length === 0,
   "nenhum sinónimo aponta para duas utilizações",
   ambiguos.map(([s, v]) => `${s} -> ${v.join(", ")}`).join(" · "),
+);
+
+console.log("\n=== as regras apontam para o vocabulário ===");
+const alvos: Array<readonly [string, string]> = [
+  ...REGRAS_ATC.map((r) => [r.utilizacao, `ATC ${r.atc}`] as const),
+  ...REGRAS_SUBCATEGORIA.map((r) => [r.utilizacao, `Subcat ${r.nome}`] as const),
+  ...REGRAS_CATEGORIA.map((r) => [r.utilizacao, `Cat ${r.nome}`] as const),
+  ...REGRAS_TEXTO.map((r) => [r.utilizacao, `Texto ${r.padrao.source}`] as const),
+  ...REGRAS_SUBSTANCIA.map((r) => [r.utilizacao, `GH ${r.nome}`] as const),
+];
+// Uma regra que aponta para um slug inexistente aborta o backfill. Abortar
+// a meio de 27 mil produtos é pior do que não arrancar, por isso apanha-se
+// aqui e não em produção.
+const orfas = alvos.filter(([slug]) => !slugs.includes(slug));
+check(
+  orfas.length === 0,
+  "nenhuma regra aponta para utilização inexistente",
+  orfas.map(([s, r]) => `${r} -> ${s}`).join(" | "),
+);
+
+const comConfianca = [...REGRAS_ATC, ...REGRAS_SUBCATEGORIA, ...REGRAS_CATEGORIA, ...REGRAS_SUBSTANCIA];
+check(comConfianca.every((r) => r.confianca > 0 && r.confianca <= 1), "confianças dentro de 0–1");
+check(REGRAS_TEXTO.every((r) => r.confianca > 0 && r.confianca <= 1), "confianças de texto dentro de 0–1");
+
+const atcValido = /^[A-Z]\d{2}([A-Z]{1,2}\d?)?$/;
+check(
+  REGRAS_ATC.every((r) => atcValido.test(r.atc)),
+  "prefixos ATC bem formados",
+  REGRAS_ATC.filter((r) => !atcValido.test(r.atc)).map((r) => r.atc).join(", "),
+);
+
+// Sem regra de recurso: nenhuma regra de texto pode apanhar tudo, senão a
+// faceta deixava de filtrar.
+check(
+  !REGRAS_TEXTO.some((r) => r.padrao.test("artigo qualquer sem relacao nenhuma 500 ml")),
+  "nenhuma regra de texto é um apanha-tudo",
 );
 
 console.log(`\n${pass} ok, ${fail} falhas`);
