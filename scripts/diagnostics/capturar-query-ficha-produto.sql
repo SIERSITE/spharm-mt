@@ -160,13 +160,22 @@ IF EXISTS (SELECT 1 FROM sys.server_event_sessions WHERE name = 'SPharmMT_FichaP
     DROP EVENT SESSION [SPharmMT_FichaProduto] ON SERVER;
 GO
 
+/* SEM filtro por base, de propósito. Se a DCI vier da SPR — e tudo indica
+   que venha — um filtro por SPharm_Silveirense deitava fora exactamente a
+   query que procuramos, e o resultado vazio não significaria nada.
+
+   A base de cada query passa a ser capturada como acção: é ela que revela
+   se a informação regulamentar vive noutra base, e a query cross-database
+   traz o nome em três partes (SPR.dbo.X), que é a ligação que queremos.
+
+   O custo de não filtrar é ruído de outras aplicações. Numa janela de
+   segundos, é pouco. */
+
 CREATE EVENT SESSION [SPharmMT_FichaProduto] ON SERVER
 ADD EVENT sqlserver.sql_batch_completed (
-    ACTION (sqlserver.sql_text, sqlserver.client_app_name)
-    WHERE (sqlserver.database_name = N'SPharm_Silveirense')),
+    ACTION (sqlserver.sql_text, sqlserver.client_app_name, sqlserver.database_name)),
 ADD EVENT sqlserver.rpc_completed (
-    ACTION (sqlserver.sql_text, sqlserver.client_app_name)
-    WHERE (sqlserver.database_name = N'SPharm_Silveirense'))
+    ACTION (sqlserver.sql_text, sqlserver.client_app_name, sqlserver.database_name))
 ADD TARGET package0.event_file (
     SET filename = N'C:\Temp\SPharmMT_FichaProduto.xel', max_file_size = 50)
 WITH (MAX_DISPATCH_LATENCY = 5 SECONDS, STARTUP_STATE = OFF);
@@ -195,33 +204,50 @@ GO
 WITH eventos AS (
     SELECT
         CAST(event_data AS xml).value('(event/action[@name="client_app_name"]/value)[1]', 'nvarchar(256)') AS aplicacao,
+        CAST(event_data AS xml).value('(event/action[@name="database_name"]/value)[1]',   'nvarchar(256)') AS base,
         CAST(event_data AS xml).value('(event/action[@name="sql_text"]/value)[1]',        'nvarchar(max)')  AS query
     FROM sys.fn_xe_file_target_read_file('C:\Temp\SPharmMT_FichaProduto*.xel', NULL, NULL, NULL)
 ),
 distintas AS (
-    SELECT MIN(aplicacao) AS aplicacao, query, COUNT(*) AS vezes
+    SELECT MIN(aplicacao) AS aplicacao, MIN(base) AS base, query, COUNT(*) AS vezes
     FROM eventos
     WHERE query IS NOT NULL AND LEN(query) > 0
     GROUP BY query
 )
+-- 3A · As queries. Relevância 1 primeiro.
 SELECT
-    CASE WHEN query LIKE '%GrupoHom%'  OR query LIKE '%SPRAct%'
-           OR query LIKE '%DCI%'       OR query LIKE '%Generico%'
-           OR query LIKE '%GamaFabricante%' OR query LIKE '%Laborat%'
-           OR query LIKE '%ATC%'
-         THEN 1 ELSE 2 END AS relevancia,   -- 1 = interessa, 2 = resto
-    aplicacao, vezes, query
+    CASE WHEN query LIKE '%SPRAct%'   OR query LIKE '%[^A-Za-z]DCI[^A-Za-z]%'
+           OR query LIKE '%[^A-Za-z]ATC[^A-Za-z]%' OR query LIKE '%Substanc%'
+           OR query LIKE '%[^A-Za-z]SPR[^A-Za-z.]%' OR query LIKE '%SPR.dbo%'
+           OR query LIKE '%Farmacoterap%' OR query LIKE '%Generico%'
+         THEN 1 ELSE 2 END AS relevancia,
+    base, aplicacao, vezes, query
 FROM distintas
-WHERE query LIKE '%Stocks%'
-   OR query LIKE '%GrupoHom%' OR query LIKE '%SPRAct%'
-   OR query LIKE '%DCI%'      OR query LIKE '%ATC%'
+WHERE query LIKE '%Stocks%'  OR query LIKE '%SPR%'
+   OR query LIKE '%[^A-Za-z]DCI[^A-Za-z]%' OR query LIKE '%[^A-Za-z]ATC[^A-Za-z]%'
+   OR query LIKE '%Substanc%' OR query LIKE '%Farmacoterap%'
 ORDER BY relevancia, vezes DESC;
 GO
 
-/* Guardar o resultado (Results to File, ou copiar) e enviar.
-   Se vier vazio: ou a ficha não foi aberta entre o PASSO 1 e o PASSO 2, ou
-   o SPharm não obtém estes campos do SQL Server — e isso também é resposta,
-   fecha esta via em vez de a deixar em aberto. */
+-- 3B · Prova de que a captura funcionou, mesmo que 3A venha vazio.
+--      Sem isto, "vazio" seria ambíguo: nada aconteceu, ou não observámos?
+SELECT
+    CAST(event_data AS xml).value('(event/action[@name="database_name"]/value)[1]',   'nvarchar(256)') AS base,
+    CAST(event_data AS xml).value('(event/action[@name="client_app_name"]/value)[1]', 'nvarchar(256)') AS aplicacao,
+    COUNT(*) AS eventos
+FROM sys.fn_xe_file_target_read_file('C:\Temp\SPharmMT_FichaProduto*.xel', NULL, NULL, NULL)
+GROUP BY
+    CAST(event_data AS xml).value('(event/action[@name="database_name"]/value)[1]',   'nvarchar(256)'),
+    CAST(event_data AS xml).value('(event/action[@name="client_app_name"]/value)[1]', 'nvarchar(256)')
+ORDER BY eventos DESC;
+GO
+
+/* Enviar 3A e 3B.
+
+   3B mostra que bases e que aplicações foram observadas. Se aparecer uma
+   base SPR (ou outra), é ela que serve a informação regulamentar. Se 3A
+   vier vazio mas 3B tiver eventos, a captura funcionou e a query do "Ver
+   DCI" não passou por aqui — conclusão sobre o método, não sobre o ERP. */
 
 
 /* -- PASSO 4 -----------------------------------------------------------------
