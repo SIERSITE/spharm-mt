@@ -199,11 +199,21 @@ export async function runIpfPopulate(
              ROW_NUMBER() OVER (PARTITION BY c."produtoId", c."farmaciaId" ORDER BY c.data DESC) AS rn
       FROM "Compra" c
       WHERE c."farmaciaId" = ANY(${farmaciaIds})
+        -- Só compras cujo documento no ERP reconcilia. Em 804 de 13 642
+        -- recepções da Silveirense faltam linhas que já não existem em
+        -- lado nenhum: o preço unitário dessas é a soma do que restou a
+        -- dividir pela quantidade do que restou, e não o custo real.
+        --
+        -- NULL fica de fora de propósito: são linhas agregadas antes
+        -- desta classificação, cujo estado é desconhecido. "Desconhecido"
+        -- nao e "fiavel", e o ultimoPrecoCompra ja e nullable: nao ter
+        -- valor é melhor do que ter um errado.
+        AND c."custoFiavel" IS TRUE
     )
     SELECT "produtoId", "farmaciaId", "precoUnitario", "fornecedorId"
     FROM ranked WHERE rn = 1
   `);
-  log(`[5/7] Compra (última por par): ${lastCompra.length}`);
+  log(`[5/7] Compra (última por par, só custoFiavel): ${lastCompra.length}`);
 
   // ── 6. Construir indicators via calculator ──────────────────────────
   const k = (p: string, f: string) => `${p}:${f}`;

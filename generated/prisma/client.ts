@@ -116,6 +116,23 @@ export type ProdutoUtilizacao = Prisma.ProdutoUtilizacaoModel
  */
 export type IngestProdutoRun = Prisma.IngestProdutoRunModel
 /**
+ * Model CompraDocumento
+ * Um documento de compra do ERP, com o veredicto sobre se as suas
+ * linhas explicam o valor financeiro.
+ * 
+ * Derivada de `StagingCompraRawLine`, recalculada a cada agregação.
+ * Existe porque a classificação NÃO cabe em `Compra`: essa é agregada
+ * por (produto, dia, fornecedor) e pode juntar vários documentos, logo
+ * um total documental posto numa linha de `Compra` seria rateio com
+ * outro nome — e ratear o total pelas linhas sobreviventes atribuiria
+ * a produtos conhecidos o custo de produtos que desapareceram do ERP.
+ * 
+ * A investigação (agent rev56) provou que em documentos como o 58865 as
+ * linhas em falta não existem em tabela nenhuma: o ERP conserva quanto
+ * se pagou e já não conserva por quê.
+ */
+export type CompraDocumento = Prisma.CompraDocumentoModel
+/**
  * Model CatalogoBackfillRun
  * Uma linha por execução de um backfill de catálogo.
  * 

@@ -822,6 +822,151 @@ async function inspeccionarProfundo(pool: SqlPool, ids: number[]): Promise<void>
   console.log(DOUBLE_RULE);
 }
 
+// -------------------------------------------------------------------
+// Relatorio por classe de qualidade
+// -------------------------------------------------------------------
+
+/**
+ * Espelho da classificacao do SaaS (lib/compras/qualidade.ts).
+ *
+ * Duplicada de proposito: o agent nao importa codigo do SaaS, e ter o
+ * mesmo veredicto ANTES de enviar e o que permite decidir se vale a pena
+ * enviar. Os limiares tem de ser mudados nos dois sitios — o teste
+ * test-compras-qualidade.ts fixa os valores do lado do SaaS, e este
+ * comentario e o ponteiro para aqui.
+ */
+const TOL_ABS_EUR = 0.02;
+const TOL_REL = 0.001;
+
+type Classe = "RECONCILIADA" | "DETALHE_INCOMPLETO" | "NAO_FINANCEIRO" | "SEM_LINHAS";
+
+function classificar(totalDoc: number, explicado: number, nLinhas: number): Classe {
+  if (nLinhas === 0) return "SEM_LINHAS";
+  if (totalDoc === 0) return "NAO_FINANCEIRO";
+  const tol = Math.max(TOL_ABS_EUR, Math.abs(totalDoc) * TOL_REL);
+  return Math.abs(explicado - totalDoc) <= tol ? "RECONCILIADA" : "DETALHE_INCOMPLETO";
+}
+
+/**
+ * Relatorio por classe da janela inteira.
+ *
+ * Responde a pergunta operacional que a reconciliacao antiga nao
+ * respondia: quantos documentos vao poder alimentar custo por produto, e
+ * quanto valor financeiro fica de fora desse calculo.
+ */
+function printarClasses(rows: CompraRow[]): void {
+  type Doc = {
+    totalDoc: number;
+    explicado: number;
+    nLinhas: number;
+    tipo: string;
+  };
+  const docs = new Map<number, Doc>();
+  for (const r of rows) {
+    const id = numOrNull(r.externalReceptionId);
+    if (id === null) continue;
+    const qt = numOrNull(r.quantidade) ?? 0;
+    const va = numOrNull(r.valorEurUnit) ?? 0;
+    const d = docs.get(id);
+    if (d) {
+      d.explicado += qt * va;
+      d.nLinhas++;
+    } else {
+      docs.set(id, {
+        totalDoc: numOrNull(r.headerTotalIncidenciaEur) ?? 0,
+        explicado: qt * va,
+        nLinhas: 1,
+        tipo:
+          r.externalTipoDocumentoId === null || r.externalTipoDocumentoId === undefined
+            ? "(sem tipo)"
+            : String(r.externalTipoDocumentoId),
+      });
+    }
+  }
+
+  type Agg = { n: number; valorDoc: number; valorExpl: number; deltaAbs: number };
+  const vazio = (): Agg => ({ n: 0, valorDoc: 0, valorExpl: 0, deltaAbs: 0 });
+  const porClasse = new Map<Classe, Agg>();
+  const porTipo = new Map<string, Map<Classe, number>>();
+  const piores: Array<{ id: number; classe: Classe; doc: number; expl: number; delta: number; tipo: string }> = [];
+
+  for (const [id, d] of docs) {
+    const classe = classificar(d.totalDoc, d.explicado, d.nLinhas);
+    const a = porClasse.get(classe) ?? vazio();
+    a.n++;
+    a.valorDoc += d.totalDoc;
+    a.valorExpl += d.explicado;
+    a.deltaAbs += Math.abs(d.explicado - d.totalDoc);
+    porClasse.set(classe, a);
+
+    const t = porTipo.get(d.tipo) ?? new Map<Classe, number>();
+    t.set(classe, (t.get(classe) ?? 0) + 1);
+    porTipo.set(d.tipo, t);
+
+    if (classe === "DETALHE_INCOMPLETO") {
+      piores.push({ id, classe, doc: d.totalDoc, expl: d.explicado, delta: d.explicado - d.totalDoc, tipo: d.tipo });
+    }
+  }
+
+  const total = docs.size;
+  const pct = (n: number) => (total ? ((n / total) * 100).toFixed(1) : "0.0");
+  const eur = (v: number) => v.toFixed(2).padStart(14);
+
+  console.log("Qualidade dos documentos:");
+  console.log(`  Documentos na janela          : ${total}`);
+  console.log("");
+  console.log("  classe                  docs      %        valor doc       valor linhas       |delta|");
+  const ordem: Classe[] = ["RECONCILIADA", "DETALHE_INCOMPLETO", "NAO_FINANCEIRO", "SEM_LINHAS"];
+  for (const c of ordem) {
+    const a = porClasse.get(c);
+    if (!a) continue;
+    console.log(
+      `  ${c.padEnd(20)} ${String(a.n).padStart(6)}  ${pct(a.n).padStart(5)}%  ${eur(a.valorDoc)}  ${eur(a.valorExpl)}  ${eur(a.deltaAbs)}`,
+    );
+  }
+  console.log("");
+
+  console.log("  Por FornecedorTipoDocumentoID:");
+  const tipos = [...porTipo.entries()].sort(
+    (a, b) => [...b[1].values()].reduce((x, y) => x + y, 0) - [...a[1].values()].reduce((x, y) => x + y, 0),
+  );
+  for (const [tipo, m] of tipos) {
+    const partes = ordem.filter((c) => m.get(c)).map((c) => `${c}=${m.get(c)}`);
+    const n = [...m.values()].reduce((x, y) => x + y, 0);
+    console.log(`    tipo ${tipo.padEnd(10)} ${String(n).padStart(6)} doc(s)   ${partes.join("  ")}`);
+  }
+  console.log("");
+
+  if (piores.length > 0) {
+    console.log("  TOP divergencias (DETALHE_INCOMPLETO, por |delta|):");
+    for (const d of piores.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 10)) {
+      console.log(
+        `    rec=${String(d.id).padStart(7)} tipo=${d.tipo.padEnd(6)} doc=${d.doc.toFixed(2).padStart(12)} linhas=${d.expl.toFixed(2).padStart(12)} delta=${(d.delta >= 0 ? "+" : "") + d.delta.toFixed(2)}`,
+      );
+    }
+    console.log("");
+  }
+
+  const excluidos =
+    (porClasse.get("DETALHE_INCOMPLETO")?.n ?? 0) +
+    (porClasse.get("NAO_FINANCEIRO")?.n ?? 0) +
+    (porClasse.get("SEM_LINHAS")?.n ?? 0);
+  const valorExcluido =
+    (porClasse.get("DETALHE_INCOMPLETO")?.valorDoc ?? 0) +
+    (porClasse.get("NAO_FINANCEIRO")?.valorDoc ?? 0) +
+    (porClasse.get("SEM_LINHAS")?.valorDoc ?? 0);
+
+  console.log("  Efeito no calculo de custo por produto:");
+  console.log(`    Documentos que PODEM alimentar custo : ${porClasse.get("RECONCILIADA")?.n ?? 0}  (${pct(porClasse.get("RECONCILIADA")?.n ?? 0)}%)`);
+  console.log(`    Documentos EXCLUIDOS desse calculo   : ${excluidos}  (${pct(excluidos)}%)`);
+  console.log(`    Valor financeiro dos excluidos       : ${valorExcluido.toFixed(2)} EUR`);
+  console.log("");
+  console.log("  Os excluidos continuam a ser importados e ficam visiveis; o que");
+  console.log("  nao fazem e produzir custo unitario por produto. O total do");
+  console.log("  documento NUNCA e distribuido pelas linhas que sobreviveram.");
+  console.log("");
+}
+
 export async function comprasDryRun(): Promise<number> {
   let args: Args;
   try {
@@ -969,6 +1114,8 @@ export async function comprasDryRun(): Promise<number> {
       // uma diferença entre o total do documento no ERP e o custo que o
       // SaaS vai guardar — logo, margem calculada sobre outro número.
       printarDivergencias(rows, divergent);
+      console.log("");
+      printarClasses(rows);
       if (divergent.length > 0) {
         console.log(`  Top divergências (cap 10):`);
         for (const d of divergent.slice(0, 10)) {

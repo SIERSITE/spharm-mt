@@ -486,6 +486,55 @@ model IngestProdutoRun {
   @@index([farmaciaId, startedAtServer])
 }
 
+/// Um documento de compra do ERP, com o veredicto sobre se as suas
+/// linhas explicam o valor financeiro.
+///
+/// Derivada de `StagingCompraRawLine`, recalculada a cada agregação.
+/// Existe porque a classificação NÃO cabe em `Compra`: essa é agregada
+/// por (produto, dia, fornecedor) e pode juntar vários documentos, logo
+/// um total documental posto numa linha de `Compra` seria rateio com
+/// outro nome — e ratear o total pelas linhas sobreviventes atribuiria
+/// a produtos conhecidos o custo de produtos que desapareceram do ERP.
+///
+/// A investigação (agent rev56) provou que em documentos como o 58865 as
+/// linhas em falta não existem em tabela nenhuma: o ERP conserva quanto
+/// se pagou e já não conserva por quê.
+model CompraDocumento {
+  id         String @id @default(cuid())
+  farmaciaId String
+
+  /// `Recepcao.[Recepcao ID]`. Identidade do documento no ERP.
+  externalReceptionId Int
+  externalTipoDocumentoId Int?
+  externalFornecedorId    Int
+  externalNRecepcao       Int?
+  dataRecepcao            DateTime
+
+  /// `Recepcao.[Total Incidencia_EUR]` — o que o documento vale.
+  totalDocumentoEur Decimal @db.Decimal(14, 2)
+  /// Σ(quantidade × valorEurUnit) das linhas que ainda existem.
+  valorExplicadoEur Decimal @db.Decimal(14, 2)
+  /// valorExplicado − totalDocumento. Positivo: linhas somam mais.
+  deltaEur Decimal @db.Decimal(14, 2)
+  nLinhas  Int
+
+  /// RECONCILIADA | DETALHE_INCOMPLETO | NAO_FINANCEIRO | SEM_LINHAS.
+  /// Texto e não enum: acrescentar uma classe não deve exigir migração
+  /// enquanto o domínio ainda está a ser aprendido.
+  qualidade String
+
+  /// Batch da agregação que produziu esta linha.
+  ingestBatchId String?
+  calculadoEm   DateTime @default(now())
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  @@unique([farmaciaId, externalReceptionId])
+  @@index([farmaciaId, qualidade])
+  @@index([farmaciaId, dataRecepcao])
+  @@index([farmaciaId, externalTipoDocumentoId])
+}
+
 /// Uma linha por execução de um backfill de catálogo.
 ///
 /// Existe para responder a "estamos a melhorar?" — uma cobertura de 21%
@@ -842,6 +891,7 @@ model Farmacia {
   stagingDevolucoesFornecedorRawLines StagingDevolucaoFornecedorRawLine[]
   movimentos                          MovimentoArtigo[]
   ingestProdutoRuns                   IngestProdutoRun[]
+  compraDocumentos                    CompraDocumento[]
   ingestStocksMovRaw                  IngestStocksMovRaw[]
 
   /// Feature flag (per-tenant na prática, granularidade per-farmácia
@@ -1173,6 +1223,18 @@ model Compra {
   /// Quando a row foi (re)produzida pela aggregation. NULL → row legacy
   /// não tocada pelo pipeline 1c.
   aggregatedAt        DateTime?
+  /// true quando TODAS as linhas que formaram esta row vieram de
+  /// documentos RECONCILIADOS. Só então `precoUnitario` representa um
+  /// custo real e pode alimentar `ultimoPrecoCompra`.
+  ///
+  /// Um booleano e não o valor do documento: `Compra` é agregada por
+  /// produto-dia e pode juntar documentos, portanto guardar aqui um
+  /// total documental convidaria ao rateio que está proibido. O valor
+  /// financeiro do documento vive em `CompraDocumento` e fica lá.
+  ///
+  /// NULL = agregação anterior a esta classificação, estado desconhecido.
+  /// Quem calcula custo trata NULL como não fiável.
+  custoFiavel         Boolean?
 
   farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)

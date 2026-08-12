@@ -22,10 +22,15 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolvedPfCte } from "./resolve-produto";
 import { monthChunks, withRetry } from "./chunk-util";
+import {
+  QUALIDADE,
+  TOLERANCIA_ABS_EUR,
+  TOLERANCIA_REL,
+} from "@/lib/compras/qualidade";
 
 export const EXCLUDED_TIPO_DOCUMENTO_IDS = [4, 17] as const;
 
-type AnyPrisma = Pick<PrismaClient, "$queryRaw" | "$transaction">;
+type AnyPrisma = Pick<PrismaClient, "$queryRaw" | "$executeRaw" | "$transaction">;
 
 export type AggregateComprasOptions = {
   farmaciaId: string;
@@ -59,6 +64,89 @@ export type AggregateComprasResult = {
   chunks: number;
 };
 
+/**
+ * Reconstroi `CompraDocumento` para a janela e classifica cada documento.
+ *
+ * Corre ANTES do UPSERT em `Compra`, porque é o veredicto por documento
+ * que decide o `custoFiavel` de cada linha agregada.
+ *
+ * Set-based e idempotente: `ON CONFLICT` pela identidade do documento no
+ * ERP, portanto reprocessar a mesma janela reescreve em vez de duplicar.
+ *
+ * A classificação está aqui em SQL e não em `classificarDocumento()` por
+ * uma razão de escala — são dezenas de milhares de documentos e trazê-los
+ * ao Node para os devolver seria uma travessia inteira sem necessidade.
+ * Os limiares vêm do mesmo módulo, injectados como parâmetros, e o
+ * `test-compras-qualidade.ts` verifica que as duas leituras concordam.
+ */
+async function reconstruirDocumentos(
+  tx: AnyPrisma,
+  farmaciaId: string,
+  mFrom: Date,
+  mTo: Date,
+  batchId: string,
+): Promise<void> {
+  await tx.$executeRaw(Prisma.sql`
+    INSERT INTO "CompraDocumento" (
+      "id","farmaciaId","externalReceptionId","externalTipoDocumentoId",
+      "externalFornecedorId","externalNRecepcao","dataRecepcao",
+      "totalDocumentoEur","valorExplicadoEur","deltaEur","nLinhas",
+      "qualidade","ingestBatchId","calculadoEm")
+    SELECT
+      gen_random_uuid()::text,
+      d."farmaciaId",
+      d."externalReceptionId",
+      d."externalTipoDocumentoId",
+      d."externalFornecedorId",
+      d."externalNRecepcao",
+      d."dataRecepcao",
+      d."totalDocumento",
+      d."valorExplicado",
+      ROUND(d."valorExplicado" - d."totalDocumento", 2),
+      d."nLinhas",
+      CASE
+        WHEN d."nLinhas" = 0 THEN ${QUALIDADE.SEM_LINHAS}
+        WHEN d."totalDocumento" = 0 THEN ${QUALIDADE.NAO_FINANCEIRO}
+        WHEN ABS(d."valorExplicado" - d."totalDocumento")
+             <= GREATEST(${TOLERANCIA_ABS_EUR}::numeric,
+                         ABS(d."totalDocumento") * ${TOLERANCIA_REL}::numeric)
+          THEN ${QUALIDADE.RECONCILIADA}
+        ELSE ${QUALIDADE.DETALHE_INCOMPLETO}
+      END,
+      ${batchId},
+      now()
+    FROM (
+      SELECT
+        s."farmaciaId",
+        s."externalReceptionId",
+        MIN(s."externalTipoDocumentoId") AS "externalTipoDocumentoId",
+        MIN(s."externalFornecedorId")    AS "externalFornecedorId",
+        MIN(s."externalNRecepcao")       AS "externalNRecepcao",
+        MIN(s."dataRecepcao")            AS "dataRecepcao",
+        -- O total do header vem repetido em cada linha: MIN e MAX são
+        -- iguais e qualquer um serve.
+        MIN(s."headerTotalIncidenciaEur")                       AS "totalDocumento",
+        ROUND(SUM(s."quantidade" * s."valorEurUnit")::numeric, 2) AS "valorExplicado",
+        COUNT(*)::int                                            AS "nLinhas"
+      FROM "StagingCompraRawLine" s
+      WHERE s."farmaciaId" = ${farmaciaId}
+        AND s."dataRecepcao" >= ${mFrom} AND s."dataRecepcao" < ${mTo}
+      GROUP BY s."farmaciaId", s."externalReceptionId"
+    ) d
+    ON CONFLICT ("farmaciaId","externalReceptionId") DO UPDATE SET
+      "externalTipoDocumentoId" = EXCLUDED."externalTipoDocumentoId",
+      "externalFornecedorId"    = EXCLUDED."externalFornecedorId",
+      "externalNRecepcao"       = EXCLUDED."externalNRecepcao",
+      "dataRecepcao"            = EXCLUDED."dataRecepcao",
+      "totalDocumentoEur"       = EXCLUDED."totalDocumentoEur",
+      "valorExplicadoEur"       = EXCLUDED."valorExplicadoEur",
+      "deltaEur"                = EXCLUDED."deltaEur",
+      "nLinhas"                 = EXCLUDED."nLinhas",
+      "qualidade"               = EXCLUDED."qualidade",
+      "ingestBatchId"           = EXCLUDED."ingestBatchId",
+      "calculadoEm"             = EXCLUDED."calculadoEm"`);
+}
+
 const TIPO_FILTER = Prisma.sql`(s."externalTipoDocumentoId" IS NULL OR s."externalTipoDocumentoId" NOT IN (4, 17))`;
 
 /** UPSERT set-based de UM chunk mensal. Devolve created/updated via xmax. */
@@ -77,11 +165,15 @@ async function writeChunk(
         );
         if (!lock[0]?.ok) throw new Error("acquire_lock failed (retry)");
 
+        // Primeiro o veredicto por documento: é dele que sai o
+        // `custoFiavel` de cada linha agregada logo a seguir.
+        await reconstruirDocumentos(tx as unknown as AnyPrisma, farmaciaId, mFrom, mTo, batchId);
+
         const rows = await tx.$queryRaw<Array<{ created: number; updated: number }>>(Prisma.sql`
           WITH ${resolvedPfCte(farmaciaId)},
           ins AS (
             INSERT INTO "Compra"
-              ("id","farmaciaId","produtoId","fornecedorId","data","quantidade","valorTotal","precoUnitario","ingestBatchId","aggregatedAt","dataIngestao")
+              ("id","farmaciaId","produtoId","fornecedorId","data","quantidade","valorTotal","precoUnitario","custoFiavel","ingestBatchId","aggregatedAt","dataIngestao")
             SELECT
               gen_random_uuid()::text,
               s."farmaciaId",
@@ -93,12 +185,24 @@ async function writeChunk(
               CASE WHEN SUM(s."quantidade") > 0
                    THEN ROUND(SUM(s."quantidade" * s."valorEurUnit")::numeric / SUM(s."quantidade"), 4)
                    ELSE NULL END,
+              -- Só é fiável se TODOS os documentos que contribuíram para
+              -- esta linha estiverem reconciliados. Basta um incompleto
+              -- no mesmo produto-dia para o preço unitário passar a ser
+              -- uma mistura de custo real com custo desconhecido.
+              bool_and(cd."qualidade" = ${QUALIDADE.RECONCILIADA}),
               ${batchId}, now(), now()
             FROM "StagingCompraRawLine" s
             JOIN resolved_pf rpf
               ON rpf."farmaciaId" = s."farmaciaId" AND rpf."externalProductId" = s."externalCodigoId"
             JOIN "FornecedorErpRef" fer
               ON fer."farmaciaId" = s."farmaciaId" AND fer."externalFornecedorId" = s."externalFornecedorId"
+            -- INNER e não LEFT: uma linha sem documento classificado não
+            -- pode ser agregada, porque não se sabe se o seu custo é
+            -- real. A reconstrucao corre antes e cobre a janela
+            -- toda, portanto na prática não exclui nada.
+            JOIN "CompraDocumento" cd
+              ON cd."farmaciaId" = s."farmaciaId"
+             AND cd."externalReceptionId" = s."externalReceptionId"
             WHERE s."farmaciaId" = ${farmaciaId}
               AND s."dataRecepcao" >= ${mFrom} AND s."dataRecepcao" < ${mTo}
               AND ${TIPO_FILTER}
@@ -107,6 +211,7 @@ async function writeChunk(
               "quantidade"    = EXCLUDED."quantidade",
               "valorTotal"    = EXCLUDED."valorTotal",
               "precoUnitario" = EXCLUDED."precoUnitario",
+              "custoFiavel"   = EXCLUDED."custoFiavel",
               "ingestBatchId" = EXCLUDED."ingestBatchId",
               "aggregatedAt"  = EXCLUDED."aggregatedAt"
             RETURNING (xmax = 0) AS inserted

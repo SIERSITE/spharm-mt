@@ -391,6 +391,7 @@ export const ModelName = {
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
   IngestProdutoRun: 'IngestProdutoRun',
+  CompraDocumento: 'CompraDocumento',
   CatalogoBackfillRun: 'CatalogoBackfillRun',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
@@ -445,7 +446,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -964,6 +965,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.IngestProdutoRunCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.IngestProdutoRunCountAggregateOutputType> | number
+        }
+      }
+    }
+    CompraDocumento: {
+      payload: Prisma.$CompraDocumentoPayload<ExtArgs>
+      fields: Prisma.CompraDocumentoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CompraDocumentoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CompraDocumentoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        findFirst: {
+          args: Prisma.CompraDocumentoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CompraDocumentoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        findMany: {
+          args: Prisma.CompraDocumentoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>[]
+        }
+        create: {
+          args: Prisma.CompraDocumentoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        createMany: {
+          args: Prisma.CompraDocumentoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CompraDocumentoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>[]
+        }
+        delete: {
+          args: Prisma.CompraDocumentoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        update: {
+          args: Prisma.CompraDocumentoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        deleteMany: {
+          args: Prisma.CompraDocumentoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CompraDocumentoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CompraDocumentoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>[]
+        }
+        upsert: {
+          args: Prisma.CompraDocumentoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CompraDocumentoPayload>
+        }
+        aggregate: {
+          args: Prisma.CompraDocumentoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCompraDocumento>
+        }
+        groupBy: {
+          args: Prisma.CompraDocumentoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CompraDocumentoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CompraDocumentoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CompraDocumentoCountAggregateOutputType> | number
         }
       }
     }
@@ -4008,6 +4083,26 @@ export const IngestProdutoRunScalarFieldEnum = {
 export type IngestProdutoRunScalarFieldEnum = (typeof IngestProdutoRunScalarFieldEnum)[keyof typeof IngestProdutoRunScalarFieldEnum]
 
 
+export const CompraDocumentoScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalReceptionId: 'externalReceptionId',
+  externalTipoDocumentoId: 'externalTipoDocumentoId',
+  externalFornecedorId: 'externalFornecedorId',
+  externalNRecepcao: 'externalNRecepcao',
+  dataRecepcao: 'dataRecepcao',
+  totalDocumentoEur: 'totalDocumentoEur',
+  valorExplicadoEur: 'valorExplicadoEur',
+  deltaEur: 'deltaEur',
+  nLinhas: 'nLinhas',
+  qualidade: 'qualidade',
+  ingestBatchId: 'ingestBatchId',
+  calculadoEm: 'calculadoEm'
+} as const
+
+export type CompraDocumentoScalarFieldEnum = (typeof CompraDocumentoScalarFieldEnum)[keyof typeof CompraDocumentoScalarFieldEnum]
+
+
 export const CatalogoBackfillRunScalarFieldEnum = {
   id: 'id',
   kind: 'kind',
@@ -4353,7 +4448,8 @@ export const CompraScalarFieldEnum = {
   dataIngestao: 'dataIngestao',
   loteIngestaoId: 'loteIngestaoId',
   ingestBatchId: 'ingestBatchId',
-  aggregatedAt: 'aggregatedAt'
+  aggregatedAt: 'aggregatedAt',
+  custoFiavel: 'custoFiavel'
 } as const
 
 export type CompraScalarFieldEnum = (typeof CompraScalarFieldEnum)[keyof typeof CompraScalarFieldEnum]
@@ -4959,6 +5055,20 @@ export type ListEnumTipoClassificacaoFieldRefInput<$PrismaModel> = FieldRefInput
 
 
 /**
+ * Reference to a field of type 'Decimal'
+ */
+export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
+    
+
+
+/**
+ * Reference to a field of type 'Decimal[]'
+ */
+export type ListDecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal[]'>
+    
+
+
+/**
  * Reference to a field of type 'Json'
  */
 export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
@@ -5025,20 +5135,6 @@ export type EnumUtilizadorPerfilFieldRefInput<$PrismaModel> = FieldRefInputType<
  * Reference to a field of type 'UtilizadorPerfil[]'
  */
 export type ListEnumUtilizadorPerfilFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'UtilizadorPerfil[]'>
-    
-
-
-/**
- * Reference to a field of type 'Decimal'
- */
-export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
-    
-
-
-/**
- * Reference to a field of type 'Decimal[]'
- */
-export type ListDecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal[]'>
     
 
 
@@ -5381,6 +5477,7 @@ export type GlobalOmitConfig = {
   utilizacao?: Prisma.UtilizacaoOmit
   produtoUtilizacao?: Prisma.ProdutoUtilizacaoOmit
   ingestProdutoRun?: Prisma.IngestProdutoRunOmit
+  compraDocumento?: Prisma.CompraDocumentoOmit
   catalogoBackfillRun?: Prisma.CatalogoBackfillRunOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   regulatoryRecord?: Prisma.RegulatoryRecordOmit

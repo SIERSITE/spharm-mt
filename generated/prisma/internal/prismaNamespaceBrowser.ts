@@ -58,6 +58,7 @@ export const ModelName = {
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
   IngestProdutoRun: 'IngestProdutoRun',
+  CompraDocumento: 'CompraDocumento',
   CatalogoBackfillRun: 'CatalogoBackfillRun',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
@@ -229,6 +230,26 @@ export const IngestProdutoRunScalarFieldEnum = {
 } as const
 
 export type IngestProdutoRunScalarFieldEnum = (typeof IngestProdutoRunScalarFieldEnum)[keyof typeof IngestProdutoRunScalarFieldEnum]
+
+
+export const CompraDocumentoScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  externalReceptionId: 'externalReceptionId',
+  externalTipoDocumentoId: 'externalTipoDocumentoId',
+  externalFornecedorId: 'externalFornecedorId',
+  externalNRecepcao: 'externalNRecepcao',
+  dataRecepcao: 'dataRecepcao',
+  totalDocumentoEur: 'totalDocumentoEur',
+  valorExplicadoEur: 'valorExplicadoEur',
+  deltaEur: 'deltaEur',
+  nLinhas: 'nLinhas',
+  qualidade: 'qualidade',
+  ingestBatchId: 'ingestBatchId',
+  calculadoEm: 'calculadoEm'
+} as const
+
+export type CompraDocumentoScalarFieldEnum = (typeof CompraDocumentoScalarFieldEnum)[keyof typeof CompraDocumentoScalarFieldEnum]
 
 
 export const CatalogoBackfillRunScalarFieldEnum = {
@@ -576,7 +597,8 @@ export const CompraScalarFieldEnum = {
   dataIngestao: 'dataIngestao',
   loteIngestaoId: 'loteIngestaoId',
   ingestBatchId: 'ingestBatchId',
-  aggregatedAt: 'aggregatedAt'
+  aggregatedAt: 'aggregatedAt',
+  custoFiavel: 'custoFiavel'
 } as const
 
 export type CompraScalarFieldEnum = (typeof CompraScalarFieldEnum)[keyof typeof CompraScalarFieldEnum]
