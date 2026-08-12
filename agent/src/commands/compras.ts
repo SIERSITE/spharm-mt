@@ -413,6 +413,8 @@ type Args = {
   batchSize?: number;
   /** Recepcao IDs a inspeccionar em detalhe (diagnóstico, sem --from/--to). */
   rec?: number[];
+  /** Idem, com varrimento relacional: tabelas ligadas e sequências em falta. */
+  recDeep?: number[];
   help: boolean;
 };
 
@@ -424,6 +426,7 @@ function parseCmdArgs(): Args {
       to: { type: "string" },
       "batch-size": { type: "string" },
       rec: { type: "string" },
+      "rec-deep": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     strict: true,
@@ -438,13 +441,18 @@ function parseCmdArgs(): Args {
       typeof raw.values.rec === "string"
         ? raw.values.rec.split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n))
         : undefined,
+    recDeep:
+      typeof raw.values["rec-deep"] === "string"
+        ? raw.values["rec-deep"].split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n))
+        : undefined,
     help: raw.values.help === true,
   };
 }
 
 function printDryRunHelp(): void {
   console.log("Uso: compras-dry-run --from YYYY-MM-DD --to YYYY-MM-DD");
-  console.log("     compras-dry-run --rec 68918,70102,64250   (inspecciona documentos)");
+  console.log("     compras-dry-run --rec 68918,70102,64250        (inspecciona documentos)");
+  console.log("     compras-dry-run --rec-deep 58865,64250         (varrimento relacional)");
   console.log("");
   console.log("Lê dbo.Recepcao + dbo.[Recepcao Detalhe] read-only.");
   console.log("Imprime sumário + reconciliação + orphans locais + TOP 10 amostra.");
@@ -622,6 +630,198 @@ async function inspeccionarRecepcoes(pool: SqlPool, ids: number[]): Promise<void
   console.log(DOUBLE_RULE);
 }
 
+/**
+ * Varrimento relacional de um documento de recepcao.
+ *
+ * A pergunta: porque e que o total do header nao se reconstroi a partir
+ * das linhas que lemos. O 58865 nao tem Sequencia=1 e o 64250 nao tem
+ * Sequencia=4 — ou essas linhas foram anuladas, ou vivem noutra tabela
+ * que a nossa query nao le. Nos dois casos estamos a importar um
+ * documento incompleto, e nenhuma formula sobre as linhas que temos
+ * corrige isso.
+ *
+ * Descobre as tabelas por METADADOS, nao por palpite: qualquer tabela com
+ * uma coluna que referencie a recepcao entra no varrimento, tenha o nome
+ * que tiver. Read-only, sem POST.
+ */
+async function inspeccionarProfundo(pool: SqlPool, ids: number[]): Promise<void> {
+  const lista = ids.join(",");
+  const q = <T = Record<string, unknown>>(sqlText: string) =>
+    pool.request().query<T>(sqlText).then((r) => r.recordset);
+
+  console.log(DOUBLE_RULE);
+  console.log("  VARRIMENTO RELACIONAL - read-only, sem POST");
+  console.log(DOUBLE_RULE);
+  console.log("");
+
+  // 1. Quem referencia a recepcao, por metadados.
+  const candidatas = await q<{ tabela: string; coluna: string; tipo: string }>(`
+    SELECT t.name AS tabela, c.name AS coluna, ty.name AS tipo
+    FROM sys.columns c
+    JOIN sys.tables t   ON t.object_id = c.object_id
+    JOIN sys.schemas s  ON s.schema_id = t.schema_id
+    JOIN sys.types ty   ON ty.user_type_id = c.user_type_id
+    WHERE s.name = 'dbo'
+      AND ty.name IN ('int','bigint','smallint','numeric','decimal','varchar','nvarchar')
+      AND (c.name LIKE '%Recepcao%' OR c.name LIKE '%Recp%')
+    ORDER BY t.name, c.column_id`);
+
+  console.log(`Colunas que referenciam recepcao: ${candidatas.length}`);
+  for (const c of candidatas) console.log(`  dbo.[${c.tabela}].[${c.coluna}]  ${c.tipo}`);
+  console.log("");
+
+  // FKs declaradas a apontar para Recepcao — sinal mais forte que o nome.
+  const fks = await q<{ origem: string; colOrigem: string; destino: string; colDestino: string }>(`
+    SELECT pt.name AS origem, pc.name AS "colOrigem",
+           rt.name AS destino, rc.name AS "colDestino"
+    FROM sys.foreign_keys fk
+    JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+    JOIN sys.tables pt  ON pt.object_id = fk.parent_object_id
+    JOIN sys.tables rt  ON rt.object_id = fk.referenced_object_id
+    JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+    JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+    WHERE rt.name LIKE 'Recepcao%'`);
+  console.log(`FKs declaradas para Recepcao*: ${fks.length}`);
+  for (const f of fks) console.log(`  dbo.[${f.origem}].[${f.colOrigem}] -> dbo.[${f.destino}].[${f.colDestino}]`);
+  console.log("");
+
+  // 2. Quais delas tem mesmo linhas destes documentos.
+  type Achado = { tabela: string; coluna: string; n: number };
+  const achados: Achado[] = [];
+  for (const c of candidatas) {
+    if (c.tabela === "Recepcao") continue; // e o proprio header
+    try {
+      const r = await q<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM [dbo].[${c.tabela}] WHERE [${c.coluna}] IN (${lista})`);
+      const n = Number(r[0]?.n ?? 0);
+      if (n > 0) achados.push({ tabela: c.tabela, coluna: c.coluna, n });
+    } catch {
+      // Tipo incompativel com a comparacao: nao e uma referencia util.
+    }
+  }
+  console.log("Tabelas COM linhas destes documentos:");
+  if (achados.length === 0) console.log("  (nenhuma alem do detalhe principal)");
+  for (const a of achados) console.log(`  dbo.[${a.tabela}].[${a.coluna}]  ${a.n} linha(s)`);
+  console.log("");
+
+  // 3. Lookups de tipo de documento — o significado dos IDs.
+  const lookups = await q<{ tabela: string }>(`
+    SELECT t.name AS tabela
+    FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE s.name = 'dbo'
+      AND (t.name LIKE '%TipoDoc%' OR t.name LIKE '%Tipo_Doc%'
+        OR t.name LIKE '%DocumentoTipo%' OR t.name LIKE '%FornecedorTipo%')`);
+  console.log("Lookups de tipo de documento:");
+  if (lookups.length === 0) console.log("  (nenhuma tabela candidata na base)");
+  for (const t of lookups) {
+    console.log(`  -- dbo.[${t.tabela}] --`);
+    try {
+      for (const r of await q(`SELECT TOP 80 * FROM [dbo].[${t.tabela}]`)) {
+        console.log(`    ${JSON.stringify(r)}`);
+      }
+    } catch (err) {
+      console.log(`    (nao legivel: ${err instanceof Error ? err.message : err})`);
+    }
+  }
+  console.log("");
+
+  // 4. Documento a documento.
+  for (const id of ids) {
+    console.log(RULE);
+    console.log(`  Recepcao ID ${id}`);
+    console.log(RULE);
+
+    const header = await q(`SELECT * FROM [dbo].[Recepcao] WHERE [Recepcao ID] = ${id}`);
+    if (header.length === 0) { console.log("  (header nao encontrado)"); continue; }
+    console.log("  HEADER completo:");
+    console.log(`    ${JSON.stringify(header[0])}`);
+    console.log("");
+
+    const detalhe = await q(
+      `SELECT * FROM [dbo].[Recepcao Detalhe] WHERE [Recepcao ID] = ${id}
+        ORDER BY [Sequencia]`);
+    console.log(`  LINHAS em [Recepcao Detalhe]: ${detalhe.length}`);
+    for (const l of detalhe) console.log(`    ${JSON.stringify(l)}`);
+    console.log("");
+
+    // Sequencias em falta: e a pista concreta. Se a 1 nao existe, ou foi
+    // apagada, ou esta noutro sitio — e o valor dela falta no total.
+    const seqs = detalhe
+      .map((l) => Number(l["Sequencia"]))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b);
+    if (seqs.length > 0) {
+      const max = seqs[seqs.length - 1] as number;
+      const presentes = new Set(seqs);
+      const faltam: number[] = [];
+      for (let i = 1; i <= max; i++) if (!presentes.has(i)) faltam.push(i);
+      console.log(`  Sequencias presentes : ${seqs.join(", ")}`);
+      console.log(`  Sequencias EM FALTA  : ${faltam.length ? faltam.join(", ") : "(nenhuma)"}`);
+
+      // Procurar as que faltam em cada tabela relacionada que tenha
+      // uma coluna de sequencia.
+      if (faltam.length > 0) {
+        console.log("  A procurar as sequencias em falta nas tabelas relacionadas:");
+        for (const a of achados) {
+          try {
+            const temSeq = await q<{ n: number }>(`
+              SELECT COUNT(*) AS n FROM sys.columns
+              WHERE object_id = OBJECT_ID('dbo.[${a.tabela}]') AND name = 'Sequencia'`);
+            if (Number(temSeq[0]?.n ?? 0) === 0) continue;
+            const rows = await q(
+              `SELECT TOP 40 * FROM [dbo].[${a.tabela}]
+                WHERE [${a.coluna}] = ${id} AND [Sequencia] IN (${faltam.join(",")})`);
+            if (rows.length > 0) {
+              console.log(`    dbo.[${a.tabela}] -> ${rows.length} linha(s):`);
+              for (const r of rows) console.log(`      ${JSON.stringify(r)}`);
+            }
+          } catch {
+            // tabela sem Sequencia comparavel — segue
+          }
+        }
+      }
+    }
+    console.log("");
+
+    // Todas as linhas relacionadas, venham de onde vierem.
+    console.log("  LINHAS RELACIONADAS noutras tabelas:");
+    let algumaRelacionada = false;
+    for (const a of achados) {
+      if (a.tabela === "Recepcao Detalhe") continue;
+      try {
+        const rows = await q(
+          `SELECT TOP 40 * FROM [dbo].[${a.tabela}] WHERE [${a.coluna}] = ${id}`);
+        if (rows.length === 0) continue;
+        algumaRelacionada = true;
+        console.log(`    -- dbo.[${a.tabela}] via [${a.coluna}]: ${rows.length} --`);
+        for (const r of rows) console.log(`      ${JSON.stringify(r)}`);
+      } catch {
+        // segue
+      }
+    }
+    if (!algumaRelacionada) console.log("    (nenhuma)");
+    console.log("");
+
+    // 5. Somas e comparacao final.
+    const n = (v: unknown) => numOrNull(v) ?? 0;
+    const somaLinhas = detalhe.reduce(
+      (acc, l) => acc + n(l["Quantidade"]) * n(l["Valor_EUR"]), 0);
+    const h = header[0] as Record<string, unknown>;
+    console.log("  COMPARACAO FINAL:");
+    console.log(`    SUM(qt x Valor_EUR) das linhas lidas = ${somaLinhas.toFixed(2)}`);
+    for (const k of Object.keys(h)) {
+      if (!/total|incidencia|liquido|bruto|iva|desconto|porte/i.test(k)) continue;
+      const alvo = n(h[k]);
+      console.log(`    ${k.padEnd(30)} = ${alvo.toFixed(2)}   (D${(somaLinhas - alvo) >= 0 ? "+" : ""}${(somaLinhas - alvo).toFixed(2)})`);
+    }
+    console.log("");
+  }
+
+  console.log(DOUBLE_RULE);
+  console.log("  Nada foi escrito. Envia esta saida inteira.");
+  console.log(DOUBLE_RULE);
+}
+
 export async function comprasDryRun(): Promise<number> {
   let args: Args;
   try {
@@ -634,6 +834,21 @@ export async function comprasDryRun(): Promise<number> {
     printDryRunHelp();
     return 0;
   }
+  // Modo diagnostico profundo: varrimento relacional.
+  if (args.recDeep && args.recDeep.length > 0) {
+    let cfgDeep: AgentConfig;
+    try {
+      cfgDeep = loadConfig("sql");
+    } catch (err) {
+      console.error("✗ Config inválida:", err instanceof Error ? err.message : err);
+      return 1;
+    }
+    return withPool(cfgDeep, async (pool) => {
+      await inspeccionarProfundo(pool, args.recDeep!);
+      return 0;
+    });
+  }
+
   // Modo diagnostico: --rec dispensa --from/--to e nao corre o resto.
   if (args.rec && args.rec.length > 0) {
     let cfgInspect: AgentConfig;

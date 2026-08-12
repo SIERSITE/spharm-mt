@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "55";
+const AGENT_REV = "56";
 
 function readGitShortCommit() {
   try {
@@ -683,6 +683,56 @@ function writeBatchWrappers() {
   fs.writeFileSync(
     path.join(DIST_ROOT, "run-compras-dry-run.bat"),
     comprasDryRunBat,
+    "utf8"
+  );
+
+  // Diagnostico de documentos de compra. Read-only, sem POST: pede os
+  // Recepcao ID e despeja header, linhas, tabelas relacionadas e as
+  // sequencias em falta. Existe como .bat porque o `--rec-deep` nao cabe
+  // no wrapper de datas, e nao se pede a um tecnico que abra uma consola.
+  const comprasInspectBat = [
+    `@echo off`,
+    `REM SPharm.MT agent - compras-dry-run --rec-deep (diagnostico)`,
+    `REM Gerado por agent/build.mjs. Nao editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo  DIAGNOSTICO DE DOCUMENTOS DE COMPRA`,
+    `echo ============================================================`,
+    `echo Read-only. NAO escreve no ERP e NAO envia nada para o SaaS.`,
+    `echo.`,
+    `echo Indica os Recepcao ID separados por virgula. Exemplo:`,
+    `echo   58865,64250`,
+    `echo.`,
+    `set "IDS="`,
+    `set /p "IDS=Recepcao IDs: "`,
+    `if "%IDS%"=="" ( echo Nenhum ID indicado. Aborta. & pause & exit /b 1 )`,
+    `if not exist logs mkdir logs`,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "HOJE=%%I"`,
+    `set "SAIDA=logs\\compras-inspect-%HOJE%.txt"`,
+    `echo.`,
+    `echo A analisar... a saida fica tambem em %SAIDA%`,
+    `echo.`,
+    `node.exe agent.cjs compras-dry-run --rec-deep %IDS% > "%SAIDA%" 2>&1`,
+    `set EXIT=%ERRORLEVEL%`,
+    `type "%SAIDA%"`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Concluido. Envia o ficheiro %SAIDA%`,
+    `) else (`,
+    `  echo Falhou. Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-compras-inspect.bat"),
+    comprasInspectBat,
     "utf8"
   );
 
@@ -1814,6 +1864,7 @@ function writeReadme() {
     `  run-fornecedores-dry-run.bat        Fase 1a: le dbo.Fornecedores + LEFT JOIN Tbl_Tipo_Fornecedores. Sumario + TOP 10. SEM POST.`,
     `  run-fornecedores-upload.bat         Fase 1a: POST a /api/ingest/v1/bootstrap/fornecedores. Idempotente. Confirmacao explicita.`,
     `  run-compras-dry-run.bat             Fase 1b: le dbo.Recepcao + dbo.[Recepcao Detalhe]. Reconciliacao + orphans. SEM POST.`,
+    `  run-compras-inspect.bat         Diagnostico read-only de documentos de compra.`,
     `  run-compras-upload.bat              Fase 1b: POST a /api/ingest/v1/bootstrap/compras (StagingCompraRawLine). CONFIRMO.`,
     `  run-devolucoes-fornecedor-dry-run.bat  Fase 1b: le dbo.Devolucao + dbo.[Devolucao Detalhe]. Estados P/E/R/X. SEM POST.`,
     `  run-devolucoes-fornecedor-upload.bat   Fase 1b: POST a /api/ingest/v1/bootstrap/devolucoes-fornecedor. CONFIRMO.`,
