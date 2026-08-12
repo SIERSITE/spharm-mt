@@ -578,6 +578,18 @@ write_env() {
   esac
   info "ENABLE_AGENT_BOOTSTRAP: ${enable_agent_bootstrap}"
 
+  # Scheduler: o interruptor geral e a lista de jobs activos. Preservados
+  # pela mesma razão — quem os liga em produção não pode vê-los voltar a
+  # zero numa reinstalação feita por outro motivo.
+  local scheduler_enabled scheduler_jobs
+  scheduler_enabled=$(env_value_or_keep "$SPHARMMT_ENV_FILE" SCHEDULER_ENABLED 0)
+  case "$scheduler_enabled" in
+    0|1) ;;
+    *) die_precond "SCHEDULER_ENABLED tem de ser 0 ou 1 (recebido: '${scheduler_enabled}')" ;;
+  esac
+  scheduler_jobs=$(env_value_or_keep "$SPHARMMT_ENV_FILE" SCHEDULER_JOBS "")
+  info "SCHEDULER_ENABLED: ${scheduler_enabled}${scheduler_jobs:+   jobs: ${scheduler_jobs}}"
+
   write_file "$SPHARMMT_ENV_FILE" 0640 "$OWNER" <<EOF
 # ${SPHARMMT_ENV_FILE}
 # Configuração NÃO-SECRETA da stack. Os segredos vivem em
@@ -655,7 +667,16 @@ ALLOW_LEGACY_DATABASE_FALLBACK=0
 # DESLIGADO por defeito. Activa só depois de os dados estarem migrados e
 # validados — um cron a correr contra uma base meio-migrada é pior do que
 # cron nenhum.
-SCHEDULER_ENABLED=0
+# PRESERVADOS entre reinstalações (env_value_or_keep). Para mudar, correr
+# o instalador com as variáveis definidas — não editar aqui à mão:
+#
+#   sudo SCHEDULER_ENABLED=1 SCHEDULER_JOBS=utilizacoes ./install-platform.sh
+#
+# SCHEDULER_JOBS limita QUE jobs correm. Vazio = todos. É o que permite
+# ligar um job novo sem activar os nocturnos que ainda não foram
+# validados nesta instalação.
+SCHEDULER_ENABLED=${scheduler_enabled}
+SCHEDULER_JOBS=${scheduler_jobs}
 
 # Fluxo do /api/jobs/refresh-ipf. A 0 corre o caminho legacy single-DB,
 # que é o que está em produção na Vercel. A 1 itera os tenants ACTIVE.

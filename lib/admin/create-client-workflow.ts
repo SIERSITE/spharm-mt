@@ -62,6 +62,7 @@ import {
   getLatestMigrationName,
 } from "../../scripts/tenancy/_shared";
 import { issueIngestKey } from "./ingest-key";
+import { seedUtilizacoes } from "@/lib/catalog/utilizacoes-ciclo";
 
 export type Reporter = {
   step: (name: string) => void;
@@ -378,6 +379,31 @@ export async function createClient(input: CreateClientInput): Promise<CreateClie
           select: { id: true, nome: true },
         });
         farmaciasCreated.push({ nome: f.nome, id: f.id });
+      }
+
+      // ── Step 8b: vocabulário de utilizações ──────────────────────
+      //
+      // Aqui e não no job: um tenant criado pelo Wizard tem de sair
+      // completo. Se o vocabulário só chegasse na passagem seguinte do
+      // /api/jobs/utilizacoes, existiria uma janela em que a farmácia
+      // está instalada e a pesquisa por necessidade não funciona — e
+      // ninguém saberia dizer se era erro ou se era só esperar.
+      //
+      // Não aborta a criação: o tenant já tem base, schema, admin e
+      // farmácias, e desfazer tudo isso por causa de 56 linhas de
+      // vocabulário seria trocar um problema pequeno por um grande. O
+      // job repõe, e o passo fica registado como falhado.
+      result.step = "seed-utilizacoes";
+      reporter.step("seed-utilizacoes");
+      try {
+        const u = await seedUtilizacoes(tenantDb);
+        reporter.info(`utilizações: ${u.novas} novas, ${u.actualizadas} actualizadas`);
+      } catch (err) {
+        console.warn(
+          `[create-client] seed-utilizacoes falhou para ${input.slug}: ${
+            err instanceof Error ? err.message : String(err)
+          } — o job /api/jobs/utilizacoes repõe.`,
+        );
       }
     } finally {
       await tenantDb.$disconnect();

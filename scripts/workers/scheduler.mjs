@@ -28,6 +28,9 @@
  *
  * Env:
  *   SCHEDULER_ENABLED     0|1   — sem isto a 1, nada é disparado
+ *   SCHEDULER_JOBS              — lista de jobs activos, separada por
+ *                                 vírgulas. Ausente ou vazia = todos.
+ *                                 Ex.: SCHEDULER_JOBS=utilizacoes
  *   APP_INTERNAL_URL            — default http://web:3000
  *   CRON_SECRET                 — bearer exigido pelos endpoints
  *   SCHEDULER_TIMEZONE          — apenas "UTC" é suportado (ver nota)
@@ -77,8 +80,28 @@ function boolEnv(name, fallback = false) {
   return v === "1" || v === "true" || v === "yes";
 }
 
+/**
+ * Lista de jobs activos. Vazia = todos (comportamento anterior).
+ *
+ * Existe para se poder ligar UM job sem ligar os outros. Sem isto, pôr o
+ * scheduler a correr por causa de um job novo activava também os cinco
+ * nocturnos — enriquecimento incluído — que podem não estar validados
+ * naquela instalação. "Ligar o scheduler" e "ligar todos os jobs" eram a
+ * mesma decisão, e não deviam ser.
+ *
+ *   SCHEDULER_JOBS=utilizacoes                 só este
+ *   SCHEDULER_JOBS=utilizacoes,refresh-ipf     dois
+ *   SCHEDULER_JOBS= (ou ausente)               todos
+ */
+function jobsPermitidos() {
+  const raw = (process.env.SCHEDULER_JOBS || "").trim();
+  if (!raw) return null; // null = sem filtro
+  return new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+}
+
 const CONFIG = {
   enabled: boolEnv("SCHEDULER_ENABLED", false),
+  jobsPermitidos: jobsPermitidos(),
   baseUrl: (process.env.APP_INTERNAL_URL || "http://web:3000").replace(/\/+$/, ""),
   secret: process.env.CRON_SECRET || "",
   heartbeatFile: process.env.SCHEDULER_HEARTBEAT_FILE || "/tmp/scheduler-heartbeat",
@@ -170,6 +193,11 @@ function slotKey(job, now) {
   return `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${job.hour}:${job.minute}`;
 }
 
+/** Este job está ligado nesta instalação? */
+function jobActivo(job) {
+  return CONFIG.jobsPermitidos === null || CONFIG.jobsPermitidos.has(job.name);
+}
+
 /** Está na altura deste job? Diário por hora:minuto, ou por intervalo. */
 function estaNaAltura(job, now) {
   // Nos jobs por intervalo é o slotKey que limita a cadência: aqui passa
@@ -197,6 +225,7 @@ async function tick() {
 
   const now = new Date();
   for (const job of JOBS) {
+    if (!jobActivo(job)) continue;
     if (!estaNaAltura(job, now)) continue;
     const key = slotKey(job, now);
     if (lastFired.get(job.name) === key) continue;
@@ -215,11 +244,15 @@ async function tick() {
 }
 
 function describePlan() {
+  // Mostra TODOS os jobs, marcando os desligados. Listar só os activos
+  // esconderia a razão de um job não estar a correr — que é exactamente
+  // a pergunta que alguém faz ao correr --list.
   return JOBS.map((j) => {
     const quando = j.everyMinutes
       ? `cada ${String(j.everyMinutes).padStart(2, " ")} min`
       : `${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC`;
-    return `  ${quando.padEnd(12)}  ${j.name.padEnd(20)} ${j.path}`;
+    const marca = jobActivo(j) ? "[on ]" : "[off]";
+    return `  ${marca} ${quando.padEnd(12)}  ${j.name.padEnd(20)} ${j.path}`;
   }).join("\n");
 }
 
