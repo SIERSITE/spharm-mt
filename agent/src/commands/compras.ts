@@ -411,6 +411,8 @@ type Args = {
   from?: string;
   to?: string;
   batchSize?: number;
+  /** Recepcao IDs a inspeccionar em detalhe (diagnóstico, sem --from/--to). */
+  rec?: number[];
   help: boolean;
 };
 
@@ -421,6 +423,7 @@ function parseCmdArgs(): Args {
       from: { type: "string" },
       to: { type: "string" },
       "batch-size": { type: "string" },
+      rec: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     strict: true,
@@ -431,12 +434,17 @@ function parseCmdArgs(): Args {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
     batchSize: bs && Number.isFinite(bs) && bs > 0 ? bs : undefined,
+    rec:
+      typeof raw.values.rec === "string"
+        ? raw.values.rec.split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n))
+        : undefined,
     help: raw.values.help === true,
   };
 }
 
 function printDryRunHelp(): void {
   console.log("Uso: compras-dry-run --from YYYY-MM-DD --to YYYY-MM-DD");
+  console.log("     compras-dry-run --rec 68918,70102,64250   (inspecciona documentos)");
   console.log("");
   console.log("Lê dbo.Recepcao + dbo.[Recepcao Detalhe] read-only.");
   console.log("Imprime sumário + reconciliação + orphans locais + TOP 10 amostra.");
@@ -459,6 +467,161 @@ function printUploadHelp(): void {
 
 // ── DRY-RUN ─────────────────────────────────────────────────────────
 
+// -------------------------------------------------------------------
+// Inspeccao de documentos (diagnostico, read-only)
+// -------------------------------------------------------------------
+
+/**
+ * Despeja tudo o que existe sobre um punhado de recepcoes e testa
+ * hipoteses de formula contra os totais do documento.
+ *
+ * Existe porque a reconciliacao divergia nos DOIS sentidos: 289 com a
+ * soma das linhas acima do documento e 515 abaixo. Desconto e bonus so
+ * podem explicar o primeiro caso, portanto ha uma hipotese por
+ * descobrir — e adivinha-la a partir dos nomes das colunas seria repetir
+ * o erro que ja custou caro no catalogo.
+ *
+ * Nao escreve nada, nao faz POST e nao altera o calculo de ingestao.
+ * As colunas sao descobertas em runtime: os nomes variam entre
+ * instalacoes Softreis, e o que interessa e ver o que ESTA tem.
+ */
+async function inspeccionarRecepcoes(pool: SqlPool, ids: number[]): Promise<void> {
+  const lista = ids.join(",");
+
+  const colunas = async (tabela: string) => {
+    const r = await pool.request().query<{ nome: string; tipo: string }>(`
+      SELECT c.name AS nome, ty.name AS tipo
+      FROM sys.columns c
+      JOIN sys.tables t   ON t.object_id = c.object_id
+      JOIN sys.schemas sc ON sc.schema_id = t.schema_id
+      JOIN sys.types ty   ON ty.user_type_id = c.user_type_id
+      WHERE sc.name = 'dbo' AND t.name = '${tabela.replace(/'/g, "''")}'
+      ORDER BY c.column_id`);
+    return r.recordset;
+  };
+
+  const numericas = (cols: Array<{ nome: string; tipo: string }>) =>
+    cols.filter((c) => /money|decimal|numeric|float|real|int/i.test(c.tipo));
+
+  const colsHeader = await colunas("Recepcao");
+  const colsLinha = await colunas("Recepcao Detalhe");
+
+  console.log(DOUBLE_RULE);
+  console.log("  INSPECCAO DE DOCUMENTOS - read-only, sem POST, sem escrita");
+  console.log(DOUBLE_RULE);
+  console.log("");
+  console.log("Colunas numericas de dbo.Recepcao:");
+  for (const c of numericas(colsHeader)) console.log(`  ${c.nome.padEnd(34)} ${c.tipo}`);
+  console.log("");
+  console.log("Colunas numericas de dbo.[Recepcao Detalhe]:");
+  for (const c of numericas(colsLinha)) console.log(`  ${c.nome.padEnd(34)} ${c.tipo}`);
+  console.log("");
+
+  const lk = await pool.request().query<{ tabela: string }>(`
+    SELECT t.name AS tabela
+    FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE s.name = 'dbo' AND t.name LIKE '%TipoDocumento%'`);
+  console.log("Tabelas de lookup com 'TipoDocumento' no nome:");
+  if (lk.recordset.length === 0) {
+    console.log("  (nenhuma - o significado dos IDs nao esta na base)");
+  }
+  for (const t of lk.recordset) {
+    console.log(`  -- dbo.[${t.tabela}] --`);
+    try {
+      const rows = await pool.request().query(`SELECT TOP 60 * FROM [dbo].[${t.tabela}]`);
+      for (const r of rows.recordset) console.log(`    ${JSON.stringify(r)}`);
+    } catch (err) {
+      console.log(`    (nao legivel: ${err instanceof Error ? err.message : err})`);
+    }
+  }
+  console.log("");
+
+  const headers = await pool.request().query(
+    `SELECT * FROM [dbo].[Recepcao] WHERE [Recepcao ID] IN (${lista})`);
+  const linhas = await pool.request().query(
+    `SELECT * FROM [dbo].[Recepcao Detalhe] WHERE [Recepcao ID] IN (${lista})
+      ORDER BY [Recepcao ID], [Detalhe  Recp ID]`);
+
+  const n = (v: unknown) => numOrNull(v) ?? 0;
+
+  for (const id of ids) {
+    const h = headers.recordset.find((x) => Number(x["Recepcao ID"]) === id);
+    const ls = linhas.recordset.filter((x) => Number(x["Recepcao ID"]) === id);
+    console.log(RULE);
+    console.log(`  Recepcao ID ${id}`);
+    console.log(RULE);
+    if (!h) {
+      console.log("  (nao encontrada)");
+      continue;
+    }
+
+    console.log("  HEADER - todos os campos numericos:");
+    for (const c of numericas(colsHeader)) {
+      const v = h[c.nome];
+      if (v !== null && v !== undefined) console.log(`    ${c.nome.padEnd(34)} ${String(v)}`);
+    }
+    console.log(`  Linhas: ${ls.length}`);
+    console.log("");
+
+    console.log("  LINHAS - todos os campos numericos:");
+    for (const l of ls) {
+      const partes = numericas(colsLinha)
+        .filter((c) => l[c.nome] !== null && l[c.nome] !== undefined)
+        .map((c) => `${c.nome}=${String(l[c.nome])}`);
+      console.log(`    ${partes.join("  ")}`);
+    }
+    console.log("");
+
+    // Hipoteses. Cada uma e uma leitura possivel dos mesmos campos; a
+    // que bater nos dois sentidos da divergencia e a certa.
+    const somas: Record<string, number> = {
+      "qt x valor": 0,
+      "(qt - bonus) x valor": 0,
+      "qt x valor x (1 - desc/100)": 0,
+      "(qt - bonus) x valor x (1 - desc/100)": 0,
+      "qt x valor - desconto": 0,
+    };
+    for (const l of ls) {
+      const qt = n(l["Quantidade"]);
+      const bo = n(l["Bonus"]);
+      const va = n(l["Valor_EUR"]);
+      const de = n(l["Desconto"]);
+      somas["qt x valor"] += qt * va;
+      somas["(qt - bonus) x valor"] += (qt - bo) * va;
+      somas["qt x valor x (1 - desc/100)"] += qt * va * (1 - de / 100);
+      somas["(qt - bonus) x valor x (1 - desc/100)"] += (qt - bo) * va * (1 - de / 100);
+      somas["qt x valor - desconto"] += qt * va - de;
+    }
+
+    // Um total por linha, se existir, e a hipotese mais forte: nao
+    // depende de interpretarmos desconto nem bonus.
+    for (const c of numericas(colsLinha)) {
+      if (!/total|liquido|incidencia/i.test(c.nome)) continue;
+      somas[`SUM(${c.nome})`] = ls.reduce((acc, l) => acc + n(l[c.nome]), 0);
+    }
+
+    console.log("  HIPOTESES vs cada total do header:");
+    const totaisHeader = numericas(colsHeader).filter((c) =>
+      /total|incidencia|liquido|bruto|iva/i.test(c.nome));
+    for (const [nome, valor] of Object.entries(somas)) {
+      console.log(`    ${nome.padEnd(42)} = ${valor.toFixed(2)}`);
+      const comparacoes = totaisHeader
+        .map((c) => {
+          const alvo = n(h[c.nome]);
+          const d = valor - alvo;
+          return `${c.nome}=${alvo.toFixed(2)} (D${d >= 0 ? "+" : ""}${d.toFixed(2)})`;
+        })
+        .join("  ");
+      console.log(`      ${comparacoes}`);
+    }
+    console.log("");
+  }
+
+  console.log(DOUBLE_RULE);
+  console.log("  Nenhuma formula foi aplicada. Envia esta saida inteira.");
+  console.log(DOUBLE_RULE);
+}
+
 export async function comprasDryRun(): Promise<number> {
   let args: Args;
   try {
@@ -470,6 +633,20 @@ export async function comprasDryRun(): Promise<number> {
   if (args.help) {
     printDryRunHelp();
     return 0;
+  }
+  // Modo diagnostico: --rec dispensa --from/--to e nao corre o resto.
+  if (args.rec && args.rec.length > 0) {
+    let cfgInspect: AgentConfig;
+    try {
+      cfgInspect = loadConfig("sql");
+    } catch (err) {
+      console.error("✗ Config inválida:", err instanceof Error ? err.message : err);
+      return 1;
+    }
+    return withPool(cfgInspect, async (pool) => {
+      await inspeccionarRecepcoes(pool, args.rec!);
+      return 0;
+    });
   }
   if (!args.from || !args.to) {
     console.error("✗ --from e --to são obrigatórios (YYYY-MM-DD).");
