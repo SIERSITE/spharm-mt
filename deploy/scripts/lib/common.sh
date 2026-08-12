@@ -1243,6 +1243,46 @@ EOF
 # domínios: admin e aplicação são o mesmo endereço e o /agent-base/ é
 # servido pelo vhost de diagnóstico. Devolver o URL público é aqui a
 # resposta certa, não um fallback defensivo.
+# Valor de uma chave num ficheiro de ambiente, com precedência explícita:
+#
+#   1. variável de ambiente com o mesmo nome  → intenção do operador AGORA
+#   2. valor já no ficheiro                   → decisão tomada antes
+#   3. default                                → primeira instalação
+#
+# Existe porque `write_file` reescreve o platform.env inteiro a cada
+# execução. Sem preservação, uma feature flag ligada por alguém volta a
+# 0 na reinstalação seguinte — em silêncio, e a falha aparece longe da
+# causa (o agent a apanhar 503 dias depois).
+#
+# A ordem importa: o ambiente ganha ao ficheiro para que se possa MUDAR o
+# valor sem editar nada à mão. `ENABLE_AGENT_BOOTSTRAP=1 ./install-platform.sh`
+# liga; `ENABLE_AGENT_BOOTSTRAP=0 ./install-platform.sh` desliga; sem
+# variável, fica como estava.
+#
+# Uso: env_value_or_keep <ficheiro> <CHAVE> <default>
+env_value_or_keep() {
+  local file="$1" key="$2" default="${3:-}"
+
+  # `${!key}` lê a variável cujo NOME está em $key. Distingue "definida a
+  # vazio" de "não definida": a primeira é uma escolha, a segunda não.
+  if [ -n "${!key+x}" ] && [ -n "${!key}" ]; then
+    printf '%s' "${!key}"
+    return 0
+  fi
+
+  if [ -r "$file" ]; then
+    local atual
+    # sub() em vez de -F=: preserva valores que contenham '='.
+    atual=$(awk -v k="^${key}=" '$0 ~ k {sub(/^[^=]*=/, ""); print; exit}' "$file" || true)
+    if [ -n "$atual" ]; then
+      printf '%s' "$atual"
+      return 0
+    fi
+  fi
+
+  printf '%s' "$default"
+}
+
 derive_admin_url() {
   local public_url="${1:-}" explicit="${2:-}"
   if [ -n "$explicit" ]; then printf '%s

@@ -566,6 +566,18 @@ write_env() {
     esac
   fi
 
+  # Feature flags que o operador liga em produção e que NÃO podem voltar
+  # a 0 numa reinstalação. O agent recebe 503 quando o bootstrap está
+  # desligado, e ninguém liga esse 503 a um install-platform.sh corrido
+  # dias antes por outra razão.
+  local enable_agent_bootstrap
+  enable_agent_bootstrap=$(env_value_or_keep "$SPHARMMT_ENV_FILE" ENABLE_AGENT_BOOTSTRAP 0)
+  case "$enable_agent_bootstrap" in
+    0|1) ;;
+    *) die_precond "ENABLE_AGENT_BOOTSTRAP tem de ser 0 ou 1 (recebido: '${enable_agent_bootstrap}')" ;;
+  esac
+  info "ENABLE_AGENT_BOOTSTRAP: ${enable_agent_bootstrap}"
+
   write_file "$SPHARMMT_ENV_FILE" 0640 "$OWNER" <<EOF
 # ${SPHARMMT_ENV_FILE}
 # Configuração NÃO-SECRETA da stack. Os segredos vivem em
@@ -656,7 +668,16 @@ SCHEDULER_ENABLED=0
 REFRESH_IPF_MULTI_TENANT_ENABLED=0
 
 # ── Feature flags ────────────────────────────────────────────────────
-ENABLE_AGENT_BOOTSTRAP=0
+# PRESERVADA entre reinstalações (env_value_or_keep). Para mudar, correr
+# o instalador com a variável definida — não editar aqui à mão, que este
+# ficheiro é reescrito por inteiro:
+#
+#   sudo ENABLE_AGENT_BOOTSTRAP=1 ./install-platform.sh   (liga)
+#   sudo ENABLE_AGENT_BOOTSTRAP=0 ./install-platform.sh   (desliga)
+#
+# Lida em runtime por lib/env.ts: recriar o container web chega, não é
+# preciso reconstruir a imagem.
+ENABLE_AGENT_BOOTSTRAP=${enable_agent_bootstrap}
 TENANT_FALLBACK_ENABLED=1
 
 # ── ZIP base do agent ────────────────────────────────────────────────
