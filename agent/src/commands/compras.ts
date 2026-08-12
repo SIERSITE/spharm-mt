@@ -967,6 +967,91 @@ function printarClasses(rows: CompraRow[]): void {
   console.log("");
 }
 
+
+/**
+ * Impacto operacional da classificacao, simulado sobre a janela.
+ *
+ * Reproduz a chave de agregacao do SaaS — (produto, dia, fornecedor) —
+ * e o `custoFiavel = todos os documentos reconciliados`, para responder
+ * antes do deploy: quantos agregados deixam de poder alimentar custo,
+ * quantos produtos ficam sem ultimo preco fiavel, e quantos recuam para
+ * uma compra anterior.
+ *
+ * LIMITE, e esta escrito no relatorio: so ve a janela pedida. Um produto
+ * cuja ultima compra fiavel seja anterior a --from aparece aqui como
+ * "sem alternativa" quando no SaaS teria uma. E um limite superior do
+ * numero de produtos que ficariam a null, nunca inferior.
+ */
+function printarImpactoOperacional(rows: CompraRow[]): void {
+  // 1. Classe de cada documento.
+  const docs = new Map<number, { totalDoc: number; explicado: number; nLinhas: number }>();
+  for (const r of rows) {
+    const id = numOrNull(r.externalReceptionId);
+    if (id === null) continue;
+    const qt = numOrNull(r.quantidade) ?? 0;
+    const va = numOrNull(r.valorEurUnit) ?? 0;
+    const d = docs.get(id);
+    if (d) { d.explicado += qt * va; d.nLinhas++; }
+    else docs.set(id, { totalDoc: numOrNull(r.headerTotalIncidenciaEur) ?? 0, explicado: qt * va, nLinhas: 1 });
+  }
+  const classePorDoc = new Map<number, Classe>();
+  for (const [id, d] of docs) classePorDoc.set(id, classificar(d.totalDoc, d.explicado, d.nLinhas));
+
+  // 2. Agregados, pela MESMA chave do SaaS.
+  type Agg = { produto: number; dia: string; fiavel: boolean };
+  const aggs = new Map<string, Agg>();
+  for (const r of rows) {
+    const recId = numOrNull(r.externalReceptionId);
+    const prod = numOrNull(r.externalCodigoId);
+    const forn = numOrNull(r.externalFornecedorId);
+    const data = r.dataRecepcao instanceof Date ? r.dataRecepcao.toISOString().slice(0, 10) : null;
+    if (recId === null || prod === null || forn === null || data === null) continue;
+    const k = `${prod}|${forn}|${data}`;
+    const reconciliado = classePorDoc.get(recId) === "RECONCILIADA";
+    const a = aggs.get(k);
+    // bool_and: basta um documento nao reconciliado para o agregado cair.
+    if (a) a.fiavel = a.fiavel && reconciliado;
+    else aggs.set(k, { produto: prod, dia: data, fiavel: reconciliado });
+  }
+
+  const naoFiaveis = [...aggs.values()].filter((a) => !a.fiavel);
+  const produtosAfectados = new Set(naoFiaveis.map((a) => a.produto));
+
+  // 3. Ultimo preco por produto: o que acontece a cada um.
+  const porProduto = new Map<number, Agg[]>();
+  for (const a of aggs.values()) {
+    const l = porProduto.get(a.produto);
+    if (l) l.push(a); else porProduto.set(a.produto, [a]);
+  }
+
+  let recuam = 0;
+  let ficamNull = 0;
+  let inalterados = 0;
+  for (const [, lista] of porProduto) {
+    const ordenada = [...lista].sort((x, y) => (x.dia < y.dia ? 1 : x.dia > y.dia ? -1 : 0));
+    const ultimo = ordenada[0];
+    if (!ultimo) continue;
+    if (ultimo.fiavel) { inalterados++; continue; }
+    // O ultimo nao serve: ha algum anterior que sirva?
+    if (ordenada.some((a) => a.fiavel)) recuam++;
+    else ficamNull++;
+  }
+
+  console.log("Impacto operacional (simulado sobre esta janela):");
+  console.log(`  Agregados Compra na janela                  : ${aggs.size}`);
+  console.log(`  Agregados que ficariam custoFiavel=false    : ${naoFiaveis.length}`);
+  console.log(`  Produtos distintos afectados                : ${produtosAfectados.size}`);
+  console.log("");
+  console.log(`  Produtos com ultimo preco JA fiavel         : ${inalterados}  (sem alteracao)`);
+  console.log(`  Produtos que RECUAM para compra anterior    : ${recuam}`);
+  console.log(`  Produtos que ficariam ultimoPrecoCompra=null: ${ficamNull}`);
+  console.log("");
+  console.log("  Nota: esta simulacao so ve a janela --from/--to. Um produto cuja");
+  console.log("  ultima compra fiavel seja anterior a --from conta aqui como");
+  console.log("  'null' mas no SaaS recuaria para essa. O numero de produtos que");
+  console.log("  ficam a null e portanto um LIMITE SUPERIOR, nunca inferior.");
+  console.log("");
+}
 export async function comprasDryRun(): Promise<number> {
   let args: Args;
   try {
@@ -1116,6 +1201,7 @@ export async function comprasDryRun(): Promise<number> {
       printarDivergencias(rows, divergent);
       console.log("");
       printarClasses(rows);
+      printarImpactoOperacional(rows);
       if (divergent.length > 0) {
         console.log(`  Top divergências (cap 10):`);
         for (const d of divergent.slice(0, 10)) {
