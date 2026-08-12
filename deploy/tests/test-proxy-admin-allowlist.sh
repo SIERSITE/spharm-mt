@@ -24,6 +24,8 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 PROXY="${REPO}/deploy/docker/proxy"
 NAME="spharmmt-adminallow-$$"
 PORT=18289
+SLUG="grupo-silveira"
+KEY="ba0dd0dc0ffee0123456789abcdef012"
 
 pass=0; fail=0
 ok_()  { pass=$((pass+1)); printf '  [OK]    %s\n' "$1"; }
@@ -59,7 +61,7 @@ server {
     listen 3000;
     server_name _;
     default_type text/plain;
-    location / { return 200 "upstream:$request_uri\n"; }
+    location / { return 200 "uri=[$request_uri] slug=[$http_x_tenant_slug] auth=[$http_authorization] host=[$http_host] proto=[$http_x_forwarded_proto]\n"; }
 }
 EOF
 
@@ -111,6 +113,46 @@ for p in /api/admin/pipeline/ /api/admin/pipeline/qualquer-coisa \
   c=$(codigo app.spharmmt.com "$p")
   if [ "$c" = "404" ]; then ok_ "${p} → 404 (prefixo não foi aberto)"
   else bad_ "${p} respondeu ${c} — a allowlist virou prefixo"; fi
+done
+
+echo
+echo "=== as tres agregacoes preservam a CREDENCIAL COMPLETA ==="
+# O 404 estava resolvido e mesmo assim davam 401 missing_credentials: o
+# include poe X-Tenant-Slug a partir de $spharmmt_tenant_slug, que o
+# server poe a "". Uma location que nao reponha a variavel entrega o
+# pedido sem o slug, e a ingest key e comparada por bcrypt contra o hash
+# DAQUELE tenant. Metade da credencial chegava.
+corpo() {
+  curl -s -X POST -H "Host: app.spharmmt.com" \
+    -H "Authorization: Bearer ${KEY}" -H "X-Tenant-Slug: ${SLUG}" \
+    "http://127.0.0.1:${PORT}$1" 2>/dev/null
+}
+for r in aggregate-month aggregate-compras aggregate-devolucoes; do
+  b=$(corpo "/api/admin/pipeline/${r}")
+  if printf '%s' "$b" | grep -q "slug=\[${SLUG}\]"; then ok_ "${r} - X-Tenant-Slug chega"
+  else bad_ "${r} - X-Tenant-Slug PERDIDO: ${b}"; fi
+  if printf '%s' "$b" | grep -q "auth=\[Bearer ${KEY}\]"; then ok_ "${r} - Authorization chega"
+  else bad_ "${r} - Authorization perdida: ${b}"; fi
+  # A armadilha do nginx: um proxy_set_header dentro da location
+  # cancelaria a heranca de todos os do nivel acima.
+  if printf '%s' "$b" | grep -q 'host=\[app.spharmmt.com\]'; then ok_ "${r} - Host preservado"
+  else bad_ "${r} - Host perdido (heranca cancelada): ${b}"; fi
+done
+
+echo
+echo "=== o slug NAO se propaga para onde deve ficar vazio ==="
+# O simetrico do teste acima: a aplicacao web nunca pode aceitar o tenant
+# do cliente, senao qualquer um escolhe o seu.
+for caminho in / /login /dashboard /stock; do
+  b=$(corpo "$caminho")
+  if printf '%s' "$b" | grep -q 'slug=\[\]'; then ok_ "${caminho} - slug descartado"
+  else bad_ "${caminho} - cliente impos o tenant: ${b}"; fi
+done
+# E as rotas de ingestao continuam a receber, como sempre receberam.
+for caminho in /api/ingest/v1/farmacias /api/outbox/v1/heartbeat; do
+  b=$(corpo "$caminho")
+  if printf '%s' "$b" | grep -q "slug=\[${SLUG}\]"; then ok_ "${caminho} - slug preservado"
+  else bad_ "${caminho} - slug perdido: ${b}"; fi
 done
 
 echo

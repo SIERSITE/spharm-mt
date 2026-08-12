@@ -89,7 +89,14 @@ peek() {
 }
 
 echo "=== a API dos Agents recebe as duas metades da credencial ==="
-for alvo in "POST /api/outbox/v1/heartbeat" "GET /api/ingest/v1/farmacias" "POST /api/ingest/v1/bootstrap/products"; do
+# As tres agregacoes entram nesta lista porque autenticam com a MESMA
+# ingest key. Se ca estivessem em Agosto, o 401 das fases 7-9 do
+# full-sync tinha sido apanhado aqui e nao em producao.
+for alvo in "POST /api/outbox/v1/heartbeat" "GET /api/ingest/v1/farmacias" \
+            "POST /api/ingest/v1/bootstrap/products" \
+            "POST /api/admin/pipeline/aggregate-month" \
+            "POST /api/admin/pipeline/aggregate-compras" \
+            "POST /api/admin/pipeline/aggregate-devolucoes"; do
   metodo=${alvo%% *}; caminho=${alvo#* }
   body=$(peek "$metodo" "$caminho")
   if printf '%s' "$body" | grep -q "slug=\[${SLUG}\]"; then
