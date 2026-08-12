@@ -70,6 +70,28 @@ export type Utilizacao = Prisma.UtilizacaoModel
  */
 export type ProdutoUtilizacao = Prisma.ProdutoUtilizacaoModel
 /**
+ * Model IngestProdutoRun
+ * Fronteira temporal de uma corrida de `products-upload`, medida pelo
+ * relógio do SERVIDOR.
+ * 
+ * Existe por uma razão só: o sweep que marca produtos como retirados não
+ * pode depender do relógio da máquina da farmácia. O agent enviava um
+ * `runStartedAt` gerado em Windows, sem NTP garantido; se esse relógio
+ * estivesse adiantado, todas as linhas escritas durante a corrida
+ * ficavam com `dataAtualizacao` anterior ao corte e o sweep retirava o
+ * catálogo inteiro que acabara de ser carregado — com `ok: true`.
+ * 
+ * A corrida é aberta pelo próprio servidor no primeiro batch de
+ * produtos daquela farmácia, e é `startedAtServer` que serve de corte.
+ * O `runStartedAt` do agent continua a viajar no protocolo, mas só como
+ * telemetria: nunca entra num WHERE que altere dados.
+ * 
+ * Não substitui `PipelineRun` (audit log por farmácia, escrito pelo
+ * agent): isto é estado de uma corrida em curso, com um único registo
+ * aberto por farmácia de cada vez.
+ */
+export type IngestProdutoRun = Prisma.IngestProdutoRunModel
+/**
  * Model CatalogoBackfillRun
  * Uma linha por execução de um backfill de catálogo.
  * 

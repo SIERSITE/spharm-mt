@@ -390,6 +390,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
+  IngestProdutoRun: 'IngestProdutoRun',
   CatalogoBackfillRun: 'CatalogoBackfillRun',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
@@ -444,7 +445,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -889,6 +890,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProdutoUtilizacaoCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProdutoUtilizacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    IngestProdutoRun: {
+      payload: Prisma.$IngestProdutoRunPayload<ExtArgs>
+      fields: Prisma.IngestProdutoRunFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.IngestProdutoRunFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.IngestProdutoRunFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        findFirst: {
+          args: Prisma.IngestProdutoRunFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.IngestProdutoRunFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        findMany: {
+          args: Prisma.IngestProdutoRunFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>[]
+        }
+        create: {
+          args: Prisma.IngestProdutoRunCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        createMany: {
+          args: Prisma.IngestProdutoRunCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.IngestProdutoRunCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>[]
+        }
+        delete: {
+          args: Prisma.IngestProdutoRunDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        update: {
+          args: Prisma.IngestProdutoRunUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        deleteMany: {
+          args: Prisma.IngestProdutoRunDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.IngestProdutoRunUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.IngestProdutoRunUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>[]
+        }
+        upsert: {
+          args: Prisma.IngestProdutoRunUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$IngestProdutoRunPayload>
+        }
+        aggregate: {
+          args: Prisma.IngestProdutoRunAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateIngestProdutoRun>
+        }
+        groupBy: {
+          args: Prisma.IngestProdutoRunGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestProdutoRunGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.IngestProdutoRunCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.IngestProdutoRunCountAggregateOutputType> | number
         }
       }
     }
@@ -3919,6 +3994,20 @@ export const ProdutoUtilizacaoScalarFieldEnum = {
 export type ProdutoUtilizacaoScalarFieldEnum = (typeof ProdutoUtilizacaoScalarFieldEnum)[keyof typeof ProdutoUtilizacaoScalarFieldEnum]
 
 
+export const IngestProdutoRunScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  startedAtServer: 'startedAtServer',
+  lastBatchAtServer: 'lastBatchAtServer',
+  produtosRecebidos: 'produtosRecebidos',
+  estado: 'estado',
+  finalizadaEm: 'finalizadaEm',
+  retiradas: 'retiradas'
+} as const
+
+export type IngestProdutoRunScalarFieldEnum = (typeof IngestProdutoRunScalarFieldEnum)[keyof typeof IngestProdutoRunScalarFieldEnum]
+
+
 export const CatalogoBackfillRunScalarFieldEnum = {
   id: 'id',
   kind: 'kind',
@@ -5291,6 +5380,7 @@ export type GlobalOmitConfig = {
   classificacao?: Prisma.ClassificacaoOmit
   utilizacao?: Prisma.UtilizacaoOmit
   produtoUtilizacao?: Prisma.ProdutoUtilizacaoOmit
+  ingestProdutoRun?: Prisma.IngestProdutoRunOmit
   catalogoBackfillRun?: Prisma.CatalogoBackfillRunOmit
   infarmedSnapshot?: Prisma.InfarmedSnapshotOmit
   regulatoryRecord?: Prisma.RegulatoryRecordOmit

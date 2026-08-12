@@ -47,6 +47,7 @@ import {
   asIsoDateOrNull,
   type BootstrapBatchResponse,
 } from "@/lib/ingest/bootstrap";
+import { abrirOuContinuarCorrida } from "@/lib/ingest/produto-run";
 import {
   bulkUpsertProdutosByCnp,
   bulkUpsertProdutoFarmaciaProducts,
@@ -111,6 +112,23 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // 3. Farmácia existe no tenant
   const farmaciaErr = await assertFarmaciaInTenant(ctx.prisma, farmaciaId);
   if (farmaciaErr) return farmaciaErr;
+
+  // 3b. Fronteira da corrida, marcada pelo relógio da BASE.
+  //
+  // O agent também envia um `runStartedAt`, mas vem do relógio da máquina
+  // da farmácia e não pode decidir o que é retirado: se estiver
+  // adiantado, o sweep do /finalize apanha as linhas que esta mesma
+  // corrida acabou de escrever. Aqui abre-se (ou continua-se) uma
+  // corrida cujo `startedAtServer` é o único corte que o sweep usa.
+  //
+  // Nunca falha o batch: o upload dos produtos é o que interessa, e uma
+  // falha a contabilizar a corrida só faz o /finalize recusar-se a
+  // varrer — que é o lado seguro.
+  try {
+    await abrirOuContinuarCorrida(ctx.prisma, farmaciaId, items.length);
+  } catch (err) {
+    console.error("[bootstrap/products] run_tracking_failed", err);
+  }
 
   console.log(
     `[bootstrap/products] start ${JSON.stringify({

@@ -57,6 +57,7 @@ export const ModelName = {
   Classificacao: 'Classificacao',
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
+  IngestProdutoRun: 'IngestProdutoRun',
   CatalogoBackfillRun: 'CatalogoBackfillRun',
   InfarmedSnapshot: 'InfarmedSnapshot',
   RegulatoryRecord: 'RegulatoryRecord',
@@ -214,6 +215,20 @@ export const ProdutoUtilizacaoScalarFieldEnum = {
 } as const
 
 export type ProdutoUtilizacaoScalarFieldEnum = (typeof ProdutoUtilizacaoScalarFieldEnum)[keyof typeof ProdutoUtilizacaoScalarFieldEnum]
+
+
+export const IngestProdutoRunScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  startedAtServer: 'startedAtServer',
+  lastBatchAtServer: 'lastBatchAtServer',
+  produtosRecebidos: 'produtosRecebidos',
+  estado: 'estado',
+  finalizadaEm: 'finalizadaEm',
+  retiradas: 'retiradas'
+} as const
+
+export type IngestProdutoRunScalarFieldEnum = (typeof IngestProdutoRunScalarFieldEnum)[keyof typeof IngestProdutoRunScalarFieldEnum]
 
 
 export const CatalogoBackfillRunScalarFieldEnum = {

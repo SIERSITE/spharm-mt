@@ -435,6 +435,57 @@ model ProdutoUtilizacao {
   @@index([fonte])
 }
 
+/// Fronteira temporal de uma corrida de `products-upload`, medida pelo
+/// relógio do SERVIDOR.
+///
+/// Existe por uma razão só: o sweep que marca produtos como retirados não
+/// pode depender do relógio da máquina da farmácia. O agent enviava um
+/// `runStartedAt` gerado em Windows, sem NTP garantido; se esse relógio
+/// estivesse adiantado, todas as linhas escritas durante a corrida
+/// ficavam com `dataAtualizacao` anterior ao corte e o sweep retirava o
+/// catálogo inteiro que acabara de ser carregado — com `ok: true`.
+///
+/// A corrida é aberta pelo próprio servidor no primeiro batch de
+/// produtos daquela farmácia, e é `startedAtServer` que serve de corte.
+/// O `runStartedAt` do agent continua a viajar no protocolo, mas só como
+/// telemetria: nunca entra num WHERE que altere dados.
+///
+/// Não substitui `PipelineRun` (audit log por farmácia, escrito pelo
+/// agent): isto é estado de uma corrida em curso, com um único registo
+/// aberto por farmácia de cada vez.
+model IngestProdutoRun {
+  id         String @id @default(cuid())
+  farmaciaId String
+
+  /// O corte. Instante do relógio da base, no primeiro batch da corrida.
+  startedAtServer DateTime @default(now())
+  /// Actualizado a cada batch. Serve para detectar corridas abandonadas.
+  lastBatchAtServer DateTime @default(now())
+  /// Quantos produtos esta corrida entregou. Alimenta a defesa contra
+  /// sweeps anormais: uma corrida que entregou 100 linhas não pode
+  /// retirar 18 000.
+  produtosRecebidos Int @default(0)
+
+  /// ABERTA | FINALIZADA | ABANDONADA
+  estado       String    @default("ABERTA")
+  finalizadaEm DateTime?
+  /// Quantas linhas o sweep marcou. Null enquanto não finalizou.
+  retiradas Int?
+
+  farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+
+  /// Uma corrida ABERTA por farmácia — garantido pela base e não pela
+  /// aplicação, senão dois batches concorrentes criavam duas e o sweep
+  /// passava a ter dois cortes possíveis.
+  ///
+  /// É um índice único PARCIAL (`WHERE estado = 'ABERTA'`), criado na
+  /// migração: o Prisma não exprime unicidade condicional, e um
+  /// @@unique([farmaciaId, estado]) proibiria duas corridas FINALIZADA
+  /// na mesma farmácia, que é precisamente o caso normal.
+  @@index([farmaciaId, estado])
+  @@index([farmaciaId, startedAtServer])
+}
+
 /// Uma linha por execução de um backfill de catálogo.
 ///
 /// Existe para responder a "estamos a melhorar?" — uma cobertura de 21%
@@ -790,6 +841,7 @@ model Farmacia {
   stagingComprasRawLines              StagingCompraRawLine[]
   stagingDevolucoesFornecedorRawLines StagingDevolucaoFornecedorRawLine[]
   movimentos                          MovimentoArtigo[]
+  ingestProdutoRuns                   IngestProdutoRun[]
   ingestStocksMovRaw                  IngestStocksMovRaw[]
 
   /// Feature flag (per-tenant na prática, granularidade per-farmácia
