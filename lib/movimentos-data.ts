@@ -30,19 +30,47 @@ export type MovimentoTipo =
   | "RESERVA_SUSPENSA"
   | "COMPRA"
   | "DEVOLUCAO_FORNECEDOR"
+  | "ACERTO_STOCK"
+  | "DESCONHECIDO"
+  // ── Internos retirados em rev60 ──────────────────────────────
+  // A migração recolhe-os para ACERTO_STOCK, mas continuam aqui:
+  // enquanto houver um tenant onde ela ainda não correu, a leitura tem
+  // de os saber mostrar. Todos partilham o rótulo "Acerto de stock" —
+  // o utilizador vê uma operação só, venha a linha de onde vier.
   | "INVENTARIO"
   | "AJUSTE"
   | "QUEBRA"
   | "PERDA"
   | "TRANSFERENCIA_ENTRADA"
   | "TRANSFERENCIA_SAIDA"
-  | "DESCONHECIDO"
   // ── Legacy-only (eliminados quando o branch legacy sair) ──
   | "DEVOLUCAO_OUTRA"
   | "AJUSTE_POSITIVO"
   | "AJUSTE_NEGATIVO"
   | "AJUSTE_CORRECAO"
   | "AJUSTE_OUTRO";
+
+/**
+ * Todos os tipos que o utilizador vê como "Acerto de stock" — o
+ * canónico, os seis que rev60 retirou e os do branch legacy.
+ *
+ * Existe para que o filtro e o rótulo usem a MESMA lista. Quando eram
+ * duas listas, um tipo acrescentado a uma e esquecido na outra dava uma
+ * linha que aparecia na grelha mas desaparecia ao clicar no chip.
+ */
+export const TIPOS_ACERTO_STOCK: readonly MovimentoTipo[] = [
+  "ACERTO_STOCK",
+  "INVENTARIO",
+  "AJUSTE",
+  "QUEBRA",
+  "PERDA",
+  "TRANSFERENCIA_ENTRADA",
+  "TRANSFERENCIA_SAIDA",
+  "AJUSTE_POSITIVO",
+  "AJUSTE_NEGATIVO",
+  "AJUSTE_CORRECAO",
+  "AJUSTE_OUTRO",
+];
 
 export type MovimentoDirecao = "ENTRADA" | "SAIDA" | "NEUTRO";
 
@@ -136,23 +164,29 @@ const TIPO_LABELS: Record<MovimentoTipo, string> = {
   RESERVA_SUSPENSA: "Reserva",
   COMPRA: "Compra / Receção",
   DEVOLUCAO_FORNECEDOR: "Devolução fornecedor",
-  INVENTARIO: "Inventário",
-  AJUSTE: "Ajuste",
-  QUEBRA: "Quebra",
-  PERDA: "Perda",
-  TRANSFERENCIA_ENTRADA: "Transferência entrada",
-  TRANSFERENCIA_SAIDA: "Transferência saída",
+  ACERTO_STOCK: "Acerto de stock",
   DESCONHECIDO: "Movimento",
   DEVOLUCAO_OUTRA: "Devolução",
-  AJUSTE_POSITIVO: "Ajuste positivo",
-  AJUSTE_NEGATIVO: "Ajuste negativo",
-  AJUSTE_CORRECAO: "Correção",
-  AJUSTE_OUTRO: "Ajuste",
+  // Os internos partilham todos o mesmo rótulo. Uma linha gravada antes
+  // da migração e outra gravada depois descrevem a mesma operação, e o
+  // utilizador não tem de saber qual é qual.
+  INVENTARIO: "Acerto de stock",
+  AJUSTE: "Acerto de stock",
+  QUEBRA: "Acerto de stock",
+  PERDA: "Acerto de stock",
+  TRANSFERENCIA_ENTRADA: "Acerto de stock",
+  TRANSFERENCIA_SAIDA: "Acerto de stock",
+  AJUSTE_POSITIVO: "Acerto de stock",
+  AJUSTE_NEGATIVO: "Acerto de stock",
+  AJUSTE_CORRECAO: "Acerto de stock",
+  AJUSTE_OUTRO: "Acerto de stock",
 };
 
 /** Lista usada pelo dropdown "Tipo de movimento" na UI. */
 export function getTiposDisponiveis(): Array<{ value: MovimentoTipo; label: string }> {
-  // Apenas tipos canónicos rev36 (os legacy-only ficam fora do dropdown).
+  // Apenas tipos canónicos rev60. Os seis internos retirados não entram
+  // aqui: escolher "Quebra" no dropdown daria resultados de uma janela
+  // e nada da seguinte, conforme a migração já tivesse corrido.
   const canonical: MovimentoTipo[] = [
     "VENDA",
     "DEVOLUCAO_CLIENTE",
@@ -160,12 +194,7 @@ export function getTiposDisponiveis(): Array<{ value: MovimentoTipo; label: stri
     "RESERVA_SUSPENSA",
     "COMPRA",
     "DEVOLUCAO_FORNECEDOR",
-    "INVENTARIO",
-    "AJUSTE",
-    "QUEBRA",
-    "PERDA",
-    "TRANSFERENCIA_ENTRADA",
-    "TRANSFERENCIA_SAIDA",
+    "ACERTO_STOCK",
     "DESCONHECIDO",
   ];
   return canonical.map((v) => ({ value: v, label: TIPO_LABELS[v] }));
@@ -193,6 +222,11 @@ function direcaoForTipo(tipo: MovimentoTipo, qty: number): MovimentoDirecao {
     case "TRANSFERENCIA_ENTRADA":
     case "AJUSTE_POSITIVO":
       return "ENTRADA";
+    // Um acerto de stock não tem direcção própria — tem o sinal que o
+    // ERP lhe deu. É por isso que colapsar os seis tipos não perde
+    // informação de entrada/saída: essa nunca esteve no tipo, esteve
+    // sempre em `quantidade`.
+    case "ACERTO_STOCK":
     case "INVENTARIO":
     case "AJUSTE":
     case "AJUSTE_CORRECAO":
@@ -631,7 +665,15 @@ export async function getMovimentosProduto(
   // 5. Merge + filtro de tipos + ordem desc por data
   let rows = [...canonicalRows, ...legacyRows];
   if (filters.tipos && filters.tipos.length > 0) {
+    // Pedir ACERTO_STOCK traz também os seis tipos que ele substituiu.
+    // Sem isto, a mesma escolha devolvia coisas diferentes conforme a
+    // migração de recolha já tivesse corrido naquele tenant — e o
+    // utilizador via um acerto na grelha desaparecer ao filtrar por
+    // acertos.
     const set = new Set(filters.tipos);
+    if (set.has("ACERTO_STOCK")) {
+      for (const t of TIPOS_ACERTO_STOCK) set.add(t);
+    }
     rows = rows.filter((r) => set.has(r.tipo));
   }
   rows.sort((a, b) => b.data.localeCompare(a.data));

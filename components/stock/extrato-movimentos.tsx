@@ -7,6 +7,7 @@ import type {
   MovimentoTipo,
   ContraparteTipo,
 } from "@/lib/movimentos-data";
+import { TIPOS_ACERTO_STOCK } from "@/lib/movimentos-data";
 import { runExtratoMovimentos } from "@/app/stock/artigo/[cnp]/actions";
 
 type FarmaciaOpt = { id: string; nome: string };
@@ -36,15 +37,12 @@ const CHIPS: Chip[] = [
   { key: "dev-cliente", label: "Devolução cliente", tipos: ["DEVOLUCAO_CLIENTE", "DEVOLUCAO_OUTRA"] },
   { key: "compra", label: "Compra / Recepção", tipos: ["COMPRA"] },
   { key: "dev-fornecedor", label: "Devolução fornecedor", tipos: ["DEVOLUCAO_FORNECEDOR"] },
-  { key: "transf-entrada", label: "Transferência entrada", tipos: ["TRANSFERENCIA_ENTRADA"] },
-  { key: "transf-saida", label: "Transferência saída", tipos: ["TRANSFERENCIA_SAIDA"] },
-  { key: "inventario", label: "Inventário", tipos: ["INVENTARIO"] },
-  { key: "quebra-perda", label: "Quebra / Perda", tipos: ["QUEBRA", "PERDA"] },
-  {
-    key: "ajuste",
-    label: "Ajuste",
-    tipos: ["AJUSTE", "AJUSTE_POSITIVO", "AJUSTE_NEGATIVO", "AJUSTE_CORRECAO", "AJUSTE_OUTRO"],
-  },
+  // Cinco chips internos passaram a um. Não é simplificação de UI: os
+  // cinco distinguiam-se por uma inferência sobre o texto do motivo,
+  // que rev60 retirou. A lista de tipos vem de TIPOS_ACERTO_STOCK e
+  // inclui os históricos, para que o chip não esconda as linhas
+  // gravadas antes da migração.
+  { key: "acerto", label: "Acerto de stock", tipos: [...TIPOS_ACERTO_STOCK] },
   { key: "reserva", label: "Reserva", tipos: ["RESERVA_SUSPENSA"] },
 ];
 
@@ -55,11 +53,14 @@ const TIPO_BADGE: Partial<Record<MovimentoTipo, string>> = {
   DEVOLUCAO_OUTRA: "border-rose-200 bg-rose-50 text-rose-700",
   COMPRA: "border-emerald-200 bg-emerald-50 text-emerald-700",
   DEVOLUCAO_FORNECEDOR: "border-amber-200 bg-amber-50 text-amber-700",
-  TRANSFERENCIA_ENTRADA: "border-teal-200 bg-teal-50 text-teal-700",
-  TRANSFERENCIA_SAIDA: "border-orange-200 bg-orange-50 text-orange-700",
-  INVENTARIO: "border-indigo-200 bg-indigo-50 text-indigo-700",
-  QUEBRA: "border-red-200 bg-red-50 text-red-700",
-  PERDA: "border-red-200 bg-red-50 text-red-700",
+  // Uma cor só para a operação toda. Cores diferentes para linhas com o
+  // mesmo rótulo davam a entender uma distinção que já não existe.
+  ACERTO_STOCK: "border-violet-200 bg-violet-50 text-violet-700",
+  TRANSFERENCIA_ENTRADA: "border-violet-200 bg-violet-50 text-violet-700",
+  TRANSFERENCIA_SAIDA: "border-violet-200 bg-violet-50 text-violet-700",
+  INVENTARIO: "border-violet-200 bg-violet-50 text-violet-700",
+  QUEBRA: "border-violet-200 bg-violet-50 text-violet-700",
+  PERDA: "border-violet-200 bg-violet-50 text-violet-700",
   AJUSTE: "border-violet-200 bg-violet-50 text-violet-700",
   AJUSTE_POSITIVO: "border-violet-200 bg-violet-50 text-violet-700",
   AJUSTE_NEGATIVO: "border-violet-200 bg-violet-50 text-violet-700",

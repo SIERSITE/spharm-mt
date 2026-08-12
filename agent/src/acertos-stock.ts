@@ -29,32 +29,19 @@
  * como metadado de rastreabilidade e não decide nada.
  */
 
-import { classifyMovimento, type FkPattern } from "./movimento-classifier.js";
+import { ACERTO_STOCK, classifyMovimento, type FkPattern } from "./movimento-classifier.js";
+
+export { ACERTO_STOCK };
 
 /**
- * A operação única. Todos os motivos internos do ERP colapsam aqui.
- */
-export const ACERTO_STOCK = "ACERTO_STOCK" as const;
-
-/**
- * Os tipos que o classificador canónico produz a partir de MOV_INTERNO.
- * No SPharm.MT são todos a mesma operação; esta lista existe para
- * verificar que uma linha que o SQL trouxe é de facto interna.
+ * O que o classificador canónico produz a partir de MOV_INTERNO.
  *
- * `DESCONHECIDO` está cá dentro de propósito: um MOV_INTERNO sem motivo
- * legível nem `[Tipo Documento ID]` reconhecido continua a ser um acerto
- * de stock — só não sabemos porquê. Excluí-lo faria o dry-run acusar
- * divergência entre SQL e classificador onde não há nenhuma.
+ * Desde rev60 é um único valor. Antes eram seis, inferidos do texto do
+ * motivo, e esta lista tinha de incluir DESCONHECIDO para os movimentos
+ * cujo motivo não era legível. Deixou de ser preciso: a origem decide
+ * sozinha, e um motivo ilegível já não degrada nada.
  */
-export const TIPOS_INTERNOS: ReadonlySet<string> = new Set([
-  "INVENTARIO",
-  "AJUSTE",
-  "QUEBRA",
-  "PERDA",
-  "TRANSFERENCIA_ENTRADA",
-  "TRANSFERENCIA_SAIDA",
-  "DESCONHECIDO",
-]);
+export const TIPOS_INTERNOS: ReadonlySet<string> = new Set([ACERTO_STOCK]);
 
 /**
  * Predicado de âmbito. Verdadeiro só quando a origem é inequivocamente

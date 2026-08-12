@@ -12,29 +12,54 @@
  * espera (que re-classifica defensivamente como safety net, mas
  * regista a discrepância nos logs).
  *
- * Classificador puro `(motivoText, tipoDocId, qtd, fkPattern) → TipoMovimentoArtigo`.
+ * Classificador puro `(fkPattern, tipoDocId) → TipoMovimentoArtigo`.
  * Sem deps de Prisma, sem I/O — usado quer pelo endpoint server-side
  * (`/api/ingest/v1/movimentos`) quer pelo agent local (re-classificação
  * em dry-run sem round-trip ao SaaS).
  *
  * Especificação derivada da auditoria rev32 (Segurado 2 079 454 +
- * Silveirense 1 116 410 StocksMov rows, 24 m). O `MovStocksCabMotivoID`
- * é LOCAL ao tenant (Segurado 1..30 ≠ Silveirense 0..65 com a MESMA
- * semântica) — por isso o mapeamento canónico é por TEXTO NORMALIZADO,
- * não por ID.
+ * Silveirense 1 116 410 StocksMov rows, 24 m).
  *
- * Pipeline de decisão:
- *   1. FK pattern (qual das 6 colunas StocksMov FK populadas) → "macro" tipo
- *      VENDA_OR_DEV_CLIENTE / COMPRA / VENDA_CREDITO / RESERVA_SUSPENSA /
- *      DEVOLUCAO_FORNECEDOR / MOV_INTERNO
- *   2. Sub-classificação:
- *      a) VENDA_OR_DEV_CLIENTE: split por Atendimento.[Tipo Documento ID]
- *         7|2 → VENDA, 104|27 → DEVOLUCAO_CLIENTE, outro → VENDA
- *      b) MOV_INTERNO: regex sobre `motivoTexto` normalizado;
- *         fallback por Cab.[Tipo Documento ID];
- *         último recurso → DESCONHECIDO
+ * Pipeline de decisão — só a ORIGEM decide:
+ *   1. FK pattern (qual das 6 colunas StocksMov FK populadas):
+ *      [Detalhe ID]                     → VENDA / DEVOLUCAO_CLIENTE
+ *      [Detalhe  Recp ID]               → COMPRA
+ *      [Devolucao Detalhe ID]           → DEVOLUCAO_FORNECEDOR
+ *      [Atendimento Credito Detalhe ID] → VENDA_CREDITO
+ *      [Atendimento Susp Detalhe ID]    → RESERVA_SUSPENSA
+ *      MovStocksDetID                   → ACERTO_STOCK
+ *      nenhuma                          → DESCONHECIDO
+ *   2. Única sub-classificação que resta: VENDA vs DEVOLUCAO_CLIENTE,
+ *      por Atendimento.[Tipo Documento ID] (104|27 → devolução).
  *
- * Cobertura mínima alvo: DESCONHECIDO < 1 % numa janela 24 m.
+ * ── Porque é que MOV_INTERNO deixou de ter sub-tipos ──────────────
+ *
+ * Até rev59 esta função inferia INVENTARIO / AJUSTE / QUEBRA / PERDA /
+ * TRANSFERENCIA_ENTRADA / TRANSFERENCIA_SAIDA a partir do TEXTO do
+ * motivo e do `cab.[Tipo Documento ID]`. Duas coisas erradas nisso:
+ *
+ *   · O texto é escrito pelo operador da farmácia e o ID é LOCAL ao
+ *     tenant (Segurado 1..30 ≠ Silveirense 0..65 com a mesma
+ *     semântica). Uma regex sobre esse texto é uma inferência, e ficava
+ *     gravada numa coluna que parecia um facto.
+ *   · As transferências inferidas por `[Tipo Documento ID]` 43-54 eram
+ *     o caso mais grave: transferência real é um fluxo documental
+ *     próprio (Guia de Transferência), com contraparte e documento. Um
+ *     movimento interno classificado como TRANSFERENCIA não tinha
+ *     nenhuma das duas coisas — dizia mais do que sabia.
+ *
+ * Decisão funcional (rev60): todo o MOV_INTERNO é uma única operação,
+ * ACERTO_STOCK. `movStocksCabMotivoId` e `movStocksCabMotivoTexto`
+ * continuam gravados na linha, como METADADO de rastreabilidade — quem
+ * quiser saber porque é que o acerto aconteceu lê o motivo do ERP, que
+ * é a fonte, em vez de ler uma categoria que nós inventámos a partir
+ * dele.
+ *
+ * Consequência no gate de qualidade: DESCONHECIDO passa a significar
+ * exclusivamente "nenhuma FK populada" — uma anomalia de schema, não um
+ * motivo que não soubemos ler. O alvo <1 % continua a valer e ficou
+ * mais exigente, porque deixou de haver um cesto onde varrer motivos
+ * ilegíveis.
  */
 
 /**
@@ -51,13 +76,46 @@ export type TipoMovimentoArtigo =
   | "RESERVA_SUSPENSA"
   | "COMPRA"
   | "DEVOLUCAO_FORNECEDOR"
+  | "ACERTO_STOCK"
+  | "DESCONHECIDO"
+  // ── Retirados em rev60, mantidos por causa do que já está gravado ──
+  // Nenhum classificador os volta a produzir. Continuam no enum Prisma
+  // e neste tipo porque as linhas ingeridas antes da migração de
+  // recolha ainda os têm, e um leitor que os omitisse não compilaria
+  // contra os dados reais. Removê-los daqui é seguro só depois de a
+  // migração `movimento_interno_acerto_stock` ter corrido em TODOS os
+  // tenants.
   | "INVENTARIO"
   | "AJUSTE"
   | "QUEBRA"
   | "PERDA"
   | "TRANSFERENCIA_ENTRADA"
-  | "TRANSFERENCIA_SAIDA"
-  | "DESCONHECIDO";
+  | "TRANSFERENCIA_SAIDA";
+
+/**
+ * A operação única dos movimentos internos. Exportada para que os
+ * leitores não repitam o literal.
+ */
+export const ACERTO_STOCK = "ACERTO_STOCK" as const;
+
+/**
+ * Os tipos que rev60 retirou. Um leitor que precise de tratar linhas
+ * históricas — gravadas antes da recolha — usa esta lista em vez de
+ * enumerar strings à mão.
+ */
+export const TIPOS_INTERNOS_LEGADOS: readonly TipoMovimentoArtigo[] = [
+  "INVENTARIO",
+  "AJUSTE",
+  "QUEBRA",
+  "PERDA",
+  "TRANSFERENCIA_ENTRADA",
+  "TRANSFERENCIA_SAIDA",
+];
+
+/** `true` para ACERTO_STOCK e para qualquer um dos tipos que ele substituiu. */
+export function ehAcertoStock(tipo: string): boolean {
+  return tipo === ACERTO_STOCK || (TIPOS_INTERNOS_LEGADOS as readonly string[]).includes(tipo);
+}
 
 /** Snapshot do estado de FK columns numa linha StocksMov. */
 export type FkPattern = {
@@ -75,13 +133,27 @@ export type FkPattern = {
  */
 export type ClassifyInput = {
   fk: FkPattern;
-  /** Atendimento.[Tipo Documento ID] (7|104|27|2|null). */
+  /**
+   * Atendimento.[Tipo Documento ID] (7|104|27|2|null). O ÚNICO campo
+   * não-FK que ainda decide alguma coisa, e só entre VENDA e
+   * DEVOLUCAO_CLIENTE — que partilham a mesma FK e por isso não podem
+   * ser distinguidas pela origem.
+   */
   atendimentoTipoDocId?: number | null;
-  /** dbo.tblMovStocksCab_Motivo.Motivo (texto livre operador). */
+  /**
+   * @deprecated rev60 — aceite e IGNORADO.
+   *
+   * `motivoTexto` e `cabTipoDocId` alimentavam a sub-classificação dos
+   * movimentos internos, que foi retirada. Continuam no tipo porque os
+   * chamadores os passam e porque são gravados na linha como metadado;
+   * mas nenhum deles entra numa decisão. Um chamador que os omita
+   * obtém exactamente o mesmo resultado — e é isso que os testes
+   * verificam.
+   */
   motivoTexto?: string | null;
-  /** dbo.tblMovStocksCab.[Tipo Documento ID] (14|25|28|29|...). */
+  /** @deprecated rev60 — aceite e ignorado. Ver `motivoTexto`. */
   cabTipoDocId?: number | null;
-  /** StocksMov.Qtd (assinado). Usado pelo fallback TipoDoc=28. */
+  /** @deprecated rev60 — aceite e ignorado. Ver `motivoTexto`. */
   qtd?: number | null;
 };
 
@@ -90,121 +162,6 @@ export type ClassifyResult = {
   /** Descreve qual regra disparou — útil para debug + relatórios. */
   reason: string;
 };
-
-// ─────────────────────────────────────────────────────────────────────
-// Normalização texto (lowercase + sem acentos + trim). Trabalha sobre
-// o resultado para todas as comparações regex.
-// ─────────────────────────────────────────────────────────────────────
-function normalize(s: string | null | undefined): string {
-  if (!s) return "";
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip diacritics
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Regex de motivos. ORDEM IMPORTA — primeiro match ganha. Inventario
-// vem antes de Ajuste porque "acerto ficha artigo" tem "acerto" mas é
-// inventário; quebra vem antes de perda porque "quebra na rede de frio"
-// e "validade expirada" são fisicamente quebra, não perda comercial.
-// ─────────────────────────────────────────────────────────────────────
-
-const RE_INVENTARIO = /inventari|acerto\s+ficha/;
-const RE_QUEBRA =
-  /prazo\s*(?:de\s+)?validade|validade\s+expirad|\bquebra\b|danific|destrui|defeito\s+de\s+qualidade|desvio\s+de\s+temperatura/;
-const RE_PERDA =
-  /valormed|uso\s+interno|auto\s*-?\s*consumo|pagamento\s+montra|nao\s+aceit|\blab\.?\s+(?:nao|fechou)|laboratorio\s+fechou|valormed-?\s*lab/;
-const RE_AJUSTE =
-  /\bacerto\b|\btroca\b|\bengano\b|\berro\b|\bbonus\b|codigo|entrada\s+(?:cx|unidade|stock)|saida\s+(?:cx|unidade|stock)|encomenda\s+antiga|encomenda(?:\s+nao)?\s+dado\s+entrada|\breserva|\bsaldo\b|passagem|estat\.?\s*ven/;
-
-/** Motivos que são puramente numéricos (ex: "6840769") → ajuste. */
-const RE_NUMERIC_ONLY = /^\d{2,}$/;
-/** Motivo "V" sozinho (Segurado motivoId=8) — ajuste defensivo. */
-const RE_SINGLE_CHAR = /^[a-z]$/;
-
-// ─────────────────────────────────────────────────────────────────────
-// Fallback por Cab.[Tipo Documento ID]. Valores observados nos 2
-// tenants (rev32): 14 Passagem de Saldos, 25 Inventário, 28 Acréscimos,
-// 29 Perdas, 43-49 Transferências Robô/Farm, 52-54 Sincr, 55 Robô.
-// ─────────────────────────────────────────────────────────────────────
-function fromCabTipoDoc(
-  cabTipoDocId: number | null | undefined,
-  qtd: number | null | undefined,
-): TipoMovimentoArtigo | null {
-  if (cabTipoDocId == null) return null;
-  switch (cabTipoDocId) {
-    case 14: // Passagem de Saldos
-      return "AJUSTE";
-    case 25: // Inventário
-      return "INVENTARIO";
-    case 28: // Acréscimos — sinal decide
-      return qtd != null && qtd < 0 ? "PERDA" : "AJUSTE";
-    case 29: // Perdas
-      return "QUEBRA";
-    case 43:
-    case 45:
-    case 47:
-    case 49:
-    case 53:
-      return "TRANSFERENCIA_SAIDA";
-    case 44:
-    case 46:
-    case 48:
-    case 52:
-    case 54:
-      return "TRANSFERENCIA_ENTRADA";
-    case 55: // Acerto pelo Robô
-      return "AJUSTE";
-    default:
-      return null;
-  }
-}
-
-/**
- * Sub-classifica um movimento interno (MovStocksDetID populado).
- * Devolve `null` se nem motivo nem TipoDoc deram match — o caller
- * promove a DESCONHECIDO.
- */
-function classifyMovInterno(input: ClassifyInput): {
-  tipo: TipoMovimentoArtigo;
-  reason: string;
-} | null {
-  const norm = normalize(input.motivoTexto);
-
-  // 1. Match por texto normalizado (ORDEM IMPORTA)
-  if (norm) {
-    if (RE_INVENTARIO.test(norm)) {
-      return { tipo: "INVENTARIO", reason: `motivo-text:inventario("${norm}")` };
-    }
-    if (RE_QUEBRA.test(norm)) {
-      return { tipo: "QUEBRA", reason: `motivo-text:quebra("${norm}")` };
-    }
-    if (RE_PERDA.test(norm)) {
-      return { tipo: "PERDA", reason: `motivo-text:perda("${norm}")` };
-    }
-    if (RE_AJUSTE.test(norm)) {
-      return { tipo: "AJUSTE", reason: `motivo-text:ajuste("${norm}")` };
-    }
-    if (RE_NUMERIC_ONLY.test(norm) || RE_SINGLE_CHAR.test(norm)) {
-      return { tipo: "AJUSTE", reason: `motivo-text:opaque("${norm}")` };
-    }
-  }
-
-  // 2. Fallback por Cab.[Tipo Documento ID]
-  const byTipoDoc = fromCabTipoDoc(input.cabTipoDocId, input.qtd);
-  if (byTipoDoc) {
-    return {
-      tipo: byTipoDoc,
-      reason: `cab-tipodoc:${input.cabTipoDocId}${input.qtd != null ? `,qtd=${input.qtd}` : ""}`,
-    };
-  }
-
-  // 3. Sem informação suficiente — caller promove a DESCONHECIDO.
-  return null;
-}
 
 /**
  * Função principal. Cada StocksMov classificada exactamente uma vez.
@@ -242,13 +199,12 @@ export function classifyMovimento(input: ClassifyInput): ClassifyResult {
     return { tipo: "RESERVA_SUSPENSA", reason: "fk:suspDetalhe" };
   }
 
+  // Movimento interno. Sem sub-classificação: a origem já é a resposta.
+  // Um motivo ilegível não degrada nada — o acerto continua a ser um
+  // acerto, e o motivo do ERP fica gravado na linha para quem o quiser
+  // ler.
   if (fk.movStocksDetId != null) {
-    const r = classifyMovInterno(input);
-    if (r) return r;
-    return {
-      tipo: "DESCONHECIDO",
-      reason: `mov-interno-no-match (motivoId=?, cabTipoDoc=${input.cabTipoDocId ?? "null"})`,
-    };
+    return { tipo: ACERTO_STOCK, reason: "fk:movStocksDet" };
   }
 
   // Nenhuma FK populada — anomalia. Acontece em <0,01 % das linhas

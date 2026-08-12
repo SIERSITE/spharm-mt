@@ -5,10 +5,19 @@
  * Cobre:
  *  1. FK pattern (6 colunas) → tipo macro
  *  2. Sub-classificação VENDA vs DEVOLUCAO_CLIENTE via Atendimento.TipoDoc
- *  3. Todos os 31 motivos do Segurado (rev32 audit)
- *  4. Todos os 53 motivos do Silveirense (rev32 audit)
- *  5. Fallback por Cab.[Tipo Documento ID] quando motivo NULL
- *  6. DESCONHECIDO só quando classificador sem hipótese
+ *  3. Todos os 31 motivos do Segurado (rev32 audit) → ACERTO_STOCK
+ *  4. Todos os 53 motivos do Silveirense (rev32 audit) → ACERTO_STOCK
+ *  5. Nenhum `cab.[Tipo Documento ID]` altera o resultado
+ *  6. DESCONHECIDO só quando não há FK nenhuma
+ *
+ * ── O que estes testes passaram a provar (rev60) ──────────────────
+ *
+ * A terceira coluna das duas tabelas de motivos era o tipo que o
+ * classificador inferia do TEXTO. Está lá na mesma, mas mudou de papel:
+ * já não é o que se espera, é o registo do que se deixou de inferir. A
+ * asserção passou a ser a mesma para as 84 linhas — ACERTO_STOCK — e é
+ * isso que torna o teste forte. Uma regex reintroduzida a favor de
+ * "inventário" ou "quebra" volta a partir estas 84 de uma vez.
  *
  * Uso:
  *   npx tsx scripts/test-movimento-classifier.ts
@@ -164,11 +173,11 @@ const seguradoMotivos: Array<[number, string, TipoMovimentoArtigo]> = [
   [30, "inventário 2026", "INVENTARIO"],
 ];
 
-for (const [id, txt, expected] of seguradoMotivos) {
+for (const [id, txt, tipoAntigo] of seguradoMotivos) {
   expectTipo(
     { fk: MOV_INT_FK, motivoTexto: txt, cabTipoDocId: 28, qtd: -1 },
-    expected,
-    `Segurado motivo[${id}] "${txt}" → ${expected}`,
+    "ACERTO_STOCK",
+    `Segurado motivo[${id}] "${txt}" → ACERTO_STOCK (era ${tipoAntigo})`,
   );
 }
 
@@ -230,72 +239,102 @@ const silveirenseMotivos: Array<[number, string | null, TipoMovimentoArtigo]> = 
   [65, "PRODUTO PARA DESTRUIÇÃO", "QUEBRA"],
 ];
 
-for (const [id, txt, expected] of silveirenseMotivos) {
+for (const [id, txt, tipoAntigo] of silveirenseMotivos) {
   expectTipo(
     { fk: MOV_INT_FK, motivoTexto: txt, cabTipoDocId: 28, qtd: -1 },
-    expected,
-    `Silveirense motivo[${id}] ${txt === null ? "NULL" : `"${txt}"`} → ${expected}`,
+    "ACERTO_STOCK",
+    `Silveirense motivo[${id}] ${txt === null ? "NULL" : `"${txt}"`} → ACERTO_STOCK (era ${tipoAntigo})`,
+  );
+}
+
+// O mesmo corpus, agora sem NADA além da FK. Se o resultado é igual com
+// e sem motivo, o motivo não está a decidir — que é a afirmação toda.
+for (const [id, txt] of [...seguradoMotivos, ...silveirenseMotivos]) {
+  expectTipo(
+    { fk: MOV_INT_FK },
+    "ACERTO_STOCK",
+    `motivo[${id}] ${txt === null ? "NULL" : `"${txt}"`} omitido → mesmo resultado`,
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 4. Fallback por Cab.[Tipo Documento ID] (motivo NULL)
+// 4. `cab.[Tipo Documento ID]` deixou de decidir
 // ─────────────────────────────────────────────────────────────────────
+//
+// Os IDs abaixo são os que a auditoria rev32 observou, e cada um deles
+// produzia um tipo diferente. 43-54 eram os mais perigosos: davam
+// TRANSFERENCIA_ENTRADA / SAIDA a um movimento que não tem contraparte
+// nem guia. E os IDs são LOCAIS a cada tenant — o mesmo 28 não
+// significa o mesmo nas duas farmácias.
 
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 25 },
-  "INVENTARIO",
-  "motivo NULL + cabTipoDoc=25 (Inventário) → INVENTARIO",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 14 },
-  "AJUSTE",
-  "motivo NULL + cabTipoDoc=14 (Passagem de Saldos) → AJUSTE",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 29 },
-  "QUEBRA",
-  "motivo NULL + cabTipoDoc=29 (Perdas) → QUEBRA",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 28, qtd: 5 },
-  "AJUSTE",
-  "motivo NULL + cabTipoDoc=28 (Acréscimos) + qtd>0 → AJUSTE",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 28, qtd: -5 },
-  "PERDA",
-  "motivo NULL + cabTipoDoc=28 + qtd<0 → PERDA",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 44 },
-  "TRANSFERENCIA_ENTRADA",
-  "motivo NULL + cabTipoDoc=44 (Entrada Stock Farm) → TRANSFERENCIA_ENTRADA",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 43 },
-  "TRANSFERENCIA_SAIDA",
-  "motivo NULL + cabTipoDoc=43 (Saída Robô) → TRANSFERENCIA_SAIDA",
-);
-expectTipo(
-  { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 55 },
-  "AJUSTE",
-  "motivo NULL + cabTipoDoc=55 (Acerto pelo Robô) → AJUSTE",
-);
+for (const tipoDoc of [14, 25, 28, 29, 43, 44, 45, 46, 47, 48, 49, 52, 53, 54, 55, 999]) {
+  expectTipo(
+    { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: tipoDoc },
+    "ACERTO_STOCK",
+    `cabTipoDoc=${tipoDoc} não altera o resultado`,
+  );
+}
+
+// O sinal também não. Era ele que separava AJUSTE de PERDA no ID 28; a
+// direcção do movimento vive em `quantidade`, onde sempre viveu.
+for (const qtd of [-5, -1, 0, 1, 5]) {
+  expectTipo(
+    { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: 28, qtd },
+    "ACERTO_STOCK",
+    `qtd=${qtd} não altera o resultado`,
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────
-// 5. DESCONHECIDO last-resort — motivo unhelpful + cabTipoDoc desconhecido
+// 5. DESCONHECIDO só sobrevive à ausência total de FK
 // ─────────────────────────────────────────────────────────────────────
 
 expectTipo(
   { fk: MOV_INT_FK, motivoTexto: "lorem ipsum", cabTipoDocId: 999 },
-  "DESCONHECIDO",
-  "motivo opaco + cabTipoDoc desconhecido → DESCONHECIDO",
+  "ACERTO_STOCK",
+  "motivo ilegível continua a ser um acerto",
 );
 expectTipo(
   { fk: MOV_INT_FK, motivoTexto: null, cabTipoDocId: null },
+  "ACERTO_STOCK",
+  "sem motivo nenhum continua a ser um acerto",
+);
+expectTipo(
+  { fk: EMPTY_FK, motivoTexto: "Inventário", cabTipoDocId: 25 },
   "DESCONHECIDO",
-  "motivo NULL + cabTipoDoc NULL → DESCONHECIDO",
+  "sem FK nenhuma → DESCONHECIDO, por muito claro que o motivo seja",
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// 6. O âmbito: precedência das FKs
+// ─────────────────────────────────────────────────────────────────────
+//
+// É isto que impede o pipeline de acertos de contar vendas e compras.
+
+expectTipo(
+  { fk: { ...EMPTY_FK, movStocksDetId: 1, detalheId: 2 }, atendimentoTipoDocId: 7 },
+  "VENDA",
+  "FK interna + FK de venda → VENDA (a venda ganha)",
+);
+expectTipo(
+  { fk: { ...EMPTY_FK, movStocksDetId: 1, recpDetalheId: 2 } },
+  "COMPRA",
+  "FK interna + FK de compra → COMPRA",
+);
+expectTipo(
+  { fk: { ...EMPTY_FK, movStocksDetId: 1, devolucaoDetalheId: 2 } },
+  "DEVOLUCAO_FORNECEDOR",
+  "FK interna + FK de devolução → DEVOLUCAO_FORNECEDOR",
+);
+expectTipo(
+  { fk: { ...EMPTY_FK, movStocksDetId: 1, suspDetalheId: 2 } },
+  "RESERVA_SUSPENSA",
+  "FK interna + FK de reserva → RESERVA_SUSPENSA",
+);
+expectTipo(
+  { fk: { ...EMPTY_FK, movStocksDetId: 1, creditoDetalheId: 2 } },
+  "VENDA_CREDITO",
+  "FK interna + FK de crédito → VENDA_CREDITO",
 );
 
 // ─────────────────────────────────────────────────────────────────────

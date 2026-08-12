@@ -34,6 +34,8 @@
     "catalog:audit": "tsx scripts/catalog-master/audit-catalog.ts",
     "catalog:seed-utilizacoes": "tsx scripts/catalog-master/seed-utilizacoes.ts",
     "catalog:backfill-utilizacoes": "tsx scripts/catalog-master/backfill-utilizacoes.ts",
+    "test:acerto-stock": "tsx scripts/tests/test-acerto-stock-apresentacao.ts",
+    "test:movimento-classifier": "tsx scripts/test-movimento-classifier.ts",
     "test:catalog-master": "tsx scripts/tests/test-catalog-master.ts",
     "test:server-actions-origins": "tsx scripts/tests/test-server-actions-origins.ts",
     "aggregate:vendamensal": "tsx scripts/aggregate-vendamensal.ts",

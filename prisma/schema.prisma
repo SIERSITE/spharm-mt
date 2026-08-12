@@ -190,13 +190,34 @@ enum TipoMovimentoArtigo {
   RESERVA_SUSPENSA
   COMPRA
   DEVOLUCAO_FORNECEDOR
+  /// Movimento interno do ERP (origem MovStocksDetID). Operação ÚNICA:
+  /// inventário, quebra, validade, uso interno, ValorMed, acerto de
+  /// ficha e destruição são todos isto. O motivo do ERP fica em
+  /// `movStocksCabMotivoId` / `movStocksCabMotivoTexto` como metadado de
+  /// rastreabilidade e não decide lógica operacional nenhuma.
+  ACERTO_STOCK
+  DESCONHECIDO
+
+  // ── Retirados em rev60 ────────────────────────────────────────
+  // Eram inferidos do texto do motivo (escrito pelo operador) e de
+  // `cab.[Tipo Documento ID]` (cujos IDs são LOCAIS a cada tenant).
+  // Nenhum classificador os volta a produzir; a migração
+  // `movimento_interno_acerto_stock` recolhe as linhas existentes para
+  // ACERTO_STOCK.
+  //
+  // Ficam no enum porque Postgres não remove valores de um tipo enum
+  // sem o recriar, e recriá-lo obrigaria a reescrever a coluna inteira
+  // numa tabela de centenas de milhares de linhas — risco sem retorno.
+  // Um valor que ninguém escreve e ninguém lê não custa nada.
   INVENTARIO
   AJUSTE
   QUEBRA
   PERDA
+  /// Transferência REAL entre farmácias pertence ao fluxo documental da
+  /// Guia de Transferência, que tem contraparte e número de documento —
+  /// não a uma inferência sobre um movimento interno.
   TRANSFERENCIA_ENTRADA
   TRANSFERENCIA_SAIDA
-  DESCONHECIDO
 }
 
 /// Natureza da contraparte de um MovimentoArtigo. Usada para identificar
