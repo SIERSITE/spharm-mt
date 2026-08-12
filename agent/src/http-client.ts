@@ -78,6 +78,7 @@ export class SaasClient {
         body = await res.text();
       } catch {}
       const snippet = body.slice(0, 500);
+      if (res.status === 401) this.diagnostico401(method, url, snippet);
       throw new SaasApiError(
         `SaaS ${method} ${path} → HTTP ${res.status}: ${snippet || "(corpo vazio)"}`,
         res.status,
@@ -430,6 +431,39 @@ export class SaasClient {
    * Wrapper interno que permite passar headers extra (ex: x-agent-instance).
    * Mantido privado para evitar exposição directa do fetch.
    */
+  /**
+   * Diagnostico de credenciais, impresso quando o SaaS responde 401.
+   *
+   * Nunca revela a chave: so diz se o cabecalho foi construido com
+   * conteudo. Existe porque um 401 tem duas causas indistinguiveis do
+   * lado de fora — "o agent nao enviou" e "o proxy apagou" — e a
+   * mensagem do servidor distingue-as:
+   *
+   *   missing_credentials  falta um dos dois cabecalhos A CHEGADA
+   *   invalid credentials  chegaram os dois, a chave e que nao serve
+   *
+   * Se o agent diz hasTenantSlug=true e o servidor responde
+   * missing_credentials, o cabecalho perdeu-se no caminho — e o caminho
+   * e o URL que esta impresso aqui.
+   */
+  private diagnostico401(method: string, url: string, corpo: string): void {
+    console.error("");
+    console.error("  ── 401: diagnostico de credenciais (sem revelar a chave) ──");
+    console.error(`     endpoint          : ${this.endpoint}`);
+    console.error(`     url completo      : ${method} ${url}`);
+    console.error(`     hasAuthorization  : ${this.ingestKey.length > 0}`);
+    console.error(`     hasTenantSlug     : ${this.tenantSlug.length > 0}`);
+    console.error(`     tenantSlug        : ${this.tenantSlug || "(vazio)"}`);
+    console.error(`     ingestKey (chars) : ${this.ingestKey.length}`);
+    console.error(`     resposta          : ${corpo.slice(0, 200)}`);
+    if (/missing_credentials/.test(corpo) && this.ingestKey.length > 0 && this.tenantSlug.length > 0) {
+      console.error("     >> O agent ENVIOU os dois cabecalhos e o servidor diz que faltam.");
+      console.error("        Perderam-se entre o agent e a aplicacao — verificar o proxy");
+      console.error("        para ESTE url, e nao para outro dominio.");
+    }
+    console.error("");
+  }
+
   private async requestWithHeaders<T>(
     method: "GET" | "POST",
     path: string,
@@ -469,6 +503,7 @@ export class SaasClient {
         body = await res.text();
       } catch {}
       const snippet = body.slice(0, 500);
+      if (res.status === 401) this.diagnostico401(method, url, snippet);
       throw new SaasApiError(
         `SaaS ${method} ${path} → HTTP ${res.status}: ${snippet || "(corpo vazio)"}`,
         res.status,
