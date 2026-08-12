@@ -48,7 +48,7 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "59";
+const AGENT_REV = "60";
 
 function readGitShortCommit() {
   try {
@@ -855,6 +855,64 @@ function writeBatchWrappers() {
   fs.writeFileSync(
     path.join(DIST_ROOT, "run-stocksmov-dry-run.bat"),
     stocksmovDryRunBat,
+    "utf8"
+  );
+
+  // ── acertos-stock-dry-run — âmbito MOV_INTERNO, read-only ────────
+  // Distinto do stocksmov-dry-run: aquele lê um chunk e mostra a
+  // distribuição de TODAS as origens; este conta a janela inteira por
+  // agregação SQL e só os movimentos internos.
+  const acertosStockDryRunBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — acertos-stock-dry-run (interactivo)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   acertos-stock-dry-run — READ-ONLY, SEM POST`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo Conta os ACERTOS DE STOCK da janela ^(origem MOV_INTERNO^):`,
+    `echo   - total, positivos, negativos, quantidade liquida`,
+    `echo   - produtos distintos e intervalo temporal`,
+    `echo   - movimentos sem produto resolvido`,
+    `echo   - duplicados pela chave StocksMovID`,
+    `echo   - amostras + motivos ERP ^(so diagnostico^)`,
+    `echo.`,
+    `echo Vendas, compras, devolucoes e reservas ficam FORA por construcao.`,
+    `echo Nao escreve no ERP. Nao envia nada ao SaaS.`,
+    `echo.`,
+    `echo Pre-requisito: run-test-connection.bat OK.`,
+    `echo.`,
+    `echo Formato datas: YYYY-MM-DD ^(--to e INCLUSIVO^)`,
+    `echo.`,
+    `set "FROM="`,
+    `set /p "FROM=Data inicial (--from): "`,
+    `if "%FROM%"=="" ( echo --from vazio. Aborta. & pause & exit /b 1 )`,
+    `set "TO="`,
+    `set /p "TO=Data final   (--to)  : "`,
+    `if "%TO%"=="" ( echo --to vazio. Aborta. & pause & exit /b 1 )`,
+    `echo.`,
+    `node.exe agent.cjs acertos-stock-dry-run --from %FROM% --to %TO%`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo.`,
+    `echo ============================================================`,
+    `if "%EXIT%"=="0" (`,
+    `  echo Dry-run OK. Nada escrito no ERP. Nada enviado ao SaaS.`,
+    `  echo Enviar o output completo para analise antes de qualquer ingestao.`,
+    `) else (`,
+    `  echo Falhou ou com bloqueios ^(exit %EXIT%^). Ver mensagens acima.`,
+    `)`,
+    `echo ============================================================`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-acertos-stock-dry-run.bat"),
+    acertosStockDryRunBat,
     "utf8"
   );
 
@@ -1870,6 +1928,7 @@ function writeReadme() {
     `  run-devolucoes-fornecedor-upload.bat   Fase 1b: POST a /api/ingest/v1/bootstrap/devolucoes-fornecedor. CONFIRMO.`,
     `  run-stocksmov-dry-run.bat           Block B1: le dbo.StocksMov + classifica local. Sumario por tipo + DESCONHECIDO. SEM POST.`,
     `  run-stocksmov-upload.bat            Block B2: POST a /api/ingest/v1/movimentos. Canonico MovimentoArtigo. Idempotente. CONFIRMO.`,
+    `  run-acertos-stock-dry-run.bat       READ-ONLY: conta os acertos de stock (MOV_INTERNO) da janela inteira por agregacao SQL. SEM POST.`,
     `  run-inspect-product-identifiers.bat Probe READ-ONLY: descobre a coluna em dbo.Stocks com o CNP (NAO usar CodCNPEM).`,
     `  run-setup-orders-write-log.bat      Cria dbo.SPharmMT_OrderWriteLog (tabela auxiliar de idempotencia). PRE-REQUISITO para insert.`,
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,

@@ -63,6 +63,7 @@ import {
 } from "./commands/devolucoes-fornecedor.js";
 import { movimentosAudit } from "./commands/movimentos-audit.js";
 import { stocksmovDryRun, stocksmovUpload } from "./commands/stocksmov.js";
+import { acertosStockDryRun } from "./commands/acertos-stock.js";
 import { ivaAudit } from "./commands/iva-audit.js";
 import { catalogAudit } from "./commands/catalog-audit.js";
 import { catalogDiscoverLinks } from "./commands/catalog-discover-links.js";
@@ -222,6 +223,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "stocksmov-upload": {
     run: stocksmovUpload,
     desc: "Block B2: POST /api/ingest/v1/movimentos. Paginado por StocksMovID. Idempotente por (farmaciaId, externalMovId). --from/--to[/--since-id].",
+  },
+  "acertos-stock-dry-run": {
+    run: acertosStockDryRun,
+    desc: "Read-only: conta os acertos de stock (MOV_INTERNO) da janela — sinais, quantidade líquida, produtos, duplicados por StocksMovID, amostras. SEM POST.",
   },
   health: {
     run: health,
