@@ -716,7 +716,7 @@ TENANT_FALLBACK_ENABLED=1
 #     ${SPHARMMT_ROOT}/agent-base/spharmmt-agent-base.zip
 #
 # A revisão NUNCA entra no URL. Vive dentro do pacote (manifest e
-# `agent --version`), e é só aí que deve ser lida. Um URL versionado
+# \`agent --version\`), e é só aí que deve ser lida. Um URL versionado
 # obrigaria a editar esta configuração a cada release, e os Wizards já
 # instalados continuariam a descarregar para sempre a revisão que estava
 # em vigor no dia em que foram configurados.

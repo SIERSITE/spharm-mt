@@ -102,3 +102,24 @@ fi
 echo
 printf '%d ok, %d falhas\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
+
+echo
+echo "=== o heredoc do platform.env não executa nada ==="
+# `<<EOF` sem aspas faz expansão: uma crase por escapar dentro do bloco é
+# substituição de comando. `agent --version` no meio de um comentário
+# fazia o instalador imprimir "agent: command not found" E gravava o
+# comentário truncado no ficheiro gerado.
+IPF="${REPO}/deploy/scripts/install-platform.sh"
+inicio=$(grep -n 'write_file "\$SPHARMMT_ENV_FILE" 0640 "\$OWNER" <<EOF' "$IPF" | cut -d: -f1)
+fim=$(awk -v i="$inicio" 'NR>i && $0=="EOF" {print NR; exit}' "$IPF")
+soltas=$(awk -v a="$inicio" -v b="$fim" 'NR>a && NR<b' "$IPF" | grep '`' | grep -cv '\`')
+if [ "${soltas:-0}" -eq 0 ]; then
+  pass=$((pass+1)); printf '  [OK]    nenhuma crase por escapar entre as linhas %s e %s\n' "$inicio" "$fim"
+else
+  fail=$((fail+1)); printf '  [FALHA] %s crase(s) por escapar no heredoc — o instalador vai executá-las\n' "$soltas"
+  awk -v a="$inicio" -v b="$fim" 'NR>a && NR<b' "$IPF" | grep '`' | grep -v '\`'
+fi
+
+echo
+printf '%d ok, %d falhas\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
