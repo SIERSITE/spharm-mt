@@ -26,6 +26,14 @@ import {
   type TenantRecord,
 } from "@/lib/control-plane";
 import { requireControlEnv, runPrismaForTenant, getLatestMigrationName } from "./_shared";
+import { getTenantPrismaOrLegacy } from "@/lib/tenant-registry";
+import { seedUtilizacoes } from "@/lib/catalog/utilizacoes-ciclo";
+
+/** Vocabulário de utilizações na base deste tenant. Idempotente. */
+async function seedTenantUtilizacoes(tenant: TenantRecord) {
+  const prisma = await getTenantPrismaOrLegacy(tenant.slug);
+  return seedUtilizacoes(prisma);
+}
 
 type Outcome = {
   slug: string;
@@ -83,6 +91,27 @@ async function migrateOne(tenant: TenantRecord, dryRun: boolean): Promise<Outcom
       action: "migrated",
       meta: { schemaVersion: getLatestMigrationName() },
     });
+
+    // Vocabulário de utilizações logo a seguir à migração. É idempotente
+    // e barato (56 upserts), e é o que evita que instalar uma farmácia
+    // exija SSH: sem isto, o backfill encontrava vocabulário vazio e a
+    // faceta de pesquisa ficava por preencher até alguém reparar.
+    //
+    // Não falha a migração: a migração correu, e é isso que este comando
+    // promete. O job /api/jobs/utilizacoes volta a tentar sozinho.
+    try {
+      const r = await seedTenantUtilizacoes(tenant);
+      console.log(
+        `  [${tenant.slug}] utilizações: ${r.novas} novas, ${r.actualizadas} actualizadas` +
+          (r.desactivadas ? `, ${r.desactivadas} desactivadas` : ""),
+      );
+    } catch (err) {
+      console.warn(
+        `  [${tenant.slug}] AVISO: seed de utilizações falhou (${
+          err instanceof Error ? err.message : String(err)
+        }). O job /api/jobs/utilizacoes repõe.`,
+      );
+    }
   }
 
   return { slug: tenant.slug, status: "ok" };

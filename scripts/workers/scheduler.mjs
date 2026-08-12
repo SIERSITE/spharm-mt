@@ -56,6 +56,12 @@ const JOBS = [
   { name: "refresh-ipf", path: "/api/jobs/refresh-ipf", hour: 3, minute: 0 },
   { name: "enrich-catalog", path: "/api/jobs/enrich-catalog", hour: 4, minute: 0 },
   { name: "enrich-retail", path: "/api/jobs/enrich-retail", hour: 5, minute: 0 },
+  // Utilizações: não é diário. A sua função é reagir a um
+  // products-upload que acabou de fechar — uma farmácia acabada de
+  // instalar não pode esperar até de madrugada para ter a faceta de
+  // pesquisa preenchida. Barato quando não há trabalho: o handler
+  // compara dois timestamps por tenant e devolve logo.
+  { name: "utilizacoes", path: "/api/jobs/utilizacoes", everyMinutes: 10 },
 ];
 
 const TICK_MS = 30_000;
@@ -156,7 +162,20 @@ async function runJob(job) {
  * o tick corre a cada 30s, portanto passa duas vezes por cada minuto.
  */
 function slotKey(job, now) {
+  if (job.everyMinutes) {
+    // Bloco do intervalo: dois ticks dentro do mesmo bloco de N minutos
+    // partilham a chave, e o segundo não dispara.
+    return `every:${job.everyMinutes}:${Math.floor(now.getTime() / (job.everyMinutes * 60_000))}`;
+  }
   return `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}T${job.hour}:${job.minute}`;
+}
+
+/** Está na altura deste job? Diário por hora:minuto, ou por intervalo. */
+function estaNaAltura(job, now) {
+  // Nos jobs por intervalo é o slotKey que limita a cadência: aqui passa
+  // sempre e o bloco é que decide se já disparou.
+  if (job.everyMinutes) return true;
+  return now.getUTCHours() === job.hour && now.getUTCMinutes() === job.minute;
 }
 
 async function heartbeat() {
@@ -178,12 +197,16 @@ async function tick() {
 
   const now = new Date();
   for (const job of JOBS) {
-    if (now.getUTCHours() !== job.hour) continue;
-    if (now.getUTCMinutes() !== job.minute) continue;
+    if (!estaNaAltura(job, now)) continue;
     const key = slotKey(job, now);
     if (lastFired.get(job.name) === key) continue;
     lastFired.set(job.name, key);
-    log("info", "a disparar job", { job: job.name, scheduled: `${job.hour}:${String(job.minute).padStart(2, "0")} UTC` });
+    log("info", "a disparar job", {
+      job: job.name,
+      scheduled: job.everyMinutes
+        ? `cada ${job.everyMinutes} min`
+        : `${job.hour}:${String(job.minute).padStart(2, "0")} UTC`,
+    });
     // Sem await: um job lento não pode atrasar o tick nem os restantes.
     // O lock cooperativo do lado do handler é que garante que não há
     // sobreposição do MESMO job.
@@ -192,9 +215,12 @@ async function tick() {
 }
 
 function describePlan() {
-  return JOBS.map(
-    (j) => `  ${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC  ${j.name.padEnd(20)} ${j.path}`,
-  ).join("\n");
+  return JOBS.map((j) => {
+    const quando = j.everyMinutes
+      ? `cada ${String(j.everyMinutes).padStart(2, " ")} min`
+      : `${String(j.hour).padStart(2, "0")}:${String(j.minute).padStart(2, "0")} UTC`;
+    return `  ${quando.padEnd(12)}  ${j.name.padEnd(20)} ${j.path}`;
+  }).join("\n");
 }
 
 async function main() {
