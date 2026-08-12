@@ -274,6 +274,90 @@ type HeaderRecon = {
   linesSeen: number;
 };
 
+/**
+ * Agrupa as divergências pelos eixos que podem explicá-las.
+ *
+ * Só leitura e só impressão: nada aqui altera payloads nem cálculos. A
+ * pergunta a que responde é "de onde vêm", e as três hipóteses óbvias
+ * — desconto, bónus e tipo de documento — ou aparecem concentradas num
+ * grupo, ou ficam excluídas.
+ *
+ * A separação por sinal é o que distingue as hipóteses: desconto e bónus
+ * só podem inflacionar a soma das linhas face ao total do documento
+ * (computed > expected). Um `computed < expected` NÃO se explica por
+ * nenhum dos dois — aponta para linhas em falta no detalhe, valores
+ * fora da linha (portes, taxas) ou outra semântica do documento.
+ */
+function printarDivergencias(
+  rows: CompraRow[],
+  divergent: Array<{ recId: number; expected: number; computed: number; diff: number }>,
+): void {
+  if (divergent.length === 0) return;
+
+  const porRec = new Map<number, CompraRow[]>();
+  for (const r of rows) {
+    const id = numOrNull(r.externalReceptionId);
+    if (id === null) continue;
+    const l = porRec.get(id);
+    if (l) l.push(r); else porRec.set(id, [r]);
+  }
+
+  const acima: typeof divergent = [];
+  const abaixo: typeof divergent = [];
+  const porTipo = new Map<string, number>();
+  const porDesconto = new Map<string, number>();
+  const porBonus = new Map<string, number>();
+
+  const inc = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+
+  for (const d of divergent) {
+    (d.computed > d.expected ? acima : abaixo).push(d);
+    const linhas = porRec.get(d.recId) ?? [];
+    const tipo = linhas[0]?.externalTipoDocumentoId;
+    inc(porTipo, tipo === null || tipo === undefined ? "(sem tipo)" : String(tipo));
+    const temDesconto = linhas.some((l) => (numOrNull(l.desconto) ?? 0) !== 0);
+    const temBonus = linhas.some((l) => (numOrNull(l.bonus) ?? 0) !== 0);
+    inc(porDesconto, temDesconto ? "com desconto" : "sem desconto");
+    inc(porBonus, temBonus ? "com bónus" : "sem bónus");
+  }
+
+  const tabela = (titulo: string, m: Map<string, number>) => {
+    console.log(`  ${titulo}`);
+    for (const [k, n] of [...m.entries()].sort((a, b) => b[1] - a[1])) {
+      const pct = ((n / divergent.length) * 100).toFixed(1);
+      console.log(`    ${k.padEnd(16)} ${String(n).padStart(6)}  (${pct}%)`);
+    }
+  };
+
+  console.log("  ── De onde vêm as divergências ──");
+  console.log(`    computed > expected  ${String(acima.length).padStart(6)}  (soma das linhas MAIOR que o documento)`);
+  console.log(`    computed < expected  ${String(abaixo.length).padStart(6)}  (soma das linhas MENOR — desconto/bónus não explicam)`);
+  console.log("");
+  tabela("Por FornecedorTipoDocumentoID:", porTipo);
+  tabela("Por presença de desconto:", porDesconto);
+  tabela("Por presença de bónus:", porBonus);
+
+  // As maiores de cada lado: os dois sinais podem ter causas diferentes,
+  // e mostrar só as maiores em valor absoluto esconde um dos lados.
+  const amostra = (titulo: string, lista: typeof divergent) => {
+    if (lista.length === 0) return;
+    console.log(`  ${titulo} (top 5):`);
+    for (const d of [...lista].sort((a, b) => b.diff - a.diff).slice(0, 5)) {
+      const linhas = porRec.get(d.recId) ?? [];
+      const desc = linhas.filter((l) => (numOrNull(l.desconto) ?? 0) !== 0).length;
+      const bon = linhas.filter((l) => (numOrNull(l.bonus) ?? 0) !== 0).length;
+      console.log(
+        `    rec=${d.recId} doc=${d.expected.toFixed(2)} linhas=${d.computed.toFixed(2)} ` +
+          `diff=${(d.computed - d.expected).toFixed(2)}€ nLinhas=${linhas.length} ` +
+          `c/desconto=${desc} c/bónus=${bon} tipo=${linhas[0]?.externalTipoDocumentoId ?? "?"}`,
+      );
+    }
+  };
+  console.log("");
+  amostra("Soma das linhas ACIMA do documento", acima);
+  amostra("Soma das linhas ABAIXO do documento", abaixo);
+}
+
 function computeReconciliation(rows: CompraRow[]): Map<number, HeaderRecon> {
   const map = new Map<number, HeaderRecon>();
   for (const r of rows) {
@@ -486,6 +570,13 @@ export async function comprasDryRun(): Promise<number> {
       console.log("Reconciliação per-header (SUM(qt × valorEurUnit) vs Total Incidencia_EUR):");
       console.log(`  Headers conferem         : ${okHeaders}`);
       console.log(`  Headers divergentes      : ${divergent.length}`);
+      console.log("");
+      // ATENÇÃO: SUM(qt × valorEurUnit) NÃO é só auditoria. É exactamente
+      // a fórmula que `lib/aggregate/compras.ts` usa para gravar
+      // Compra.valorTotal e Compra.precoUnitario. Uma divergência aqui é
+      // uma diferença entre o total do documento no ERP e o custo que o
+      // SaaS vai guardar — logo, margem calculada sobre outro número.
+      printarDivergencias(rows, divergent);
       if (divergent.length > 0) {
         console.log(`  Top divergências (cap 10):`);
         for (const d of divergent.slice(0, 10)) {

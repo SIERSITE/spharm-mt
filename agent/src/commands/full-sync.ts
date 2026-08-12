@@ -27,9 +27,16 @@
  * FAILED — corrige-se e re-corre-se (retoma a partir dela). Fases não
  * implementadas aparecem como NOT_IMPLEMENTED no relatório, não somem.
  *
- * Dry-run (`--dry-run`, ou via run-full-sync-dry-run.bat): nada é escrito.
- * Ingest corre em modo preview (lê ERP, não faz POST); agregações correm com
- * write=false. O dry-run não persiste estado (corre sempre todas as fases).
+ * Dry-run (`--dry-run`, ou via run-full-sync-dry-run.bat): NADA É ESCRITO,
+ * mas não é verdade que não haja pedidos ao SaaS. Ser exacto aqui importa:
+ *
+ *   · fases 1-6 (ingest) — lêem o ERP e NÃO fazem POST nenhum;
+ *   · fases 7-9 (agregações) — FAZEM POST aos endpoints de agregação com
+ *     `write=false`. O servidor calcula e devolve as contagens sem gravar.
+ *
+ * Ou seja: o dry-run contacta o SaaS e precisa dos endpoints acessíveis.
+ * Um 404 nas fases 7-9 aparece no dry-run tal como apareceria no upload.
+ * O dry-run não persiste estado (corre sempre todas as fases).
  *
  * Flags: --from YYYY-MM-DD --to YYYY-MM-DD (obrigatórios)
  *        --dry-run  --force  --only <fase>  --allow-unknowns  --allow-orphans
