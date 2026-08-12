@@ -40,6 +40,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
+import { janela } from "../janela.js";
 import {
   classifyRaw,
   type RawStocksMovLine,
@@ -848,8 +849,8 @@ async function fetchPage(
 ): Promise<StocksMovRow[]> {
   const rs = await pool
     .request()
-    .input("from", sql.DateTime, new Date(`${from}T00:00:00Z`))
-    .input("to", sql.DateTime, new Date(`${to}T00:00:00Z`))
+    .input("from", sql.NVarChar, janela(from, to).inicio)
+    .input("to", sql.NVarChar, janela(from, to).fimExclusivo)
     .input("sinceId", sql.Int, sinceId)
     .input("limit", sql.Int, limit)
     .query<StocksMovRow>(sourceSql);

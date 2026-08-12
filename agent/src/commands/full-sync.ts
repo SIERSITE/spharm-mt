@@ -46,6 +46,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
+import { diaAindaAberto, hojeNaFarmacia, ontemNaFarmacia, FUSO_FARMACIA } from "../janela.js";
 import {
   runProductsPipeline,
   runStockPipeline,
@@ -68,6 +69,7 @@ type Args = {
   dryRun: boolean;
   force: boolean;
   only?: string;
+  incluirHoje: boolean;
   allowUnknowns: boolean;
   allowOrphans: boolean;
   help: boolean;
@@ -82,6 +84,7 @@ function parseCmdArgs(): Args {
       "dry-run": { type: "boolean" },
       force: { type: "boolean" },
       only: { type: "string" },
+      "incluir-hoje": { type: "boolean" },
       "allow-unknowns": { type: "boolean" },
       "allow-orphans": { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -95,6 +98,7 @@ function parseCmdArgs(): Args {
     dryRun: raw.values["dry-run"] === true,
     force: raw.values.force === true,
     only: typeof raw.values.only === "string" ? raw.values.only : undefined,
+    incluirHoje: raw.values["incluir-hoje"] === true,
     allowUnknowns: raw.values["allow-unknowns"] === true,
     allowOrphans: raw.values["allow-orphans"] === true,
     help: raw.values.help === true,
@@ -110,6 +114,7 @@ function printHelp(): void {
   console.log("  --from / --to        intervalo de vendas/compras/devoluções + agregações (obrigatórios)");
   console.log("  --dry-run            não escreve nada (preview ingest + agregações write=false)");
   console.log("  --force              re-corre fases já DONE");
+  console.log("  --incluir-hoje       permite --to = hoje (dia AINDA ABERTO — parcial)");
   console.log("  --only <fase>        corre só uma fase (produtos|stock|vendas|fornecedores|");
   console.log("                       compras|devolucoes|agg-vendamensal|agg-compras|agg-devolucoes)");
   console.log("  --allow-unknowns     agregação VendaMensal não bloqueia em TipoDoc UNKNOWN");
@@ -311,6 +316,21 @@ export async function fullSync(): Promise<number> {
   if (from > to) {
     console.error(`✗ --from (${from}) é posterior a --to (${to}).`);
     return 1;
+  }
+  // O dia de hoje ainda está aberto: a farmácia continua a vender. Um
+  // histórico que o inclua grava um dia parcial, e a única forma de o
+  // corrigir é reenviá-lo depois de fechado — o que ninguém se lembra de
+  // fazer, porque a corrida terminou com sucesso.
+  if (diaAindaAberto(to) && !args.incluirHoje) {
+    console.error(`✗ --to (${to}) inclui o dia de HOJE (${hojeNaFarmacia()} em ${FUSO_FARMACIA}), que ainda não fechou.`);
+    console.error(`  O histórico ficaria com um dia parcial.`);
+    console.error(`  Usa --to ${ontemNaFarmacia()} (último dia completo),`);
+    console.error(`  ou --incluir-hoje se sabes o que estás a fazer.`);
+    return 1;
+  }
+  if (diaAindaAberto(to) && args.incluirHoje) {
+    console.warn(`⚠ --incluir-hoje: ${to} ainda está aberto. As vendas de hoje ficam INCOMPLETAS`);
+    console.warn(`  e só ficam certas reenviando este dia depois de fechar.`);
   }
   if (args.only && !PHASE_ORDER.some((p) => p.id === args.only)) {
     console.error(`✗ --only "${args.only}" inválido. Fases: ${PHASE_ORDER.map((p) => p.id).join(", ")}`);

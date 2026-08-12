@@ -38,6 +38,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type BootstrapBatchResponse } from "../http-client.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
+import { janelaDoDia } from "../janela.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -307,7 +308,8 @@ const SALES_SQL = `
   JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
   LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
   WHERE a.[Fim Venda] = 'S'
-    AND a.[Data Venda] BETWEEN @from AND @to
+    AND a.[Data Venda] >= @from
+    AND a.[Data Venda] <  @to
     AND d.[Detalhe ID] > @lastId
   ORDER BY d.[Detalhe ID]
 `;
@@ -559,8 +561,8 @@ async function pipelineSales(
       .request()
       .input("lastId", sql.Int, lastId)
       .input("n", sql.Int, SALES_BATCH)
-      .input("from", sql.NVarChar, `${date} 00:00:00`)
-      .input("to", sql.NVarChar, `${date} 23:59:59`)
+      .input("from", sql.NVarChar, janelaDoDia(date).inicio)
+      .input("to", sql.NVarChar, janelaDoDia(date).fimExclusivo)
       .query<SaleRow>(SALES_SQL);
 
     if (rs.recordset.length === 0) break;

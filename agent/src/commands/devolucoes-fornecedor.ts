@@ -32,6 +32,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
+import { janela } from "../janela.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -177,8 +178,8 @@ const SOURCE_SQL = `
 async function fetchDevolucoes(pool: SqlPool, from: string, to: string): Promise<DevolucaoRow[]> {
   const rs = await pool
     .request()
-    .input("from", sql.DateTime, new Date(`${from}T00:00:00Z`))
-    .input("to", sql.DateTime, new Date(`${to}T00:00:00Z`))
+    .input("from", sql.NVarChar, janela(from, to).inicio)
+    .input("to", sql.NVarChar, janela(from, to).fimExclusivo)
     .query<DevolucaoRow>(SOURCE_SQL);
   return rs.recordset;
 }
@@ -192,8 +193,8 @@ async function countOrphansLocal(
 ): Promise<{ linesWithoutStocks: number; headersWithoutFornecedor: number }> {
   const rsLines = await pool
     .request()
-    .input("from", sql.DateTime, new Date(`${from}T00:00:00Z`))
-    .input("to", sql.DateTime, new Date(`${to}T00:00:00Z`))
+    .input("from", sql.NVarChar, janela(from, to).inicio)
+    .input("to", sql.NVarChar, janela(from, to).fimExclusivo)
     .query<{ cnt: number }>(`
       SELECT COUNT_BIG(*) AS cnt
       FROM [dbo].[Devolucao] d
@@ -207,8 +208,8 @@ async function countOrphansLocal(
     `);
   const rsHeaders = await pool
     .request()
-    .input("from", sql.DateTime, new Date(`${from}T00:00:00Z`))
-    .input("to", sql.DateTime, new Date(`${to}T00:00:00Z`))
+    .input("from", sql.NVarChar, janela(from, to).inicio)
+    .input("to", sql.NVarChar, janela(from, to).fimExclusivo)
     .query<{ cnt: number }>(`
       SELECT COUNT_BIG(*) AS cnt
       FROM [dbo].[Devolucao] d

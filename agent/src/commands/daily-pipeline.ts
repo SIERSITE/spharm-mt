@@ -3,7 +3,7 @@
  *
  * Orquestrador autónomo do ciclo operacional diário:
  *
- *    1. compute `--date` = ontem se não dado (UTC date)
+ *    1. compute `--date` = ontem se não dado (Europe/Lisbon)
  *    2. acquire lockfile (run/pipeline.lock) — abort se já corre
  *    3. correr daily-sync (lê ERP → POSTa staging)
  *    4. correr aggregate-month server-side (chama API SaaS)
@@ -37,6 +37,7 @@ import { withPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type PipelineAggregateResponse } from "../http-client.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import { runPipelineForDay, type PipelineRunCounts } from "./daily-sync-runner.js";
+import { ontemNaFarmacia } from "../janela.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -71,7 +72,7 @@ function printHelp(): void {
   console.log("Orquestrador autónomo: daily-sync + aggregate-month.");
   console.log("");
   console.log("Flags:");
-  console.log("  --date YYYY-MM-DD   (default: ontem em UTC)");
+  console.log("  --date YYYY-MM-DD   (default: ontem na farmácia, Europe/Lisbon)");
   console.log("  --force             ignora lockfile existente (CUIDADO)");
   console.log("  --skip-aggregate    só corre daily-sync, salta agregação server-side");
   console.log("");
@@ -81,13 +82,49 @@ function printHelp(): void {
 
 /* ---------- Date helpers ---------- */
 
-/** Devolve ontem em UTC (YYYY-MM-DD). */
-function yesterdayUtc(): string {
-  const now = new Date();
-  // Today midnight UTC
-  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const y = new Date(todayUtc.getTime() - 24 * 60 * 60 * 1000);
-  return y.toISOString().slice(0, 10);
+/**
+ * Ontem NA FARMÁCIA (Europe/Lisbon), YYYY-MM-DD.
+ *
+ * Era calculado em UTC. Em Portugal no Verão o UTC está uma hora atrás,
+ * portanto entre a meia-noite e a uma da manhã locais o "hoje em UTC" é
+ * ainda ontem — e o "ontem" derivado dele era anteontem. O dia certo
+ * acabava por entrar na corrida seguinte, mas 24 horas atrasado, e
+ * ninguém percebia porquê olhando para os logs.
+ */
+/**
+ * Corre um comando-irmão do agent para o dia. Mesmo padrão do full-sync.
+ *
+ * Compras, devoluções e movimentos ficavam de fora do ciclo diário: o
+ * daily-sync só cobre produtos, stock e vendas. Uma farmácia "actualizada
+ * diariamente" tinha as compras congeladas no dia do bootstrap, e isso
+ * não se via em lado nenhum — o pipeline terminava OK.
+ *
+ * Como subprocessos e não in-proc porque é assim que o full-sync já os
+ * invoca: uma só implementação destes pipelines, com as mesmas flags e a
+ * mesma idempotência.
+ */
+function correrComandoDoDia(cmd: string, date: string, extra: string[] = []): number {
+  const entry = process.argv[1] ?? "";
+  const isTs = entry.endsWith(".ts");
+  const args = [cmd, "--from", date, "--to", date, ...extra];
+  const nodeArgs = isTs ? ["--import", "tsx", entry, ...args] : [entry, ...args];
+  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: process.env });
+  if (r.error) {
+    console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
+    return 1;
+  }
+  return typeof r.status === "number" ? r.status : 1;
+}
+
+/** Pipelines transaccionais que o daily-sync não cobre. */
+const PIPELINES_DIARIOS_EXTRA = [
+  { cmd: "compras-upload", label: "compras" },
+  { cmd: "devolucoes-fornecedor-upload", label: "devoluções" },
+  { cmd: "stocksmov-upload", label: "movimentos" },
+] as const;
+
+function ontem(): string {
+  return ontemNaFarmacia();
 }
 
 function monthOf(dateIso: string): string {
@@ -310,7 +347,7 @@ export async function dailyPipeline(): Promise<number> {
     return 0;
   }
 
-  const date = args.date ?? yesterdayUtc();
+  const date = args.date ?? ontem();
   let parsedDate: string;
   try {
     parsedDate = parseDateArg("--date", date) as string;
@@ -421,6 +458,29 @@ export async function dailyPipeline(): Promise<number> {
       errorMessage = `daily-sync falhou: ${msg}`;
       pipelineLog.log(`✗ daily-sync ERROR: ${msg}`);
       return 1;
+    }
+
+    // 1b) compras, devoluções e movimentos — o daily-sync não os cobre.
+    //
+    // Uma falha aqui NÃO aborta o pipeline: produtos, stock e vendas já
+    // foram gravados e continuam correctos. Fica registada como ERROR no
+    // relatório e o dia repete-se com o mesmo --date, que é idempotente.
+    for (const p of PIPELINES_DIARIOS_EXTRA) {
+      const t0 = Date.now();
+      pipelineLog.raw(RULE);
+      pipelineLog.log(`▶ ${p.label} ${parsedDate}`);
+      pipelineLog.raw(RULE);
+      const rc = correrComandoDoDia(p.cmd, parsedDate);
+      const dur = Date.now() - t0;
+      if (rc === 0) {
+        steps.push({ name: p.label, status: "OK", durationMs: dur });
+        pipelineLog.log(`  ${p.label} OK em ${fmtDuration(dur)}`);
+      } else {
+        steps.push({ name: p.label, status: "ERROR", durationMs: dur, message: `exit ${rc}` });
+        pipelineStatus = "ERROR";
+        errorMessage = errorMessage ?? `${p.label} falhou (exit ${rc})`;
+        pipelineLog.log(`✗ ${p.label} ERROR (exit ${rc}) — repetível com o mesmo --date`);
+      }
     }
 
     // 2) aggregate-month (skippable)
