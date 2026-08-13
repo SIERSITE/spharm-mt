@@ -357,6 +357,31 @@ export class SaasClient {
     return this.request("POST", "/api/admin/pipeline/record", { body, timeoutMs });
   }
 
+  /**
+   * GET /api/ingest/v1/pipeline/dias-concluidos
+   *
+   * Que dias o pipeline diário já concluiu com sucesso nesta farmácia.
+   * Fonte de verdade do catch-up: um dia só conta como feito se o
+   * registo dele chegou ao SaaS.
+   *
+   * Sob `/api/ingest/` e não `/api/admin/` de propósito — ver o
+   * cabeçalho da rota. O prefixo já está allowlisted no proxy, portanto
+   * esta chamada não depende de um deploy de configuração do nginx.
+   */
+  async pipelineDiasConcluidos(
+    params: { farmaciaId: string; from: string; to: string },
+    timeoutMs?: number
+  ): Promise<{ ok: true; farmaciaId: string; from: string; to: string; dias: string[] }> {
+    const qs = new URLSearchParams({
+      farmaciaId: params.farmaciaId,
+      from: params.from,
+      to: params.to,
+    });
+    return this.request("GET", `/api/ingest/v1/pipeline/dias-concluidos?${qs.toString()}`, {
+      timeoutMs,
+    });
+  }
+
   // ── Outbox (export agent: SaaS → SPharm local) ─────────────────────
 
   /**

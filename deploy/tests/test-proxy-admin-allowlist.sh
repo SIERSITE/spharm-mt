@@ -88,21 +88,51 @@ codigo() {
     "http://127.0.0.1:${PORT}$2" 2>/dev/null | tr -d '\r\n'
 }
 
-echo "=== as três agregações do Agent PASSAM no domínio dos Agents ==="
-for r in aggregate-month aggregate-compras aggregate-devolucoes; do
+echo "=== as rotas do Agent PASSAM no domínio dos Agents ==="
+# O critério da allowlist, escrito no spharmmt-tls.conf: autentica por
+# `withIntegrationAuth` (a ingest key, não o token administrativo) E é o
+# agent que a invoca. Quatro rotas sob /api/admin/ cumprem-no.
+#
+# `record` foi acrescentado depois das três agregações. Estava a devolver
+# 404 e ninguém dava por isso, porque o agent apanha a excepção, escreve
+# um aviso no log local e termina com OK — deixando `PipelineRun` vazio.
+# É essa tabela que diz que dias já correram, e sem ela o catch-up do
+# pipeline diário não tem fonte de verdade.
+for r in aggregate-month aggregate-compras aggregate-devolucoes record; do
   c=$(codigo app.spharmmt.com "/api/admin/pipeline/${r}")
   if [ "$c" != "404" ]; then ok_ "${r} chega à aplicação (${c})"
-  else bad_ "${r} continua a devolver 404 — o full-sync volta a parar em 6/9"; fi
+  else bad_ "${r} devolve 404 no domínio dos Agents"; fi
 done
 
 echo
 echo "=== o resto de /api/admin/ continua 404 ==="
-for p in /api/admin/v1/tenants /api/admin/enrichment-health /api/admin/pipeline/record \
+# Estas usam o token ADMINISTRATIVO, não a ingest key. Nunca devem estar
+# acessíveis pelo domínio por onde entram os Agents.
+for p in /api/admin/v1/tenants /api/admin/enrichment-health \
          /api/admin/v1/tenants/x/agent-package; do
   c=$(codigo app.spharmmt.com "$p")
   if [ "$c" = "404" ]; then ok_ "${p} → 404"
   else bad_ "${p} EXPOSTO ao domínio dos Agents (${c})"; fi
 done
+
+echo
+echo "=== a allowlist cobre TODAS as rotas admin que o agent autentica ==="
+# A asserção que impede a próxima ocorrência. Em vez de manter à mão a
+# lista de rotas permitidas, deriva-se do código: toda a rota sob
+# /api/admin/ que use `withIntegrationAuth` é, por definição, chamada
+# pelo agent com a ingest key — e portanto tem de estar na allowlist.
+# Uma rota nova desse tipo falha aqui em vez de falhar em produção com
+# um erro que o agent engole.
+REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+CONF="${REPO_ROOT}/deploy/docker/proxy/spharmmt-tls.conf"
+while IFS= read -r rota_file; do
+  rota=$(printf '%s' "$rota_file" | sed "s|${REPO_ROOT}/app||; s|/route.ts$||")
+  if grep -qF "location = ${rota} {" "$CONF"; then
+    ok_ "${rota} está na allowlist do nginx"
+  else
+    bad_ "${rota} usa withIntegrationAuth mas NÃO está na allowlist — o agent vai receber 404"
+  fi
+done < <(grep -rl "withIntegrationAuth" "${REPO_ROOT}/app/api/admin/" 2>/dev/null || true)
 
 echo
 echo "=== a allowlist é exacta, não um prefixo ==="
@@ -127,7 +157,7 @@ corpo() {
     -H "Authorization: Bearer ${KEY}" -H "X-Tenant-Slug: ${SLUG}" \
     "http://127.0.0.1:${PORT}$1" 2>/dev/null
 }
-for r in aggregate-month aggregate-compras aggregate-devolucoes; do
+for r in aggregate-month aggregate-compras aggregate-devolucoes record; do
   b=$(corpo "/api/admin/pipeline/${r}")
   if printf '%s' "$b" | grep -q "slug=\[${SLUG}\]"; then ok_ "${r} - X-Tenant-Slug chega"
   else bad_ "${r} - X-Tenant-Slug PERDIDO: ${b}"; fi

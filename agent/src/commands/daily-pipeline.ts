@@ -38,13 +38,31 @@ import { SaasClient, SaasApiError, type PipelineAggregateResponse } from "../htt
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import { runPipelineForDay, type PipelineRunCounts } from "./daily-sync-runner.js";
 import { ontemNaFarmacia } from "../janela.js";
+import { janelaConsulta, planearCatchUp } from "../catch-up.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
 
 /* ---------- CLI ---------- */
 
-type Args = { date?: string; help?: boolean; force?: boolean; skipAggregate?: boolean };
+type Args = {
+  date?: string;
+  help?: boolean;
+  force?: boolean;
+  skipAggregate?: boolean;
+  maxCatchUp?: number;
+};
+
+/**
+ * Quantos dias em atraso se recuperam por execução.
+ *
+ * Sete cobre o caso realista — um PC desligado durante um fim-de-semana
+ * prolongado ou uma semana de férias — sem que uma farmácia com meses
+ * de atraso tente processar tudo numa corrida e bata no limite de tempo
+ * da tarefa do Windows. O que fica de fora nunca é perdido: é escrito
+ * no log e apanhado na corrida seguinte.
+ */
+const MAX_CATCH_UP_DEFAULT = 7;
 
 function parseCmdArgs(): Args {
   const raw = parseArgs({
@@ -54,15 +72,18 @@ function parseCmdArgs(): Args {
       help: { type: "boolean", short: "h" },
       force: { type: "boolean" },
       "skip-aggregate": { type: "boolean" },
+      "max-catch-up": { type: "string" },
     },
     strict: true,
     allowPositionals: false,
   });
+  const mcu = typeof raw.values["max-catch-up"] === "string" ? Number(raw.values["max-catch-up"]) : undefined;
   return {
     date: typeof raw.values.date === "string" ? raw.values.date : undefined,
     help: raw.values.help === true,
     force: raw.values.force === true,
     skipAggregate: raw.values["skip-aggregate"] === true,
+    maxCatchUp: mcu !== undefined && Number.isFinite(mcu) && mcu > 0 ? Math.floor(mcu) : undefined,
   };
 }
 
@@ -72,7 +93,9 @@ function printHelp(): void {
   console.log("Orquestrador autónomo: daily-sync + aggregate-month.");
   console.log("");
   console.log("Flags:");
-  console.log("  --date YYYY-MM-DD   (default: ontem na farmácia, Europe/Lisbon)");
+  console.log("  --date YYYY-MM-DD   corre SÓ este dia e desliga o catch-up");
+  console.log("                      (sem --date: recupera os dias em falta até ontem)");
+  console.log(`  --max-catch-up N    máximo de dias em atraso por execução (default ${MAX_CATCH_UP_DEFAULT})`);
   console.log("  --force             ignora lockfile existente (CUIDADO)");
   console.log("  --skip-aggregate    só corre daily-sync, salta agregação server-side");
   console.log("");
@@ -116,11 +139,49 @@ function correrComandoDoDia(cmd: string, date: string, extra: string[] = []): nu
   return typeof r.status === "number" ? r.status : 1;
 }
 
-/** Pipelines transaccionais que o daily-sync não cobre. */
-const PIPELINES_DIARIOS_EXTRA = [
-  { cmd: "compras-upload", label: "compras" },
-  { cmd: "devolucoes-fornecedor-upload", label: "devoluções" },
-  { cmd: "stocksmov-upload", label: "movimentos" },
+/**
+ * Corre um comando SEM janela temporal.
+ *
+ * `fornecedores-upload` sincroniza o catálogo inteiro e não aceita
+ * `--from/--to` — o seu `parseArgs` corre com `strict: true`, portanto
+ * passar-lhos não seria ignorado: rebentava com "unknown option".
+ */
+function correrComandoSemJanela(cmd: string): number {
+  const entry = process.argv[1] ?? "";
+  const isTs = entry.endsWith(".ts");
+  const nodeArgs = isTs ? ["--import", "tsx", entry, cmd] : [entry, cmd];
+  const r = spawnSync(process.execPath, nodeArgs, { stdio: "inherit", env: process.env });
+  if (r.error) {
+    console.error(`✗ spawn ${cmd} falhou: ${r.error.message}`);
+    return 1;
+  }
+  return typeof r.status === "number" ? r.status : 1;
+}
+
+/**
+ * Pipelines transaccionais que o daily-sync não cobre, POR ORDEM.
+ *
+ * `fornecedores` vem primeiro e a ordem não é arbitrária — é a mesma
+ * razão pela qual o full-sync o põe antes das compras. A agregação de
+ * compras resolve `fornecedorId` via `FornecedorErpRef`; um fornecedor
+ * criado no ERP depois do onboarding ainda não tem essa referência, e
+ * a primeira compra que lhe seja feita fica órfã. Órfã não é um erro
+ * visível: a compra entra em staging, a agregação conta-a como
+ * `orphanFornecedores` e o pipeline termina OK.
+ *
+ * Sincronizar o catálogo antes de ingerir as compras do dia fecha essa
+ * janela. Não altera a semântica das compras — só garante que o
+ * fornecedor existe quando a agregação for procurá-lo.
+ *
+ * `janela: false` para o fornecedores porque é um snapshot do catálogo,
+ * não um intervalo: um fornecedor criado ontem e usado hoje tem de
+ * entrar, e não entraria se filtrássemos por data de criação.
+ */
+export const PIPELINES_DIARIOS_EXTRA = [
+  { cmd: "fornecedores-upload", label: "fornecedores", janela: false },
+  { cmd: "compras-upload", label: "compras", janela: true },
+  { cmd: "devolucoes-fornecedor-upload", label: "devoluções", janela: true },
+  { cmd: "stocksmov-upload", label: "movimentos", janela: true },
 ] as const;
 
 function ontem(): string {
@@ -333,6 +394,72 @@ async function pingHealthcheck(
 
 /* ---------- Entrypoint ---------- */
 
+/**
+ * Corre o ciclo completo para UM dia. Era o corpo do `dailyPipeline`
+ * antes do catch-up; continua a fazer exactamente o mesmo, com o dia
+ * agora recebido em vez de calculado.
+ *
+ * Um dia de catch-up e o dia de ontem passam por aqui pelo mesmo
+ * caminho — mesmos passos, mesmos logs, mesmo registo no SaaS, mesmo
+ * lockfile. Recuperar um dia em atraso não é um modo especial: se
+ * fosse, seria um modo que ninguém testa e que diverge do normal sem
+ * ninguém reparar.
+ */
+/**
+ * Pergunta ao SaaS que dias já estão concluídos e devolve o plano.
+ *
+ * Se a consulta falhar — rede em baixo, endpoint ainda não deployado —
+ * NÃO se assume que está tudo feito nem que não está feito nada. Cai-se
+ * no comportamento antigo (só ontem) e diz-se porquê. Assumir "nada
+ * feito" faria uma farmácia com o SaaS temporariamente inacessível
+ * reprocessar uma semana; assumir "tudo feito" perdia dias em silêncio,
+ * que é o defeito que isto veio corrigir.
+ */
+async function planearDias(
+  cfg: AgentConfig,
+  maxCatchUp: number,
+  log: (s: string) => void,
+): Promise<{ dias: string[]; adiados: string[] }> {
+  const diaOntem = ontem();
+  const fallback = { dias: [diaOntem], adiados: [] as string[] };
+
+  const client = new SaasClient(cfg);
+  let farmaciaId: string;
+  try {
+    farmaciaId = await resolveFarmaciaId(client, cfg.farmacia!);
+  } catch (err) {
+    log(`⚠ Não foi possível resolver a farmácia para planear o catch-up: ${err instanceof Error ? err.message : String(err)}`);
+    log(`  A correr apenas ${diaOntem}. Dias em atraso, se os houver, ficam para a próxima corrida.`);
+    return fallback;
+  }
+
+  const janela = janelaConsulta(diaOntem, maxCatchUp);
+  try {
+    const r = await client.pipelineDiasConcluidos(
+      { farmaciaId, from: janela.from, to: janela.to },
+      20_000,
+    );
+    const plano = planearCatchUp({ ontem: diaOntem, diasOk: r.dias, maxDias: maxCatchUp });
+    log(`Dias concluídos no SaaS entre ${janela.from} e ${janela.to}: ${r.dias.length}`);
+    log(plano.resumo);
+    if (plano.adiados.length > 0) {
+      // Nunca em silêncio: se o limite corta dias, eles ficam escritos
+      // no log com nome e número.
+      log(`⚠ ADIADOS por limite --max-catch-up=${maxCatchUp}: ${plano.adiados.join(", ")}`);
+    }
+    return { dias: plano.dias, adiados: plano.adiados };
+  } catch (err) {
+    const msg = err instanceof SaasApiError
+      ? `HTTP ${err.statusCode} em ${err.path}`
+      : err instanceof Error ? err.message : String(err);
+    log(`⚠ Não foi possível consultar os dias concluídos (${msg}).`);
+    log(`  A correr apenas ${diaOntem} — comportamento anterior ao catch-up.`);
+    log(`  Se o endpoint /api/ingest/v1/pipeline/dias-concluidos ainda não está no deploy,`);
+    log(`  actualiza o SaaS: sem ele não há forma de saber que dias faltam.`);
+    return fallback;
+  }
+}
+
 export async function dailyPipeline(): Promise<number> {
   let args: Args;
   try {
@@ -347,14 +474,79 @@ export async function dailyPipeline(): Promise<number> {
     return 0;
   }
 
-  const date = args.date ?? ontem();
-  let parsedDate: string;
+  // `--date` explícito desliga o catch-up: quem indica um dia quer esse
+  // dia, e mais nenhum. É o caminho da recuperação manual e do
+  // diagnóstico, e continua a comportar-se como sempre.
+  if (args.date) {
+    let parsedDate: string;
+    try {
+      parsedDate = parseDateArg("--date", args.date) as string;
+    } catch (err) {
+      console.error("✗", err instanceof Error ? err.message : String(err));
+      return 1;
+    }
+    return correrDiaCompleto(parsedDate, args);
+  }
+
+  let cfg: AgentConfig;
   try {
-    parsedDate = parseDateArg("--date", date) as string;
+    cfg = loadConfig("both");
   } catch (err) {
-    console.error("✗", err instanceof Error ? err.message : String(err));
+    console.error(`✗ Config inválida: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
+  if (!cfg.farmacia) {
+    console.error("✗ SPHARMMT_FARMACIA não está definido em agent.config.json.");
+    return 1;
+  }
+
+  const maxCatchUp = args.maxCatchUp ?? MAX_CATCH_UP_DEFAULT;
+  console.log(DOUBLE_RULE);
+  console.log("daily-pipeline — planeamento (catch-up)");
+  console.log(DOUBLE_RULE);
+  const { dias, adiados } = await planearDias(cfg, maxCatchUp, (s) => console.log(s));
+  console.log("");
+
+  if (dias.length === 0) {
+    console.log("Nada a fazer: o último dia fechado já está concluído no SaaS.");
+    return 0;
+  }
+
+  // Ordem cronológica e halt-on-error. Um dia que falha PÁRA a
+  // sequência: os seguintes dependem dele para o saldo de stock e para
+  // a agregação mensal, e processá-los por cima de um buraco produz
+  // números que parecem certos.
+  let i = 0;
+  for (const dia of dias) {
+    i++;
+    if (dias.length > 1) {
+      console.log(DOUBLE_RULE);
+      console.log(`Dia ${i}/${dias.length}: ${dia}`);
+      console.log(DOUBLE_RULE);
+    }
+    const rc = await correrDiaCompleto(dia, args);
+    if (rc !== 0) {
+      console.error("");
+      console.error(`✗ ${dia} falhou (exit ${rc}). PARADO — os dias seguintes não correm.`);
+      const porFazer = [...dias.slice(i), ...adiados];
+      if (porFazer.length > 0) {
+        console.error(`  Por processar: ${porFazer.join(", ")}`);
+      }
+      console.error(`  Corrige e volta a correr: a corrida seguinte retoma em ${dia}.`);
+      return rc;
+    }
+  }
+
+  if (adiados.length > 0) {
+    console.log("");
+    console.log(`⚠ Ficaram ${adiados.length} dia(s) por processar (limite --max-catch-up=${maxCatchUp}):`);
+    console.log(`  ${adiados.join(", ")}`);
+    console.log(`  A próxima corrida apanha-os. Para os fazer já: --max-catch-up ${maxCatchUp + adiados.length}`);
+  }
+  return 0;
+}
+
+async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number> {
   const month = monthOf(parsedDate);
 
   // Tee log capture (escreve no fim)
@@ -470,7 +662,7 @@ export async function dailyPipeline(): Promise<number> {
       pipelineLog.raw(RULE);
       pipelineLog.log(`▶ ${p.label} ${parsedDate}`);
       pipelineLog.raw(RULE);
-      const rc = correrComandoDoDia(p.cmd, parsedDate);
+      const rc = p.janela ? correrComandoDoDia(p.cmd, parsedDate) : correrComandoSemJanela(p.cmd);
       const dur = Date.now() - t0;
       if (rc === 0) {
         steps.push({ name: p.label, status: "OK", durationMs: dur });

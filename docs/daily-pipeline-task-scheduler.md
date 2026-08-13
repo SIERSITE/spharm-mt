@@ -25,8 +25,8 @@ Guia operacional para configurar o pipeline autónomo no PC da farmácia.
 4. Tab **Triggers** → **New**:
    - Begin the task: On a schedule
    - Daily, recur every 1 day
-   - Start: `2026-05-15 03:00:00` (escolher hora fora de horas comerciais)
-   - **Stop task if it runs longer than: 30 minutes** (safety)
+   - Start: `03:00:00` **hora local do PC** (fora de horas comerciais)
+   - **Stop task if it runs longer than: 4 hours**
 5. Tab **Actions** → **New**:
    - Action: Start a program
    - Program/script: `C:\spharmmt\agent\run-daily-pipeline-auto.bat`
@@ -37,8 +37,85 @@ Guia operacional para configurar o pipeline autónomo no PC da farmácia.
    - Start only on AC power: NÃO (servidor)
 7. Tab **Settings**:
    - Allow task to be run on demand: SIM (para testes manuais)
+   - **Run task as soon as possible after a scheduled start is missed: SIM**
    - If the task is already running: **Do not start a new instance**
    - If the task fails, restart every 15 min, up to 2 times
+
+### As três definições que não são detalhe
+
+**"Run task as soon as possible after a scheduled start is missed"** —
+sem isto, um PC desligado às 03:00 simplesmente não corre nessa noite. A
+corrida seguinte processa "ontem", que já é outro dia, e o dia do meio
+não volta a ser processado por ninguém. Com esta opção, o Windows
+dispara a tarefa mal a máquina arranque.
+
+O agent tem catch-up desde a rev61 e recupera os dias em falta sozinho,
+mas as duas coisas resolvem problemas diferentes e são precisas as duas:
+esta faz a tarefa correr, o catch-up decide que dias processar. Uma
+tarefa que nunca dispara não recupera nada.
+
+**"Stop task if it runs longer than"** era 30 minutos e passou a 4
+horas. Trinta minutos chegavam para um dia; não chegam para uma
+recuperação de vários dias seguidos, e o efeito de estourar o limite é o
+Windows matar o processo a meio — sem estrago, porque tudo é
+idempotente, mas com o dia por concluir e um `Last Run Result` que não
+explica nada. Quatro horas cobrem o pior caso realista (7 dias × ~20 min)
+com folga e continuam a ser um travão contra um processo encravado.
+
+**"Do not start a new instance"** — o agent já tem lockfile próprio
+(`run/pipeline.lock`), portanto isto é a segunda linha de defesa. Uma
+recuperação longa pode ainda estar a correr às 03:00 do dia seguinte.
+
+### Notas sobre o horário
+
+`03:00` é a hora **local do PC**, e a mudança da hora não a afecta: a
+tarefa dispara às 03:00 civis em Março e em Outubro. O dia que o agent
+processa é calculado em `Europe/Lisbon` (não em UTC), portanto às 03:00
+de Portugal "ontem" é sempre o dia civil anterior.
+
+Se a farmácia tiver mais do que um PC com agent, **não** os agendes à
+mesma hora para a mesma farmácia.
+
+## Catch-up: o que acontece quando um dia falha
+
+Desde a rev61 o agent não processa apenas "ontem". No arranque pergunta
+ao SaaS que dias já concluiu (`GET /api/ingest/v1/pipeline/dias-concluidos`,
+lookback de 90 dias) e processa **todos os que faltam**, do mais antigo
+para o mais recente.
+
+| Situação | O que corre |
+|---|---|
+| Tudo em dia | só ontem |
+| PC desligado uma noite | o dia perdido, depois ontem |
+| Buraco no meio (dia 10 falhou, 11 e 12 correram) | só o dia 10 |
+| Nada em falta | nada — termina com "já está concluído" |
+| Sem registo nenhum em 90 dias | só ontem, com aviso no log |
+
+Regras que interessam ao operador:
+
+- **Um dia que falha PÁRA a sequência.** Os seguintes não correm. É
+  deliberado: processar por cima de um buraco produz saldos de stock e
+  agregações mensais que parecem certas.
+- **Máximo de 7 dias por execução** (`--max-catch-up N` para alterar). O
+  que fica de fora é **nomeado no log** e apanhado na corrida seguinte —
+  nunca desaparece em silêncio.
+- **Repetir é seguro.** Um dia já concluído não volta a correr, e correr
+  o mesmo dia duas vezes é idempotente de qualquer forma.
+- **`--date` desliga o catch-up.** `run-daily-pipeline-auto.bat` não
+  passa `--date`; a recuperação manual de um dia específico faz-se com
+  `node.exe agent.cjs daily-pipeline --date 2026-08-10`.
+
+A fonte de verdade é o `PipelineRun` no SaaS, não um ficheiro local. Um
+ficheiro local vive no mesmo disco que falha e é apagado no procedimento
+de upgrade do agent — que manda apagar a pasta.
+
+> **Pré-requisito de deploy.** O catch-up depende de duas coisas do lado
+> do SaaS: o endpoint `/api/ingest/v1/pipeline/dias-concluidos` e o
+> `/api/admin/pipeline/record` estar acessível no proxy. Até a rev61 o
+> `record` devolvia 404/401 no proxy e o agent engolia o erro, portanto
+> `PipelineRun` podia estar vazio. Se o endpoint de leitura não
+> responder, o agent avisa no log e corre só "ontem" — comportamento
+> anterior, sem catch-up.
 
 ## Validação inicial
 
