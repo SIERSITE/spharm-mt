@@ -552,7 +552,19 @@ export async function fullSync(): Promise<number> {
     // ── Fases 1-3: in-process (partilham um pool SQL) ──
     await withPool(cfg, async (pool) => {
       await execPhase("produtos", async () => {
-        const t = await runProductsPipeline(pool, client, farmaciaId, { dryRun });
+        // A janela histórica é passada aqui e SÓ aqui. É o que faz o
+        // catálogo do onboarding incluir os artigos que se mexeram no
+        // período, mesmo que hoje estejam retirados — sem isso, um
+        // medicamento vendido em 2024 e retirado em 2026 nunca entra e
+        // as vendas dele ficam órfãs para sempre.
+        //
+        // O `daily-sync`, o `products-upload` e o `bootstrap-upload`
+        // não a passam e mantêm o filtro de catálogo activo, que é o
+        // correcto para eles: um artigo retirado não tem vendas novas.
+        const t = await runProductsPipeline(pool, client, farmaciaId, {
+          dryRun,
+          janelaHistorica: { from, to },
+        });
         renderTotals("produtos", t);
         return { status: t.errors > 0 ? "FAILED" : "DONE", metric: `read=${t.read} upserted=${t.upserted} errors=${t.errors}` };
       });

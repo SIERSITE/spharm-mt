@@ -700,9 +700,24 @@ export async function runProductsPipeline(
   pool: SqlPool,
   client: SaasClient,
   farmaciaId: string,
-  opts?: { dryRun?: boolean; batchSize?: number; retry?: boolean }
+  opts?: {
+    dryRun?: boolean;
+    batchSize?: number;
+    retry?: boolean;
+    /**
+     * Janela do onboarding HISTORICO. Quando presente, o catalogo passa
+     * a incluir tambem os artigos que se mexeram dentro dela, mesmo que
+     * hoje estejam `Retirado=1` ou `Processa_Stocks=0`.
+     *
+     * So o `full-sync` a passa. Sem ela, o comportamento e identico ao
+     * de sempre — que e o que mantem o `daily-sync`, o `products-upload`
+     * e o `bootstrap-upload` intocados.
+     */
+    janelaHistorica?: { from: string; to: string };
+  }
 ): Promise<PipelineTotals> {
   const dryRun = opts?.dryRun === true;
+  const jh = opts?.janelaHistorica;
   // rev45 — batch/retry configuráveis. Caller `products-upload` passa
   // batchSize=25 + retry=true para sobreviver a cold-starts longos do
   // Neon. `bootstrap-upload` (caller original) não passa opts e fica
@@ -711,6 +726,7 @@ export async function runProductsPipeline(
   const enableRetry = opts?.retry === true;
   let currentBatchSize = initialBatchSize;
   const totals = emptyTotals();
+  const recuperados = { activos: 0, historicos: 0 };
   let lastCodigoId = -1;
   console.log(DOUBLE_RULE);
   console.log(
@@ -765,13 +781,55 @@ export async function runProductsPipeline(
       ? `iva_master.[${ivaPlan.masterRateColumn}]`
       : `CAST(NULL AS DECIMAL(7,4))`;
 
+  // ── Ambito do catalogo ──────────────────────────────────────────
+  //
+  // `Retirado=0 AND Processa_Stocks<>0` e um filtro de estado ACTUAL, e
+  // aplica-lo a uma ingestao HISTORICA e o defeito: um medicamento
+  // vendido em 2024 e retirado em 2026 nunca entrava no catalogo, e as
+  // vendas dele ficavam orfas para sempre — excluido pelo que e hoje,
+  // nao pelo que era quando foi vendido.
+  //
+  // No onboarding historico o ambito passa a ser "activo HOJE ou com
+  // movimento NA JANELA". `StocksMov` e nao `Atendimento Detalhe`
+  // porque cobre vendas, compras, devolucoes e acertos com um so
+  // predicado.
+  //
+  // Isto NAO distingue produto de servico, e nao e para isso que serve.
+  // Servicos tambem tem ficha em `dbo.Stocks` nesta instalacao
+  // (CHECKSAUDE, vacinacao, ***DIVERSOS***) — a existencia da ficha nao
+  // separa nada. O que separa e o comportamento: um artigo que move
+  // stock tem linhas em StocksMov, um servico normalmente nao. Quem
+  // continuar orfao depois disto e que e candidato a
+  // `isNonStockService`, pela classificacao existente.
+  const catalogoActivo = `s.[Retirado] = 0 AND s.[Processa_Stocks] <> 0`;
+  const whereAmbito = jh
+    ? `(${catalogoActivo} OR EXISTS (
+             SELECT 1 FROM [dbo].[StocksMov] sm
+             WHERE sm.CodigoID = s.CodigoID
+               AND sm.DataMov >= @histFrom
+               AND sm.DataMov <  @histTo
+           ))`
+    : `${catalogoActivo}`;
+  // Marcador de proveniencia: distingue quem entrou pelo catalogo
+  // activo de quem foi recuperado pela janela. E o que permite dizer,
+  // no fim, quantos artigos historicos o patch trouxe.
+  const activoSelect = `CASE WHEN ${catalogoActivo} THEN 1 ELSE 0 END`;
+  if (jh) {
+    console.log(
+      `  Ambito historico: catalogo activo OU StocksMov em [${jh.from}, ${jh.to}]`,
+    );
+  }
+
   while (true) {
     const rs = await pool
       .request()
       .input("lastId", sql.Int, lastCodigoId)
       .input("n", sql.Int, currentBatchSize)
+      .input("histFrom", sql.NVarChar, jh ? janela(jh.from, jh.to).inicio : "")
+      .input("histTo", sql.NVarChar, jh ? janela(jh.from, jh.to).fimExclusivo : "")
       .query<{
         externalProductId: number;
+        activoNoCatalogo: number;
         cnp: number | null;
         designacao: string | null;
         pvp: unknown;
@@ -792,6 +850,7 @@ export async function runProductsPipeline(
       }>(`
         SELECT TOP (@n)
           s.CodigoID                   AS externalProductId,
+          ${activoSelect}              AS activoNoCatalogo,
           s.[Codigo]                   AS cnp,
           s.[Nome Comercial]           AS designacao,
           s.[Preco Venda Publico_EUR]  AS pvp,
@@ -820,14 +879,20 @@ export async function runProductsPipeline(
         ${ivaJoinClause}
         ${fabricanteJoin}
         ${ghJoin}
-        WHERE s.[Retirado] = 0
-          AND s.[Processa_Stocks] <> 0
+        WHERE ${whereAmbito}
           AND s.CodigoID > @lastId
         ORDER BY s.CodigoID
       `);
 
     if (rs.recordset.length === 0) break;
     totals.read += rs.recordset.length;
+    // Proveniencia: quantos vieram do catalogo activo e quantos foram
+    // recuperados pela janela historica. Sem esta contagem, o operador
+    // ve "read=18416" e nao sabe se o patch fez alguma coisa.
+    for (const r of rs.recordset) {
+      if (Number(r.activoNoCatalogo) === 1) recuperados.activos++;
+      else recuperados.historicos++;
+    }
 
     const items: ProductPayload[] = rs.recordset.map((r) => ({
       externalProductId: numOrNull(r.externalProductId),
@@ -927,6 +992,18 @@ export async function runProductsPipeline(
       lastCodigoId = last.externalProductId;
     }
     if (rs.recordset.length < currentBatchSize) break;
+  }
+  if (jh) {
+    console.log("");
+    console.log(`  Catalogo activo hoje          : ${recuperados.activos}`);
+    console.log(`  Recuperados pela janela       : ${recuperados.historicos}` +
+      `  (Retirado=1 ou Processa_Stocks=0, com StocksMov em [${jh.from}, ${jh.to}])`);
+    console.log(
+      `  Estes ${recuperados.historicos} artigos nao entravam no catalogo antes desta correccao —`,
+    );
+    console.log(
+      `  as vendas historicas deles ficavam orfas. Entram com flagRetirado preservado.`,
+    );
   }
   return totals;
 }
