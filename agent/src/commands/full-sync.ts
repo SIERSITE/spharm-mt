@@ -18,7 +18,39 @@
  *   8. agg-compras             (SaaS: aggregate-compras, automático se staging OK)
  *   9. agg-devolucoes          (SaaS: aggregate-devolucoes; NOT_IMPLEMENTED se
  *                               o endpoint não existir no deploy SaaS)
- *  10. relatório final         (sempre — nenhuma fase desaparece)
+ *  10. movimentos              (subprocess: stocksmov-upload / -dry-run, usa --from/--to)
+ *  11. relatório final         (sempre — nenhuma fase desaparece)
+ *
+ * ── Fase 10 (movimentos) ──────────────────────────────────────────────
+ *
+ * Sem ela, um onboarding terminava 9/9 com o extrato de artigo VAZIO: as
+ * fases 1-6 alimentam agregados (Venda, Compra, Devolucao) e nenhuma
+ * escreve em `MovimentoArtigo`. A farmácia via KPIs certos e um extrato
+ * em branco.
+ *
+ * O que ingere: TODAS as origens de `dbo.StocksMov` — vendas, compras,
+ * devoluções, reservas e acertos —, uma linha por `StocksMovID`. Isto
+ * NÃO duplica as fases 3/5/6: `Venda`/`Compra`/`Devolucao` são agregados
+ * por produto-dia-fornecedor e servem KPIs; `MovimentoArtigo` é o
+ * extrato movimento-a-movimento. Tabelas diferentes, propósitos
+ * diferentes, e a fase nova não re-corre nenhum dos pipelines deles.
+ *
+ * Porque é ÚLTIMA: é a fase mais pesada (centenas de milhares de linhas
+ * numa janela de anos) e as agregações 7-9 não lêem `MovimentoArtigo`.
+ * Com halt-on-error, tê-la mais cedo faria uma falha no histórico de
+ * movimentos impedir agregações independentes — e obrigaria a
+ * re-corrê-las na retoma. Assim, uma falha aqui deixa as nove primeiras
+ * DONE e a corrida seguinte retoma só esta.
+ *
+ * Não confundir com a fase 2 (stock): essa é o SNAPSHOT de existências
+ * actuais (`dbo.Stocks`), não tem janela temporal e continua intocada.
+ * `StocksMov` é o histórico de movimento. São ficheiros, comandos e
+ * tabelas distintos — e é para ficarem distintos que a fase 2 não recebe
+ * `--from/--to` e a 10 recebe.
+ *
+ * Os movimentos internos (MOV_INTERNO) chegam como ACERTO_STOCK: o
+ * endpoint re-classifica server-side com `lib/movimento-classifier`, que
+ * desde rev60 decide só pela origem (FK).
  *
  * Idempotência: cada fase é idempotente (upserts / agregações scoped).
  * Retoma: o estado por-fase fica em `run/full-sync-state.json` keyed por
@@ -30,7 +62,7 @@
  * Dry-run (`--dry-run`, ou via run-full-sync-dry-run.bat): NADA É ESCRITO,
  * mas não é verdade que não haja pedidos ao SaaS. Ser exacto aqui importa:
  *
- *   · fases 1-6 (ingest) — lêem o ERP e NÃO fazem POST nenhum;
+ *   · fases 1-6 e 10 (ingest) — lêem o ERP e NÃO fazem POST nenhum;
  *   · fases 7-9 (agregações) — FAZEM POST aos endpoints de agregação com
  *     `write=false`. O servidor calcula e devolve as contagens sem gravar.
  *
@@ -122,8 +154,10 @@ function printHelp(): void {
   console.log("  --dry-run            não escreve nada (preview ingest + agregações write=false)");
   console.log("  --force              re-corre fases já DONE");
   console.log("  --incluir-hoje       permite --to = hoje (dia AINDA ABERTO — parcial)");
-  console.log("  --only <fase>        corre só uma fase (produtos|stock|vendas|fornecedores|");
-  console.log("                       compras|devolucoes|agg-vendamensal|agg-compras|agg-devolucoes)");
+  // Gerado a partir de PHASE_ORDER: uma fase nova aparece aqui sozinha,
+  // em vez de ficar por listar num texto que ninguém se lembra de rever.
+  console.log(`  --only <fase>        corre só uma fase:`);
+  console.log(`                       ${PHASE_ORDER.map((p) => p.id).join("|")}`);
   console.log("  --allow-unknowns     agregação VendaMensal não bloqueia em TipoDoc UNKNOWN");
   console.log("  --allow-orphans      agregação VendaMensal não bloqueia em orphans");
   console.log("");
@@ -255,13 +289,14 @@ function monthsInRange(from: string, to: string): string[] {
 // Modelo de fase + execução
 // ─────────────────────────────────────────────────────────────────────
 
-type PhaseId =
+export type PhaseId =
   | "produtos"
   | "stock"
   | "vendas"
   | "fornecedores"
   | "compras"
   | "devolucoes"
+  | "movimentos"
   | "agg-vendamensal"
   | "agg-compras"
   | "agg-devolucoes";
@@ -277,9 +312,9 @@ type ReportRow = {
   detail: string;
 };
 
-const PHASE_ORDER: Array<{ id: PhaseId; label: string }> = [
+export const PHASE_ORDER: Array<{ id: PhaseId; label: string }> = [
   { id: "produtos", label: "produtos" },
-  { id: "stock", label: "stock" },
+  { id: "stock", label: "stock (snapshot)" },
   { id: "vendas", label: "vendas" },
   { id: "fornecedores", label: "fornecedores" },
   { id: "compras", label: "compras (staging)" },
@@ -287,7 +322,71 @@ const PHASE_ORDER: Array<{ id: PhaseId; label: string }> = [
   { id: "agg-vendamensal", label: "agg VendaMensal" },
   { id: "agg-compras", label: "agg Compra" },
   { id: "agg-devolucoes", label: "agg Devolucao" },
+  // ÚLTIMA, e a posição é deliberada. É a fase mais pesada — centenas de
+  // milhares de linhas numa janela de anos — logo a mais provável de
+  // falhar ou de ser interrompida. As três agregações não lêem
+  // `MovimentoArtigo`, portanto não dependem dela; pô-la antes fazia com
+  // que o halt-on-error impedisse agregações que correriam bem.
+  //
+  // Assim, uma falha aqui deixa as nove primeiras DONE no ficheiro de
+  // estado e a retoma volta a correr só esta.
+  { id: "movimentos", label: "movimentos (StocksMov)" },
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// Decisão de correr / saltar uma fase
+// ─────────────────────────────────────────────────────────────────────
+
+export type ContextoDecisao = {
+  /** `--only <fase>`, se dado. */
+  only?: string;
+  /** Uma fase anterior falhou (halt-on-error). */
+  halted: boolean;
+  dryRun: boolean;
+  force: boolean;
+  /** O que está em `run/full-sync-state.json` para esta fase. */
+  estadoPersistido?: PersistedStatus;
+};
+
+export type DecisaoFase =
+  | { correr: true }
+  | { correr: false; motivo: string };
+
+/**
+ * Se esta fase corre, e porquê não quando não corre.
+ *
+ * Vive fora do `execPhase` para poder ser testada: a retoma é a parte do
+ * full-sync que mais custa a verificar à mão, porque exige um ficheiro
+ * de estado, uma corrida interrompida e outra a seguir. Como função
+ * pura, cada regra é uma linha de teste.
+ *
+ * A ordem das regras é significativa e não é arbitrária:
+ *
+ *   1. `--only` é avaliado primeiro: tudo o que não é a fase pedida sai
+ *      já aqui. Na prática isso faz `halted` inalcançável durante um
+ *      `--only`, porque as outras fases nunca chegam a correr e
+ *      portanto nunca falham.
+ *   2. `halted` vem antes do estado persistido: depois de uma falha, as
+ *      seguintes não correm nem sequer são consultadas.
+ *   3. DONE salta; FAILED NÃO salta. É isto a retoma — re-correr pega
+ *      na fase que ficou a meio, e as anteriores já concluídas não se
+ *      repetem.
+ *   4. O dry-run ignora o estado por completo: nunca o lê nem o escreve,
+ *      portanto corre sempre tudo. Um preview que saltasse fases não
+ *      seria um preview.
+ */
+export function decidirFase(id: PhaseId, ctx: ContextoDecisao): DecisaoFase {
+  if (ctx.only && ctx.only !== id) {
+    return { correr: false, motivo: "--only outra fase" };
+  }
+  if (ctx.halted) {
+    return { correr: false, motivo: "fase anterior falhou" };
+  }
+  if (!ctx.dryRun && !ctx.force && ctx.estadoPersistido === "DONE") {
+    return { correr: false, motivo: "já concluída (usa --force)" };
+  }
+  return { correr: true };
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Entrypoint
@@ -396,17 +495,18 @@ export async function fullSync(): Promise<number> {
     const meta = PHASE_ORDER.find((p) => p.id === id)!;
     const n = indexOf(id);
 
-    if (args.only && args.only !== id) {
-      report.push({ n, id, label: meta.label, status: "SKIPPED", detail: "--only outra fase" });
-      return;
-    }
-    if (halted) {
-      report.push({ n, id, label: meta.label, status: "SKIPPED", detail: "fase anterior falhou" });
-      return;
-    }
-    if (!dryRun && !args.force && state!.phases[id] === "DONE") {
-      report.push({ n, id, label: meta.label, status: "SKIPPED", detail: "já concluída (usa --force)" });
-      console.log(`⏭ Fase ${n}/${PHASE_ORDER.length}: ${meta.label} — SKIPPED (já DONE)`);
+    const decisao = decidirFase(id, {
+      only: args.only,
+      halted,
+      dryRun,
+      force: args.force,
+      estadoPersistido: state?.phases[id],
+    });
+    if (!decisao.correr) {
+      report.push({ n, id, label: meta.label, status: "SKIPPED", detail: decisao.motivo });
+      if (decisao.motivo.startsWith("já concluída")) {
+        console.log(`⏭ Fase ${n}/${PHASE_ORDER.length}: ${meta.label} — SKIPPED (já DONE)`);
+      }
       return;
     }
 
@@ -526,6 +626,36 @@ export async function fullSync(): Promise<number> {
         throw err;
       }
     });
+    // ── Fase 10: movimentos canónicos (StocksMov → MovimentoArtigo) ──
+    //
+    // ÚLTIMA de propósito: é a fase mais pesada e as agregações 7-9 não
+    // lêem `MovimentoArtigo`. Com halt-on-error, tê-la antes fazia com
+    // que uma falha no histórico de movimentos impedisse agregações que
+    // correriam bem — e obrigasse a re-corrê-las na retoma.
+    //
+    // MESMA janela das fases 3/5/6, passada verbatim. O `stocksmov`
+    // aplica-lhe o contrato temporal de `janela.ts` (meio-aberta, --to
+    // inclusivo) tal como os outros pipelines históricos, portanto todas
+    // as fases históricas cobrem exactamente o mesmo intervalo.
+    //
+    // Idempotência: UPSERT por (farmaciaId, externalMovId=StocksMovID).
+    // Re-correr a mesma janela actualiza, não duplica — que é o que
+    // permite retomar esta fase depois de uma falha a meio sem limpar
+    // nada primeiro.
+    await execPhase("movimentos", async () => {
+      const code = spawnAgentCommand(dryRun ? "stocksmov-dry-run" : "stocksmov-upload", [
+        "--from",
+        from,
+        "--to",
+        to,
+      ]);
+      // O dry-run do stocksmov lê UM chunk de 50k linhas e mostra a
+      // distribuição; não percorre a janela toda. Dizê-lo na métrica
+      // evita que um preview curto passe por cobertura completa.
+      const metric = dryRun ? `exit=${code} (preview: 1º chunk, até 50k linhas)` : `exit=${code}`;
+      return { status: code === 0 ? "DONE" : "FAILED", metric };
+    });
+
   } catch (err) {
     console.error("✗ Erro inesperado no full-sync:", err instanceof Error ? err.message : String(err));
     halted = true;
@@ -533,7 +663,7 @@ export async function fullSync(): Promise<number> {
     if (lockAcquired) releaseLock();
   }
 
-  // ── Fase 10: relatório final ──
+  // ── Fase 11 (relatório final) ──
   printReport(report, { dryRun, from, to, farmaciaId, wallMs: Date.now() - t0 });
 
   const anyFailed = report.some((r) => r.status === "FAILED");
