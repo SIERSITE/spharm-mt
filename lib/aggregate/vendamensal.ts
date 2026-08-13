@@ -37,6 +37,18 @@ export type PreflightStats = {
   nonStockServices: number;
   operationalOrphans: number;
   unknowns: number;
+  /**
+   * QUAIS os tipos de documento por trás das linhas UNKNOWN, com a
+   * contagem de cada um.
+   *
+   * Sem isto, `unknowns: 12` é um número sem acção associada: o gate
+   * aborta o mês, diz que há 12 linhas por caracterizar e não diz de
+   * quê — e a única forma de descobrir era abrir a base à mão. Uma
+   * linha fica UNKNOWN quando o seu `externalTipoDocumentoId` não está
+   * em `TipoDocumentoClassificacao` para este tenant, portanto esta
+   * lista é exactamente o que falta classificar.
+   */
+  unknownTipoDocs: Array<{ externalTipoDocumentoId: number | null; count: number }>;
 };
 
 export type AggRow = {
@@ -112,6 +124,7 @@ export async function runPreflight(
     nonStockServices,
     operationalOrphans,
     unknowns,
+    unknownTipoDocDist,
   ] = await Promise.all([
     prisma.ingestVendaLinhaRaw.count({ where }),
     prisma.ingestVendaLinhaRaw.groupBy({
@@ -128,6 +141,14 @@ export async function runPreflight(
     }),
     prisma.ingestVendaLinhaRaw.count({
       where: { ...where, tipoDocumentoClass: "UNKNOWN" },
+    }),
+    // Quais os TipoDoc por classificar. Barato (índice em
+    // `tipoDocumento`) e é o que transforma "12 linhas UNKNOWN" numa
+    // acção concreta.
+    prisma.ingestVendaLinhaRaw.groupBy({
+      by: ["tipoDocumento"],
+      where: { ...where, tipoDocumentoClass: "UNKNOWN" },
+      _count: { _all: true },
     }),
   ]);
 
@@ -152,7 +173,12 @@ export async function runPreflight(
   const byClass: Record<string, number> = {};
   for (const r of classDist) byClass[r.tipoDocumentoClass] = r._count._all;
 
+  const unknownTipoDocs = unknownTipoDocDist
+    .map((r) => ({ externalTipoDocumentoId: r.tipoDocumento, count: r._count._all }))
+    .sort((a, b) => b.count - a.count);
+
   return {
+    unknownTipoDocs,
     rawLines,
     produtosDistinct: produtosG.length,
     atendimentosDistinct: atendG.length,
@@ -346,10 +372,21 @@ export async function aggregateMonth(
   const preflight = await runPreflight(prisma, range);
 
   if (preflight.unknowns > 0 && !allowUnknowns) {
+    // A mensagem inclui QUAIS os TipoDoc por classificar. Sem isso, o
+    // operador sabe que há linhas por caracterizar e não sabe de quê —
+    // e a única saída era abrir a base à mão ou usar allowUnknowns, que
+    // mascara o problema em vez de o resolver.
+    const quais = preflight.unknownTipoDocs
+      .map((t) => `tipoDocumento=${t.externalTipoDocumentoId ?? "NULL"} (${t.count})`)
+      .join(", ");
     throw new AggregateAbortError(
       "unknowns_present",
-      { unknowns: preflight.unknowns },
-      `${preflight.unknowns} linhas com tipoDocumentoClass='UNKNOWN' em ${range.ano}-${String(range.mes).padStart(2, "0")}`
+      { unknowns: preflight.unknowns, unknownTipoDocs: preflight.unknownTipoDocs },
+      `${preflight.unknowns} linhas com tipoDocumentoClass='UNKNOWN' em ` +
+        `${range.ano}-${String(range.mes).padStart(2, "0")}. ` +
+        `Por classificar: ${quais || "(sem tipoDocumento)"}. ` +
+        `Classifica em TipoDocumentoClassificacao e re-agrega (idempotente), ` +
+        `ou usa allowUnknowns para as deixar de fora conscientemente.`
     );
   }
   if (preflight.operationalOrphans > 0 && !allowOrphans) {

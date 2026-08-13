@@ -14,6 +14,7 @@
  */
 
 import type { AgentConfig } from "./config.js";
+import { fimExclusivoDoDia } from "./janela.js";
 
 export class SaasApiError extends Error {
   constructor(
@@ -312,35 +313,47 @@ export class SaasClient {
 
   /**
    * POST /api/admin/pipeline/aggregate-compras
-   * Agrega `StagingCompraRawLine [from,to)` → `Compra` (UPSERT por
+   * Agrega `StagingCompraRawLine` → `Compra` (UPSERT por
    * `(farmaciaId, produtoId, fornecedorId, data)`). `write=false` (default
    * server-side) = dry-run preview; `write=true` escreve. Resolve produtos
    * via ProdutoFarmacia + fornecedores via FornecedorErpRef. Idempotente.
+   *
+   * `to` é INCLUSIVO aqui — o último dia que se quer agregar, como em
+   * todo o agent. A conversão para o `to` exclusivo que o endpoint
+   * espera é feita neste método, via `fimExclusivoDoDia`. Quem chama
+   * passa a mesma janela que passou à ingestão e não tem de saber que
+   * os dois lados a exprimem de forma diferente.
    */
   async pipelineAggregateCompras(
     body: { farmaciaId: string; from: string; to: string; write?: boolean },
     timeoutMs?: number
   ): Promise<PipelineAggregateComprasResponse> {
     return this.request("POST", "/api/admin/pipeline/aggregate-compras", {
-      body,
+      body: { ...body, to: fimExclusivoDoDia(body.to) },
       timeoutMs: timeoutMs ?? 90_000,
     });
   }
 
   /**
    * POST /api/admin/pipeline/aggregate-devolucoes
-   * Agrega `StagingDevolucaoFornecedorRawLine [from,to)` → `Devolucao`
+   * Agrega `StagingDevolucaoFornecedorRawLine` → `Devolucao`
    * (UPSERT por linha em `(farmaciaId, externalLineId)`, quantidade =
    * quantidadeRecebida). `write=false` = dry-run; `write=true` escreve.
    * Pode devolver 404 `not_implemented` se o endpoint não existir no SaaS
    * (deploy mais antigo) — o full-sync trata isso como NOT_IMPLEMENTED.
+   *
+   * `to` é INCLUSIVO aqui — o último dia que se quer agregar, como em
+   * todo o agent. A conversão para o `to` exclusivo que o endpoint
+   * espera é feita neste método, via `fimExclusivoDoDia`. Quem chama
+   * passa a mesma janela que passou à ingestão e não tem de saber que
+   * os dois lados a exprimem de forma diferente.
    */
   async pipelineAggregateDevolucoes(
     body: { farmaciaId: string; from: string; to: string; write?: boolean },
     timeoutMs?: number
   ): Promise<PipelineAggregateDevolucoesResponse> {
     return this.request("POST", "/api/admin/pipeline/aggregate-devolucoes", {
-      body,
+      body: { ...body, to: fimExclusivoDoDia(body.to) },
       timeoutMs: timeoutMs ?? 90_000,
     });
   }

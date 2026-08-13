@@ -102,6 +102,35 @@ export function janelaDoDia(dia: string): Janela {
 }
 
 /**
+ * O `--to` inclusivo do agent traduzido para o `to` EXCLUSIVO que os
+ * endpoints de agregação esperam.
+ *
+ * Os dois lados usam janelas meio-abertas — `lib/aggregate/compras.ts` e
+ * `lib/aggregate/devolucoes.ts` filtram `data >= from AND data < to` —
+ * mas exprimem-nas de forma diferente: o agent diz o último dia
+ * incluído, o endpoint quer o primeiro dia excluído. Sem esta tradução,
+ * a mesma janela significa coisas diferentes conforme o lado, e falha
+ * das duas maneiras:
+ *
+ *   · `--from D --to D` (ciclo diário) → `from == to`, janela vazia. O
+ *     endpoint recusa com 400 invalid_window, e as compras do dia ficam
+ *     em staging sem nunca chegarem a `Compra`. Foi o que aconteceu na
+ *     Silveirense a 2026-08-12: 200 linhas paradas.
+ *   · `--from A --to B` (histórico) → o dia B fica de FORA, e ninguém
+ *     repara. O onboarding termina "sem erros" com o último dia da
+ *     janela por agregar.
+ *
+ * O segundo é o pior dos dois: o primeiro grita, este não.
+ *
+ * Vive aqui e não no `http-client` porque é o mesmo contrato temporal
+ * que `janela()` implementa — mesma regra, formato diferente. Duas
+ * cópias desta aritmética acabariam por divergir.
+ */
+export function fimExclusivoDoDia(ultimoDiaInclusivo: string): string {
+  return diaSeguinte(ultimoDiaInclusivo);
+}
+
+/**
  * Hoje na farmácia, `YYYY-MM-DD`.
  *
  * `Intl` com fuso explícito, e não `toISOString()`: em Lisboa no Verão o

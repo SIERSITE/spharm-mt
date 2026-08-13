@@ -50,6 +50,7 @@ type Args = {
   help?: boolean;
   force?: boolean;
   skipAggregate?: boolean;
+  catchUp?: boolean;
   maxCatchUp?: number;
 };
 
@@ -72,6 +73,7 @@ function parseCmdArgs(): Args {
       help: { type: "boolean", short: "h" },
       force: { type: "boolean" },
       "skip-aggregate": { type: "boolean" },
+      "catch-up": { type: "boolean" },
       "max-catch-up": { type: "string" },
     },
     strict: true,
@@ -83,6 +85,7 @@ function parseCmdArgs(): Args {
     help: raw.values.help === true,
     force: raw.values.force === true,
     skipAggregate: raw.values["skip-aggregate"] === true,
+    catchUp: raw.values["catch-up"] === true,
     maxCatchUp: mcu !== undefined && Number.isFinite(mcu) && mcu > 0 ? Math.floor(mcu) : undefined,
   };
 }
@@ -94,7 +97,7 @@ function printHelp(): void {
   console.log("");
   console.log("Flags:");
   console.log("  --date YYYY-MM-DD   corre SÓ este dia e desliga o catch-up");
-  console.log("                      (sem --date: recupera os dias em falta até ontem)");
+  console.log("  --catch-up          recupera dias em falta (requer PipelineRun fiável)");
   console.log(`  --max-catch-up N    máximo de dias em atraso por execução (default ${MAX_CATCH_UP_DEFAULT})`);
   console.log("  --force             ignora lockfile existente (CUIDADO)");
   console.log("  --skip-aggregate    só corre daily-sync, salta agregação server-side");
@@ -500,6 +503,23 @@ export async function dailyPipeline(): Promise<number> {
     return 1;
   }
 
+  // ── Catch-up: DESLIGADO por omissão ──────────────────────────────
+  //
+  // O mecanismo está implementado e testado, mas a sua fonte de verdade
+  // é o `PipelineRun` no SaaS — e essa tabela pode estar vazia, porque
+  // `/api/admin/pipeline/record` respondia 404 no proxy e o agent
+  // engolia o erro. Até estar confirmado que o registo chega e persiste,
+  // ligar o catch-up faria decisões sobre dados que não existem.
+  //
+  // Com a flag desligada o comportamento é o anterior: só ontem.
+  // Confirmado o `PipelineRun`, passa a `--catch-up` no .bat da tarefa.
+  if (!args.catchUp) {
+    const diaOntem = ontem();
+    console.log(`Catch-up desligado (usa --catch-up). A correr ${diaOntem}.`);
+    console.log("");
+    return correrDiaCompleto(diaOntem, args);
+  }
+
   const maxCatchUp = args.maxCatchUp ?? MAX_CATCH_UP_DEFAULT;
   console.log(DOUBLE_RULE);
   console.log("daily-pipeline — planeamento (catch-up)");
@@ -685,8 +705,28 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
       pipelineLog.log(`▶ Step 2/2: aggregate-month ${month}`);
       pipelineLog.raw(RULE);
       try {
+        // Os gates vêm da POLÍTICA da farmácia (agent.config.json →
+        // options.allowUnknowns / options.allowOrphans), não de uma
+        // decisão tomada no momento.
+        //
+        // Sem isto, uma farmácia cujo onboarding correu com
+        // --allow-unknowns ficava bloqueada na PRIMEIRA corrida diária
+        // pelos mesmos dados: o histórico entrou, o dia seguinte
+        // abortou com 409 unknowns_present. Foi o que aconteceu na
+        // Silveirense — o full-sync passou com allow-unknowns=sim e o
+        // diário parou em Agosto com 12 linhas.
+        //
+        // As linhas UNKNOWN nunca entram na soma (a query filtra
+        // `tipoDocumentoClass IN ('VENDA','DEVOLUCAO_ANULACAO')`),
+        // portanto isto não altera números — decide apenas se o mês
+        // aborta ou avança deixando-as de fora.
         aggregateResp = await client.pipelineAggregateMonth(
-          { month, write: true },
+          {
+            month,
+            write: true,
+            allowUnknowns: cfg.allowUnknowns === true,
+            allowOrphans: cfg.allowOrphans === true,
+          },
           90_000
         );
         const dur = Date.now() - tAgg;

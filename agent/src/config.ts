@@ -78,6 +78,20 @@ export type AgentConfig = {
   // GET de sucesso/falha no fim. Best-effort — falha de ping nunca
   // afecta o pipeline em si.
   healthcheckUrl?: string;
+  /**
+   * Politica de gates da agregacao mensal, PERSISTENTE por farmacia.
+   *
+   * Existe para que o onboarding e o ciclo diario nao possam divergir.
+   * Uma farmacia cujo full-sync foi corrido com --allow-unknowns ficava
+   * bloqueada na primeira corrida diaria pelos MESMOS dados: o
+   * histórico entrava, o dia seguinte abortava com 409. A decisao
+   * pertence a farmacia, nao a uma flag que alguem se lembrou de
+   * escrever uma vez.
+   *
+   * Default false nos dois: o gate existe para forcar caracterizacao.
+   */
+  allowUnknowns?: boolean;
+  allowOrphans?: boolean;
   // SQL Server
   sqlHost: string;
   sqlPort: number;
@@ -215,6 +229,10 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
   set("SPHARMMT_INGEST_KEY", saas.ingestKey);
   set("SPHARMMT_FARMACIA", saas.farmacia);
   set("SPHARMMT_HEALTHCHECK_URL", saas.healthcheckUrl);
+  // Politica de gates, em `options` — pertence a farmacia e nao a uma
+  // flag de linha de comandos que alguem se lembra de escrever uma vez.
+  set("SPHARMMT_ALLOW_UNKNOWNS", options.allowUnknowns);
+  set("SPHARMMT_ALLOW_ORPHANS", options.allowOrphans);
 
   set("ERP_SQLSERVER_HOST", sqlServer.host);
   set("ERP_SQLSERVER_PORT", sqlServer.port);
@@ -281,6 +299,8 @@ export function loadConfig(scope: Scope): AgentConfig {
     : (optionalEnv("SPHARMMT_INGEST_KEY") ?? "");
   const farmacia = optionalEnv("SPHARMMT_FARMACIA");
   const healthcheckUrl = optionalEnv("SPHARMMT_HEALTHCHECK_URL");
+  const allowUnknowns = optionalEnv("SPHARMMT_ALLOW_UNKNOWNS") === "true";
+  const allowOrphans = optionalEnv("SPHARMMT_ALLOW_ORPHANS") === "true";
 
   const sqlHost = wantsSql
     ? need("ERP_SQLSERVER_HOST")
@@ -399,6 +419,8 @@ export function loadConfig(scope: Scope): AgentConfig {
     ingestKey,
     farmacia,
     healthcheckUrl,
+    allowUnknowns,
+    allowOrphans,
     sqlHost,
     sqlPort,
     sqlDatabase,
