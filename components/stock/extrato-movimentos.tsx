@@ -6,8 +6,8 @@ import type {
   MovimentoRow,
   MovimentoTipo,
   ContraparteTipo,
-} from "@/lib/movimentos-data";
-import { TIPOS_ACERTO_STOCK } from "@/lib/movimentos-data";
+} from "@/lib/movimentos-tipos";
+import { TIPOS_ACERTO_STOCK } from "@/lib/movimentos-tipos";
 import { runExtratoMovimentos } from "@/app/stock/artigo/[cnp]/actions";
 
 type FarmaciaOpt = { id: string; nome: string };
