@@ -195,6 +195,9 @@ const KEYWORDS_SUPLEMENTO = new Set([
   "depuralina", "arkocapsulas", "absorvit", "centrum", "supradyn",
   // detecção de produtos mis-classificados como MEDICAMENTO)
   "solgar",
+  "advancis", "naturefoods", "meritene", "bioactivo", "nutreov",
+  "viterra", "cerebrum", "biolys", "ecophane", "psyllium",
+  "geleia real", "beta caroteno", "resveratrol", "coenzima",
 ]);
 
 const KEYWORDS_DERMOCOSMETICA = new Set([
@@ -235,6 +238,16 @@ const KEYWORDS_DERMOCOSMETICA = new Set([
   // Gama TH (Th Pharma) — cosmética, solar, verniz, maquilhagem
   "th pharma", "th vitalia", "th sun", "th nailvarnish", "th matte",
   "limpeza facial", "esfoliante", "mascara facial",
+  // Marcas observadas no universo por classificar deste catálogo
+  // (Agosto 2026). Como as anteriores, é um dicionário fechado tirado
+  // das designações reais — não uma lista de mercado especulativa.
+  "cerave", "physiogel", "rilastil", "sensilis", "decubal", "acofarderm",
+  "d aveia", "daveia", "frezyderm", "sesderma", "somatoline", "foltene",
+  "snailas", "cutilfar", "beter", "idc institute", "mussvital",
+  "dr organic", "weleda", "atl", "fisiocrem", "velastisa", "cicabio",
+  "abcderm", "xemose", "cytelium", "xeracalm", "ictyane", "epithelia",
+  "neostrata", "boderm", "pedi relax", "pedisilk", "scholl", "excilor",
+  "mitosyl", "lutsine", "eryplast", "vaselina", "cold cream",
 ]);
 
 const KEYWORDS_DISPOSITIVO_MEDICO = new Set([
@@ -255,6 +268,17 @@ const KEYWORDS_DISPOSITIVO_MEDICO = new Set([
   "saco gelo", "rolltex", "rollflex", "preservativo", "preserv", "durex",
   "control senses",
   "libre", "freestyle libre",
+  // Estomaterapia, algaliação e consumíveis hospitalares dispensados ao
+  // balcão; gamas de auto-monitorização; e o vocabulário genérico do ERP
+  // para material descartável.
+  "coloplast", "hollister", "welland", "provox", "b braun",
+  // "pic" e "braun" isolados são curtos demais para servirem de marca —
+  // só os bigramas. A tokenização já produz "pic solution" e "b braun".
+  "ostomia", "algalia", "sonda", "pic solution", "pic indolor", "farmaconfort",
+  "alvita", "farline", "wellion", "capteur", "moldex", "romed", "unicare",
+  "maimed", "leukosilk", "leukoplast", "widecare", "aposan",
+  "enema", "clister", "irrigador", "pera borracha",
+  "oximetro", "oxímetro", "autoteste", "teste rapido",
 ]);
 
 const KEYWORDS_HIGIENE_CUIDADO = new Set([
@@ -272,6 +296,11 @@ const KEYWORDS_HIGIENE_CUIDADO = new Set([
   "gum", "elgydium", "sensodyne", "fluocaril", "lacer", "corega",
   "curaprox", "kin", "oral b", "lactacyd", "saugella", "dentifrica",
   "lenco humido", "toalhete",
+  "saforelle", "cumlaude", "palomacare", "intimina", "bexident",
+  "eludril", "kukident", "fluocaril", "elgydium", "colutorio", "colut",
+  "past dent", "pst dent", "esc dent", "escova dent",
+  "lycia", "depilatorio", "creme descolorante",
+  "invisibobble", "tangle teezer", "titania", "disco desmaquilhante",
 ]);
 
 const KEYWORDS_ORTOPEDIA = new Set([
@@ -301,6 +330,8 @@ const KEYWORDS_PUERICULTURA = new Set([
   // Abreviaturas do ERP: "CHUP GOTA FUN +4M", "TET FISIOL", "BIB FISIOL"
   "chup", "tet", "bib",
   "colonia bebe", "creme bebe", "gel bebe", "shampoo bebe",
+  "enfalac", "neocate", "s 26", "disna", "babete", "mordedor",
+  "denticao", "physio comf", "tommee tippee", "chicco",
 ]);
 
 const KEYWORDS_VETERINARIA = new Set([
@@ -519,6 +550,32 @@ function classifyCore(
   if (scoreSupl > 0) signals.push(`suplemento_kw:${scoreSupl}`);
   if (scoreDerm > 0) signals.push(`dermocosm_kw:${scoreDerm}`);
   if (scoreHig > 0)  signals.push(`higiene_kw:${scoreHig}`);
+
+  // Dosagem clínica explícita + forma farmacêutica inequívoca é um facto
+  // sobre o produto; o nome do fabricante é um facto sobre quem o faz.
+  // Quando colidem, ganha o produto: "SORO FISIOLÓGICO B.BRAUN 9 MG/ML
+  // SOL. INJETÁVEL" é um medicamento, ainda que a B.Braun seja sobretudo
+  // conhecida por dispositivos. Sem esta precedência, cada marca nova no
+  // dicionário passava a poder roubar medicamentos reais.
+  //
+  // A precedência aplica-se SÓ contra o vocabulário de dispositivos, que
+  // é onde estão os nomes de fabricante (B.Braun, Coloplast, Pic). Todos
+  // os outros vocabulários descrevem o próprio produto e continuam a
+  // ganhar como sempre ganharam:
+  //   · SUPLEMENTO   — "SOLGAR VIT K2 100MCG 50 CAPS" tem dosagem e
+  //                    forma e não é medicamento nenhum;
+  //   · VETERINARIA  — "SIMPARICA 120mg Comp Mastig 40-60Kg Cão" é um
+  //                    medicamento, mas veterinário, e o "Cão" diz isso;
+  //   · e o mesmo para dermocosmética, higiene, ortopedia e puericultura.
+  const soColideComDispositivo =
+    scoreDM >= 1 &&
+    scoreVet === 0 && scorePuer === 0 && scoreOrt === 0 &&
+    scoreSupl === 0 && scoreDerm === 0 && scoreHig === 0;
+
+  if (hasDosagePattern && hasMedFormHigh && soColideComDispositivo) {
+    signals.push("dosagem+forma_precede_marca");
+    return build("MEDICAMENTO", 0.88, source, signals, input.designacao);
+  }
 
   if (scoreVet >= 1)  return build("VETERINARIA", 0.80, source, signals, input.designacao);
   if (scorePuer >= 1) return build("PUERICULTURA", 0.80, source, signals, input.designacao);

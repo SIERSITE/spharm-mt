@@ -25,7 +25,9 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { UTILIZACOES } from "./utilizacoes";
 import {
+  IMPLICACOES,
   MIN_CONFIANCA,
+  PENALIZACAO_DESIGNACAO,
   REGRAS_ATC,
   REGRAS_CATEGORIA,
   REGRAS_SUBCATEGORIA,
@@ -132,6 +134,25 @@ export function avaliarProduto(p: ProdutoSinais): Candidata[] {
     }
   }
 
+  // A substância também aparece na própria designação — em Portugal o
+  // genérico chama-se pela substância ("Irbesartan Pharmakern 300 Mg").
+  // O Grupo Homogéneo só existe para 18% do catálogo; sem esta passagem,
+  // 4 em cada 5 medicamentos ficavam sem utilização por falta de um
+  // campo, não por falta de sinal.
+  //
+  // Limite de palavra dos dois lados: sem ele "codeina" apanhava
+  // "codeinato" e, pior, radicais dentro de marcas.
+  const desig = normalizar(p.designacao);
+  for (const r of REGRAS_SUBSTANCIA) {
+    const nome = normalizar(r.nome);
+    if (!new RegExp(`(?:^|[^a-z0-9])${escapar(nome)}(?:[^a-z0-9]|$)`).test(desig)) continue;
+    out.push({
+      utilizacao: r.utilizacao,
+      confianca: Number((r.confianca - PENALIZACAO_DESIGNACAO).toFixed(2)),
+      regra: `Designação ${r.nome}`,
+    });
+  }
+
   if (p.subcategoria) {
     for (const r of REGRAS_SUBCATEGORIA) {
       if (r.nome === p.subcategoria) out.push({ utilizacao: r.utilizacao, confianca: r.confianca, regra: `Subcat ${r.nome}` });
@@ -151,6 +172,17 @@ export function avaliarProduto(p: ProdutoSinais): Candidata[] {
     }
   }
 
+  // Utilizações implicadas: quem procura "Tosse" tem de encontrar também
+  // os antitússicos e os expectorantes. Herda a confiança da origem — a
+  // implicação é lógica, não um sinal novo — e só se aplica ao que já
+  // passaria o limiar, para não promover um sinal fraco a duas linhas.
+  for (const c of [...out]) {
+    const geral = IMPLICACOES[c.utilizacao];
+    if (geral && c.confianca >= MIN_CONFIANCA) {
+      out.push({ utilizacao: geral, confianca: c.confianca, regra: `Implicação de ${c.utilizacao}` });
+    }
+  }
+
   // Duas regras podem apontar à mesma utilização. Fica a mais confiante —
   // não se somam sinais, porque duas pistas fracas não fazem uma forte.
   const melhor = new Map<string, Candidata>();
@@ -159,6 +191,11 @@ export function avaliarProduto(p: ProdutoSinais): Candidata[] {
     if (!j || c.confianca > j.confianca) melhor.set(c.utilizacao, c);
   }
   return [...melhor.values()];
+}
+
+/** Escapa metacaracteres para uso literal dentro de uma RegExp. */
+function escapar(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

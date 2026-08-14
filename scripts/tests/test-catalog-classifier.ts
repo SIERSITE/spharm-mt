@@ -60,7 +60,12 @@ console.log("=== volume de embalagem NÃO é dosagem (regressão v1.5) ===");
 // 200ml continuam a ser embalagem e não dosagem.
 check("champô 200ml", base("Tricovel Tricoage 45+ Ch Fortificante 200ml"), "DERMOCOSMETICA", { semDosagem: true });
 check("emoliente 15g", base("Neostrata Skin Ac Line Lift St 2 Emol 15g"), "DERMOCOSMETICA", { semDosagem: true });
-check("spray 400ml", base("Pic Solution Gelo Inst Spray 400ml"), "OUTRO", { semDosagem: true });
+// "Pic Solution" entrou no dicionário de dispositivos (Agosto 2026) pela
+// mesma razão que o Tricovel entrou no de dermocosmética: é uma marca de
+// material clínico, e OUTRO não era uma classificação, era a ausência de
+// uma. O que este caso continua a fixar são os 400ml — embalagem, não
+// dosagem.
+check("spray 400ml", base("Pic Solution Gelo Inst Spray 400ml"), "DISPOSITIVO_MEDICO", { semDosagem: true });
 check("gel de banho 300ml", base("Policalm Gel Banho 300ml"), "HIGIENE_CUIDADO", { semDosagem: true });
 check("creme de bebé 200ml", base("Klorane Bebe Cr Hidrat Vit 200ml"), "DERMOCOSMETICA", { semDosagem: true });
 check("papa 250g", base("Holle Papa Creme Arroz 4M 250G"), "PUERICULTURA", { semDosagem: true });

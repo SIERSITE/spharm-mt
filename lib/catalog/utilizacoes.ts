@@ -57,6 +57,18 @@ export type GrupoUtilizacao = (typeof GRUPOS)[number];
  */
 export const UTILIZACOES: readonly Utilizacao[] = [
   // ── Respiratório ────────────────────────────────────────────────────
+  // "Tosse" é o termo por que se pergunta ao balcão; "seca" ou "com
+  // expectoração" é o que se apura a seguir. As três coexistem de
+  // propósito: quem já sabe filtra pela específica, quem não sabe vê a
+  // prateleira toda. Um produto com tosse-seca ou tosse-produtiva recebe
+  // SEMPRE também "tosse" — sem isso a faceta geral devolvia menos que as
+  // específicas, que é o contrário do que se espera dela.
+  { slug: "tosse", nome: "Tosse", grupo: "Respiratório",
+    descricao: "Qualquer tipo de tosse. Agrega tosse seca e tosse com expectoração.",
+    // Sem "antitússico" nem "expectorante": esses pertencem às
+    // específicas. Um sinónimo aqui roubava-lhes a resolução, porque
+    // `resolverUtilizacao` devolve o primeiro que casa e esta vem antes.
+    sinonimos: ["tosse", "xarope para a tosse"] },
   { slug: "tosse-seca", nome: "Tosse seca", grupo: "Respiratório",
     descricao: "Tosse irritativa, sem expectoração.",
     sinonimos: ["tosse irritativa", "antitússico", "tosse sem catarro"] },

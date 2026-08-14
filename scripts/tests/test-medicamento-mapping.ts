@@ -22,7 +22,7 @@
  */
 
 import "dotenv/config";
-import { mapToCanonical } from "../../lib/catalog-taxonomy-map";
+import { mapToCanonical, type TaxonomyMapOutput } from "../../lib/catalog-taxonomy-map";
 import { isValidNivel1, isValidNivel2 } from "../../lib/catalog-taxonomy";
 
 const errors: string[] = [];
@@ -47,7 +47,7 @@ type Case = {
     /** Se true, este caso DEVE NOT cair em "Outros Medicamentos". */
     notOthersFallback: true;
     /** Método esperado (ou prefixo aceitável). */
-    methodAnyOf?: Array<"atc" | "atc_prefix" | "dci" | "keyword" | "external_category_hint" | "product_type_only" | "others_fallback">;
+    methodAnyOf?: Array<TaxonomyMapOutput["method"]>;
   };
 };
 
@@ -192,16 +192,20 @@ const CASES: Case[] = [
   // Não há nivel2 "Antibióticos" na taxonomia; J01 mapeia para
   // "Outros Medicamentos" via ATC_PREFIX_TO_NIVEL2 (não fallback).
   // Verifica que o método é atc_prefix (decisão explícita), não
-  // others_fallback (catch-all). Caso especial: este teste aceita
-  // "Outros Medicamentos" porque a taxonomia não tem categoria melhor.
+  // others_fallback (catch-all).
+  //
+  // O rótulo dizia "sem cat antibióticos na taxonomia" e esperava
+  // "Outros Medicamentos" — deixou de ser verdade quando
+  // "Anti-infecciosos" entrou na taxonomia e J01 passou a mapear para lá.
+  // A expectativa ficou por actualizar e o teste falhava desde então.
   {
-    label: "Amoxicilina + clavulânico / J01CR02 → Outros Medicamentos (sem cat antibióticos na taxonomia, mas via atc_prefix explícito)",
+    label: "Amoxicilina + clavulânico / J01CR02 → Anti-infecciosos (via atc_prefix explícito)",
     designacao: "AUGMENTIN 875+125MG COMPRIMIDOS",
     atc: "J01CR02",
     dci: "amoxicilina + ácido clavulânico",
     expect: {
       nivel1: "MEDICAMENTOS",
-      nivel2: "Outros Medicamentos",
+      nivel2: "Anti-infecciosos",
       notOthersFallback: true, // método deve ser atc_prefix, NÃO others_fallback
       methodAnyOf: ["atc_prefix"],
     },
