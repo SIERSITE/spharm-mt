@@ -20,9 +20,8 @@
  *     trabalho que falta. Fica NULL, e conta como universo por resolver.
  *
  * Uso:
- *   npx tsx scripts/catalog-master/classify-backfill.ts --dry-run
- *   npx tsx scripts/catalog-master/classify-backfill.ts
- *   npx tsx scripts/catalog-master/classify-backfill.ts --db=spharmmt_t_xxx
+ *   npx tsx scripts/catalog-master/classify-backfill.ts --db=spharmmt_t_silveira --dry-run
+ *   npx tsx scripts/catalog-master/classify-backfill.ts --db=spharmmt_t_silveira
  */
 import "dotenv/config";
 import pg from "pg";
@@ -52,9 +51,15 @@ type Row = {
 async function main() {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes("--dry-run");
-  const dbName =
-    argv.find((a) => a.startsWith("--db="))?.split("=")[1] ??
-    "spharmmt_t_grupo_silveira";
+  const dbName = argv.find((a) => a.startsWith("--db="))?.split("=")[1];
+  if (!dbName) {
+    // Não há base por omissão, de propósito. O valor que aqui estava
+    // ("spharmmt_t_grupo_silveira") deixou de existir, e um nome por
+    // omissão é uma decisão tomada há meses por outra pessoa noutro
+    // contexto — ver a nota em lib/catalog/target-db.ts.
+    console.error("Falta --db=<base>. Produção: --db=spharmmt_t_silveira");
+    process.exit(1);
+  }
 
   const url = process.env.DATABASE_URL!.replace(
     /\/[^/?]+(\?|$)/,
