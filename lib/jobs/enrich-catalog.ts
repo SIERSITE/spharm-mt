@@ -83,9 +83,25 @@ export type ReclassifySummary = {
   durationMs: number;
 };
 
+/** Fase 3 — só preenchida quando o cron pede knowledge-enrichment. */
+export type KnowledgeCycleSummary = {
+  residual: number;
+  categoriasEscritas: number;
+  productTypesEscritos: number;
+  utilizacoesEscritas: number;
+  paraRevisao: number;
+  /** Propostas que a segunda passagem não confirmou. Vigiar esta série. */
+  discordancias: number;
+  custoEstimadoUsd: number;
+  /** Preenchido quando a fase falhou sem derrubar o ciclo. */
+  erro: string | null;
+};
+
 export type EnrichCycleSummary = {
   sync: SyncRegulatorySummary;
   reclassify: ReclassifySummary;
+  /** `null` quando a fase 3 não foi pedida. */
+  knowledge: KnowledgeCycleSummary | null;
   totalDurationMs: number;
 };
 
@@ -385,8 +401,18 @@ export async function runEnrichCycle(opts: {
   prisma: PrismaClient;
   syncLimit?: number;
   reclassifyLimit?: number;
+  /**
+   * Fase 3 — knowledge-enrichment. Desligada por omissão porque, ao
+   * contrário das duas primeiras, custa dinheiro por produto: tem de ser
+   * uma decisão explícita de quem opera o cron, não um default que
+   * ninguém escolheu. Ver `lib/catalog/knowledge-enrichment.ts`.
+   */
+  knowledgeLimit?: number;
+  knowledgeCapUsd?: number;
 }): Promise<EnrichCycleSummary> {
   const t0 = Date.now();
+  // Ordem obrigatória: o determinístico primeiro, sempre. Só o que ele
+  // não resolve é que chega à fase 3 — e chega já filtrado por SQL.
   const sync = await syncRegulatoryToProduto({
     prisma: opts.prisma,
     limit: opts.syncLimit ?? 1000,
@@ -395,5 +421,39 @@ export async function runEnrichCycle(opts: {
     prisma: opts.prisma,
     limit: opts.reclassifyLimit ?? 500,
   });
-  return { sync, reclassify, totalDurationMs: Date.now() - t0 };
+
+  let knowledge: KnowledgeCycleSummary | null = null;
+  if (opts.knowledgeLimit && opts.knowledgeLimit > 0) {
+    // Import dinâmico: sem `knowledgeLimit` o SDK da Anthropic nem é
+    // carregado, e um tenant sem credencial configurada não paga o custo
+    // de arranque de uma dependência que não vai usar.
+    const { runKnowledgeEnrichment } = await import("../catalog/knowledge-enrichment-runner");
+    try {
+      const r = await runKnowledgeEnrichment(opts.prisma, {
+        limite: opts.knowledgeLimit,
+        tectoUsd: opts.knowledgeCapUsd ?? 5,
+      });
+      knowledge = {
+        residual: r.residualAnalisado,
+        categoriasEscritas: r.categoriasEscritas,
+        productTypesEscritos: r.productTypesEscritos,
+        utilizacoesEscritas: r.utilizacoesEscritas,
+        paraRevisao: r.review,
+        discordancias: r.relatorio.filter((l) => l.discordancia).length,
+        custoEstimadoUsd: Number(r.custoEstimadoUsd.toFixed(4)),
+        erro: null,
+      };
+    } catch (e) {
+      // A fase 3 nunca derruba o ciclo: as fases 1 e 2 já escreveram e
+      // são o caminho crítico. Uma credencial em falta ou a API em baixo
+      // fica registada e o cron do dia seguinte tenta outra vez.
+      knowledge = {
+        residual: 0, categoriasEscritas: 0, productTypesEscritos: 0,
+        utilizacoesEscritas: 0, paraRevisao: 0, discordancias: 0, custoEstimadoUsd: 0,
+        erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+      };
+    }
+  }
+
+  return { sync, reclassify, knowledge, totalDurationMs: Date.now() - t0 };
 }

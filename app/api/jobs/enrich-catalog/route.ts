@@ -30,7 +30,7 @@
  * Autenticação: idêntica a `refresh-ipf` (`authorizeCronRequest`).
  *
  * Manual test:
- *   curl -i "https://<host>/api/jobs/enrich-catalog?secret=$CRON_SECRET&onlySlugs=grupo-silveira"
+ *   curl -i "https://<host>/api/jobs/enrich-catalog?secret=$CRON_SECRET&onlySlugs=silveira"
  *   curl -i "https://<host>/api/jobs/enrich-catalog?secret=$CRON_SECRET&syncLimit=50&reclassifyLimit=20"
  */
 
@@ -99,6 +99,8 @@ type ErrorPayload = {
 function parseLimits(req: NextRequest): {
   syncLimit: number;
   reclassifyLimit: number;
+  knowledgeLimit: number;
+  knowledgeCapUsd: number;
   onlySlugs: string[] | undefined;
 } {
   const url = req.nextUrl;
@@ -110,11 +112,16 @@ function parseLimits(req: NextRequest): {
   };
   const syncLimit = parsePositiveInt(url.searchParams.get("syncLimit"), 1000, 5000);
   const reclassifyLimit = parsePositiveInt(url.searchParams.get("reclassifyLimit"), 500, 2000);
+  // Fase 3 desligada por omissão (0). Custa dinheiro por produto: quem
+  // opera o cron tem de a pedir, e o tecto de custo por tenant existe
+  // para que um catálogo grande nao gere uma fatura surpresa.
+  const knowledgeLimit = parsePositiveInt(url.searchParams.get("knowledgeLimit"), 0, 2000);
+  const knowledgeCapUsd = parsePositiveInt(url.searchParams.get("knowledgeCapUsd"), 5, 100);
   const onlySlugsRaw = url.searchParams.get("onlySlugs");
   const onlySlugs = onlySlugsRaw
     ? onlySlugsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
     : undefined;
-  return { syncLimit, reclassifyLimit, onlySlugs };
+  return { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, onlySlugs };
 }
 
 async function handle(req: NextRequest): Promise<Response> {
@@ -129,7 +136,7 @@ async function handle(req: NextRequest): Promise<Response> {
     return NextResponse.json(payload, { status });
   }
 
-  const { syncLimit, reclassifyLimit, onlySlugs } = parseLimits(req);
+  const { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, onlySlugs } = parseLimits(req);
 
   const tenants: TenantResult[] = [];
   let iteratorSummary: TenantIterSummary;
@@ -154,7 +161,9 @@ async function handle(req: NextRequest): Promise<Response> {
         const hb = setInterval(() => heartbeatSyncRun(run.id), 30_000);
         try {
           await heartbeatSyncRun(run.id);
-          const summary = await runEnrichCycle({ prisma, syncLimit, reclassifyLimit });
+          const summary = await runEnrichCycle({
+            prisma, syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd,
+          });
           await completeSyncRun(run.id, {
             recordsUpdated: summary.sync.updated + summary.reclassify.updated,
             recordsFailed: summary.sync.errors + summary.reclassify.errors,

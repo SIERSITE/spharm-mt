@@ -71,7 +71,8 @@ export type SourceTier =
   | "MANUFACTURER"       // catálogo do fabricante (directo)
   | "DISTRIBUTOR"        // bases de dados de distribuidores / cooperativas
   | "RETAIL"             // bases abertas / retail (Open Beauty Facts, etc.)
-  | "INTERNAL_INFERRED"; // agregação de ProdutoFarmacia.*Origem
+  | "INTERNAL_INFERRED"  // agregação de ProdutoFarmacia.*Origem
+  | "MODEL_INFERRED";    // conhecimento de modelo (lib/catalog/knowledge-enrichment)
 
 /** Ordem numérica do tier (menor = maior autoridade) */
 export const SOURCE_TIER_RANK: Record<SourceTier, number> = {
@@ -80,6 +81,11 @@ export const SOURCE_TIER_RANK: Record<SourceTier, number> = {
   DISTRIBUTOR: 2,
   RETAIL: 3,
   INTERNAL_INFERRED: 4,
+  // Último de propósito. Um modelo sabe o que é o Ozempic, mas não sabe
+  // o que ESTA farmácia tem em stock nem o que o INFARMED registou. Fica
+  // abaixo de tudo para que qualquer fonte real ganhe o desempate sem
+  // que ninguém tenha de se lembrar de o codificar caso a caso.
+  MODEL_INFERRED: 5,
 };
 
 // ─── Relevância de campos por tipo ───────────────────────────────────────────

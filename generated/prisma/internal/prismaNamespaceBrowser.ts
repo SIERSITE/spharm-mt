@@ -97,7 +97,8 @@ export const ModelName = {
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit',
   MovimentoArtigo: 'MovimentoArtigo',
-  IngestStocksMovRaw: 'IngestStocksMovRaw'
+  IngestStocksMovRaw: 'IngestStocksMovRaw',
+  KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -1014,6 +1015,28 @@ export const IngestStocksMovRawScalarFieldEnum = {
 } as const
 
 export type IngestStocksMovRawScalarFieldEnum = (typeof IngestStocksMovRawScalarFieldEnum)[keyof typeof IngestStocksMovRawScalarFieldEnum]
+
+
+export const KnowledgeEnrichmentCacheScalarFieldEnum = {
+  chave: 'chave',
+  cnp: 'cnp',
+  designacao: 'designacao',
+  versao: 'versao',
+  modelo: 'modelo',
+  productType: 'productType',
+  categoria: 'categoria',
+  subcategoria: 'subcategoria',
+  forma: 'forma',
+  utilizacoes: 'utilizacoes',
+  confidence: 'confidence',
+  evidenceType: 'evidenceType',
+  rationale: 'rationale',
+  persistido: 'persistido',
+  motivo: 'motivo',
+  criadoEm: 'criadoEm'
+} as const
+
+export type KnowledgeEnrichmentCacheScalarFieldEnum = (typeof KnowledgeEnrichmentCacheScalarFieldEnum)[keyof typeof KnowledgeEnrichmentCacheScalarFieldEnum]
 
 
 export const SortOrder = {

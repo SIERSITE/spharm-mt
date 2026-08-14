@@ -408,8 +408,8 @@ model Utilizacao {
 
   /// Estável e igual em todos os tenants. Nunca renomear — mudar um slug
   /// desliga as associações que já existem noutras bases.
-  slug String @unique
-  nome String
+  slug      String   @unique
+  nome      String
   /// Onde acaba esta utilização e começa a seguinte. Serve para quem
   /// classifica decidir sem inventar critério.
   descricao String?
@@ -442,7 +442,7 @@ model ProdutoUtilizacao {
   utilizacaoId String
 
   /// Quem associou: "REGRA", "MANUAL", "ERP", nome do classificador.
-  fonte String
+  fonte       String
   /// 0–1. NULL quando a origem é manual — uma decisão humana não tem
   /// probabilidade associada.
   confianca   Float?
@@ -479,19 +479,19 @@ model IngestProdutoRun {
   farmaciaId String
 
   /// O corte. Instante do relógio da base, no primeiro batch da corrida.
-  startedAtServer DateTime @default(now())
+  startedAtServer   DateTime @default(now())
   /// Actualizado a cada batch. Serve para detectar corridas abandonadas.
   lastBatchAtServer DateTime @default(now())
   /// Quantos produtos esta corrida entregou. Alimenta a defesa contra
   /// sweeps anormais: uma corrida que entregou 100 linhas não pode
   /// retirar 18 000.
-  produtosRecebidos Int @default(0)
+  produtosRecebidos Int      @default(0)
 
   /// ABERTA | FINALIZADA | ABANDONADA
   estado       String    @default("ABERTA")
   finalizadaEm DateTime?
   /// Quantas linhas o sweep marcou. Null enquanto não finalizou.
-  retiradas Int?
+  retiradas    Int?
 
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
 
@@ -525,7 +525,7 @@ model CompraDocumento {
   farmaciaId String
 
   /// `Recepcao.[Recepcao ID]`. Identidade do documento no ERP.
-  externalReceptionId Int
+  externalReceptionId     Int
   externalTipoDocumentoId Int?
   externalFornecedorId    Int
   externalNRecepcao       Int?
@@ -536,8 +536,8 @@ model CompraDocumento {
   /// Σ(quantidade × valorEurUnit) das linhas que ainda existem.
   valorExplicadoEur Decimal @db.Decimal(14, 2)
   /// valorExplicado − totalDocumento. Positivo: linhas somam mais.
-  deltaEur Decimal @db.Decimal(14, 2)
-  nLinhas  Int
+  deltaEur          Decimal @db.Decimal(14, 2)
+  nLinhas           Int
 
   /// RECONCILIADA | DETALHE_INCOMPLETO | NAO_FINANCEIRO | SEM_LINHAS.
   /// Texto e não enum: acrescentar uma classe não deve exigir migração
@@ -577,7 +577,7 @@ model CatalogoBackfillRun {
   associacoes           Int
   /// Candidatas que as regras produziram mas ficaram abaixo do limiar.
   /// Contar isto é o que distingue "não há sinal" de "há sinal fraco".
-  recusadas Int
+  recusadas             Int
 
   /// Redundante face aos dois primeiros, mas guardado à mesma: um dia a
   /// definição de "analisado" muda e a série histórica tem de continuar
@@ -588,7 +588,7 @@ model CatalogoBackfillRun {
   /// ser trabalho novo ou apenas o limiar ter descido.
   limiarConfianca Float?
   /// Commit ou revisão das regras, quando conhecido.
-  versaoRegras String?
+  versaoRegras    String?
 
   /// Detalhe livre: TOP utilizações, recusadas por regra, cobertura por tipo.
   detalhes Json @default("{}")
@@ -1067,17 +1067,17 @@ model ProdutoFarmacia {
   ///   4. VENDA_DERIVADA       — moda da taxa derivada por linha de venda
   /// Valores fora de {6,13,23} ou ausentes → permanece NULL ("IVA por
   /// apurar"). Nunca inventamos.
-  taxaIvaPercent       Int?
+  taxaIvaPercent   Int?
   /// Fonte que populou `taxaIvaPercent`. Token uppercase: ver enum
   /// `TaxaIvaSource` em lib/iva-recovery. NULL ⇒ taxaIvaPercent é NULL.
-  taxaIvaSource        String?
+  taxaIvaSource    String?
   /// Timestamp da última execução do recuperador que tocou nesta linha.
   /// Distinto de `dataAtualizacao` para permitir auditoria do pipeline
   /// sem ruído de outros campos.
-  taxaIvaUpdatedAt     DateTime?
+  taxaIvaUpdatedAt DateTime?
 
-  dataAtualizacao      DateTime  @updatedAt
-  dataCriacao          DateTime  @default(now())
+  dataAtualizacao DateTime @updatedAt
+  dataCriacao     DateTime @default(now())
 
   produto            Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   farmacia           Farmacia    @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
@@ -2132,7 +2132,7 @@ model MovimentoArtigo {
 
   /// dbo.Armazens.Designacao. Nome amigável; `armazemId` continua a ser
   /// a referência canónica.
-  armazemNome String? @db.VarChar(60)
+  armazemNome    String? @db.VarChar(60)
   /// dbo.Operadores.Nome via StocksMov.OperadorID. Rastreabilidade do
   /// operador que executou o movimento (não impresso pelo ERP no
   /// relatório, está apenas em ficha técnica).
@@ -2191,4 +2191,53 @@ model IngestStocksMovRaw {
   @@unique([farmaciaId, externalMovId, ingestRunId])
   @@index([farmaciaId, ingestRunId])
   @@index([ingestedAt])
+}
+
+/// Cache do knowledge-enrichment (lib/catalog/knowledge-enrichment.ts).
+///
+/// Porquê existir: o resultado para "Ozempic 0.25 Mg Sol. Injetável" é o
+/// mesmo hoje e daqui a um mês. Sem cache, o job diário voltava a pagar o
+/// catálogo residual inteiro todos os dias para reconfirmar o que já
+/// sabia. Com cache, a primeira corrida paga o backlog e as seguintes só
+/// pagam o que entrou de novo.
+///
+/// A chave é (versão do prompt, modelo, cnp, designação normalizada) —
+/// tudo o que muda a resposta. Mudar o prompt ou o modelo não invalida
+/// nada em massa: passa a haver linhas novas ao lado das antigas, o que
+/// deixa comparar duas versões sobre o mesmo catálogo.
+///
+/// Guarda-se o resultado MESMO quando não foi persistido (confiança baixa
+/// ou DESCONHECIDO). É isso que impede o job de voltar a perguntar todos
+/// os dias por produtos que já se sabe que o modelo não reconhece — o
+/// caso mais caro se ficasse de fora.
+model KnowledgeEnrichmentCache {
+  /// `${versao}|${modelo}|${cnp}|${designacao normalizada}`
+  chave String @id
+
+  cnp        Int
+  designacao String
+  versao     String
+  modelo     String
+
+  productType  String?
+  categoria    String?
+  subcategoria String?
+  forma        String?
+  utilizacoes  String[] @default([])
+  confidence   Float
+  evidenceType String
+  rationale    String?
+
+  /// Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
+  /// não soube" de "o modelo soube e nós recusámos" na hora de explicar
+  /// uma cobertura que não subiu.
+  persistido Boolean @default(false)
+  /// Porque não foi persistido, quando não foi.
+  motivo     String?
+
+  criadoEm DateTime @default(now())
+
+  @@index([cnp])
+  @@index([versao, evidenceType])
+  @@index([persistido])
 }

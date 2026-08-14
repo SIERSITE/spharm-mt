@@ -516,3 +516,24 @@ export type MovimentoArtigo = Prisma.MovimentoArtigoModel
  * Cleanup é direccionado por `ingestRunId`.
  */
 export type IngestStocksMovRaw = Prisma.IngestStocksMovRawModel
+/**
+ * Model KnowledgeEnrichmentCache
+ * Cache do knowledge-enrichment (lib/catalog/knowledge-enrichment.ts).
+ * 
+ * Porquê existir: o resultado para "Ozempic 0.25 Mg Sol. Injetável" é o
+ * mesmo hoje e daqui a um mês. Sem cache, o job diário voltava a pagar o
+ * catálogo residual inteiro todos os dias para reconfirmar o que já
+ * sabia. Com cache, a primeira corrida paga o backlog e as seguintes só
+ * pagam o que entrou de novo.
+ * 
+ * A chave é (versão do prompt, modelo, cnp, designação normalizada) —
+ * tudo o que muda a resposta. Mudar o prompt ou o modelo não invalida
+ * nada em massa: passa a haver linhas novas ao lado das antigas, o que
+ * deixa comparar duas versões sobre o mesmo catálogo.
+ * 
+ * Guarda-se o resultado MESMO quando não foi persistido (confiança baixa
+ * ou DESCONHECIDO). É isso que impede o job de voltar a perguntar todos
+ * os dias por produtos que já se sabe que o modelo não reconhece — o
+ * caso mais caro se ficasse de fora.
+ */
+export type KnowledgeEnrichmentCache = Prisma.KnowledgeEnrichmentCacheModel

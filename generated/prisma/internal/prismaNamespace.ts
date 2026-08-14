@@ -430,7 +430,8 @@ export const ModelName = {
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit',
   MovimentoArtigo: 'MovimentoArtigo',
-  IngestStocksMovRaw: 'IngestStocksMovRaw'
+  IngestStocksMovRaw: 'IngestStocksMovRaw',
+  KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -446,7 +447,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -3928,6 +3929,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    KnowledgeEnrichmentCache: {
+      payload: Prisma.$KnowledgeEnrichmentCachePayload<ExtArgs>
+      fields: Prisma.KnowledgeEnrichmentCacheFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.KnowledgeEnrichmentCacheFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.KnowledgeEnrichmentCacheFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        findFirst: {
+          args: Prisma.KnowledgeEnrichmentCacheFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.KnowledgeEnrichmentCacheFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        findMany: {
+          args: Prisma.KnowledgeEnrichmentCacheFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>[]
+        }
+        create: {
+          args: Prisma.KnowledgeEnrichmentCacheCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        createMany: {
+          args: Prisma.KnowledgeEnrichmentCacheCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.KnowledgeEnrichmentCacheCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>[]
+        }
+        delete: {
+          args: Prisma.KnowledgeEnrichmentCacheDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        update: {
+          args: Prisma.KnowledgeEnrichmentCacheUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        deleteMany: {
+          args: Prisma.KnowledgeEnrichmentCacheDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.KnowledgeEnrichmentCacheUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.KnowledgeEnrichmentCacheUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>[]
+        }
+        upsert: {
+          args: Prisma.KnowledgeEnrichmentCacheUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$KnowledgeEnrichmentCachePayload>
+        }
+        aggregate: {
+          args: Prisma.KnowledgeEnrichmentCacheAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateKnowledgeEnrichmentCache>
+        }
+        groupBy: {
+          args: Prisma.KnowledgeEnrichmentCacheGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.KnowledgeEnrichmentCacheGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.KnowledgeEnrichmentCacheCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.KnowledgeEnrichmentCacheCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -4867,6 +4942,28 @@ export const IngestStocksMovRawScalarFieldEnum = {
 export type IngestStocksMovRawScalarFieldEnum = (typeof IngestStocksMovRawScalarFieldEnum)[keyof typeof IngestStocksMovRawScalarFieldEnum]
 
 
+export const KnowledgeEnrichmentCacheScalarFieldEnum = {
+  chave: 'chave',
+  cnp: 'cnp',
+  designacao: 'designacao',
+  versao: 'versao',
+  modelo: 'modelo',
+  productType: 'productType',
+  categoria: 'categoria',
+  subcategoria: 'subcategoria',
+  forma: 'forma',
+  utilizacoes: 'utilizacoes',
+  confidence: 'confidence',
+  evidenceType: 'evidenceType',
+  rationale: 'rationale',
+  persistido: 'persistido',
+  motivo: 'motivo',
+  criadoEm: 'criadoEm'
+} as const
+
+export type KnowledgeEnrichmentCacheScalarFieldEnum = (typeof KnowledgeEnrichmentCacheScalarFieldEnum)[keyof typeof KnowledgeEnrichmentCacheScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -5517,6 +5614,7 @@ export type GlobalOmitConfig = {
   orderExportAudit?: Prisma.OrderExportAuditOmit
   movimentoArtigo?: Prisma.MovimentoArtigoOmit
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawOmit
+  knowledgeEnrichmentCache?: Prisma.KnowledgeEnrichmentCacheOmit
 }
 
 /* Types for Logging */
