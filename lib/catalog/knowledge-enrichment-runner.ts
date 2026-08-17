@@ -59,6 +59,8 @@ import {
   type Destino,
   type ProdutoPreselecao,
 } from "./preselection";
+import { lerConhecimentoGlobal, promoverAoGlobal } from "./global-catalog-store";
+import type { ConhecimentoCandidato, OrigemGlobal } from "./global-catalog";
 
 /** Códigos internos da farmácia não entram no catálogo regulamentar. */
 export const MIN_CNP = 2_000_000;
@@ -235,6 +237,12 @@ export type LinhaPreselecao = {
 
 export type RunnerResumo = {
   residualAnalisado: number;
+  /** CNPs que o catálogo global já conhecia — não foram ao modelo. */
+  jaConhecidosGlobal: number;
+  /** Candidatos promovidos ao catálogo global nesta corrida. */
+  promovidosAoGlobal: number;
+  /** Problemas não fatais (ex.: control plane inacessível). */
+  avisos: string[];
   /** Não foram ao modelo: subcategoria sem utilização plausível. */
   excluidosBaixaCobertura: number;
   /** Não foram ao modelo: designação sem conteúdo reconhecível. */
@@ -437,6 +445,10 @@ export async function runKnowledgeEnrichment(
     tectoUsd?: number;
     /** Amostra estratificada em vez dos primeiros N. */
     canary?: Partial<Record<Estrato, number>>;
+    /** Slug do tenant — registado como origem do conhecimento promovido. */
+    tenantSlug?: string;
+    /** Desligar o catálogo global (para medir uma corrida sem ele). */
+    usarGlobal?: boolean;
     onProgress?: (feito: number, total: number) => void;
     /**
      * Substituem as chamadas ao modelo. Existem para o teste de
@@ -476,6 +488,9 @@ export async function runKnowledgeEnrichment(
 
   const resumo: RunnerResumo = {
     residualAnalisado: residual.length,
+    jaConhecidosGlobal: 0,
+    promovidosAoGlobal: 0,
+    avisos: [],
     excluidosBaixaCobertura: 0,
     excluidosOpacos: 0,
     familiasPropagaveis: 0,
@@ -505,6 +520,44 @@ export async function runKnowledgeEnrichment(
     cortadoPorTecto: false,
     relatorio: [],
   };
+  // Candidatos a promover ao catálogo global. Recolhidos durante a
+  // corrida, escritos de uma vez no fim.
+  const candidatosGlobais: ConhecimentoCandidato[] = [];
+
+  /**
+   * Junta um resultado APPLY à fila de promoção.
+   *
+   * Só o que ficou com classificação ESPECÍFICA: um "Outros <X>" não é
+   * conhecimento e não serve nenhum outro tenant. `avaliarPromocao`
+   * recusa-o de qualquer forma — não enviar poupa a viagem.
+   */
+  const juntarCandidato = (
+    r: KnowledgeResult,
+    p: ProdutoResidual,
+    gate: DecisaoEscrita,
+    utilizacoes: string[],
+    confianca: number,
+    origem: OrigemGlobal,
+  ): void => {
+    if (gate.decisao !== "APPLY") return;
+    const temClassificacao = !!r.categoria && !!r.subcategoria && !/^outros\b/i.test(r.subcategoria);
+    if (!temClassificacao && utilizacoes.length === 0) return;
+    candidatosGlobais.push({
+      cnp: p.cnp,
+      designacaoReferencia: p.designacao,
+      productType: gate.gravarProductType ? r.productType : null,
+      categoria: temClassificacao ? r.categoria : null,
+      subcategoria: temClassificacao ? r.subcategoria : null,
+      utilizacoes: utilizacoes.map((slug) => ({ slug, confidence: confianca })),
+      confidence: confianca,
+      evidenceType: r.evidenceType,
+      origem,
+      versaoRegras: KNOWLEDGE_VERSION,
+      verificado: gate.criterios.verificado,
+      tenantOrigem: opts.tenantSlug ?? "(desconhecido)",
+    });
+  };
+
   // Métricas por estrato, criadas à medida que cada um é tocado.
   const metricas = new Map<Estrato, MetricasEstrato>();
   const elegiveisPorEstrato = new Map<Estrato, number>(
@@ -557,6 +610,37 @@ export async function runKnowledgeEnrichment(
           "Correr `npx prisma migrate deploy` nesta base antes de usar --apply.",
       );
     }
+  }
+
+  // ── CATÁLOGO GLOBAL: o filtro que vem antes de todos ────────────────
+  //
+  // O mesmo CNP é o mesmo produto nacional. Um CNP que outro tenant já
+  // pagou não volta ao modelo — é projectado a partir do global.
+  //
+  // Isto corre ANTES da pré-selecção de propósito: não vale a pena
+  // calcular famílias e cobertura para produtos que nem sequer vão à
+  // fila. Desligável (`usarGlobal: false`) para se poder medir uma
+  // corrida sem esta camada.
+  if (opts.usarGlobal !== false) {
+    try {
+      const conhecidos = await lerConhecimentoGlobal(residual.map((l) => l.cnp));
+      if (conhecidos.size > 0) {
+        const antes = residual.length;
+        residual = residual.filter((l) => !conhecidos.has(l.cnp));
+        resumo.jaConhecidosGlobal = antes - residual.length;
+        for (const l of residual) void l;
+      }
+    } catch (err) {
+      // O control plane estar em baixo não pode impedir uma corrida: o
+      // pior que acontece é pagar-se por CNPs que já eram conhecidos.
+      resumo.avisos.push(
+        `catálogo global inacessível — corrida sem ele: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (residual.length === 0) {
+    resumo.metricasPorEstrato = [...metricas.values()];
+    return resumo;
   }
 
   // ── PRÉ-SELECÇÃO ────────────────────────────────────────────────────
@@ -957,6 +1041,7 @@ export async function runKnowledgeEnrichment(
       }
 
       await escrever(r, p, gate, utilizacoesFinais, r.confidence, FONTE, "MODEL_INFERRED");
+      juntarCandidato(r, p, gate, utilizacoesFinais, r.confidence, "MODELO");
       await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo, "CLAUDE", null);
 
       // ── PROPAGAÇÃO ────────────────────────────────────────────────
@@ -995,6 +1080,30 @@ export async function runKnowledgeEnrichment(
   }
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
+
+  // ── PROMOÇÃO AO CATÁLOGO GLOBAL ─────────────────────────────────────
+  //
+  // Só o que passou o gate e ficou com classificação ESPECÍFICA. Um
+  // fallback não é conhecimento e não se promove — `avaliarPromocao`
+  // recusa-o de qualquer forma, mas nem se envia.
+  //
+  // Corre no fim e não a cada produto: uma escrita por corrida em vez de
+  // uma por produto, e o control plane estar em baixo não pode perder o
+  // trabalho que já foi pago e escrito no tenant.
+  if (opts.usarGlobal !== false && opts.tenantSlug && candidatosGlobais.length > 0) {
+    try {
+      const res = await promoverAoGlobal(candidatosGlobais, { dryRun });
+      resumo.promovidosAoGlobal = res.promovidos;
+    } catch (err) {
+      resumo.avisos.push(
+        `promoção ao catálogo global falhou — o trabalho no tenant está feito: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  } else if (opts.usarGlobal !== false && !opts.tenantSlug && candidatosGlobais.length > 0) {
+    resumo.avisos.push(
+      `${candidatosGlobais.length} candidatos não promovidos: falta \`tenantSlug\` para registar a origem`,
+    );
+  }
 
   // Projecção por estrato, com o custo OBSERVADO de cada um. Uma média
   // global multiplicada pela população total dava um número redondo e

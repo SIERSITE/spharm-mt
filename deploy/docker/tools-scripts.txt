@@ -88,6 +88,10 @@ catalog:audit-knowledge-preselection
 # Knowledge-enrichment: a fase que usa modelo. Sem `--apply` não escreve
 # nada, nem cache; com `--apply` custa dinheiro por produto.
 catalog:knowledge-enrich
+# Projecção do catálogo global (control plane, por CNP) para um tenant.
+# Sem chamadas ao modelo: o conhecimento já foi pago uma vez. É este
+# comando que dá a um tenant novo tudo o que já se sabe.
+catalog:project-global
 
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password

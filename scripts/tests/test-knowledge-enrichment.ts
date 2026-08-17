@@ -552,6 +552,8 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
   CONTEXTO = contextoNeutro([1234567]);
   const seco = await runKnowledgeEnrichment(fake, {
     dryRun: true,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
     classificar: resposta(),
     verificar: resposta(),
   });
@@ -571,6 +573,8 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
   CONTEXTO = contextoNeutro([1234567]);
   await runKnowledgeEnrichment(fake2, {
     dryRun: false,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
     classificar: resposta(),
     verificar: resposta(),
   }).catch(() => {});
@@ -714,6 +718,8 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     CONTEXTO = contextoNeutro(Array.from({ length: 30 }, (_, i) => 3_000_000 + i));
     const r = await runKnowledgeEnrichment(prisma, {
       dryRun: true,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
       canary: QUOTAS_CANARY,
       classificar: async () => ({
         resultados: [],
@@ -738,6 +744,8 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     CONTEXTO = contextoNeutro([3_000_000, 3_000_001, 3_000_002, 3_000_003, 3_000_004]);
     const r = await runKnowledgeEnrichment(prisma, {
       dryRun: true,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
       limite: 5,
       classificar: async () => ({
         resultados: [],
@@ -814,6 +822,8 @@ console.log("\n=== métricas e projecção por estrato ===");
   ];
   const r = await runKnowledgeEnrichment(prisma, {
     dryRun: true,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
     canary: QUOTAS_CANARY,
     // O pedido de utilizações devolve MENOS output por produto: é essa a
     // poupança que a projecção tem de conseguir ver.
@@ -897,6 +907,8 @@ console.log("\n=== tecto de custo corta imediatamente ===");
   CONTEXTO = contextoNeutro(Array.from({ length: 60 }, (_, i) => 2_000_001 + i));
   const r = await runKnowledgeEnrichment(fake, {
     dryRun: true,
+    // Offline: sem isto o runner tentava alcançar o control plane.
+    usarGlobal: false,
     tectoUsd: 0.01,
     classificar: caro,
     verificar: caro,
