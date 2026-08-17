@@ -1092,7 +1092,13 @@ export async function runKnowledgeEnrichment(
   // trabalho que já foi pago e escrito no tenant.
   if (opts.usarGlobal !== false && opts.tenantSlug && candidatosGlobais.length > 0) {
     try {
-      const res = await promoverAoGlobal(candidatosGlobais, { dryRun });
+      // O runner nunca produz candidatos de origem HUMANO — só MODELO e
+      // PROPAGADO — portanto não passa aprovação nenhuma. A validação
+      // manual de um tenant sobe pelo caminho explícito, não por aqui.
+      const res = await promoverAoGlobal(candidatosGlobais, {
+        dryRun,
+        actor: "catalog:knowledge-enrich",
+      });
       resumo.promovidosAoGlobal = res.promovidos;
     } catch (err) {
       resumo.avisos.push(

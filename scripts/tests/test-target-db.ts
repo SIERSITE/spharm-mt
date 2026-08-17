@@ -142,6 +142,12 @@ async function main() {
     "../catalog-master/fill-rules.ts",
     "../catalog-master/backfill-utilizacoes.ts",
     "../catalog-master/knowledge-enrich.ts",
+    // Os três do catálogo global. Dois deles escrevem no CONTROL PLANE e
+    // só lêem o tenant — o que não os dispensa de nada: continuam a ter
+    // de resolver o tenant pelo control plane em vez de o construírem.
+    "../catalog-master/project-global-catalog.ts",
+    "../catalog-master/bootstrap-global-catalog.ts",
+    "../catalog-master/promote-global-knowledge.ts",
   ];
   for (const caminho of TENANT_AWARE) {
     const nome = caminho.split("/").pop()!;
