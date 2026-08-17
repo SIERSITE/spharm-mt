@@ -55,7 +55,10 @@ export const ModelName = {
   TenantEvent: 'TenantEvent',
   GlobalAdmin: 'GlobalAdmin',
   GlobalAdminTenant: 'GlobalAdminTenant',
-  SyncRun: 'SyncRun'
+  SyncRun: 'SyncRun',
+  CatalogoGlobal: 'CatalogoGlobal',
+  CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
+  CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -162,6 +165,56 @@ export const SyncRunScalarFieldEnum = {
 } as const
 
 export type SyncRunScalarFieldEnum = (typeof SyncRunScalarFieldEnum)[keyof typeof SyncRunScalarFieldEnum]
+
+
+export const CatalogoGlobalScalarFieldEnum = {
+  cnp: 'cnp',
+  designacaoReferencia: 'designacaoReferencia',
+  productType: 'productType',
+  categoria: 'categoria',
+  subcategoria: 'subcategoria',
+  confidence: 'confidence',
+  evidenceType: 'evidenceType',
+  rationale: 'rationale',
+  origem: 'origem',
+  modelo: 'modelo',
+  versaoRegras: 'versaoRegras',
+  verificado: 'verificado',
+  tenantOrigem: 'tenantOrigem',
+  propagadoDeCnp: 'propagadoDeCnp',
+  criadoEm: 'criadoEm',
+  actualizadoEm: 'actualizadoEm'
+} as const
+
+export type CatalogoGlobalScalarFieldEnum = (typeof CatalogoGlobalScalarFieldEnum)[keyof typeof CatalogoGlobalScalarFieldEnum]
+
+
+export const CatalogoGlobalUtilizacaoScalarFieldEnum = {
+  cnp: 'cnp',
+  slug: 'slug',
+  confidence: 'confidence',
+  origem: 'origem',
+  versaoRegras: 'versaoRegras',
+  criadoEm: 'criadoEm'
+} as const
+
+export type CatalogoGlobalUtilizacaoScalarFieldEnum = (typeof CatalogoGlobalUtilizacaoScalarFieldEnum)[keyof typeof CatalogoGlobalUtilizacaoScalarFieldEnum]
+
+
+export const CatalogoGlobalRevisaoScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  tenantSlug: 'tenantSlug',
+  tipo: 'tipo',
+  valorGlobal: 'valorGlobal',
+  valorLocal: 'valorLocal',
+  detalhe: 'detalhe',
+  detectadoEm: 'detectadoEm',
+  resolvidoEm: 'resolvidoEm',
+  resolucao: 'resolucao'
+} as const
+
+export type CatalogoGlobalRevisaoScalarFieldEnum = (typeof CatalogoGlobalRevisaoScalarFieldEnum)[keyof typeof CatalogoGlobalRevisaoScalarFieldEnum]
 
 
 export const SortOrder = {

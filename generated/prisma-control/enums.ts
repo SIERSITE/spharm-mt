@@ -38,3 +38,13 @@ export const SyncRunTrigger = {
 } as const
 
 export type SyncRunTrigger = (typeof SyncRunTrigger)[keyof typeof SyncRunTrigger]
+
+
+export const OrigemConhecimento = {
+  HUMANO: 'HUMANO',
+  REGULATORY: 'REGULATORY',
+  MODELO: 'MODELO',
+  PROPAGADO: 'PROPAGADO'
+} as const
+
+export type OrigemConhecimento = (typeof OrigemConhecimento)[keyof typeof OrigemConhecimento]

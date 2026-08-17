@@ -46,3 +46,20 @@ export type GlobalAdminTenant = Prisma.GlobalAdminTenantModel
  * (completeSyncRun / failSyncRun). Nenhum delete em runtime.
  */
 export type SyncRun = Prisma.SyncRunModel
+/**
+ * Model CatalogoGlobal
+ * Conhecimento canónico sobre um CNP. Uma linha por produto nacional.
+ */
+export type CatalogoGlobal = Prisma.CatalogoGlobalModel
+/**
+ * Model CatalogoGlobalUtilizacao
+ * Utilizações canónicas de um CNP. Slug do vocabulário fechado.
+ */
+export type CatalogoGlobalUtilizacao = Prisma.CatalogoGlobalUtilizacaoModel
+/**
+ * Model CatalogoGlobalRevisao
+ * Divergência entre o global e o que um tenant tem. NUNCA é resolvida
+ * automaticamente: o global é conhecimento sobre o produto nacional, o
+ * tenant pode ter razão por conhecer o que aquela farmácia vende.
+ */
+export type CatalogoGlobalRevisao = Prisma.CatalogoGlobalRevisaoModel

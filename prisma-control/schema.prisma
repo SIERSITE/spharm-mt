@@ -267,3 +267,133 @@ model SyncRun {
   @@index([source, startedAt(sort: Desc)])
   @@index([status, startedAt(sort: Desc)])
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// CATÁLOGO GLOBAL — conhecimento por CNP, partilhado por todos os tenants
+// ═════════════════════════════════════════════════════════════════════
+//
+// PORQUÊ AQUI
+// O mesmo CNP é o mesmo produto nacional. Classificar o Ozempic uma vez
+// por farmácia é pagar N vezes pela mesma conclusão — e, pior, deixar as
+// N farmácias chegarem a conclusões diferentes sem que nada o detecte.
+//
+// Vive no control plane e não numa base nova: já cá está o Tenant, já há
+// credencial, cliente Prisma e ferramentas que o alcançam. Uma terceira
+// base seria mais um segredo, mais uma migração e mais um sítio para
+// divergir.
+//
+// O QUE NÃO ESTÁ AQUI
+// Nada operacional. Nem preço, nem stock, nem fornecedor, nem venda. O
+// critério é o mesmo do catálogo mestre: verdade sobre o PRODUTO, não
+// sobre a farmácia que o vende.
+//
+// NOMES E SLUGS, NUNCA IDs
+// `Classificacao.id` é um cuid por base de tenant. Guardar ids locais
+// aqui seria guardar uma referência que não resolve em lado nenhum. O
+// que se guarda é "MEDICAMENTOS" > "Diabetes" e o slug "diabetes" — o
+// vocabulário é fechado e estável entre bases, e é isso que torna a
+// projecção possível.
+
+/// De onde veio o conhecimento. A ordem é a de AUTORIDADE, e está
+/// codificada em `ORIGEM_RANK` (lib/catalog/global-catalog.ts):
+/// HUMANO > REGULATORY > MODELO > PROPAGADO.
+enum OrigemConhecimento {
+  /// Validação manual de um operador, em qualquer tenant. Ganha a tudo.
+  HUMANO
+  /// Fonte regulamentar (INFARMED) ou classificação com fonte forte.
+  REGULATORY
+  /// Decisão do modelo sobre ESTE cnp, com os gates todos passados.
+  MODELO
+  /// Conclusão do modelo sobre um IRMÃO da mesma família estrita.
+  PROPAGADO
+}
+
+/// Conhecimento canónico sobre um CNP. Uma linha por produto nacional.
+model CatalogoGlobal {
+  /// Chave global. O CNP é nacional e é a identidade real do catálogo.
+  cnp Int @id
+
+  /// Designação de referência — a que serviu de base à decisão. Não é
+  /// autoritária: cada tenant mantém a sua, que vem do ERP dele.
+  designacaoReferencia String
+
+  productType String?
+  /// Nome do nível 1 canónico, ex. "MEDICAMENTOS".
+  categoria    String?
+  /// Nome do nível 2 canónico, ex. "Diabetes". Nunca "Outros <X>": um
+  /// fallback não é conhecimento e não se propaga.
+  subcategoria String?
+
+  confidence   Float
+  evidenceType String?
+  rationale    String?
+
+  origem OrigemConhecimento
+  /// Modelo e versão de regras que produziram isto. Permite reprojectar
+  /// só o que ficou para trás quando a versão sobe.
+  modelo        String?
+  versaoRegras  String
+  /// Passou pela segunda passagem de verificação.
+  verificado    Boolean @default(false)
+
+  /// Onde foi decidido pela primeira vez. Para auditar, não para mandar.
+  tenantOrigem String?
+  /// cnp do representante, quando origem = PROPAGADO.
+  propagadoDeCnp Int?
+
+  criadoEm        DateTime @default(now())
+  actualizadoEm   DateTime @updatedAt
+
+  utilizacoes CatalogoGlobalUtilizacao[]
+  revisoes    CatalogoGlobalRevisao[]
+
+  @@index([origem])
+  @@index([versaoRegras])
+  @@index([actualizadoEm])
+}
+
+/// Utilizações canónicas de um CNP. Slug do vocabulário fechado.
+model CatalogoGlobalUtilizacao {
+  cnp  Int
+  slug String
+
+  confidence   Float
+  origem       OrigemConhecimento
+  versaoRegras String
+
+  criadoEm DateTime @default(now())
+
+  produto CatalogoGlobal @relation(fields: [cnp], references: [cnp], onDelete: Cascade)
+
+  @@id([cnp, slug])
+  @@index([slug])
+  @@index([origem])
+}
+
+/// Divergência entre o global e o que um tenant tem. NUNCA é resolvida
+/// automaticamente: o global é conhecimento sobre o produto nacional, o
+/// tenant pode ter razão por conhecer o que aquela farmácia vende.
+model CatalogoGlobalRevisao {
+  id String @id @default(cuid())
+
+  cnp        Int
+  tenantSlug String
+
+  /// CLASSIFICACAO | UTILIZACAO | PRODUCT_TYPE
+  tipo String
+
+  valorGlobal String?
+  valorLocal  String?
+  detalhe     String?
+
+  detectadoEm DateTime  @default(now())
+  resolvidoEm DateTime?
+  /// Como foi resolvida, quando foi. Texto livre — quem resolve escreve.
+  resolucao   String?
+
+  produto CatalogoGlobal @relation(fields: [cnp], references: [cnp], onDelete: Cascade)
+
+  @@index([tenantSlug, detectadoEm(sort: Desc)])
+  @@index([cnp])
+  @@index([resolvidoEm])
+}
