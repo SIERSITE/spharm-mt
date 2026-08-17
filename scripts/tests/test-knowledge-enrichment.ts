@@ -38,7 +38,12 @@ import {
   validarResultado,
   type KnowledgeResult,
 } from "../../lib/catalog/knowledge-enrichment";
-import { runKnowledgeEnrichment } from "../../lib/catalog/knowledge-enrichment-runner";
+import {
+  QUOTAS_CANARY,
+  runKnowledgeEnrichment,
+  selecionarCanary,
+  type Estrato,
+} from "../../lib/catalog/knowledge-enrichment-runner";
 import { readFileSync } from "node:fs";
 import { SOURCE_TIER_RANK } from "../../lib/catalog-types";
 
@@ -197,6 +202,26 @@ console.log("\n=== âmbito de escrita: só 4 campos, e nunca os que têm fonte m
     );
   }
   check(updates.length > 0, "o teste encontrou mesmo os UPDATEs (senão não provava nada)");
+}
+{
+  // Guarda de texto sobre o SQL, deliberadamente. O furo que fecha não é
+  // observável com um prisma falso — precisaria de Postgres a avaliar
+  // `NULL not ilike`, que devolve NULL e não FALSE. Um produto com
+  // `classificacaoNivel2Id` a apontar para uma Classificacao inexistente
+  // ficava elegível pelo filtro combinado e fora dos TRÊS filtros por
+  // estrato: desaparecia do canary sem aparecer em défice nenhum.
+  const runner = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+  check(
+    /estrato === "OUTROS_MEDICAMENTOS"[\s\S]{0,120}classificacaoNivel2Id" is not null and c2\.nome ilike/.test(runner),
+    "filtro OUTROS_MEDICAMENTOS exige nível 2 preenchido (não confia no ilike sobre NULL)",
+  );
+  check(
+    /estrato === "SEM_UTILIZACOES"[\s\S]{0,220}c2\.nome is null or c2\.nome not ilike/.test(runner),
+    "filtro SEM_UTILIZACOES aceita c2.nome NULL — senão o produto órfão não cai em estrato nenhum",
+  );
 }
 {
   const d = avaliarGate(base, SEM_CLASSIF);
@@ -398,6 +423,174 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
     verificar: resposta(),
   }).catch(() => {});
   check(molhado.length > 0, "com --apply a mesma volta TENTA escrever (o dry-run não estava vazio)");
+}
+
+console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
+{
+  /**
+   * Prisma falso com um residual COMPOSTO: muitos NAO_CLASSIFICADO, poucos
+   * OUTROS_MEDICAMENTOS, zero SEM_UTILIZACOES. É a forma do problema real:
+   * o canary devolveu 30 produtos de um só estrato e o relatório não disse
+   * que os outros dois não tinham vindo.
+   */
+  function prismaEstratos(pop: Record<string, number>) {
+    const consultas: string[] = [];
+    // O estrato lê-se do WHERE e só do WHERE. O `case` do SELECT contém
+    // `is null` e `ilike 'Outros %'` em TODAS as consultas — olhar para o
+    // SQL inteiro fazia passar por NAO_CLASSIFICADO a consulta dos três
+    // estratos, e o fixture mentia antes de o código ter oportunidade de
+    // errar.
+    const estratoDe = (sql: string): Estrato => {
+      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      if (/classificacaoNivel2Id" is null/.test(where)) return "NAO_CLASSIFICADO";
+      if (/c2\.nome ilike 'Outros %'/.test(where)) return "OUTROS_MEDICAMENTOS";
+      return "SEM_UTILIZACOES";
+    };
+
+    // cnp determinístico e distinto por estrato — assim um duplicado entre
+    // estratos seria visível, e a unicidade não passa por acidente.
+    const baseCnp: Record<Estrato, number> = {
+      NAO_CLASSIFICADO: 3_000_000,
+      OUTROS_MEDICAMENTOS: 4_000_000,
+      SEM_UTILIZACOES: 5_000_000,
+    };
+
+    return {
+      consultas,
+      prisma: {
+        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (/from "Classificacao"/i.test(sql)) return [];
+          if (/from "Utilizacao"/i.test(sql)) return [];
+          const est = estratoDe(sql);
+          const disponivel = pop[est] ?? 0;
+          if (/count\(\*\)/i.test(sql)) {
+            consultas.push(`count:${est}`);
+            return [{ n: disponivel }];
+          }
+          consultas.push(`rows:${est}`);
+          const limite = Number(params[3] ?? 0);
+          const n = Math.min(disponivel, limite);
+          return Array.from({ length: n }, (_, i) => ({
+            cnp: baseCnp[est] + i,
+            designacao: `${est} ${i}`,
+            productType: null,
+            categoriaAtual: null,
+            subcategoriaAtual: null,
+            estrato: est,
+          }));
+        },
+        $executeRawUnsafe: async () => 0,
+        knowledgeEnrichmentCache: { upsert: async () => ({}) },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    };
+  }
+
+  // ── Caso 1: os três estratos com produtos de sobra ──────────────────
+  {
+    const { prisma, consultas } = prismaEstratos({
+      OUTROS_MEDICAMENTOS: 500,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 500,
+    });
+    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+
+    check(a.linhas.length === 100, `100 produtos no total (obtidos ${a.linhas.length})`);
+    const porEstrato = a.linhas.reduce<Record<string, number>>((m, l) => {
+      m[l.estrato] = (m[l.estrato] ?? 0) + 1;
+      return m;
+    }, {});
+    check(porEstrato.OUTROS_MEDICAMENTOS === 40, `40 OUTROS_MEDICAMENTOS (obtidos ${porEstrato.OUTROS_MEDICAMENTOS ?? 0})`);
+    check(porEstrato.NAO_CLASSIFICADO === 30, `30 NAO_CLASSIFICADO (obtidos ${porEstrato.NAO_CLASSIFICADO ?? 0})`);
+    check(porEstrato.SEM_UTILIZACOES === 30, `30 SEM_UTILIZACOES (obtidos ${porEstrato.SEM_UTILIZACOES ?? 0})`);
+
+    check(new Set(a.linhas.map((l) => l.cnp)).size === a.linhas.length, "sem cnp duplicados");
+    check(
+      consultas.filter((c) => c.startsWith("rows:")).length === 3,
+      "uma consulta de linhas por estrato — os três foram mesmo consultados",
+      consultas.join(" "),
+    );
+    check(a.quotas.every((q) => q.defice === 0), "nenhum défice quando há elegíveis de sobra");
+  }
+
+  // ── Caso 2: a forma do problema real ────────────────────────────────
+  {
+    const { prisma } = prismaEstratos({
+      OUTROS_MEDICAMENTOS: 0,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 0,
+    });
+    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+
+    check(a.linhas.length === 30, "com dois estratos vazios vêm 30 produtos — o número que apareceu em produção");
+    const q = Object.fromEntries(a.quotas.map((x) => [x.estrato, x]));
+    check(q.OUTROS_MEDICAMENTOS.defice === 40, "…e o défice de OUTROS_MEDICAMENTOS é reportado (40)");
+    check(q.SEM_UTILIZACOES.defice === 30, "…e o de SEM_UTILIZACOES também (30)");
+    check(q.NAO_CLASSIFICADO.defice === 0, "…e o estrato servido não reporta défice");
+    check(
+      q.OUTROS_MEDICAMENTOS.elegiveis === 0 && q.SEM_UTILIZACOES.elegiveis === 0,
+      "…e distingue-se 'zero elegíveis' de 'não consultado'",
+    );
+    check(
+      a.quotas.length === 3,
+      "os três estratos aparecem no relatório de quotas, mesmo os vazios",
+    );
+  }
+
+  // ── Caso 3: quota parcial ───────────────────────────────────────────
+  {
+    const { prisma } = prismaEstratos({
+      OUTROS_MEDICAMENTOS: 12,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 500,
+    });
+    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+    const q = Object.fromEntries(a.quotas.map((x) => [x.estrato, x]));
+    check(q.OUTROS_MEDICAMENTOS.obtido === 12 && q.OUTROS_MEDICAMENTOS.defice === 28,
+      "estrato com 12 elegíveis dá 12 e reporta défice de 28");
+    check(a.linhas.length === 72, "o total encolhe para 72 — e não se enche com produtos de outro estrato");
+  }
+
+  // ── Caso 4: o resumo do runner leva as quotas ───────────────────────
+  {
+    const { prisma } = prismaEstratos({
+      OUTROS_MEDICAMENTOS: 0,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 0,
+    });
+    const r = await runKnowledgeEnrichment(prisma, {
+      dryRun: true,
+      canary: QUOTAS_CANARY,
+      classificar: async () => ({
+        resultados: [],
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      }),
+      verificar: async () => ({
+        resultados: [],
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      }),
+    });
+    check(r.quotasCanary !== null, "o resumo do runner traz as quotas no modo canary");
+    check(
+      (r.quotasCanary ?? []).reduce((s, q) => s + q.defice, 0) === 70,
+      "…com o défice total de 70 visível a quem lê o relatório",
+    );
+    check(r.residualAnalisado === 30, "…e residualAnalisado continua a dizer a verdade (30)");
+  }
+
+  // ── Caso 5: fora do canary não há quotas a reportar ─────────────────
+  {
+    const { prisma } = prismaEstratos({ NAO_CLASSIFICADO: 5 });
+    const r = await runKnowledgeEnrichment(prisma, {
+      dryRun: true,
+      limite: 5,
+      classificar: async () => ({
+        resultados: [],
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      }),
+    });
+    check(r.quotasCanary === null, "corrida normal (sem canary) não inventa quotas");
+  }
 }
 
 console.log("\n=== tecto de custo corta imediatamente ===");

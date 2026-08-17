@@ -70,19 +70,48 @@ export type Estrato = "OUTROS_MEDICAMENTOS" | "NAO_CLASSIFICADO" | "SEM_UTILIZAC
  * A cláusula da cache é o que torna o job diário barato: um produto já
  * visto nesta versão não volta a entrar, tenha sido escrito ou não.
  */
-function sqlResidual(estrato?: Estrato): string {
+/**
+ * Os filtros por estrato TÊM de particionar exactamente o residual, e ser
+ * o espelho do `case` que atribui o estrato mais abaixo. Se um produto
+ * for elegível pelo filtro combinado mas não couber em nenhum dos três
+ * filtros por estrato, desaparece do canary sem deixar rasto.
+ *
+ * Era o que acontecia a um produto com `classificacaoNivel2Id` preenchido
+ * a apontar para uma Classificacao inexistente: `c2.nome` fica NULL, e em
+ * SQL `NULL not ilike 'Outros %'` não é FALSE — é NULL, que o WHERE trata
+ * como "não passa". O produto caía fora de OUTROS_MEDICAMENTOS (não é
+ * 'Outros %') E fora de SEM_UTILIZACOES (o `not ilike` não deu TRUE),
+ * apesar de o `case` o classificar como SEM_UTILIZACOES pelo ramo `else`.
+ */
+function corpoResidual(estrato?: Estrato): string {
+  const semUtilizacoes = `not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id)`;
   const filtro =
     estrato === "NAO_CLASSIFICADO"
       ? `and p."classificacaoNivel2Id" is null`
       : estrato === "OUTROS_MEDICAMENTOS"
-      ? `and c2.nome ilike 'Outros %'`
+      ? `and p."classificacaoNivel2Id" is not null and c2.nome ilike 'Outros %'`
       : estrato === "SEM_UTILIZACOES"
-      ? `and p."classificacaoNivel2Id" is not null and c2.nome not ilike 'Outros %'
-         and not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id)`
+      ? `and p."classificacaoNivel2Id" is not null
+         and (c2.nome is null or c2.nome not ilike 'Outros %')
+         and ${semUtilizacoes}`
       : `and (p."classificacaoNivel2Id" is null
              or c2.nome ilike 'Outros %'
-             or not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id))`;
+             or ${semUtilizacoes})`;
 
+  return `
+      from "Produto" p
+      left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
+      left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
+     where p.cnp >= $1
+       and p."validadoManualmente" = false
+       ${filtro}
+       and not exists (
+             select 1 from "KnowledgeEnrichmentCache" k
+              where k.cnp = p.cnp and k.versao = $2 and k.modelo = $3
+       )`;
+}
+
+function sqlResidual(estrato?: Estrato): string {
   return `
     select p.cnp,
            p.designacao,
@@ -94,18 +123,21 @@ function sqlResidual(estrato?: Estrato): string {
              when c2.nome ilike 'Outros %'          then 'OUTROS_MEDICAMENTOS'
              else 'SEM_UTILIZACOES'
            end as estrato
-      from "Produto" p
-      left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
-      left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
-     where p.cnp >= $1
-       and p."validadoManualmente" = false
-       ${filtro}
-       and not exists (
-             select 1 from "KnowledgeEnrichmentCache" k
-              where k.cnp = p.cnp and k.versao = $2 and k.modelo = $3
-       )
+    ${corpoResidual(estrato)}
      order by p.cnp
      limit $4`;
+}
+
+/**
+ * Quantos produtos existem no estrato, SEM limite.
+ *
+ * É o que distingue "este estrato está vazio" de "a consulta partiu-se".
+ * Sem esta contagem, as duas hipóteses produzem exactamente o mesmo
+ * output — zero linhas — e a corrida entrega uma amostra encolhida sem
+ * dizer que encolheu.
+ */
+function sqlContagem(estrato?: Estrato): string {
+  return `select count(*)::int as n ${corpoResidual(estrato)}`;
 }
 
 /** Uma linha do relatório por produto — o que o dry-run imprime. */
@@ -128,6 +160,12 @@ export type LinhaRelatorio = {
 
 export type RunnerResumo = {
   residualAnalisado: number;
+  /**
+   * Quota pedida vs servida por estrato. `null` fora do modo canary.
+   * É aqui que um estrato vazio se declara, em vez de a amostra encolher
+   * em silêncio.
+   */
+  quotasCanary: QuotaEstrato[] | null;
   porEstrato: Record<string, number>;
   chamadasProposta: number;
   chamadasVerificacao: number;
@@ -166,32 +204,97 @@ function estimarCusto(u: RunnerResumo["usage"]): number {
 
 type LinhaResidual = ProdutoResidual & { estrato: Estrato };
 
+/** Quotas por omissão do canary: 40 + 30 + 30 = 100. */
+export const QUOTAS_CANARY: Readonly<Record<Estrato, number>> = {
+  OUTROS_MEDICAMENTOS: 40,
+  NAO_CLASSIFICADO: 30,
+  SEM_UTILIZACOES: 30,
+};
+
+/** O que cada estrato deu, e o que ficou por dar. */
+export type QuotaEstrato = {
+  estrato: Estrato;
+  /** Quota pedida. */
+  pedido: number;
+  /** Quantos existem no estrato, sem limite. */
+  elegiveis: number;
+  /** Quantos entraram na amostra, já sem duplicados. */
+  obtido: number;
+  /** `pedido - obtido`. Zero quando a quota foi servida por inteiro. */
+  defice: number;
+};
+
+export type AmostraCanary = {
+  linhas: LinhaResidual[];
+  quotas: QuotaEstrato[];
+};
+
 /**
  * Amostra estratificada. Os primeiros N por cnp não são uma amostra do
  * catálogo — são uma amostra dos cnp mais baixos, que é outra coisa e
  * não representa as três fatias do residual.
+ *
+ * Cada estrato tem a sua consulta e a sua quota. Devolve TAMBÉM o que
+ * cada um deu: um estrato vazio deixa de ser indistinguível de um estrato
+ * que não foi consultado, que era o furo — a amostra encolhia em silêncio
+ * e o relatório saía a dizer 30 produtos como se fossem os 100 pedidos.
+ *
+ * Não se compensa um estrato com produtos de outro. A amostra é
+ * estratificada por uma razão; enchê-la com o que sobra do estrato ao
+ * lado dava um total bonito e uma amostra que já não representa nada.
  */
 export async function selecionarCanary(
   prisma: PrismaClient,
-  quotas: Partial<Record<Estrato, number>> = {
-    OUTROS_MEDICAMENTOS: 40,
-    NAO_CLASSIFICADO: 30,
-    SEM_UTILIZACOES: 30,
-  },
-): Promise<LinhaResidual[]> {
-  const out: LinhaResidual[] = [];
-  for (const [estrato, n] of Object.entries(quotas) as [Estrato, number][]) {
-    if (!n) continue;
-    const linhas = await prisma.$queryRawUnsafe<LinhaResidual[]>(
+  quotas: Partial<Record<Estrato, number>> = QUOTAS_CANARY,
+): Promise<AmostraCanary> {
+  const linhas: LinhaResidual[] = [];
+  const relatorioQuotas: QuotaEstrato[] = [];
+  // Os estratos são mutuamente exclusivos por construção, mas a garantia
+  // de unicidade fica aqui e não na confiança de que assim seja: um cnp
+  // repetido custaria uma classificação paga duas vezes e uma linha
+  // duplicada no relatório.
+  const vistos = new Set<number>();
+
+  for (const [estrato, pedido] of Object.entries(quotas) as [Estrato, number][]) {
+    if (!pedido) continue;
+
+    const [{ n: elegiveis }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+      sqlContagem(estrato),
+      MIN_CNP,
+      KNOWLEDGE_VERSION,
+      KNOWLEDGE_MODEL,
+    );
+
+    const doEstrato = await prisma.$queryRawUnsafe<LinhaResidual[]>(
       sqlResidual(estrato),
       MIN_CNP,
       KNOWLEDGE_VERSION,
       KNOWLEDGE_MODEL,
-      n,
+      pedido,
     );
-    out.push(...linhas);
+
+    let obtido = 0;
+    for (const l of doEstrato) {
+      if (vistos.has(l.cnp)) continue;
+      vistos.add(l.cnp);
+      // O estrato é o da consulta que o trouxe. O `case` da query e o
+      // filtro dizem sempre o mesmo desde que os filtros particionam o
+      // residual — mas se um dia divergirem, é a consulta que manda,
+      // senão a contagem por estrato mentiria sobre a sua própria quota.
+      linhas.push({ ...l, estrato });
+      obtido++;
+    }
+
+    relatorioQuotas.push({
+      estrato,
+      pedido,
+      elegiveis: Number(elegiveis) || 0,
+      obtido,
+      defice: Math.max(0, pedido - obtido),
+    });
   }
-  return out;
+
+  return { linhas, quotas: relatorioQuotas };
 }
 
 export async function runKnowledgeEnrichment(
@@ -218,18 +321,25 @@ export async function runKnowledgeEnrichment(
   const classificar = opts.classificar ?? classificarLote;
   const verificar = opts.verificar ?? verificarLote;
 
-  const residual: LinhaResidual[] = opts.canary
-    ? await selecionarCanary(prisma, opts.canary)
-    : await prisma.$queryRawUnsafe<LinhaResidual[]>(
-        sqlResidual(),
-        MIN_CNP,
-        KNOWLEDGE_VERSION,
-        KNOWLEDGE_MODEL,
-        opts.limite ?? 500,
-      );
+  let quotasCanary: QuotaEstrato[] | null = null;
+  let residual: LinhaResidual[];
+  if (opts.canary) {
+    const amostra = await selecionarCanary(prisma, opts.canary);
+    residual = amostra.linhas;
+    quotasCanary = amostra.quotas;
+  } else {
+    residual = await prisma.$queryRawUnsafe<LinhaResidual[]>(
+      sqlResidual(),
+      MIN_CNP,
+      KNOWLEDGE_VERSION,
+      KNOWLEDGE_MODEL,
+      opts.limite ?? 500,
+    );
+  }
 
   const resumo: RunnerResumo = {
     residualAnalisado: residual.length,
+    quotasCanary,
     porEstrato: {},
     chamadasProposta: 0,
     chamadasVerificacao: 0,

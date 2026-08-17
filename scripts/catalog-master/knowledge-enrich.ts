@@ -45,17 +45,10 @@ import {
   TIMEOUT_MS,
 } from "../../lib/catalog/knowledge-enrichment";
 import {
+  QUOTAS_CANARY,
   runKnowledgeEnrichment,
-  type Estrato,
   type LinhaRelatorio,
 } from "../../lib/catalog/knowledge-enrichment-runner";
-
-/** As quotas do canary, como pedidas. */
-const QUOTAS_CANARY: Partial<Record<Estrato, number>> = {
-  OUTROS_MEDICAMENTOS: 40,
-  NAO_CLASSIFICADO: 30,
-  SEM_UTILIZACOES: 30,
-};
 
 function corta(s: string, n: number): string {
   return s.length <= n ? s.padEnd(n) : `${s.slice(0, n - 1)}…`;
@@ -154,6 +147,43 @@ async function main() {
   console.log("\n\n── amostra ────────────────────────────────────────");
   console.log(`  ${pad(r.residualAnalisado)}  produtos entraram`);
   for (const [k, v] of Object.entries(r.porEstrato)) console.log(`  ${pad(v)}  ${k}`);
+
+  if (r.quotasCanary) {
+    console.log("\n── quotas por estrato ─────────────────────────────");
+    console.log("  estrato                 pedido  elegíveis  obtido  défice");
+    for (const q of r.quotasCanary) {
+      const marca = q.defice > 0 ? "  ⚠" : "";
+      console.log(
+        `  ${q.estrato.padEnd(22)}${String(q.pedido).padStart(6)}` +
+          `${String(q.elegiveis).padStart(11)}${String(q.obtido).padStart(8)}` +
+          `${String(q.defice).padStart(8)}${marca}`,
+      );
+    }
+    const totalPedido = r.quotasCanary.reduce((s, q) => s + q.pedido, 0);
+    const totalDefice = r.quotasCanary.reduce((s, q) => s + q.defice, 0);
+    console.log(`  ${"TOTAL".padEnd(22)}${String(totalPedido).padStart(6)}${String(r.residualAnalisado).padStart(19)}${String(totalDefice).padStart(8)}`);
+
+    // Um estrato a zero não é um detalhe do relatório: significa que o
+    // canary não testou aquela fatia do residual, e as taxas que sairem
+    // daqui não se podem extrapolar para ela.
+    const vazios = r.quotasCanary.filter((q) => q.elegiveis === 0);
+    if (vazios.length > 0) {
+      console.log(
+        `\n  ⚠ SEM ELEGÍVEIS: ${vazios.map((q) => q.estrato).join(", ")}.` +
+          "\n    O canary não cobriu este(s) estrato(s) — as taxas abaixo não se aplicam lá." +
+          "\n    Se era esperado terem produtos, confirmar que a fase determinística" +
+          "\n    (classify-backfill → fill-rules) já correu nesta base.",
+      );
+    }
+    const curtos = r.quotasCanary.filter((q) => q.defice > 0 && q.elegiveis > 0);
+    if (curtos.length > 0) {
+      console.log(
+        `\n  ⚠ QUOTA INCOMPLETA: ${curtos
+          .map((q) => `${q.estrato} ${q.obtido}/${q.pedido} (elegíveis ${q.elegiveis})`)
+          .join(", ")}`,
+      );
+    }
+  }
 
   console.log("\n── métricas do canary ─────────────────────────────");
   console.log(`  propostas válidas      ${pad(r.propostasValidas)}  ${pct(r.propostasValidas, r.residualAnalisado)} do que entrou`);
