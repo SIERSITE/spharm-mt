@@ -246,12 +246,15 @@ COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
 COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts \
      scripts/admin/package-agent.ts ./scripts/admin/
-# Idem para `scripts/catalog-master`: dos 14 ficheiros, 9 são de
-# investigação do catálogo (builders, matrizes, relatórios, simulador).
-# Os 5 que entram são o bootstrap do catálogo por ordem de execução —
-# seed-utilizacoes, classify-backfill, fill-rules, backfill-utilizacoes,
-# knowledge-enrich — e todos correm no servidor contra a base do tenant,
-# resolvida por `--tenant=<slug>` (ver lib/catalog/target-db.ts).
+# Idem para `scripts/catalog-master`: a maioria dos ficheiros é de
+# investigação do catálogo (builders, matrizes, relatórios, simulador) e
+# corre na máquina de quem analisa. Os que entram são os operacionais —
+# o bootstrap do catálogo por ordem de execução, a auditoria de
+# pré-selecção e os três comandos do catálogo global — e todos correm no
+# servidor contra a base do tenant, resolvida por `--tenant=<slug>`
+# (ver lib/catalog/target-db.ts). A lista autoritativa é
+# `tools-scripts.txt`, e o `RUN` de auditoria abaixo obriga-as a bater
+# certo.
 #
 # O `knowledge-enrich` já faltou aqui, com o mesmo sintoma do
 # `scripts/admin`: ERR_MODULE_NOT_FOUND, só na VPS, ao correr o canary.
@@ -261,7 +264,9 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/backfill-utilizacoes.ts \
      scripts/catalog-master/audit-knowledge-preselection.ts \
      scripts/catalog-master/project-global-catalog.ts \
-     scripts/catalog-master/bootstrap-global-catalog.ts \n     scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
+     scripts/catalog-master/bootstrap-global-catalog.ts \
+     scripts/catalog-master/promote-global-knowledge.ts \
+     scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na
 # raiz de scripts/, não em catalog-master/. Sem ele, o `fill-rules`

@@ -482,6 +482,16 @@ test_postgres() {
     grep -q 'RUN node deploy/docker/audit-tools-entrypoints.mjs' "$DOCKERFILE"
   assert "a auditoria corre DEPOIS dos COPY do migrator" \
     bash -c "[ \$(grep -n 'RUN node deploy/docker/audit-tools' '$DOCKERFILE' | cut -d: -f1) -gt \$(grep -n 'COPY scripts/admin' '$DOCKERFILE' | cut -d: -f1) ]"
+  # Uma continuação de linha escrita como `\n` LITERAL em vez de `\` no
+  # fim da linha. Aconteceu num COPY multi-linha do migrator e passou
+  # despercebido: a verificação genérica lá em baixo parte as linhas por
+  # espaços, portanto continuava a ver os dois ficheiros como copiados.
+  # Quem apanhava era o `docker build`, que ninguém corre a cada commit.
+  #
+  # Vale para o ficheiro todo. Se um dia um `RUN printf` precisar mesmo de
+  # um `\n`, é esta asserção que se estreita — não o hábito de a ignorar.
+  refute "Dockerfile sem '\\n' literal (continuação de linha partida)" \
+    grep -qF '\n' "$DOCKERFILE"
   assert "tenant:create está no manifesto" \
     grep -qx 'tenant:create' "$manifest"
   assert "o Dockerfile copia o entrypoint do tenant:create" \
