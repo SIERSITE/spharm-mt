@@ -92,6 +92,10 @@ catalog:knowledge-enrich
 # Sem chamadas ao modelo: o conhecimento já foi pago uma vez. É este
 # comando que dá a um tenant novo tudo o que já se sabe.
 catalog:project-global
+# Bootstrap: promove ao global o conhecimento que JÁ existe num tenant —
+# validações manuais, fontes fortes e o que a fase 3 já escreveu. Lê o
+# tenant em read-only; o que escreve é o control plane, e só com --apply.
+catalog:bootstrap-global
 
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
