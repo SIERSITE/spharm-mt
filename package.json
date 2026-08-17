@@ -34,6 +34,8 @@
     "catalog:simulate": "tsx scripts/catalog-master/simulate-classification.ts",
     "catalog:audit": "tsx scripts/catalog-master/audit-catalog.ts",
     "catalog:seed-utilizacoes": "tsx scripts/catalog-master/seed-utilizacoes.ts",
+    "catalog:classify-backfill": "tsx scripts/catalog-master/classify-backfill.ts",
+    "catalog:fill-rules": "tsx scripts/catalog-master/fill-rules.ts",
     "catalog:knowledge-enrich": "tsx scripts/catalog-master/knowledge-enrich.ts",
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",

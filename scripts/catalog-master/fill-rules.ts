@@ -35,13 +35,23 @@
  * também é uma decisão dele. Fora do SELECT, o produto nunca chega a ser
  * considerado.
  *
+ * ── Destino ──────────────────────────────────────────────────────────
+ * `--tenant=<slug>` liga com a credencial DO TENANT, vinda do control
+ * plane. O `DATABASE_URL` do container traz o `spharmmt_app`, que não tem
+ * CONNECT às bases dos tenants — trocar só o nome da base nessa string dá
+ * `FATAL 42501: User does not have CONNECT privilege`, que é o isolamento
+ * a funcionar e não uma permissão em falta.
+ *
  * Uso:
- *   npx tsx scripts/catalog-master/fill-rules.ts --db=spharmmt_t_silveira --dry-run
- *   npx tsx scripts/catalog-master/fill-rules.ts --db=spharmmt_t_silveira
+ *   npm run catalog:fill-rules -- --tenant=silveira --dry-run
+ *   npm run catalog:fill-rules -- --tenant=silveira
+ *   npx tsx scripts/catalog-master/fill-rules.ts --db=<base> --dry-run   # dev
  */
 import "dotenv/config";
 import pg from "pg";
 import { mapToCanonical } from "../../lib/catalog-taxonomy-map";
+import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import type { ProductType } from "../../lib/catalog-types";
 
 const MIN_CNP = 2_000_000;
@@ -77,24 +87,27 @@ type Produto = {
 async function main() {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes("--dry-run");
-  const dbName = argv.find((a) => a.startsWith("--db="))?.split("=")[1];
-  if (!dbName) {
-    // Não há base por omissão, de propósito. O valor que aqui estava
-    // ("spharmmt_t_grupo_silveira") deixou de existir, e um nome por
-    // omissão é uma decisão tomada há meses por outra pessoa noutro
-    // contexto — ver a nota em lib/catalog/target-db.ts.
-    console.error("Falta --db=<base>. Produção: --db=spharmmt_t_silveira");
-    process.exit(1);
+  // O destino é resolvido, não construído: nada aqui troca o nome da base
+  // no DATABASE_URL. Ver lib/catalog/target-db.ts.
+  let alvo;
+  try {
+    alvo = await resolverAlvo(argv, { getTenantBySlug, buildTenantConnectionString });
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n${err.message}\n`);
+      process.exit(2);
+    }
+    throw err;
   }
 
-  const url = process.env.DATABASE_URL!.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
-  const db = new pg.Client({ connectionString: url });
+  const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
-  // Ver nota no catalog-builder: o pooler do Neon não repõe parâmetros de
-  // sessão entre clientes.
-  await db.query("set session default_transaction_read_only = off");
+  // Em dry-run a sessão fica read-only na base. Fora dele limpa-se o
+  // estado herdado — ver nota no catalog-builder: o pooler do Neon não
+  // repõe parâmetros de sessão entre clientes.
+  await db.query(`set session default_transaction_read_only = ${dryRun ? "on" : "off"}`);
 
-  console.log(`base: ${dbName}${dryRun ? "  (dry-run — não escreve)" : ""}\n`);
+  console.log(`${descreverAlvo(alvo)}${dryRun ? "   (dry-run — não escreve)" : ""}\n`);
 
   // ── Taxonomia existente: nome → id. Só ATIVO. Nunca criada. ──────────
   const tax = await db.query<{ id: string; nome: string; pai: string | null }>(

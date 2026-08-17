@@ -19,9 +19,21 @@
  *     uma — gravá-lo transformaria "não sei" em "já tratado" e escondia o
  *     trabalho que falta. Fica NULL, e conta como universo por resolver.
  *
+ * ── Destino ──────────────────────────────────────────────────────────
+ * `--tenant=<slug>` liga com a credencial DO TENANT, vinda do control
+ * plane. É o único caminho que funciona em produção: o `DATABASE_URL` do
+ * container traz o `spharmmt_app`, que serve o control plane e a base
+ * legacy e não tem CONNECT às bases dos tenants. Trocar só o nome da base
+ * nessa string dava
+ *   FATAL 42501: User does not have CONNECT privilege
+ * — que se lê como um problema de permissões a resolver com um GRANT,
+ * quando o que estava errado era a credencial. O isolamento é o desenho,
+ * não o obstáculo.
+ *
  * Uso:
- *   npx tsx scripts/catalog-master/classify-backfill.ts --db=spharmmt_t_silveira --dry-run
- *   npx tsx scripts/catalog-master/classify-backfill.ts --db=spharmmt_t_silveira
+ *   npm run catalog:classify-backfill -- --tenant=silveira --dry-run
+ *   npm run catalog:classify-backfill -- --tenant=silveira
+ *   npx tsx scripts/catalog-master/classify-backfill.ts --db=<base> --dry-run   # dev
  */
 import "dotenv/config";
 import pg from "pg";
@@ -29,6 +41,8 @@ import {
   classifyProductType,
   CLASSIFICATION_VERSION,
 } from "../../lib/catalog-classifier";
+import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import type { ProductType } from "../../lib/catalog-types";
 
 const MIN_CNP = 2_000_000;
@@ -51,32 +65,34 @@ type Row = {
 async function main() {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes("--dry-run");
-  const dbName = argv.find((a) => a.startsWith("--db="))?.split("=")[1];
-  if (!dbName) {
-    // Não há base por omissão, de propósito. O valor que aqui estava
-    // ("spharmmt_t_grupo_silveira") deixou de existir, e um nome por
-    // omissão é uma decisão tomada há meses por outra pessoa noutro
-    // contexto — ver a nota em lib/catalog/target-db.ts.
-    console.error("Falta --db=<base>. Produção: --db=spharmmt_t_silveira");
-    process.exit(1);
+  // O destino é resolvido, não construído: nada aqui troca o nome da base
+  // no DATABASE_URL. Ver lib/catalog/target-db.ts.
+  let alvo;
+  try {
+    alvo = await resolverAlvo(argv, { getTenantBySlug, buildTenantConnectionString });
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n${err.message}\n`);
+      process.exit(2);
+    }
+    throw err;
   }
 
-  const url = process.env.DATABASE_URL!.replace(
-    /\/[^/?]+(\?|$)/,
-    `/${dbName}$1`,
-  );
-  const db = new pg.Client({ connectionString: url });
+  const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
 
-  // O endpoint `-pooler` do Neon reutiliza ligações de servidor entre clientes
-  // e não repõe parâmetros de sessão. Basta um script de diagnóstico ter feito
-  // `SET default_transaction_read_only = on` para o valor ficar colado a uma
-  // ligação do pool e as escritas de OUTRO processo passarem a falhar com
-  // "cannot execute UPDATE in a read-only transaction". Limpar à entrada
-  // torna este script imune a esse estado herdado.
-  await db.query("set session default_transaction_read_only = off");
+  // Em dry-run a sessão fica read-only na própria base: o código já não
+  // escreve, e isto é a tranca do lado do Postgres.
+  //
+  // Fora do dry-run limpa-se o estado herdado. O endpoint `-pooler` do Neon
+  // reutiliza ligações de servidor entre clientes e não repõe parâmetros de
+  // sessão: basta um script de diagnóstico ter feito `SET
+  // default_transaction_read_only = on` para o valor ficar colado a uma
+  // ligação do pool e as escritas de OUTRO processo falharem com "cannot
+  // execute UPDATE in a read-only transaction".
+  await db.query(`set session default_transaction_read_only = ${dryRun ? "on" : "off"}`);
 
-  console.log(`base: ${dbName}${dryRun ? "  (dry-run — não escreve)" : ""}`);
+  console.log(`${descreverAlvo(alvo)}${dryRun ? "   (dry-run — não escreve)" : ""}`);
   console.log(`regras: versão ${CLASSIFICATION_VERSION}, confiança mínima ${MIN_CONFIDENCE}\n`);
 
   const { rows } = await db.query<Row>(

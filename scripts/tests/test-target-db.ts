@@ -23,6 +23,7 @@ import {
   resolverAlvo,
   type TenantParaLigacao,
 } from "../../lib/catalog/target-db";
+import { readFileSync } from "node:fs";
 
 let pass = 0;
 let fail = 0;
@@ -116,6 +117,68 @@ async function main() {
     (await tenta(["--db=qualquer"])).erro?.includes("--permitir-externo") === true,
     "--db para host Neon é recusado sem a opção",
   );
+
+  // ── Os scripts usam mesmo isto ──────────────────────────────────────
+  //
+  // As asserções acima provam que `resolverAlvo` faz a coisa certa. Não
+  // provam que alguém o chama. O bootstrap determinístico bloqueou em
+  // produção precisamente por aí: `target-db.ts` já existia e estava
+  // correcto, e o `classify-backfill` continuava a construir a ligação à
+  // mão, trocando o nome da base no DATABASE_URL —
+  //   FATAL 42501: User does not have CONNECT privilege
+  // porque a credencial que ficava era a do `spharmmt_app`.
+  //
+  // Estas asserções são sobre o código-fonte porque é aí que está o
+  // defeito: um script que reconstrói a URL nunca chega a falhar num
+  // teste de unidade, falha na VPS.
+  console.log("\n=== os scripts de catálogo resolvem o destino, não o constroem ===");
+  const TENANT_AWARE = [
+    "classify-backfill.ts",
+    "fill-rules.ts",
+    "backfill-utilizacoes.ts",
+    "knowledge-enrich.ts",
+  ];
+  // `backfill-utilizacoes.ts` não põe a sessão read-only em dry-run: o
+  // seu dry-run é só um `continue` antes das escritas. Não é um defeito
+  // conhecido a ignorar — é uma tranca a menos que os outros três têm, e
+  // fica listada aqui em vez de o teste fingir que a lista é uniforme.
+  const SEM_SESSAO_READONLY = new Set(["backfill-utilizacoes.ts"]);
+  for (const nome of TENANT_AWARE) {
+    const src = readFileSync(
+      new URL(`../catalog-master/${nome}`, import.meta.url),
+      "utf8",
+    );
+    // Comentários explicam porque NÃO se faz isto; o que interessa é o código.
+    const codigo = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+
+    check(/resolverAlvo\s*\(/.test(codigo), `${nome} chama resolverAlvo`);
+    check(
+      !/process\.env\.DATABASE_URL/.test(codigo),
+      `${nome} NÃO lê DATABASE_URL — é o que trazia o role legacy para uma base de tenant`,
+    );
+    check(
+      !/\.replace\([^)]*\$\{?db/i.test(codigo) && !/`\/\$\{dbName\}/.test(codigo),
+      `${nome} NÃO reconstrói a URL trocando o nome da base`,
+    );
+    check(
+      /connectionString:\s*alvo\.url/.test(codigo),
+      `${nome} liga-se com a URL resolvida (alvo.url)`,
+    );
+    check(
+      /descreverAlvo\(alvo\)/.test(codigo),
+      `${nome} imprime o destino antes de trabalhar`,
+    );
+    if (!SEM_SESSAO_READONLY.has(nome)) {
+      check(
+        /default_transaction_read_only = \$\{\s*(dryRun \? "on" : "off"|apply \? "off" : "on")/.test(codigo),
+        `${nome} põe a sessão read-only em dry-run`,
+      );
+    }
+  }
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);
