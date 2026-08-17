@@ -76,27 +76,44 @@ async function main(): Promise<void> {
     versaoRegras: KNOWLEDGE_VERSION,
   });
 
+  const tabela = (titulo: string, m: Record<string, number>, limite = 12) => {
+    console.log(`\n  ${titulo}`);
+    const entradas = Object.entries(m).sort((a, b) => b[1] - a[1]);
+    if (entradas.length === 0) console.log("      (nenhum)");
+    for (const [k, n] of entradas.slice(0, limite)) console.log(`      ${pad(n)}  ${k}`);
+    if (entradas.length > limite) console.log(`      … e mais ${entradas.length - limite}`);
+  };
+
   console.log("\n── candidatos ─────────────────────────────────────");
   console.log(`  ${pad(leitura.lidos)}  produtos lidos (cnp >= ${MIN_CNP.toLocaleString("pt-PT")})`);
   console.log(`  ${pad(leitura.semNada)}  sem classificação específica nem utilizações — nada a promover`);
   console.log(`  ${pad(leitura.candidatos.length)}  candidatos`);
-  for (const [o, n] of Object.entries(leitura.porOrigem).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${pad(n)}  ${o}${o === "HUMANO" ? "  ← não sobe por aqui" : ""}`);
-  }
+  console.log(`  ${pad(leitura.soUtilizacoes)}  …destes, SÓ com utilizações (sem classificação específica)`);
+
+  tabela("origem da CLASSIFICAÇÃO (derivada — ver origemDaClassificacao):", leitura.porOrigem);
+  tabela("origem das UTILIZAÇÕES (por associação, de ProdutoUtilizacao.fonte):", leitura.porOrigemUtilizacao);
+  // A proveniência que a base guarda é a do productType, não a da
+  // classificação. Mostra-se crua para não se confundir com a de cima.
+  tabela("Produto.classificationSource (proveniência do productType):", leitura.porFonteOriginal);
 
   const antes = await estatisticasGlobal().catch(() => null);
-  // Sem aprovação: os candidatos HUMANO são contados e recusados.
+  // Sem aprovação: o que for HUMANO é contado e recusado.
   const r = await promoverAoGlobal(leitura.candidatos, {
     dryRun: !apply,
     actor: "catalog:bootstrap-global",
   });
 
   console.log("\n── promoção ───────────────────────────────────────");
-  console.log(`  ${pad(r.promovidos)}  ${apply ? "promovidos" : "a promover"}`);
-  console.log(`  ${pad(r.recusados)}  recusados`);
-  for (const [m, n] of Object.entries(r.motivos).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
-    console.log(`      ${pad(n, 6)}  ${m}`);
-  }
+  console.log(`  ${pad(r.produtosPromovidos)}  produtos globais ${apply ? "promovidos" : "a promover"}`);
+  console.log(`  ${pad(r.classificacoesPromovidas)}  classificações globais`);
+  console.log(`  ${pad(r.utilizacoesPromovidas)}  utilizações globais`);
+  console.log(`  ${pad(r.recusasClassificacao)}  recusas de classificação`);
+  console.log(`  ${pad(r.recusasUtilizacao)}  recusas de utilização`);
+
+  tabela("por origem real — classificações:", r.porOrigemClassificacao);
+  tabela("por origem real — utilizações:", r.porOrigemUtilizacao);
+  tabela("porque foram recusadas classificações:", r.motivosClassificacao);
+  tabela("porque foram recusadas utilizações:", r.motivosUtilizacao);
 
   if (r.aguardamAprovacao > 0) {
     console.log("\n── à espera de decisão humana ─────────────────────");

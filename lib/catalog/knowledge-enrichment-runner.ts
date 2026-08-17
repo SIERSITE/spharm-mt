@@ -548,10 +548,22 @@ export async function runKnowledgeEnrichment(
       productType: gate.gravarProductType ? r.productType : null,
       categoria: temClassificacao ? r.categoria : null,
       subcategoria: temClassificacao ? r.subcategoria : null,
-      utilizacoes: utilizacoes.map((slug) => ({ slug, confidence: confianca })),
+      // As utilizações que o runner produz vêm da mesma decisão que a
+      // classificação — directa ou propagada — portanto herdam a origem
+      // dela. É o único sítio onde isso é verdade: no bootstrap cada
+      // utilização traz a sua, lida de `ProdutoUtilizacao.fonte`.
+      utilizacoes: utilizacoes.map((slug) => ({
+        slug,
+        confidence: confianca,
+        origem,
+        fonteOriginal: origem === "PROPAGADO" ? FONTE_PROPAGADA : FONTE,
+        motivo: "decisão do modelo nesta corrida",
+      })),
       confidence: confianca,
       evidenceType: r.evidenceType,
       origem,
+      motivoOrigem: "decisão do modelo nesta corrida",
+      fonteOriginal: origem === "PROPAGADO" ? "MODEL_PROPAGATED" : "MODEL_INFERRED",
       versaoRegras: KNOWLEDGE_VERSION,
       verificado: gate.criterios.verificado,
       tenantOrigem: opts.tenantSlug ?? "(desconhecido)",
@@ -1099,7 +1111,7 @@ export async function runKnowledgeEnrichment(
         dryRun,
         actor: "catalog:knowledge-enrich",
       });
-      resumo.promovidosAoGlobal = res.promovidos;
+      resumo.promovidosAoGlobal = res.produtosPromovidos;
     } catch (err) {
       resumo.avisos.push(
         `promoção ao catálogo global falhou — o trabalho no tenant está feito: ${err instanceof Error ? err.message : String(err)}`,

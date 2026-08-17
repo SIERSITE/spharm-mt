@@ -15,17 +15,22 @@
  */
 import { controlPrisma } from "../control-plane";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { chaveCache } from "./knowledge-enrichment";
 import {
   avaliarProjeccao,
   avaliarPromocao,
   ehEspecifica,
+  origemDaClassificacao,
+  origemDaUtilizacao,
   registoPromocao,
   FATOR_PROJECCAO,
+  ORIGEM_CACHE_GLOBAL,
   type AprovacaoHumana,
   type ConhecimentoCandidato,
   type ConhecimentoGlobal,
   type EstadoLocal,
   type OrigemGlobal,
+  type UtilizacaoCandidata,
 } from "./global-catalog";
 
 /** Marca de proveniência das escritas que vêm do catálogo global. */
@@ -98,15 +103,25 @@ export async function estatisticasGlobal(): Promise<{
 // ─── Promoção ─────────────────────────────────────────────────────────
 
 export type ResultadoPromocao = {
-  promovidos: number;
-  recusados: number;
+  /** Produtos que promoveram ALGUMA coisa — classificação ou utilizações. */
+  produtosPromovidos: number;
+  classificacoesPromovidas: number;
+  utilizacoesPromovidas: number;
+  recusasClassificacao: number;
+  recusasUtilizacao: number;
   /**
    * Recusados APENAS por falta de aprovação humana. Passavam tudo o
    * resto — estão à espera de alguém, não reprovados.
    */
   aguardamAprovacao: number;
-  motivos: Record<string, number>;
+  /** Distribuição por origem REAL, das que subiram. */
+  porOrigemClassificacao: Record<string, number>;
+  porOrigemUtilizacao: Record<string, number>;
+  motivosClassificacao: Record<string, number>;
+  motivosUtilizacao: Record<string, number>;
 };
+
+const contar = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
 
 export type OpcoesPromocao = {
   dryRun?: boolean;
@@ -126,16 +141,31 @@ export type OpcoesPromocao = {
 /**
  * Promove candidatos ao global, um a um, com a regra de autoridade.
  *
+ * DUAS PARTES INDEPENDENTES. A classificação e as utilizações sobem
+ * separadamente: um produto sem classificação específica pode na mesma
+ * levar as suas utilizações ao global, e é isso que as recusas de
+ * "832 sem classificação específica" estavam a deitar fora.
+ *
  * Idempotente: promover o que já lá está com a mesma origem e a mesma
  * confiança não escreve nada — nem na tabela, nem no rasto de auditoria.
- * É `avaliarPromocao` que decide, e ela devolve `false` no empate
- * precisamente para isso.
+ * É `avaliarPromocao` que decide, e ela recusa o empate para isso.
  */
 export async function promoverAoGlobal(
   candidatos: readonly ConhecimentoCandidato[],
   opts: OpcoesPromocao,
 ): Promise<ResultadoPromocao> {
-  const r: ResultadoPromocao = { promovidos: 0, recusados: 0, aguardamAprovacao: 0, motivos: {} };
+  const r: ResultadoPromocao = {
+    produtosPromovidos: 0,
+    classificacoesPromovidas: 0,
+    utilizacoesPromovidas: 0,
+    recusasClassificacao: 0,
+    recusasUtilizacao: 0,
+    aguardamAprovacao: 0,
+    porOrigemClassificacao: {},
+    porOrigemUtilizacao: {},
+    motivosClassificacao: {},
+    motivosUtilizacao: {},
+  };
   if (candidatos.length === 0) return r;
 
   const actual = await lerConhecimentoGlobal(candidatos.map((c) => c.cnp));
@@ -143,16 +173,35 @@ export async function promoverAoGlobal(
 
   for (const c of candidatos) {
     const decisao = avaliarPromocao(c, actual.get(c.cnp) ?? null, { aprovacao: opts.aprovacao });
-    r.motivos[decisao.motivo] = (r.motivos[decisao.motivo] ?? 0) + 1;
-    if (!decisao.promover) {
-      r.recusados++;
-      if (decisao.aguardaAprovacao) r.aguardamAprovacao++;
-      continue;
+
+    contar(r.motivosClassificacao, decisao.classificacao.motivo);
+    if (decisao.classificacao.promover) {
+      r.classificacoesPromovidas++;
+      if (c.origem) contar(r.porOrigemClassificacao, c.origem);
+    } else {
+      r.recusasClassificacao++;
+      if (decisao.classificacao.aguardaAprovacao) r.aguardamAprovacao++;
     }
-    r.promovidos++;
+
+    for (const u of decisao.utilizacoes.promover) {
+      r.utilizacoesPromovidas++;
+      if (u.origem) contar(r.porOrigemUtilizacao, u.origem);
+    }
+    for (const u of decisao.utilizacoes.recusadas) {
+      r.recusasUtilizacao++;
+      contar(r.motivosUtilizacao, u.motivo);
+    }
+
+    if (!decisao.promover) continue;
+    r.produtosPromovidos++;
     if (opts.dryRun) continue;
 
     const registo = registoPromocao(c, decisao, { actor: opts.actor, aprovacao: opts.aprovacao });
+    // `origemDaPromocao` só devolve null quando nada sobe, e nesse caso
+    // já saímos acima. A guarda existe para o compilador e para o dia em
+    // que alguém mexer numa das duas.
+    if (!registo) continue;
+
     const auditoria = {
       promovidoPor: registo.actor,
       promovidoEm: agora,
@@ -160,47 +209,75 @@ export async function promoverAoGlobal(
       promocaoMotivo: registo.motivo,
     };
 
-    await controlPrisma.catalogoGlobal.upsert({
-      where: { cnp: c.cnp },
-      create: {
-        cnp: c.cnp,
-        designacaoReferencia: c.designacaoReferencia,
-        productType: c.productType,
-        categoria: c.categoria,
-        subcategoria: c.subcategoria,
-        confidence: c.confidence,
-        evidenceType: c.evidenceType,
-        origem: c.origem,
-        versaoRegras: c.versaoRegras,
-        verificado: c.verificado,
-        tenantOrigem: c.tenantOrigem,
-        ...auditoria,
-      },
-      update: {
-        designacaoReferencia: c.designacaoReferencia,
-        productType: c.productType,
-        categoria: c.categoria,
-        subcategoria: c.subcategoria,
-        confidence: c.confidence,
-        evidenceType: c.evidenceType,
-        origem: c.origem,
-        versaoRegras: c.versaoRegras,
-        verificado: c.verificado,
-        ...auditoria,
-      },
-    });
+    if (decisao.classificacao.promover) {
+      await controlPrisma.catalogoGlobal.upsert({
+        where: { cnp: c.cnp },
+        create: {
+          cnp: c.cnp,
+          designacaoReferencia: c.designacaoReferencia,
+          productType: c.productType,
+          categoria: c.categoria,
+          subcategoria: c.subcategoria,
+          confidence: c.confidence,
+          evidenceType: c.evidenceType,
+          fonteOriginal: c.fonteOriginal,
+          origem: registo.origem,
+          versaoRegras: c.versaoRegras,
+          verificado: c.verificado,
+          tenantOrigem: c.tenantOrigem,
+          ...auditoria,
+        },
+        update: {
+          designacaoReferencia: c.designacaoReferencia,
+          productType: c.productType,
+          categoria: c.categoria,
+          subcategoria: c.subcategoria,
+          confidence: c.confidence,
+          evidenceType: c.evidenceType,
+          fonteOriginal: c.fonteOriginal,
+          origem: registo.origem,
+          versaoRegras: c.versaoRegras,
+          verificado: c.verificado,
+          ...auditoria,
+        },
+      });
+    } else {
+      // Só sobem utilizações. A linha do produto tem de existir — é o
+      // alvo da chave estrangeira — mas nasce SEM classificação e, se já
+      // existir, não se lhe toca em campo nenhum. Uma promoção de
+      // utilizações não pode reescrever uma classificação que não ganhou.
+      await controlPrisma.catalogoGlobal.upsert({
+        where: { cnp: c.cnp },
+        create: {
+          cnp: c.cnp,
+          designacaoReferencia: c.designacaoReferencia,
+          productType: null,
+          categoria: null,
+          subcategoria: null,
+          confidence: c.confidence,
+          evidenceType: null,
+          fonteOriginal: c.fonteOriginal,
+          origem: registo.origem,
+          versaoRegras: c.versaoRegras,
+          verificado: false,
+          tenantOrigem: c.tenantOrigem,
+          ...auditoria,
+        },
+        update: {},
+      });
+    }
 
     // O rasto: append-only, uma linha por promoção que aconteceu.
     await controlPrisma.catalogoGlobalPromocao.create({ data: registo });
 
-    // Utilizações: cada slug tem a sua própria autoridade. Não se apaga o
-    // que lá está — um slug que este candidato não traga pode ter vindo
-    // de outro tenant que conhece melhor o produto.
-    for (const u of c.utilizacoes) {
+    // Utilizações: cada slug tem a SUA própria autoridade e a sua própria
+    // origem. Não se apaga o que lá está — um slug que este candidato não
+    // traga pode ter vindo de outro tenant que conhece melhor o produto.
+    for (const u of decisao.utilizacoes.promover) {
       await controlPrisma.catalogoGlobalUtilizacao.upsert({
         where: { cnp_slug: { cnp: c.cnp, slug: u.slug } },
-        create: { cnp: c.cnp, slug: u.slug, confidence: u.confidence, origem: c.origem, versaoRegras: c.versaoRegras },
-        update: { confidence: u.confidence, origem: c.origem, versaoRegras: c.versaoRegras },
+        create: { cnp: c.cnp, slug: u.slug, confidence: u.confidence, origem: u.origem!, versaoRegras: c.versaoRegras },
+        update: { confidence: u.confidence, origem: u.origem!, versaoRegras: c.versaoRegras },
       });
     }
   }
@@ -208,9 +285,6 @@ export async function promoverAoGlobal(
 }
 
 // ─── Candidatos: o que a base de um tenant já sabe ────────────────────
-
-/** Fontes de classificação que valem REGULATORY na promoção. */
-const FONTES_FORTES = new Set(["REGULATORY", "MANUFACTURER", "DISTRIBUTOR"]);
 
 type LinhaTenant = {
   id: string;
@@ -245,22 +319,30 @@ export type LeituraCandidatos = {
   lidos: number;
   /** Sem classificação específica nem utilizações: não há o que promover. */
   semNada: number;
+  /** Distribuição da origem da CLASSIFICAÇÃO entre os candidatos. */
   porOrigem: Record<string, number>;
+  /** `Produto.classificationSource` cru — a proveniência do productType. */
+  porFonteOriginal: Record<string, number>;
+  /** Distribuição da origem das utilizações, por associação. */
+  porOrigemUtilizacao: Record<string, number>;
+  /** Candidatos que só têm utilizações: sem classificação específica. */
+  soUtilizacoes: number;
   candidatos: ConhecimentoCandidato[];
 };
 
 /**
  * Lê a base de um tenant e monta os candidatos a promoção.
  *
- * A ORIGEM É A MAIS FORTE QUE O PRODUTO JUSTIFICA, e a ordem importa:
- * uma validação manual ganha a tudo o resto; sem ela, uma fonte
- * regulamentar; sem ela, o que o modelo escreveu.
+ * CADA PARTE TRAZ A SUA PROVENIÊNCIA. A classificação deriva-a de
+ * `origemDaClassificacao`, cada utilização da sua própria
+ * `ProdutoUtilizacao.fonte`. Um produto com a classificação vinda de uma
+ * regra e uma etiqueta posta à mão sai daqui com as duas coisas ditas
+ * como são — antes, a mais forte de qualquer das partes contaminava o
+ * produto inteiro.
  *
- * Consequência deliberada: um produto validado à mão que TAMBÉM tinha
- * fonte regulamentar sai daqui como HUMANO — e portanto não sobe sem
- * aprovação explícita. Perde-se a promoção automática que a fonte
- * regulamentar daria, e é o comportamento certo: se alguém corrigiu o
- * produto à mão, o valor que lá está é o dessa pessoa, não o do registo.
+ * Consequência deliberada: um produto com `validadoManualmente` sai com a
+ * CLASSIFICAÇÃO como HUMANO, e portanto não sobe sem aprovação explícita.
+ * As utilizações dele sobem na mesma, se as fontes delas o permitirem.
  *
  * Só lê. Quem escreve é `promoverAoGlobal`.
  */
@@ -314,7 +396,15 @@ export async function lerCandidatosDoTenant(
     ...params,
   );
 
-  const out: LeituraCandidatos = { lidos: linhas.length, semNada: 0, porOrigem: {}, candidatos: [] };
+  const out: LeituraCandidatos = {
+    lidos: linhas.length,
+    semNada: 0,
+    porOrigem: {},
+    porFonteOriginal: {},
+    porOrigemUtilizacao: {},
+    soUtilizacoes: 0,
+    candidatos: [],
+  };
 
   for (const l of linhas) {
     const slugs = l.utilSlugs ?? [];
@@ -322,45 +412,49 @@ export async function lerCandidatosDoTenant(
     const confs = l.utilConfs ?? [];
     const temClassificacao = !!l.categoria && ehEspecifica(l.subcategoria);
     if (!temClassificacao && slugs.length === 0) { out.semNada++; continue; }
+    if (!temClassificacao) out.soUtilizacoes++;
 
-    let origem: OrigemGlobal;
-    let confidence: number;
-    if (l.validadoManualmente || fontes.includes("MANUAL")) {
-      origem = "HUMANO";
-      confidence = 1;
-    } else if (FONTES_FORTES.has(l.classificationSource ?? "") || l.temRegulatorio) {
-      origem = "REGULATORY";
-      confidence = l.productTypeConfidence ?? 0.95;
-    } else if (l.cacheOrigem === "PROPAGADO") {
-      origem = "PROPAGADO";
-      confidence = l.cacheConfidence ?? l.productTypeConfidence ?? 0.85;
-    } else if (l.cacheOrigem || l.classificationSource === "MODEL_INFERRED") {
-      origem = "MODELO";
-      confidence = l.cacheConfidence ?? l.productTypeConfidence ?? 0.85;
-    } else {
-      // Classificação sem proveniência conhecida: veio das regras
-      // determinísticas. Vale como MODELO — é determinística e nossa,
-      // mas não é uma fonte externa nem uma decisão humana.
-      origem = "MODELO";
-      confidence = l.productTypeConfidence ?? 0.85;
-    }
+    const mapeada = origemDaClassificacao({
+      validadoManualmente: l.validadoManualmente,
+      cacheOrigem: l.cacheOrigem,
+    });
+    const confidence = mapeada.origem === "HUMANO"
+      ? 1
+      : (l.cacheConfidence ?? l.productTypeConfidence ?? 0.85);
 
-    out.porOrigem[origem] = (out.porOrigem[origem] ?? 0) + 1;
+    const utilizacoes: UtilizacaoCandidata[] = slugs.map((slug, i) => {
+      const fonte = fontes[i] ?? null;
+      const m = origemDaUtilizacao(fonte);
+      contar(out.porOrigemUtilizacao, m.origem ?? `(por mapear) ${fonte ?? "null"}`);
+      return {
+        slug,
+        confidence: m.origem === "HUMANO" ? 1 : (confs[i] ?? 0.85),
+        origem: m.origem,
+        fonteOriginal: fonte,
+        motivo: m.motivo,
+      };
+    });
+
+    contar(out.porOrigem, mapeada.origem ?? `(por mapear) ${mapeada.motivo}`);
+    contar(out.porFonteOriginal, l.classificationSource ?? "(sem classificationSource)");
+
     out.candidatos.push({
       cnp: Number(l.cnp),
       designacaoReferencia: l.designacao,
       productType: l.productType,
       categoria: temClassificacao ? l.categoria : null,
       subcategoria: temClassificacao ? l.subcategoria : null,
-      utilizacoes: slugs.map((slug, i) => ({
-        slug,
-        confidence: fontes[i] === "MANUAL" ? 1 : (confs[i] ?? 0.85),
-      })),
+      utilizacoes,
       confidence,
       evidenceType: l.cacheEvidence,
-      origem,
+      origem: mapeada.origem,
+      motivoOrigem: mapeada.motivo,
+      fonteOriginal: l.classificationSource,
       versaoRegras: opts.versaoRegras,
-      verificado: origem === "HUMANO" || origem === "REGULATORY",
+      // `verificado` diz que passou a segunda passagem de verificação.
+      // Uma regra determinística não passa por lá; uma validação humana
+      // dispensa-a. O registo regulamentar, quando existir, também.
+      verificado: mapeada.origem === "HUMANO" || mapeada.origem === "REGULATORY",
       tenantOrigem: tenantSlug,
     });
   }
@@ -383,6 +477,47 @@ export type ResumoProjeccao = {
   semVocabulario: number;
   exemplosRevisao: Array<{ cnp: number; global: string; local: string }>;
 };
+
+/**
+ * Deixa no tenant a marca de que ESTA classificação veio do global.
+ *
+ * Sem ela, o `bootstrap-global` volta a ler a classificação projectada
+ * como se fosse conhecimento local e repromove-a — com a autoridade de
+ * uma regra determinística, que é superior à do modelo que a produziu.
+ * Um ciclo de lavagem, e silencioso.
+ *
+ * A marca vive em `KnowledgeEnrichmentCache.origem`, o mesmo sítio onde o
+ * runner distingue CLAUDE de PROPAGADO, e é simétrica da que a projecção
+ * de utilizações já deixava em `ProdutoUtilizacao.fonte`.
+ */
+async function marcarComoProjectada(
+  prisma: PrismaClient,
+  cnp: number,
+  designacao: string,
+  g: ConhecimentoGlobal,
+): Promise<void> {
+  const chave = chaveCache(cnp, designacao);
+  await prisma.knowledgeEnrichmentCache.upsert({
+    where: { chave },
+    create: {
+      chave,
+      cnp,
+      designacao,
+      versao: g.versaoRegras,
+      modelo: FONTE_GLOBAL,
+      categoria: g.categoria,
+      subcategoria: g.subcategoria,
+      productType: g.productType,
+      confidence: g.confidence * FATOR_PROJECCAO,
+      // Não houve evidência recolhida aqui: isto não foi decidido, foi
+      // recebido. Quem decidiu guardou a evidência dele no global.
+      evidenceType: FONTE_GLOBAL,
+      persistido: true,
+      origem: ORIGEM_CACHE_GLOBAL,
+    },
+    update: { origem: ORIGEM_CACHE_GLOBAL, persistido: true },
+  });
+}
 
 /**
  * Projecta o conhecimento global para a base de um tenant.
@@ -413,11 +548,11 @@ export async function projectarParaTenant(
 
   // Estado local, por cnp.
   const produtos = await prisma.$queryRawUnsafe<Array<{
-    id: string; cnp: number; validadoManualmente: boolean;
+    id: string; cnp: number; designacao: string; validadoManualmente: boolean;
     categoria: string | null; subcategoria: string | null; productType: string | null;
     utilizacoes: string[] | null; fontes: string[] | null; confiancas: number[] | null;
   }>>(
-    `select p.id, p.cnp, p."validadoManualmente", p."productType",
+    `select p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType",
             c1.nome as categoria,
             c2.nome as subcategoria,
             coalesce(array_agg(u.slug)        filter (where u.slug is not null), '{}') as utilizacoes,
@@ -428,7 +563,7 @@ export async function projectarParaTenant(
        left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
        left join "ProdutoUtilizacao" pu on pu."produtoId" = p.id
        left join "Utilizacao" u on u.id = pu."utilizacaoId"
-      group by p.id, p.cnp, p."validadoManualmente", p."productType", c1.nome, c2.nome`,
+      group by p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType", c1.nome, c2.nome`,
   );
   r.cnpsNoTenant = produtos.length;
 
@@ -528,7 +663,10 @@ export async function projectarParaTenant(
                                  and c.nome ilike 'Outros %'))`,
           n1Id, n2Id, cnp,
         );
-        if (Number(n) > 0) r.classificacoesEscritas++;
+        if (Number(n) > 0) {
+          r.classificacoesEscritas++;
+          await marcarComoProjectada(prisma, cnp, p.designacao, g);
+        }
       } else {
         r.classificacoesEscritas++;
       }

@@ -132,7 +132,12 @@ async function main(): Promise<void> {
     apenasValidadosManualmente: true,
   });
 
-  const humanos = leitura.candidatos.filter((c) => c.origem === "HUMANO");
+  // Conhecimento humano é a classificação validada à mão OU uma etiqueta
+  // posta à mão. As duas coisas são independentes desde que cada parte
+  // passou a trazer a sua própria proveniência.
+  const humanos = leitura.candidatos.filter(
+    (c) => c.origem === "HUMANO" || c.utilizacoes.some((u) => u.origem === "HUMANO"),
+  );
   const outros = leitura.candidatos.length - humanos.length;
 
   console.log("\n── o que foi encontrado ───────────────────────────");
@@ -175,9 +180,12 @@ async function main(): Promise<void> {
   });
 
   console.log("\n── promoção ───────────────────────────────────────");
-  console.log(`  ${pad(r.promovidos)}  ${apply ? "promovidos" : "a promover"}`);
-  console.log(`  ${pad(r.recusados)}  recusados`);
-  for (const [m, n] of Object.entries(r.motivos).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+  console.log(`  ${pad(r.produtosPromovidos)}  produtos globais ${apply ? "promovidos" : "a promover"}`);
+  console.log(`  ${pad(r.classificacoesPromovidas)}  classificações globais`);
+  console.log(`  ${pad(r.utilizacoesPromovidas)}  utilizações globais`);
+  console.log(`  ${pad(r.recusasClassificacao)}  recusas de classificação`);
+  console.log(`  ${pad(r.recusasUtilizacao)}  recusas de utilização`);
+  for (const [m, n] of Object.entries(r.motivosClassificacao).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
     console.log(`      ${pad(n, 6)}  ${m}`);
   }
 
