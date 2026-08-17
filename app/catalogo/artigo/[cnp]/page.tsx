@@ -7,23 +7,12 @@ import {
   type CatalogoArticle,
 } from "@/lib/catalogo-data";
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
+import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 
 export const dynamic = "force-dynamic";
 
 type ArticlePageProps = {
   params: Promise<{ cnp: string }>;
-};
-
-const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  MEDICAMENTO: "Medicamento",
-  SUPLEMENTO: "Suplemento alimentar",
-  DERMOCOSMETICA: "Dermocosmética",
-  DISPOSITIVO_MEDICO: "Dispositivo médico",
-  HIGIENE_CUIDADO: "Higiene & cuidado",
-  ORTOPEDIA: "Ortopedia",
-  PUERICULTURA: "Puericultura",
-  VETERINARIA: "Veterinária",
-  OUTRO: "Outro / não classificado",
 };
 
 const ESTADO_LABELS: Record<ProdutoEstado, string> = {
@@ -105,9 +94,7 @@ export default async function CatalogArticlePage({ params }: ArticlePageProps) {
 }
 
 function ArticleView({ article }: { article: CatalogoArticle }) {
-  const tipo = article.productType
-    ? PRODUCT_TYPE_LABELS[article.productType] ?? article.productType
-    : "—";
+  const tipo = rotuloProductType(article.productType);
 
   const minPvp = article.presencas
     .map((p) => p.pvp)
@@ -244,14 +231,21 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
             { label: "Princípio ativo (DCI)", value: or(article.dci) },
             { label: "Código ATC", value: or(article.codigoATC) },
             {
-              label: "Categoria nível 1",
+              label: "Categoria",
               value: article.classificacaoNivel1?.nome ?? "—",
             },
             {
-              label: "Categoria nível 2",
+              label: "Subcategoria",
               value: article.classificacaoNivel2?.nome ?? "—",
             },
             { label: "Tipo de produto", value: tipo },
+            {
+              label: "Utilizações",
+              value:
+                article.utilizacoes.length > 0
+                  ? article.utilizacoes.map((u) => u.nome).join(" · ")
+                  : "—",
+            },
             { label: "Genérico", value: article.flagGenerico ? "Sim" : "Não" },
           ]}
         />
@@ -276,7 +270,14 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               value: fmtPct(article.productTypeConfidence),
             },
             {
-              label: "Fonte da classificação",
+              // NÃO é a proveniência da categoria/subcategoria: essa
+              // coluna descreve como se decidiu o TIPO DE PRODUTO
+              // (MEDICAMENTO/SUPLEMENTO/…), escrita pelo classificador.
+              // Quem escreve a classificação N1/N2 é o `fill-rules`, que
+              // não lhe toca. O rótulo antigo — "Fonte da classificação"
+              // — dizia o contrário e induzia em erro exactamente sobre o
+              // campo que se anda a corrigir no catálogo global.
+              label: "Fonte do tipo de produto",
               value: or(article.classificationSource),
             },
             {

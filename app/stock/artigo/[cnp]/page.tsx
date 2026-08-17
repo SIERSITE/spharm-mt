@@ -3,7 +3,8 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
-import { resolveCategoria } from "@/lib/categoria-resolver";
+import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
+import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
 import { getMovimentosProduto, getDefaultMovimentosWindow } from "@/lib/movimentos-data";
 import {
@@ -53,6 +54,9 @@ async function loadArticle(cnpParam: string) {
       fabricante: { select: { nomeNormalizado: true } },
       classificacaoNivel1: { select: { nome: true } },
       classificacaoNivel2: { select: { nome: true } },
+      utilizacoes: {
+        select: { utilizacao: { select: { nome: true, estado: true } } },
+      },
       produtosFarmacia: {
         where: { flagRetirado: false },
         include: {
@@ -149,21 +153,25 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   //   · Categoria    = nível pai     (Sexualidade)
   //   · Subcategoria = nível filho   (Preservativos)
   // Se só houver um dos dois, o outro aparece como —.
-  const pfWithCategoria = produto.produtosFarmacia.find(
-    (pf) => (pf.categoriaOrigem ?? "").trim() || (pf.subcategoriaOrigem ?? "").trim()
-  );
   const resolvedCat = resolveCategoria({
     classificacaoNivel1: produto.classificacaoNivel1,
     classificacaoNivel2: produto.classificacaoNivel2,
-    categoriaOrigem: pfWithCategoria?.categoriaOrigem,
-    subcategoriaOrigem: pfWithCategoria?.subcategoriaOrigem,
   });
-  const categoria = fmt(resolvedCat.categoria);
-  const subcategoria = fmt(
-    resolvedCat.grupo && resolvedCat.grupo !== resolvedCat.categoria
-      ? resolvedCat.grupo
-      : null
-  );
+  const par = resolverPar({
+    classificacaoNivel1: produto.classificacaoNivel1,
+    classificacaoNivel2: produto.classificacaoNivel2,
+  });
+  const categoria = fmt(par.categoria);
+  const subcategoria = fmt(par.subcategoria || null);
+  const tipoProduto = rotuloProductType(produto.productType, PLACEHOLDER);
+  // Utilizações clínicas. Escritas pelo enriquecimento e, até aqui, sem
+  // leitura nenhuma na aplicação.
+  const utilizacoes =
+    produto.utilizacoes
+      .filter((u) => u.utilizacao.estado === "ATIVO")
+      .map((u) => u.utilizacao.nome)
+      .sort((a, b) => a.localeCompare(b, "pt-PT"))
+      .join(" · ") || PLACEHOLDER;
 
   // PVP: usa o primeiro PF com pvp definido (mesmo critério do importer);
   // se quiseres "PVP da farmácia activa", troca quando houver sessão.
@@ -291,9 +299,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               <div className="grid gap-3 md:grid-cols-6">
                 <MetaCell label="CNP" value={String(produto.cnp)} />
                 <MetaCell label="Subcategoria" value={subcategoria} />
+                <MetaCell label="Tipo de produto" value={tipoProduto} />
                 <MetaCell label="Dosagem" value={dosagem} />
                 <MetaCell label="Embalagem" value={embalagem} />
                 <MetaCell label="PVP" value={fmtCurrency(pvp)} />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <MetaCell label="Utilizações" value={utilizacoes} />
                 <MetaCell
                   label="Genérico"
                   value={produto.flagGenerico ? "Sim" : produto.flagGenerico === false ? "Não" : PLACEHOLDER}

@@ -267,6 +267,16 @@ export type CatalogoArticle = {
   fabricante: { id: string; nomeNormalizado: string } | null;
   classificacaoNivel1: { id: string; nome: string } | null;
   classificacaoNivel2: { id: string; nome: string } | null;
+  /**
+   * Utilizações clínicas do produto, por nome. `fonte` distingue o que
+   * alguém pôs à mão ("MANUAL") do que veio de regra ou modelo.
+   */
+  utilizacoes: Array<{
+    slug: string;
+    nome: string;
+    fonte: string;
+    confianca: number | null;
+  }>;
   presencas: CatalogoArticlePresenca[];
   /** Agregação canónica de retirado sobre as presenças. */
   retiradoStatus: CatalogoRetiradoStatus;
@@ -280,6 +290,15 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
       fabricante: { select: { id: true, nomeNormalizado: true } },
       classificacaoNivel1: { select: { id: true, nome: true } },
       classificacaoNivel2: { select: { id: true, nome: true } },
+      // Utilizações clínicas do produto. Vinham a ser escritas pelo
+      // enriquecimento e não eram lidas em lado nenhum da aplicação.
+      utilizacoes: {
+        select: {
+          fonte: true,
+          confianca: true,
+          utilizacao: { select: { slug: true, nome: true, estado: true } },
+        },
+      },
       produtosFarmacia: {
         select: {
           farmaciaId: true,
@@ -324,6 +343,15 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     fabricante: p.fabricante,
     classificacaoNivel1: p.classificacaoNivel1,
     classificacaoNivel2: p.classificacaoNivel2,
+    utilizacoes: p.utilizacoes
+      .filter((u) => u.utilizacao.estado === "ATIVO")
+      .map((u) => ({
+        slug: u.utilizacao.slug,
+        nome: u.utilizacao.nome,
+        fonte: u.fonte,
+        confianca: u.confianca,
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT")),
     presencas: p.produtosFarmacia.map((pf) => ({
       farmaciaId: pf.farmaciaId,
       farmaciaNome: pf.farmacia.nome,
