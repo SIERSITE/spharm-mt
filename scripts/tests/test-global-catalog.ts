@@ -250,5 +250,61 @@ console.log("\n=== determinismo ===");
   check(JSON.stringify(c) === JSON.stringify(d), "avaliarPromocao é pura");
 }
 
+console.log("\n=== o segundo tenant não volta a pagar ===");
+{
+  // A simulação que responde à pergunta central: dois tenants, o mesmo
+  // catálogo nacional. O primeiro paga; o segundo recebe.
+  const catalogoNacional = [5678901, 5678902, 5678903, 5678904, 5678905];
+
+  // Tenant A corre o pipeline e promove tudo o que passou o gate.
+  const promovidos = new Map<number, ConhecimentoGlobal>();
+  for (const cnp of catalogoNacional) {
+    const c = candidato({ cnp, tenantOrigem: "tenant-a" });
+    if (avaliarPromocao(c, promovidos.get(cnp) ?? null).promover) {
+      promovidos.set(cnp, global({ cnp }));
+    }
+  }
+  check(promovidos.size === 5, `tenant A promoveu os 5 CNPs (${promovidos.size})`);
+
+  // Tenant B tem os mesmos CNPs, todos por classificar.
+  const residualB = catalogoNacional.map((cnp) => local({ cnp }));
+  const porPagar = residualB.filter((l) => !promovidos.has(l.cnp));
+  check(porPagar.length === 0, "tenant B não tem NENHUM CNP por pagar — é este o objectivo");
+
+  // E o que recebe é mesmo escrito, não apenas "conhecido".
+  const escritas = residualB
+    .map((l) => avaliarProjeccao(promovidos.get(l.cnp)!, l))
+    .filter((d) => d.accao === "ESCREVER_CLASSIFICACAO");
+  check(escritas.length === 5, `os 5 recebem classificação por projecção (${escritas.length})`);
+  check(escritas.every((d) => d.utilizacoes.length > 0), "…e as utilizações vêm junto");
+
+  // Um tenant C com um produto que A não tinha continua a pagar só esse.
+  const residualC = [...catalogoNacional, 9999001].map((cnp) => local({ cnp }));
+  const novosEmC = residualC.filter((l) => !promovidos.has(l.cnp));
+  check(novosEmC.length === 1 && novosEmC[0]!.cnp === 9999001,
+    "um CNP que ninguém conhece continua a ir ao modelo — e só esse");
+}
+
+console.log("\n=== o global não degrada o local ===");
+{
+  // O risco novo desta camada, em três formas. Todas têm de falhar.
+  const errado = global({ categoria: "COSMÉTICA", subcategoria: "Perfumes" });
+
+  const comEspecifica = local({ categoria: "MEDICAMENTOS", subcategoria: "Diabetes" });
+  check(avaliarProjeccao(errado, comEspecifica).accao === "REVISAO",
+    "um global errado NÃO sobrepõe uma específica local");
+
+  const validado = local({ validadoManualmente: true, categoria: "MEDICAMENTOS", subcategoria: "Diabetes" });
+  check(avaliarProjeccao(errado, validado).accao === "INTOCAVEL",
+    "…nem toca no que foi validado à mão");
+
+  const comManual = local({
+    categoria: "MEDICAMENTOS", subcategoria: "Outros Medicamentos",
+    utilizacoes: [{ slug: "diabetes", fonte: "MANUAL", confianca: null }],
+  });
+  const d = avaliarProjeccao(global({ utilizacoes: [{ slug: "diabetes", confidence: 1, origem: "HUMANO" }] }), comManual);
+  check(!d.utilizacoes.includes("diabetes"), "…nem sobrepõe uma utilização MANUAL, venha de onde vier");
+}
+
 console.log(`\n${pass} ok, ${fail} falhas`);
 process.exit(fail === 0 ? 0 : 1);
