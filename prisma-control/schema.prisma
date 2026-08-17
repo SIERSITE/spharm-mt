@@ -302,6 +302,11 @@ enum OrigemConhecimento {
   HUMANO
   /// Fonte regulamentar (INFARMED) ou classificação com fonte forte.
   REGULATORY
+  /// Regras determinísticas do catálogo — ATC, DCI, tipo de artigo,
+  /// padrões da designação, dicionário de fabricantes. Auditáveis e
+  /// reproduzíveis, e acima do modelo pela mesma razão que o
+  /// `SOURCE_TIER_RANK` põe INTERNAL_INFERRED acima de MODEL_INFERRED.
+  DETERMINISTICA
   /// Decisão do modelo sobre ESTE cnp, com os gates todos passados.
   MODELO
   /// Conclusão do modelo sobre um IRMÃO da mesma família estrita.
@@ -327,6 +332,14 @@ model CatalogoGlobal {
   confidence   Float
   evidenceType String?
   rationale    String?
+
+  /// `Produto.classificationSource` do tenant, cru e sem interpretação —
+  /// TEXT_PATTERN, ATC_CODE, FLAG_MSRM, BRAND_CONSENSUS, EXTERNAL…
+  ///
+  /// NÃO é a proveniência da classificação N1/N2: essa coluna descreve
+  /// como se decidiu o `productType`. É a única proveniência que a base
+  /// de um tenant guarda, e guarda-se aqui para não se perder.
+  fonteOriginal String?
 
   origem OrigemConhecimento
   /// Modelo e versão de regras que produziram isto. Permite reprojectar

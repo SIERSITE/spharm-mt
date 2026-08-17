@@ -47,6 +47,7 @@ export type CatalogoGlobalMinAggregateOutputType = {
   confidence: number | null
   evidenceType: string | null
   rationale: string | null
+  fonteOriginal: string | null
   origem: $Enums.OrigemConhecimento | null
   modelo: string | null
   versaoRegras: string | null
@@ -70,6 +71,7 @@ export type CatalogoGlobalMaxAggregateOutputType = {
   confidence: number | null
   evidenceType: string | null
   rationale: string | null
+  fonteOriginal: string | null
   origem: $Enums.OrigemConhecimento | null
   modelo: string | null
   versaoRegras: string | null
@@ -93,6 +95,7 @@ export type CatalogoGlobalCountAggregateOutputType = {
   confidence: number
   evidenceType: number
   rationale: number
+  fonteOriginal: number
   origem: number
   modelo: number
   versaoRegras: number
@@ -130,6 +133,7 @@ export type CatalogoGlobalMinAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  fonteOriginal?: true
   origem?: true
   modelo?: true
   versaoRegras?: true
@@ -153,6 +157,7 @@ export type CatalogoGlobalMaxAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  fonteOriginal?: true
   origem?: true
   modelo?: true
   versaoRegras?: true
@@ -176,6 +181,7 @@ export type CatalogoGlobalCountAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  fonteOriginal?: true
   origem?: true
   modelo?: true
   versaoRegras?: true
@@ -286,6 +292,7 @@ export type CatalogoGlobalGroupByOutputType = {
   confidence: number
   evidenceType: string | null
   rationale: string | null
+  fonteOriginal: string | null
   origem: $Enums.OrigemConhecimento
   modelo: string | null
   versaoRegras: string
@@ -332,6 +339,7 @@ export type CatalogoGlobalWhereInput = {
   confidence?: Prisma.FloatFilter<"CatalogoGlobal"> | number
   evidenceType?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   rationale?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  fonteOriginal?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   origem?: Prisma.EnumOrigemConhecimentoFilter<"CatalogoGlobal"> | $Enums.OrigemConhecimento
   modelo?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   versaoRegras?: Prisma.StringFilter<"CatalogoGlobal"> | string
@@ -357,6 +365,7 @@ export type CatalogoGlobalOrderByWithRelationInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrderInput | Prisma.SortOrder
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
+  fonteOriginal?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrder
   modelo?: Prisma.SortOrderInput | Prisma.SortOrder
   versaoRegras?: Prisma.SortOrder
@@ -385,6 +394,7 @@ export type CatalogoGlobalWhereUniqueInput = Prisma.AtLeast<{
   confidence?: Prisma.FloatFilter<"CatalogoGlobal"> | number
   evidenceType?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   rationale?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  fonteOriginal?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   origem?: Prisma.EnumOrigemConhecimentoFilter<"CatalogoGlobal"> | $Enums.OrigemConhecimento
   modelo?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   versaoRegras?: Prisma.StringFilter<"CatalogoGlobal"> | string
@@ -410,6 +420,7 @@ export type CatalogoGlobalOrderByWithAggregationInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrderInput | Prisma.SortOrder
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
+  fonteOriginal?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrder
   modelo?: Prisma.SortOrderInput | Prisma.SortOrder
   versaoRegras?: Prisma.SortOrder
@@ -441,6 +452,7 @@ export type CatalogoGlobalScalarWhereWithAggregatesInput = {
   confidence?: Prisma.FloatWithAggregatesFilter<"CatalogoGlobal"> | number
   evidenceType?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
   rationale?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
+  fonteOriginal?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
   origem?: Prisma.EnumOrigemConhecimentoWithAggregatesFilter<"CatalogoGlobal"> | $Enums.OrigemConhecimento
   modelo?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
   versaoRegras?: Prisma.StringWithAggregatesFilter<"CatalogoGlobal"> | string
@@ -464,6 +476,7 @@ export type CatalogoGlobalCreateInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -489,6 +502,7 @@ export type CatalogoGlobalUncheckedCreateInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -514,6 +528,7 @@ export type CatalogoGlobalUpdateInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -539,6 +554,7 @@ export type CatalogoGlobalUncheckedUpdateInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -564,6 +580,7 @@ export type CatalogoGlobalCreateManyInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -587,6 +604,7 @@ export type CatalogoGlobalUpdateManyMutationInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -610,6 +628,7 @@ export type CatalogoGlobalUncheckedUpdateManyInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -633,6 +652,7 @@ export type CatalogoGlobalCountOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  fonteOriginal?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   modelo?: Prisma.SortOrder
   versaoRegras?: Prisma.SortOrder
@@ -662,6 +682,7 @@ export type CatalogoGlobalMaxOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  fonteOriginal?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   modelo?: Prisma.SortOrder
   versaoRegras?: Prisma.SortOrder
@@ -685,6 +706,7 @@ export type CatalogoGlobalMinOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  fonteOriginal?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   modelo?: Prisma.SortOrder
   versaoRegras?: Prisma.SortOrder
@@ -763,6 +785,7 @@ export type CatalogoGlobalCreateWithoutUtilizacoesInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -787,6 +810,7 @@ export type CatalogoGlobalUncheckedCreateWithoutUtilizacoesInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -827,6 +851,7 @@ export type CatalogoGlobalUpdateWithoutUtilizacoesInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -851,6 +876,7 @@ export type CatalogoGlobalUncheckedUpdateWithoutUtilizacoesInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -875,6 +901,7 @@ export type CatalogoGlobalCreateWithoutRevisoesInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -899,6 +926,7 @@ export type CatalogoGlobalUncheckedCreateWithoutRevisoesInput = {
   confidence: number
   evidenceType?: string | null
   rationale?: string | null
+  fonteOriginal?: string | null
   origem: $Enums.OrigemConhecimento
   modelo?: string | null
   versaoRegras: string
@@ -939,6 +967,7 @@ export type CatalogoGlobalUpdateWithoutRevisoesInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -963,6 +992,7 @@ export type CatalogoGlobalUncheckedUpdateWithoutRevisoesInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
   modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1027,6 +1057,7 @@ export type CatalogoGlobalSelect<ExtArgs extends runtime.Types.Extensions.Intern
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  fonteOriginal?: boolean
   origem?: boolean
   modelo?: boolean
   versaoRegras?: boolean
@@ -1053,6 +1084,7 @@ export type CatalogoGlobalSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  fonteOriginal?: boolean
   origem?: boolean
   modelo?: boolean
   versaoRegras?: boolean
@@ -1076,6 +1108,7 @@ export type CatalogoGlobalSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  fonteOriginal?: boolean
   origem?: boolean
   modelo?: boolean
   versaoRegras?: boolean
@@ -1099,6 +1132,7 @@ export type CatalogoGlobalSelectScalar = {
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  fonteOriginal?: boolean
   origem?: boolean
   modelo?: boolean
   versaoRegras?: boolean
@@ -1113,7 +1147,7 @@ export type CatalogoGlobalSelectScalar = {
   actualizadoEm?: boolean
 }
 
-export type CatalogoGlobalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"cnp" | "designacaoReferencia" | "productType" | "categoria" | "subcategoria" | "confidence" | "evidenceType" | "rationale" | "origem" | "modelo" | "versaoRegras" | "verificado" | "tenantOrigem" | "propagadoDeCnp" | "promovidoPor" | "promovidoEm" | "promovidoDeTenant" | "promocaoMotivo" | "criadoEm" | "actualizadoEm", ExtArgs["result"]["catalogoGlobal"]>
+export type CatalogoGlobalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"cnp" | "designacaoReferencia" | "productType" | "categoria" | "subcategoria" | "confidence" | "evidenceType" | "rationale" | "fonteOriginal" | "origem" | "modelo" | "versaoRegras" | "verificado" | "tenantOrigem" | "propagadoDeCnp" | "promovidoPor" | "promovidoEm" | "promovidoDeTenant" | "promocaoMotivo" | "criadoEm" | "actualizadoEm", ExtArgs["result"]["catalogoGlobal"]>
 export type CatalogoGlobalInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizacoes?: boolean | Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>
   revisoes?: boolean | Prisma.CatalogoGlobal$revisoesArgs<ExtArgs>
@@ -1151,6 +1185,15 @@ export type $CatalogoGlobalPayload<ExtArgs extends runtime.Types.Extensions.Inte
     confidence: number
     evidenceType: string | null
     rationale: string | null
+    /**
+     * `Produto.classificationSource` do tenant, cru e sem interpretação —
+     * TEXT_PATTERN, ATC_CODE, FLAG_MSRM, BRAND_CONSENSUS, EXTERNAL…
+     * 
+     * NÃO é a proveniência da classificação N1/N2: essa coluna descreve
+     * como se decidiu o `productType`. É a única proveniência que a base
+     * de um tenant guarda, e guarda-se aqui para não se perder.
+     */
+    fonteOriginal: string | null
     origem: $Enums.OrigemConhecimento
     /**
      * Modelo e versão de regras que produziram isto. Permite reprojectar
@@ -1622,6 +1665,7 @@ export interface CatalogoGlobalFieldRefs {
   readonly confidence: Prisma.FieldRef<"CatalogoGlobal", 'Float'>
   readonly evidenceType: Prisma.FieldRef<"CatalogoGlobal", 'String'>
   readonly rationale: Prisma.FieldRef<"CatalogoGlobal", 'String'>
+  readonly fonteOriginal: Prisma.FieldRef<"CatalogoGlobal", 'String'>
   readonly origem: Prisma.FieldRef<"CatalogoGlobal", 'OrigemConhecimento'>
   readonly modelo: Prisma.FieldRef<"CatalogoGlobal", 'String'>
   readonly versaoRegras: Prisma.FieldRef<"CatalogoGlobal", 'String'>

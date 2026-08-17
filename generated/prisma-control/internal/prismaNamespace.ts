@@ -1216,6 +1216,7 @@ export const CatalogoGlobalScalarFieldEnum = {
   confidence: 'confidence',
   evidenceType: 'evidenceType',
   rationale: 'rationale',
+  fonteOriginal: 'fonteOriginal',
   origem: 'origem',
   modelo: 'modelo',
   versaoRegras: 'versaoRegras',
