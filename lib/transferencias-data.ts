@@ -10,7 +10,7 @@
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { resolveCategoria } from "@/lib/categoria-resolver";
+import { resolverPar } from "@/lib/categoria-resolver";
 import {
   avgDaily,
   coverageDays,
@@ -39,7 +39,12 @@ export type TransferSuggestionRow = {
   excessoOrigem: number;
   necessidadeDestino: number;
   fabricante: string;
+  /** Nível 1 canónico. Ver `resolverPar` — era o nível 2 até 2026-08. */
   categoria: string;
+  /** Nível 2 canónico, ou "" quando não há um distinto do nível 1. */
+  subcategoria: string;
+  /** Slugs das utilizações do produto. Vazio quando não tem nenhuma. */
+  utilizacoes: string[];
   fornecedor: string;
   prioridade: Priority;
   observacao?: string;
@@ -79,6 +84,8 @@ export type PfBase = {
   subcategoriaOrigem: string | null;
   canonN1: string | null;
   canonN2: string | null;
+  /** Slugs das utilizações do PRODUTO (não da farmácia). */
+  utilizacoes: string[];
   fornecedorOrigem: string | null;
   fabricanteCanonico: string | null;
   // Enriquecimento clínico — usado por tooltips na UI (item 3) e pelo
@@ -163,6 +170,19 @@ export async function loadPfAndSales(
 
   const salesMap = new Map<string, number>();
   for (const s of salesRows) salesMap.set(`${s.produtoId}:${s.farmaciaId}`, toF(s.totalQty));
+
+  // Utilizações numa consulta À PARTE e não numa lateral por linha: a
+  // mesma associação repete-se em todas as farmácias que têm o produto,
+  // e agregar por produto custa uma ida à base em vez de uma por linha.
+  const utilRows = await prisma.$queryRaw<Array<{ produtoId: string; slugs: string[] }>>(Prisma.sql`
+    SELECT pu."produtoId", array_agg(u.slug ORDER BY u.slug) AS slugs
+      FROM "ProdutoUtilizacao" pu
+      JOIN "Utilizacao" u ON u.id = pu."utilizacaoId"
+     WHERE u.estado = 'ATIVO'
+     GROUP BY pu."produtoId"
+  `);
+  const utilPorProduto = new Map(utilRows.map((u) => [u.produtoId, u.slugs]));
+  for (const row of pfRows) row.utilizacoes = utilPorProduto.get(row.produtoId) ?? [];
 
   return { pfRows, salesMap };
 }
@@ -252,12 +272,11 @@ export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> 
           // Fabricante CANÓNICO via Produto.fabricante; fornecedor é o
           // grossista habitual (ProdutoFarmacia.fornecedorOrigem).
           fabricante: origem.fabricanteCanonico ?? "",
-          categoria: resolveCategoria({
+          ...resolverPar({
             classificacaoNivel1: origem.canonN1 ? { nome: origem.canonN1 } : null,
             classificacaoNivel2: origem.canonN2 ? { nome: origem.canonN2 } : null,
-            categoriaOrigem: origem.categoriaOrigem,
-            subcategoriaOrigem: origem.subcategoriaOrigem,
-          }).grupo,
+          }),
+          utilizacoes: origem.utilizacoes ?? [],
           fornecedor: origem.fornecedorOrigem ?? "",
           prioridade,
           observacao:
@@ -386,12 +405,11 @@ export async function getExcessosData(
         excessoOrigem: excessQty,
         necessidadeDestino: Math.max(0, destNecessidade),
         fabricante: entry.fabricanteCanonico ?? "",
-        categoria: resolveCategoria({
+        ...resolverPar({
           classificacaoNivel1: entry.canonN1 ? { nome: entry.canonN1 } : null,
           classificacaoNivel2: entry.canonN2 ? { nome: entry.canonN2 } : null,
-          categoriaOrigem: entry.categoriaOrigem,
-          subcategoriaOrigem: entry.subcategoriaOrigem,
-        }).grupo,
+        }),
+        utilizacoes: entry.utilizacoes ?? [],
         fornecedor: entry.fornecedorOrigem ?? "",
         prioridade,
         observacao: `Excesso de ${Math.round(entry.coverage)} dias de cobertura.`,

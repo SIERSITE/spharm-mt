@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { runTransferenciasReport } from "@/app/transferencias/actions";
+import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
   Download,
   Eye,
@@ -64,6 +65,8 @@ type ReportSnapshot = {
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
   categoriasSelecionadas: string[];
+  subcategoriasSelecionadas: string[];
+  utilizacoesSelecionadas: string[];
   prioridadesSelecionadas: string[];
   artigo: string;
   dataInicio: string;
@@ -135,6 +138,20 @@ export function TransferenciasClient({
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>(
     []
   );
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<
+    string[]
+  >([]);
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<
+    string[]
+  >([]);
+  // Subcategorias acompanham a categoria escolhida.
+  const subcategorias = (
+    categoriasSelecionadas.length > 0
+      ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
+      : filterOptions.subcategorias
+  ).map((s) => s.nome);
+  const nomePorSlug = new Map(filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
+  const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
   const [prioridadesSelecionadas, setPrioridadesSelecionadas] = useState<
     string[]
   >([]);
@@ -162,6 +179,8 @@ export function TransferenciasClient({
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
       categoriasSelecionadas: [...categoriasSelecionadas],
+      subcategoriasSelecionadas: [...subcategoriasSelecionadas],
+      utilizacoesSelecionadas: [...utilizacoesSelecionadas],
       prioridadesSelecionadas: [...prioridadesSelecionadas],
       artigo,
       dataInicio,
@@ -220,8 +239,11 @@ export function TransferenciasClient({
       }
 
       if (
-        snapshot.categoriasSelecionadas.length > 0 &&
-        !snapshot.categoriasSelecionadas.includes(row.categoria)
+        !passaFiltroCatalogo(row, {
+          categorias: snapshot.categoriasSelecionadas,
+          subcategorias: snapshot.subcategoriasSelecionadas,
+          utilizacoes: snapshot.utilizacoesSelecionadas,
+        })
       ) {
         return false;
       }
@@ -627,6 +649,30 @@ export function TransferenciasClient({
                   }
                 />
 
+                <SearchableMultiSelect
+                  label="Subcategoria"
+                  options={subcategorias}
+                  selected={subcategoriasSelecionadas}
+                  onToggle={(value) =>
+                    toggleValue(
+                      value,
+                      subcategoriasSelecionadas,
+                      setSubcategoriasSelecionadas
+                    )
+                  }
+                />
+                {/* Viaja em slug, mostra-se pelo nome. */}
+                <SearchableMultiSelect
+                  label="Utilização"
+                  options={filterOptions.utilizacoes.map((u) => u.nome)}
+                  selected={utilizacoesSelecionadas.map((s) => nomePorSlug.get(s) ?? s)}
+                  onToggle={(nome) => {
+                    const slug = slugPorNome.get(nome) ?? nome;
+                    setUtilizacoesSelecionadas((prev) =>
+                      prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]
+                    );
+                  }}
+                />
                 <SearchableMultiSelect
                   label="Categoria"
                   options={categorias}

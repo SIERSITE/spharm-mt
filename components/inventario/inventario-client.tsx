@@ -43,6 +43,7 @@ import type {
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
+import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { AlertTriangle } from "lucide-react";
 
 type Vista = "produto" | "farmacia" | "grupo" | "iva";
@@ -99,18 +100,14 @@ export function InventarioClient({
   filterOptions,
 }: {
   farmaciasInfo: FarmaciaInfo[];
-  filterOptions: {
-    distribuidores: string[];
-    fornecedores: string[];
-    fabricantes: string[];
-    categorias: string[];
-    semClassificacao: boolean;
-  };
+  filterOptions: ReportingFilterOptions;
 }) {
   const universe: ReportFilterOptions = useMemo(
     () => ({
       farmacias: farmaciasInfo.map((f) => f.nome),
       categorias: filterOptions.categorias,
+      subcategorias: filterOptions.subcategorias,
+      utilizacoes: filterOptions.utilizacoes,
       fabricantes: filterOptions.fabricantes,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,

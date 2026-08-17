@@ -49,6 +49,22 @@ export type ReportingFilterOptions = {
    */
   categorias: string[];
   /**
+   * Subcategorias canónicas (`Classificacao` NIVEL_2 estado=ATIVO), com o
+   * nome do pai para desambiguar homónimos entre categorias diferentes.
+   *
+   * Nível 2 é um nível DIFERENTE, não uma versão fina do nível 1: até
+   * 2026-08 três módulos punham o nível 2 num campo chamado `categoria` e
+   * comparavam-no com esta lista de nível 1 — o filtro só acertava em
+   * produtos sem nível 2.
+   */
+  subcategorias: Array<{ nome: string; categoria: string }>;
+  /**
+   * Utilizações clínicas com produto associado. `slug` é a chave (estável
+   * entre bases); `nome` é o que se mostra. Ex.: `dor-e-febre` / "Dor e
+   * febre".
+   */
+  utilizacoes: Array<{ slug: string; nome: string }>;
+  /**
    * Sinalização de que existem produtos sem classificação canónica.
    * A UI deve oferecer um filtro booleano dedicado ("apenas sem
    * classificação") em vez de injectar uma categoria fictícia.
@@ -79,6 +95,8 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
       fornecedores: [],
       fabricantes: [],
       categorias: [],
+      subcategorias: [],
+      utilizacoes: [],
       semClassificacao: false,
     };
   }
@@ -114,6 +132,27 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     orderBy: { nome: "asc" },
   });
 
+  // Subcategorias: NIVEL_2, com o nome do pai — dois níveis diferentes
+  // podem ter filhos homónimos, e a UI precisa de os distinguir.
+  const subcategoriaRows = await prisma.classificacao.findMany({
+    where: { tipo: "NIVEL_2", estado: "ATIVO" },
+    select: { nome: true, classificacaoPai: { select: { nome: true } } },
+    orderBy: { nome: "asc" },
+  });
+
+  // Utilizações: vocabulário fechado, chave = slug, apresentação = nome.
+  // Só as que estão MESMO associadas a um produto — uma opção que não
+  // devolve linha nenhuma é ruído no dropdown.
+  const utilizacaoRows = await prisma.$queryRaw<Array<{ slug: string; nome: string }>>(
+    Prisma.sql`
+      SELECT DISTINCT u.slug, u.nome
+        FROM "Utilizacao" u
+        JOIN "ProdutoUtilizacao" pu ON pu."utilizacaoId" = u.id
+       WHERE u.estado = 'ATIVO'
+       ORDER BY u.nome
+    `
+  );
+
   // Sinaliza, de forma BOOLEANA, se há produtos sem classificação canónica.
   // A UI passa a oferecer um filtro dedicado em vez de uma "categoria"
   // fictícia. Query barata: existência via take=1.
@@ -130,6 +169,13 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     fornecedores: distribuidores, // alias deprecated — mesma lista
     fabricantes: cleanSortUnique(fabricanteRows.map((r) => r.nome)),
     categorias,
+    subcategorias: subcategoriaRows
+      .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))
+      .filter((r) => r.nome)
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT")),
+    utilizacoes: utilizacaoRows
+      .map((r) => ({ slug: r.slug, nome: r.nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-PT")),
     semClassificacao: !!naoClassificado,
   };
 }

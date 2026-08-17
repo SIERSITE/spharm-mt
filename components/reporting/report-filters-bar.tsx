@@ -49,6 +49,20 @@ export function ReportFiltersBar({
 }: Props) {
   const patch = (delta: Partial<SharedReportFilters>) => onChange({ ...value, ...delta });
 
+  // As subcategorias visíveis acompanham a categoria escolhida: com
+  // "MEDICAMENTOS" seleccionado, oferecer "Solares" seria oferecer uma
+  // combinação que devolve zero linhas. Sem categoria escolhida, todas.
+  const subcategoriasVisiveis = (
+    value.categorias && value.categorias.length > 0
+      ? options.subcategorias.filter((s) => value.categorias!.includes(s.categoria))
+      : options.subcategorias
+  ).map((s) => s.nome);
+
+  // O filtro viaja em SLUG (estável entre bases) mas mostra-se pelo nome.
+  const utilizacaoNomes = options.utilizacoes.map((u) => u.nome);
+  const slugPorNome = new Map(options.utilizacoes.map((u) => [u.nome, u.slug]));
+  const nomePorSlug = new Map(options.utilizacoes.map((u) => [u.slug, u.nome]));
+
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
       {/* Linha 1: search + datas (datas escondidas em snapshot mode) */}
@@ -89,7 +103,10 @@ export function ReportFiltersBar({
         )}
       </div>
 
-      {/* Linha 2: 4 multi-selects */}
+      {/* Linha 2: catálogo — farmácia, os DOIS níveis, e utilização.
+          Categoria e subcategoria são selects separados de propósito: são
+          níveis diferentes, e tratá-los como um só foi o defeito que isto
+          corrige. */}
       <div className="mt-3 grid gap-3 md:grid-cols-4">
         <FilterSelect
           label="Farmácia"
@@ -103,6 +120,24 @@ export function ReportFiltersBar({
           selected={value.categorias ?? []}
           onChange={(v) => patch({ categorias: v })}
         />
+        <FilterSelect
+          label="Subcategoria"
+          options={subcategoriasVisiveis}
+          selected={value.subcategorias ?? []}
+          onChange={(v) => patch({ subcategorias: v })}
+        />
+        <FilterSelect
+          label="Utilização"
+          options={utilizacaoNomes}
+          selected={(value.utilizacoes ?? []).map((s) => nomePorSlug.get(s) ?? s)}
+          onChange={(nomes) =>
+            patch({ utilizacoes: nomes.map((n) => slugPorNome.get(n) ?? n) })
+          }
+        />
+      </div>
+
+      {/* Linha 3: proveniência comercial. */}
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
         <FilterSelect
           label="Fabricante"
           options={options.fabricantes}

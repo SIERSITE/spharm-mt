@@ -28,8 +28,24 @@ export type SharedReportFilters = {
   from?: string;
   /** Fim inclusivo do período (ISO yyyy-mm-dd). */
   to?: string;
-  /** Categorias canónicas seleccionadas. Vazio = todas. */
+  /** Categorias canónicas (NÍVEL 1) seleccionadas. Vazio = todas. */
   categorias?: string[];
+  /**
+   * Subcategorias canónicas (NÍVEL 2) seleccionadas. Vazio = todas.
+   *
+   * Independente de `categorias`: escolher "Cardiovascular" sem escolher
+   * "MEDICAMENTOS" é legítimo. Quando as duas vêm preenchidas, aplicam-se
+   * as duas (E lógico) — é o que a UI mostra.
+   */
+  subcategorias?: string[];
+  /**
+   * Utilizações clínicas por SLUG. Vazio = todas.
+   *
+   * Um produto com várias utilizações entra se corresponder a QUALQUER
+   * uma (OU lógico) — "mostra-me o que serve para tosse" não deve excluir
+   * um xarope que também serve para constipação.
+   */
+  utilizacoes?: string[];
   /** Fabricantes canónicos seleccionados. Vazio = todos. */
   fabricantes?: string[];
   /** Distribuidores / grossistas seleccionados. Vazio = todos. */
@@ -44,7 +60,51 @@ export type SharedReportFilters = {
 export type ReportFilterOptions = {
   farmacias: string[];        // nomes
   categorias: string[];
+  subcategorias: Array<{ nome: string; categoria: string }>;
+  utilizacoes: Array<{ slug: string; nome: string }>;
   fabricantes: string[];
   distribuidores: string[];
   semClassificacao: boolean;  // existem produtos sem classif. canónica?
 };
+
+/**
+ * A parte de catálogo de uma linha de relatório. Qualquer loader que
+ * queira ser filtrável por classificação devolve isto.
+ */
+export type LinhaClassificavel = {
+  /** Nível 1, ou o rótulo "Por Classificar". */
+  categoria: string;
+  /** Nível 2, ou "" quando não há um distinto. */
+  subcategoria: string;
+  /** Slugs das utilizações do produto. */
+  utilizacoes: string[];
+};
+
+/**
+ * O predicado ÚNICO de catálogo, partilhado por todos os módulos.
+ *
+ * Vive aqui e não em cada cliente porque a versão duplicada foi
+ * exactamente o que deixou três módulos a comparar nível 2 contra uma
+ * lista de nível 1 durante meses, cada um com a sua cópia da linha.
+ *
+ * Selecção vazia = não filtra. Categoria e subcategoria são E; as
+ * utilizações são OU entre si.
+ */
+export function passaFiltroCatalogo(
+  linha: Partial<LinhaClassificavel>,
+  filtros: Pick<SharedReportFilters, "categorias" | "subcategorias" | "utilizacoes">,
+): boolean {
+  const { categorias, subcategorias, utilizacoes } = filtros;
+
+  if (categorias && categorias.length > 0 && !categorias.includes(linha.categoria ?? "")) {
+    return false;
+  }
+  if (subcategorias && subcategorias.length > 0 && !subcategorias.includes(linha.subcategoria ?? "")) {
+    return false;
+  }
+  if (utilizacoes && utilizacoes.length > 0) {
+    const doProduto = linha.utilizacoes ?? [];
+    if (!doProduto.some((s) => utilizacoes.includes(s))) return false;
+  }
+  return true;
+}

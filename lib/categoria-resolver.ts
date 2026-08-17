@@ -62,6 +62,37 @@ function clean(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
+/**
+ * Par (categoria, subcategoria) para relatórios operacionais.
+ *
+ * `resolveCategoria` devolve `categoria`/`grupo`, e `grupo` cai para o N1
+ * quando não há N2 — o que é certo para agrupar, e errado para uma coluna
+ * chamada "subcategoria". Pior: três módulos punham o `grupo` num campo
+ * chamado `categoria` e depois comparavam-no com um dropdown de nomes de
+ * NÍVEL 1. O filtro só acertava em produtos SEM nível 2, e o
+ * enriquecimento — que existe justamente para preencher o nível 2 — ia
+ * tornando o filtro cada vez mais vazio.
+ *
+ * Aqui os dois níveis são o que dizem ser:
+ *   · `categoria`    — nível 1, ou "Por Classificar";
+ *   · `subcategoria` — nível 2, ou "" quando não há um distinto.
+ *
+ * String vazia e não o rótulo: "Por Classificar" numa subcategoria seria
+ * uma opção de filtro que não corresponde a classificação nenhuma.
+ */
+export type ParClassificacao = {
+  categoria: string;
+  subcategoria: string;
+};
+
+export function resolverPar(src: CategoriaSources): ParClassificacao {
+  const r = resolveCategoria(src);
+  return {
+    categoria: r.categoria,
+    subcategoria: r.grupo && r.grupo !== r.categoria ? r.grupo : "",
+  };
+}
+
 export function resolveCategoria(src: CategoriaSources): ResolvedCategoria {
   const canonN1 = clean(src.classificacaoNivel1?.nome);
   const canonN2 = clean(src.classificacaoNivel2?.nome);

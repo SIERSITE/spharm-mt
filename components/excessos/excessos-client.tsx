@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { runExcessosReport } from "@/app/excessos/actions";
+import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
   Download,
   Eye,
@@ -55,6 +56,8 @@ type ReportSnapshot = {
   fornecedoresSelecionados: string[];
   fabricantesSelecionados: string[];
   categoriasSelecionadas: string[];
+  subcategoriasSelecionadas: string[];
+  utilizacoesSelecionadas: string[];
   prioridadesSelecionadas: string[];
   artigo: string;
   dataInicio: string;
@@ -123,6 +126,8 @@ export function ExcessosClient({
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
   const categorias = filterOptions.categorias;
+  const nomePorSlug = new Map(filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
+  const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
   void initialRows;
   const prioridades = ["alta", "media", "baixa"];
 
@@ -133,6 +138,15 @@ export function ExcessosClient({
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
+  // Subcategorias acompanham a categoria escolhida — oferecer uma
+  // subcategoria de outra categoria é oferecer zero linhas.
+  const subcategorias = (
+    categoriasSelecionadas.length > 0
+      ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
+      : filterOptions.subcategorias
+  ).map((s) => s.nome);
   const [prioridadesSelecionadas, setPrioridadesSelecionadas] = useState<string[]>([]);
   const [artigo, setArtigo] = useState("");
   const [dataInicio, setDataInicio] = useState("2026-04-01");
@@ -155,6 +169,8 @@ export function ExcessosClient({
       fornecedoresSelecionados: [...fornecedoresSelecionados],
       fabricantesSelecionados: [...fabricantesSelecionados],
       categoriasSelecionadas: [...categoriasSelecionadas],
+      subcategoriasSelecionadas: [...subcategoriasSelecionadas],
+      utilizacoesSelecionadas: [...utilizacoesSelecionadas],
       prioridadesSelecionadas: [...prioridadesSelecionadas],
       artigo,
       dataInicio,
@@ -185,7 +201,11 @@ export function ExcessosClient({
       if (snapshot.farmaciasDestinoSelecionadas.length > 0 && !snapshot.farmaciasDestinoSelecionadas.includes(row.farmaciaDestino)) return false;
       if (snapshot.fornecedoresSelecionados.length > 0 && !snapshot.fornecedoresSelecionados.includes(row.fornecedor)) return false;
       if (snapshot.fabricantesSelecionados.length > 0 && !snapshot.fabricantesSelecionados.includes(row.fabricante)) return false;
-      if (snapshot.categoriasSelecionadas.length > 0 && !snapshot.categoriasSelecionadas.includes(row.categoria)) return false;
+      if (!passaFiltroCatalogo(row, {
+        categorias: snapshot.categoriasSelecionadas,
+        subcategorias: snapshot.subcategoriasSelecionadas,
+        utilizacoes: snapshot.utilizacoesSelecionadas,
+      })) return false;
       if (snapshot.prioridadesSelecionadas.length > 0 && !snapshot.prioridadesSelecionadas.includes(row.prioridade)) return false;
       if (snapshot.artigo.trim() && !`${row.cnp} ${row.produto}`.toLowerCase().includes(snapshot.artigo.toLowerCase())) return false;
       if (snapshot.apenasComNecessidade && row.necessidadeDestino <= 0) return false;
@@ -386,6 +406,19 @@ export function ExcessosClient({
                 <SearchableMultiSelect label="Distribuidor" options={fornecedores} selected={fornecedoresSelecionados} onToggle={(value) => toggleValue(value, fornecedoresSelecionados, setFornecedoresSelecionados)} />
                 <SearchableMultiSelect label="Fabricante" options={fabricantes} selected={fabricantesSelecionados} onToggle={(value) => toggleValue(value, fabricantesSelecionados, setFabricantesSelecionados)} />
                 <SearchableMultiSelect label="Categoria" options={categorias} selected={categoriasSelecionadas} onToggle={(value) => toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)} />
+                <SearchableMultiSelect label="Subcategoria" options={subcategorias} selected={subcategoriasSelecionadas} onToggle={(value) => toggleValue(value, subcategoriasSelecionadas, setSubcategoriasSelecionadas)} />
+                {/* Viaja em slug, mostra-se pelo nome. */}
+                <SearchableMultiSelect
+                  label="Utilização"
+                  options={filterOptions.utilizacoes.map((u) => u.nome)}
+                  selected={utilizacoesSelecionadas.map((s) => nomePorSlug.get(s) ?? s)}
+                  onToggle={(nome) => {
+                    const slug = slugPorNome.get(nome) ?? nome;
+                    setUtilizacoesSelecionadas((prev) =>
+                      prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]
+                    );
+                  }}
+                />
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {farmaciasOrigemSelecionadas.map((item) => (

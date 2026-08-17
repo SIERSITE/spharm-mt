@@ -37,7 +37,7 @@
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { resolveCategoria } from "@/lib/categoria-resolver";
+import { resolverPar } from "@/lib/categoria-resolver";
 import {
   avgDaily,
   coverageDays,
@@ -78,7 +78,13 @@ export type EncomendaBaseRow = {
   rotacaoMedia: number; // unidades por dia × 30 = unidades/mês
   fornecedor: string; // grossista habitual
   fabricante: string; // canónico
+  /** Nível 1 canónico. Ver `resolverPar` — era o nível 2 até 2026-08. */
   categoria: string;
+  /** Nível 2 canónico, ou "" quando não há um distinto do nível 1. */
+  subcategoria: string;
+  /** Slugs das utilizações do produto. */
+  utilizacoes: string[];
+  productType: string | null;
   // Enriquecimento clínico — surfaced em tooltip + chip ATC na UI.
   dci: string | null;
   codigoATC: string | null;
@@ -182,11 +188,13 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
     flagMNSRM: boolean;
     codigoATC: string | null;
     productType: string | null;
+    /** Preenchido a seguir à query, por produto — ver `utilPorProduto`. */
+    utilizacoes: string[];
   };
 
-  // Puxa as 4 fontes de categoria que o resolver precisa: canónico N1/N2
-  // e os campos brutos do importer. O resolveCategoria no loop decide a
-  // precedência (mesma regra em toda a app).
+  // Canónico N1/N2. Os campos brutos do importer continuam a vir por
+  // outras razões, mas NÃO entram na classificação — ver
+  // lib/categoria-resolver.ts.
   const pfRows = await prisma.$queryRaw<PfRow[]>(Prisma.sql`
     SELECT
       pf."produtoId",
@@ -222,6 +230,19 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
   `);
 
   if (pfRows.length === 0) return [];
+
+  // Utilizações por PRODUTO, numa consulta à parte: a mesma associação
+  // repete-se em todas as farmácias que têm o produto, e agregar por
+  // produto custa uma ida à base em vez de uma lateral por linha.
+  const utilRows = await prisma.$queryRaw<Array<{ produtoId: string; slugs: string[] }>>(Prisma.sql`
+    SELECT pu."produtoId", array_agg(u.slug ORDER BY u.slug) AS slugs
+      FROM "ProdutoUtilizacao" pu
+      JOIN "Utilizacao" u ON u.id = pu."utilizacaoId"
+     WHERE u.estado = 'ATIVO'
+     GROUP BY pu."produtoId"
+  `);
+  const utilPorProduto = new Map(utilRows.map((u) => [u.produtoId, u.slugs]));
+  for (const row of pfRows) row.utilizacoes = utilPorProduto.get(row.produtoId) ?? [];
 
   // Dual-read: IPF carregado em paralelo com vendas mensais. Quando IPF
   // tem linha, `mediaVendasDiarias90d` substitui o cálculo `recent3 / 90`
@@ -379,11 +400,9 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
         vendas: Math.round(v.qty),
       }));
 
-    const { grupo: categoriaResolvida } = resolveCategoria({
+    const par = resolverPar({
       classificacaoNivel1: pf.canonN1 ? { nome: pf.canonN1 } : null,
       classificacaoNivel2: pf.canonN2 ? { nome: pf.canonN2 } : null,
-      categoriaOrigem: pf.categoriaOrigem,
-      subcategoriaOrigem: pf.subcategoriaOrigem,
     });
 
     const sub = subsByDestino.get(k);
@@ -407,7 +426,10 @@ export async function getEncomendasData(): Promise<EncomendaBaseRow[]> {
       rotacaoMedia,
       fornecedor: pf.fornecedorOrigem ?? "",
       fabricante: pf.fabricanteCanonico ?? "",
-      categoria: categoriaResolvida,
+      categoria: par.categoria,
+      subcategoria: par.subcategoria,
+      utilizacoes: pf.utilizacoes ?? [],
+      productType: pf.productType,
       dci: pf.dci,
       codigoATC: pf.codigoATC,
       movimentos6M,

@@ -21,7 +21,8 @@
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { resolveCategoria } from "@/lib/categoria-resolver";
+import { resolverPar } from "@/lib/categoria-resolver";
+import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 /** Linha por (CNP × farmácia) com vendas decompostas por mês no período. */
@@ -47,8 +48,18 @@ export type SalesReportRow = {
   unidadesVendidas: number;
   fornecedor: string;
   fabricante: string;
+  /** Nível 1 canónico, ou "Por Classificar". */
   categoria: string;
+  /** Nível 2 canónico estrito, ou "" — é o que o filtro usa. */
+  subcategoria: string;
+  /** Slugs das utilizações do produto. */
+  utilizacoes: string[];
   farmacia: string;
+  /**
+   * Chave de agregação "Agrupar por: grupo". N2 com queda para N1 —
+   * semântica antiga, preservada de propósito. Para FILTRAR use
+   * `subcategoria`.
+   */
   grupo: string;
 };
 
@@ -202,6 +213,11 @@ export async function getVendasData(
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }
+  // Subcategoria (N2) e utilização — mesmo padrão, helper partilhado.
+  if (temFiltroCatalogo(filters)) {
+    produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
+    if (produtoIdFilter && produtoIdFilter.length === 0) return { period, rows: [] };
+  }
   // Pesquisa (CNP exacto ou ILIKE designação) também pré-filtra o universo.
   if (filters.pesquisa && filters.pesquisa.trim()) {
     const q = filters.pesquisa.trim();
@@ -291,6 +307,8 @@ export async function getVendasData(
       fabricante: { select: { nomeNormalizado: true } },
       classificacaoNivel1: { select: { nome: true } },
       classificacaoNivel2: { select: { nome: true } },
+      // Uma ida à base para os produtos todos — não uma por produto.
+      utilizacoes: { select: { utilizacao: { select: { slug: true } } } },
     },
   });
   const produtoById = new Map(produtos.map((p) => [p.id, p]));
@@ -341,12 +359,14 @@ export async function getVendasData(
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
 
-    const { categoria, grupo } = resolveCategoria({
+    const { categoria, subcategoria } = resolverPar({
       classificacaoNivel1: produto.classificacaoNivel1,
       classificacaoNivel2: produto.classificacaoNivel2,
-      categoriaOrigem: pf?.categoriaOrigem,
-      subcategoriaOrigem: pf?.subcategoriaOrigem,
     });
+    // `grupo` mantém a semântica antiga (N2 com queda para N1) porque é a
+    // chave de agregação "Agrupar por: grupo" — mudá-la mudava relatórios
+    // que já circulam. `subcategoria` é o nível 2 estrito, para filtrar.
+    const grupo = subcategoria || categoria;
     const fornecedor = pf?.fornecedorOrigem ?? "";
     const fabricante = produto.fabricante?.nomeNormalizado ?? "";
 
@@ -361,6 +381,8 @@ export async function getVendasData(
       fornecedor,
       fabricante,
       categoria,
+      subcategoria,
+      utilizacoes: produto.utilizacoes.map((u) => u.utilizacao.slug),
       farmacia: farmaciaNome,
       grupo,
     });

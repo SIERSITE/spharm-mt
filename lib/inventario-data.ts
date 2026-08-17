@@ -37,6 +37,7 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import { normalizeIva, TAXA_IVA_BUCKETS, type TaxaIvaCanonica } from "@/lib/iva";
 import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
@@ -265,6 +266,13 @@ export async function getInventarioData(
     });
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
+  }
+  // Subcategoria (N2) e utilização — mesmo padrão, helper partilhado.
+  if (temFiltroCatalogo(filters)) {
+    produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
+    if (produtoIdFilter && produtoIdFilter.length === 0) {
+      return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
+    }
   }
 
   // ── CTE de vendas dos últimos 90 dias agrupada por produto×farm ──

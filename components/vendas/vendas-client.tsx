@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { runVendasReport } from "@/app/vendas/actions";
+import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
   Eye,
   Filter,
@@ -22,6 +23,7 @@ import type {
   SalesPeriodHeader,
   SalesReportRow as ServerSalesReportRow,
 } from "@/lib/vendas-data";
+import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 
 type Agrupamento =
   | "artigo"
@@ -120,11 +122,7 @@ export function VendasClient({
   filterOptions,
 }: {
   farmaciasInfo: FarmaciaInfo[];
-  filterOptions: {
-    fornecedores: string[];
-    fabricantes: string[];
-    categorias: string[];
-  };
+  filterOptions: ReportingFilterOptions;
 }) {
   // ─────────────────────────────────────────────────────────────────
   // Estado lazy: nada de Vendas é carregado até clicar em "Gerar".
@@ -156,6 +154,8 @@ export function VendasClient({
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
   const [artigo, setArtigo] = useState("");
   const [dataInicio, setDataInicio] = useState(defaultDataInicio());
   const [dataFim, setDataFim] = useState(defaultDataFim());
@@ -171,6 +171,41 @@ export function VendasClient({
   // Buckets de meses para render — só existe depois de gerar.
   const buckets = periodHeader?.buckets ?? [];
 
+  // Um único predicado de catálogo para os quatro sítios que filtram
+  // linhas aqui. Antes, cada um tinha a sua cópia da mesma comparação —
+  // e foi assim que três módulos ficaram a comparar o nível errado.
+  const filtrosCatalogo = useMemo(
+    () => ({
+      categorias: categoriasSelecionadas,
+      subcategorias: subcategoriasSelecionadas,
+      utilizacoes: utilizacoesSelecionadas,
+    }),
+    [categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas],
+  );
+  const passaCatalogo = useCallback(
+    (row: SalesReportRow) => passaFiltroCatalogo(row, filtrosCatalogo),
+    [filtrosCatalogo],
+  );
+
+  // Subcategorias oferecidas acompanham a categoria escolhida.
+  const subcategorias = useMemo(
+    () =>
+      (categoriasSelecionadas.length > 0
+        ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
+        : filterOptions.subcategorias
+      ).map((s) => s.nome),
+    [filterOptions.subcategorias, categoriasSelecionadas],
+  );
+  const utilizacoesOpcoes = filterOptions.utilizacoes;
+  const nomePorSlug = useMemo(
+    () => new Map(utilizacoesOpcoes.map((u) => [u.slug, u.nome])),
+    [utilizacoesOpcoes],
+  );
+  const slugPorNome = useMemo(
+    () => new Map(utilizacoesOpcoes.map((u) => [u.nome, u.slug])),
+    [utilizacoesOpcoes],
+  );
+
   const baseFiltered = useMemo(() => {
     return initialRows.filter((row) => {
       if (
@@ -185,10 +220,7 @@ export function VendasClient({
       ) {
         return false;
       }
-      if (
-        categoriasSelecionadas.length > 0 &&
-        !categoriasSelecionadas.includes(row.categoria)
-      ) {
+      if (!passaCatalogo(row)) {
         return false;
       }
       if (
@@ -236,10 +268,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (
-        categoriasSelecionadas.length > 0 &&
-        !categoriasSelecionadas.includes(row.categoria)
-      ) {
+      if (!passaCatalogo(row)) {
         continue;
       }
       if (
@@ -387,10 +416,7 @@ export function VendasClient({
         ) {
           return false;
         }
-        if (
-          categoriasSelecionadas.length > 0 &&
-          !categoriasSelecionadas.includes(row.categoria)
-        ) {
+        if (!passaCatalogo(row)) {
           return false;
         }
         if (
@@ -443,10 +469,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (
-        categoriasSelecionadas.length > 0 &&
-        !categoriasSelecionadas.includes(row.categoria)
-      ) {
+      if (!passaCatalogo(row)) {
         continue;
       }
       if (
@@ -531,6 +554,10 @@ export function VendasClient({
           to: dataFim || undefined,
           categorias:
             categoriasSelecionadas.length > 0 ? categoriasSelecionadas : undefined,
+          subcategorias:
+            subcategoriasSelecionadas.length > 0 ? subcategoriasSelecionadas : undefined,
+          utilizacoes:
+            utilizacoesSelecionadas.length > 0 ? utilizacoesSelecionadas : undefined,
           fabricantes:
             fabricantesSelecionados.length > 0 ? fabricantesSelecionados : undefined,
           distribuidores:
@@ -727,6 +754,30 @@ export function VendasClient({
                       setCategoriasSelecionadas
                     )
                   }
+                />
+                <SearchableMultiSelect
+                  label="Subcategoria"
+                  options={subcategorias}
+                  selected={subcategoriasSelecionadas}
+                  onToggle={(value) =>
+                    toggleValue(
+                      value,
+                      subcategoriasSelecionadas,
+                      setSubcategoriasSelecionadas
+                    )
+                  }
+                />
+                {/* Viaja em slug, mostra-se pelo nome. */}
+                <SearchableMultiSelect
+                  label="Utilização"
+                  options={utilizacoesOpcoes.map((u) => u.nome)}
+                  selected={utilizacoesSelecionadas.map((s) => nomePorSlug.get(s) ?? s)}
+                  onToggle={(nome) => {
+                    const slug = slugPorNome.get(nome) ?? nome;
+                    setUtilizacoesSelecionadas((prev) =>
+                      prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]
+                    );
+                  }}
                 />
               </div>
 

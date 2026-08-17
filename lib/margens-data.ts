@@ -53,6 +53,7 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolveCategoria } from "@/lib/categoria-resolver";
+import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import { normalizeIva, type TaxaIvaCanonica } from "@/lib/iva";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
@@ -238,6 +239,11 @@ export async function getMargensData(
     });
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return emptyResult();
+  }
+  // Subcategoria (N2) e utilização — mesmo padrão, helper partilhado.
+  if (temFiltroCatalogo(filters)) {
+    produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
+    if (produtoIdFilter && produtoIdFilter.length === 0) return emptyResult();
   }
 
   // ── Query principal: VendaMensal agg + ProdutoFarmacia + Produto ──

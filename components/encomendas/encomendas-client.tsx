@@ -20,6 +20,7 @@ import type { EncomendaBaseRow } from "@/lib/encomendas-data";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { runEncomendasReport } from "@/app/encomendas/actions";
+import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 
 type Prioridade = "Crítica" | "Elevada" | "Normal" | "Estável";
 
@@ -229,6 +230,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
   const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
   const [periodoAnalise, setPeriodoAnalise] = useState<7 | 15 | 30 | 60 | 90>(30);
   const [coberturaAlvoDias, setCoberturaAlvoDias] = useState(15);
   const [apenasComSugestao, setApenasComSugestao] = useState(true);
@@ -244,6 +247,14 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
   const fornecedores = filterOptions.fornecedores;
   const fabricantes = filterOptions.fabricantes;
   const categorias = filterOptions.categorias;
+  // Subcategorias acompanham a categoria escolhida.
+  const subcategorias = (
+    categoriasSelecionadas.length > 0
+      ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
+      : filterOptions.subcategorias
+  ).map((s) => s.nome);
+  const nomePorSlug = new Map(filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
+  const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
 
   // A rotacaoMedia vem já calculada pelo server (lib/operational/metrics-shared)
   // a partir de VendaMensal × 90d. O selector "Período" controla apenas a
@@ -273,7 +284,13 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
       if (farmaciasSelecionadas.length > 0 && !farmaciasSelecionadas.includes(row.farmacia)) return false;
       if (fornecedoresSelecionados.length > 0 && !fornecedoresSelecionados.includes(row.fornecedor)) return false;
       if (fabricantesSelecionados.length > 0 && !fabricantesSelecionados.includes(row.fabricante)) return false;
-      if (categoriasSelecionadas.length > 0 && !categoriasSelecionadas.includes(row.categoria)) return false;
+      if (
+        !passaFiltroCatalogo(row, {
+          categorias: categoriasSelecionadas,
+          subcategorias: subcategoriasSelecionadas,
+          utilizacoes: utilizacoesSelecionadas,
+        })
+      ) return false;
       return true;
     });
 
@@ -688,6 +705,26 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                   onToggle={(value) =>
                     toggleValue(value, categoriasSelecionadas, setCategoriasSelecionadas)
                   }
+                />
+                <SearchableMultiSelect
+                  label="Subcategorias"
+                  options={subcategorias}
+                  selected={subcategoriasSelecionadas}
+                  onToggle={(value) =>
+                    toggleValue(value, subcategoriasSelecionadas, setSubcategoriasSelecionadas)
+                  }
+                />
+                {/* Viaja em slug, mostra-se pelo nome. */}
+                <SearchableMultiSelect
+                  label="Utilizações"
+                  options={filterOptions.utilizacoes.map((u) => u.nome)}
+                  selected={utilizacoesSelecionadas.map((s) => nomePorSlug.get(s) ?? s)}
+                  onToggle={(nome) => {
+                    const slug = slugPorNome.get(nome) ?? nome;
+                    setUtilizacoesSelecionadas((prev) =>
+                      prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]
+                    );
+                  }}
                 />
               </div>
 
