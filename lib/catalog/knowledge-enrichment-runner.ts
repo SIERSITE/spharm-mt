@@ -49,7 +49,7 @@ import {
 } from "./knowledge-enrichment";
 
 /** Códigos internos da farmácia não entram no catálogo regulamentar. */
-const MIN_CNP = 2_000_000;
+export const MIN_CNP = 2_000_000;
 
 /** Marca de proveniência em ProdutoUtilizacao.fonte. */
 export const FONTE = "MODELO";
@@ -87,7 +87,7 @@ export type Estrato = "OUTROS_MEDICAMENTOS" | "NAO_CLASSIFICADO" | "SEM_UTILIZAC
  * 'Outros %') E fora de SEM_UTILIZACOES (o `not ilike` não deu TRUE),
  * apesar de o `case` o classificar como SEM_UTILIZACOES pelo ramo `else`.
  */
-function corpoResidual(estrato?: Estrato): string {
+export function corpoResidual(estrato?: Estrato): string {
   const semUtilizacoes = `not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id)`;
   const filtro =
     estrato === "NAO_CLASSIFICADO"

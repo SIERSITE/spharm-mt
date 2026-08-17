@@ -259,6 +259,7 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/classify-backfill.ts \
      scripts/catalog-master/fill-rules.ts \
      scripts/catalog-master/backfill-utilizacoes.ts \
+     scripts/catalog-master/audit-knowledge-preselection.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na

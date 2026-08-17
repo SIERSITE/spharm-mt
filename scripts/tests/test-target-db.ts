@@ -137,6 +137,7 @@ async function main() {
   // bootstrap, portanto tem de estar nesta lista tanto como os outros.
   const TENANT_AWARE = [
     "../seed-taxonomy.ts",
+    "../catalog-master/audit-knowledge-preselection.ts",
     "../catalog-master/classify-backfill.ts",
     "../catalog-master/fill-rules.ts",
     "../catalog-master/backfill-utilizacoes.ts",
@@ -177,9 +178,13 @@ async function main() {
       /descreverAlvo\(alvo\)/.test(codigo),
       `${nome} imprime o destino antes de trabalhar`,
     );
+    // Duas formas aceites: condicional ao modo de escrita, ou sempre `on`
+    // — que é mais forte, e é o caso de um script que só lê.
     check(
-      /default_transaction_read_only = \$\{\s*(dryRun \? "on" : "off"|apply \? "off" : "on")/.test(codigo),
-      `${nome} põe a sessão read-only em dry-run`,
+      /default_transaction_read_only = \$\{\s*(dryRun \? "on" : "off"|apply \? "off" : "on")/.test(codigo) ||
+        (/default_transaction_read_only = on/.test(codigo) &&
+          !/default_transaction_read_only = off/.test(codigo)),
+      `${nome} põe a sessão read-only quando não escreve`,
     );
   }
 

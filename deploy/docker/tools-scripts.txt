@@ -81,6 +81,10 @@ catalog:seed-utilizacoes
 catalog:classify-backfill
 catalog:fill-rules
 catalog:backfill-utilizacoes
+# Auditoria de pré-selecção: mede quanto do residual pode ser resolvido ou
+# excluído ANTES do modelo. READ ONLY sem excepção — não tem `--apply` e a
+# sessão abre read-only. Não decide limiares; mostra <1%, <2% e <5%.
+catalog:audit-knowledge-preselection
 # Knowledge-enrichment: a fase que usa modelo. Sem `--apply` não escreve
 # nada, nem cache; com `--apply` custa dinheiro por produto.
 catalog:knowledge-enrich
