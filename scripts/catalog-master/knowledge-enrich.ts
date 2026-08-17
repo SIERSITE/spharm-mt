@@ -69,8 +69,9 @@ function imprimirRelatorio(linhas: LinhaRelatorio[]): void {
       estratoActual = cabeca;
     }
     console.log(`    cnp ${String(l.cnp).padStart(7)}  ${corta(l.designacao, 46)}`);
-    console.log(`      actual   : ${l.estadoAtual}`);
+    console.log(`      actual   : ${l.estadoAtual}   [pedido: ${l.alvo}]`);
     console.log(`      proposta : ${l.proposta}   [${l.evidenceType} conf=${l.confidence.toFixed(2)}${l.verificado ? " ✓verificado" : ""}]`);
+    if (l.anomalia) console.log(`      ⚠ anomalia: ${l.anomalia}`);
     if (l.utilizacoes.length) console.log(`      utiliz.  : ${l.utilizacoes.join(", ")}`);
     console.log(`      razão    : ${l.motivo}`);
     if (l.criterios && l.decisao !== "APPLY") {
@@ -219,6 +220,51 @@ async function main() {
     console.log(`  ${pad(v)}  ${k}`);
   }
 
+  if (r.anomalias > 0) {
+    console.log("\n── anomalias (candidatos a auditoria, NUNCA escritas) ──");
+    console.log("  Produtos já classificados que o modelo põe noutra categoria de nível 1.");
+    for (const l of r.relatorio.filter((x) => x.anomalia).slice(0, 25)) {
+      console.log(`  cnp ${String(l.cnp).padStart(7)}  ${corta(l.designacao, 40)}`);
+      console.log(`     ${l.anomalia}`);
+    }
+    const n = r.relatorio.filter((x) => x.anomalia).length;
+    if (n > 25) console.log(`  … e mais ${n - 25}`);
+  }
+
+  if (r.metricasPorEstrato.length > 0) {
+    console.log("\n── por estrato ────────────────────────────────────");
+    console.log("  estrato               alvo            prod  APL  REV  SKP   chamadas    out tok    custo   $/prod");
+    for (const m of r.metricasPorEstrato) {
+      console.log(
+        `  ${m.estrato.padEnd(21)} ${m.alvo.padEnd(14)} ` +
+          `${String(m.produtos).padStart(4)} ${String(m.apply).padStart(4)} ` +
+          `${String(m.review).padStart(4)} ${String(m.skip).padStart(4)}   ` +
+          `${String(`${m.chamadasProposta}+${m.chamadasVerificacao}`).padStart(8)} ` +
+          `${String(m.usage.outputTokens).padStart(10)} ` +
+          `$${m.custoUsd.toFixed(4).padStart(8)} $${m.custoPorProduto.toFixed(4)}`,
+      );
+    }
+
+    console.log("\n── projecção por estrato (custo observado × população) ──");
+    let totalProj = 0;
+    let temTudo = true;
+    for (const m of r.metricasPorEstrato) {
+      if (m.projecaoUsd === null) {
+        temTudo = false;
+        console.log(`  ${m.estrato.padEnd(21)} sem projecção (população desconhecida ou estrato não corrido)`);
+        continue;
+      }
+      totalProj += m.projecaoUsd;
+      console.log(
+        `  ${m.estrato.padEnd(21)} ${String(m.elegiveis).padStart(6)} elegíveis × ` +
+          `$${m.custoPorProduto.toFixed(4)} = $${m.projecaoUsd.toFixed(2)}`,
+      );
+    }
+    console.log(`  ${"TOTAL".padEnd(21)} $${totalProj.toFixed(2)}${temTudo ? "" : "   (parcial — ver linhas acima)"}`);
+    console.log("  Projecção com o custo POR ESTRATO desta corrida, não com a média global:");
+    console.log("  os três estratos não custam o mesmo por produto.");
+  }
+
   console.log("\n── custo ──────────────────────────────────────────");
   console.log(`  chamadas: ${r.chamadasProposta} proposta + ${r.chamadasVerificacao} verificação`);
   console.log(`  tokens: in ${r.usage.inputTokens} · out ${r.usage.outputTokens}`);
@@ -229,8 +275,9 @@ async function main() {
   }
   if (r.residualAnalisado > 0) {
     const por100 = (r.custoEstimadoUsd / r.residualAnalisado) * 100;
-    console.log(`  por 100 produtos: $${por100.toFixed(2)}`);
-    console.log(`  extrapolado a 18 952 elegíveis: $${((por100 / 100) * 18952).toFixed(0)}`);
+    console.log(`  por 100 produtos: $${por100.toFixed(2)}  (média sobre os estratos que correram)`);
+    console.log("  A extrapolação que vale é a da secção 'projecção por estrato' acima:");
+    console.log("  esta média só se aplica a uma população com a mesma mistura de estratos.");
   }
 
   await prisma.$disconnect();

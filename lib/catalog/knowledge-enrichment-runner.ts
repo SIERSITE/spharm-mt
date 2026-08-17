@@ -32,12 +32,16 @@ import {
   KNOWLEDGE_MODEL,
   KNOWLEDGE_VERSION,
   TAMANHO_LOTE,
+  alvoParaProduto,
   avaliarGate,
   chaveCache,
   classificarLote,
+  classificarUtilizacoesLote,
   compararPassagens,
   precisaVerificacao,
   verificarLote,
+  verificarUtilizacoesLote,
+  type AlvoPedido,
   type Criterios,
   type Decisao,
   type KnowledgeResult,
@@ -145,10 +149,14 @@ export type LinhaRelatorio = {
   cnp: number;
   designacao: string;
   estrato: Estrato;
+  /** O que foi pedido ao modelo para este produto. */
+  alvo: AlvoPedido;
   estadoAtual: string;
   proposta: string;
   utilizacoes: string[];
   decisao: Decisao;
+  /** Discordância forte num produto já classificado. Nunca escrita. */
+  anomalia: string | null;
   motivo: string;
   criterios: Criterios | null;
   confidence: number;
@@ -156,6 +164,34 @@ export type LinhaRelatorio = {
   verificado: boolean;
   /** true quando a proposta e a verificação divergiram. */
   discordancia: boolean;
+};
+
+type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+
+/**
+ * Métricas de um estrato. O global escondia o que interessa: os três
+ * estratos têm custos por produto diferentes — pedidos diferentes,
+ * verificações diferentes, taxas de aplicação diferentes — e uma média
+ * sobre os três não projecta nenhum deles.
+ */
+export type MetricasEstrato = {
+  estrato: Estrato;
+  alvo: AlvoPedido;
+  produtos: number;
+  apply: number;
+  review: number;
+  skip: number;
+  anomalias: number;
+  chamadasProposta: number;
+  chamadasVerificacao: number;
+  usage: Usage;
+  custoUsd: number;
+  /** `custoUsd / produtos`. Zero quando o estrato não correu. */
+  custoPorProduto: number;
+  /** População do estrato na base, de `sqlContagem`. Null fora do canary. */
+  elegiveis: number | null;
+  /** `custoPorProduto × elegiveis` — a projecção que interessa. */
+  projecaoUsd: number | null;
 };
 
 export type RunnerResumo = {
@@ -178,6 +214,10 @@ export type RunnerResumo = {
   apply: number;
   review: number;
   skip: number;
+  /** Discordâncias fortes em produtos já classificados. Nunca escritas. */
+  anomalias: number;
+  /** Uma entrada por estrato que correu. */
+  metricasPorEstrato: MetricasEstrato[];
   categoriasEscritas: number;
   productTypesEscritos: number;
   utilizacoesEscritas: number;
@@ -315,11 +355,17 @@ export async function runKnowledgeEnrichment(
      */
     classificar?: typeof classificarLote;
     verificar?: typeof verificarLote;
+    classificarUtilizacoes?: typeof classificarUtilizacoesLote;
+    verificarUtilizacoes?: typeof verificarUtilizacoesLote;
   } = {},
 ): Promise<RunnerResumo> {
   const dryRun = opts.dryRun ?? false;
   const classificar = opts.classificar ?? classificarLote;
   const verificar = opts.verificar ?? verificarLote;
+  // Quem injecta só `classificar` num teste continua a ter um duplo para
+  // o caminho de utilizações — senão o teste tocaria a rede.
+  const classificarUtil = opts.classificarUtilizacoes ?? opts.classificar ?? classificarUtilizacoesLote;
+  const verificarUtil = opts.verificarUtilizacoes ?? opts.verificar ?? verificarUtilizacoesLote;
 
   let quotasCanary: QuotaEstrato[] | null = null;
   let residual: LinhaResidual[];
@@ -349,6 +395,8 @@ export async function runKnowledgeEnrichment(
     apply: 0,
     review: 0,
     skip: 0,
+    anomalias: 0,
+    metricasPorEstrato: [],
     categoriasEscritas: 0,
     productTypesEscritos: 0,
     utilizacoesEscritas: 0,
@@ -384,24 +432,91 @@ export async function runKnowledgeEnrichment(
     resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
   };
 
+  // Métricas por estrato, criadas à medida que cada um é tocado.
+  const metricas = new Map<Estrato, MetricasEstrato>();
+  const elegiveisPorEstrato = new Map<Estrato, number>(
+    (quotasCanary ?? []).map((q) => [q.estrato, q.elegiveis]),
+  );
+  const metrica = (estrato: Estrato): MetricasEstrato => {
+    let m = metricas.get(estrato);
+    if (!m) {
+      m = {
+        estrato,
+        alvo: estrato === "SEM_UTILIZACOES" ? "UTILIZACOES" : "CLASSIFICACAO",
+        produtos: 0,
+        apply: 0,
+        review: 0,
+        skip: 0,
+        anomalias: 0,
+        chamadasProposta: 0,
+        chamadasVerificacao: 0,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        custoUsd: 0,
+        custoPorProduto: 0,
+        elegiveis: elegiveisPorEstrato.get(estrato) ?? null,
+        projecaoUsd: null,
+      };
+      metricas.set(estrato, m);
+    }
+    return m;
+  };
+
   // Atingido o tecto, não sai mais nenhuma chamada — nem a verificação
   // de um lote já proposto. O custo é reavaliado a cada resposta, por
   // isso "imediatamente" quer dizer: na primeira fronteira depois de o
   // tecto ser ultrapassado, nunca um lote inteiro depois.
   const tectoAtingido = () => !!opts.tectoUsd && resumo.custoEstimadoUsd >= opts.tectoUsd;
 
-  for (let i = 0; i < residual.length; i += TAMANHO_LOTE) {
+  // ── Lotes homogéneos por estrato ────────────────────────────────────
+  //
+  // Duas razões, e as duas importam:
+  //
+  //  1. O prefixo cacheado difere entre o pedido de classificação e o de
+  //     utilizações. Alternar entre eles no mesmo lote paga a escrita de
+  //     cache de cada vez.
+  //  2. Sem lotes homogéneos não há como atribuir tokens a um estrato: a
+  //     resposta traz um `usage` por chamada, não por produto. Um lote
+  //     misto só permitiria repartir por estimativa — e uma projecção de
+  //     custo construída sobre uma estimativa não vale mais que um
+  //     palpite.
+  const porEstratoFila = new Map<Estrato, LinhaResidual[]>();
+  for (const l of residual) {
+    const fila = porEstratoFila.get(l.estrato) ?? [];
+    fila.push(l);
+    porEstratoFila.set(l.estrato, fila);
+  }
+  const lotes: LinhaResidual[][] = [];
+  for (const fila of porEstratoFila.values()) {
+    for (let i = 0; i < fila.length; i += TAMANHO_LOTE) lotes.push(fila.slice(i, i + TAMANHO_LOTE));
+  }
+
+  let processados = 0;
+  for (const lote of lotes) {
     if (tectoAtingido()) {
       resumo.cortadoPorTecto = true;
       break;
     }
 
-    const lote = residual.slice(i, i + TAMANHO_LOTE);
+    const estratoLote = lote[0]!.estrato;
+    const m = metrica(estratoLote);
+    // O alvo é do produto, não do estrato — mas num lote homogéneo são a
+    // mesma coisa, e é o do produto que o gate vai voltar a derivar.
+    const alvo = alvoParaProduto({ subcategoria: lote[0]!.subcategoriaAtual });
+
+    const somaLocal = (u: RunnerResumo["usage"]) => {
+      somaUsage(u);
+      m.usage.inputTokens += u.inputTokens;
+      m.usage.outputTokens += u.outputTokens;
+      m.usage.cacheReadTokens += u.cacheReadTokens;
+      m.usage.cacheWriteTokens += u.cacheWriteTokens;
+      m.custoUsd = estimarCusto(m.usage);
+    };
 
     // ── Passagem 1: proposta ────────────────────────────────────────
-    const p1 = await classificar(lote);
+    const p1 = alvo === "UTILIZACOES" ? await classificarUtil(lote) : await classificar(lote);
     resumo.chamadasProposta++;
-    somaUsage(p1.usage);
+    m.chamadasProposta++;
+    somaLocal(p1.usage);
     resumo.propostasValidas += p1.resultados.length;
 
     // ── Passagem 2: verificação cega, só para o que a exige ─────────
@@ -413,9 +528,13 @@ export async function runKnowledgeEnrichment(
     const verificacoes = new Map<number, KnowledgeResult>();
     if (carecemVerificacao.length > 0 && !tectoAtingido()) {
       const cnpsV = new Set(carecemVerificacao.map((r) => r.cnp));
-      const p2 = await verificar(lote.filter((l) => cnpsV.has(l.cnp)));
+      const paraVerificar = lote.filter((l) => cnpsV.has(l.cnp));
+      const p2 = alvo === "UTILIZACOES"
+        ? await verificarUtil(paraVerificar)
+        : await verificar(paraVerificar);
       resumo.chamadasVerificacao++;
-      somaUsage(p2.usage);
+      m.chamadasVerificacao++;
+      somaLocal(p2.usage);
       for (const v of p2.resultados) verificacoes.set(v.cnp, v);
     } else if (carecemVerificacao.length > 0) {
       resumo.cortadoPorTecto = true;
@@ -448,7 +567,14 @@ export async function runKnowledgeEnrichment(
         comparacao.utilizacoesConfirmadas.includes(u),
       );
 
-      resumo[gate.decisao === "APPLY" ? "apply" : gate.decisao === "REVIEW" ? "review" : "skip"]++;
+      const chave = gate.decisao === "APPLY" ? "apply" : gate.decisao === "REVIEW" ? "review" : "skip";
+      resumo[chave]++;
+      m[chave]++;
+      m.produtos++;
+      if (gate.anomalia) {
+        resumo.anomalias++;
+        m.anomalias++;
+      }
 
       const motivo = gate.decisao === "REVIEW" && exigeVerificacao && !comparacao.concorda
         ? comparacao.motivo
@@ -458,12 +584,16 @@ export async function runKnowledgeEnrichment(
         cnp: r.cnp,
         designacao: p.designacao,
         estrato: p.estrato,
+        alvo: gate.alvo,
         estadoAtual: p.subcategoriaAtual
           ? `${p.categoriaAtual} > ${p.subcategoriaAtual}`
           : "NÃO CLASSIFICADO",
-        proposta: r.categoria ? `${r.categoria} > ${r.subcategoria}` : "(nenhuma)",
+        proposta: gate.alvo === "UTILIZACOES"
+          ? "(classificação não pedida)"
+          : r.categoria ? `${r.categoria} > ${r.subcategoria}` : "(nenhuma)",
         utilizacoes: utilizacoesFinais,
         decisao: gate.decisao,
+        anomalia: gate.anomalia,
         motivo,
         criterios: gate.criterios,
         confidence: r.confidence,
@@ -554,10 +684,21 @@ export async function runKnowledgeEnrichment(
       await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo);
     }
 
-    opts.onProgress?.(Math.min(i + TAMANHO_LOTE, residual.length), residual.length);
+    processados += lote.length;
+    opts.onProgress?.(processados, residual.length);
   }
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
+
+  // Projecção por estrato, com o custo OBSERVADO de cada um. Uma média
+  // global multiplicada pela população total dava um número redondo e
+  // errado: o estrato de utilizações custa por produto uma fracção do de
+  // classificação, e são de tamanhos muito diferentes na base.
+  for (const m of metricas.values()) {
+    m.custoPorProduto = m.produtos > 0 ? m.custoUsd / m.produtos : 0;
+    m.projecaoUsd = m.elegiveis !== null && m.produtos > 0 ? m.custoPorProduto * m.elegiveis : null;
+  }
+  resumo.metricasPorEstrato = [...metricas.values()];
   return resumo;
 }
 

@@ -29,7 +29,9 @@ import {
   LIMIAR_PERSISTENCIA,
   MAX_RETENTATIVAS,
   TIMEOUT_MS,
+  alvoParaProduto,
   avaliarGate,
+  validarResultadoUtilizacoes,
   chaveCache,
   compararPassagens,
   deveRepetir,
@@ -135,8 +137,14 @@ const base: KnowledgeResult = validarResultado(cru(), LOTE)!;
 }
 {
   const d = avaliarGate(base, ESPECIFICO);
-  check(!d.gravarCategoria, "produto JÁ específico: NÃO escreve, mesmo com confiança 0.95");
-  check(d.decisao === "SKIP", "…e não vai para revisão — já está resolvido");
+  check(!d.gravarCategoria, "produto JÁ específico: NÃO escreve categoria, mesmo com confiança 0.95");
+  // MUDANÇA DELIBERADA. Antes isto era SKIP e não escrevia NADA — nem as
+  // utilizações, que eram a única coisa que faltava e a única que o gate
+  // teria autorizado. O canary pagou 35 destes a preço de classificação
+  // completa com verificação em duas passagens, para não escrever nada.
+  // Agora o alvo é UTILIZACOES e o que se escreve são só as etiquetas.
+  check(d.alvo === "UTILIZACOES", "…o alvo passa a ser só utilizações");
+  check(d.decisao === "APPLY" && d.utilizacoes.length > 0, "…e as utilizações são aplicadas");
 }
 {
   // Confiança máxima e evidência forte não compram o direito de sobrepor.
@@ -253,6 +261,108 @@ console.log("\n=== gate: a confiança do modelo não é prova suficiente ===");
   const d = avaliarGate(base, SEM_CLASSIF);
   const todos = Object.values(d.criterios).every(Boolean);
   check(d.decisao === "APPLY" && todos, "APPLY exige TODOS os critérios");
+}
+
+console.log("\n=== alvo do pedido: não perguntar o que o gate nunca aplicaria ===");
+{
+  check(alvoParaProduto({ subcategoria: null }) === "CLASSIFICACAO", "sem subcategoria → classificação");
+  check(alvoParaProduto({ subcategoria: "Outros Medicamentos" }) === "CLASSIFICACAO", "em 'Outros' → classificação");
+  check(alvoParaProduto({ subcategoria: "Diabetes" }) === "UTILIZACOES", "N2 específica → só utilizações");
+  // A mesma condição que o gate usa para a não-degradação. Se as duas
+  // divergissem, voltávamos a pedir o que não se pode aplicar.
+  check(
+    avaliarGate(base, ESPECIFICO).alvo === alvoParaProduto({ subcategoria: ESPECIFICO.subcategoria }),
+    "o alvo do gate é o mesmo que alvoParaProduto — não há duas verdades",
+  );
+}
+{
+  const so = validarResultadoUtilizacoes(
+    { cnp: 1234567, utilizacoes: ["diabetes", "inventada"], confidence: 0.95,
+      evidenceType: "MARCA_CONHECIDA", categoriaProvavel: "MEDICAMENTOS", rationale: "x" },
+    LOTE,
+  );
+  check(so?.categoria === null && so?.subcategoria === null,
+    "resultado de utilizações NUNCA traz categoria — nem por engano poderia ser escrita");
+  check(so?.productType === null, "…nem productType");
+  check(so?.utilizacoes.join() === "diabetes", "…e os slugs continuam filtrados pelo vocabulário");
+  check(so?.sugestaoCategoria === "MEDICAMENTOS", "…a categoria provável é guardada à parte");
+  const fora = validarResultadoUtilizacoes(
+    { cnp: 1234567, utilizacoes: [], confidence: 0.9, evidenceType: "MARCA_CONHECIDA",
+      categoriaProvavel: "FARMÁCIA GERAL", rationale: "x" },
+    LOTE,
+  );
+  check(fora?.sugestaoCategoria === null, "categoria provável fora dos níveis 1 canónicos é descartada");
+}
+{
+  const util = { ...base, categoria: null, subcategoria: null, productType: null,
+    alvo: "UTILIZACOES" as const, utilizacoes: ["diabetes"] };
+  const d = avaliarGate(util, ESPECIFICO);
+  check(d.decisao === "APPLY" && !d.gravarCategoria && !d.gravarProductType,
+    "APPLY de utilizações não escreve classificação nem productType");
+  check(d.utilizacoes.join() === "diabetes", "…escreve as utilizações");
+  check(d.criterios.semConflito, "…e semConflito é verdade porque não há classificação a colidir");
+}
+{
+  const vazio = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const, utilizacoes: [] };
+  const d = avaliarGate(vazio, ESPECIFICO);
+  check(d.decisao === "SKIP", "sem utilizações seguras é SKIP, não REVIEW — não há nada a decidir");
+  check(d.utilizacoes.length === 0, "…e não escreve nada");
+}
+{
+  const baixa = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const,
+    confidence: 0.5, utilizacoes: ["diabetes"] };
+  const d = avaliarGate(baixa, ESPECIFICO);
+  check(d.decisao === "REVIEW" && d.utilizacoes.length === 0,
+    "o limiar 0.85 continua a valer no caminho de utilizações");
+}
+{
+  const evid = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const,
+    evidenceType: "CATEGORIA_PRODUTO" as const, utilizacoes: ["diabetes"] };
+  const d = avaliarGate(evid, ESPECIFICO);
+  check(d.decisao === "REVIEW", "CATEGORIA_PRODUTO continua a não autorizar escrita");
+}
+
+console.log("\n=== anomalia: discordância forte é auditoria, nunca overwrite ===");
+{
+  const discorda = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const,
+    utilizacoes: ["diabetes"], sugestaoCategoria: "DERMOCOSMÉTICA" };
+  const d = avaliarGate(discorda, ESPECIFICO);
+  check(d.anomalia !== null, "modelo põe o produto noutro nível 1 → anomalia registada");
+  check(d.decisao === "REVIEW", "…vai para revisão humana");
+  check(!d.gravarCategoria, "…e NÃO sobrepõe a classificação existente");
+  check(d.utilizacoes.length === 0,
+    "…nem escreve as utilizações: se ele acha que é outro produto, as etiquetas são de outro produto");
+  check(d.anomalia!.includes("DERMOCOSMÉTICA") && d.anomalia!.includes("MEDICAMENTOS"),
+    "…e a anomalia diz os dois lados", d.anomalia!);
+}
+{
+  const concorda = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const,
+    utilizacoes: ["diabetes"], sugestaoCategoria: "MEDICAMENTOS" };
+  const d = avaliarGate(concorda, ESPECIFICO);
+  check(d.anomalia === null && d.decisao === "APPLY", "concordar no nível 1 não levanta anomalia");
+}
+{
+  // O caminho defensivo: um resultado em forma de classificação que
+  // chegue a um produto já classificado. Antes era SKIP silencioso.
+  const d = avaliarGate({ ...base, categoria: "SUPLEMENTOS ALIMENTARES", subcategoria: "Vitaminas e Minerais" }, ESPECIFICO);
+  check(d.anomalia !== null && d.decisao === "REVIEW",
+    "resultado de classificação que discorda do nível 1 também levanta anomalia");
+}
+
+console.log("\n=== comparação de passagens no caminho de utilizações ===");
+{
+  const p = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const, utilizacoes: ["diabetes", "dor-e-febre"] };
+  const q = { ...p, utilizacoes: ["diabetes"] };
+  const v = compararPassagens(p, q);
+  check(v.concorda, "interseção não vazia → concordam");
+  check(v.utilizacoesConfirmadas.join() === "diabetes", "…e só a vista pelas duas sobrevive");
+}
+{
+  const p = { ...base, categoria: null, subcategoria: null, alvo: "UTILIZACOES" as const, utilizacoes: ["diabetes"] };
+  const q = { ...p, utilizacoes: ["tosse"] };
+  const v = compararPassagens(p, q);
+  check(!v.concorda,
+    "interseção vazia → NÃO concordam (dois null não são acordo sobre coisa nenhuma)");
 }
 
 console.log("\n=== segunda passagem: onde é exigida e como se compara ===");
@@ -591,6 +701,111 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     });
     check(r.quotasCanary === null, "corrida normal (sem canary) não inventa quotas");
   }
+}
+
+console.log("\n=== métricas e projecção por estrato ===");
+{
+  // Populações e custos DIFERENTES por estrato — é essa a razão de ser
+  // desta secção. Uma média global multiplicada pela população total
+  // daria um número redondo e errado.
+  const POP = { OUTROS_MEDICAMENTOS: 7000, NAO_CLASSIFICADO: 2500, SEM_UTILIZACOES: 9000 };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prisma: any = {
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      if (/from "Classificacao"/i.test(sql)) return [];
+      if (/from "Utilizacao"/i.test(sql)) return [];
+      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      const est: Estrato = /classificacaoNivel2Id" is null/.test(where)
+        ? "NAO_CLASSIFICADO"
+        : /c2\.nome ilike 'Outros %'/.test(where)
+        ? "OUTROS_MEDICAMENTOS"
+        : "SEM_UTILIZACOES";
+      if (/count\(\*\)/i.test(sql)) return [{ n: POP[est] }];
+      const n = Math.min(POP[est], Number(params[3] ?? 0));
+      const bases = { NAO_CLASSIFICADO: 3_000_000, OUTROS_MEDICAMENTOS: 4_000_000, SEM_UTILIZACOES: 5_000_000 };
+      return Array.from({ length: n }, (_, i) => ({
+        cnp: bases[est] + i,
+        designacao: `${est} ${i}`,
+        productType: null,
+        categoriaAtual: est === "NAO_CLASSIFICADO" ? null : "MEDICAMENTOS",
+        // Só o SEM_UTILIZACOES tem N2 específica — é o que o torna alvo
+        // de utilizações.
+        subcategoriaAtual: est === "SEM_UTILIZACOES" ? "Diabetes"
+          : est === "OUTROS_MEDICAMENTOS" ? "Outros Medicamentos" : null,
+        estrato: est,
+      }));
+    },
+    $executeRawUnsafe: async () => 0,
+    knowledgeEnrichmentCache: { upsert: async () => ({}) },
+  };
+
+  const resposta = (outPorProduto: number, alvo: "CLASSIFICACAO" | "UTILIZACOES") =>
+    async (produtos: { cnp: number }[]) => ({
+      resultados: produtos.map((p) => ({
+        ...base,
+        cnp: p.cnp,
+        alvo,
+        ...(alvo === "UTILIZACOES"
+          ? { categoria: null, subcategoria: null, productType: null, sugestaoCategoria: "MEDICAMENTOS" }
+          : {}),
+      })),
+      usage: {
+        inputTokens: 100 * produtos.length,
+        outputTokens: outPorProduto * produtos.length,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      },
+    });
+
+  const r = await runKnowledgeEnrichment(prisma, {
+    dryRun: true,
+    canary: QUOTAS_CANARY,
+    // O pedido de utilizações devolve MENOS output por produto: é essa a
+    // poupança que a projecção tem de conseguir ver.
+    classificar: resposta(400, "CLASSIFICACAO"),
+    verificar: resposta(400, "CLASSIFICACAO"),
+    classificarUtilizacoes: resposta(80, "UTILIZACOES"),
+    verificarUtilizacoes: resposta(80, "UTILIZACOES"),
+  });
+
+  const porEstrato = Object.fromEntries(r.metricasPorEstrato.map((m) => [m.estrato, m]));
+  check(r.metricasPorEstrato.length === 3, `os três estratos têm métricas (${r.metricasPorEstrato.length})`);
+  check(porEstrato.SEM_UTILIZACOES.alvo === "UTILIZACOES", "SEM_UTILIZACOES é servido pelo pedido de utilizações");
+  check(porEstrato.OUTROS_MEDICAMENTOS.alvo === "CLASSIFICACAO", "OUTROS_MEDICAMENTOS pelo de classificação");
+  check(porEstrato.NAO_CLASSIFICADO.alvo === "CLASSIFICACAO", "NAO_CLASSIFICADO pelo de classificação");
+
+  check(
+    porEstrato.SEM_UTILIZACOES.custoPorProduto < porEstrato.OUTROS_MEDICAMENTOS.custoPorProduto,
+    `utilizações custa menos por produto ($${porEstrato.SEM_UTILIZACOES.custoPorProduto.toFixed(5)} < ` +
+      `$${porEstrato.OUTROS_MEDICAMENTOS.custoPorProduto.toFixed(5)})`,
+  );
+  check(
+    porEstrato.SEM_UTILIZACOES.apply === 30,
+    `SEM_UTILIZACOES passa a ESCREVER (apply=${porEstrato.SEM_UTILIZACOES.apply}, era 0 em SKIP)`,
+  );
+
+  // Lotes homogéneos: sem isso não há atribuição de tokens por estrato.
+  const somaTokens = r.metricasPorEstrato.reduce((s, m) => s + m.usage.outputTokens, 0);
+  check(somaTokens === r.usage.outputTokens, "os tokens por estrato somam o total — nada se perde na atribuição");
+  const somaCusto = r.metricasPorEstrato.reduce((s, m) => s + m.custoUsd, 0);
+  check(Math.abs(somaCusto - r.custoEstimadoUsd) < 1e-9, "e o custo por estrato soma o custo global");
+
+  // Projecção com a população de cada estrato, não com a média global.
+  for (const m of r.metricasPorEstrato) {
+    check(m.elegiveis === POP[m.estrato], `${m.estrato} projecta sobre a sua população (${m.elegiveis})`);
+    check(
+      Math.abs((m.projecaoUsd ?? 0) - m.custoPorProduto * POP[m.estrato]) < 1e-9,
+      `${m.estrato}: projecção = custo/produto × população`,
+    );
+  }
+  const projTotal = r.metricasPorEstrato.reduce((s, m) => s + (m.projecaoUsd ?? 0), 0);
+  const mediaGlobal = (r.custoEstimadoUsd / r.residualAnalisado) * (POP.OUTROS_MEDICAMENTOS + POP.NAO_CLASSIFICADO + POP.SEM_UTILIZACOES);
+  check(
+    Math.abs(projTotal - mediaGlobal) > 1,
+    `a projecção por estrato difere da média global ($${projTotal.toFixed(0)} vs $${mediaGlobal.toFixed(0)}) — ` +
+      "é por isso que a média global não servia",
+  );
 }
 
 console.log("\n=== tecto de custo corta imediatamente ===");

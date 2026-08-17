@@ -226,6 +226,20 @@ export type KnowledgeResult = {
   confidence: number;
   evidenceType: EvidenceType;
   rationale: string;
+  /** Que pergunta deu origem a este resultado. */
+  alvo?: AlvoPedido;
+  /**
+   * SÓ em pedidos de utilizações: o nível 1 em que o modelo acha que o
+   * produto pertence.
+   *
+   * NUNCA é escrito. Existe para detectar discordância forte num produto
+   * já classificado — "isto é MEDICAMENTOS, não DERMOCOSMÉTICA" — e
+   * levantar um candidato a auditoria. Nível 1 e não nível 2 de propósito:
+   * uma divergência de nível 2 é quase sempre uma questão de arrumação da
+   * nossa taxonomia; uma de nível 1 é o produto estar na secção errada da
+   * loja.
+   */
+  sugestaoCategoria?: string | null;
 };
 
 export type ProdutoResidual = {
@@ -281,6 +295,43 @@ const SCHEMA = {
   additionalProperties: false,
 } as const;
 
+// ─── Alvo do pedido ───────────────────────────────────────────────────
+
+/**
+ * O que se pede ao modelo para um produto — e, por consequência, o que o
+ * gate pode sequer aplicar.
+ *
+ * O canary real expôs o desperdício: dos 100 produtos, 35 saíram em SKIP,
+ * e ~30 desses eram do estrato SEM_UTILIZACOES — produtos com uma
+ * subcategoria ESPECÍFICA a que só faltavam utilizações. A esses pedia-se
+ * uma classificação completa, pagava-se a verificação em duas passagens,
+ * e no fim o gate devolvia "já tem subcategoria específica — intocável" e
+ * não escrevia nada. Nem sequer as utilizações, que eram a única coisa
+ * que faltava e a única que o gate teria autorizado.
+ *
+ * Não era um gate mal calibrado: a não-degradação está certa. Era estar a
+ * fazer ao modelo a pergunta errada — uma cuja resposta nunca poderia ser
+ * usada.
+ */
+export type AlvoPedido =
+  /** Sem classificação ou em "Outros <X>": classificação + utilizações. */
+  | "CLASSIFICACAO"
+  /** Já tem N2 específica: só utilizações. A classificação não se toca. */
+  | "UTILIZACOES";
+
+/**
+ * Deriva o alvo do ESTADO DO PRODUTO, não do estrato da consulta.
+ *
+ * É a mesma condição que o gate usa para a não-degradação (`eraFallback`).
+ * Derivar do estado — e não de um rótulo passado ao lado — é o que
+ * impede o alvo e o gate de discordarem: se discordassem, voltaríamos a
+ * pedir o que não se pode aplicar.
+ */
+export function alvoParaProduto(atual: { subcategoria: string | null }): AlvoPedido {
+  const especifica = !!atual.subcategoria && !/^outros\b/i.test(atual.subcategoria);
+  return especifica ? "UTILIZACOES" : "CLASSIFICACAO";
+}
+
 // ─── Prompt ───────────────────────────────────────────────────────────
 
 /**
@@ -324,6 +375,144 @@ REGRAS
 6. Um medicamento veterinário é VETERINARIA, não MEDICAMENTO. Um suplemento em cápsulas é SUPLEMENTO, não MEDICAMENTO.
 
 Devolves um resultado por produto de entrada, com o cnp exacto que recebeste.`;
+
+// ─── Pedido só de utilizações ─────────────────────────────────────────
+
+/**
+ * Esquema reduzido. Sem productType, sem forma, sem subcategoria: nada
+ * disso seria escrito para um produto já classificado, e cada campo que
+ * não se pede é output que não se paga.
+ */
+const SCHEMA_UTILIZACOES = {
+  type: "object",
+  properties: {
+    resultados: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          cnp: { type: "integer", description: "O cnp exacto do produto de entrada." },
+          utilizacoes: {
+            type: "array",
+            items: { type: "string" },
+            description: "Slugs do vocabulário. Lista vazia se nenhuma for segura.",
+          },
+          confidence: { type: "number", description: "0 a 1. Confiança nas utilizações." },
+          evidenceType: {
+            type: "string",
+            enum: ["MARCA_CONHECIDA", "SUBSTANCIA_CONHECIDA", "CATEGORIA_PRODUTO", "DESCONHECIDO"],
+          },
+          categoriaProvavel: {
+            type: "string",
+            description:
+              "Nível 1 onde ESTE produto pertence, na tua opinião. Repete a categoria actual se concordas. Vazio se não reconheces o produto.",
+          },
+          rationale: { type: "string", description: "Uma frase: o que reconheceste." },
+        },
+        required: ["cnp", "utilizacoes", "confidence", "evidenceType", "categoriaProvavel", "rationale"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["resultados"],
+  additionalProperties: false,
+} as const;
+
+/**
+ * Vocabulário reduzido: utilizações + a lista de níveis 1 (26 nomes).
+ *
+ * A taxonomia completa — 26 níveis 1 com todos os filhos — não entra aqui
+ * porque não há subcategoria a escolher. Fica a lista de níveis 1 só para
+ * o `categoriaProvavel` poder ser comparado com o que temos.
+ */
+function construirVocabularioUtilizacoes(): string {
+  const niveis1 = CANONICAL_TAXONOMY.map((c) => `  - ${c.nivel1}`).join("\n");
+  const utilizacoes = UTILIZACOES.filter((u) => !u.descontinuada)
+    .map((u) => `  ${u.slug} — ${u.nome}: ${u.descricao}`)
+    .join("\n");
+  return `# CATEGORIAS (nível 1)\n\n${niveis1}\n\n# VOCABULÁRIO DE UTILIZAÇÕES (slug — nome: descrição)\n\n${utilizacoes}`;
+}
+
+const SISTEMA_UTILIZACOES = `És um farmacêutico a etiquetar produtos do catálogo de uma farmácia portuguesa com AQUILO PARA QUE SERVEM, para quem atende encontrar o que precisa.
+
+Estes produtos JÁ ESTÃO CLASSIFICADOS e a classificação NÃO se altera. Recebes a categoria e a subcategoria actuais como contexto — usa-as, não as questiones por rotina.
+
+REGRAS
+
+1. Devolve apenas utilizações do vocabulário dado, com o slug exacto. Um slug que não exista é descartado pelo sistema.
+
+2. Utilizações só quando o produto serve mesmo para isso e alguém o procuraria assim. Lista vazia é comum e correcta: muitos produtos não têm no vocabulário um termo que lhes assente, e forçar um é pior que não pôr nenhum.
+
+3. confidence é a tua confiança NAS UTILIZAÇÕES que indicas. Abaixo de 0.85 nada é gravado. Não inflaciones: uma utilização errada manda alguém à prateleira errada com um problema de saúde.
+
+4. categoriaProvavel: o nível 1 onde ESTE produto pertence, na tua opinião. Se concordas com a categoria actual, repete-a. Só a indica diferente se tiveres a certeza de que o produto está na secção errada — isso levanta uma revisão humana, não altera nada automaticamente.
+
+5. Se não reconheces o produto: evidenceType "DESCONHECIDO", lista de utilizações vazia. É uma resposta aceite.
+
+Devolves um resultado por produto, com o cnp exacto que recebeste.`;
+
+function construirLoteUtilizacoes(produtos: ProdutoResidual[]): string {
+  const linhas = produtos.map((p) => {
+    const partes = [`cnp=${p.cnp}`, `designacao=${JSON.stringify(p.designacao)}`];
+    if (p.categoriaAtual) partes.push(`categoria=${JSON.stringify(p.categoriaAtual)}`);
+    if (p.subcategoriaAtual) partes.push(`subcategoria=${JSON.stringify(p.subcategoriaAtual)}`);
+    return `- ${partes.join(" ")}`;
+  });
+  return `Que utilizações servem estes ${produtos.length} produtos?\n\n${linhas.join("\n")}`;
+}
+
+const NIVEIS1_CANONICOS: ReadonlySet<string> = new Set(CANONICAL_TAXONOMY.map((c) => c.nivel1));
+
+/**
+ * Valida um resultado de pedido de utilizações.
+ *
+ * `categoria`/`subcategoria` ficam SEMPRE null: este pedido não propõe
+ * classificação nenhuma, e deixá-las nulas é o que garante que nem por
+ * engano o gate as poderia escrever.
+ */
+export function validarResultadoUtilizacoes(
+  cru: unknown,
+  cnpsEsperados: ReadonlySet<number>,
+): KnowledgeResult | null {
+  if (!cru || typeof cru !== "object") return null;
+  const r = cru as Record<string, unknown>;
+
+  const cnp = typeof r.cnp === "number" ? r.cnp : Number(r.cnp);
+  if (!Number.isFinite(cnp) || !cnpsEsperados.has(cnp)) return null;
+
+  const confidence = typeof r.confidence === "number" ? r.confidence : 0;
+  const evidenceType = (
+    ["MARCA_CONHECIDA", "SUBSTANCIA_CONHECIDA", "CATEGORIA_PRODUTO", "DESCONHECIDO"] as const
+  ).includes(r.evidenceType as EvidenceType)
+    ? (r.evidenceType as EvidenceType)
+    : "DESCONHECIDO";
+
+  const utilizacoes = Array.isArray(r.utilizacoes)
+    ? [...new Set(
+        r.utilizacoes
+          .filter((u): u is string => typeof u === "string")
+          .map((u) => u.trim())
+          .filter((u) => UTILIZACOES_POR_SLUG.has(u)),
+      )]
+    : [];
+
+  const bruta = typeof r.categoriaProvavel === "string" ? r.categoriaProvavel.trim() : "";
+  const sugestaoCategoria = bruta && NIVEIS1_CANONICOS.has(bruta) ? bruta : null;
+
+  return {
+    cnp,
+    productType: null,
+    categoria: null,
+    subcategoria: null,
+    forma: null,
+    utilizacoes,
+    confidence: Math.max(0, Math.min(1, confidence)),
+    evidenceType,
+    rationale: typeof r.rationale === "string" ? r.rationale.trim().slice(0, 400) : "",
+    alvo: "UTILIZACOES",
+    sugestaoCategoria,
+  };
+}
 
 function construirLote(produtos: ProdutoResidual[]): string {
   const linhas = produtos.map((p) => {
@@ -427,6 +616,114 @@ function cliente(): Anthropic {
 }
 
 /**
+ * Extrai e valida os resultados de uma resposta. Partilhado pelos dois
+ * tipos de pedido — a diferença entre eles é o prompt e o esquema, não a
+ * forma de ler o que volta.
+ */
+function lerResultados(
+  resposta: Anthropic.Message,
+  esperados: ReadonlySet<number>,
+  validar: (cru: unknown, esperados: ReadonlySet<number>) => KnowledgeResult | null,
+): KnowledgeResult[] {
+  // Uma recusa devolve HTTP 200 com content vazio ou parcial. Ler
+  // content[0] às cegas rebentava aqui.
+  if (resposta.stop_reason === "refusal") return [];
+
+  const texto = resposta.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  if (!texto.trim()) return [];
+
+  let cru: unknown;
+  try {
+    cru = JSON.parse(texto);
+  } catch {
+    // Truncagem por max_tokens ou saída malformada: perde-se o lote, não
+    // a corrida. Quem chama volta a tentar com lote menor.
+    return [];
+  }
+
+  const lista = (cru as { resultados?: unknown[] })?.resultados;
+  if (!Array.isArray(lista)) return [];
+
+  const vistos = new Set<number>();
+  const out: KnowledgeResult[] = [];
+  for (const item of lista) {
+    const v = validar(item, esperados);
+    // Uma segunda linha para o mesmo cnp é ruído; fica a primeira.
+    if (v && !vistos.has(v.cnp)) {
+      vistos.add(v.cnp);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+function usageDe(resposta: Anthropic.Message): LoteResposta["usage"] {
+  return {
+    inputTokens: resposta.usage.input_tokens ?? 0,
+    outputTokens: resposta.usage.output_tokens ?? 0,
+    cacheReadTokens: resposta.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: resposta.usage.cache_creation_input_tokens ?? 0,
+  };
+}
+
+/**
+ * Pede SÓ utilizações, para produtos que já têm classificação específica.
+ *
+ * Prompt mais curto, vocabulário sem a taxonomia completa e esquema com
+ * 6 campos em vez de 9 — o output por produto é uma fracção do outro
+ * pedido, e é o output que domina a factura.
+ *
+ * O prefixo cacheado é DIFERENTE do de `classificarLote`, portanto os
+ * lotes têm de ir agrupados por tipo de pedido: alternar entre os dois
+ * paga a escrita de cache de cada vez. O runner agrupa por estrato, que é
+ * o que garante isso.
+ */
+export async function classificarUtilizacoesLote(
+  produtos: ProdutoResidual[],
+  opts: { model?: string; effort?: "low" | "medium" | "high"; sistema?: string } = {},
+): Promise<LoteResposta> {
+  if (produtos.length === 0) {
+    return { resultados: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+  }
+  const modelo = opts.model ? resolverModelo(opts.model) : KNOWLEDGE_MODEL;
+
+  const resposta = await comRetentativa(() => cliente().messages.create({
+    model: modelo,
+    // Bem menos que os 16000 do outro pedido: 6 campos por produto, sem
+    // rationale longo. Um tecto folgado ainda assim, para não truncar.
+    max_tokens: 8000,
+    system: [
+      { type: "text", text: opts.sistema ?? SISTEMA_UTILIZACOES },
+      { type: "text", text: construirVocabularioUtilizacoes(), cache_control: { type: "ephemeral" } },
+    ],
+    output_config: {
+      effort: opts.effort ?? "medium",
+      format: { type: "json_schema", schema: SCHEMA_UTILIZACOES as unknown as Record<string, unknown> },
+    },
+    messages: [{ role: "user", content: construirLoteUtilizacoes(produtos) }],
+  }));
+
+  return {
+    resultados: lerResultados(resposta, new Set(produtos.map((p) => p.cnp)), validarResultadoUtilizacoes),
+    usage: usageDe(resposta),
+  };
+}
+
+/**
+ * Segunda passagem de um pedido de utilizações. Mesmo esquema reduzido,
+ * enquadramento invertido — identificar o produto antes de etiquetar.
+ */
+export async function verificarUtilizacoesLote(
+  produtos: ProdutoResidual[],
+  opts: { model?: string; effort?: "low" | "medium" | "high" } = {},
+): Promise<LoteResposta> {
+  return classificarUtilizacoesLote(produtos, { ...opts, sistema: SISTEMA_VERIFICADOR_UTILIZACOES });
+}
+
+/**
  * Classifica um lote. Devolve só resultados que passaram a validação —
  * um lote pode devolver menos linhas do que entrou, e isso é normal.
  *
@@ -462,50 +759,11 @@ export async function classificarLote(
     messages: [{ role: "user", content: construirLote(produtos) }],
   }));
 
-  const usage = {
-    inputTokens: resposta.usage.input_tokens ?? 0,
-    outputTokens: resposta.usage.output_tokens ?? 0,
-    cacheReadTokens: resposta.usage.cache_read_input_tokens ?? 0,
-    cacheWriteTokens: resposta.usage.cache_creation_input_tokens ?? 0,
-  };
-
-  // Uma recusa devolve HTTP 200 com content vazio ou parcial. Ler
-  // content[0] às cegas rebentava aqui.
-  if (resposta.stop_reason === "refusal") {
-    return { resultados: [], usage };
-  }
-
-  const texto = resposta.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  if (!texto.trim()) return { resultados: [], usage };
-
-  let cru: unknown;
-  try {
-    cru = JSON.parse(texto);
-  } catch {
-    // Truncagem por max_tokens ou saída malformada: perde-se o lote, não
-    // a corrida. Quem chama volta a tentar com lote menor.
-    return { resultados: [], usage };
-  }
-
   const esperados = new Set(produtos.map((p) => p.cnp));
-  const lista = (cru as { resultados?: unknown[] })?.resultados;
-  if (!Array.isArray(lista)) return { resultados: [], usage };
-
-  const vistos = new Set<number>();
-  const resultados: KnowledgeResult[] = [];
-  for (const item of lista) {
-    const v = validarResultado(item, esperados);
-    // Uma segunda linha para o mesmo cnp é ruído; fica a primeira.
-    if (v && !vistos.has(v.cnp)) {
-      vistos.add(v.cnp);
-      resultados.push(v);
-    }
-  }
-
-  return { resultados, usage };
+  const resultados = lerResultados(resposta, esperados, validarResultado).map(
+    (r): KnowledgeResult => ({ ...r, alvo: "CLASSIFICACAO" }),
+  );
+  return { resultados, usage: usageDe(resposta) };
 }
 
 // ─── Decisão de escrita ───────────────────────────────────────────────
@@ -558,12 +816,19 @@ export type Criterios = {
 
 export type DecisaoEscrita = {
   decisao: Decisao;
+  /** O que foi pedido — e portanto o que pode ser escrito. */
+  alvo: AlvoPedido;
   criterios: Criterios;
-  /** Grava categoria/subcategoria? Só true quando decisao === "APPLY". */
+  /** Grava categoria/subcategoria? Nunca true quando alvo é UTILIZACOES. */
   gravarCategoria: boolean;
   /** Grava productType? Só quando falta no produto. */
   gravarProductType: boolean;
   utilizacoes: string[];
+  /**
+   * Discordância forte num produto já classificado: o modelo põe-no
+   * noutro nível 1. NUNCA é escrita — é um candidato a auditoria humana.
+   */
+  anomalia: string | null;
   motivo: string;
 };
 
@@ -603,11 +868,18 @@ export function avaliarGate(
 ): DecisaoEscrita {
   const eraFallback = !atual.subcategoria || /^outros\b/i.test(atual.subcategoria);
   const novoEspecifico = !!r.subcategoria && !/^outros\b/i.test(r.subcategoria);
+  const alvo: AlvoPedido = alvoParaProduto(atual);
 
   const criterios: Criterios = {
-    vocabulario: !!r.categoria && !!r.subcategoria,
+    // Para um pedido de utilizações, o vocabulário fechado que interessa
+    // é o das utilizações — não há categoria a validar porque não há
+    // categoria proposta.
+    vocabulario: alvo === "UTILIZACOES" ? r.utilizacoes.length > 0 : !!r.categoria && !!r.subcategoria,
     evidencia: EVIDENCIA_PERMITIDA.has(r.evidenceType),
-    semConflito: eraFallback,
+    // Num pedido de utilizações não há conflito possível: a classificação
+    // não é tocada. O critério continua a existir e a ser reportado — o
+    // que muda é que a pergunta feita ao modelo já não pode colidir.
+    semConflito: alvo === "UTILIZACOES" ? true : eraFallback,
     confianca: r.confidence >= LIMIAR_PERSISTENCIA,
     verificado: verificacao.concorda,
   };
@@ -617,11 +889,52 @@ export function avaliarGate(
     : [];
 
   const base = {
+    alvo,
     criterios,
     gravarCategoria: false,
     gravarProductType: false,
     utilizacoes: [] as string[],
+    anomalia: null as string | null,
   };
+
+  // ── Produto já classificado: só utilizações, e uma anomalia é revisão ──
+  if (alvo === "UTILIZACOES") {
+    // Discordância forte: o modelo põe o produto noutra secção da loja.
+    // Não se escreve nada — nem a classificação (nunca foi pedida) nem as
+    // utilizações, porque se ele acha que é outro produto, as etiquetas
+    // que sugeriu são de outro produto.
+    // Duas origens para o mesmo sinal: `sugestaoCategoria` (pedido de
+    // utilizações) e `categoria` (resultado em forma de classificação que
+    // chegue aqui por outro caminho). Qualquer uma que ponha o produto
+    // noutro nível 1 conta — perder a segunda deixaria a discordância
+    // passar em silêncio, que era o comportamento antigo.
+    const propostaN1 = r.sugestaoCategoria ?? r.categoria;
+    const anomalia =
+      propostaN1 && atual.categoria && propostaN1 !== atual.categoria
+        ? `modelo coloca em "${propostaN1}", base tem "${atual.categoria}"`
+        : null;
+    if (anomalia) {
+      return { ...base, decisao: "REVIEW", anomalia, motivo: `anomalia de classificação: ${anomalia}` };
+    }
+    if (r.utilizacoes.length === 0) {
+      return { ...base, decisao: "SKIP", motivo: "nenhuma utilização segura a acrescentar" };
+    }
+    const falhasU: string[] = [];
+    if (!criterios.evidencia) falhasU.push(`evidência ${r.evidenceType} não autoriza escrita`);
+    if (!criterios.confianca) falhasU.push(`confiança ${r.confidence.toFixed(2)} < ${LIMIAR_PERSISTENCIA}`);
+    if (!criterios.verificado) falhasU.push("verificador discordou das utilizações");
+    if (falhasU.length > 0) return { ...base, decisao: "REVIEW", motivo: falhasU.join("; ") };
+
+    return {
+      ...base,
+      decisao: "APPLY",
+      // A classificação existente é intocável — este caminho nunca a
+      // escreve, e é por isso que o produto pôde entrar de todo.
+      gravarCategoria: false,
+      utilizacoes,
+      motivo: verificacao.aplicavel ? "utilizações verificadas" : "utilizações",
+    };
+  }
 
   // SKIP: não há trabalho a fazer. Distinto de REVIEW — não há nada
   // para um humano decidir, o produto já está resolvido ou a proposta
@@ -644,7 +957,7 @@ export function avaliarGate(
   }
 
   return {
-    criterios,
+    ...base,
     decisao: "APPLY",
     gravarCategoria: true,
     // Só quando falta. Um productType já decidido pela fase 1 não é
@@ -690,6 +1003,27 @@ REGRAS
 
 Devolves um resultado por produto, com o cnp exacto que recebeste.`;
 
+/**
+ * Verificador do pedido de utilizações. Mesmo princípio do outro: cego à
+ * proposta, e com a ordem de raciocínio invertida — identificar a
+ * substância antes de dizer para que serve.
+ */
+const SISTEMA_VERIFICADOR_UTILIZACOES = `És um farmacêutico a confirmar as etiquetas de utilização de produtos de uma farmácia portuguesa.
+
+Para cada produto, por esta ordem:
+1. O que é este produto? Identifica a substância activa ou a gama a partir do nome comercial.
+2. Que problema resolve a quem o compra?
+3. SÓ ENTÃO escolhe os slugs do vocabulário.
+
+REGRAS
+
+· Só slugs do vocabulário dado, exactos.
+· Se não identificas o produto no passo 1, para: evidenceType "DESCONHECIDO" e lista vazia. Não deduzas pela forma farmacêutica nem pela subcategoria que te é dada — "solução oral" e "Outros" não dizem para que serve.
+· A categoria e subcategoria que recebes são o que está na base HOJE. Não são a resposta certa por definição; se o produto não pertence ali, di-lo em categoriaProvavel.
+· confidence é a tua confiança nas utilizações que indicas.
+
+Devolves um resultado por produto, com o cnp exacto que recebeste.`;
+
 export type Verificacao = {
   cnp: number;
   concorda: boolean;
@@ -731,9 +1065,31 @@ export function compararPassagens(
     };
   }
 
+  const confirmadas = proposta.utilizacoes.filter((u) => verificacao.utilizacoes.includes(u));
+
+  // Num pedido de utilizações não há par (categoria, subcategoria) a
+  // comparar — os dois lados trazem null. O acordo é sobre as etiquetas:
+  // se a interseção é vazia, as duas passagens não concordaram em nada, e
+  // tratar isso como acordo (null === null) escreveria à mesma.
+  if (proposta.alvo === "UTILIZACOES") {
+    if (confirmadas.length === 0) {
+      return {
+        cnp: proposta.cnp,
+        concorda: false,
+        utilizacoesConfirmadas: [],
+        motivo: "as duas passagens não coincidiram em nenhuma utilização",
+      };
+    }
+    return {
+      cnp: proposta.cnp,
+      concorda: true,
+      utilizacoesConfirmadas: confirmadas,
+      motivo: "utilizações confirmadas pelas duas passagens",
+    };
+  }
+
   const mesmaCategoria = proposta.categoria === verificacao.categoria;
   const mesmaSubcategoria = proposta.subcategoria === verificacao.subcategoria;
-  const confirmadas = proposta.utilizacoes.filter((u) => verificacao.utilizacoes.includes(u));
 
   if (!mesmaCategoria || !mesmaSubcategoria) {
     return {
