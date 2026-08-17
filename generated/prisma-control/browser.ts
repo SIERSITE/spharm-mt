@@ -52,6 +52,21 @@ export type SyncRun = Prisma.SyncRunModel
  */
 export type CatalogoGlobal = Prisma.CatalogoGlobalModel
 /**
+ * Model CatalogoGlobalPromocao
+ * Rasto de auditoria das promoções ao catálogo global — uma linha por
+ * promoção que ACONTECEU, nunca actualizada nem apagada.
+ * 
+ * Porque não bastam as colunas do CatalogoGlobal: essas guardam a última
+ * promoção. Esta tabela guarda a sequência, que é o que responde à
+ * pergunta que se faz meses depois — «quem decidiu que este produto
+ * nacional é isto, e com que fundamento?».
+ * 
+ * Sem chave estrangeira para `CatalogoGlobal`, de propósito: um rasto de
+ * auditoria que desaparece quando alguém apaga a linha auditada não é um
+ * rasto de auditoria.
+ */
+export type CatalogoGlobalPromocao = Prisma.CatalogoGlobalPromocaoModel
+/**
  * Model CatalogoGlobalUtilizacao
  * Utilizações canónicas de um CNP. Slug do vocabulário fechado.
  */

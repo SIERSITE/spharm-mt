@@ -57,6 +57,7 @@ export const ModelName = {
   GlobalAdminTenant: 'GlobalAdminTenant',
   SyncRun: 'SyncRun',
   CatalogoGlobal: 'CatalogoGlobal',
+  CatalogoGlobalPromocao: 'CatalogoGlobalPromocao',
   CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
   CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
 } as const
@@ -182,11 +183,31 @@ export const CatalogoGlobalScalarFieldEnum = {
   verificado: 'verificado',
   tenantOrigem: 'tenantOrigem',
   propagadoDeCnp: 'propagadoDeCnp',
+  promovidoPor: 'promovidoPor',
+  promovidoEm: 'promovidoEm',
+  promovidoDeTenant: 'promovidoDeTenant',
+  promocaoMotivo: 'promocaoMotivo',
   criadoEm: 'criadoEm',
   actualizadoEm: 'actualizadoEm'
 } as const
 
 export type CatalogoGlobalScalarFieldEnum = (typeof CatalogoGlobalScalarFieldEnum)[keyof typeof CatalogoGlobalScalarFieldEnum]
+
+
+export const CatalogoGlobalPromocaoScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  origem: 'origem',
+  actor: 'actor',
+  tenantOrigem: 'tenantOrigem',
+  aprovador: 'aprovador',
+  motivo: 'motivo',
+  confidence: 'confidence',
+  versaoRegras: 'versaoRegras',
+  criadoEm: 'criadoEm'
+} as const
+
+export type CatalogoGlobalPromocaoScalarFieldEnum = (typeof CatalogoGlobalPromocaoScalarFieldEnum)[keyof typeof CatalogoGlobalPromocaoScalarFieldEnum]
 
 
 export const CatalogoGlobalUtilizacaoScalarFieldEnum = {

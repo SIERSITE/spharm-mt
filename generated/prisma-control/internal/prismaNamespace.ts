@@ -390,6 +390,7 @@ export const ModelName = {
   GlobalAdminTenant: 'GlobalAdminTenant',
   SyncRun: 'SyncRun',
   CatalogoGlobal: 'CatalogoGlobal',
+  CatalogoGlobalPromocao: 'CatalogoGlobalPromocao',
   CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
   CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
 } as const
@@ -407,7 +408,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "tenant" | "tenantEvent" | "globalAdmin" | "globalAdminTenant" | "syncRun" | "catalogoGlobal" | "catalogoGlobalUtilizacao" | "catalogoGlobalRevisao"
+    modelProps: "tenant" | "tenantEvent" | "globalAdmin" | "globalAdminTenant" | "syncRun" | "catalogoGlobal" | "catalogoGlobalPromocao" | "catalogoGlobalUtilizacao" | "catalogoGlobalRevisao"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -855,6 +856,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CatalogoGlobalPromocao: {
+      payload: Prisma.$CatalogoGlobalPromocaoPayload<ExtArgs>
+      fields: Prisma.CatalogoGlobalPromocaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoGlobalPromocaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoGlobalPromocaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoGlobalPromocaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoGlobalPromocaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoGlobalPromocaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoGlobalPromocaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoGlobalPromocaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoGlobalPromocaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoGlobalPromocaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        update: {
+          args: Prisma.CatalogoGlobalPromocaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoGlobalPromocaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoGlobalPromocaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoGlobalPromocaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoGlobalPromocaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalPromocaoPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoGlobalPromocaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoGlobalPromocao>
+        }
+        groupBy: {
+          args: Prisma.CatalogoGlobalPromocaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoGlobalPromocaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoGlobalPromocaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoGlobalPromocaoCountAggregateOutputType> | number
+        }
+      }
+    }
     CatalogoGlobalUtilizacao: {
       payload: Prisma.$CatalogoGlobalUtilizacaoPayload<ExtArgs>
       fields: Prisma.CatalogoGlobalUtilizacaoFieldRefs
@@ -1147,11 +1222,31 @@ export const CatalogoGlobalScalarFieldEnum = {
   verificado: 'verificado',
   tenantOrigem: 'tenantOrigem',
   propagadoDeCnp: 'propagadoDeCnp',
+  promovidoPor: 'promovidoPor',
+  promovidoEm: 'promovidoEm',
+  promovidoDeTenant: 'promovidoDeTenant',
+  promocaoMotivo: 'promocaoMotivo',
   criadoEm: 'criadoEm',
   actualizadoEm: 'actualizadoEm'
 } as const
 
 export type CatalogoGlobalScalarFieldEnum = (typeof CatalogoGlobalScalarFieldEnum)[keyof typeof CatalogoGlobalScalarFieldEnum]
+
+
+export const CatalogoGlobalPromocaoScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  origem: 'origem',
+  actor: 'actor',
+  tenantOrigem: 'tenantOrigem',
+  aprovador: 'aprovador',
+  motivo: 'motivo',
+  confidence: 'confidence',
+  versaoRegras: 'versaoRegras',
+  criadoEm: 'criadoEm'
+} as const
+
+export type CatalogoGlobalPromocaoScalarFieldEnum = (typeof CatalogoGlobalPromocaoScalarFieldEnum)[keyof typeof CatalogoGlobalPromocaoScalarFieldEnum]
 
 
 export const CatalogoGlobalUtilizacaoScalarFieldEnum = {
@@ -1431,6 +1526,7 @@ export type GlobalOmitConfig = {
   globalAdminTenant?: Prisma.GlobalAdminTenantOmit
   syncRun?: Prisma.SyncRunOmit
   catalogoGlobal?: Prisma.CatalogoGlobalOmit
+  catalogoGlobalPromocao?: Prisma.CatalogoGlobalPromocaoOmit
   catalogoGlobalUtilizacao?: Prisma.CatalogoGlobalUtilizacaoOmit
   catalogoGlobalRevisao?: Prisma.CatalogoGlobalRevisaoOmit
 }

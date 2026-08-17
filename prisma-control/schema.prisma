@@ -341,6 +341,16 @@ model CatalogoGlobal {
   /// cnp do representante, quando origem = PROPAGADO.
   propagadoDeCnp Int?
 
+  /// QUEM promoveu, da última vez. Uma pessoa, quando a promoção foi
+  /// humana explícita; o nome do processo, quando foi automática.
+  promovidoPor      String?
+  /// QUANDO. Distinto de `actualizadoEm`, que qualquer escrita mexe.
+  promovidoEm       DateTime?
+  /// DE ONDE: o tenant cujo conhecimento ficou aqui.
+  promovidoDeTenant String?
+  /// PORQUÊ: o motivo da aprovação humana, ou o da decisão automática.
+  promocaoMotivo    String?
+
   criadoEm        DateTime @default(now())
   actualizadoEm   DateTime @updatedAt
 
@@ -350,6 +360,45 @@ model CatalogoGlobal {
   @@index([origem])
   @@index([versaoRegras])
   @@index([actualizadoEm])
+  @@index([promovidoEm])
+}
+
+/// Rasto de auditoria das promoções ao catálogo global — uma linha por
+/// promoção que ACONTECEU, nunca actualizada nem apagada.
+///
+/// Porque não bastam as colunas do CatalogoGlobal: essas guardam a última
+/// promoção. Esta tabela guarda a sequência, que é o que responde à
+/// pergunta que se faz meses depois — «quem decidiu que este produto
+/// nacional é isto, e com que fundamento?».
+///
+/// Sem chave estrangeira para `CatalogoGlobal`, de propósito: um rasto de
+/// auditoria que desaparece quando alguém apaga a linha auditada não é um
+/// rasto de auditoria.
+model CatalogoGlobalPromocao {
+  id String @id @default(cuid())
+
+  cnp    Int
+  origem OrigemConhecimento
+
+  /// Quem: operador identificado, ou o processo automático que correu.
+  actor String
+  /// De que tenant veio o conhecimento.
+  tenantOrigem String
+  /// Quem aprovou. Preenchido SÓ nas promoções humanas explícitas — e é
+  /// por isso que `where aprovador is not null` é a consulta que mostra
+  /// tudo o que alguém decidiu tornar verdade nacional.
+  aprovador String?
+  /// O motivo da aprovação, ou o motivo da decisão automática.
+  motivo String
+
+  confidence   Float
+  versaoRegras String
+
+  criadoEm DateTime @default(now())
+
+  @@index([cnp, criadoEm(sort: Desc)])
+  @@index([aprovador])
+  @@index([criadoEm(sort: Desc)])
 }
 
 /// Utilizações canónicas de um CNP. Slug do vocabulário fechado.

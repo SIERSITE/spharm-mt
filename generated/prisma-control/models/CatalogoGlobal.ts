@@ -53,6 +53,10 @@ export type CatalogoGlobalMinAggregateOutputType = {
   verificado: boolean | null
   tenantOrigem: string | null
   propagadoDeCnp: number | null
+  promovidoPor: string | null
+  promovidoEm: Date | null
+  promovidoDeTenant: string | null
+  promocaoMotivo: string | null
   criadoEm: Date | null
   actualizadoEm: Date | null
 }
@@ -72,6 +76,10 @@ export type CatalogoGlobalMaxAggregateOutputType = {
   verificado: boolean | null
   tenantOrigem: string | null
   propagadoDeCnp: number | null
+  promovidoPor: string | null
+  promovidoEm: Date | null
+  promovidoDeTenant: string | null
+  promocaoMotivo: string | null
   criadoEm: Date | null
   actualizadoEm: Date | null
 }
@@ -91,6 +99,10 @@ export type CatalogoGlobalCountAggregateOutputType = {
   verificado: number
   tenantOrigem: number
   propagadoDeCnp: number
+  promovidoPor: number
+  promovidoEm: number
+  promovidoDeTenant: number
+  promocaoMotivo: number
   criadoEm: number
   actualizadoEm: number
   _all: number
@@ -124,6 +136,10 @@ export type CatalogoGlobalMinAggregateInputType = {
   verificado?: true
   tenantOrigem?: true
   propagadoDeCnp?: true
+  promovidoPor?: true
+  promovidoEm?: true
+  promovidoDeTenant?: true
+  promocaoMotivo?: true
   criadoEm?: true
   actualizadoEm?: true
 }
@@ -143,6 +159,10 @@ export type CatalogoGlobalMaxAggregateInputType = {
   verificado?: true
   tenantOrigem?: true
   propagadoDeCnp?: true
+  promovidoPor?: true
+  promovidoEm?: true
+  promovidoDeTenant?: true
+  promocaoMotivo?: true
   criadoEm?: true
   actualizadoEm?: true
 }
@@ -162,6 +182,10 @@ export type CatalogoGlobalCountAggregateInputType = {
   verificado?: true
   tenantOrigem?: true
   propagadoDeCnp?: true
+  promovidoPor?: true
+  promovidoEm?: true
+  promovidoDeTenant?: true
+  promocaoMotivo?: true
   criadoEm?: true
   actualizadoEm?: true
   _all?: true
@@ -268,6 +292,10 @@ export type CatalogoGlobalGroupByOutputType = {
   verificado: boolean
   tenantOrigem: string | null
   propagadoDeCnp: number | null
+  promovidoPor: string | null
+  promovidoEm: Date | null
+  promovidoDeTenant: string | null
+  promocaoMotivo: string | null
   criadoEm: Date
   actualizadoEm: Date
   _count: CatalogoGlobalCountAggregateOutputType | null
@@ -310,6 +338,10 @@ export type CatalogoGlobalWhereInput = {
   verificado?: Prisma.BoolFilter<"CatalogoGlobal"> | boolean
   tenantOrigem?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   propagadoDeCnp?: Prisma.IntNullableFilter<"CatalogoGlobal"> | number | null
+  promovidoPor?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  promovidoEm?: Prisma.DateTimeNullableFilter<"CatalogoGlobal"> | Date | string | null
+  promovidoDeTenant?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  promocaoMotivo?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   criadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   actualizadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoListRelationFilter
@@ -331,6 +363,10 @@ export type CatalogoGlobalOrderByWithRelationInput = {
   verificado?: Prisma.SortOrder
   tenantOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoPor?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoDeTenant?: Prisma.SortOrderInput | Prisma.SortOrder
+  promocaoMotivo?: Prisma.SortOrderInput | Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   actualizadoEm?: Prisma.SortOrder
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoOrderByRelationAggregateInput
@@ -355,6 +391,10 @@ export type CatalogoGlobalWhereUniqueInput = Prisma.AtLeast<{
   verificado?: Prisma.BoolFilter<"CatalogoGlobal"> | boolean
   tenantOrigem?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   propagadoDeCnp?: Prisma.IntNullableFilter<"CatalogoGlobal"> | number | null
+  promovidoPor?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  promovidoEm?: Prisma.DateTimeNullableFilter<"CatalogoGlobal"> | Date | string | null
+  promovidoDeTenant?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
+  promocaoMotivo?: Prisma.StringNullableFilter<"CatalogoGlobal"> | string | null
   criadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   actualizadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoListRelationFilter
@@ -376,6 +416,10 @@ export type CatalogoGlobalOrderByWithAggregationInput = {
   verificado?: Prisma.SortOrder
   tenantOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoPor?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  promovidoDeTenant?: Prisma.SortOrderInput | Prisma.SortOrder
+  promocaoMotivo?: Prisma.SortOrderInput | Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   actualizadoEm?: Prisma.SortOrder
   _count?: Prisma.CatalogoGlobalCountOrderByAggregateInput
@@ -403,6 +447,10 @@ export type CatalogoGlobalScalarWhereWithAggregatesInput = {
   verificado?: Prisma.BoolWithAggregatesFilter<"CatalogoGlobal"> | boolean
   tenantOrigem?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
   propagadoDeCnp?: Prisma.IntNullableWithAggregatesFilter<"CatalogoGlobal"> | number | null
+  promovidoPor?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
+  promovidoEm?: Prisma.DateTimeNullableWithAggregatesFilter<"CatalogoGlobal"> | Date | string | null
+  promovidoDeTenant?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
+  promocaoMotivo?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobal"> | string | null
   criadoEm?: Prisma.DateTimeWithAggregatesFilter<"CatalogoGlobal"> | Date | string
   actualizadoEm?: Prisma.DateTimeWithAggregatesFilter<"CatalogoGlobal"> | Date | string
 }
@@ -422,6 +470,10 @@ export type CatalogoGlobalCreateInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoCreateNestedManyWithoutProdutoInput
@@ -443,6 +495,10 @@ export type CatalogoGlobalUncheckedCreateInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
@@ -464,6 +520,10 @@ export type CatalogoGlobalUpdateInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUpdateManyWithoutProdutoNestedInput
@@ -485,6 +545,10 @@ export type CatalogoGlobalUncheckedUpdateInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
@@ -506,6 +570,10 @@ export type CatalogoGlobalCreateManyInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
 }
@@ -525,6 +593,10 @@ export type CatalogoGlobalUpdateManyMutationInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -544,6 +616,10 @@ export type CatalogoGlobalUncheckedUpdateManyInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -563,6 +639,10 @@ export type CatalogoGlobalCountOrderByAggregateInput = {
   verificado?: Prisma.SortOrder
   tenantOrigem?: Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrder
+  promovidoPor?: Prisma.SortOrder
+  promovidoEm?: Prisma.SortOrder
+  promovidoDeTenant?: Prisma.SortOrder
+  promocaoMotivo?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   actualizadoEm?: Prisma.SortOrder
 }
@@ -588,6 +668,10 @@ export type CatalogoGlobalMaxOrderByAggregateInput = {
   verificado?: Prisma.SortOrder
   tenantOrigem?: Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrder
+  promovidoPor?: Prisma.SortOrder
+  promovidoEm?: Prisma.SortOrder
+  promovidoDeTenant?: Prisma.SortOrder
+  promocaoMotivo?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   actualizadoEm?: Prisma.SortOrder
 }
@@ -607,6 +691,10 @@ export type CatalogoGlobalMinOrderByAggregateInput = {
   verificado?: Prisma.SortOrder
   tenantOrigem?: Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrder
+  promovidoPor?: Prisma.SortOrder
+  promovidoEm?: Prisma.SortOrder
+  promovidoDeTenant?: Prisma.SortOrder
+  promocaoMotivo?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   actualizadoEm?: Prisma.SortOrder
 }
@@ -681,6 +769,10 @@ export type CatalogoGlobalCreateWithoutUtilizacoesInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoCreateNestedManyWithoutProdutoInput
@@ -701,6 +793,10 @@ export type CatalogoGlobalUncheckedCreateWithoutUtilizacoesInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedCreateNestedManyWithoutProdutoInput
@@ -737,6 +833,10 @@ export type CatalogoGlobalUpdateWithoutUtilizacoesInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoUpdateManyWithoutProdutoNestedInput
@@ -757,6 +857,10 @@ export type CatalogoGlobalUncheckedUpdateWithoutUtilizacoesInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
@@ -777,6 +881,10 @@ export type CatalogoGlobalCreateWithoutRevisoesInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoCreateNestedManyWithoutProdutoInput
@@ -797,6 +905,10 @@ export type CatalogoGlobalUncheckedCreateWithoutRevisoesInput = {
   verificado?: boolean
   tenantOrigem?: string | null
   propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
@@ -833,6 +945,10 @@ export type CatalogoGlobalUpdateWithoutRevisoesInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUpdateManyWithoutProdutoNestedInput
@@ -853,6 +969,10 @@ export type CatalogoGlobalUncheckedUpdateWithoutRevisoesInput = {
   verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
   tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
@@ -913,6 +1033,10 @@ export type CatalogoGlobalSelect<ExtArgs extends runtime.Types.Extensions.Intern
   verificado?: boolean
   tenantOrigem?: boolean
   propagadoDeCnp?: boolean
+  promovidoPor?: boolean
+  promovidoEm?: boolean
+  promovidoDeTenant?: boolean
+  promocaoMotivo?: boolean
   criadoEm?: boolean
   actualizadoEm?: boolean
   utilizacoes?: boolean | Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>
@@ -935,6 +1059,10 @@ export type CatalogoGlobalSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   verificado?: boolean
   tenantOrigem?: boolean
   propagadoDeCnp?: boolean
+  promovidoPor?: boolean
+  promovidoEm?: boolean
+  promovidoDeTenant?: boolean
+  promocaoMotivo?: boolean
   criadoEm?: boolean
   actualizadoEm?: boolean
 }, ExtArgs["result"]["catalogoGlobal"]>
@@ -954,6 +1082,10 @@ export type CatalogoGlobalSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   verificado?: boolean
   tenantOrigem?: boolean
   propagadoDeCnp?: boolean
+  promovidoPor?: boolean
+  promovidoEm?: boolean
+  promovidoDeTenant?: boolean
+  promocaoMotivo?: boolean
   criadoEm?: boolean
   actualizadoEm?: boolean
 }, ExtArgs["result"]["catalogoGlobal"]>
@@ -973,11 +1105,15 @@ export type CatalogoGlobalSelectScalar = {
   verificado?: boolean
   tenantOrigem?: boolean
   propagadoDeCnp?: boolean
+  promovidoPor?: boolean
+  promovidoEm?: boolean
+  promovidoDeTenant?: boolean
+  promocaoMotivo?: boolean
   criadoEm?: boolean
   actualizadoEm?: boolean
 }
 
-export type CatalogoGlobalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"cnp" | "designacaoReferencia" | "productType" | "categoria" | "subcategoria" | "confidence" | "evidenceType" | "rationale" | "origem" | "modelo" | "versaoRegras" | "verificado" | "tenantOrigem" | "propagadoDeCnp" | "criadoEm" | "actualizadoEm", ExtArgs["result"]["catalogoGlobal"]>
+export type CatalogoGlobalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"cnp" | "designacaoReferencia" | "productType" | "categoria" | "subcategoria" | "confidence" | "evidenceType" | "rationale" | "origem" | "modelo" | "versaoRegras" | "verificado" | "tenantOrigem" | "propagadoDeCnp" | "promovidoPor" | "promovidoEm" | "promovidoDeTenant" | "promocaoMotivo" | "criadoEm" | "actualizadoEm", ExtArgs["result"]["catalogoGlobal"]>
 export type CatalogoGlobalInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizacoes?: boolean | Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>
   revisoes?: boolean | Prisma.CatalogoGlobal$revisoesArgs<ExtArgs>
@@ -1034,6 +1170,23 @@ export type $CatalogoGlobalPayload<ExtArgs extends runtime.Types.Extensions.Inte
      * cnp do representante, quando origem = PROPAGADO.
      */
     propagadoDeCnp: number | null
+    /**
+     * QUEM promoveu, da última vez. Uma pessoa, quando a promoção foi
+     * humana explícita; o nome do processo, quando foi automática.
+     */
+    promovidoPor: string | null
+    /**
+     * QUANDO. Distinto de `actualizadoEm`, que qualquer escrita mexe.
+     */
+    promovidoEm: Date | null
+    /**
+     * DE ONDE: o tenant cujo conhecimento ficou aqui.
+     */
+    promovidoDeTenant: string | null
+    /**
+     * PORQUÊ: o motivo da aprovação humana, ou o da decisão automática.
+     */
+    promocaoMotivo: string | null
     criadoEm: Date
     actualizadoEm: Date
   }, ExtArgs["result"]["catalogoGlobal"]>
@@ -1475,6 +1628,10 @@ export interface CatalogoGlobalFieldRefs {
   readonly verificado: Prisma.FieldRef<"CatalogoGlobal", 'Boolean'>
   readonly tenantOrigem: Prisma.FieldRef<"CatalogoGlobal", 'String'>
   readonly propagadoDeCnp: Prisma.FieldRef<"CatalogoGlobal", 'Int'>
+  readonly promovidoPor: Prisma.FieldRef<"CatalogoGlobal", 'String'>
+  readonly promovidoEm: Prisma.FieldRef<"CatalogoGlobal", 'DateTime'>
+  readonly promovidoDeTenant: Prisma.FieldRef<"CatalogoGlobal", 'String'>
+  readonly promocaoMotivo: Prisma.FieldRef<"CatalogoGlobal", 'String'>
   readonly criadoEm: Prisma.FieldRef<"CatalogoGlobal", 'DateTime'>
   readonly actualizadoEm: Prisma.FieldRef<"CatalogoGlobal", 'DateTime'>
 }
