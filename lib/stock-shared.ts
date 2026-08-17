@@ -65,6 +65,13 @@ export type StockRowEnriched = {
   // Enriquecimento clínico — surfaced em tooltip na UI.
   dci: string | null;
   codigoATC: string | null;
+  // Catálogo. Nível 1 e nível 2 são níveis DIFERENTES — ver
+  // `lib/categoria-resolver.ts`.
+  categoria: string;
+  subcategoria: string;
+  productType: string | null;
+  /** Slugs das utilizações do produto. */
+  utilizacoes: string[];
 };
 
 // ─── Predicado pura — sem I/O, sem Prisma. Re-utilizável em qualquer lado. ───
@@ -103,6 +110,11 @@ export type StockRow = {
   // Enriquecimento clínico — surfaced em tooltip na UI.
   dci?: string | null;
   codigoATC?: string | null;
+  // Catálogo — mostrado na linha e usado pelos filtros.
+  categoria?: string;
+  subcategoria?: string;
+  productType?: string | null;
+  utilizacoes?: string[];
 };
 
 export type StockMetrics = {

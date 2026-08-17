@@ -415,6 +415,8 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
     fornecedoresSelecionados,
     fabricantesSelecionados,
     categoriasSelecionadas,
+    subcategoriasSelecionadas,
+    utilizacoesSelecionadas,
     apenasComSugestao,
     apenasCriticos,
   ]);

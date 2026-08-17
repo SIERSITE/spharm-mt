@@ -92,6 +92,7 @@ export type PfBase = {
   // detector DCI-equivalente (lib/transfers/dci-equivalent-substitution).
   dci: string | null;
   codigoATC: string | null;
+  productType: string | null;
 };
 
 export type LoadPfAndSalesOptions = {
@@ -141,7 +142,8 @@ export async function loadPfAndSales(
       pf."fornecedorOrigem",
       fab."nomeNormalizado"            AS "fabricanteCanonico",
       p.dci                            AS dci,
-      p."codigoATC"                    AS "codigoATC"
+      p."codigoATC"                    AS "codigoATC",
+      p."productType"                  AS "productType"
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p ON p.id  = pf."produtoId"
     JOIN "Farmacia" f ON f.id  = pf."farmaciaId"

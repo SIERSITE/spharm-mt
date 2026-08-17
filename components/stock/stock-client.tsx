@@ -73,6 +73,40 @@ function StatusBadge({ status }: { status: StockRow["status"] }) {
   );
 }
 
+/** Caixa de um eixo de filtro — mesma moldura das que já existiam. */
+function CaixaFiltro({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[12px] border border-slate-100 bg-white/70 p-3">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {titulo}
+      </div>
+      <div className="max-h-48 space-y-2 overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function OpcaoFiltro({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <button
@@ -111,6 +145,17 @@ export function StockClient({ data }: StockClientProps) {
   const selectedPharmacies = data.params.pharmacies ?? [];
   const selectedCoverage = data.params.coverageBuckets ?? [];
   const selectedStatus = data.params.statusBuckets ?? [];
+  const selectedCategorias = data.params.categorias ?? [];
+  const selectedSubcategorias = data.params.subcategorias ?? [];
+  const selectedUtilizacoes = data.params.utilizacoes ?? [];
+  // Subcategorias acompanham a categoria escolhida — oferecer uma
+  // subcategoria de outra categoria é oferecer zero linhas.
+  const subcategoriasVisiveis = (
+    selectedCategorias.length > 0
+      ? data.filterOptions.subcategorias.filter((s) => selectedCategorias.includes(s.categoria))
+      : data.filterOptions.subcategorias
+  ).map((s) => s.nome);
+  const nomeUtilizacao = new Map(data.filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
 
   const buildUrl = useCallback(
     (mut: (params: URLSearchParams) => void) => {
@@ -167,6 +212,9 @@ export function StockClient({ data }: StockClientProps) {
       p.delete("pharmacy");
       p.delete("coverage");
       p.delete("status");
+      p.delete("categoria");
+      p.delete("subcategoria");
+      p.delete("utilizacao");
       p.delete("page");
     });
   };
@@ -209,7 +257,17 @@ export function StockClient({ data }: StockClientProps) {
   const hasActiveFilter =
     selectedPharmacies.length > 0 ||
     selectedCoverage.length > 0 ||
-    selectedStatus.length > 0;
+    selectedStatus.length > 0 ||
+    selectedCategorias.length > 0 ||
+    selectedSubcategorias.length > 0 ||
+    selectedUtilizacoes.length > 0;
+  const activeFilterCount =
+    selectedPharmacies.length +
+    selectedCoverage.length +
+    selectedStatus.length +
+    selectedCategorias.length +
+    selectedSubcategorias.length +
+    selectedUtilizacoes.length;
 
   const rows = useMemo(() => data.rows, [data.rows]);
 
@@ -304,7 +362,7 @@ export function StockClient({ data }: StockClientProps) {
               className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-4 text-[12px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
             >
               <Filter className="h-4 w-4" />
-              Filtros{hasActiveFilter ? ` (${selectedPharmacies.length + selectedCoverage.length + selectedStatus.length})` : ""}
+              Filtros{hasActiveFilter ? ` (${activeFilterCount})` : ""}
             </button>
           </div>
 
@@ -329,6 +387,27 @@ export function StockClient({ data }: StockClientProps) {
                   key={`status-${value}`}
                   label={value}
                   onRemove={() => toggleMulti("status", value)}
+                />
+              ))}
+              {selectedCategorias.map((value) => (
+                <FilterChip
+                  key={`categoria-${value}`}
+                  label={value}
+                  onRemove={() => toggleMulti("categoria", value)}
+                />
+              ))}
+              {selectedSubcategorias.map((value) => (
+                <FilterChip
+                  key={`subcategoria-${value}`}
+                  label={value}
+                  onRemove={() => toggleMulti("subcategoria", value)}
+                />
+              ))}
+              {selectedUtilizacoes.map((slug) => (
+                <FilterChip
+                  key={`utilizacao-${slug}`}
+                  label={nomeUtilizacao.get(slug) ?? slug}
+                  onRemove={() => toggleMulti("utilizacao", slug)}
                 />
               ))}
               <button
@@ -399,6 +478,43 @@ export function StockClient({ data }: StockClientProps) {
                   ))}
                 </div>
               </div>
+
+              {/* Catálogo. Os três eixos correm server-side, via URL, como
+                  os filtros que já existiam — a lista pode ter dezenas de
+                  milhares de linhas e não se materializa para filtrar. */}
+              <CaixaFiltro titulo="Categoria">
+                {data.filterOptions.categorias.map((option) => (
+                  <OpcaoFiltro
+                    key={`categoria-${option}`}
+                    label={option}
+                    checked={selectedCategorias.includes(option)}
+                    onToggle={() => toggleMulti("categoria", option)}
+                  />
+                ))}
+              </CaixaFiltro>
+
+              <CaixaFiltro titulo="Subcategoria">
+                {subcategoriasVisiveis.map((option) => (
+                  <OpcaoFiltro
+                    key={`subcategoria-${option}`}
+                    label={option}
+                    checked={selectedSubcategorias.includes(option)}
+                    onToggle={() => toggleMulti("subcategoria", option)}
+                  />
+                ))}
+              </CaixaFiltro>
+
+              {/* Viaja em slug, mostra-se pelo nome. */}
+              <CaixaFiltro titulo="Utilização">
+                {data.filterOptions.utilizacoes.map((u) => (
+                  <OpcaoFiltro
+                    key={`utilizacao-${u.slug}`}
+                    label={u.nome}
+                    checked={selectedUtilizacoes.includes(u.slug)}
+                    onToggle={() => toggleMulti("utilizacao", u.slug)}
+                  />
+                ))}
+              </CaixaFiltro>
             </div>
           )}
         </section>

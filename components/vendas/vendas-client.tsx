@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { runVendasReport } from "@/app/vendas/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
@@ -171,40 +171,22 @@ export function VendasClient({
   // Buckets de meses para render — só existe depois de gerar.
   const buckets = periodHeader?.buckets ?? [];
 
-  // Um único predicado de catálogo para os quatro sítios que filtram
-  // linhas aqui. Antes, cada um tinha a sua cópia da mesma comparação —
-  // e foi assim que três módulos ficaram a comparar o nível errado.
-  const filtrosCatalogo = useMemo(
-    () => ({
-      categorias: categoriasSelecionadas,
-      subcategorias: subcategoriasSelecionadas,
-      utilizacoes: utilizacoesSelecionadas,
-    }),
-    [categoriasSelecionadas, subcategoriasSelecionadas, utilizacoesSelecionadas],
-  );
-  const passaCatalogo = useCallback(
-    (row: SalesReportRow) => passaFiltroCatalogo(row, filtrosCatalogo),
-    [filtrosCatalogo],
-  );
+  // Os quatro sítios que filtram linhas chamam `passaFiltroCatalogo`
+  // directamente. Cada um tinha a sua cópia da mesma comparação — e foi
+  // assim que três módulos ficaram a comparar o nível errado durante
+  // meses. A regra agora vive em `lib/reporting/filters-shared.ts`; aqui
+  // só se lhe passam os três arrays, que são as dependências reais dos
+  // `useMemo` e estão declaradas como tal.
 
   // Subcategorias oferecidas acompanham a categoria escolhida.
-  const subcategorias = useMemo(
-    () =>
-      (categoriasSelecionadas.length > 0
-        ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
-        : filterOptions.subcategorias
-      ).map((s) => s.nome),
-    [filterOptions.subcategorias, categoriasSelecionadas],
-  );
+  const subcategorias = (
+    categoriasSelecionadas.length > 0
+      ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
+      : filterOptions.subcategorias
+  ).map((s) => s.nome);
   const utilizacoesOpcoes = filterOptions.utilizacoes;
-  const nomePorSlug = useMemo(
-    () => new Map(utilizacoesOpcoes.map((u) => [u.slug, u.nome])),
-    [utilizacoesOpcoes],
-  );
-  const slugPorNome = useMemo(
-    () => new Map(utilizacoesOpcoes.map((u) => [u.nome, u.slug])),
-    [utilizacoesOpcoes],
-  );
+  const nomePorSlug = new Map(utilizacoesOpcoes.map((u) => [u.slug, u.nome]));
+  const slugPorNome = new Map(utilizacoesOpcoes.map((u) => [u.nome, u.slug]));
 
   const baseFiltered = useMemo(() => {
     return initialRows.filter((row) => {
@@ -220,7 +202,11 @@ export function VendasClient({
       ) {
         return false;
       }
-      if (!passaCatalogo(row)) {
+      if (!passaFiltroCatalogo(row, {
+        categorias: categoriasSelecionadas,
+        subcategorias: subcategoriasSelecionadas,
+        utilizacoes: utilizacoesSelecionadas,
+      })) {
         return false;
       }
       if (
@@ -245,6 +231,8 @@ export function VendasClient({
     fornecedoresSelecionados,
     fabricantesSelecionados,
     categoriasSelecionadas,
+    subcategoriasSelecionadas,
+    utilizacoesSelecionadas,
     artigo,
     farmaciasSelecionadas,
     apenasComVendas,
@@ -268,7 +256,11 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (!passaCatalogo(row)) {
+      if (!passaFiltroCatalogo(row, {
+        categorias: categoriasSelecionadas,
+        subcategorias: subcategoriasSelecionadas,
+        utilizacoes: utilizacoesSelecionadas,
+      })) {
         continue;
       }
       if (
@@ -347,6 +339,8 @@ export function VendasClient({
     fornecedoresSelecionados,
     fabricantesSelecionados,
     categoriasSelecionadas,
+    subcategoriasSelecionadas,
+    utilizacoesSelecionadas,
     artigo,
     agruparPor,
     farmaciasSelecionadas,
@@ -416,7 +410,11 @@ export function VendasClient({
         ) {
           return false;
         }
-        if (!passaCatalogo(row)) {
+        if (!passaFiltroCatalogo(row, {
+        categorias: categoriasSelecionadas,
+        subcategorias: subcategoriasSelecionadas,
+        utilizacoes: utilizacoesSelecionadas,
+      })) {
           return false;
         }
         if (
@@ -446,6 +444,8 @@ export function VendasClient({
     fornecedoresSelecionados,
     fabricantesSelecionados,
     categoriasSelecionadas,
+    subcategoriasSelecionadas,
+    utilizacoesSelecionadas,
     artigo,
     farmaciasSelecionadas,
     apenasComVendas,
@@ -469,7 +469,11 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (!passaCatalogo(row)) {
+      if (!passaFiltroCatalogo(row, {
+        categorias: categoriasSelecionadas,
+        subcategorias: subcategoriasSelecionadas,
+        utilizacoes: utilizacoesSelecionadas,
+      })) {
         continue;
       }
       if (
@@ -520,6 +524,8 @@ export function VendasClient({
     fornecedoresSelecionados,
     fabricantesSelecionados,
     categoriasSelecionadas,
+    subcategoriasSelecionadas,
+    utilizacoesSelecionadas,
     artigo,
     farmaciasSelecionadas,
     apenasComVendas,

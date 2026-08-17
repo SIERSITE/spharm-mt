@@ -48,6 +48,12 @@ function parseParams(sp: Record<string, string | string[] | undefined>): StockSe
     coverageBuckets,
     statusBuckets,
     filter,
+    // Nomes novos e distintos: `categoria` é o nível 1, `subcategoria` o
+    // nível 2, `utilizacao` viaja em slug. Os parâmetros já existentes
+    // não mudam de nome nem de significado.
+    categorias: asArray(sp.categoria),
+    subcategorias: asArray(sp.subcategoria),
+    utilizacoes: asArray(sp.utilizacao),
     page: clampStockPage(Number(asString(sp.page) ?? 1)),
     pageSize: clampStockPageSize(Number(asString(sp.pageSize) ?? STOCK_DEFAULT_PAGE_SIZE)),
   };

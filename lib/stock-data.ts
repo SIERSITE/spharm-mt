@@ -13,6 +13,8 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { loadPfAndSales } from "@/lib/transferencias-data";
 import { getPrisma } from "@/lib/prisma";
+import { resolverPar } from "@/lib/categoria-resolver";
+import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import {
   avgDaily,
   coverageDays,
@@ -94,6 +96,12 @@ export async function loadStockEnriched(
       coverage,
       dci: p.dci,
       codigoATC: p.codigoATC,
+      ...resolverPar({
+        classificacaoNivel1: p.canonN1 ? { nome: p.canonN1 } : null,
+        classificacaoNivel2: p.canonN2 ? { nome: p.canonN2 } : null,
+      }),
+      productType: p.productType,
+      utilizacoes: p.utilizacoes ?? [],
     };
   });
 }
@@ -200,6 +208,9 @@ function toLegacyRow(
     suggestion,
     dci: row.dci,
     codigoATC: row.codigoATC,
+    categoria: row.categoria,
+    subcategoria: row.subcategoria,
+    productType: row.productType,
   };
 }
 
@@ -224,6 +235,12 @@ export type StockSearchParams = {
   coverageBuckets?: StockCoverageBucket[];
   statusBuckets?: StockRow["status"][];
   filter?: StockFilter;
+  /** Categorias canónicas (NÍVEL 1). */
+  categorias?: string[];
+  /** Subcategorias canónicas (NÍVEL 2). */
+  subcategorias?: string[];
+  /** Utilizações por SLUG. Produto entra se corresponder a qualquer uma. */
+  utilizacoes?: string[];
   page: number;
   pageSize: number;
 };
@@ -236,6 +253,15 @@ export type StockPageData = {
   pharmacyNames: string[];
   metrics: StockMetrics;
   filter: StockFilter | null;
+  /**
+   * Universo dos filtros de catálogo. Carregado no servidor — o cliente
+   * nunca vê Prisma.
+   */
+  filterOptions: {
+    categorias: string[];
+    subcategorias: Array<{ nome: string; categoria: string }>;
+    utilizacoes: Array<{ slug: string; nome: string }>;
+  };
   params: StockSearchParams;
   /**
    * `false` no estado inicial (sem pesquisa nem filtro operacional): a
@@ -305,6 +331,9 @@ type StockSqlFull = StockSqlLean & {
   dataUltimaVenda: Date | null;
   dci: string | null;
   codigoATC: string | null;
+  productType: string | null;
+  canonN1: string | null;
+  canonN2: string | null;
 };
 
 /** FROM + WHERE partilhado (q + farmácia empurrados para SQL). */
@@ -313,12 +342,22 @@ function stockFromWhere(
   q: string | undefined,
   periodStart: number,
   periodEnd: number,
+  /**
+   * Restrição de catálogo (categoria/subcategoria/utilização), já
+   * resolvida para ids por `restringirPorCatalogo`. `null` = sem
+   * restrição; uma lista vazia nunca chega aqui — quem chama devolve
+   * resultado vazio antes.
+   */
+  produtoIds?: string[] | null,
 ): Prisma.Sql {
   const conds: Prisma.Sql[] = [
     Prisma.sql`pf."stockAtual" IS NOT NULL`,
     Prisma.sql`pf."flagRetirado" = false`,
     Prisma.sql`pf."farmaciaId" = ANY(${effFarmaciaIds})`,
   ];
+  if (produtoIds) {
+    conds.push(Prisma.sql`pf."produtoId" = ANY(${produtoIds})`);
+  }
   if (q && q.length > 0) {
     const like = `%${q}%`;
     conds.push(Prisma.sql`(
@@ -343,6 +382,8 @@ function stockFromWhere(
     ) vm ON vm."produtoId" = pf."produtoId" AND vm."farmaciaId" = pf."farmaciaId"
     LEFT JOIN "IndicadoresProdutoFarmacia" i
       ON i."produtoId" = pf."produtoId" AND i."farmaciaId" = pf."farmaciaId"
+    LEFT JOIN "Classificacao" c1 ON c1.id = p."classificacaoNivel1Id"
+    LEFT JOIN "Classificacao" c2 ON c2.id = p."classificacaoNivel2Id"
     WHERE ${Prisma.join(conds, " AND ")}
   `;
 }
@@ -371,6 +412,9 @@ const STOCK_FULL_SELECT = Prisma.sql`
     pf."dataUltimaVenda" AS "dataUltimaVenda",
     p.dci AS dci,
     p."codigoATC" AS "codigoATC",
+    p."productType" AS "productType",
+    c1.nome AS "canonN1",
+    c2.nome AS "canonN2",
     COALESCE(vm."salesQty90d", 0)::float AS "salesQty90d",
     i."mediaVendasDiarias90d"::float AS "ipfAvg90d",
     (i."produtoId" IS NOT NULL) AS "hasIpf"
@@ -401,6 +445,15 @@ function enrichFull(b: StockSqlFull): StockRowEnriched {
     coverage: coverageDays(b.stockAtual, avgDaily90d),
     dci: b.dci,
     codigoATC: b.codigoATC,
+    ...resolverPar({
+      classificacaoNivel1: b.canonN1 ? { nome: b.canonN1 } : null,
+      classificacaoNivel2: b.canonN2 ? { nome: b.canonN2 } : null,
+    }),
+    productType: b.productType,
+    // A listagem não mostra utilizações por linha; o filtro corre em SQL
+    // (`restringirPorCatalogo`) e traria uma agregação por produto sem
+    // ninguém a lê-la. A ficha do artigo mostra-as.
+    utilizacoes: [],
   };
 }
 
@@ -525,6 +578,34 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
   });
   const pharmacyNames = farmacias.map((f) => f.nome);
   const nomeById = new Map(farmacias.map((f) => [f.id, f.nome]));
+
+  // Universo dos filtros de catálogo. Três consultas leves ao vocabulário
+  // — não ao catálogo — e ficam disponíveis mesmo no estado vazio, senão
+  // o utilizador não tinha por onde começar.
+  const [n1, n2, utils] = await Promise.all([
+    prisma.classificacao.findMany({
+      where: { tipo: "NIVEL_1", estado: "ATIVO" },
+      select: { nome: true },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.classificacao.findMany({
+      where: { tipo: "NIVEL_2", estado: "ATIVO" },
+      select: { nome: true, classificacaoPai: { select: { nome: true } } },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.$queryRaw<Array<{ slug: string; nome: string }>>(Prisma.sql`
+      SELECT DISTINCT u.slug, u.nome
+        FROM "Utilizacao" u
+        JOIN "ProdutoUtilizacao" pu ON pu."utilizacaoId" = u.id
+       WHERE u.estado = 'ATIVO'
+       ORDER BY u.nome
+    `),
+  ]);
+  const opcoesCatalogo = {
+    categorias: n1.map((c) => c.nome),
+    subcategorias: n2.map((c) => ({ nome: c.nome, categoria: c.classificacaoPai?.nome ?? "" })),
+    utilizacoes: utils,
+  };
   const page = clampStockPage(params.page);
   const pageSize = clampStockPageSize(params.pageSize);
 
@@ -536,6 +617,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     pharmacyNames,
     metrics: { referencias: 0, baixaCobertura: 0, stockParado: 0, transferencias: 0 },
     filter: params.filter ?? null,
+    filterOptions: opcoesCatalogo,
     params: { ...params, page, pageSize },
     tableLoaded: false,
   });
@@ -554,7 +636,37 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
   const now = new Date();
   const periodEnd = now.getFullYear() * 12 + now.getMonth() + 1;
   const periodStart = periodEnd - 3; // últimos 3 meses (igual a loadPfAndSales)
-  const fromWhere = stockFromWhere(effFarmaciaIds, q, periodStart, periodEnd);
+
+  // Catálogo: categoria (N1) é uma restrição de produto como as outras;
+  // subcategoria e utilização passam pelo helper partilhado. Tudo
+  // resolvido para ids e empurrado para o WHERE — nunca filtrado em JS
+  // depois de materializar o catálogo inteiro.
+  const filtrosCatalogo = {
+    categorias: params.categorias,
+    subcategorias: params.subcategorias,
+    utilizacoes: params.utilizacoes,
+  };
+  let produtoIds: string[] | null = null;
+  if (filtrosCatalogo.categorias && filtrosCatalogo.categorias.length > 0) {
+    const n1 = await prisma.classificacao.findMany({
+      where: { tipo: "NIVEL_1", estado: "ATIVO", nome: { in: filtrosCatalogo.categorias } },
+      select: { id: true },
+    });
+    if (n1.length === 0) return empty();
+    const produtos = await prisma.produto.findMany({
+      where: { classificacaoNivel1Id: { in: n1.map((c) => c.id) } },
+      select: { id: true },
+    });
+    produtoIds = produtos.map((p) => p.id);
+    if (produtoIds.length === 0) return empty();
+  }
+  if (temFiltroCatalogo(filtrosCatalogo)) {
+    produtoIds = await restringirPorCatalogo(prisma, filtrosCatalogo, produtoIds);
+    if (produtoIds && produtoIds.length === 0) return empty();
+  }
+  const temFiltroDeCatalogo = produtoIds !== null;
+
+  const fromWhere = stockFromWhere(effFarmaciaIds, q, periodStart, periodEnd, produtoIds);
 
   const coverageSet = new Set(params.coverageBuckets ?? []);
   const statusSet = new Set(params.statusBuckets ?? []);
@@ -567,7 +679,9 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
   // mostrar a primeira página é o que tornava o /stock lento ao abrir. Aqui
   // só calculamos os KPIs (agregação SQL, sem trazer linhas para JS) e o
   // cliente mostra um prompt a pedir pesquisa/filtro em vez da listagem.
-  const shouldLoadTable = !!q || hasComputedFilter;
+  // Um filtro de catálogo é um pedido explícito tanto como uma pesquisa:
+  // quem escolhe "Diabetes" quer ver a lista, não o prompt.
+  const shouldLoadTable = !!q || hasComputedFilter || temFiltroDeCatalogo;
   if (!shouldLoadTable) {
     const metrics = await computeStockMetricsSql(
       prisma,
@@ -583,6 +697,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
       pharmacyNames,
       metrics,
       filter: null,
+      filterOptions: opcoesCatalogo,
       params: { ...params, page, pageSize },
       tableLoaded: false,
     };
@@ -626,6 +741,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
       pharmacyNames,
       metrics: { referencias: totalRows, baixaCobertura, stockParado, transferencias },
       filter: params.filter ?? null,
+      filterOptions: opcoesCatalogo,
       params: { ...params, page, pageSize },
       tableLoaded: true,
     };
@@ -681,6 +797,7 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     pharmacyNames,
     metrics,
     filter: params.filter ?? null,
+    filterOptions: opcoesCatalogo,
     params: { ...params, page, pageSize },
     tableLoaded: true,
   };
