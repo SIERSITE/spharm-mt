@@ -138,11 +138,6 @@ async function main() {
     "backfill-utilizacoes.ts",
     "knowledge-enrich.ts",
   ];
-  // `backfill-utilizacoes.ts` não põe a sessão read-only em dry-run: o
-  // seu dry-run é só um `continue` antes das escritas. Não é um defeito
-  // conhecido a ignorar — é uma tranca a menos que os outros três têm, e
-  // fica listada aqui em vez de o teste fingir que a lista é uniforme.
-  const SEM_SESSAO_READONLY = new Set(["backfill-utilizacoes.ts"]);
   for (const nome of TENANT_AWARE) {
     const src = readFileSync(
       new URL(`../catalog-master/${nome}`, import.meta.url),
@@ -172,12 +167,10 @@ async function main() {
       /descreverAlvo\(alvo\)/.test(codigo),
       `${nome} imprime o destino antes de trabalhar`,
     );
-    if (!SEM_SESSAO_READONLY.has(nome)) {
-      check(
-        /default_transaction_read_only = \$\{\s*(dryRun \? "on" : "off"|apply \? "off" : "on")/.test(codigo),
-        `${nome} põe a sessão read-only em dry-run`,
-      );
-    }
+    check(
+      /default_transaction_read_only = \$\{\s*(dryRun \? "on" : "off"|apply \? "off" : "on")/.test(codigo),
+      `${nome} põe a sessão read-only em dry-run`,
+    );
   }
 
   console.log(`\n${pass} ok, ${fail} falhas`);

@@ -61,14 +61,21 @@ tenant:create
 tenancy:create
 
 # ── Catálogo ─────────────────────────────────────────────────────────
-# Vocabulário de utilizações e o backfill que o aplica ao catálogo do
-# tenant. Correm no servidor, contra o PostgreSQL local, e exigem
-# `--db=<base>` explícito — não há base por omissão.
+# O bootstrap do catálogo de um tenant, por ORDEM DE EXECUÇÃO. Correm no
+# servidor, contra o PostgreSQL local, e o destino é sempre explícito:
+# `--tenant=<slug>` traz base, host e credencial do control plane. Não há
+# base por omissão, e o `--db=<base>` que sobrou é só para
+# desenvolvimento — em produção usa o utilizador do DATABASE_URL, que não
+# tem CONNECT às bases dos tenants (ver lib/catalog/target-db.ts).
+#
+# Todos aceitam `--dry-run`, e em dry-run abrem a sessão PostgreSQL em
+# read-only.
 catalog:seed-utilizacoes
+catalog:classify-backfill
+catalog:fill-rules
 catalog:backfill-utilizacoes
-# Knowledge-enrichment. Sem `--apply` é read-only e não gasta escrita
-# nenhuma; com `--apply` custa dinheiro por produto. Está aqui porque é
-# operado no servidor, contra a base do tenant, como os dois de cima.
+# Knowledge-enrichment: a fase que usa modelo. Sem `--apply` não escreve
+# nada, nem cache; com `--apply` custa dinheiro por produto.
 catalog:knowledge-enrich
 
 # ── Operação ─────────────────────────────────────────────────────────

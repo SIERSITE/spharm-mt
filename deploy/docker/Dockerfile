@@ -246,12 +246,18 @@ COPY scripts/control ./scripts/control
 COPY scripts/tenancy ./scripts/tenancy
 COPY scripts/admin/create-client.ts scripts/admin/reset-user-password.ts \
      scripts/admin/package-agent.ts ./scripts/admin/
-# Idem para `scripts/catalog-master`: dos 14 ficheiros, 11 são de
+# Idem para `scripts/catalog-master`: dos 14 ficheiros, 9 são de
 # investigação do catálogo (builders, matrizes, relatórios, simulador).
-# Só estes três são operacionais — correm no servidor, contra a base do
-# tenant. O `knowledge-enrich` faltava e o sintoma era o mesmo do
+# Os 5 que entram são o bootstrap do catálogo por ordem de execução —
+# seed-utilizacoes, classify-backfill, fill-rules, backfill-utilizacoes,
+# knowledge-enrich — e todos correm no servidor contra a base do tenant,
+# resolvida por `--tenant=<slug>` (ver lib/catalog/target-db.ts).
+#
+# O `knowledge-enrich` já faltou aqui, com o mesmo sintoma do
 # `scripts/admin`: ERR_MODULE_NOT_FOUND, só na VPS, ao correr o canary.
 COPY scripts/catalog-master/seed-utilizacoes.ts \
+     scripts/catalog-master/classify-backfill.ts \
+     scripts/catalog-master/fill-rules.ts \
      scripts/catalog-master/backfill-utilizacoes.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts

@@ -144,6 +144,17 @@ async function main() {
   const db = new pg.Client({ connectionString: alvo.url });
   await db.connect();
 
+  // Em dry-run a sessão fica read-only na própria base. O código já não
+  // escreve — as escritas estão todas atrás de `if (dryRun) continue` /
+  // `if (!dryRun)` — e isto é a segunda tranca, do lado do Postgres, para
+  // o dia em que alguém acrescente uma query no sítio errado.
+  //
+  // Fora do dry-run repõe-se explicitamente: o pooler do Neon reutiliza
+  // ligações entre clientes sem repor parâmetros de sessão, e um `on`
+  // deixado por outro processo faria as escritas falhar com "cannot
+  // execute UPDATE in a read-only transaction".
+  await db.query(`set session default_transaction_read_only = ${dryRun ? "on" : "off"}`);
+
   console.log(`${descreverAlvo(alvo)}${dryRun ? "   (dry-run — nada é escrito)" : ""}`);
   console.log(`Limiar de confiança: ${MIN_CONFIANCA}\n`);
 
