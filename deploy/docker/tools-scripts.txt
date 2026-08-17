@@ -66,6 +66,10 @@ tenancy:create
 # `--db=<base>` explícito — não há base por omissão.
 catalog:seed-utilizacoes
 catalog:backfill-utilizacoes
+# Knowledge-enrichment. Sem `--apply` é read-only e não gasta escrita
+# nenhuma; com `--apply` custa dinheiro por produto. Está aqui porque é
+# operado no servidor, contra a base do tenant, como os dois de cima.
+catalog:knowledge-enrich
 
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
@@ -90,7 +94,8 @@ admin:package-agent
 # ── Fora desta lista, de propósito ───────────────────────────────────
 # agent:*         — corre na farmácia, não no servidor
 # admin-wizard:*  — PowerShell, corre na máquina do operador
-# catalog:*       — fase seguinte; entra aqui quando o catálogo entrar
+# catalog:simulate, catalog:audit, catalog:export/import — investigação
+#                   do catálogo, correm na máquina de quem analisa
 # ingest:*        — manutenção pontual de dados, não operação da stack
 # test:*, lint, typecheck, dev, build, start — desenvolvimento
 # scheduler       — corre no `runner` (serviço worker), não no migrator

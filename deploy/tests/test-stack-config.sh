@@ -503,6 +503,64 @@ test_postgres() {
       assert "package.json define ${cmdname}" \
         grep -q "\"${cmdname}\":" "$pkg"
     done < <(sed 's/#.*$//' "$manifest" | tr -d ' \t' | grep .)
+
+    # ── …e um COPY do migrator que o cobra ────────────────────────────
+    #
+    # As asserções acima são por nome e só cobrem o que alguém se lembrou
+    # de lá pôr. Foi essa a lacuna: `catalog:knowledge-enrich` entrou no
+    # manifesto, o Dockerfile não copiava o ficheiro, e nada aqui reparou.
+    # A auditoria do build apanhava-o — mas só corre para quem constrói a
+    # imagem, e o sintoma chegou à VPS na mesma:
+    #   npm run catalog:knowledge-enrich → ERR_MODULE_NOT_FOUND
+    #
+    # Esta verificação é genérica: vale para o comando seguinte, que ainda
+    # ninguém escreveu. Um COPY cobre um entrypoint quando o copia
+    # directamente ou quando copia um directório acima dele.
+    #
+    # Cobre o ENTRYPOINT, não os imports dele — o fecho transitivo é caro
+    # em bash e já é o trabalho do audit-tools-entrypoints.mjs, que corre
+    # dentro do build com o sistema de ficheiros real da imagem.
+    local mig_copies entry cmdline covered src
+    # Origens dos COPY do estágio migrator. `--from=` refere-se a outro
+    # estágio e não ao contexto; destinos (`./x`, `/x`) não são origens.
+    mig_copies=$(awk '
+      # Defensivo: o Dockerfile está em LF hoje, mas o repositório é
+      # editado em Windows e o .gitattributes já mudou. Com CRLF, o `\` de
+      # continuação deixa de estar em fim de linha, as linhas seguintes de
+      # um COPY multi-linha caem da lista, e o teste passava a dar por não
+      # copiado exactamente o que está copiado.
+      { sub(/\r$/, "") }
+      /^FROM .* AS migrator/ { inmig = 1; next }
+      /^FROM /               { inmig = 0 }
+      inmig && /^COPY /      { cont = 1 }
+      cont {
+        line = $0
+        more = (line ~ /\\$/)
+        sub(/\\$/, "", line)
+        sub(/^COPY /, "", line)
+        if (line !~ /--from=/) print line
+        cont = more
+      }
+    ' "$DOCKERFILE" | tr ' ' '\n' | grep -vE '^(\./|/|$)' | sort -u)
+
+    while read -r cmdname; do
+      [ -n "$cmdname" ] || continue
+      cmdline=$(sed -n "s/.*\"${cmdname}\": *\"\([^\"]*\)\".*/\1/p" "$pkg" | head -1)
+      entry=$(printf '%s\n' "$cmdline" | tr ' ' '\n' | grep -E '\.(ts|tsx|mjs|cjs|js)$' | head -1)
+      # Comando sem ficheiro (o CLI do Prisma) não exige COPY nenhum.
+      [ -n "$entry" ] || continue
+
+      covered=0
+      while read -r src; do
+        [ -n "$src" ] || continue
+        case "$entry" in
+          "$src"|"${src%/}"/*) covered=1; break ;;
+        esac
+      done <<< "$mig_copies"
+
+      assert "migrator copia o entrypoint de ${cmdname} (${entry})" \
+        test "$covered" -eq 1
+    done < <(sed 's/#.*$//' "$manifest" | tr -d ' \t' | grep .)
   fi
 
   # O fixture do live-tenant-lifecycle.sh assume TENANT_DB_SSLMODE=disable
