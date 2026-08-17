@@ -281,6 +281,45 @@ async function main(): Promise<void> {
 
     tables.push(await finish("produto", produtoWriter, produtoRows));
 
+    // ── 4b. Utilizacao + ProdutoUtilizacao ────────────────────────────
+    //
+    // Saem com CHAVE NATURAL (cnp, slug) e não com ids locais: um
+    // `Produto.id` ou `Utilizacao.id` é um cuid desta base e não
+    // significa nada na base de destino. O slug é estável entre bases de
+    // propósito, e é isso que permite a uma associação feita aqui
+    // significar o mesmo lá.
+    const utilizacoes = await prisma.utilizacao.findMany({ orderBy: { slug: "asc" } });
+    tables.push(await dump(args, dataDir, "utilizacao", utilizacoes));
+
+    // Só as associações dos produtos que foram mesmo exportados: com
+    // `--filter enriched` o bundle não leva todos, e uma associação sem
+    // produto correspondente é uma linha que o import ignora.
+    // `ProdutoUtilizacao` tem chave primária composta e não tem `id`, por
+    // isso não há paginação por cursor: percorre-se por blocos de cnp,
+    // como no dump regulamentar.
+    const associacoes: Array<{ cnp: number; slug: string; fonte: string; confianca: number | null }> = [];
+    for (const bloco of chunk(exportedCnps, 5000)) {
+      const linhas = await prisma.produtoUtilizacao.findMany({
+        where: { produto: { cnp: { in: bloco } } },
+        select: {
+          fonte: true,
+          confianca: true,
+          produto: { select: { cnp: true } },
+          utilizacao: { select: { slug: true } },
+        },
+      });
+      for (const r of linhas) {
+        associacoes.push({
+          cnp: r.produto.cnp,
+          slug: r.utilizacao.slug,
+          fonte: r.fonte,
+          confianca: r.confianca,
+        });
+      }
+    }
+    associacoes.sort((a, b) => a.cnp - b.cnp || a.slug.localeCompare(b.slug));
+    tables.push(await dump(args, dataDir, "produtoUtilizacao", associacoes));
+
     // ── 5. RegulatoryRecord ───────────────────────────────────────────
     tables.push(
       await dumpRegulatory(args, dataDir, prisma, exportedCnps),

@@ -2,7 +2,7 @@
  * scripts/copy-enriched-catalog-to-tenant.ts
  *
  * Propaga o catálogo ENRIQUECIDO (dci, codigoATC, fabricante,
- * classificação N1/N2, productType) de uma base FONTE para a base de um
+ * classificação N1/N2, productType, utilizações) de uma base FONTE para a base de um
  * TENANT, com match por `Produto.cnp`. BD → BD, sem lookups web.
  *
  *   Fonte  : legacy DATABASE_URL (default) ou --source-tenant <slug>
@@ -23,6 +23,10 @@
  *   6. Provenance: classificationSource/verificationStatus/lastVerifiedAt
  *      copiados quando se copia enriquecimento (só se o destino estava
  *      PENDING) para refletir a origem.
+ *   7. UTILIZAÇÕES: propagadas com a mesma doutrina — MANUAL no destino é
+ *      intocável, automática só cede a confiança ESTRITAMENTE superior, e
+ *      um slug que o destino não tenha no vocabulário NÃO é criado aqui
+ *      (corre-se `catalog:seed-utilizacoes` primeiro).
  *
  * Idempotente: re-run não muda nada (os campos já ficaram preenchidos).
  * DRY-RUN por defeito. `--apply` para escrever.
@@ -167,6 +171,7 @@ async function main() {
     sourcePresent: 0, sourceTrusted: 0, productsTouched: 0,
     dci: 0, codigoATC: 0, fabricante: 0, nivel1: 0, nivel2: 0, productType: 0,
     skippedManual: 0, skippedOutros: 0,
+    utilEscritas: 0, utilInalteradas: 0, utilSkippedManual: 0, utilSemVocabulario: 0,
   };
   let touchedBudget = limit ?? Infinity;
 
@@ -244,6 +249,84 @@ async function main() {
     }
   }
 
+  // ── 3) Utilizações ─────────────────────────────────────────────────
+  //
+  // "Para que serve este produto" é verdade sobre o PRODUTO, e faltava
+  // aqui: a propagação levava classificação, ATC e fabricante e deixava
+  // as utilizações para trás.
+  //
+  // Precedência, a mesma do resto:
+  //   · produto validadoManualmente no destino — nem se toca;
+  //   · associação MANUAL no destino — intocável, mesmo com confiança
+  //     maior na fonte: uma decisão humana não perde para um número;
+  //   · associação automática — só cede a confiança ESTRITAMENTE superior;
+  //   · a fonte tem de ser de confiança, como para o resto.
+  const slugPorIdDestino = new Map<string, string>();
+  const idPorSlugDestino = new Map<string, string>();
+  for (const u of await tgt.utilizacao.findMany({ select: { id: true, slug: true } })) {
+    slugPorIdDestino.set(u.id, u.slug);
+    idPorSlugDestino.set(u.slug, u.id);
+  }
+
+  for (let i = 0; i < cnps.length; i += CH) {
+    const bloco = cnps.slice(i, i + CH);
+
+    const fonteAssoc = (await src.produtoUtilizacao.findMany({
+      where: {
+        produto: {
+          cnp: { in: bloco },
+          OR: [
+            { validadoManualmente: true },
+            { verificationStatus: { in: [...STRONG] as never } },
+          ],
+        },
+      },
+      select: {
+        fonte: true, confianca: true,
+        produto: { select: { cnp: true } },
+        utilizacao: { select: { slug: true } },
+      },
+    })) as unknown as Array<{
+      fonte: string; confianca: number | null;
+      produto: { cnp: number }; utilizacao: { slug: string };
+    }>;
+    if (fonteAssoc.length === 0) continue;
+
+    const destinoAssoc = await tgt.produtoUtilizacao.findMany({
+      where: { produto: { cnp: { in: bloco } } },
+      select: { produtoId: true, utilizacaoId: true, fonte: true, confianca: true },
+    });
+    const jaLa = new Map(destinoAssoc.map((a) => [`${a.produtoId}::${a.utilizacaoId}`, a]));
+
+    for (const a of fonteAssoc) {
+      const t = tgtByCnp.get(a.produto.cnp);
+      if (!t) continue;
+      if (t.validadoManualmente) { counts.utilSkippedManual++; continue; }
+
+      const utilizacaoId = idPorSlugDestino.get(a.utilizacao.slug);
+      // Vocabulário fechado: um slug que o destino não tem não é criado
+      // aqui. Corre-se `catalog:seed-utilizacoes` primeiro.
+      if (!utilizacaoId) { counts.utilSemVocabulario++; continue; }
+
+      const existente = jaLa.get(`${t.id}::${utilizacaoId}`);
+      if (existente?.fonte === "MANUAL") { counts.utilSkippedManual++; continue; }
+
+      const conf = a.confianca;
+      if (existente && (conf == null || conf <= (existente.confianca ?? 0))) {
+        counts.utilInalteradas++;
+        continue;
+      }
+
+      counts.utilEscritas++;
+      if (!apply) continue;
+      await tgt.produtoUtilizacao.upsert({
+        where: { produtoId_utilizacaoId: { produtoId: t.id, utilizacaoId } },
+        create: { produtoId: t.id, utilizacaoId, fonte: a.fonte, confianca: conf },
+        update: { fonte: a.fonte, confianca: conf },
+      });
+    }
+  }
+
   console.log("");
   console.log("Counts:");
   console.log(`  CNPs do destino presentes na fonte : ${counts.sourcePresent}`);
@@ -258,6 +341,11 @@ async function main() {
   console.log(`    productType         : ${counts.productType}`);
   console.log(`  saltados (validadoManualmente)     : ${counts.skippedManual}`);
   console.log(`  saltados (Nivel1 "Outros Medicamentos"): ${counts.skippedOutros}`);
+  console.log("  utilizações:");
+  console.log(`    escritas            : ${counts.utilEscritas}`);
+  console.log(`    inalteradas         : ${counts.utilInalteradas}`);
+  console.log(`    saltadas (MANUAL)   : ${counts.utilSkippedManual}`);
+  console.log(`    slug sem vocabulário: ${counts.utilSemVocabulario}`);
   console.log("");
   if (!apply) {
     console.log("DRY-RUN — nada escrito. Re-corre com --apply para aplicar.");

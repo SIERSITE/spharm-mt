@@ -253,6 +253,49 @@ check(
   new Set(CATALOG_TABLES.map((t) => TABLE_SPECS[t].file)).size === CATALOG_TABLES.length,
 );
 
+// ── utilizações fazem parte do catálogo ──────────────────────────────
+//
+// Faltavam. "Para que serve este produto" é verdade sobre o PRODUTO, não
+// sobre a farmácia — a mesma regra que põe o ATC cá dentro e o stock cá
+// fora. Sem isto, um bundle mestre chegava a um tenant novo com todas as
+// classificações e ZERO utilizações, incluindo as validadas à mão.
+check(
+  "Utilizacao está no catálogo",
+  (CATALOG_TABLES as readonly string[]).includes("utilizacao"),
+);
+check(
+  "ProdutoUtilizacao está no catálogo",
+  (CATALOG_TABLES as readonly string[]).includes("produtoUtilizacao"),
+);
+check(
+  "ProdutoUtilizacao usa chave natural (cnp, slug) e não ids locais",
+  TABLE_SPECS.produtoUtilizacao.naturalKey.includes("cnp") &&
+    TABLE_SPECS.produtoUtilizacao.naturalKey.includes("slug"),
+  TABLE_SPECS.produtoUtilizacao.naturalKey,
+);
+check(
+  "Utilizacao usa o slug como chave natural",
+  TABLE_SPECS.utilizacao.naturalKey === "slug",
+);
+// Ordem topológica: uma associação não pode ser importada antes de
+// existirem as duas pontas.
+{
+  const ordem = CATALOG_TABLES as readonly string[];
+  check(
+    "Utilizacao vem antes de ProdutoUtilizacao",
+    ordem.indexOf("utilizacao") < ordem.indexOf("produtoUtilizacao"),
+  );
+  check(
+    "Produto vem antes de ProdutoUtilizacao",
+    ordem.indexOf("produto") < ordem.indexOf("produtoUtilizacao"),
+  );
+}
+check(
+  "a cache de conhecimento do modelo NÃO viaja no bundle",
+  EXCLUDED_TABLES["KnowledgeEnrichmentCache"] !== undefined,
+  "é promovida ao CatalogoGlobal, que é partilhado — copiá-la duplicava sem partilhar",
+);
+
 // ── round-trip do bundle em disco (NDJSON + checksums) ───────────────
 // Cobre o caminho de ficheiros do export/import sem tocar em base de
 // dados: escrita, releitura linha-a-linha, checksum e detecção de

@@ -178,8 +178,14 @@ async function main(): Promise<void> {
     // ── 3. FabricanteAlias ────────────────────────────────────────────
     await importAliases(prisma, dir, fabMap, args.apply, stats);
 
-    // ── 4. Produto ────────────────────────────────────────────────────
+    // ── 4. Utilizacao (vocabulário, antes das associações) ────────────
+    const utilMap = await importUtilizacoes(prisma, dir, args.apply, stats);
+
+    // ── 5. Produto ────────────────────────────────────────────────────
     await importProdutos(prisma, dir, classMap, fabMap, args.apply, stats);
+
+    // ── 6. ProdutoUtilizacao (→ Produto, Utilizacao) ──────────────────
+    await importProdutoUtilizacoes(prisma, dir, utilMap, args.apply, stats);
 
     // ── 5/6. RegulatoryRecord + InfarmedSnapshot ──────────────────────
     await importRegulatoryRecords(prisma, dir, args.apply, stats);
@@ -518,6 +524,155 @@ function remapProduto(
     if (typeof v === "string") out[f] = new Date(v);
   }
   return out;
+}
+
+/**
+ * Vocabulário de utilizações. Chave natural: `slug`.
+ *
+ * O slug é estável entre bases de propósito — é o que permite que uma
+ * associação feita num tenant signifique o mesmo noutro. Um slug que já
+ * exista no destino mantém o SEU id, e é esse id que as associações
+ * passam a usar.
+ */
+async function importUtilizacoes(
+  prisma: PrismaClient,
+  dir: string,
+  apply: boolean,
+  stats: Stats,
+): Promise<Map<string, string>> {
+  const c = zero();
+  /** slug → id NO DESTINO. */
+  const porSlug = new Map<string, string>();
+
+  const existentes = await prisma.utilizacao.findMany({ select: { id: true, slug: true } });
+  for (const e of existentes) porSlug.set(e.slug, e.id);
+
+  for await (const row of readNdjson<Record<string, unknown>>(file(dir, "utilizacao"))) {
+    const slug = String(row.slug ?? "").trim();
+    if (!slug) { c.skipped += 1; continue; }
+
+    const jaExiste = porSlug.get(slug);
+    if (jaExiste) {
+      // O vocabulário do destino manda. Renomear nome/descrição a partir
+      // do bundle não acrescenta nada e podia divergir de uma edição
+      // local deliberada.
+      c.unchanged += 1;
+      continue;
+    }
+    if (apply) {
+      const criada = await prisma.utilizacao.create({
+        data: {
+          id: typeof row.id === "string" ? row.id : undefined,
+          slug,
+          nome: String(row.nome ?? slug),
+          descricao: (row.descricao as string | null) ?? null,
+          grupo: (row.grupo as string | null) ?? null,
+          ...(typeof row.ordem === "number" ? { ordem: row.ordem } : {}),
+          ...(typeof row.descontinuada === "boolean" ? { descontinuada: row.descontinuada } : {}),
+        } as never,
+        select: { id: true },
+      });
+      porSlug.set(slug, criada.id);
+    } else {
+      porSlug.set(slug, `(dry-run:${slug})`);
+    }
+    c.inserted += 1;
+  }
+
+  stats["Utilizacao"] = c;
+  return porSlug;
+}
+
+/**
+ * Associações produto↔utilização.
+ *
+ * Chave natural (cnp, slug) — ids locais não sobrevivem à mudança de
+ * base. As FKs são remapeadas: `cnp` → `Produto.id` do destino, `slug` →
+ * `Utilizacao.id` do destino.
+ *
+ * PRECEDÊNCIA, a mesma do resto do catálogo:
+ *   · produto `validadoManualmente` no destino — nem se toca;
+ *   · associação MANUAL no destino — intocável, mesmo que o bundle traga
+ *     confiança maior; uma decisão humana não perde para um número;
+ *   · associação automática — só cede a confiança ESTRITAMENTE superior.
+ */
+async function importProdutoUtilizacoes(
+  prisma: PrismaClient,
+  dir: string,
+  utilPorSlug: Map<string, string>,
+  apply: boolean,
+  stats: Stats,
+): Promise<void> {
+  const c = zero();
+
+  const produtos = await prisma.produto.findMany({
+    select: { id: true, cnp: true, validadoManualmente: true },
+  });
+  const produtoPorCnp = new Map(produtos.map((p) => [p.cnp, p]));
+
+  const existentes = await prisma.produtoUtilizacao.findMany({
+    select: { produtoId: true, utilizacaoId: true, fonte: true, confianca: true },
+  });
+  const actual = new Map(existentes.map((e) => [`${e.produtoId}::${e.utilizacaoId}`, e]));
+
+  let batch: Array<Record<string, unknown>> = [];
+  const flush = async () => {
+    if (batch.length === 0) return;
+    const toCreate: Array<Record<string, unknown>> = [];
+
+    for (const row of batch) {
+      const cnp = Number(row.cnp);
+      const slug = String(row.slug ?? "");
+      const produto = produtoPorCnp.get(cnp);
+      const utilizacaoId = utilPorSlug.get(slug);
+
+      // Sem produto no destino não há a quem associar; sem slug conhecido
+      // a associação não significa nada. Nos dois casos: ignorar, não
+      // criar o que falta.
+      if (!produto || !utilizacaoId) { c.skipped += 1; continue; }
+      if (produto.validadoManualmente) { c.skipped += 1; continue; }
+
+      const chave = `${produto.id}::${utilizacaoId}`;
+      const jaLa = actual.get(chave);
+      const confiancaBundle = typeof row.confianca === "number" ? row.confianca : null;
+
+      if (!jaLa) {
+        toCreate.push({
+          produtoId: produto.id,
+          utilizacaoId,
+          fonte: String(row.fonte ?? "IMPORT"),
+          confianca: confiancaBundle,
+        });
+        c.inserted += 1;
+        continue;
+      }
+      if (jaLa.fonte === "MANUAL") { c.skipped += 1; continue; }
+      if (confiancaBundle == null || confiancaBundle <= (jaLa.confianca ?? 0)) {
+        c.unchanged += 1;
+        continue;
+      }
+      if (apply) {
+        await prisma.produtoUtilizacao.update({
+          where: { produtoId_utilizacaoId: { produtoId: produto.id, utilizacaoId } },
+          data: { fonte: String(row.fonte ?? "IMPORT"), confianca: confiancaBundle },
+        });
+      }
+      c.updated += 1;
+    }
+
+    if (apply && toCreate.length > 0) {
+      await prisma.produtoUtilizacao.createMany({ data: toCreate as never, skipDuplicates: true });
+    }
+    batch = [];
+  };
+
+  for await (const row of readNdjson<Record<string, unknown>>(file(dir, "produtoUtilizacao"))) {
+    batch.push(row);
+    if (batch.length >= BATCH) await flush();
+  }
+  await flush();
+
+  stats["ProdutoUtilizacao"] = c;
 }
 
 async function importRegulatoryRecords(

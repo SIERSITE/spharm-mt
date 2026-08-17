@@ -54,7 +54,9 @@ import {
  *                   │  por `depth` dentro do próprio ficheiro)
  *   Fabricante ─────┤
  *   FabricanteAlias ┘ (→ Fabricante)
+ *   Utilizacao        (sem FK; vocabulário fechado, slug estável)
  *   Produto           (→ Fabricante, Classificacao ×2)
+ *   ProdutoUtilizacao (→ Produto, Utilizacao)
  *   RegulatoryRecord  (sem FK; junta-se a Produto por `cnp`)
  *   InfarmedSnapshot  (sem FK; idem)
  *   ProdutoVerificacaoHistorico (→ Produto)  [opcional]
@@ -64,7 +66,9 @@ export const CATALOG_TABLES = [
   "classificacao",
   "fabricante",
   "fabricanteAlias",
+  "utilizacao",
   "produto",
+  "produtoUtilizacao",
   "regulatoryRecord",
   "infarmedSnapshot",
   "produtoVerificacaoHistorico",
@@ -112,6 +116,15 @@ export const TABLE_SPECS: Record<CatalogTable, TableSpec> = {
     optional: false,
     rationale: "Variantes de nome que alimentam o matching de fabricante no ingest.",
   },
+  utilizacao: {
+    table: "utilizacao",
+    model: "Utilizacao",
+    file: "utilizacao.ndjson",
+    naturalKey: "slug",
+    optional: false,
+    rationale:
+      "Vocabulário fechado de utilizações. O slug é estável entre bases de propósito — renomeá-lo desliga as associações que existam noutro tenant.",
+  },
   produto: {
     table: "produto",
     model: "Produto",
@@ -120,6 +133,15 @@ export const TABLE_SPECS: Record<CatalogTable, TableSpec> = {
     optional: false,
     rationale:
       "Núcleo do catálogo: ATC, DCI, forma, dosagem, embalagem, imagem, flags, classificação e validação manual.",
+  },
+  produtoUtilizacao: {
+    table: "produtoUtilizacao",
+    model: "ProdutoUtilizacao",
+    file: "produto-utilizacao.ndjson",
+    naturalKey: "(produto.cnp, utilizacao.slug)",
+    optional: false,
+    rationale:
+      "Para que serve cada produto — verdade sobre o PRODUTO, não sobre a farmácia. Faltava aqui: o bundle mestre perdia todas as utilizações, incluindo as validadas à mão e as que a fase determinística produziu.",
   },
   regulatoryRecord: {
     table: "regulatoryRecord",
@@ -164,6 +186,9 @@ export const TABLE_SPECS: Record<CatalogTable, TableSpec> = {
  * assinala-o.
  */
 export const EXCLUDED_TABLES: Record<string, string> = {
+  // Conhecimento de modelo
+  KnowledgeEnrichmentCache:
+    "Cache de chamadas ao modelo, com chave que inclui a designação DESTE tenant. O conhecimento em si não se perde: é promovido ao CatalogoGlobal (control plane), que é partilhado por todos os tenants. Copiar a cache entre bases duplicava o registo sem partilhar nada.",
   // Identidade e acesso
   Farmacia: "Entidade da farmácia — recriada no onboarding de cada tenant.",
   Utilizador: "Contas e password hashes — nunca saem do tenant de origem.",
