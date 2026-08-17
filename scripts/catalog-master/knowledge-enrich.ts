@@ -231,9 +231,30 @@ async function main() {
     if (n > 25) console.log(`  … e mais ${n - 25}`);
   }
 
+  console.log("\n── pré-selecção (o que NÃO foi ao modelo) ─────────");
+  console.log(`  ${pad(r.excluidosBaixaCobertura)}  excluídos: subcategoria sem utilização plausível (<2%, pop>=30)`);
+  console.log(`  ${pad(r.excluidosOpacos)}  excluídos: designação opaca`);
+  console.log(`  ${pad(r.familiasPropagaveis)}  famílias propagáveis (1 representante + N dependentes)`);
+  console.log(`  ${pad(r.representantesEnviados)}  representantes enviados`);
+  console.log(`  ${pad(r.propagados)}  propagados a partir da decisão do representante`);
+  console.log(`  ${pad(r.conflitosFamilia)}  famílias em conflito (não propagam, vão sozinhas)`);
+  console.log(`  ${pad(r.enviadosAoModelo)}  ENVIADOS AO MODELO  (de ${r.residualAnalisado} do residual)`);
+  if (r.residualAnalisado > 0) {
+    const poupadas = r.residualAnalisado - r.enviadosAoModelo;
+    console.log(`  ${pad(poupadas)}  chamadas poupadas  ${pct(poupadas, r.residualAnalisado)}`);
+  }
+
   if (r.metricasPorEstrato.length > 0) {
-    console.log("\n── por estrato ────────────────────────────────────");
-    console.log("  estrato               alvo            prod  APL  REV  SKP   chamadas    out tok    custo   $/prod");
+    console.log("  estrato               universo  <2%  opac  repr  envi  prop");
+    for (const m of r.metricasPorEstrato) {
+      console.log(
+        `  ${m.estrato.padEnd(21)}${String(m.universoInicial).padStart(8)}` +
+          `${String(m.excluidosBaixaCobertura).padStart(5)}${String(m.excluidosOpacos).padStart(6)}` +
+          `${String(m.representantesEnviados).padStart(6)}${String(m.enviadosAoModelo).padStart(6)}` +
+          `${String(m.propagados).padStart(6)}`,
+      );
+    }
+    console.log("\n  estrato               alvo            prod  APL  REV  SKP   chamadas    out tok    custo   $/prod");
     for (const m of r.metricasPorEstrato) {
       console.log(
         `  ${m.estrato.padEnd(21)} ${m.alvo.padEnd(14)} ` +

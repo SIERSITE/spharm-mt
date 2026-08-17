@@ -2235,6 +2235,14 @@ model KnowledgeEnrichmentCache {
   /// Porque não foi persistido, quando não foi.
   motivo     String?
 
+  /// De onde veio este resultado: CLAUDE (decisão do modelo sobre ESTE
+  /// produto) ou PROPAGADO (conclusão sobre um irmão da mesma família
+  /// estrita, aplicada aqui). Sem isto, uma auditoria futura não
+  /// conseguiria separar as duas coisas.
+  origem         String?
+  /// cnp do representante, quando origem = PROPAGADO.
+  propagadoDeCnp Int?
+
   criadoEm DateTime @default(now())
 
   @@index([cnp])

@@ -57,6 +57,36 @@ const check = (cond: boolean, l: string, d?: string) => (cond ? ok(l) : bad(l, d
 
 const LOTE = new Set([1234567, 7654321]);
 
+/**
+ * Contexto que o runner lê para a pré-selecção (catálogo inteiro: famílias
+ * e cobertura por subcategoria). Cada teste põe aqui o que quer que a
+ * pré-selecção veja; os fakes de prisma devolvem-no quando reconhecem a
+ * query pelo alias "as nivel1".
+ */
+type LinhaContexto = {
+  cnp: number; designacao: string;
+  nivel1: string | null; nivel2: string | null; utilizacoes: string[];
+};
+let CONTEXTO: LinhaContexto[] = [];
+const ehQueryContexto = (sql: string) => /as nivel1/i.test(sql);
+
+/** Nome alfabético único por índice: "aa", "ab", … Serve para gerar
+ *  produtos que NÃO caem na mesma família estrita quando o teste não é
+ *  sobre famílias. `Produto 1` e `Produto 2` teriam a mesma chave. */
+const nomeUnico = (i: number) => `Zeta${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`;
+
+/** Contexto trivial: um produto por cnp, sem famílias e sem subcategoria
+ *  com cobertura baixa. A pré-selecção deixa passar tudo. */
+function contextoNeutro(cnps: number[], nivel2: string | null = null): LinhaContexto[] {
+  return cnps.map((cnp, i) => ({
+    cnp,
+    designacao: nomeUnico(i),
+    nivel1: nivel2 ? "MEDICAMENTOS" : null,
+    nivel2,
+    utilizacoes: nivel2 ? ["diabetes"] : [],
+  }));
+}
+
 const SEM_CLASSIF = { categoria: null, subcategoria: null, productType: null };
 const EM_FALLBACK = { categoria: "MEDICAMENTOS", subcategoria: "Outros Medicamentos", productType: null };
 const ESPECIFICO = { categoria: "MEDICAMENTOS", subcategoria: "Cardiovascular", productType: null };
@@ -406,11 +436,20 @@ console.log("\n=== autoridade: o modelo perde sempre o desempate ===");
     SOURCE_TIER_RANK.MODEL_INFERRED > SOURCE_TIER_RANK.INTERNAL_INFERRED,
     "MODEL_INFERRED é menos autoritário que INTERNAL_INFERRED",
   );
-  const outros = Object.entries(SOURCE_TIER_RANK).filter(([k]) => k !== "MODEL_INFERRED");
+  // Os dois tiers de modelo são os últimos. Entre eles, o PROPAGATED é o
+  // mais fraco: não é uma observação DESTE produto, é a conclusão sobre
+  // um irmão da mesma família aplicada aqui.
   check(
-    outros.every(([, v]) => v < SOURCE_TIER_RANK.MODEL_INFERRED),
-    "MODEL_INFERRED é o último de todos os tiers",
-    outros.map(([k, v]) => `${k}=${v}`).join(" "),
+    SOURCE_TIER_RANK.MODEL_PROPAGATED > SOURCE_TIER_RANK.MODEL_INFERRED,
+    "MODEL_PROPAGATED é menos autoritário que MODEL_INFERRED",
+  );
+  const reais = Object.entries(SOURCE_TIER_RANK).filter(
+    ([k]) => k !== "MODEL_INFERRED" && k !== "MODEL_PROPAGATED",
+  );
+  check(
+    reais.every(([, v]) => v < SOURCE_TIER_RANK.MODEL_INFERRED),
+    "qualquer fonte real ganha aos dois tiers de modelo",
+    reais.map(([k, v]) => `${k}=${v}`).join(" "),
   );
 }
 
@@ -478,6 +517,7 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
     const escrita = (o: string) => { registo.push(o); throw new Error(`ESCRITA PROIBIDA EM DRY-RUN: ${o}`); };
     return {
       $queryRawUnsafe: async (sql: string) => {
+          if (ehQueryContexto(sql)) return CONTEXTO;
         if (!/^\s*select/i.test(sql)) escrita(`queryRaw não-select: ${sql.slice(0, 40)}`);
         if (/from "Classificacao"/i.test(sql)) {
           return [
@@ -509,6 +549,7 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fake = prismaFalso(tentativas) as any;
 
+  CONTEXTO = contextoNeutro([1234567]);
   const seco = await runKnowledgeEnrichment(fake, {
     dryRun: true,
     classificar: resposta(),
@@ -527,6 +568,7 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
   const molhado: string[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fake2 = prismaFalso(molhado) as any;
+  CONTEXTO = contextoNeutro([1234567]);
   await runKnowledgeEnrichment(fake2, {
     dryRun: false,
     classificar: resposta(),
@@ -569,6 +611,7 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       consultas,
       prisma: {
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (ehQueryContexto(sql)) return CONTEXTO;
           if (/from "Classificacao"/i.test(sql)) return [];
           if (/from "Utilizacao"/i.test(sql)) return [];
           const est = estratoDe(sql);
@@ -668,6 +711,7 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       NAO_CLASSIFICADO: 500,
       SEM_UTILIZACOES: 0,
     });
+    CONTEXTO = contextoNeutro(Array.from({ length: 30 }, (_, i) => 3_000_000 + i));
     const r = await runKnowledgeEnrichment(prisma, {
       dryRun: true,
       canary: QUOTAS_CANARY,
@@ -691,6 +735,7 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
   // ── Caso 5: fora do canary não há quotas a reportar ─────────────────
   {
     const { prisma } = prismaEstratos({ NAO_CLASSIFICADO: 5 });
+    CONTEXTO = contextoNeutro([3_000_000, 3_000_001, 3_000_002, 3_000_003, 3_000_004]);
     const r = await runKnowledgeEnrichment(prisma, {
       dryRun: true,
       limite: 5,
@@ -713,6 +758,7 @@ console.log("\n=== métricas e projecção por estrato ===");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prisma: any = {
     $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (ehQueryContexto(sql)) return CONTEXTO;
       if (/from "Classificacao"/i.test(sql)) return [];
       if (/from "Utilizacao"/i.test(sql)) return [];
       const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
@@ -758,6 +804,14 @@ console.log("\n=== métricas e projecção por estrato ===");
       },
     });
 
+  // Diabetes tem 30 do residual + 30 com utilização: cobertura 50%, bem
+  // acima dos 2%, logo a exclusão por baixa cobertura não dispara aqui.
+  CONTEXTO = [
+    ...contextoNeutro(Array.from({ length: 40 }, (_, i) => 4_000_000 + i)),
+    ...contextoNeutro(Array.from({ length: 30 }, (_, i) => 3_000_000 + i)),
+    ...contextoNeutro(Array.from({ length: 30 }, (_, i) => 5_000_000 + i), "Diabetes").map((c) => ({ ...c, utilizacoes: [] })),
+    ...contextoNeutro(Array.from({ length: 30 }, (_, i) => 9_000_000 + i), "Diabetes"),
+  ];
   const r = await runKnowledgeEnrichment(prisma, {
     dryRun: true,
     canary: QUOTAS_CANARY,
@@ -813,6 +867,7 @@ console.log("\n=== tecto de custo corta imediatamente ===");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fake: any = {
     $queryRawUnsafe: async (sql: string) => {
+          if (ehQueryContexto(sql)) return CONTEXTO;
       if (/from "Classificacao"/i.test(sql)) return [];
       if (/from "Utilizacao"/i.test(sql)) return [];
       return Array.from({ length: 60 }, (_, i) => ({
@@ -839,6 +894,7 @@ console.log("\n=== tecto de custo corta imediatamente ===");
     };
   };
 
+  CONTEXTO = contextoNeutro(Array.from({ length: 60 }, (_, i) => 2_000_001 + i));
   const r = await runKnowledgeEnrichment(fake, {
     dryRun: true,
     tectoUsd: 0.01,

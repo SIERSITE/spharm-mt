@@ -206,11 +206,165 @@ export function subcategoriasExcluiveis(
   );
 }
 
+// ─── Partição do residual ─────────────────────────────────────────────
+
+/**
+ * Limiar de cobertura abaixo do qual uma subcategoria deixa de ir ao
+ * modelo, e população mínima para a percentagem significar alguma coisa.
+ *
+ * 2% e 30 — os valores que a auditoria mostrou lado a lado com 1% e 5% e
+ * que ficaram escolhidos. Não há caminho para 5% no código: alargar o
+ * limiar é uma decisão que se toma alterando esta constante, com o
+ * relatório da auditoria à frente, não uma opção de linha de comando.
+ */
+export const LIMIAR_COBERTURA_PERCENT = 2;
+export const POPULACAO_MINIMA_SUBCATEGORIA = 30;
+
+/**
+ * Uma decisão propagada perde SEMPRE para uma observação directa do
+ * mesmo produto. O `on conflict` das utilizações só sobrepõe quando a
+ * confiança nova é estritamente maior; com este factor, um valor
+ * propagado nunca desaloja um que o modelo tenha visto de frente.
+ */
+export const FATOR_CONFIANCA_PROPAGADA = 0.99;
+
+export type Destino =
+  /** Vai ao modelo, sem família de que dependa. */
+  | "ENVIAR"
+  /** Vai ao modelo, e a decisão dele serve a família. */
+  | "REPRESENTANTE"
+  /** Não vai: espera pela decisão do representante. */
+  | "PROPAGAR"
+  /** Não vai: a subcategoria não tem utilização plausível no vocabulário. */
+  | "EXCLUIR_BAIXA_COBERTURA"
+  /** Não vai: o nome não dá por onde pegar. */
+  | "EXCLUIR_OPACO";
+
+export type Preselecao = {
+  cnp: number;
+  destino: Destino;
+  chaveFamilia: string | null;
+  /** Preenchido só em PROPAGAR. */
+  representanteCnp: number | null;
+  motivo: string;
+};
+
+export type LinhaResidualPre = { cnp: number; estrato: string };
+
+/**
+ * Decide, sem gastar uma chamada, o destino de cada produto do residual.
+ *
+ * ORDEM DAS REGRAS, e é significativa:
+ *  1. opaco — se o nome não diz nada, nem o modelo nem uma família o
+ *     salvam, e não vale a pena olhar mais;
+ *  2. baixa cobertura — só em SEM_UTILIZACOES, porque só aí a pergunta é
+ *     sobre utilizações; um produto por classificar não é dispensado por
+ *     a subcategoria dos OUTROS não ter etiquetas;
+ *  3. família.
+ *
+ * Uma família só propaga quando NÃO tem conflito. Irmãos já classificados
+ * que não concordam entre si não deixam conclusão para herdar, e escolher
+ * um lado seria inventar por outra via.
+ *
+ * O representante é o cnp mais baixo da família dentro do mesmo estrato —
+ * determinístico, para que duas corridas escolham o mesmo e a cache
+ * signifique o mesmo.
+ */
+export function preselecionar(
+  residual: readonly LinhaResidualPre[],
+  contexto: readonly ProdutoPreselecao[],
+  opts: {
+    familias?: Map<string, Familia>;
+    subcategoriasExcluidas?: ReadonlySet<string>;
+  } = {},
+): Map<number, Preselecao> {
+  const familias = opts.familias ?? agruparFamilias(contexto);
+  const excluidas =
+    opts.subcategoriasExcluidas ??
+    subcategoriasExcluiveis(
+      coberturaPorSubcategoria(contexto),
+      LIMIAR_COBERTURA_PERCENT,
+      POPULACAO_MINIMA_SUBCATEGORIA,
+    );
+
+  const porCnp = new Map(contexto.map((p) => [p.cnp, p]));
+  const estratoDe = new Map(residual.map((r) => [r.cnp, r.estrato]));
+  const familiaDe = new Map<number, Familia>();
+  for (const f of familias.values()) for (const m of f.membros) familiaDe.set(m.cnp, f);
+
+  const out = new Map<number, Preselecao>();
+  // Ordem por cnp: o representante de uma família é sempre o mesmo,
+  // corrida após corrida.
+  const ordenado = [...residual].sort((a, b) => a.cnp - b.cnp);
+  const representantePorFamilia = new Map<string, number>();
+
+  for (const linha of ordenado) {
+    const p = porCnp.get(linha.cnp);
+    if (!p) continue;
+    const f = familiaDe.get(linha.cnp) ?? null;
+    const chaveFamilia = f?.chave ?? null;
+    const base = { cnp: linha.cnp, chaveFamilia, representanteCnp: null };
+
+    if (nomeOpaco(p.designacao)) {
+      out.set(linha.cnp, { ...base, destino: "EXCLUIR_OPACO", motivo: "designação sem conteúdo reconhecível" });
+      continue;
+    }
+
+    if (linha.estrato === "SEM_UTILIZACOES" && ehEspecifica(p.nivel2)) {
+      const chaveSub = `${p.nivel1} > ${p.nivel2}`;
+      if (excluidas.has(chaveSub)) {
+        out.set(linha.cnp, {
+          ...base,
+          destino: "EXCLUIR_BAIXA_COBERTURA",
+          motivo: `"${chaveSub}": <${LIMIAR_COBERTURA_PERCENT}% dos produtos têm utilização`,
+        });
+        continue;
+      }
+    }
+
+    if (f && !f.conflito) {
+      const irmaosNoEstrato = f.membros.filter((m) => estratoDe.get(m.cnp) === linha.estrato);
+      if (irmaosNoEstrato.length > 1) {
+        const marca = `${linha.estrato}::${f.chave}`;
+        const rep = representantePorFamilia.get(marca);
+        if (rep === undefined) {
+          representantePorFamilia.set(marca, linha.cnp);
+          out.set(linha.cnp, {
+            ...base,
+            destino: "REPRESENTANTE",
+            motivo: `representa ${irmaosNoEstrato.length - 1} irmão(s) da família "${f.chave}"`,
+          });
+        } else {
+          out.set(linha.cnp, {
+            ...base,
+            destino: "PROPAGAR",
+            representanteCnp: rep,
+            motivo: `herda do representante ${rep} da família "${f.chave}"`,
+          });
+        }
+        continue;
+      }
+    }
+
+    out.set(linha.cnp, {
+      ...base,
+      destino: "ENVIAR",
+      motivo: f?.conflito ? `família em conflito — vai sozinho: ${f.conflito}` : "sem família com irmãos no residual",
+    });
+  }
+
+  return out;
+}
+
 // ─── Custos observados ────────────────────────────────────────────────
 
 /**
- * Custo por produto medido no canary real de 2026-08-17 em silveira.
+ * Custo por produto medido no canary real de 2026-08-17 (tenant silveira).
  * Não são estimativas: saíram do `usage` das respostas dessa corrida.
+ *
+ * SÓ o auditor usa isto, e só para projectar. O runner não lhe toca: o
+ * custo de uma corrida é sempre o `usage` real das respostas dessa
+ * corrida, por estrato. Um número de um tenant não decide nada noutro.
  */
 export const CUSTO_POR_PRODUTO: Readonly<Record<string, number>> = {
   OUTROS_MEDICAMENTOS: 0.0131,

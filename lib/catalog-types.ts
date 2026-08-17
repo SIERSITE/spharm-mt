@@ -72,7 +72,8 @@ export type SourceTier =
   | "DISTRIBUTOR"        // bases de dados de distribuidores / cooperativas
   | "RETAIL"             // bases abertas / retail (Open Beauty Facts, etc.)
   | "INTERNAL_INFERRED"  // agregação de ProdutoFarmacia.*Origem
-  | "MODEL_INFERRED";    // conhecimento de modelo (lib/catalog/knowledge-enrichment)
+  | "MODEL_INFERRED"     // conhecimento de modelo (lib/catalog/knowledge-enrichment)
+  | "MODEL_PROPAGATED";  // conclusão do modelo sobre um IRMÃO da mesma família estrita
 
 /** Ordem numérica do tier (menor = maior autoridade) */
 export const SOURCE_TIER_RANK: Record<SourceTier, number> = {
@@ -86,6 +87,11 @@ export const SOURCE_TIER_RANK: Record<SourceTier, number> = {
   // abaixo de tudo para que qualquer fonte real ganhe o desempate sem
   // que ninguém tenha de se lembrar de o codificar caso a caso.
   MODEL_INFERRED: 5,
+  // Abaixo até do modelo. Um valor propagado não é uma observação deste
+  // produto — é a conclusão sobre um irmão da mesma família, aplicada
+  // aqui. Fica em último para que uma decisão directa, mesmo do modelo,
+  // ganhe sempre o desempate.
+  MODEL_PROPAGATED: 6,
 };
 
 // ─── Relevância de campos por tipo ───────────────────────────────────────────

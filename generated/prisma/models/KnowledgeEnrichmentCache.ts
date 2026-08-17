@@ -45,11 +45,13 @@ export type AggregateKnowledgeEnrichmentCache = {
 export type KnowledgeEnrichmentCacheAvgAggregateOutputType = {
   cnp: number | null
   confidence: number | null
+  propagadoDeCnp: number | null
 }
 
 export type KnowledgeEnrichmentCacheSumAggregateOutputType = {
   cnp: number | null
   confidence: number | null
+  propagadoDeCnp: number | null
 }
 
 export type KnowledgeEnrichmentCacheMinAggregateOutputType = {
@@ -67,6 +69,8 @@ export type KnowledgeEnrichmentCacheMinAggregateOutputType = {
   rationale: string | null
   persistido: boolean | null
   motivo: string | null
+  origem: string | null
+  propagadoDeCnp: number | null
   criadoEm: Date | null
 }
 
@@ -85,6 +89,8 @@ export type KnowledgeEnrichmentCacheMaxAggregateOutputType = {
   rationale: string | null
   persistido: boolean | null
   motivo: string | null
+  origem: string | null
+  propagadoDeCnp: number | null
   criadoEm: Date | null
 }
 
@@ -104,6 +110,8 @@ export type KnowledgeEnrichmentCacheCountAggregateOutputType = {
   rationale: number
   persistido: number
   motivo: number
+  origem: number
+  propagadoDeCnp: number
   criadoEm: number
   _all: number
 }
@@ -112,11 +120,13 @@ export type KnowledgeEnrichmentCacheCountAggregateOutputType = {
 export type KnowledgeEnrichmentCacheAvgAggregateInputType = {
   cnp?: true
   confidence?: true
+  propagadoDeCnp?: true
 }
 
 export type KnowledgeEnrichmentCacheSumAggregateInputType = {
   cnp?: true
   confidence?: true
+  propagadoDeCnp?: true
 }
 
 export type KnowledgeEnrichmentCacheMinAggregateInputType = {
@@ -134,6 +144,8 @@ export type KnowledgeEnrichmentCacheMinAggregateInputType = {
   rationale?: true
   persistido?: true
   motivo?: true
+  origem?: true
+  propagadoDeCnp?: true
   criadoEm?: true
 }
 
@@ -152,6 +164,8 @@ export type KnowledgeEnrichmentCacheMaxAggregateInputType = {
   rationale?: true
   persistido?: true
   motivo?: true
+  origem?: true
+  propagadoDeCnp?: true
   criadoEm?: true
 }
 
@@ -171,6 +185,8 @@ export type KnowledgeEnrichmentCacheCountAggregateInputType = {
   rationale?: true
   persistido?: true
   motivo?: true
+  origem?: true
+  propagadoDeCnp?: true
   criadoEm?: true
   _all?: true
 }
@@ -277,6 +293,8 @@ export type KnowledgeEnrichmentCacheGroupByOutputType = {
   rationale: string | null
   persistido: boolean
   motivo: string | null
+  origem: string | null
+  propagadoDeCnp: number | null
   criadoEm: Date
   _count: KnowledgeEnrichmentCacheCountAggregateOutputType | null
   _avg: KnowledgeEnrichmentCacheAvgAggregateOutputType | null
@@ -319,6 +337,8 @@ export type KnowledgeEnrichmentCacheWhereInput = {
   rationale?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  propagadoDeCnp?: Prisma.IntNullableFilter<"KnowledgeEnrichmentCache"> | number | null
   criadoEm?: Prisma.DateTimeFilter<"KnowledgeEnrichmentCache"> | Date | string
 }
 
@@ -338,6 +358,8 @@ export type KnowledgeEnrichmentCacheOrderByWithRelationInput = {
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
+  origem?: Prisma.SortOrderInput | Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrderInput | Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
 }
 
@@ -360,6 +382,8 @@ export type KnowledgeEnrichmentCacheWhereUniqueInput = Prisma.AtLeast<{
   rationale?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  propagadoDeCnp?: Prisma.IntNullableFilter<"KnowledgeEnrichmentCache"> | number | null
   criadoEm?: Prisma.DateTimeFilter<"KnowledgeEnrichmentCache"> | Date | string
 }, "chave">
 
@@ -379,6 +403,8 @@ export type KnowledgeEnrichmentCacheOrderByWithAggregationInput = {
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
+  origem?: Prisma.SortOrderInput | Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrderInput | Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
   _count?: Prisma.KnowledgeEnrichmentCacheCountOrderByAggregateInput
   _avg?: Prisma.KnowledgeEnrichmentCacheAvgOrderByAggregateInput
@@ -406,6 +432,8 @@ export type KnowledgeEnrichmentCacheScalarWhereWithAggregatesInput = {
   rationale?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolWithAggregatesFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  origem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  propagadoDeCnp?: Prisma.IntNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | number | null
   criadoEm?: Prisma.DateTimeWithAggregatesFilter<"KnowledgeEnrichmentCache"> | Date | string
 }
 
@@ -425,6 +453,8 @@ export type KnowledgeEnrichmentCacheCreateInput = {
   rationale?: string | null
   persistido?: boolean
   motivo?: string | null
+  origem?: string | null
+  propagadoDeCnp?: number | null
   criadoEm?: Date | string
 }
 
@@ -444,6 +474,8 @@ export type KnowledgeEnrichmentCacheUncheckedCreateInput = {
   rationale?: string | null
   persistido?: boolean
   motivo?: string | null
+  origem?: string | null
+  propagadoDeCnp?: number | null
   criadoEm?: Date | string
 }
 
@@ -463,6 +495,8 @@ export type KnowledgeEnrichmentCacheUpdateInput = {
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -482,6 +516,8 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateInput = {
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -501,6 +537,8 @@ export type KnowledgeEnrichmentCacheCreateManyInput = {
   rationale?: string | null
   persistido?: boolean
   motivo?: string | null
+  origem?: string | null
+  propagadoDeCnp?: number | null
   criadoEm?: Date | string
 }
 
@@ -520,6 +558,8 @@ export type KnowledgeEnrichmentCacheUpdateManyMutationInput = {
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -539,6 +579,8 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateManyInput = {
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
@@ -558,12 +600,15 @@ export type KnowledgeEnrichmentCacheCountOrderByAggregateInput = {
   rationale?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
 }
 
 export type KnowledgeEnrichmentCacheAvgOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   confidence?: Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrder
 }
 
 export type KnowledgeEnrichmentCacheMaxOrderByAggregateInput = {
@@ -581,6 +626,8 @@ export type KnowledgeEnrichmentCacheMaxOrderByAggregateInput = {
   rationale?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
 }
 
@@ -599,12 +646,15 @@ export type KnowledgeEnrichmentCacheMinOrderByAggregateInput = {
   rationale?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrder
   criadoEm?: Prisma.SortOrder
 }
 
 export type KnowledgeEnrichmentCacheSumOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   confidence?: Prisma.SortOrder
+  propagadoDeCnp?: Prisma.SortOrder
 }
 
 export type KnowledgeEnrichmentCacheCreateutilizacoesInput = {
@@ -634,6 +684,8 @@ export type KnowledgeEnrichmentCacheSelect<ExtArgs extends runtime.Types.Extensi
   rationale?: boolean
   persistido?: boolean
   motivo?: boolean
+  origem?: boolean
+  propagadoDeCnp?: boolean
   criadoEm?: boolean
 }, ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
@@ -653,6 +705,8 @@ export type KnowledgeEnrichmentCacheSelectCreateManyAndReturn<ExtArgs extends ru
   rationale?: boolean
   persistido?: boolean
   motivo?: boolean
+  origem?: boolean
+  propagadoDeCnp?: boolean
   criadoEm?: boolean
 }, ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
@@ -672,6 +726,8 @@ export type KnowledgeEnrichmentCacheSelectUpdateManyAndReturn<ExtArgs extends ru
   rationale?: boolean
   persistido?: boolean
   motivo?: boolean
+  origem?: boolean
+  propagadoDeCnp?: boolean
   criadoEm?: boolean
 }, ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
@@ -691,10 +747,12 @@ export type KnowledgeEnrichmentCacheSelectScalar = {
   rationale?: boolean
   persistido?: boolean
   motivo?: boolean
+  origem?: boolean
+  propagadoDeCnp?: boolean
   criadoEm?: boolean
 }
 
-export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "persistido" | "motivo" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
+export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "persistido" | "motivo" | "origem" | "propagadoDeCnp" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
 export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "KnowledgeEnrichmentCache"
@@ -726,6 +784,17 @@ export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Exten
      * Porque não foi persistido, quando não foi.
      */
     motivo: string | null
+    /**
+     * De onde veio este resultado: CLAUDE (decisão do modelo sobre ESTE
+     * produto) ou PROPAGADO (conclusão sobre um irmão da mesma família
+     * estrita, aplicada aqui). Sem isto, uma auditoria futura não
+     * conseguiria separar as duas coisas.
+     */
+    origem: string | null
+    /**
+     * cnp do representante, quando origem = PROPAGADO.
+     */
+    propagadoDeCnp: number | null
     criadoEm: Date
   }, ExtArgs["result"]["knowledgeEnrichmentCache"]>
   composites: {}
@@ -1165,6 +1234,8 @@ export interface KnowledgeEnrichmentCacheFieldRefs {
   readonly rationale: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly persistido: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Boolean'>
   readonly motivo: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly origem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly propagadoDeCnp: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Int'>
   readonly criadoEm: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'DateTime'>
 }
     

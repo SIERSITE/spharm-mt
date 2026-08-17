@@ -16,6 +16,10 @@
 import { readFileSync } from "node:fs";
 import {
   CUSTO_POR_PRODUTO,
+  FATOR_CONFIANCA_PROPAGADA,
+  LIMIAR_COBERTURA_PERCENT,
+  POPULACAO_MINIMA_SUBCATEGORIA,
+  preselecionar,
   agruparFamilias,
   chaveFamiliaEstrita,
   coberturaPorSubcategoria,
@@ -33,6 +37,8 @@ const bad = (l: string, d?: string) => { fail++; console.log(`  [FALHA] ${l}${d 
 const check = (c: boolean, l: string, d?: string) => (c ? ok(l) : bad(l, d));
 
 let n = 0;
+/** Sufixo alfabético: mantém cada produto numa família própria. */
+const nomeAlfa = (i: number) => `${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`;
 const prod = (designacao: string, nivel2: string | null = null, utilizacoes: string[] = [], nivel1: string | null = null): ProdutoPreselecao => ({
   cnp: 2_000_000 + n++,
   designacao,
@@ -161,6 +167,105 @@ console.log("\n=== nomes opacos ===");
 {
   for (const s of ["00", "5109400", "000", "X1", "  "]) check(nomeOpaco(s), `"${s}" é opaco`);
   for (const s of ["Ben-u-ron 500mg", "OCULOS SOL JUNIOR", "shield mask"]) check(!nomeOpaco(s), `"${s}" NÃO é opaco`);
+}
+
+console.log("\n=== partição do residual ===");
+{
+  const contexto = [
+    // Família de 3 sem conflito, toda no residual.
+    prod("Pregabalina Zentiva 25 mg 14 caps", "Outros Medicamentos"),
+    prod("Pregabalina Zentiva 75 mg 56 caps", "Outros Medicamentos"),
+    prod("Pregabalina Zentiva 150 mg 56 caps", "Outros Medicamentos"),
+    // Família em conflito.
+    prod("Lyrica 25 mg", "Sistema Nervoso"),
+    prod("Lyrica 75 mg", "Dor"),
+    prod("Lyrica 150 mg", "Outros Medicamentos"),
+    // Sozinho.
+    prod("Edarbi 20 mg 14 comp", "Outros Medicamentos"),
+    // Opaco.
+    prod("00", "Outros Medicamentos"),
+  ];
+  const residual = contexto.map((p) => ({ cnp: p.cnp, estrato: "OUTROS_MEDICAMENTOS" }));
+  const pre = preselecionar(residual, contexto);
+
+  const destinos = (cnps: number[]) => cnps.map((c) => pre.get(c)!.destino);
+  const preg = contexto.slice(0, 3).map((p) => p.cnp);
+  check(destinos(preg).filter((d) => d === "REPRESENTANTE").length === 1, "família sem conflito tem UM representante");
+  check(destinos(preg).filter((d) => d === "PROPAGAR").length === 2, "…e os outros dois propagam");
+  check(pre.get(preg[1]!)!.representanteCnp === preg[0]!, "o representante é o cnp mais baixo (determinístico)");
+
+  const lyrica = contexto.slice(3, 6).map((p) => p.cnp);
+  check(
+    destinos(lyrica).every((d) => d === "ENVIAR"),
+    "família EM CONFLITO não propaga — os três vão sozinhos ao modelo",
+    destinos(lyrica).join(","),
+  );
+  check(pre.get(lyrica[0]!)!.motivo.includes("conflito"), "…e o motivo di-lo");
+
+  check(pre.get(contexto[6]!.cnp)!.destino === "ENVIAR", "produto sem irmãos vai sozinho");
+  check(pre.get(contexto[7]!.cnp)!.destino === "EXCLUIR_OPACO", "nome opaco é excluído antes de tudo");
+}
+{
+  // Exclusão por baixa cobertura: só em SEM_UTILIZACOES.
+  const contexto = [
+    ...Array.from({ length: 40 }, (_, i) => prod(`Alicate modelo ${nomeAlfa(i)}`, "Acessórios de Beleza", [], "COSMÉTICA")),
+  ];
+  const residual = contexto.map((p) => ({ cnp: p.cnp, estrato: "SEM_UTILIZACOES" }));
+  const pre = preselecionar(residual, contexto);
+  const excluidos = [...pre.values()].filter((x) => x.destino === "EXCLUIR_BAIXA_COBERTURA").length;
+  check(excluidos === 40, `os 40 de uma subcategoria a 0% são excluídos (${excluidos})`);
+
+  // O MESMO produto noutro estrato NÃO é excluído por esta regra: a
+  // pergunta lá não é sobre utilizações.
+  const residualOutro = contexto.map((p) => ({ cnp: p.cnp, estrato: "OUTROS_MEDICAMENTOS" }));
+  const pre2 = preselecionar(residualOutro, contexto);
+  check(
+    [...pre2.values()].every((x) => x.destino !== "EXCLUIR_BAIXA_COBERTURA"),
+    "a exclusão por baixa cobertura NÃO se aplica fora de SEM_UTILIZACOES",
+  );
+}
+{
+  // População insuficiente: 10 produtos a 0% não autorizam exclusão.
+  const contexto = Array.from({ length: 10 }, (_, i) => prod(`Coisa rara ${nomeAlfa(i)}`, "Homeopatia", [], "SAÚDE NATURAL"));
+  const residual = contexto.map((p) => ({ cnp: p.cnp, estrato: "SEM_UTILIZACOES" }));
+  const pre = preselecionar(residual, contexto);
+  check(
+    [...pre.values()].every((x) => x.destino !== "EXCLUIR_BAIXA_COBERTURA"),
+    `abaixo de ${POPULACAO_MINIMA_SUBCATEGORIA} produtos a percentagem não decide nada`,
+  );
+}
+{
+  check(LIMIAR_COBERTURA_PERCENT === 2, "o limiar é 2% — não 5%");
+  check(POPULACAO_MINIMA_SUBCATEGORIA === 30, "a população mínima é 30");
+  check(FATOR_CONFIANCA_PROPAGADA < 1, "a confiança propagada é ESTRITAMENTE menor que a original");
+}
+
+console.log("\n=== o runner não propaga através de conflitos ===");
+{
+  // Guarda sobre o código: a propagação parte de `dependentes`, que só é
+  // preenchido pelo destino PROPAGAR — e `preselecionar` nunca o atribui
+  // a uma família com conflito.
+  const runner = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+  check(/case "PROPAGAR"/.test(runner), "o runner só enfileira dependentes no destino PROPAGAR");
+  check(
+    /if \(gate\.decisao === "APPLY"\)[\s\S]{0,400}dependentes\.get\(r\.cnp\)/.test(runner),
+    "a propagação só corre depois de o representante ser APPLY",
+  );
+  check(
+    /FONTE_PROPAGADA/.test(runner) && /MODEL_PROPAGATED/.test(runner),
+    "a proveniência do valor propagado é distinta na escrita",
+  );
+  check(
+    /FATOR_CONFIANCA_PROPAGADA/.test(runner),
+    "a confiança propagada passa pelo factor de redução",
+  );
+  // As exclusões não podem tocar em escrita: são contadas e vão para o
+  // relatório, e o `switch` que as trata não chama `escrever`.
+  const bloco = runner.slice(runner.indexOf('case "EXCLUIR_OPACO"'), runner.indexOf("resumo.familiasPropagaveis"));
+  check(!/escrever\(|executeRawUnsafe/.test(bloco), "o ramo das exclusões não escreve nada");
 }
 
 console.log("\n=== custos observados ===");

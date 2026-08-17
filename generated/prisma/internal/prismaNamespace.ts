@@ -4958,6 +4958,8 @@ export const KnowledgeEnrichmentCacheScalarFieldEnum = {
   rationale: 'rationale',
   persistido: 'persistido',
   motivo: 'motivo',
+  origem: 'origem',
+  propagadoDeCnp: 'propagadoDeCnp',
   criadoEm: 'criadoEm'
 } as const
 

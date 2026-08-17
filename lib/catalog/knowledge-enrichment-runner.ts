@@ -43,16 +43,34 @@ import {
   verificarUtilizacoesLote,
   type AlvoPedido,
   type Criterios,
+  type DecisaoEscrita,
   type Decisao,
   type KnowledgeResult,
   type ProdutoResidual,
 } from "./knowledge-enrichment";
+import {
+  FATOR_CONFIANCA_PROPAGADA,
+  LIMIAR_COBERTURA_PERCENT,
+  POPULACAO_MINIMA_SUBCATEGORIA,
+  agruparFamilias,
+  coberturaPorSubcategoria,
+  preselecionar,
+  subcategoriasExcluiveis,
+  type Destino,
+  type ProdutoPreselecao,
+} from "./preselection";
 
 /** Códigos internos da farmácia não entram no catálogo regulamentar. */
 export const MIN_CNP = 2_000_000;
 
 /** Marca de proveniência em ProdutoUtilizacao.fonte. */
 export const FONTE = "MODELO";
+/**
+ * Proveniência de um valor que não é uma observação DESTE produto — é a
+ * conclusão sobre um irmão da mesma família estrita, aplicada aqui.
+ * Distinta na base para que um dia se possa reverter só a propagação.
+ */
+export const FONTE_PROPAGADA = "MODELO_PROPAGADO";
 
 /** As três fatias do residual — o canary é estratificado por elas. */
 export type Estrato = "OUTROS_MEDICAMENTOS" | "NAO_CLASSIFICADO" | "SEM_UTILIZACOES";
@@ -164,6 +182,8 @@ export type LinhaRelatorio = {
   verificado: boolean;
   /** true quando a proposta e a verificação divergiram. */
   discordancia: boolean;
+  /** cnp do representante, quando este valor foi propagado. */
+  propagadoDe?: number | null;
 };
 
 type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
@@ -177,6 +197,14 @@ type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: numbe
 export type MetricasEstrato = {
   estrato: Estrato;
   alvo: AlvoPedido;
+  /** Produtos do estrato ANTES da pré-selecção. */
+  universoInicial: number;
+  excluidosBaixaCobertura: number;
+  excluidosOpacos: number;
+  representantesEnviados: number;
+  enviadosAoModelo: number;
+  propagados: number;
+  /** Produtos com resultado do modelo (não inclui propagados). */
   produtos: number;
   apply: number;
   review: number;
@@ -194,8 +222,33 @@ export type MetricasEstrato = {
   projecaoUsd: number | null;
 };
 
+/** Um produto que a pré-selecção tirou da fila, e porquê. */
+export type LinhaPreselecao = {
+  cnp: number;
+  designacao: string;
+  estrato: Estrato;
+  destino: Destino;
+  chaveFamilia: string | null;
+  representanteCnp: number | null;
+  motivo: string;
+};
+
 export type RunnerResumo = {
   residualAnalisado: number;
+  /** Não foram ao modelo: subcategoria sem utilização plausível. */
+  excluidosBaixaCobertura: number;
+  /** Não foram ao modelo: designação sem conteúdo reconhecível. */
+  excluidosOpacos: number;
+  /** Famílias com um representante e pelo menos um dependente. */
+  familiasPropagaveis: number;
+  representantesEnviados: number;
+  /** Produtos efectivamente enviados ao modelo. */
+  enviadosAoModelo: number;
+  /** Produtos escritos a partir da decisão de um representante. */
+  propagados: number;
+  /** Famílias que não propagam por os irmãos não concordarem. */
+  conflitosFamilia: number;
+  preselecao: LinhaPreselecao[];
   /**
    * Quota pedida vs servida por estrato. `null` fora do modo canary.
    * É aqui que um estrato vazio se declara, em vez de a amostra encolher
@@ -337,6 +390,44 @@ export async function selecionarCanary(
   return { linhas, quotas: relatorioQuotas };
 }
 
+/**
+ * Contexto para a pré-selecção: o catálogo INTEIRO, não só o residual.
+ *
+ * Tem de ser o catálogo inteiro por duas razões. As famílias precisam de
+ * ver irmãos que já estão classificados — esses estão, por definição,
+ * fora do residual. E a cobertura de utilizações por subcategoria só
+ * significa alguma coisa medida sobre toda a subcategoria; medida só
+ * sobre o residual daria sempre perto de zero, porque o residual é
+ * exactamente o que não tem utilizações.
+ */
+async function carregarContexto(prisma: PrismaClient): Promise<ProdutoPreselecao[]> {
+  const linhas = await prisma.$queryRawUnsafe<{
+    cnp: number; designacao: string | null;
+    nivel1: string | null; nivel2: string | null; utilizacoes: string[] | null;
+  }[]>(
+    `select p.cnp,
+            p.designacao,
+            c1.nome as nivel1,
+            c2.nome as nivel2,
+            coalesce(array_agg(u.slug) filter (where u.slug is not null), '{}') as utilizacoes
+       from "Produto" p
+       left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
+       left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
+       left join "ProdutoUtilizacao" pu on pu."produtoId" = p.id
+       left join "Utilizacao" u on u.id = pu."utilizacaoId"
+      where p.cnp >= $1
+      group by p.cnp, p.designacao, c1.nome, c2.nome`,
+    MIN_CNP,
+  );
+  return linhas.map((r) => ({
+    cnp: Number(r.cnp),
+    designacao: r.designacao ?? "",
+    nivel1: r.nivel1,
+    nivel2: r.nivel2,
+    utilizacoes: (r.utilizacoes ?? []).filter(Boolean),
+  }));
+}
+
 export async function runKnowledgeEnrichment(
   prisma: PrismaClient,
   opts: {
@@ -385,6 +476,14 @@ export async function runKnowledgeEnrichment(
 
   const resumo: RunnerResumo = {
     residualAnalisado: residual.length,
+    excluidosBaixaCobertura: 0,
+    excluidosOpacos: 0,
+    familiasPropagaveis: 0,
+    representantesEnviados: 0,
+    enviadosAoModelo: 0,
+    propagados: 0,
+    conflitosFamilia: 0,
+    preselecao: [],
     quotasCanary,
     porEstrato: {},
     chamadasProposta: 0,
@@ -406,32 +505,6 @@ export async function runKnowledgeEnrichment(
     cortadoPorTecto: false,
     relatorio: [],
   };
-  for (const l of residual) resumo.porEstrato[l.estrato] = (resumo.porEstrato[l.estrato] ?? 0) + 1;
-  if (residual.length === 0) return resumo;
-
-  // Vocabulário → id, resolvido uma vez. Taxonomia fechada: um nome que
-  // não exista em BD não é criado, o produto fica por classificar.
-  const tax = await prisma.$queryRawUnsafe<{ id: string; nome: string; pai: string | null }[]>(
-    `select id, nome, "classificacaoPaiId" as pai from "Classificacao" where estado = 'ATIVO'`,
-  );
-  const n1PorNome = new Map<string, string>();
-  const n2PorChave = new Map<string, string>();
-  for (const r of tax) if (!r.pai) n1PorNome.set(r.nome.toUpperCase(), r.id);
-  for (const r of tax) if (r.pai) n2PorChave.set(`${r.pai}::${r.nome.toUpperCase()}`, r.id);
-
-  const utilVocab = await prisma.$queryRawUnsafe<{ id: string; slug: string }[]>(
-    `select id, slug from "Utilizacao" where estado = 'ATIVO'`,
-  );
-  const utilPorSlug = new Map(utilVocab.map((u) => [u.slug, u.id]));
-
-  const somaUsage = (u: RunnerResumo["usage"]) => {
-    resumo.usage.inputTokens += u.inputTokens;
-    resumo.usage.outputTokens += u.outputTokens;
-    resumo.usage.cacheReadTokens += u.cacheReadTokens;
-    resumo.usage.cacheWriteTokens += u.cacheWriteTokens;
-    resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
-  };
-
   // Métricas por estrato, criadas à medida que cada um é tocado.
   const metricas = new Map<Estrato, MetricasEstrato>();
   const elegiveisPorEstrato = new Map<Estrato, number>(
@@ -443,6 +516,12 @@ export async function runKnowledgeEnrichment(
       m = {
         estrato,
         alvo: estrato === "SEM_UTILIZACOES" ? "UTILIZACOES" : "CLASSIFICACAO",
+        universoInicial: 0,
+        excluidosBaixaCobertura: 0,
+        excluidosOpacos: 0,
+        representantesEnviados: 0,
+        enviadosAoModelo: 0,
+        propagados: 0,
         produtos: 0,
         apply: 0,
         review: 0,
@@ -460,6 +539,263 @@ export async function runKnowledgeEnrichment(
     }
     return m;
   };
+
+  for (const l of residual) resumo.porEstrato[l.estrato] = (resumo.porEstrato[l.estrato] ?? 0) + 1;
+  if (residual.length === 0) return resumo;
+
+  // A proveniência vive em colunas que uma migração acrescentou. Sem
+  // elas, cada gravação de cache falharia a meio de uma corrida paga.
+  // Mais vale parar aqui, com a mensagem certa.
+  if (!dryRun) {
+    const [{ n }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+      `select count(*)::int as n from information_schema.columns
+        where table_name = 'KnowledgeEnrichmentCache' and column_name in ('origem', 'propagadoDeCnp')`,
+    );
+    if (Number(n) < 2) {
+      throw new Error(
+        "KnowledgeEnrichmentCache não tem as colunas de proveniência (origem, propagadoDeCnp).\n" +
+          "Correr `npx prisma migrate deploy` nesta base antes de usar --apply.",
+      );
+    }
+  }
+
+  // ── PRÉ-SELECÇÃO ────────────────────────────────────────────────────
+  // Decide, sem gastar uma chamada, o que não precisa de ir ao modelo.
+  // Tudo o que aqui se calcula vem dos dados DESTE tenant: a cobertura
+  // por subcategoria e as famílias são medidas na hora, não configuradas.
+  const contexto = await carregarContexto(prisma);
+  const familias = agruparFamilias(contexto);
+  const cobertura = coberturaPorSubcategoria(contexto);
+  const subExcluidas = subcategoriasExcluiveis(
+    cobertura,
+    LIMIAR_COBERTURA_PERCENT,
+    POPULACAO_MINIMA_SUBCATEGORIA,
+  );
+  const preselecao = preselecionar(residual, contexto, { familias, subcategoriasExcluidas: subExcluidas });
+  const contextoPorCnp = new Map(contexto.map((p) => [p.cnp, p]));
+
+  // Dependentes por representante: quem espera pela decisão de quem.
+  const dependentes = new Map<number, LinhaResidual[]>();
+  const enviar: LinhaResidual[] = [];
+  for (const l of residual) {
+    const pre = preselecao.get(l.cnp);
+    if (!pre) continue;
+    const m = metrica(l.estrato);
+    m.universoInicial++;
+    switch (pre.destino) {
+      case "EXCLUIR_OPACO":
+        resumo.excluidosOpacos++; m.excluidosOpacos++;
+        break;
+      case "EXCLUIR_BAIXA_COBERTURA":
+        resumo.excluidosBaixaCobertura++; m.excluidosBaixaCobertura++;
+        break;
+      case "PROPAGAR": {
+        const lista = dependentes.get(pre.representanteCnp!) ?? [];
+        lista.push(l);
+        dependentes.set(pre.representanteCnp!, lista);
+        break;
+      }
+      case "REPRESENTANTE":
+        resumo.representantesEnviados++; m.representantesEnviados++;
+        enviar.push(l);
+        break;
+      default:
+        enviar.push(l);
+    }
+    if (pre.destino !== "ENVIAR" && pre.destino !== "REPRESENTANTE") {
+      resumo.preselecao.push({
+        cnp: l.cnp,
+        designacao: contextoPorCnp.get(l.cnp)?.designacao ?? "",
+        estrato: l.estrato,
+        destino: pre.destino,
+        chaveFamilia: pre.chaveFamilia,
+        representanteCnp: pre.representanteCnp,
+        motivo: pre.motivo,
+      });
+    }
+  }
+  for (const f of familias.values()) if (f.conflito) resumo.conflitosFamilia++;
+  resumo.familiasPropagaveis = dependentes.size;
+  resumo.enviadosAoModelo = enviar.length;
+  for (const l of enviar) metrica(l.estrato).enviadosAoModelo++;
+
+  // A partir daqui trabalha-se só sobre o que vai mesmo ao modelo.
+  residual = enviar;
+  if (residual.length === 0) {
+    resumo.metricasPorEstrato = [...metricas.values()];
+    return resumo;
+  }
+
+  // Vocabulário → id, resolvido uma vez. Taxonomia fechada: um nome que
+  // não exista em BD não é criado, o produto fica por classificar.
+  const tax = await prisma.$queryRawUnsafe<{ id: string; nome: string; pai: string | null }[]>(
+    `select id, nome, "classificacaoPaiId" as pai from "Classificacao" where estado = 'ATIVO'`,
+  );
+  const n1PorNome = new Map<string, string>();
+  const n2PorChave = new Map<string, string>();
+  for (const r of tax) if (!r.pai) n1PorNome.set(r.nome.toUpperCase(), r.id);
+  for (const r of tax) if (r.pai) n2PorChave.set(`${r.pai}::${r.nome.toUpperCase()}`, r.id);
+
+  const utilVocab = await prisma.$queryRawUnsafe<{ id: string; slug: string }[]>(
+    `select id, slug from "Utilizacao" where estado = 'ATIVO'`,
+  );
+  const utilPorSlug = new Map(utilVocab.map((u) => [u.slug, u.id]));
+
+  /**
+   * A ÚNICA função que escreve em Produto e ProdutoUtilizacao.
+   *
+   * Partilhada pela decisão directa e pela propagação de propósito: se
+   * fossem dois caminhos, as guardas SQL teriam de estar escritas duas
+   * vezes, e um dia estariam escritas de duas maneiras. O que muda entre
+   * os dois é só a confiança, a fonte e o tier — nunca as guardas.
+   */
+  const escrever = async (
+    r: KnowledgeResult,
+    p: ProdutoResidual,
+    gate: DecisaoEscrita,
+    utilizacoesFinais: string[],
+    confianca: number,
+    fonte: string,
+    tier: string,
+  ): Promise<void> => {
+    if (gate.decisao !== "APPLY") return;
+
+    if (gate.gravarCategoria && r.categoria && r.subcategoria) {
+      const n1Id = n1PorNome.get(r.categoria.toUpperCase());
+      const n2Id = n1Id ? n2PorChave.get(`${n1Id}::${r.subcategoria.toUpperCase()}`) : undefined;
+      if (n1Id && n2Id) {
+        // A não-degradação está escrita outra vez aqui, no WHERE: mesmo
+        // que o estado tenha mudado entre o SELECT e agora, uma
+        // subcategoria específica não é sobreposta.
+        const n = await prisma.$executeRawUnsafe(
+          `update "Produto" p
+              set "classificacaoNivel1Id" = $1,
+                  "classificacaoNivel2Id" = $2,
+                  "dataAtualizacao"       = now()
+            where p.cnp = $3
+              and p."validadoManualmente" = false
+              and (p."classificacaoNivel2Id" is null
+                   or exists (select 1 from "Classificacao" c
+                               where c.id = p."classificacaoNivel2Id"
+                                 and c.nome ilike 'Outros %'))`,
+          n1Id,
+          n2Id,
+          p.cnp,
+        );
+        if (Number(n) > 0) resumo.categoriasEscritas++;
+      }
+    }
+
+    // productType só quando falta — `is null` no WHERE é a guarda.
+    if (gate.gravarProductType && r.productType) {
+      const n = await prisma.$executeRawUnsafe(
+        `update "Produto" p
+            set "productType"           = $1,
+                "productTypeConfidence" = $2,
+                "classificationSource"  = $3,
+                "classificationVersion" = $4,
+                "dataAtualizacao"       = now()
+          where p.cnp = $5
+            and p."validadoManualmente" = false
+            and p."productType" is null`,
+        r.productType,
+        confianca,
+        tier,
+        KNOWLEDGE_VERSION,
+        p.cnp,
+      );
+      if (Number(n) > 0) resumo.productTypesEscritos++;
+    }
+
+    // Utilizações seguem a política do backfill de regras: MANUAL nunca
+    // é tocada, automática só cede a confiança superior. É por isso que a
+    // confiança propagada é estritamente menor: nunca desaloja uma
+    // utilização que o modelo tenha visto de frente neste produto.
+    for (const slug of utilizacoesFinais) {
+      const uid = utilPorSlug.get(slug);
+      if (!uid) continue;
+      const n = await prisma.$executeRawUnsafe(
+        `insert into "ProdutoUtilizacao" ("produtoId", "utilizacaoId", fonte, confianca)
+         select p.id, $1, $2, $3 from "Produto" p
+          where p.cnp = $4 and p."validadoManualmente" = false
+         on conflict ("produtoId", "utilizacaoId") do update
+            set fonte = excluded.fonte, confianca = excluded.confianca
+          where "ProdutoUtilizacao".fonte <> 'MANUAL'
+            and excluded.confianca > coalesce("ProdutoUtilizacao".confianca, 0)`,
+        uid,
+        fonte,
+        confianca,
+        p.cnp,
+      );
+      resumo.utilizacoesEscritas += Number(n) || 0;
+    }
+  };
+
+  /**
+   * Prepara a decisão de um dependente e regista-a no relatório.
+   *
+   * O dependente NÃO herda a decisão em bruto: o gate volta a correr
+   * contra o estado DELE. Um irmão que entretanto ganhou classificação
+   * específica não é sobreposto só porque o representante foi APPLY. E o
+   * resultado é intersectado com o que o representante estava autorizado
+   * a escrever — a propagação nunca alarga o âmbito, só o estreita.
+   */
+  const registarPropagado = (
+    dep: LinhaResidual,
+    r: KnowledgeResult,
+    gateRep: DecisaoEscrita,
+    utilizacoesFinais: string[],
+  ): DecisaoEscrita => {
+    const gateDep = avaliarGate(
+      r,
+      { categoria: dep.categoriaAtual, subcategoria: dep.subcategoriaAtual, productType: dep.productType },
+      { concorda: true, aplicavel: false },
+    );
+    const efectivo: DecisaoEscrita = {
+      ...gateDep,
+      decisao: gateDep.decisao === "APPLY" ? "APPLY" : gateDep.decisao,
+      gravarCategoria: gateRep.gravarCategoria && gateDep.gravarCategoria,
+      gravarProductType: gateRep.gravarProductType && gateDep.gravarProductType,
+      utilizacoes: gateDep.decisao === "APPLY" ? utilizacoesFinais : [],
+      motivo: `propagado do representante ${r.cnp}`,
+    };
+
+    const m = metrica(dep.estrato);
+    if (efectivo.decisao === "APPLY") {
+      resumo.propagados++;
+      m.propagados++;
+    }
+    resumo.relatorio.push({
+      cnp: dep.cnp,
+      designacao: dep.designacao,
+      estrato: dep.estrato,
+      alvo: efectivo.alvo,
+      estadoAtual: dep.subcategoriaAtual
+        ? `${dep.categoriaAtual} > ${dep.subcategoriaAtual}`
+        : "NÃO CLASSIFICADO",
+      proposta: efectivo.gravarCategoria && r.categoria ? `${r.categoria} > ${r.subcategoria}` : "(propagado)",
+      utilizacoes: efectivo.utilizacoes,
+      decisao: efectivo.decisao,
+      anomalia: efectivo.anomalia,
+      motivo: efectivo.motivo,
+      criterios: efectivo.criterios,
+      confidence: r.confidence * FATOR_CONFIANCA_PROPAGADA,
+      evidenceType: r.evidenceType,
+      verificado: false,
+      discordancia: false,
+      propagadoDe: r.cnp,
+    });
+    return efectivo;
+  };
+
+  const somaUsage = (u: RunnerResumo["usage"]) => {
+    resumo.usage.inputTokens += u.inputTokens;
+    resumo.usage.outputTokens += u.outputTokens;
+    resumo.usage.cacheReadTokens += u.cacheReadTokens;
+    resumo.usage.cacheWriteTokens += u.cacheWriteTokens;
+    resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
+  };
+
 
   // Atingido o tecto, não sai mais nenhuma chamada — nem a verificação
   // de um lote já proposto. O custo é reavaliado a cada resposta, por
@@ -608,80 +944,50 @@ export async function runKnowledgeEnrichment(
       // cache. Nada de escrita pode subir daqui — é o que
       // `test-knowledge-enrichment` verifica, com um prisma que rebenta
       // se lhe pedirem uma escrita durante um dry-run.
-      if (dryRun) continue;
-
-      let escreveuCategoria = false;
-      if (gate.decisao === "APPLY" && r.categoria && r.subcategoria) {
-        const n1Id = n1PorNome.get(r.categoria.toUpperCase());
-        const n2Id = n1Id ? n2PorChave.get(`${n1Id}::${r.subcategoria.toUpperCase()}`) : undefined;
-        if (n1Id && n2Id) {
-          // A não-degradação está escrita outra vez aqui, no WHERE: mesmo
-          // que o estado tenha mudado entre o SELECT e agora, uma
-          // subcategoria específica não é sobreposta.
-          const n = await prisma.$executeRawUnsafe(
-            `update "Produto" p
-                set "classificacaoNivel1Id" = $1,
-                    "classificacaoNivel2Id" = $2,
-                    "dataAtualizacao"       = now()
-              where p.cnp = $3
-                and p."validadoManualmente" = false
-                and (p."classificacaoNivel2Id" is null
-                     or exists (select 1 from "Classificacao" c
-                                 where c.id = p."classificacaoNivel2Id"
-                                   and c.nome ilike 'Outros %'))`,
-            n1Id,
-            n2Id,
-            r.cnp,
-          );
-          escreveuCategoria = Number(n) > 0;
-          if (escreveuCategoria) resumo.categoriasEscritas++;
+      if (dryRun) {
+        // A propagação também tem de aparecer no dry-run, senão o
+        // relatório mostrava uma amostra que não corresponde ao que o
+        // `--apply` faria.
+        if (gate.decisao === "APPLY") {
+          for (const dep of dependentes.get(r.cnp) ?? []) {
+            registarPropagado(dep, r, gate, utilizacoesFinais);
+          }
         }
-
-        // productType só quando falta — `is null` no WHERE é a guarda.
-        if (gate.gravarProductType && r.productType) {
-          const n = await prisma.$executeRawUnsafe(
-            `update "Produto" p
-                set "productType"           = $1,
-                    "productTypeConfidence" = $2,
-                    "classificationSource"  = 'MODEL_INFERRED',
-                    "classificationVersion" = $3,
-                    "dataAtualizacao"       = now()
-              where p.cnp = $4
-                and p."validadoManualmente" = false
-                and p."productType" is null`,
-            r.productType,
-            r.confidence,
-            KNOWLEDGE_VERSION,
-            r.cnp,
-          );
-          if (Number(n) > 0) resumo.productTypesEscritos++;
-        }
+        continue;
       }
 
-      // Utilizações seguem a política do backfill de regras: MANUAL nunca
-      // é tocada, automática só cede a confiança superior.
+      await escrever(r, p, gate, utilizacoesFinais, r.confidence, FONTE, "MODEL_INFERRED");
+      await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo, "CLAUDE", null);
+
+      // ── PROPAGAÇÃO ────────────────────────────────────────────────
+      // Só depois de o representante ter passado o gate. Os dependentes
+      // não têm decisão própria: herdam a dele, com menos confiança e
+      // com proveniência distinta, e passam pelas MESMAS guardas SQL —
+      // validadoManualmente, não-degradação, productType só se faltar.
       if (gate.decisao === "APPLY") {
-        for (const slug of utilizacoesFinais) {
-          const uid = utilPorSlug.get(slug);
-          if (!uid) continue;
-          const n = await prisma.$executeRawUnsafe(
-            `insert into "ProdutoUtilizacao" ("produtoId", "utilizacaoId", fonte, confianca)
-             select p.id, $1, $2, $3 from "Produto" p
-              where p.cnp = $4 and p."validadoManualmente" = false
-             on conflict ("produtoId", "utilizacaoId") do update
-                set fonte = excluded.fonte, confianca = excluded.confianca
-              where "ProdutoUtilizacao".fonte <> 'MANUAL'
-                and excluded.confianca > coalesce("ProdutoUtilizacao".confianca, 0)`,
-            uid,
-            FONTE,
-            r.confidence,
+        const confiancaProp = r.confidence * FATOR_CONFIANCA_PROPAGADA;
+        for (const dep of dependentes.get(r.cnp) ?? []) {
+          const gateDep = registarPropagado(dep, r, gate, utilizacoesFinais);
+          await escrever(
+            { ...r, cnp: dep.cnp },
+            dep,
+            gateDep,
+            utilizacoesFinais,
+            confiancaProp,
+            FONTE_PROPAGADA,
+            "MODEL_PROPAGATED",
+          );
+          await gravarCache(
+            prisma,
+            { ...r, cnp: dep.cnp, confidence: confiancaProp },
+            dep,
+            true,
+            `propagado do representante ${r.cnp}`,
+            "PROPAGADO",
             r.cnp,
           );
-          resumo.utilizacoesEscritas += Number(n) || 0;
         }
       }
-
-      await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo);
     }
 
     processados += lote.length;
@@ -714,6 +1020,8 @@ async function gravarCache(
   p: ProdutoResidual,
   persistido: boolean,
   motivo: string,
+  origem: "CLAUDE" | "PROPAGADO",
+  propagadoDeCnp: number | null,
 ): Promise<void> {
   const chave = chaveCache(r.cnp, p.designacao);
   await prisma.knowledgeEnrichmentCache.upsert({
@@ -736,7 +1044,12 @@ async function gravarCache(
       rationale: r.rationale,
       persistido,
       motivo: persistido ? null : motivo,
+      // Proveniência: distingue uma decisão do modelo sobre ESTE produto
+      // de um valor herdado de um irmão. Sem isto, uma auditoria futura
+      // não conseguiria separar as duas coisas.
+      origem,
+      propagadoDeCnp,
     },
-    update: { persistido, motivo: persistido ? null : motivo },
+    update: { persistido, motivo: persistido ? null : motivo, origem, propagadoDeCnp },
   });
 }
