@@ -21,11 +21,15 @@
 import {
   FATOR_PROJECCAO,
   ORIGEM_RANK,
+  aprovacaoValida,
   avaliarProjeccao,
   avaliarPromocao,
   ehEspecifica,
   estaDesactualizado,
   maisAutoritaria,
+  precisaAprovacaoHumana,
+  registoPromocao,
+  type AprovacaoHumana,
   type ConhecimentoCandidato,
   type ConhecimentoGlobal,
   type EstadoLocal,
@@ -67,6 +71,12 @@ const global = (over: Partial<ConhecimentoGlobal> = {}): ConhecimentoGlobal => (
   ...over,
 });
 
+/** Uma aprovação humana completa: quem responde, e porquê. */
+const APROVACAO: AprovacaoHumana = {
+  aprovador: "Bruno Reis",
+  motivo: "revisão do catálogo de diabetes, confirmada com o INFARMED",
+};
+
 const local = (over: Partial<EstadoLocal> = {}): EstadoLocal => ({
   cnp: 5678901,
   validadoManualmente: false,
@@ -104,8 +114,14 @@ console.log("\n=== promoção: entre dois conhecimentos, fica o mais autoritári
   check(avaliarPromocao(candidato(), null).promover, "cnp desconhecido é promovido");
 }
 {
-  const d = avaliarPromocao(candidato({ origem: "HUMANO", confidence: 0.5 }), global({ origem: "MODELO", confidence: 1 }));
-  check(d.promover, "HUMANO com confiança 0.5 supera MODELO com confiança 1.0");
+  // Com aprovação — sem ela nem se chega à regra de autoridade, e é
+  // isso que a secção "a validação manual local não sobe sozinha" fixa.
+  const d = avaliarPromocao(
+    candidato({ origem: "HUMANO", confidence: 0.5 }),
+    global({ origem: "MODELO", confidence: 1 }),
+    { aprovacao: APROVACAO },
+  );
+  check(d.promover, "HUMANO aprovado com confiança 0.5 supera MODELO com confiança 1.0");
   check(d.motivo.includes("autoritária"), "…e o motivo diz porquê", d.motivo);
 }
 {
@@ -129,6 +145,115 @@ console.log("\n=== promoção: entre dois conhecimentos, fica o mais autoritári
   const c = candidato();
   const g = global({ confidence: c.confidence, origem: c.origem });
   check(!avaliarPromocao(c, g).promover, "promover o que já foi promovido é no-op");
+}
+
+console.log("\n=== a validação manual local NÃO sobe sozinha ===");
+{
+  // A regra central desta secção. Uma pessoa que corrige um produto ao
+  // balcão está a dizer «nesta farmácia isto é assim» — não «isto é
+  // assim em Portugal». Tratar as duas frases como iguais tornaria cada
+  // correcção local em verdade para todas as farmácias.
+  const d = avaliarPromocao(candidato({ origem: "HUMANO" }), null);
+  check(!d.promover, "HUMANO sem aprovação NÃO é promovido, nem num cnp desconhecido");
+  check(!!d.aguardaAprovacao, "…e fica marcado como à espera, não como reprovado");
+  check(d.motivo.includes("promoção humana explícita"), "…com o motivo a dizer o que falta", d.motivo);
+}
+{
+  check(precisaAprovacaoHumana("HUMANO"), "HUMANO exige aprovação");
+  for (const o of ["REGULATORY", "MODELO", "PROPAGADO"] as OrigemGlobal[]) {
+    check(!precisaAprovacaoHumana(o), `${o} continua a subir sozinho`);
+    const d = avaliarPromocao(candidato({ origem: o }), null);
+    check(d.promover && !d.aguardaAprovacao, `…e ${o} é mesmo promovido sem aprovação nenhuma`);
+  }
+}
+
+console.log("\n=== a promoção humana explícita funciona ===");
+{
+  const d = avaliarPromocao(candidato({ origem: "HUMANO" }), null, { aprovacao: APROVACAO });
+  check(d.promover, "com aprovador E motivo, o conhecimento humano sobe");
+  check(!d.aguardaAprovacao, "…e deixa de aparecer como pendente");
+}
+{
+  // Uma aprovação sem motivo é um carimbo, e um carimbo não se audita.
+  const meias: Array<[string, AprovacaoHumana]> = [
+    ["sem aprovador", { aprovador: "", motivo: "porque sim" }],
+    ["sem motivo", { aprovador: "Bruno Reis", motivo: "" }],
+    ["só espaços", { aprovador: "   ", motivo: "   " }],
+  ];
+  for (const [nome, a] of meias) {
+    check(!aprovacaoValida(a), `aprovação ${nome} é inválida`);
+    const d = avaliarPromocao(candidato({ origem: "HUMANO" }), null, { aprovacao: a });
+    check(!d.promover && !!d.aguardaAprovacao, `…e não promove nada (${nome})`);
+  }
+}
+{
+  // A aprovação DESBLOQUEIA a origem; não dispensa o resto das regras.
+  const fallback = candidato({ origem: "HUMANO", subcategoria: "Outros Medicamentos" });
+  check(
+    !avaliarPromocao(fallback, null, { aprovacao: APROVACAO }).promover,
+    "uma aprovação não faz de um fallback conhecimento",
+  );
+  const jaMelhor = avaliarPromocao(
+    candidato({ origem: "HUMANO", confidence: 0.5 }),
+    global({ origem: "HUMANO", confidence: 0.9 }),
+    { aprovacao: APROVACAO },
+  );
+  check(!jaMelhor.promover, "…nem desfaz o que no global já tem mais autoridade");
+}
+
+console.log("\n=== global HUMANO continua a ser autoridade máxima ===");
+{
+  const g = global({ origem: "HUMANO", confidence: 0.5 });
+  for (const o of ["REGULATORY", "MODELO", "PROPAGADO"] as OrigemGlobal[]) {
+    check(
+      !avaliarPromocao(candidato({ origem: o, confidence: 1 }), g).promover,
+      `${o} com confiança 1.0 não desfaz um HUMANO global com 0.5`,
+    );
+  }
+  check(
+    avaliarPromocao(candidato({ origem: "HUMANO", confidence: 0.9 }), g, { aprovacao: APROVACAO }).promover,
+    "só outro HUMANO aprovado, com mais confiança, o substitui",
+  );
+}
+
+console.log("\n=== idempotência da promoção humana ===");
+{
+  // Correr o comando duas vezes com a mesma aprovação: a segunda não
+  // escreve. Sem isto, cada re-corrida enchia o rasto de auditoria de
+  // linhas que não registam decisão nenhuma.
+  const c = candidato({ origem: "HUMANO" });
+  const primeira = avaliarPromocao(c, null, { aprovacao: APROVACAO });
+  const depois = global({ origem: "HUMANO", confidence: c.confidence });
+  const segunda = avaliarPromocao(c, depois, { aprovacao: APROVACAO });
+  check(primeira.promover && !segunda.promover, "promover duas vezes o mesmo é no-op à segunda");
+  check(segunda.motivo.includes("igual ou melhor"), "…e diz porquê", segunda.motivo);
+  const terceira = avaliarPromocao(c, depois, { aprovacao: { aprovador: "Outra Pessoa", motivo: "outro motivo" } });
+  check(!terceira.promover, "…e outro aprovador não reabre o que já está decidido");
+}
+
+console.log("\n=== rasto de auditoria: quem, onde, quando, porquê ===");
+{
+  const c = candidato({ origem: "HUMANO", tenantOrigem: "tenant-b" });
+  const d = avaliarPromocao(c, null, { aprovacao: APROVACAO });
+  const reg = registoPromocao(c, d, { actor: APROVACAO.aprovador, aprovacao: APROVACAO });
+  check(reg.aprovador === "Bruno Reis", "o registo guarda QUEM aprovou");
+  check(reg.tenantOrigem === "tenant-b", "…de ONDE veio o conhecimento");
+  check(reg.motivo === APROVACAO.motivo, "…e PORQUÊ — o motivo da pessoa, não o da regra");
+  check(reg.cnp === c.cnp && reg.origem === "HUMANO", "…sobre que produto e com que origem");
+  check(reg.versaoRegras === c.versaoRegras, "…e com que versão de regras");
+}
+{
+  // As promoções automáticas também deixam rasto: o actor é o processo.
+  const c = candidato({ origem: "MODELO" });
+  const d = avaliarPromocao(c, null);
+  const reg = registoPromocao(c, d, { actor: "catalog:knowledge-enrich" });
+  check(reg.aprovador === null, "promoção automática não inventa um aprovador");
+  check(reg.actor === "catalog:knowledge-enrich", "…mas identifica o processo que a fez");
+  check(reg.motivo === d.motivo, "…e guarda o motivo da decisão automática");
+}
+{
+  const reg = registoPromocao(candidato(), avaliarPromocao(candidato(), null), { actor: "  " });
+  check(reg.actor === "desconhecido", "um actor vazio nunca fica em branco no rasto");
 }
 
 console.log("\n=== projecção: validadoManualmente é intocável ===");
@@ -277,6 +402,18 @@ console.log("\n=== o segundo tenant não volta a pagar ===");
     .filter((d) => d.accao === "ESCREVER_CLASSIFICACAO");
   check(escritas.length === 5, `os 5 recebem classificação por projecção (${escritas.length})`);
   check(escritas.every((d) => d.utilizacoes.length > 0), "…e as utilizações vêm junto");
+
+  // …e o que o tenant A corrigiu à mão NÃO viaja com o resto. É a única
+  // coisa que fica para trás de propósito.
+  const corrigidoAMao = candidato({ cnp: 7777001, origem: "HUMANO", tenantOrigem: "tenant-a" });
+  check(
+    !avaliarPromocao(corrigidoAMao, null).promover,
+    "a correcção manual do tenant A não chega ao tenant B sozinha",
+  );
+  check(
+    avaliarPromocao(corrigidoAMao, null, { aprovacao: APROVACAO }).promover,
+    "…chega quando alguém assina que vale para todas as farmácias",
+  );
 
   // Um tenant C com um produto que A não tinha continua a pagar só esse.
   const residualC = [...catalogoNacional, 9999001].map((cnp) => local({ cnp }));

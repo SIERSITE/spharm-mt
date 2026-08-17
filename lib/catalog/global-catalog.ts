@@ -24,6 +24,21 @@
  * A assimetria é deliberada. Um erro global propagado a todas as
  * farmácias é o risco novo que esta camada introduz, e as regras de
  * projecção existem para o conter.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * A VALIDAÇÃO MANUAL LOCAL NÃO SOBE SOZINHA
+ *
+ * Uma pessoa numa farmácia que corrige um produto está a dizer «neste
+ * balcão isto é assim». Não está a dizer «isto é assim em Portugal», e
+ * muito menos a assumir a responsabilidade de o impor às outras
+ * farmácias. As duas frases são diferentes, e tratá-las como iguais
+ * transformaria cada correcção local — feita à pressa, ao balcão, sem
+ * saber que existe um catálogo nacional — em verdade para toda a gente.
+ *
+ * Por isso `HUMANO` é a única origem que NÃO promove automaticamente:
+ * precisa de uma aprovação explícita, com quem e porquê (ver
+ * `AprovacaoHumana` e o comando `catalog:promote-global`). O conhecimento
+ * inferido e o regulamentar continuam a subir pelas regras de sempre.
  */
 
 /** Origem do conhecimento, por ordem de autoridade. */
@@ -86,23 +101,72 @@ export type ConhecimentoGlobal = {
 export type DecisaoPromocao = {
   promover: boolean;
   motivo: string;
+  /**
+   * Não foi promovido apenas porque falta a aprovação humana — o resto
+   * das regras deixava passar. Distingue "recusado" de "à espera de
+   * alguém", que são coisas diferentes no relatório.
+   */
+  aguardaAprovacao?: boolean;
 };
+
+/**
+ * Autorização explícita para levar conhecimento de origem HUMANO ao
+ * catálogo global. Sem isto, uma validação manual local fica local.
+ *
+ * Os dois campos são obrigatórios e é de propósito: quem responde por
+ * isto, e porquê. Uma aprovação sem motivo é um carimbo, e um carimbo
+ * não se audita.
+ */
+export type AprovacaoHumana = {
+  aprovador: string;
+  motivo: string;
+};
+
+export type ContextoPromocao = {
+  aprovacao?: AprovacaoHumana | null;
+};
+
+/** Esta origem exige aprovação explícita para subir ao global? */
+export function precisaAprovacaoHumana(origem: OrigemGlobal): boolean {
+  return origem === "HUMANO";
+}
+
+export function aprovacaoValida(
+  a: AprovacaoHumana | null | undefined,
+): a is AprovacaoHumana {
+  return !!a && a.aprovador.trim().length > 0 && a.motivo.trim().length > 0;
+}
 
 /**
  * Vale a pena promover este conhecimento ao global?
  *
  * Regras, e todas dizem "não" mais vezes do que "sim":
+ *  · uma validação manual local NÃO sobe sem aprovação humana explícita;
  *  · sem par (categoria, subcategoria) específico não há o que promover —
  *    um fallback não é conhecimento;
  *  · o que já está no global só cede a origem MAIS autoritária, ou à
  *    mesma origem com confiança estritamente superior;
  *  · nunca se rebaixa a origem: um MODELO não substitui um HUMANO, por
  *    mais confiante que venha.
+ *
+ * A aprovação DESBLOQUEIA a origem HUMANO; não dispensa nada do resto.
+ * Um fallback aprovado continua a não ser promovido, e uma aprovação não
+ * desfaz o que no global já tem mais autoridade.
  */
 export function avaliarPromocao(
   candidato: ConhecimentoCandidato,
   global: ConhecimentoGlobal | null,
+  ctx: ContextoPromocao = {},
 ): DecisaoPromocao {
+  if (precisaAprovacaoHumana(candidato.origem) && !aprovacaoValida(ctx.aprovacao)) {
+    return {
+      promover: false,
+      aguardaAprovacao: true,
+      motivo: ctx.aprovacao
+        ? "aprovação humana incompleta: exige aprovador E motivo"
+        : "validação manual local não sobe sozinha — exige promoção humana explícita (catalog:promote-global)",
+    };
+  }
   if (!ehEspecifica(candidato.subcategoria) || !candidato.categoria) {
     return { promover: false, motivo: "sem classificação específica — um fallback não é conhecimento" };
   }
@@ -126,6 +190,49 @@ export function avaliarPromocao(
     return { promover: true, motivo: `mesma origem, confiança superior (${candidato.confidence.toFixed(2)} > ${global.confidence.toFixed(2)})` };
   }
   return { promover: false, motivo: "o global já tem conhecimento igual ou melhor" };
+}
+
+// ─── Registo de promoção: quem, onde, quando, porquê ──────────────────
+
+/**
+ * Uma linha do rasto de auditoria. Escrita a cada promoção que ACONTECE
+ * — as recusas não geram registo, senão o rasto ficava soterrado pelas
+ * dezenas de milhares de "o global já tem melhor" de cada re-corrida.
+ *
+ * O `actor` é sempre preenchido: ou é uma pessoa, ou é o nome do processo
+ * que correu. "Não se sabe quem" não é um valor aceitável aqui.
+ */
+export type RegistoPromocao = {
+  cnp: number;
+  origem: OrigemGlobal;
+  /** Quem: operador identificado, ou o processo automático. */
+  actor: string;
+  /** Onde: o tenant de onde veio o conhecimento. */
+  tenantOrigem: string;
+  /** Quem aprovou. Só nas promoções humanas explícitas. */
+  aprovador: string | null;
+  /** Porquê: o motivo da aprovação, ou o motivo da decisão automática. */
+  motivo: string;
+  confidence: number;
+  versaoRegras: string;
+};
+
+export function registoPromocao(
+  candidato: ConhecimentoCandidato,
+  decisao: DecisaoPromocao,
+  ctx: ContextoPromocao & { actor: string },
+): RegistoPromocao {
+  const aprovada = aprovacaoValida(ctx.aprovacao) ? ctx.aprovacao : null;
+  return {
+    cnp: candidato.cnp,
+    origem: candidato.origem,
+    actor: ctx.actor.trim() || "desconhecido",
+    tenantOrigem: candidato.tenantOrigem,
+    aprovador: aprovada?.aprovador ?? null,
+    motivo: aprovada?.motivo ?? decisao.motivo,
+    confidence: candidato.confidence,
+    versaoRegras: candidato.versaoRegras,
+  };
 }
 
 // ─── Projecção: global → tenant ───────────────────────────────────────
