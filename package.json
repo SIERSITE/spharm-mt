@@ -33,6 +33,7 @@
     "catalog:import": "tsx scripts/catalog-master/import-catalog.ts",
     "catalog:simulate": "tsx scripts/catalog-master/simulate-classification.ts",
     "catalog:audit": "tsx scripts/catalog-master/audit-catalog.ts",
+    "catalog:seed-taxonomy": "tsx scripts/seed-taxonomy.ts",
     "catalog:seed-utilizacoes": "tsx scripts/catalog-master/seed-utilizacoes.ts",
     "catalog:classify-backfill": "tsx scripts/catalog-master/classify-backfill.ts",
     "catalog:fill-rules": "tsx scripts/catalog-master/fill-rules.ts",

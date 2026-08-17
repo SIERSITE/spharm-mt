@@ -261,6 +261,10 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/backfill-utilizacoes.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
+# `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na
+# raiz de scripts/, não em catalog-master/. Sem ele, o `fill-rules`
+# encontra "0 nível 1, 0 nível 2" e não classifica nada.
+COPY scripts/seed-taxonomy.ts ./scripts/seed-taxonomy.ts
 COPY --from=builder /app/generated ./generated
 
 # Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro

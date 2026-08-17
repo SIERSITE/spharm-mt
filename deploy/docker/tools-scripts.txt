@@ -68,8 +68,15 @@ tenancy:create
 # desenvolvimento — em produção usa o utilizador do DATABASE_URL, que não
 # tem CONNECT às bases dos tenants (ver lib/catalog/target-db.ts).
 #
-# Todos aceitam `--dry-run`, e em dry-run abrem a sessão PostgreSQL em
-# read-only.
+# Todos têm um modo sem escrita, e nesse modo abrem a sessão PostgreSQL
+# em read-only. ATENÇÃO ao default, que não é o mesmo em todos:
+#   · seed-taxonomy e knowledge-enrich  — não escrevem sem `--apply`;
+#   · seed-utilizacoes, classify-backfill, fill-rules,
+#     backfill-utilizacoes               — escrevem, salvo `--dry-run`.
+# A diferença é histórica e não está uniformizada aqui de propósito:
+# trocar o default de um comando que já é operado mudaria o efeito de uma
+# linha de comando que alguém tem escrita num runbook.
+catalog:seed-taxonomy
 catalog:seed-utilizacoes
 catalog:classify-backfill
 catalog:fill-rules

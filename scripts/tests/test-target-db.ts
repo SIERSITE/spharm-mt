@@ -132,17 +132,19 @@ async function main() {
   // defeito: um script que reconstrói a URL nunca chega a falhar num
   // teste de unidade, falha na VPS.
   console.log("\n=== os scripts de catálogo resolvem o destino, não o constroem ===");
+  // Caminhos relativos a scripts/tests/. O `seed-taxonomy` vive na raiz
+  // de scripts/ e não em catalog-master/ — e é o primeiro passo do
+  // bootstrap, portanto tem de estar nesta lista tanto como os outros.
   const TENANT_AWARE = [
-    "classify-backfill.ts",
-    "fill-rules.ts",
-    "backfill-utilizacoes.ts",
-    "knowledge-enrich.ts",
+    "../seed-taxonomy.ts",
+    "../catalog-master/classify-backfill.ts",
+    "../catalog-master/fill-rules.ts",
+    "../catalog-master/backfill-utilizacoes.ts",
+    "../catalog-master/knowledge-enrich.ts",
   ];
-  for (const nome of TENANT_AWARE) {
-    const src = readFileSync(
-      new URL(`../catalog-master/${nome}`, import.meta.url),
-      "utf8",
-    );
+  for (const caminho of TENANT_AWARE) {
+    const nome = caminho.split("/").pop()!;
+    const src = readFileSync(new URL(caminho, import.meta.url), "utf8");
     // Comentários explicam porque NÃO se faz isto; o que interessa é o código.
     const codigo = src
       .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -154,6 +156,14 @@ async function main() {
     check(
       !/process\.env\.DATABASE_URL/.test(codigo),
       `${nome} NÃO lê DATABASE_URL — é o que trazia o role legacy para uma base de tenant`,
+    );
+    // O `seed-taxonomy` semeou a taxonomia toda na base legacy por causa
+    // desta linha: o destino estava no import, e nenhum argumento o
+    // mudava. Um cliente fixo é pior que uma base por omissão — nem
+    // sequer há argumento que o corrija.
+    check(
+      !/legacyPrisma|from ["'].*lib\/prisma["']/.test(codigo),
+      `${nome} NÃO importa um cliente de base fixo (legacyPrisma)`,
     );
     check(
       !/\.replace\([^)]*\$\{?db/i.test(codigo) && !/`\/\$\{dbName\}/.test(codigo),
