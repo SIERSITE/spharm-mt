@@ -5149,11 +5149,19 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     dataCriacao: Date
     dataAtualizacao: Date
     /**
-     * Feature flag (per-tenant na prática, granularidade per-farmácia
-     * para rollout incremental). Quando `true`, o extrato de movimentos
-     * (lib/movimentos-data.ts) lê de `MovimentoArtigo`; quando `false`
-     * (default), lê do modelo legacy (Venda/Compra/Devolucao + raw).
-     * Rollback = pôr a false. Removido após 100 % tenants migrados.
+     * OBSOLETA desde 2026-08-18 — já NÃO escolhe fonte nenhuma.
+     * 
+     * Era a flag que decidia se o extrato lia `MovimentoArtigo` ou o
+     * "modelo legacy" (Venda/Compra/Devolucao). Esse ramo saiu: a tabela
+     * `Venda` nunca é escrita por código nenhum, portanto o legacy era
+     * incapaz de mostrar uma venda — e com a flag a `false` em produção
+     * era exactamente isso que acontecia. Ver o cabeçalho de
+     * `lib/movimentos-data.ts`.
+     * 
+     * A coluna fica por remover numa migração própria, para que este
+     * commit não misture correcção de comportamento com alteração de
+     * schema. `scripts/admin/backfill-movimentos-tenant.ts` ainda a
+     * escreve; deixou de ter efeito na UI.
      */
     useMovimentosCanonical: boolean
   }, ExtArgs["result"]["farmacia"]>

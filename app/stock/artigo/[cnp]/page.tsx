@@ -6,7 +6,11 @@ import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
-import { getMovimentosProduto, getDefaultMovimentosWindow } from "@/lib/movimentos-data";
+import {
+  getCoberturaMovimentos,
+  getDefaultMovimentosWindow,
+  getMovimentosProduto,
+} from "@/lib/movimentos-data";
 import {
   ArrowLeft,
   Package,
@@ -135,10 +139,13 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // Cobertura por pipeline foi MOVIDA para /admin/pipeline — não pertence
   // à ficha operacional do artigo. A ficha é per-produto; freshness é
   // tenant-wide e só faz sentido na área técnica/admin.
-  const movimentosIniciais = await getMovimentosProduto(produto.cnp, {
-    from: defaultFrom,
-    to: defaultTo,
-  });
+  // A cobertura vem com o extrato porque uma tabela vazia tem duas
+  // leituras — "este artigo não se mexeu" e "esta farmácia não tem
+  // ledger ingerido" — e só uma delas é uma resposta.
+  const [movimentosIniciais, cobertura] = await Promise.all([
+    getMovimentosProduto(produto.cnp, { from: defaultFrom, to: defaultTo }),
+    getCoberturaMovimentos(),
+  ]);
 
   const fabricante = fmt(produto.fabricante?.nomeNormalizado);
   const principioAtivo = fmt(produto.dci);
@@ -388,6 +395,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           initialRows={movimentosIniciais}
           defaultFrom={defaultFrom}
           defaultTo={defaultTo}
+          cobertura={cobertura}
         />
 
         {/*

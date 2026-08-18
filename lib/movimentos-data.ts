@@ -8,12 +8,30 @@
  *   Sem agregados. Sem "Venda mensal"/"Venda diária". O ERP imprime
  *   movimento-a-movimento e nós fazemos o mesmo.
  *
- * Fontes:
- *   · Farmácia com `useMovimentosCanonical=true`  → `MovimentoArtigo`
- *   · Farmácia com `useMovimentosCanonical=false` → branch legacy
- *     (Venda / Compra / Devolucao / IngestVendaLinhaRaw) — DEPRECATED.
- *     Mantém-se enquanto houver tenants pré-rev36 por migrar; quando
- *     todos forem canónicos, este branch sai.
+ * ── PORQUE É QUE O RAMO LEGACY DESAPARECEU ───────────────────────────
+ *
+ * Havia dois ramos, escolhidos por `Farmacia.useMovimentosCanonical`.
+ * O ramo legacy lia `Venda`/`Compra`/`Devolucao`/`AjusteStock`. E a
+ * tabela `Venda` NUNCA é escrita: não existe um único
+ * `prisma.venda.create/upsert/createMany` nem um `INSERT INTO "Venda"`
+ * em todo o código — as vendas vivem em `IngestVendaLinhaRaw` e são
+ * agregadas para `VendaMensal`. As transferências entre farmácias não
+ * têm sequer tabela legacy.
+ *
+ * O ramo era portanto estruturalmente incapaz de mostrar uma venda ou
+ * uma transferência. Em produção, com a flag a `false` nas duas
+ * farmácias, o extrato da Aspirina (CNP 3045580) em Agosto/2026 mostrava
+ * UMA linha — a recepção de +240 — e o resumo "+240 / −0", quando o ERP
+ * tem 240 de entradas, 144 de saídas e saldo +96. Nem sequer havia
+ * saldo: `stockAntes`/`stockDepois` eram zero fixo no legacy.
+ *
+ * `MovimentoArtigo` está populada e é o ledger: 553 112 movimentos na
+ * Silveirense e 339 209 na Segurado, desde 2024-01-02. A flag estava a
+ * escolher a fonte errada de duas, e uma delas nunca poderia estar certa.
+ *
+ * Uma farmácia sem ledger ingerido passa a dizê-lo — ver
+ * `getCoberturaMovimentos`. Ausência explícita, não um extrato parcial
+ * que parece completo.
  *
  * NÃO toca em dashboard / ingest / export-orders. Só SELECTs.
  */
@@ -71,16 +89,11 @@ function toF(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Resolve o universo de farmácias a considerar + split por feature flag. */
+/** Resolve o universo de farmácias a considerar. */
 async function resolveFarmaciaIds(
   prisma: PrismaClient,
   filters: MovimentosFilters,
-): Promise<{
-  ids: string[];
-  nomeById: Map<string, string>;
-  canonicalIds: string[];
-  legacyIds: string[];
-}> {
+): Promise<{ ids: string[]; nomeById: Map<string, string> }> {
   const farmacias = await prisma.farmacia.findMany({
     where: {
       estado: "ATIVO",
@@ -89,14 +102,65 @@ async function resolveFarmaciaIds(
         ? { id: { in: filters.farmaciaIds } }
         : {}),
     },
-    select: { id: true, nome: true, useMovimentosCanonical: true },
+    select: { id: true, nome: true },
   });
   return {
     ids: farmacias.map((f) => f.id),
     nomeById: new Map(farmacias.map((f) => [f.id, f.nome])),
-    canonicalIds: farmacias.filter((f) => f.useMovimentosCanonical).map((f) => f.id),
-    legacyIds: farmacias.filter((f) => !f.useMovimentosCanonical).map((f) => f.id),
   };
+}
+
+/** Uma farmácia e o estado do seu ledger canónico. */
+export type CoberturaMovimentos = {
+  farmaciaId: string;
+  farmacia: string;
+  /** Há pelo menos um `MovimentoArtigo` para esta farmácia. */
+  temLedger: boolean;
+  /** Data do movimento mais recente ingerido, ISO. Null se não houver. */
+  ultimoMovimento: string | null;
+};
+
+/**
+ * O ledger existe para estas farmácias?
+ *
+ * Sem isto, uma farmácia sem `MovimentoArtigo` ingerido é
+ * indistinguível de um artigo sem movimento no período — as duas
+ * mostram uma tabela vazia, e só uma delas é uma resposta.
+ *
+ * Uma consulta agregada para todas as farmácias, não uma por farmácia.
+ */
+export async function getCoberturaMovimentos(
+  farmaciaIds?: string[],
+): Promise<CoberturaMovimentos[]> {
+  const prisma = await getPrisma();
+  const farmacias = await prisma.farmacia.findMany({
+    where: {
+      estado: "ATIVO",
+      nome: { not: "Farmácia Teste" },
+      ...(farmaciaIds && farmaciaIds.length > 0 ? { id: { in: farmaciaIds } } : {}),
+    },
+    select: { id: true, nome: true },
+    orderBy: { nome: "asc" },
+  });
+  if (farmacias.length === 0) return [];
+
+  const agregado = await prisma.movimentoArtigo.groupBy({
+    by: ["farmaciaId"],
+    where: { farmaciaId: { in: farmacias.map((f) => f.id) } },
+    _max: { dataMovimento: true },
+    _count: { _all: true },
+  });
+  const porFarmacia = new Map(agregado.map((a) => [a.farmaciaId, a]));
+
+  return farmacias.map((f) => {
+    const a = porFarmacia.get(f.id);
+    return {
+      farmaciaId: f.id,
+      farmacia: f.nome,
+      temLedger: (a?._count._all ?? 0) > 0,
+      ultimoMovimento: a?._max.dataMovimento?.toISOString() ?? null,
+    };
+  });
 }
 
 // ── Canónico (rev36) ──────────────────────────────────────────────
@@ -208,256 +272,6 @@ async function readCanonicalMovimentos(
   });
 }
 
-// ── Legacy (deprecated; só corre para farmácias pré-rev36) ────────
-
-/**
- * Branch legacy. Lê Venda/Compra/Devolucao/IngestVendaLinhaRaw e devolve
- * no shape `MovimentoRow`. Conceitualmente é UMA aproximação (vendas
- * vêm agregadas por dia/mês porque nunca foram per-row no legacy) e
- * por isso a coluna "Documento" fica fraca. Para fechar este branch é
- * preciso activar a flag `useMovimentosCanonical` na farmácia.
- */
-async function readLegacyMovimentos(
-  prisma: PrismaClient,
-  produtoId: string,
-  legacyIds: string[],
-  effFrom: Date,
-  effTo: Date,
-  nomeById: Map<string, string>,
-): Promise<MovimentoRow[]> {
-  if (legacyIds.length === 0) return [];
-  const commonWhere = {
-    produtoId,
-    farmaciaId: { in: legacyIds },
-    data: { gte: effFrom, lte: effTo },
-  };
-
-  const [vendas, compras, devolucoes, ajustes, linhasInventario] = await Promise.all([
-    prisma.venda.findMany({
-      where: commonWhere,
-      select: {
-        id: true,
-        data: true,
-        farmaciaId: true,
-        quantidade: true,
-        tipoVenda: true,
-      },
-      orderBy: { data: "desc" },
-    }),
-    prisma.compra.findMany({
-      where: commonWhere,
-      select: {
-        id: true,
-        data: true,
-        farmaciaId: true,
-        quantidade: true,
-        valorTotal: true,
-        numeroDocumento: true,
-        fornecedor: { select: { nomeNormalizado: true } },
-      },
-      orderBy: { data: "desc" },
-    }),
-    prisma.devolucao.findMany({
-      where: commonWhere,
-      select: {
-        id: true,
-        data: true,
-        farmaciaId: true,
-        quantidade: true,
-        valor: true,
-        tipo: true,
-        motivo: true,
-        fornecedorDestino: { select: { nomeNormalizado: true } },
-      },
-      orderBy: { data: "desc" },
-    }),
-    prisma.ajusteStock.findMany({
-      where: commonWhere,
-      select: {
-        id: true,
-        data: true,
-        farmaciaId: true,
-        quantidade: true,
-        valor: true,
-        tipo: true,
-        motivo: true,
-        observacoes: true,
-      },
-      orderBy: { data: "desc" },
-    }),
-    prisma.linhaInventario.findMany({
-      where: {
-        produtoId,
-        inventario: {
-          farmaciaId: { in: legacyIds },
-          dataInventario: { gte: effFrom, lte: effTo },
-        },
-      },
-      select: {
-        id: true,
-        stockSistema: true,
-        stockContado: true,
-        diferenca: true,
-        valorDiferenca: true,
-        observacoes: true,
-        inventario: {
-          select: { dataInventario: true, farmaciaId: true, nome: true },
-        },
-      },
-    }),
-  ]);
-
-  // Vendas individuais (sem agregação) — uma linha por Venda.
-  const rows: MovimentoRow[] = [];
-  for (const v of vendas) {
-    const qty = -Math.abs(toF(v.quantidade));
-    rows.push(legacyRow({
-      key: `venda:${v.id}`,
-      farmaciaId: v.farmaciaId,
-      data: v.data,
-      tipo: "VENDA",
-      quantidade: qty,
-      documentoTipo: "Factura",
-      documentoNumero: v.tipoVenda ? `Tipo ${v.tipoVenda}` : null,
-      contraparteNome: null,
-      contraparteTipo: null,
-      valorLinha: null,
-      observacao: null,
-      nomeById,
-    }));
-  }
-  for (const c of compras) {
-    rows.push(legacyRow({
-      key: `compra:${c.id}`,
-      farmaciaId: c.farmaciaId,
-      data: c.data,
-      tipo: "COMPRA",
-      quantidade: Math.abs(toF(c.quantidade)),
-      documentoTipo: "Recepção",
-      documentoNumero: c.numeroDocumento ?? null,
-      contraparteNome: c.fornecedor?.nomeNormalizado ?? null,
-      contraparteTipo: c.fornecedor ? "FORNECEDOR" : null,
-      valorLinha: c.valorTotal != null ? Math.abs(toF(c.valorTotal)) : null,
-      observacao: null,
-      nomeById,
-    }));
-  }
-  for (const d of devolucoes) {
-    const tipo: MovimentoTipo =
-      d.tipo === "FORNECEDOR"
-        ? "DEVOLUCAO_FORNECEDOR"
-        : d.tipo === "CLIENTE"
-          ? "DEVOLUCAO_CLIENTE"
-          : "DEVOLUCAO_OUTRA";
-    const sign = tipo === "DEVOLUCAO_FORNECEDOR" ? -1 : 1;
-    rows.push(legacyRow({
-      key: `devolucao:${d.id}`,
-      farmaciaId: d.farmaciaId,
-      data: d.data,
-      tipo,
-      quantidade: sign * Math.abs(toF(d.quantidade)),
-      documentoTipo: tipo === "DEVOLUCAO_CLIENTE" ? "Nota Crédito" : "Devolução",
-      documentoNumero: null,
-      contraparteNome: d.fornecedorDestino?.nomeNormalizado ?? null,
-      contraparteTipo: d.fornecedorDestino ? "FORNECEDOR" : null,
-      valorLinha: d.valor != null ? Math.abs(toF(d.valor)) : null,
-      observacao: d.motivo ?? null,
-      nomeById,
-    }));
-  }
-  for (const a of ajustes) {
-    const tipo: MovimentoTipo =
-      a.tipo === "POSITIVO"
-        ? "AJUSTE_POSITIVO"
-        : a.tipo === "NEGATIVO"
-          ? "AJUSTE_NEGATIVO"
-          : a.tipo === "CORRECAO"
-            ? "AJUSTE_CORRECAO"
-            : a.tipo === "QUEBRA"
-              ? "QUEBRA"
-              : a.tipo === "PERDA"
-                ? "PERDA"
-                : "AJUSTE_OUTRO";
-    const qty = toF(a.quantidade);
-    rows.push(legacyRow({
-      key: `ajuste:${a.id}`,
-      farmaciaId: a.farmaciaId,
-      data: a.data,
-      tipo,
-      quantidade: qty,
-      documentoTipo: "Ajuste",
-      documentoNumero: null,
-      contraparteNome: null,
-      contraparteTipo: null,
-      valorLinha: a.valor != null ? Math.abs(toF(a.valor)) : null,
-      observacao: a.motivo || a.observacoes || null,
-      nomeById,
-    }));
-  }
-  for (const li of linhasInventario) {
-    const qty = toF(li.diferenca);
-    rows.push(legacyRow({
-      key: `inv:${li.id}`,
-      farmaciaId: li.inventario.farmaciaId,
-      data: li.inventario.dataInventario,
-      tipo: "INVENTARIO",
-      quantidade: qty,
-      documentoTipo: "Inventário",
-      documentoNumero: li.inventario.nome ?? null,
-      contraparteNome: null,
-      contraparteTipo: null,
-      valorLinha: li.valorDiferenca != null ? Math.abs(toF(li.valorDiferenca)) : null,
-      observacao: li.observacoes ?? null,
-      nomeById,
-    }));
-  }
-  return rows;
-}
-
-function legacyRow(args: {
-  key: string;
-  farmaciaId: string;
-  data: Date;
-  tipo: MovimentoTipo;
-  quantidade: number;
-  documentoTipo: string | null;
-  documentoNumero: string | null;
-  contraparteNome: string | null;
-  contraparteTipo: ContraparteTipo | null;
-  valorLinha: number | null;
-  observacao: string | null;
-  nomeById: Map<string, string>;
-}): MovimentoRow {
-  return {
-    key: args.key,
-    data: args.data.toISOString(),
-    farmaciaId: args.farmaciaId,
-    farmacia: args.nomeById.get(args.farmaciaId) ?? "—",
-    tipo: args.tipo,
-    tipoLabel: TIPO_LABELS[args.tipo],
-    direcao: direcaoForTipo(args.tipo, args.quantidade),
-    documentoTipo: args.documentoTipo,
-    documentoNumero: args.documentoNumero,
-    referenciaExterna: null,
-    contraparteNome: args.contraparteNome,
-    contraparteTipo: args.contraparteTipo,
-    quantidade: args.quantidade,
-    // Stock antes/depois desconhecido no legacy — sem running balance.
-    stockAntes: 0,
-    stockDepois: 0,
-    quantidadeBonusEnt: 0,
-    quantidadeBonusSai: 0,
-    existenciaBonusApos: 0,
-    precoUnitario: null,
-    valorLinha: args.valorLinha,
-    pmcNovo: null,
-    armazemNome: null,
-    utilizadorNome: null,
-    observacao: args.observacao,
-    situacao: null,
-  };
-}
-
 // ── Entry point ───────────────────────────────────────────────────
 
 /**
@@ -477,9 +291,8 @@ export async function getMovimentosProduto(
   });
   if (!produto) return [];
 
-  // 2. Resolver farmácias + split por flag canónica
-  const { ids: farmaciaIds, nomeById, canonicalIds, legacyIds } =
-    await resolveFarmaciaIds(prisma, filters);
+  // 2. Resolver farmácias
+  const { ids: farmaciaIds, nomeById } = await resolveFarmaciaIds(prisma, filters);
   if (farmaciaIds.length === 0) return [];
 
   // 3. Janela. Sem `from` ⇒ início do ano corrente. Sem `to` ⇒ agora.
@@ -489,14 +302,17 @@ export async function getMovimentosProduto(
   const effTo = filters.to ? new Date(filters.to) : new Date();
   effTo.setHours(23, 59, 59, 999);
 
-  // 4. Buscar das duas streams (mutuamente exclusivas por farmácia)
-  const [canonicalRows, legacyRows] = await Promise.all([
-    readCanonicalMovimentos(prisma, produto.id, canonicalIds, effFrom, effTo, nomeById),
-    readLegacyMovimentos(prisma, produto.id, legacyIds, effFrom, effTo, nomeById),
-  ]);
+  // 4. O ledger. Uma fonte só.
+  let rows = await readCanonicalMovimentos(
+    prisma,
+    produto.id,
+    farmaciaIds,
+    effFrom,
+    effTo,
+    nomeById,
+  );
 
-  // 5. Merge + filtro de tipos + ordem desc por data
-  let rows = [...canonicalRows, ...legacyRows];
+  // 5. Filtro de tipos + ordem desc por data
   if (filters.tipos && filters.tipos.length > 0) {
     const set = expandirTiposFiltro(filters.tipos);
     rows = rows.filter((r) => set.has(r.tipo));

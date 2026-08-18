@@ -7,6 +7,9 @@ import type {
   MovimentoTipo,
   ContraparteTipo,
 } from "@/lib/movimentos-tipos";
+// `type` puro: apaga-se na compilação e não arrasta o Prisma do loader
+// para o bundle do browser.
+import type { CoberturaMovimentos } from "@/lib/movimentos-data";
 import { TIPOS_ACERTO_STOCK } from "@/lib/movimentos-tipos";
 import { runExtratoMovimentos } from "@/app/stock/artigo/[cnp]/actions";
 
@@ -20,6 +23,13 @@ type Props = {
   /** Janela inicial (ISO yyyy-mm-dd) — reflecte o default do ano corrente. */
   defaultFrom?: string;
   defaultTo?: string;
+  /**
+   * Estado do ledger canónico por farmácia. Uma tabela vazia tem duas
+   * leituras — "este artigo não se mexeu" e "esta farmácia não tem
+   * movimentos ingeridos" — e mostrá-las iguais foi como o extrato
+   * andou meses a parecer completo estando vazio.
+   */
+  cobertura?: CoberturaMovimentos[];
 };
 
 // ── Chips: 1:1 com `MovimentoTipo` canónico, espelho do "Resumo por
@@ -131,7 +141,14 @@ function contraparteLabel(tipo: ContraparteTipo | null): string {
   }
 }
 
-export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, defaultTo }: Props) {
+export function ExtratoMovimentos({
+  cnp,
+  farmacias,
+  initialRows,
+  defaultFrom,
+  defaultTo,
+  cobertura,
+}: Props) {
   const [rows, setRows] = useState<MovimentoRow[]>(initialRows);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +157,15 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
   const [from, setFrom] = useState(defaultFrom ?? "");
   const [to, setTo] = useState(defaultTo ?? "");
   const [quickKey, setQuickKey] = useState<string>("todos");
+
+  // Farmácias sem ledger, restritas ao que está seleccionado: avisar
+  // sobre uma farmácia que o utilizador filtrou para fora seria ruído.
+  const semLedger = (cobertura ?? []).filter(
+    (c) =>
+      !c.temLedger &&
+      (farmaciaSel === "todas" || c.farmaciaId === farmaciaSel) &&
+      farmacias.some((f) => f.id === c.farmaciaId),
+  );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = (key: string) =>
     setExpanded((prev) => {
@@ -303,6 +329,14 @@ export function ExtratoMovimentos({ cnp, farmacias, initialRows, defaultFrom, de
       {error && (
         <div className="mt-3 rounded-[10px] border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
           Falha ao carregar o extrato: {error}
+        </div>
+      )}
+
+      {semLedger.length > 0 && (
+        <div className="mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+          Sem movimentos ingeridos para {semLedger.map((c) => c.farmacia).join(", ")}.
+          O extrato desta(s) farmácia(s) fica vazio até o pipeline de movimentos
+          correr — não significa que o artigo não se tenha mexido.
         </div>
       )}
 
