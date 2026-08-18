@@ -46,6 +46,10 @@ type TransferSuggestionRow = {
   necessidadeDestino: number;
   fabricante: string;
   categoria: string;
+  /** Nivel 2 canonico, ou "" — o loader garante o campo. */
+  subcategoria: string;
+  /** Slugs das utilizacoes do produto. */
+  utilizacoes: string[];
   fornecedor: string;
   prioridade: Priority;
   observacao?: string;
@@ -937,7 +941,7 @@ export function TransferenciasClient({
                             {/* Contexto: fabricante canónico + categoria.
                                 Removido o grossista (fornecedor habitual)
                                 — não pertence à identidade do artigo. */}
-                            {[row.fabricante, row.categoria].filter(Boolean).join(" · ") || "—"}
+                            {[row.fabricante, row.categoria, row.subcategoria].filter(Boolean).join(" · ") || "—"}
                           </div>
                           {(row.codigoATC || row.dci) && (
                             <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] text-slate-500">

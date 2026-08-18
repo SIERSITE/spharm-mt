@@ -16,7 +16,12 @@ export type ProposalBaseRule = "total" | "coverage";
 export type ProposalFilters = {
   fabricantes?: string[];
   fornecedores?: string[];
+  /** Nível 1 canónico. */
   categorias?: string[];
+  /** Nível 2 canónico — nível DIFERENTE, não uma versão fina do nível 1. */
+  subcategorias?: string[];
+  /** Utilizações por SLUG. Produto entra se corresponder a QUALQUER uma. */
+  utilizacoes?: string[];
   productTypes?: string[];
 };
 
@@ -205,6 +210,8 @@ export async function generateOrderProposal(
   const fabFilter = input.filters?.fabricantes?.length ? input.filters.fabricantes : null;
   const fornFilter = input.filters?.fornecedores?.length ? input.filters.fornecedores : null;
   const catFilter = input.filters?.categorias?.length ? input.filters.categorias : null;
+  const subcatFilter = input.filters?.subcategorias?.length ? input.filters.subcategorias : null;
+  const utilFilter = input.filters?.utilizacoes?.length ? input.filters.utilizacoes : null;
   const typeFilter = input.filters?.productTypes?.length ? input.filters.productTypes : null;
 
   const conds: Prisma.Sql[] = [];
@@ -213,6 +220,18 @@ export async function generateOrderProposal(
   if (typeFilter) conds.push(Prisma.sql`p."productType" = ANY(${typeFilter})`);
   if (catFilter) {
     conds.push(Prisma.sql`(c1.nome = ANY(${catFilter}) OR pf."categoriaOrigem" = ANY(${catFilter}))`);
+  }
+  // Nível 2 só pelo canónico. `subcategoriaOrigem` é texto livre do ERP e
+  // não é classificação — ver lib/categoria-resolver.ts.
+  if (subcatFilter) conds.push(Prisma.sql`c2.nome = ANY(${subcatFilter})`);
+  // EXISTS correlacionado: continua a ser UMA consulta, não uma por
+  // produto. `= ANY` dá o OU entre as utilizações escolhidas.
+  if (utilFilter) {
+    conds.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "ProdutoUtilizacao" pu
+        JOIN "Utilizacao" u ON u.id = pu."utilizacaoId"
+       WHERE pu."produtoId" = p.id AND u.estado = 'ATIVO' AND u.slug = ANY(${utilFilter})
+    )`);
   }
   const whereExtra =
     conds.length > 0 ? Prisma.sql`AND ${Prisma.join(conds, " AND ")}` : Prisma.empty;

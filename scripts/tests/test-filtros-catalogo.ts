@@ -161,10 +161,15 @@ console.log("\n=== combinações ===");
   check(passaFiltroCatalogo(l, {}), "filtros ausentes não filtram");
 }
 {
-  // Uma linha sem os campos (loader que ainda não os traga) não pode
-  // explodir — mas também não passa um filtro concreto por acidente.
-  check(passaFiltroCatalogo({}, {}), "linha sem campos e sem filtros: passa");
-  check(!passaFiltroCatalogo({}, { categorias: ["MEDICAMENTOS"] }), "linha sem campos não passa um filtro concreto");
+  // Linha sem classificação nenhuma: passa quando ninguém filtra, e não
+  // passa um filtro concreto por acidente.
+  //
+  // O TIPO já não deixa passar uma linha à qual falte um dos três campos
+  // — era `Partial<>` e permitia que um cliente com cópia local do tipo
+  // da linha compilasse sem eles, filtrando tudo para fora em silêncio.
+  const vazia = { categoria: "", subcategoria: "", utilizacoes: [] };
+  check(passaFiltroCatalogo(vazia, {}), "linha sem classificação e sem filtros: passa");
+  check(!passaFiltroCatalogo(vazia, { categorias: ["MEDICAMENTOS"] }), "…e não passa um filtro concreto");
 }
 
 console.log("\n=== os loaders não fazem N+1 ===");

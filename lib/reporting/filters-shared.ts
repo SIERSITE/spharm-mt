@@ -91,20 +91,26 @@ export type LinhaClassificavel = {
  * utilizações são OU entre si.
  */
 export function passaFiltroCatalogo(
-  linha: Partial<LinhaClassificavel>,
+  /**
+   * NÃO é `Partial<>`, de propósito. Enquanto era, um cliente cuja linha
+   * não trouxesse `subcategoria` ou `utilizacoes` compilava na mesma — e
+   * o filtro passava a excluir tudo, em silêncio. Vários clientes têm
+   * cópias locais do tipo da linha; exigir os três campos aqui é o que
+   * obriga essas cópias a acompanhar o loader.
+   */
+  linha: LinhaClassificavel,
   filtros: Pick<SharedReportFilters, "categorias" | "subcategorias" | "utilizacoes">,
 ): boolean {
   const { categorias, subcategorias, utilizacoes } = filtros;
 
-  if (categorias && categorias.length > 0 && !categorias.includes(linha.categoria ?? "")) {
+  if (categorias && categorias.length > 0 && !categorias.includes(linha.categoria)) {
     return false;
   }
-  if (subcategorias && subcategorias.length > 0 && !subcategorias.includes(linha.subcategoria ?? "")) {
+  if (subcategorias && subcategorias.length > 0 && !subcategorias.includes(linha.subcategoria)) {
     return false;
   }
   if (utilizacoes && utilizacoes.length > 0) {
-    const doProduto = linha.utilizacoes ?? [];
-    if (!doProduto.some((s) => utilizacoes.includes(s))) return false;
+    if (!linha.utilizacoes.some((s) => utilizacoes.includes(s))) return false;
   }
   return true;
 }

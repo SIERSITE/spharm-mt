@@ -177,7 +177,20 @@ export function OrderCreateClient({
   const [selFabricantes, setSelFabricantes] = useState<string[]>([]);
   const [selFornecedores, setSelFornecedores] = useState<string[]>([]);
   const [selCategorias, setSelCategorias] = useState<string[]>([]);
+  const [selSubcategorias, setSelSubcategorias] = useState<string[]>([]);
+  const [selUtilizacoes, setSelUtilizacoes] = useState<string[]>([]);
   const [selProductTypes, setSelProductTypes] = useState<string[]>([]);
+
+  // Subcategorias acompanham a categoria escolhida — oferecer uma
+  // subcategoria de outra categoria é oferecer zero linhas.
+  const subcategoriasVisiveis = (
+    selCategorias.length > 0
+      ? filterOptions.subcategorias.filter((s) => selCategorias.includes(s.categoria))
+      : filterOptions.subcategorias
+  ).map((s) => s.nome);
+  // O filtro viaja em slug; mostra-se pelo nome.
+  const nomePorSlug = new Map(filterOptions.utilizacoes.map((u) => [u.slug, u.nome]));
+  const slugPorNome = new Map(filterOptions.utilizacoes.map((u) => [u.nome, u.slug]));
 
   // ─── Linhas ──────────────────────────────────────────────────────────────
   const [linhas, setLinhas] = useState<Line[]>([]);
@@ -440,7 +453,8 @@ export function OrderCreateClient({
       targetCoverageDays: coverageDays,
       filters: {
         fabricantes: selFabricantes, fornecedores: selFornecedores,
-        categorias: selCategorias, productTypes: selProductTypes,
+        categorias: selCategorias, subcategorias: selSubcategorias,
+        utilizacoes: selUtilizacoes, productTypes: selProductTypes,
       },
     };
 
@@ -602,7 +616,8 @@ export function OrderCreateClient({
   const hasTableFilters = !!tableSearch || !!filterEstado || filterRuturas || filterStockBaixo || !!filterFarmaciaTabela;
 
   const filtersCount =
-    selFabricantes.length + selFornecedores.length + selCategorias.length + selProductTypes.length;
+    selFabricantes.length + selFornecedores.length + selCategorias.length +
+    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -765,6 +780,14 @@ export function OrderCreateClient({
             <FilterMulti label="Fabricantes" options={filterOptions.fabricantes} selected={selFabricantes} onChange={setSelFabricantes} disabled={busy || generating} />
             <FilterMulti label="Distribuidores" options={filterOptions.distribuidores} selected={selFornecedores} onChange={setSelFornecedores} disabled={busy || generating} />
             <FilterMulti label="Categorias" options={filterOptions.categorias} selected={selCategorias} onChange={setSelCategorias} disabled={busy || generating} />
+            <FilterMulti label="Subcategorias" options={subcategoriasVisiveis} selected={selSubcategorias} onChange={setSelSubcategorias} disabled={busy || generating} />
+            <FilterMulti
+              label="Utilizações"
+              options={filterOptions.utilizacoes.map((u) => u.nome)}
+              selected={selUtilizacoes.map((s) => nomePorSlug.get(s) ?? s)}
+              onChange={(nomes) => setSelUtilizacoes(nomes.map((n) => slugPorNome.get(n) ?? n))}
+              disabled={busy || generating}
+            />
             <FilterMulti label="Tipos" options={productTypes} selected={selProductTypes} onChange={setSelProductTypes} disabled={busy || generating} />
           </div>
         )}

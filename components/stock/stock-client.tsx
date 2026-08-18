@@ -588,6 +588,17 @@ export function StockClient({ data }: StockClientProps) {
                           · {row.dci}
                         </span>
                       )}
+                      {/* Classificação canónica. Sem isto, os filtros de
+                          categoria/subcategoria não tinham correspondência
+                          visível na linha que devolviam. */}
+                      {(row.categoria || row.subcategoria) && (
+                        <span
+                          className="truncate text-slate-500"
+                          title={[row.categoria, row.subcategoria].filter(Boolean).join(" · ")}
+                        >
+                          · {[row.categoria, row.subcategoria].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 </div>

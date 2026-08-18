@@ -45,6 +45,10 @@ type TransferSuggestionRow = {
   necessidadeDestino: number;
   fabricante: string;
   categoria: string;
+  /** Nivel 2 canonico, ou "" — o loader garante o campo. */
+  subcategoria: string;
+  /** Slugs das utilizacoes do produto. */
+  utilizacoes: string[];
   fornecedor: string;
   prioridade: Priority;
   observacao?: string;
@@ -528,7 +532,7 @@ export function ExcessosClient({
                             {row.produto}
                           </Link>
                           <div className="text-[12px] text-slate-500">
-                            {[row.fabricante, row.categoria].filter(Boolean).join(" · ") || "—"}
+                            {[row.fabricante, row.categoria, row.subcategoria].filter(Boolean).join(" · ") || "—"}
                           </div>
                           <div className="mt-1"><PriorityBadge prioridade={row.prioridade} /></div>
                         </div>

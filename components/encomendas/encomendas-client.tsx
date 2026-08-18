@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * ⚠️ NÃO É RENDERIZADO POR ROTA NENHUMA.
+ *
+ * `/encomendas` renderiza `OrderListClient` (lista de encomendas
+ * gravadas) e `/encomendas/nova` renderiza `OrderCreateClient`. Este
+ * ficheiro — e a cadeia `runEncomendasReport` → `getEncomendasData` que
+ * só ele usa — é o relatório de encomendas antigo, sem entrada na UI.
+ *
+ * Ficou aqui a enganar: acrescentei-lhe filtros de subcategoria e
+ * utilização a pensar que era o ecrã de Encomendas, e o utilizador
+ * abriu a aplicação e não os viu. Os filtros vivos estão em
+ * `OrderCreateClient`.
+ *
+ * `scripts/tests/test-ui-catalogo.ts` mantém a lista de componentes sem
+ * rota; qualquer novo entra lá de propósito ou o teste falha.
+ */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -57,6 +73,8 @@ type EncomendaFarmaciaRow = {
   fornecedor: string;
   fabricante: string;
   categoria: string;
+  subcategoria: string;
+  utilizacoes: string[];
   dci?: string | null;
   codigoATC?: string | null;
   valorEstimado: number;
