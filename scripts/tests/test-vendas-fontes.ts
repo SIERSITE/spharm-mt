@@ -23,9 +23,8 @@
  */
 import { readFileSync } from "node:fs";
 import {
+  CLASSIFICACAO,
   NAMESPACES,
-  TIPOS_DOC_REVERSAO,
-  TIPOS_DOC_VENDA,
   assinarQuantidade,
   classificarDocumento,
   comporDocumento,
@@ -34,9 +33,43 @@ import {
   sqlAtendimentoDetalhe,
   sqlAtendimentoSuspDetalhe,
   type FonteRow,
+  type SchemaCabecalhoSusp,
   type SchemaFonteSusp,
   type SchemaAtendimento,
 } from "../../agent/src/vendas-fontes";
+
+const G = NAMESPACES.ATENDIMENTO_DETALHE;
+const VSG = NAMESPACES.ATENDIMENTO_SUSP_DETALHE;
+
+/** O cabeçalho suspenso tal como o ERP da Silveirense o tem. */
+const CAB: SchemaCabecalhoSusp = {
+  existe: true,
+  tabela: "Atendimento Susp",
+  pk: "Atendimento Susp ID",
+  serie: "SerieFacturacao",
+  numero: "Numero Documento",
+  tipoDocumento: "Tipo Documento ID",
+  dataVenda: "Data Venda",
+  totalBruto: "Total Bruto_EUR",
+};
+
+const SUSP: SchemaFonteSusp = {
+  existe: true,
+  tabela: "Atendimento Susp Detalhe",
+  pk: "Atendimento Susp Detalhe ID",
+  cabecalhoFk: "Atendimento Susp ID",
+  codigoId: "CodigoID",
+  sequencia: "Sequencia",
+  quantidade: "Quantidade",
+  pvpUnitario: "Preco Venda Publico_EUR",
+  valorLinha: "Valor_EUR",
+  ivaValor: "Val_IVA_EUR",
+  descontoValor: "Val_Desc_EUR",
+  comparticipacao1: "PrComp_EUR",
+  comparticipacao2: "PrComp_EUR2",
+  entidadeId: "Entidade ID",
+  dataVenda: null,
+};
 
 let pass = 0;
 let fail = 0;
@@ -69,23 +102,32 @@ const linha = (over: Partial<FonteRow> = {}): FonteRow => ({
   ...over,
 });
 
-/** O Nimed do caso real: VSG, 2 unidades. */
+/**
+ * O Nimed do caso real: VSG/54684, tipoDoc 107, 2 unidades, 10,72 €.
+ * Confirmado no ERP: linha 147214 → cabeçalho suspenso 83708.
+ */
 const NIMED_VSG = linha({
   externalLineId: 147214,
+  externalDocumentId: 83708,
+  tipoDocumento: 107,
   serie: "VSG",
   numero: 54684,
   externalProductId: 9599258,
   quantidade: 2,
+  valorLinha: 10.72,
   dataVenda: new Date("2026-08-01T10:26:38.000Z"),
 });
 
-/** O Enalapril do caso real: VSG, 1 unidade, ao fim do dia. */
+/** O Enalapril do caso real: VSG/54688, tipoDoc 107, 1 unidade, 9,97 €. */
 const ENALAPRIL_VSG = linha({
   externalLineId: 147219,
+  externalDocumentId: 83712,
+  tipoDocumento: 107,
   serie: "VSG",
   numero: 54688,
   externalProductId: 3626884,
   quantidade: 1,
+  valorLinha: 9.97,
   dataVenda: new Date("2026-08-01T18:44:50.000Z"),
 });
 
@@ -104,7 +146,9 @@ console.log("=== VSG simples entra como venda ===");
   eq(l.serie, "VSG", "a série viaja no canónico");
   eq(l.sourceNamespace, "ATENDIMENTO_SUSP_DETALHE", "com a origem física");
   eq(l.externalLineId, 147214, "e a PK da SUA tabela");
-  eq(l.valorBruto, 6.55, "valor histórico da linha, não recalculado");
+  eq(l.externalDocumentId, 83708, "o cabeçalho é o Atendimento Susp, não o Atendimento");
+  eq(l.valorBruto, 10.72, "valor histórico da linha, não recalculado");
+  eq(l.tipoDocumento, 107, "tipoDoc 107 — o da factura de venda suspensa");
 }
 {
   const l = normOk(ENALAPRIL_VSG, NAMESPACES.ATENDIMENTO_SUSP_DETALHE);
@@ -140,91 +184,109 @@ console.log("\n=== G + VSG no mesmo dia somam, e não se sobrepõem ===");
   eq(g.quantidadeAssinada + v.quantidadeAssinada, 5, "o total soma as duas: 3 + 2");
 }
 
-console.log("\n=== NC / anulação reduzem a venda, nas DUAS séries ===");
+console.log("\n=== a NC da VSG é lida pelo circuito G, e SÓ por ele ===");
 {
-  for (const tipo of [...TIPOS_DOC_REVERSAO]) {
-    eq(classificarDocumento(tipo), "DEVOLUCAO_ANULACAO", `tipoDocumento ${tipo} é reversão`);
-  }
-  eq(classificarDocumento(77), "VENDA", "tipoDocumento 77 é venda");
-  eq(classificarDocumento(null), null, "sem tipo de documento não se adivinha");
-}
-{
-  // NC de G.
-  const nc = normOk(linha({ tipoDocumento: 104, quantidade: 2 }), NAMESPACES.ATENDIMENTO_DETALHE);
-  eq(nc.classe, "DEVOLUCAO_ANULACAO", "NC de G é reversão");
-  eq(nc.quantidadeAssinada, -2, "…e a quantidade fica NEGATIVA");
-  // O ERP grava positivo nas duas classes; quem soma tem de ver o sinal.
-  eq(assinarQuantidade(2, "DEVOLUCAO_ANULACAO"), -2, "o ERP grava positivo, nós assinamos");
-  eq(assinarQuantidade(-2, "DEVOLUCAO_ANULACAO"), -2, "…e assinar duas vezes não vira o sinal");
-}
-{
-  // NC de VSG — o caso que antes não existia de todo.
-  const nc = normOk(
-    { ...NIMED_VSG, tipoDocumento: 104, quantidade: 2 },
-    NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
+  // ISTO É O CENTRO DA RONDA. As 107 relações de
+  // `Atendimento_SuspFT_NC_Susp` resolvem 107/107 para `[Atendimento]`,
+  // tipo 104, e as suas linhas estão em `[Atendimento Detalhe]` — que o
+  // reader G já lê. Se o namespace VSG também classificasse 104 como
+  // reversão, a MESMA nota de crédito era subtraída duas vezes.
+  eq(
+    classificarDocumento(104, G),
+    "DEVOLUCAO_ANULACAO",
+    "104 no circuito G é reversão — é por aqui que a NC entra",
   );
-  eq(nc.classe, "DEVOLUCAO_ANULACAO", "NC de VSG é reversão");
-  eq(nc.quantidadeAssinada, -2, "…e reduz a venda");
-  const venda = normOk(NIMED_VSG, NAMESPACES.ATENDIMENTO_SUSP_DETALHE);
-  eq(venda.quantidadeAssinada + nc.quantidadeAssinada, 0, "venda + NC = zero líquido");
+  eq(
+    classificarDocumento(104, VSG),
+    null,
+    "104 no circuito VSG é RECUSADO — senão a mesma NC era subtraída duas vezes",
+  );
+  eq(CLASSIFICACAO[VSG].reversao.size, 0, "o circuito VSG não tem reversões próprias");
+  check(CLASSIFICACAO[VSG].venda.has(107), "…só a factura suspensa, tipo 107");
+
+  const nc = normalizar({ ...NIMED_VSG, tipoDocumento: 104 }, VSG);
+  check("erro" in nc, "uma linha suspensa com tipo 104 não entra como reversão");
+  if ("erro" in nc) check(/104/.test(nc.erro), "…e o erro identifica o tipo recusado");
 }
 {
-  const anul = normOk({ ...ENALAPRIL_VSG, tipoDocumento: 27 }, NAMESPACES.ATENDIMENTO_SUSP_DETALHE);
-  eq(anul.classe, "DEVOLUCAO_ANULACAO", "anulação de VSG (tipo 27) reverte");
-  eq(anul.quantidadeAssinada, -1, "…com sinal negativo");
+  // A NC verdadeira: vem do circuito G, e o ERP já a grava NEGATIVA.
+  const nc = normOk(linha({ tipoDocumento: 104, quantidade: -2, valorLinha: -10.72 }), G);
+  eq(nc.classe, "DEVOLUCAO_ANULACAO", "NC de G é reversão");
+  eq(nc.quantidadeAssinada, -2, "…e continua negativa: o sinal é aplicado UMA vez");
+
+  const venda = normOk(NIMED_VSG, VSG);
+  eq(
+    venda.quantidadeAssinada + nc.quantidadeAssinada,
+    0,
+    "venda VSG (+2) + NC pelo circuito G (−2) = zero líquido, sem duplicar",
+  );
+}
+{
+  // A idempotência do sinal não é elegância: as NC chegam negativas do
+  // ERP. Sem o `abs`, −2 virava +2 e a devolução passava a venda.
+  eq(assinarQuantidade(-2, "DEVOLUCAO_ANULACAO"), -2, "NC já negativa mantém-se negativa");
+  eq(assinarQuantidade(2, "DEVOLUCAO_ANULACAO"), -2, "NC positiva passa a negativa");
+  eq(assinarQuantidade(-2, "VENDA"), 2, "venda gravada negativa passa a positiva");
+  eq(
+    assinarQuantidade(assinarQuantidade(-2, "DEVOLUCAO_ANULACAO"), "DEVOLUCAO_ANULACAO"),
+    -2,
+    "aplicar o sinal duas vezes dá o mesmo — re-upload não vira o sinal",
+  );
 }
 
 console.log("\n=== tipo NÃO declarado é RECUSADO, não promovido a venda ===");
 {
-  // A primeira versão devolvia VENDA para tudo o que não fosse reversão.
-  // Os tipos {104,27} foram observados no circuito G; nada prova que o
-  // circuito VSG use os mesmos. Se as NC de VSG usassem outro tipo, o
-  // `else return VENDA` transformava cada nota de crédito numa venda — e
-  // o total subia em vez de descer.
+  // A primeira versão devolvia VENDA para tudo o que não fosse reversão:
+  // uma NC com tipo não listado virava venda e o total SUBIA em vez de
+  // descer — um erro que soma na direcção errada e parece plausível.
   for (const desconhecido of [1, 2, 7, 55, 99, 200]) {
-    eq(
-      classificarDocumento(desconhecido),
-      null,
-      `tipoDocumento ${desconhecido} não declarado → recusado, não VENDA`,
-    );
+    eq(classificarDocumento(desconhecido, G), null, `G: tipo ${desconhecido} recusado`);
+    eq(classificarDocumento(desconhecido, VSG), null, `VSG: tipo ${desconhecido} recusado`);
   }
-  check(TIPOS_DOC_VENDA.has(77), "77 está declarado como VENDA");
-  check(!TIPOS_DOC_VENDA.has(104), "…e 104 não");
-  const r = normalizar(linha({ tipoDocumento: 99 }), NAMESPACES.ATENDIMENTO_SUSP_DETALHE);
+  eq(classificarDocumento(null, G), null, "sem tipo de documento não se adivinha");
+  // Os dois circuitos numeram em colunas diferentes de tabelas
+  // diferentes. O mesmo número não significa o mesmo dos dois lados.
+  eq(classificarDocumento(77, G), "VENDA", "77 é a venda de balcão");
+  eq(classificarDocumento(77, VSG), null, "…e não significa nada no circuito VSG");
+  eq(classificarDocumento(107, VSG), "VENDA", "107 é a factura suspensa");
+  eq(classificarDocumento(107, G), null, "…e não significa nada no circuito G");
+  const r = normalizar(linha({ tipoDocumento: 99 }), VSG);
   check("erro" in r, "uma linha VSG com tipo por declarar é recusada");
-  if ("erro" in r) check(/99/.test(r.erro), "…e o erro diz QUAL o tipo, para se declarar");
+  if ("erro" in r) {
+    check(/99/.test(r.erro), "…e o erro diz QUAL o tipo, para se declarar");
+    check(/SUSP/.test(r.erro), "…e em que circuito, porque as listas são separadas");
+  }
 }
 
 console.log("\n=== fonte que existe mas não liga: PARA, não salta ===");
 {
-  const at: SchemaAtendimento = {
-    serie: "Serie", numero: "Numero", tipoDocumento: "Tipo Documento",
-    dataVenda: "Data Venda", fimVenda: "Fim Venda",
-  };
-  const meioLigada: SchemaFonteSusp = {
-    existe: true, tabela: "Atendimento Susp Detalhe",
-    pk: "Atendimento Susp Detalhe ID",
-    atendimentoFk: null,          // ← a ligação ao cabeçalho não resolveu
-    codigoId: "CodigoID", sequencia: null, quantidade: "Quantidade",
-    pvpUnitario: null, valorLinha: null, ivaValor: null, descontoValor: null,
-    comparticipacao1: null, comparticipacao2: null, entidadeId: null, dataVenda: null,
-  };
-  const r = sqlAtendimentoSuspDetalhe(meioLigada, at);
+  const meioLigada: SchemaFonteSusp = { ...SUSP, cabecalhoFk: null };
+  const r = sqlAtendimentoSuspDetalhe(meioLigada, CAB);
   eq(r.estado, "POR_LIGAR", "tabela existe + FK por resolver = POR_LIGAR, não AUSENTE");
   if (r.estado === "POR_LIGAR") {
     check(
-      r.faltam.some((f) => /FK para Atendimento/.test(f)),
-      "…e diz o que falta",
+      r.faltam.some((f) => /FK declarada/.test(f)),
+      "…e diz que falta a FK DECLARADA",
       "saltar em silêncio uma tabela que TEM vendas é o defeito original",
     );
   }
-  // Sem [Tipo Documento] no cabeçalho também não há como separar venda
-  // de nota de crédito.
-  const semTipoDoc = sqlAtendimentoSuspDetalhe(
-    { ...meioLigada, atendimentoFk: "Atendimento ID" },
-    { ...at, tipoDocumento: null },
+  // Sem `Tipo Documento ID` no cabeçalho suspenso não há classificação.
+  eq(
+    sqlAtendimentoSuspDetalhe(SUSP, { ...CAB, tipoDocumento: null }).estado,
+    "POR_LIGAR",
+    "sem [Tipo Documento ID] a fonte não arranca",
   );
-  eq(semTipoDoc.estado, "POR_LIGAR", "sem [Tipo Documento] a fonte também não arranca");
+  // E sem o próprio cabeçalho não há documento nenhum.
+  eq(
+    sqlAtendimentoSuspDetalhe(SUSP, { ...CAB, existe: false, pk: null }).estado,
+    "POR_LIGAR",
+    "sem [Atendimento Susp] a fonte não arranca",
+  );
+  eq(
+    sqlAtendimentoSuspDetalhe(SUSP, { ...CAB, dataVenda: null }).estado,
+    "POR_LIGAR",
+    "sem data no cabeçalho não há janela — e uma janela errada é pior que nenhuma",
+  );
 }
 
 console.log("\n=== os dois pipelines PARAM numa fonte por ligar ===");
@@ -318,43 +380,49 @@ console.log("\n=== SQL: as duas fontes, e a janela ===");
   );
   check(sqlG.includes("[Fim Venda] = 'S'"), "só vendas fechadas");
 
-  const susp: SchemaFonteSusp = {
-    existe: true, tabela: "Atendimento Susp Detalhe",
-    pk: "Atendimento Susp Detalhe ID", atendimentoFk: "Atendimento ID",
-    codigoId: "CodigoID", sequencia: "Sequencia", quantidade: "Quantidade",
-    pvpUnitario: "Preco Venda Publico_EUR", valorLinha: "Valor_EUR",
-    ivaValor: "Val_IVA_EUR", descontoValor: "Val_Desc_EUR",
-    comparticipacao1: "PrComp_EUR", comparticipacao2: "PrComp_EUR2",
-    entidadeId: "Entidade ID", dataVenda: null,
-  };
-  const rV = sqlAtendimentoSuspDetalhe(susp, at);
+  const rV = sqlAtendimentoSuspDetalhe(SUSP, CAB);
   eq(rV.estado, "PRONTA", "a fonte VSG fica pronta quando o schema resolve");
   const sqlV = rV.estado === "PRONTA" ? rV.sql : "";
   check(sqlV.includes("[Atendimento Susp Detalhe]"), "…e lê a tabela certa");
   check(
-    sqlV.includes("JOIN [dbo].[Atendimento] a ON a.[Atendimento ID] = d.[Atendimento ID]"),
-    "o JOIN é explícito: Susp Detalhe.[Atendimento ID] → Atendimento.[Atendimento ID]",
+    sqlV.includes(
+      "JOIN [dbo].[Atendimento Susp] h ON h.[Atendimento Susp ID] = d.[Atendimento Susp ID]",
+    ),
+    "o JOIN é ao cabeçalho SUSPENSO, pela FK declarada",
+    "ligar ao [Atendimento] devolvia zero linhas neste ERP",
   );
-  check(sqlV.includes("[Fim Venda] = 'S'"), "…e o mesmo filtro de venda fechada");
   check(
-    sqlV.includes("a.[Serie]") && sqlV.includes("a.[Tipo Documento]"),
-    "série e tipo de documento vêm do cabeçalho — é de lá que sai VENDA vs NC",
+    !/\[Atendimento\]/.test(sqlV),
+    "a fonte VSG não toca no [Atendimento]",
+    "o cabeçalho da venda suspensa é outro, e foi essa confusão que a partiu",
+  );
+  // O GATE REFUTADO. 11 868 linhas tinham cabeçalho `Atendimento` e
+  // NENHUMA passava `[Fim Venda]='S'`. As duas vendas confirmadas têm
+  // `N`, e no mesmo dia há VSG tipo 107 com `N` e com `S`.
+  check(
+    !/Fim Venda/.test(sqlV),
+    "…e NÃO filtra por [Fim Venda] — o campo não classifica uma VSG",
+  );
+  check(
+    sqlV.includes("h.[SerieFacturacao]") && sqlV.includes("h.[Tipo Documento ID]"),
+    "série e tipo vêm do cabeçalho suspenso",
+  );
+  check(
+    sqlV.includes("h.[Data Venda] >= @from") && sqlV.includes("h.[Data Venda] < @to"),
+    "a janela é a do cabeçalho suspenso, meio-aberta",
   );
 }
 {
   // Instalação sem a tabela: a fonte fica inactiva, não rebenta.
-  const semTabela: SchemaFonteSusp = {
-    existe: false, tabela: "Atendimento Susp Detalhe", pk: null, atendimentoFk: null,
-    codigoId: null, sequencia: null, quantidade: null, pvpUnitario: null,
-    valorLinha: null, ivaValor: null, descontoValor: null,
-    comparticipacao1: null, comparticipacao2: null, entidadeId: null, dataVenda: null,
-  };
+  eq(
+    sqlAtendimentoSuspDetalhe({ ...SUSP, existe: false }, CAB).estado,
+    "AUSENTE",
+    "instalação sem a tabela: fonte ausente, saltada sem erro",
+  );
   const at: SchemaAtendimento = {
     serie: null, numero: null, tipoDocumento: "Tipo Documento",
     dataVenda: "Data Venda", fimVenda: "Fim Venda",
   };
-  eq(sqlAtendimentoSuspDetalhe(semTabela, at).estado, "AUSENTE",
-     "instalação sem a tabela: fonte ausente, saltada sem erro");
   const sqlG = sqlAtendimentoDetalhe(at);
   check(sqlG.includes("NULL AS serie"), "coluna em falta cai para NULL em vez de partir a query");
 }
@@ -381,16 +449,9 @@ console.log("\n=== transferências NÃO são vendas ===");
     serie: "Serie", numero: "Numero", tipoDocumento: "Tipo Documento",
     dataVenda: "Data Venda", fimVenda: "Fim Venda",
   };
-  const susp: SchemaFonteSusp = {
-    existe: true, tabela: "Atendimento Susp Detalhe", pk: "Atendimento Susp Detalhe ID",
-    atendimentoFk: "Atendimento ID", codigoId: "CodigoID", sequencia: null,
-    quantidade: "Quantidade", pvpUnitario: null, valorLinha: null, ivaValor: null,
-    descontoValor: null, comparticipacao1: null, comparticipacao2: null,
-    entidadeId: null, dataVenda: null,
-  };
   for (const [nome, s] of [
     ["Atendimento Detalhe", sqlAtendimentoDetalhe(at)],
-    ["Atendimento Susp Detalhe", (() => { const r = sqlAtendimentoSuspDetalhe(susp, at); return r.estado === "PRONTA" ? r.sql : ""; })()],
+    ["Atendimento Susp Detalhe", (() => { const r = sqlAtendimentoSuspDetalhe(SUSP, CAB); return r.estado === "PRONTA" ? r.sql : ""; })()],
   ] as const) {
     check(!/tblMovStocks/i.test(s), `${nome} não toca em tblMovStocks (transferências)`);
     check(!/Transfer/i.test(s), `${nome} não lê transferências`);
@@ -445,6 +506,63 @@ console.log("\n=== a identidade inclui a origem, de ponta a ponta ===");
   check(
     rota.includes('"ATENDIMENTO_DETALHE"'),
     "um agent antigo, sem sourceNamespace, cai no namespace que ele de facto lia",
+  );
+}
+
+console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
+{
+  const fontes = readFileSync(new URL("../../agent/src/vendas-fontes.ts", import.meta.url), "utf8");
+  // Só há duas fontes, e a segunda é a venda POSITIVA da VSG. Um reader
+  // de `Atendimento_SuspFT_NC_Susp` significaria ler a mesma NC que o
+  // circuito G já lê.
+  eq(Object.values(NAMESPACES).length, 2, "só existem DUAS fontes de venda");
+  check(
+    !/Atendimento_SuspFT_NC_Susp|Atendimento_FT_NC_Susp/.test(
+      fontes.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n"),
+    ),
+    "nenhuma fonte lê a tabela de relações FT→NC",
+    "as NC de VSG entram por [Atendimento Detalhe]; lê-las aqui subtraía duas vezes",
+  );
+  for (const f of ["daily-sync-runner", "bootstrap-upload"]) {
+    const src = readFileSync(new URL(`../../agent/src/commands/${f}.ts`, import.meta.url), "utf8");
+    check(!/SuspFT_NC/.test(src), `${f}: não lê relações FT→NC`);
+  }
+  // E o cabeçalho suspenso é lido sem o gate refutado.
+  check(
+    !/\[Fim Venda\][^\n]*Susp|Susp[^\n]*\[Fim Venda\]/.test(fontes),
+    "o reader VSG não usa [Fim Venda] em lado nenhum",
+  );
+}
+
+console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");
+{
+  // A armadilha: `bootstrap-dry-run` é um comando separado, com SQL
+  // próprio, que NÃO passa por `vendas-fontes.ts`. Validar o VSG com ele
+  // não valida nada — lê outro código. O dry-run que serve é o do
+  // próprio `bootstrap-upload`.
+  const dry = readFileSync(
+    new URL("../../agent/src/commands/bootstrap-dry-run.ts", import.meta.url), "utf8");
+  check(
+    !dry.includes("vendas-fontes"),
+    "bootstrap-dry-run NÃO lê a venda suspensa — é outro caminho",
+    "se um dia passar a ler, esta asserção cai e o aviso no --help deixa de ser verdade",
+  );
+  const up = readFileSync(
+    new URL("../../agent/src/commands/bootstrap-upload.ts", import.meta.url), "utf8");
+  check(
+    /"dry-run":\s*\{\s*type:\s*"boolean"/.test(up),
+    "bootstrap-upload expõe --dry-run no CLI",
+    "a plumbing dryRun existia nos três pipelines e não tinha flag: não havia como lá chegar",
+  );
+  for (const p of ["runProductsPipeline", "runStockPipeline", "runSalesPipeline"]) {
+    check(
+      new RegExp(`${p}\\([^)]*\\{[\\s\\S]{0,40}dryRun`).test(up),
+      `…e passa-o ao ${p}`,
+    );
+  }
+  check(
+    /if \(dryRun\)[\s\S]{0,200}não enviado/.test(up),
+    "…e no modo dry-run o batch não é enviado",
   );
 }
 

@@ -124,59 +124,92 @@ export type LinhaVendaCanonica = {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Tipos de documento que o ERP usa para reverter uma venda.
+ * Que tipos de documento são venda e quais são reversão, POR CIRCUITO.
  *
- * 104 e 27 são os que o classificador de movimentos já usa para as
- * notas de crédito do circuito G (`movimento-classifier.ts`). Vivem
- * aqui como conjunto explícito porque agora servem os DOIS circuitos: a
- * regra de negócio é "NC/anulação de G e de VSG reduzem a venda", e não
- * "NC do circuito G".
+ * ── PORQUE É POR NAMESPACE E NÃO UMA LISTA GLOBAL ────────────────────
+ *
+ * Os dois circuitos numeram os seus tipos de documento em colunas
+ * diferentes de tabelas diferentes — `Atendimento.[Tipo Documento]` e
+ * `Atendimento Susp.[Tipo Documento ID]`. Nada garante que o mesmo
+ * número signifique o mesmo dos dois lados, e uma lista global assume
+ * precisamente isso. Foi a suposição equivalente — "a coluna chama-se
+ * `Atendimento ID`, logo aponta para o `Atendimento`" — que fez o reader
+ * ler zero linhas durante uma ronda inteira.
+ *
+ * ── O QUE ESTÁ PROVADO NO ERP DA SILVEIRENSE ─────────────────────────
+ *
+ * Circuito G, `[Atendimento]`:
+ *   · 77       venda de balcão
+ *   · 104, 27  nota de crédito / anulação
+ *
+ * Circuito VSG, `[Atendimento Susp]`:
+ *   · 107      factura de venda suspensa
+ *
+ * E o conjunto de reversões do circuito VSG está VAZIO de propósito, não
+ * por esquecimento. As 107 relações de `Atendimento_SuspFT_NC_Susp`
+ * resolvem 107/107 para `[Atendimento]`, com `[Tipo Documento] = 104`, e
+ * as suas linhas vivem em `[Atendimento Detalhe]` — que o reader do
+ * circuito G já lê. Declarar 104 aqui faria a MESMA nota de crédito ser
+ * lida duas vezes e subtraída duas vezes: o erro simétrico daquele que
+ * andámos a corrigir, e igualmente plausível à vista.
  */
-export const TIPOS_DOC_REVERSAO = new Set<number>([104, 27]);
+export const CLASSIFICACAO: Record<
+  SourceNamespace,
+  { venda: ReadonlySet<number>; reversao: ReadonlySet<number> }
+> = {
+  [NAMESPACES.ATENDIMENTO_DETALHE]: {
+    venda: new Set([77]),
+    reversao: new Set([104, 27]),
+  },
+  [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: {
+    venda: new Set([107]),
+    // Vazio por decisão, não por omissão. Ver acima.
+    reversao: new Set<number>(),
+  },
+};
 
 /**
- * Tipos de documento conhecidos como VENDA.
- *
- * 77 é o que o circuito G usa e é o único observado. A lista é explícita
- * de propósito — ver `classificarDocumento`.
- */
-export const TIPOS_DOC_VENDA = new Set<number>([77]);
-
-/**
- * A classe de uma linha, a partir do tipo de documento do ERP.
+ * A classe de uma linha, dado o tipo de documento e o circuito de onde
+ * veio. Fail-closed: o que não está declarado é recusado.
  *
  * ── PORQUE É QUE O DESCONHECIDO NÃO É VENDA ──────────────────────────
  *
  * A primeira versão disto devolvia `VENDA` para tudo o que não fosse
- * reversão. Parece conservador e é o contrário: os tipos {104, 27} vêm
- * do circuito G — foram observados em notas de crédito de facturas G — e
- * NADA prova que o circuito da venda suspensa use os mesmos. Se as NC de
- * VSG usarem outro tipo, o `else return VENDA` transformava cada nota de
- * crédito numa venda, e o total subia em vez de descer. Um erro que soma
- * na direcção errada e continua a parecer plausível.
+ * reversão. Parece conservador e é o contrário: se um tipo de nota de
+ * crédito não estivesse na lista, cada NC passava a venda e o total
+ * subia em vez de descer — um erro que soma na direcção errada e
+ * continua a parecer plausível durante meses.
  *
- * Por isso: só classifica o que está declarado. Tudo o resto devolve
- * `null`, a linha é recusada e o tipo aparece no log — que é o sinal de
- * que falta declará-lo, e o único que não se perde.
- *
- * Fechar esta lista para o circuito VSG exige ver que tipos de documento
- * lá aparecem: `agent -- vendas-suspensas-audit` responde a isso sem
- * escrever nada.
+ * Uma linha recusada é contada e o número do tipo aparece no log. É o
+ * único desfecho que não se perde: uma linha mal classificada entra na
+ * soma e desaparece; uma linha recusada fica a apontar para si própria.
  */
-export function classificarDocumento(tipoDocumento: number | null): ClasseVenda | null {
+export function classificarDocumento(
+  tipoDocumento: number | null,
+  sourceNamespace: SourceNamespace,
+): ClasseVenda | null {
   if (tipoDocumento === null) return null;
-  if (TIPOS_DOC_REVERSAO.has(tipoDocumento)) return "DEVOLUCAO_ANULACAO";
-  if (TIPOS_DOC_VENDA.has(tipoDocumento)) return "VENDA";
+  const regras = CLASSIFICACAO[sourceNamespace];
+  if (!regras) return null;
+  if (regras.reversao.has(tipoDocumento)) return "DEVOLUCAO_ANULACAO";
+  if (regras.venda.has(tipoDocumento)) return "VENDA";
   return null;
 }
 
 /**
  * O sinal da quantidade, dada a classe.
  *
- * O ERP grava quantidades positivas nas duas classes e distingue-as pelo
- * documento. Quem soma tem de ver o sinal, senão uma nota de crédito
- * aumenta as vendas — que é o erro que passa despercebido durante meses
- * porque o total continua a parecer plausível.
+ * ── APLICADO UMA VEZ, SEJA QUAL FOR O SINAL DE ORIGEM ────────────────
+ *
+ * `Math.abs` antes de decidir o sinal torna isto idempotente, e isso não
+ * é elegância: as notas de crédito do circuito G chegam de
+ * `[Atendimento Detalhe]` já NEGATIVAS. Sem o `abs`, uma NC de −2 saía
+ * `−(−2) = +2` e a devolução passava a venda. Com ele, `−|−2| = −2`
+ * tanto na primeira passagem como em qualquer outra.
+ *
+ * A agregação (`SQL_QUANTIDADE_ASSINADA`) faz o mesmo `ABS()` por
+ * classe, portanto os dois lados concordam e o sinal nunca é aplicado
+ * duas vezes — mesmo que a linha volte a passar aqui num re-upload.
  */
 export function assinarQuantidade(qtd: number, classe: ClasseVenda): number {
   const abs = Math.abs(qtd);
@@ -229,12 +262,53 @@ function bk(col: string | null): string | null {
   return col ? `[${col}]` : null;
 }
 
+/**
+ * A coluna de `tabela` que o ERP DECLARA apontar para `tabelaAlvo`.
+ *
+ * ── PORQUE É QUE ISTO NÃO PODE SER FEITO POR NOME ────────────────────
+ *
+ * `[Atendimento Susp Detalhe]` tem uma coluna chamada `Atendimento ID`.
+ * Parece a ligação ao documento e não é: das 40 664 linhas, 11 868
+ * resolviam contra `[Atendimento]` e NENHUMA passava o filtro que o
+ * reader aplicava. A ligação documental verdadeira é
+ * `Atendimento Susp ID -> [Atendimento Susp]`, e está DECLARADA como
+ * chave estrangeira desde sempre.
+ *
+ * Um nome parecido é uma coincidência; uma FK é uma afirmação do
+ * esquema. Perguntar a `sys.foreign_key_columns` custa uma query e é a
+ * diferença entre ler o documento certo e ler zero linhas.
+ */
+async function fkDeclaradaPara(
+  pool: SqlPool,
+  tabela: string,
+  tabelaAlvo: string,
+): Promise<string | null> {
+  const r = await pool
+    .request()
+    .input("t", tabela)
+    .input("alvo", tabelaAlvo)
+    .query<{ coluna: string }>(
+      `SELECT pc.name AS coluna
+         FROM sys.foreign_key_columns fkc
+         JOIN sys.objects o  ON o.object_id  = fkc.parent_object_id
+         JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id
+                            AND pc.column_id = fkc.parent_column_id
+         JOIN sys.objects ro ON ro.object_id = fkc.referenced_object_id
+        WHERE o.name = @t AND ro.name = @alvo`,
+    );
+  return r.recordset[0]?.coluna ?? null;
+}
+
 export type SchemaFonteSusp = {
   /** A tabela existe nesta instalação. */
   existe: boolean;
   tabela: string;
   pk: string | null;
-  atendimentoFk: string | null;
+  /**
+   * A FK DECLARADA para `[Atendimento Susp]` — a ligação documental.
+   * Vem de `sys.foreign_key_columns`, nunca do nome da coluna.
+   */
+  cabecalhoFk: string | null;
   codigoId: string | null;
   sequencia: string | null;
   quantidade: string | null;
@@ -249,6 +323,45 @@ export type SchemaFonteSusp = {
 };
 
 const TABELA_SUSP = "Atendimento Susp Detalhe";
+const TABELA_CABECALHO_SUSP = "Atendimento Susp";
+
+/** As colunas documentais de `[Atendimento Susp]`, o cabeçalho da VSG. */
+export type SchemaCabecalhoSusp = {
+  existe: boolean;
+  tabela: string;
+  pk: string | null;
+  serie: string | null;
+  numero: string | null;
+  tipoDocumento: string | null;
+  dataVenda: string | null;
+  totalBruto: string | null;
+};
+
+/**
+ * Descobre `[Atendimento Susp]`.
+ *
+ * É este o cabeçalho da venda suspensa — não o `[Atendimento]`. Carrega
+ * `SerieFacturacao`, `Numero Documento`, `Tipo Documento ID`,
+ * `Data Venda` e `Total Bruto_EUR`, e é de onde vem tudo o que
+ * identifica o documento.
+ *
+ * `Fim Venda` NÃO é lido. Existe na tabela, e não serve para classificar:
+ * as duas vendas confirmadas do ERP têm `N`, e no mesmo dia há VSG tipo
+ * 107 com `N` e com `S`. Filtrar por ele devolvia zero.
+ */
+export async function descobrirCabecalhoSusp(pool: SqlPool): Promise<SchemaCabecalhoSusp> {
+  const cols = await colunasDe(pool, TABELA_CABECALHO_SUSP);
+  return {
+    existe: cols !== null,
+    tabela: TABELA_CABECALHO_SUSP,
+    pk: escolher(cols, [/^atendimento\s*susp\s*id$/i, /^susp\s*id$/i]),
+    serie: escolher(cols, [/^serie\s*facturacao$/i, /^seriefacturacao$/i, /^serie$/i]),
+    numero: escolher(cols, [/^numero\s*documento$/i, /^numero$/i]),
+    tipoDocumento: escolher(cols, [/^tipo\s*documento\s*id$/i, /^tipo\s*documento$/i]),
+    dataVenda: escolher(cols, [/^data\s*venda$/i, /^data$/i]),
+    totalBruto: escolher(cols, [/^total\s*bruto_eur$/i, /^total\s*bruto$/i]),
+  };
+}
 
 /**
  * Descobre as colunas de `[Atendimento Susp Detalhe]`.
@@ -257,9 +370,16 @@ const TABELA_SUSP = "Atendimento Susp Detalhe";
  * variações que o Softreis usa (com e sem sufixo `_EUR`, com e sem
  * espaços). Uma coluna que não apareça fica `null` e o SELECT emite
  * `NULL` — a linha entra com esse campo vazio em vez de a query rebentar.
+ *
+ * A EXCEPÇÃO é `cabecalhoFk`: essa não é adivinhada por nome nenhum. Vem
+ * da FK declarada, porque foi exactamente aí que a versão anterior
+ * escolheu a coluna errada.
  */
 export async function descobrirSchemaSusp(pool: SqlPool): Promise<SchemaFonteSusp> {
   const cols = await colunasDe(pool, TABELA_SUSP);
+  const cabecalhoFk = cols
+    ? await fkDeclaradaPara(pool, TABELA_SUSP, TABELA_CABECALHO_SUSP)
+    : null;
   return {
     existe: cols !== null,
     tabela: TABELA_SUSP,
@@ -269,7 +389,7 @@ export async function descobrirSchemaSusp(pool: SqlPool): Promise<SchemaFonteSus
       /^detalhe\s*susp\s*id$/i,
       /^detalhe\s*id$/i,
     ]),
-    atendimentoFk: escolher(cols, [/^atendimento\s*id$/i, /^atendimento$/i]),
+    cabecalhoFk,
     codigoId: escolher(cols, [/^codigo\s*id$/i, /^codigoid$/i]),
     sequencia: escolher(cols, [/^sequencia$/i, /^seq$/i]),
     quantidade: escolher(cols, [/^quantidade$/i, /^qtd$/i]),
@@ -350,9 +470,11 @@ export function normalizar(
   if (externalProductId === null) return { erro: "sem CodigoID" };
 
   const tipoDocumento = num(r.tipoDocumento);
-  const classe = classificarDocumento(tipoDocumento);
+  const classe = classificarDocumento(tipoDocumento, sourceNamespace);
   if (classe === null) {
-    return { erro: `tipo de documento por classificar: ${tipoDocumento ?? "(nulo)"}` };
+    return {
+      erro: `tipo de documento por classificar em ${sourceNamespace}: ${tipoDocumento ?? "(nulo)"}`,
+    };
   }
 
   const qtd = num(r.quantidade) ?? 0;
@@ -485,15 +607,27 @@ export function sqlAtendimentoDetalhe(at: SchemaAtendimento): string {
 /**
  * SQL da venda suspensa.
  *
- * Liga-se ao MESMO cabeçalho `Atendimento` — é de lá que vêm a série
- * (VSG), o `[Tipo Documento]` que separa a factura da nota de crédito, e
- * a data. Sem esse JOIN não há forma de distinguir uma VSG facturada de
- * uma suspensão por fiscalizar, e é por isso que ele é obrigatório aqui:
- * uma linha de `Susp Detalhe` sem cabeçalho não entra.
+ * ── O QUE MUDOU, E PORQUÊ ────────────────────────────────────────────
  *
- * `INNER JOIN` e não `LEFT`: a ausência de cabeçalho é exactamente o
- * caso "ainda não é uma venda". A regra fica no JOIN, visível, em vez de
- * num `if` mais abaixo.
+ * A versão anterior ligava-se ao `[Atendimento]` e filtrava
+ * `[Fim Venda] = 'S'`. As duas coisas estavam erradas, e o ERP real
+ * mostrou-o sem ambiguidade:
+ *
+ *   · o cabeçalho da VSG é `[Atendimento Susp]`, ligado pela FK
+ *     declarada `Atendimento Susp ID`. É lá que estão `SerieFacturacao`,
+ *     `Numero Documento`, `Tipo Documento ID`, `Data Venda`;
+ *   · `[Fim Venda] = 'S'` devolvia ZERO linhas — e as duas vendas
+ *     confirmadas (VSG/54684 e VSG/54688) têm `N`. O campo não separa
+ *     facturada de não facturada; separa outra coisa qualquer, e não é
+ *     usado aqui para nada.
+ *
+ * `INNER JOIN` ao cabeçalho: uma linha sem documento não é uma venda.
+ * A regra fica no JOIN, visível, e não num `if` mais abaixo.
+ *
+ * Não há reader de reversões VSG, de propósito. As notas de crédito das
+ * VSG vivem em `[Atendimento]`/`[Atendimento Detalhe]` — 107/107
+ * verificadas — e o reader do circuito G já as lê. Um segundo reader
+ * subtrairia a mesma NC duas vezes.
  */
 export type ResultadoFonte =
   /** A tabela não existe nesta instalação. Saltar é correcto. */
@@ -509,20 +643,23 @@ export type ResultadoFonte =
 
 export function sqlAtendimentoSuspDetalhe(
   susp: SchemaFonteSusp,
-  at: SchemaAtendimento,
+  cab: SchemaCabecalhoSusp,
 ): ResultadoFonte {
   if (!susp.existe) return { estado: "AUSENTE" };
 
-  // O JOIN ao cabeçalho não é opcional: sem `[Tipo Documento]` não há
-  // como separar factura de nota de crédito, e sem a FK não há
-  // cabeçalho. Uma fonte meio-ligada daria números errados em silêncio.
+  // Sem cabeçalho não há documento, e sem `Tipo Documento ID` não há
+  // classificação. Uma fonte meio-ligada daria números errados em
+  // silêncio — que é precisamente o que já aconteceu uma vez.
   const faltam = (
     [
       ["pk", susp.pk],
-      ["FK para Atendimento", susp.atendimentoFk],
+      [`FK declarada para [${cab.tabela}]`, susp.cabecalhoFk],
       ["CodigoID", susp.codigoId],
       ["quantidade", susp.quantidade],
-      ["Atendimento.[Tipo Documento]", at.tipoDocumento],
+      [`[${cab.tabela}]`, cab.existe ? "sim" : null],
+      [`[${cab.tabela}].pk`, cab.pk],
+      [`[${cab.tabela}].[Tipo Documento ID]`, cab.tipoDocumento],
+      [`[${cab.tabela}].[Data Venda]`, cab.dataVenda],
     ] as const
   )
     .filter(([, v]) => !v)
@@ -530,16 +667,17 @@ export function sqlAtendimentoSuspDetalhe(
   if (faltam.length > 0) return { estado: "POR_LIGAR", faltam };
 
   const pk = bk(susp.pk)!;
-  const fk = bk(susp.atendimentoFk)!;
+  const fk = bk(susp.cabecalhoFk)!;
+  const cabPk = bk(cab.pk)!;
   const sql = [
     "SELECT TOP (@n)",
     sel("externalLineId", `d.${pk}`),
-    sel("externalDocumentId", "a.[Atendimento ID]"),
+    sel("externalDocumentId", `h.${cabPk}`),
     sel("sequencia", susp.sequencia ? `d.${bk(susp.sequencia)}` : null),
-    sel("dataVenda", at.dataVenda ? `a.${bk(at.dataVenda)}` : null),
-    sel("tipoDocumento", at.tipoDocumento ? `a.${bk(at.tipoDocumento)}` : null),
-    sel("serie", at.serie ? `a.${bk(at.serie)}` : null),
-    sel("numero", at.numero ? `a.${bk(at.numero)}` : null),
+    sel("dataVenda", `h.${bk(cab.dataVenda)}`),
+    sel("tipoDocumento", `h.${bk(cab.tipoDocumento)}`),
+    sel("serie", cab.serie ? `h.${bk(cab.serie)}` : null),
+    sel("numero", cab.numero ? `h.${bk(cab.numero)}` : null),
     sel("externalProductId", `d.${bk(susp.codigoId)}`),
     sel("processaStocks", "s.[Processa_Stocks]"),
     sel("quantidade", susp.quantidade ? `d.${bk(susp.quantidade)}` : null),
@@ -551,10 +689,9 @@ export function sqlAtendimentoSuspDetalhe(
     sel("comparticipacao2", susp.comparticipacao2 ? `d.${bk(susp.comparticipacao2)}` : null),
     sel("entidadeId", susp.entidadeId ? `d.${bk(susp.entidadeId)}` : null),
     `  FROM [dbo].[${susp.tabela}] d`,
-    `  JOIN [dbo].[Atendimento] a ON a.[Atendimento ID] = d.${fk}`,
+    `  JOIN [dbo].[${cab.tabela}] h ON h.${cabPk} = d.${fk}`,
     `  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.${bk(susp.codigoId)}`,
-    " WHERE a.[Fim Venda] = 'S'",
-    `   AND a.[Data Venda] >= @from AND a.[Data Venda] < @to`,
+    ` WHERE h.${bk(cab.dataVenda)} >= @from AND h.${bk(cab.dataVenda)} < @to`,
     `   AND d.${pk} > @lastId`,
     ` ORDER BY d.${pk}`,
   ].join("\n");
@@ -562,20 +699,36 @@ export function sqlAtendimentoSuspDetalhe(
 }
 
 /** Resumo legível do que a descoberta encontrou, para o log da corrida. */
-export function resumoSchema(susp: SchemaFonteSusp, at: SchemaAtendimento): string[] {
+export function resumoSchema(
+  susp: SchemaFonteSusp,
+  at: SchemaAtendimento,
+  cab?: SchemaCabecalhoSusp,
+): string[] {
   const linhas: string[] = [];
   linhas.push(
-    `  Atendimento: serie=${at.serie ?? "-"} numero=${at.numero ?? "-"} ` +
-      `tipoDoc=${at.tipoDocumento ?? "-"} fimVenda=${at.fimVenda ?? "-"}`,
+    `  [Atendimento] (circuito G): serie=${at.serie ?? "-"} numero=${at.numero ?? "-"} ` +
+      `tipoDoc=${at.tipoDocumento ?? "-"}`,
   );
   if (!susp.existe) {
     linhas.push(`  [${TABELA_SUSP}]: NAO EXISTE nesta instalacao — fonte VSG inactiva`);
     return linhas;
   }
+  if (cab) {
+    linhas.push(
+      `  [${TABELA_CABECALHO_SUSP}] (circuito VSG): pk=${cab.pk ?? "-"} ` +
+        `serie=${cab.serie ?? "-"} numero=${cab.numero ?? "-"} ` +
+        `tipoDoc=${cab.tipoDocumento ?? "-"} data=${cab.dataVenda ?? "-"}`,
+    );
+  }
+  linhas.push(
+    `  [${TABELA_SUSP}]: pk=${susp.pk ?? "-"} ` +
+      `fk->cabecalho=${susp.cabecalhoFk ?? "-"} (declarada) ` +
+      `codigo=${susp.codigoId ?? "-"} qtd=${susp.quantidade ?? "-"}`,
+  );
   const faltam = (
     [
       ["pk", susp.pk],
-      ["atendimentoFk", susp.atendimentoFk],
+      ["cabecalhoFk", susp.cabecalhoFk],
       ["codigoId", susp.codigoId],
       ["quantidade", susp.quantidade],
       ["pvpUnitario", susp.pvpUnitario],
@@ -584,12 +737,12 @@ export function resumoSchema(susp: SchemaFonteSusp, at: SchemaAtendimento): stri
   )
     .filter(([, v]) => !v)
     .map(([k]) => k);
-  linhas.push(
-    `  [${TABELA_SUSP}]: pk=${susp.pk ?? "-"} fk=${susp.atendimentoFk ?? "-"} ` +
-      `codigo=${susp.codigoId ?? "-"} qtd=${susp.quantidade ?? "-"}`,
-  );
   if (faltam.length > 0) {
     linhas.push(`  ATENCAO colunas por resolver: ${faltam.join(", ")}`);
   }
+  linhas.push(
+    `  classificacao VSG: venda={${[...CLASSIFICACAO.ATENDIMENTO_SUSP_DETALHE.venda].join(",")}} ` +
+      `reversao={} (as NC de VSG sao lidas pelo circuito G)`,
+  );
   return linhas;
 }

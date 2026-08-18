@@ -33,6 +33,7 @@ import { parseDateArg } from "./probe-helpers.js";
 import {
   NAMESPACES,
   descobrirSchemaAtendimento,
+  descobrirCabecalhoSusp,
   descobrirSchemaSusp,
   normalizar,
   paraPayload,
@@ -219,6 +220,16 @@ function isoDateOrNull(v: unknown): string | null {
 type Args = {
   from?: string;
   to?: string;
+  /**
+   * Lê tudo e não envia nada.
+   *
+   * A plumbing (`opts.dryRun`) já existia nos três pipelines e não tinha
+   * flag — não havia como chegar-lhe pela linha de comandos. E o comando
+   * `bootstrap-dry-run` NÃO serve de substituto: tem SQL próprio e não
+   * passa por `vendas-fontes.ts`, portanto não lê a venda suspensa. Um
+   * "dry-run" que exercita outro código não valida coisa nenhuma.
+   */
+  dryRun?: boolean;
   help?: boolean;
 };
 
@@ -228,6 +239,7 @@ function parseCmdArgs(): Args {
     options: {
       from: { type: "string" },
       to: { type: "string" },
+      "dry-run": { type: "boolean", default: false },
       help: { type: "boolean", short: "h" },
     },
     strict: true,
@@ -236,17 +248,24 @@ function parseCmdArgs(): Args {
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
+    dryRun: raw.values["dry-run"] === true,
     help: raw.values.help === true,
   };
 }
 
 function printHelp(): void {
-  console.log("Uso: bootstrap-upload --from YYYY-MM-DD --to YYYY-MM-DD");
+  console.log("Uso: bootstrap-upload --from YYYY-MM-DD --to YYYY-MM-DD [--dry-run]");
   console.log("");
   console.log("PRIMEIRA INGESTÃO real para a SaaS. Idempotente.");
   console.log("");
+  console.log("  --dry-run   lê o ERP e imprime os counts, sem enviar nada.");
+  console.log("              É o único dry-run que passa pelas DUAS fontes de");
+  console.log("              venda (balcão + suspensa). O comando");
+  console.log("              `bootstrap-dry-run` tem SQL próprio e não lê a");
+  console.log("              venda suspensa — não serve para a validar.");
+  console.log("");
   console.log("Pré-requisitos:");
-  console.log("  · bootstrap-dry-run validado contra o intervalo");
+  console.log("  · bootstrap-upload --dry-run validado contra o intervalo");
   console.log("  · ENABLE_AGENT_BOOTSTRAP=1 no SaaS");
   console.log("  · SPHARMMT_FARMACIA no .env / agent.config.json");
   console.log("  · test-connection passa (SQL + SaaS)");
@@ -1124,11 +1143,12 @@ export async function runSalesPipeline(
 
   // Descoberta dinamica das duas fontes. Ver agent/src/vendas-fontes.ts:
   // a venda suspensa (serie VSG) vive noutra tabela e nunca era lida.
-  const [at, susp] = await Promise.all([
+  const [at, susp, cab] = await Promise.all([
     descobrirSchemaAtendimento(pool),
     descobrirSchemaSusp(pool),
+    descobrirCabecalhoSusp(pool),
   ]);
-  for (const linha of resumoSchema(susp, at)) console.log(linha);
+  for (const linha of resumoSchema(susp, at, cab)) console.log(linha);
 
   const fontes: Array<{
     namespace: SourceNamespace;
@@ -1143,7 +1163,7 @@ export async function runSalesPipeline(
     {
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
-      fonte: sqlAtendimentoSuspDetalhe(susp, at),
+      fonte: sqlAtendimentoSuspDetalhe(susp, cab),
     },
   ];
 
@@ -1314,9 +1334,14 @@ export async function bootstrapUpload(): Promise<number> {
     return 1;
   }
 
+  const dryRun = args.dryRun === true;
   const t0 = Date.now();
   console.log(RULE);
-  console.log("bootstrap-upload — 1ª ingestão real (idempotente)");
+  console.log(
+    dryRun
+      ? "bootstrap-upload --dry-run — lê tudo, NÃO envia nada"
+      : "bootstrap-upload — 1ª ingestão real (idempotente)",
+  );
   console.log(RULE);
   console.log(`SaaS endpoint     : ${cfg.saasEndpoint}`);
   console.log(`Tenant slug       : ${cfg.tenantSlug}`);
@@ -1327,11 +1352,13 @@ export async function bootstrapUpload(): Promise<number> {
 
   try {
     return await withPool(cfg, async (pool) => {
-      const productsTotals = await runProductsPipeline(pool, client, farmaciaId);
+      const productsTotals = await runProductsPipeline(pool, client, farmaciaId, { dryRun });
       console.log("");
-      const stockTotals = await runStockPipeline(pool, client, farmaciaId);
+      const stockTotals = await runStockPipeline(pool, client, farmaciaId, { dryRun });
       console.log("");
-      const salesTotals = await runSalesPipeline(pool, client, farmaciaId, fromDate, toDate);
+      const salesTotals = await runSalesPipeline(pool, client, farmaciaId, fromDate, toDate, {
+        dryRun,
+      });
       console.log("");
 
       // ── Summary final

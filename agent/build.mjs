@@ -48,7 +48,12 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-const AGENT_REV = "62";
+// Override por env: `AGENT_PACKAGE_REV=63 AGENT_PACKAGE_DIST=spharmmt-agent-base-rev63`.
+// Existe para se poder construir um pacote lado-a-lado sem destruir o
+// `dist-agent/<DIST_NAME>/` da revisão anterior — `cleanDist()` apaga a
+// pasta de destino, e apagar a rev instalada para inspeccionar um comando
+// novo é exactamente o que não se quer.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "62";
 
 function readGitShortCommit() {
   try {
@@ -63,7 +68,7 @@ function readGitShortCommit() {
   }
 }
 
-const DIST_NAME = "SPharmMT-Agent";
+const DIST_NAME = process.env.AGENT_PACKAGE_DIST ?? "SPharmMT-Agent";
 const DIST_ROOT = path.join(REPO_ROOT, "dist-agent", DIST_NAME);
 const BUILD_CACHE = path.join(AGENT_ROOT, ".build-cache");
 const CACHED_NODE = path.join(BUILD_CACHE, `node-${NODE_VERSION}-${NODE_PLATFORM}.exe`);
@@ -1868,6 +1873,111 @@ function writeBatchWrappers() {
     ``,
   ].join("\r\n");
   fs.writeFileSync(path.join(DIST_ROOT, "run-bootstrap-upload.bat"), bootstrapUploadBat, "utf8");
+
+  // vendas-susp-cadeia — READ-ONLY. A sonda dirigida que se segue ao
+  // audit: o audit provou que [Fim Venda]='S' devolve ZERO no circuito
+  // suspenso, este descobre qual e a cadeia real. Ancoras por omissao =
+  // os documentos de 01/08/2026 com prova visual no ERP.
+  const vendasSuspCadeiaBat = [
+    `@echo off`,
+    `REM SPharm.MT agent - vendas-susp-cadeia (READ-ONLY)`,
+    `REM Gerado por agent/build.mjs. Nao editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   vendas-susp-cadeia - READ-ONLY`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo So SELECT. NAO escreve no ERP. NAO envia nada para a SaaS.`,
+    `echo NAO instala servico. NAO altera tarefas agendadas.`,
+    `echo.`,
+    `echo Segue a cadeia documental da venda suspensa nos DOIS sentidos:`,
+    `echo   . da linha conhecida ate ao documento`,
+    `echo     ^(Atendimento Susp Detalhe 147214 e 147219^)`,
+    `echo   . do documento conhecido ate as linhas`,
+    `echo     ^(VSG/54684 e VSG/54688, 01/08/2026^)`,
+    `echo.`,
+    `echo Segue as FK DECLARADAS, e procura os IDs por CONTEUDO em todas`,
+    `echo as colunas numericas - nao escolhe colunas por nome parecido.`,
+    `echo.`,
+    `echo Este comando NAO usa [Fim Venda]='S' em lado nenhum: o audit`,
+    `echo anterior provou que esse filtro devolve ZERO neste circuito.`,
+    `echo.`,
+    `if not exist logs mkdir logs`,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "HOJE=%%I"`,
+    `set "SAIDA=logs\\vendas-susp-cadeia-%HOJE%.txt"`,
+    `echo A analisar... a saida fica tambem em %SAIDA%`,
+    `echo.`,
+    `node.exe agent.cjs vendas-susp-cadeia --dia 2026-08-01 > "%SAIDA%" 2>&1`,
+    `set EXIT=%ERRORLEVEL%`,
+    `type "%SAIDA%"`,
+    `echo.`,
+    `echo ============================================================`,
+    `echo Nada foi escrito no ERP nem na SaaS.`,
+    `echo Envia o ficheiro %SAIDA%`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-vendas-susp-cadeia.bat"),
+    vendasSuspCadeiaBat,
+    "utf8"
+  );
+
+  // vendas-susp-nc — READ-ONLY. A ultima sonda antes do reader: onde
+  // esta a nota de credito de uma venda suspensa, e onde estao as suas
+  // linhas. A origem da VSG positiva ja esta fechada e nao e reaberta.
+  const vendasSuspNcBat = [
+    `@echo off`,
+    `REM SPharm.MT agent - vendas-susp-nc (READ-ONLY)`,
+    `REM Gerado por agent/build.mjs. Nao editar manualmente.`,
+    `setlocal`,
+    ``,
+    ...preamble,
+    `echo.`,
+    `echo ============================================================`,
+    `echo   vendas-susp-nc - READ-ONLY`,
+    `echo ============================================================`,
+    `echo.`,
+    `echo So SELECT. NAO escreve no ERP. NAO envia nada para a SaaS.`,
+    `echo NAO instala servico. NAO altera tarefas agendadas.`,
+    `echo.`,
+    `echo Uma pergunta so: dada uma linha de Atendimento_SuspFT_NC_Susp,`,
+    `echo onde esta a NC e onde estao as suas linhas.`,
+    `echo.`,
+    `echo Pega em valores reais de [Atendimento ID_NC] e procura-os por`,
+    `echo CONTEUDO em todas as chaves primarias do ERP - nao assume que`,
+    `echo o nome da coluna diz para onde ela aponta.`,
+    `echo.`,
+    `echo Depois segue ate ao cabecalho da NC, serie/numero, tipo`,
+    `echo documental, data, e as linhas com artigo, quantidade e valor.`,
+    `echo.`,
+    `echo Pode demorar alguns minutos: sonda a PK de cada tabela.`,
+    `echo.`,
+    `if not exist logs mkdir logs`,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "HOJE=%%I"`,
+    `set "SAIDA=logs\\vendas-susp-nc-%HOJE%.txt"`,
+    `echo A analisar... a saida fica tambem em %SAIDA%`,
+    `echo.`,
+    `node.exe agent.cjs vendas-susp-nc --limite 10 > "%SAIDA%" 2>&1`,
+    `set EXIT=%ERRORLEVEL%`,
+    `type "%SAIDA%"`,
+    `echo.`,
+    `echo ============================================================`,
+    `echo Nada foi escrito no ERP nem na SaaS.`,
+    `echo Envia o ficheiro %SAIDA%`,
+    `echo ============================================================`,
+    `echo.`,
+    `pause`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(path.join(DIST_ROOT, "run-vendas-susp-nc.bat"), vendasSuspNcBat, "utf8");
 
   log(`  ✓ ${Object.keys(wrappers).length + 22} wrappers (probe-table + inspect-codigoid + inspect-orders-schema + inspect-compras-schema + inspect-compras-lookups + inspect-product-identifiers + fornecedores x2 + compras x2 + devolucoes-fornecedor x2 + setup-orders-write-log + test-order-write + export-orders auto/once + datas + daily-sync x2 + daily-pipeline-auto + bootstrap-upload + products-upload)`);
 }

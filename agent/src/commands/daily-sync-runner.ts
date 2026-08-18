@@ -21,6 +21,7 @@ import type { BootstrapBatchResponse } from "../http-client.js";
 import {
   NAMESPACES,
   descobrirSchemaAtendimento,
+  descobrirCabecalhoSusp,
   descobrirSchemaSusp,
   normalizar,
   paraPayload,
@@ -391,11 +392,12 @@ async function pipelineSales(
   // Descoberta dinamica: os nomes das colunas variam entre instalacoes
   // Softreis. Uma coluna que falte cai para NULL no SELECT em vez de
   // partir a query — mesmo padrao do stocksmov desde a rev32.
-  const [at, susp] = await Promise.all([
+  const [at, susp, cab] = await Promise.all([
     descobrirSchemaAtendimento(pool),
     descobrirSchemaSusp(pool),
+    descobrirCabecalhoSusp(pool),
   ]);
-  for (const linha of resumoSchema(susp, at)) logger.log(linha);
+  for (const linha of resumoSchema(susp, at, cab)) logger.log(linha);
 
   const fontes: Array<{
     namespace: SourceNamespace;
@@ -410,7 +412,7 @@ async function pipelineSales(
     {
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
-      fonte: sqlAtendimentoSuspDetalhe(susp, at),
+      fonte: sqlAtendimentoSuspDetalhe(susp, cab),
     },
   ];
 

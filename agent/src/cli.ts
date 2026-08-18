@@ -36,7 +36,8 @@ import { discoverProducts } from "./commands/discover-products.js";
 import { discoverStock } from "./commands/discover-stock.js";
 import { discoverSales } from "./commands/discover-sales.js";
 import { probeTable } from "./commands/probe-table.js";
-import { vendasSuspensasAudit } from "./commands/vendas-suspensas-audit.js";
+import { vendasSuspCadeia } from "./commands/vendas-susp-cadeia.js";
+import { vendasSuspNc } from "./commands/vendas-susp-nc.js";
 import { productsPreview } from "./commands/products-preview.js";
 import { stockPreview } from "./commands/stock-preview.js";
 import { salesPreview } from "./commands/sales-preview.js";
@@ -97,9 +98,13 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
     run: probeTable,
     desc: "Probe genérico (PK/FKs/datas/TOP 5) — --table obrigatório.",
   },
-  "vendas-suspensas-audit": {
-    run: vendasSuspensasAudit,
-    desc: "Prova a ligação da venda suspensa ao cabeçalho + tipos de documento do circuito VSG + Atendimento_FT_NC_Susp. Read-only, --from/--to.",
+  "vendas-susp-cadeia": {
+    run: vendasSuspCadeia,
+    desc: "Segue a cadeia documental da venda suspensa nos dois sentidos (linha↔documento) a partir de IDs e documentos VSG reais. Read-only.",
+  },
+  "vendas-susp-nc": {
+    run: vendasSuspNc,
+    desc: "Dada uma relação de Atendimento_SuspFT_NC_Susp, onde está a NC e onde estão as suas linhas — procura o ID por conteúdo em todas as PKs do ERP. Read-only.",
   },
   "products-preview": {
     run: productsPreview,
