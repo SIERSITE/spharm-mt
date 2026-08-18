@@ -32,7 +32,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { withIntegrationAuth } from "@/lib/integracao/auth";
 import { assertFarmaciaInTenant } from "@/lib/ingest/bootstrap";
-import { isPipelineKind, isPipelineStatus } from "@/lib/pipeline/types";
+import { estadoDoDia, isPipelineKind, isPipelineStatus } from "@/lib/pipeline/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,16 +74,25 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     );
   }
 
-  const status = typeof obj.status === "string" ? obj.status : "";
+  const statusRecebido = typeof obj.status === "string" ? obj.status : "";
   // Aceitamos apenas estados FINAIS — o pipeline-record é um single-shot
   // no fim do run. O start não é gravado server-side.
-  if (status !== "OK" && status !== "ERROR" && status !== "ABORTED") {
+  if (
+    statusRecebido !== "OK" &&
+    statusRecebido !== "PARTIAL" &&
+    statusRecebido !== "ERROR" &&
+    statusRecebido !== "ABORTED"
+  ) {
     return NextResponse.json(
-      { ok: false, error: "invalid_status", message: `status="${status}" não é OK|ERROR|ABORTED.` },
+      {
+        ok: false,
+        error: "invalid_status",
+        message: `status="${statusRecebido}" não é OK|PARTIAL|ERROR|ABORTED.`,
+      },
       { status: 400 }
     );
   }
-  if (!isPipelineStatus(status)) {
+  if (!isPipelineStatus(statusRecebido)) {
     return NextResponse.json({ ok: false, error: "invalid_status" }, { status: 400 });
   }
 
@@ -98,6 +107,38 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   const errorMessage = typeof obj.errorMessage === "string" ? obj.errorMessage.slice(0, 1000) : null;
   const triggeredBy = typeof obj.triggeredBy === "string" ? obj.triggeredBy : "agent";
   const detailsRaw = typeof obj.details === "object" && obj.details !== null ? obj.details : {};
+
+  // ── O servidor confirma o estado. Não confia no do agent. ──────────
+  //
+  // Um agent que reporta OK com um passo obrigatório em ERROR está a
+  // fechar um dia que não fechou — e um dia fechado nunca mais é
+  // proposto pelo catch-up. Esta verificação é o que impede um agent
+  // antigo, já instalado na farmácia, de deixar o tenant um dia atrás
+  // para sempre: quando o `details.steps` acusa uma falha obrigatória,
+  // o OK é gravado como PARTIAL.
+  //
+  // Nunca sobe o estado: um ERROR ou ABORTED reportado fica como está.
+  const passos = Array.isArray((detailsRaw as { steps?: unknown }).steps)
+    ? ((detailsRaw as { steps: unknown[] }).steps.filter(
+        (s): s is { name: string; status: "OK" | "ERROR" | "SKIPPED" } =>
+          typeof s === "object" &&
+          s !== null &&
+          typeof (s as { name?: unknown }).name === "string" &&
+          typeof (s as { status?: unknown }).status === "string",
+      ))
+    : [];
+  const status =
+    statusRecebido === "OK" ? estadoDoDia(passos) : statusRecebido;
+  if (status !== statusRecebido) {
+    console.warn(
+      `[pipeline/record] agent reportou ${statusRecebido} para ${obj.dateRef ?? "?"}, ` +
+        `gravado como ${status}: passos obrigatórios em falha — ` +
+        passos
+          .filter((s) => s.status === "ERROR")
+          .map((s) => s.name)
+          .join(", "),
+    );
+  }
   const idempotencyKey =
     typeof obj.idempotencyKey === "string" && obj.idempotencyKey.trim() !== ""
       ? obj.idempotencyKey.trim().slice(0, 200)

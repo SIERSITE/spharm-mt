@@ -12,7 +12,11 @@
 
 import { getPipelineStatus, type PipelineRunSummary } from "@/lib/data/pipeline-status";
 import { PIPELINE_STATUS } from "@/lib/pipeline/types";
-import { getPipelineFreshness } from "@/lib/pipeline-freshness";
+import {
+  getFrescuraPorFarmacia,
+  getPipelineFreshness,
+  type FrescuraCelula,
+} from "@/lib/pipeline-freshness";
 import { CoberturaPipelines } from "@/components/stock/cobertura-pipelines";
 import { getPrisma } from "@/lib/prisma";
 
@@ -46,6 +50,8 @@ function fmtIso(d: Date | null): string {
 function StatusBadge({ status }: { status: string }) {
   const colour = {
     [PIPELINE_STATUS.OK]: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    // Âmbar e não verde: o dia não fechou e vai voltar a correr.
+    [PIPELINE_STATUS.PARTIAL]: "bg-amber-100 text-amber-800 border-amber-300",
     [PIPELINE_STATUS.ERROR]: "bg-rose-100 text-rose-700 border-rose-200",
     [PIPELINE_STATUS.ABORTED]: "bg-amber-100 text-amber-700 border-amber-200",
     [PIPELINE_STATUS.RUNNING]: "bg-sky-100 text-sky-700 border-sky-200",
@@ -57,11 +63,70 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Frescura por dataset × farmácia.
+ *
+ * O agregado do tenant dizia "vendas até 17/08" e estava certo — e mesmo
+ * assim a Silveirense estava em 16/08. Uma farmácia saudável mascarava
+ * outra atrasada. Esta grelha existe para isso não voltar a acontecer.
+ */
+function FrescuraPorFarmacia({ celulas }: { celulas: FrescuraCelula[] }) {
+  if (celulas.length === 0) return null;
+  const datasets = [...new Set(celulas.map((c) => c.dataset))];
+  const farmacias = [...new Map(celulas.map((c) => [c.farmaciaId, c.farmacia])).entries()];
+
+  return (
+    <section className="rounded-2xl border border-[rgba(165,190,196,0.40)] bg-white/70 p-5">
+      <h2 className="text-[14px] font-semibold text-slate-900">Frescura por farmácia</h2>
+      <p className="mt-1 text-[11px] text-slate-500">
+        Última data ingerida em cada dataset. O atraso é medido contra a farmácia
+        mais fresca do mesmo dataset — é o desequilíbrio que denuncia um pipeline parado.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="min-w-full text-left text-[12px]">
+          <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+            <tr>
+              <th className="py-2 pr-4">Dataset</th>
+              {farmacias.map(([id, nome]) => (
+                <th key={id} className="py-2 pr-4">{nome}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {datasets.map((ds) => (
+              <tr key={ds} className="border-b border-slate-100">
+                <td className="py-2 pr-4 text-slate-700">{ds}</td>
+                {farmacias.map(([id]) => {
+                  const c = celulas.find((x) => x.dataset === ds && x.farmaciaId === id);
+                  const atras = c?.diasAtras ?? null;
+                  const cor =
+                    atras === null
+                      ? "text-slate-400"
+                      : atras > 0
+                        ? "text-amber-700 font-medium"
+                        : "text-slate-700";
+                  return (
+                    <td key={id} className={`py-2 pr-4 ${cor}`}>
+                      {c?.dataMax ? c.dataMax.toISOString().slice(0, 10) : "sem dados"}
+                      {atras !== null && atras > 0 ? ` · −${atras}d` : ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminPipelinePage() {
   const prisma = await getPrisma();
-  const [data, pipelineFreshness] = await Promise.all([
+  const [data, pipelineFreshness, frescuraPorFarmacia] = await Promise.all([
     getPipelineStatus(),
     getPipelineFreshness(prisma),
+    getFrescuraPorFarmacia(prisma),
   ]);
 
   const build = {
@@ -92,6 +157,7 @@ export default async function AdminPipelinePage() {
           inventário / movimentos canónicos). Anteriormente vivia na ficha
           do artigo — saiu de lá porque é tenant-wide, não per-produto. */}
       <CoberturaPipelines rows={pipelineFreshness} />
+      <FrescuraPorFarmacia celulas={frescuraPorFarmacia} />
       <LastRunsSection data={data} />
       <RecentRunsTable rows={data.recentRuns} />
       {data.recentFailures.length > 0 ? <FailuresTable rows={data.recentFailures} /> : null}

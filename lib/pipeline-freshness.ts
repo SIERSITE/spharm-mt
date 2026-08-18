@@ -252,3 +252,97 @@ export async function getPipelineFreshness(prisma: PrismaClient): Promise<Pipeli
     },
   ];
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Frescura por DATASET × FARMÁCIA
+ *
+ * `getPipelineFreshness` responde pelo tenant inteiro, e num grupo isso
+ * esconde precisamente o que interessa: em 2026-08-18 a Segurado tinha
+ * vendas até 17/08 e a Silveirense até 16/08. O agregado dizia "vendas
+ * até 17/08" e estava certo — e mesmo assim havia uma farmácia um dia
+ * atrás, invisível.
+ *
+ * Uma consulta por dataset (não uma por farmácia), com GROUP BY. O
+ * atraso é medido contra a farmácia mais fresca do MESMO dataset: é o
+ * desequilíbrio dentro do grupo que denuncia um pipeline parado.
+ * ───────────────────────────────────────────────────────────────────── */
+
+export type FrescuraCelula = {
+  farmaciaId: string;
+  farmacia: string;
+  dataset: string;
+  linhas: number;
+  dataMax: Date | null;
+  /** Dias atrás da farmácia mais fresca neste dataset. 0 = a mais fresca. */
+  diasAtras: number | null;
+};
+
+const DATASETS_FRESCURA: Array<{ nome: string; sql: Prisma.Sql }> = [
+  {
+    nome: "vendas (linhas)",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX("dataVenda") AS m FROM "IngestVendaLinhaRaw" GROUP BY 1`,
+  },
+  {
+    nome: "compras (staging)",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX("dataRecepcao") AS m FROM "StagingCompraRawLine" GROUP BY 1`,
+  },
+  {
+    nome: "compras",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX(data) AS m FROM "Compra" GROUP BY 1`,
+  },
+  {
+    nome: "devoluções",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX(data) AS m FROM "Devolucao" GROUP BY 1`,
+  },
+  {
+    nome: "movimentos",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX("dataMovimento") AS m FROM "MovimentoArtigo" GROUP BY 1`,
+  },
+  {
+    nome: "stock",
+    sql: Prisma.sql`SELECT "farmaciaId" AS f, COUNT(*)::bigint AS n, MAX("dataAtualizacao") AS m FROM "ProdutoFarmacia" GROUP BY 1`,
+  },
+];
+
+export async function getFrescuraPorFarmacia(
+  prisma: PrismaClient,
+): Promise<FrescuraCelula[]> {
+  const farmacias = await prisma.farmacia.findMany({
+    where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
+    select: { id: true, nome: true },
+    orderBy: { nome: "asc" },
+  });
+  if (farmacias.length === 0) return [];
+
+  const resultados = await Promise.all(
+    DATASETS_FRESCURA.map((d) =>
+      prisma.$queryRaw<Array<{ f: string; n: bigint; m: Date | null }>>(d.sql),
+    ),
+  );
+
+  const out: FrescuraCelula[] = [];
+  for (let i = 0; i < DATASETS_FRESCURA.length; i++) {
+    const dataset = DATASETS_FRESCURA[i]!.nome;
+    const porFarmacia = new Map(resultados[i]!.map((r) => [r.f, r]));
+    // A referência é a farmácia mais fresca DESTE dataset. Comparar com
+    // "hoje" acusaria toda a gente num fim-de-semana sem vendas.
+    let maisFresca: Date | null = null;
+    for (const f of farmacias) {
+      const m = porFarmacia.get(f.id)?.m ?? null;
+      if (m && (!maisFresca || m > maisFresca)) maisFresca = m;
+    }
+    for (const f of farmacias) {
+      const r = porFarmacia.get(f.id);
+      const dataMax = r?.m ?? null;
+      out.push({
+        farmaciaId: f.id,
+        farmacia: f.nome,
+        dataset,
+        linhas: Number(r?.n ?? 0),
+        dataMax,
+        diasAtras: dataMax && maisFresca ? diffDays(maisFresca, dataMax) : null,
+      });
+    }
+  }
+  return out;
+}

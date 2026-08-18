@@ -50,7 +50,8 @@ type Args = {
   help?: boolean;
   force?: boolean;
   skipAggregate?: boolean;
-  catchUp?: boolean;
+  /** `--no-catch-up`: volta ao "só ontem". O catch-up é o default. */
+  semCatchUp?: boolean;
   maxCatchUp?: number;
 };
 
@@ -65,6 +66,20 @@ type Args = {
  */
 const MAX_CATCH_UP_DEFAULT = 7;
 
+/**
+ * Código de saída de um dia PARTIAL.
+ *
+ * Distinto de 1 de propósito. Um dia parcial NÃO deve parar a sequência
+ * do catch-up: o núcleo (produtos, stock, vendas) ficou gravado, e parar
+ * aqui era exactamente o que mantinha o tenant permanentemente um dia
+ * atrás — a Silveirense falhou 16/08 e o 17/08 nunca correu. Continua-se
+ * para os dias seguintes e o dia parcial volta a ser proposto na corrida
+ * seguinte, porque só `status="OK"` conta como concluído.
+ *
+ * Não-zero para que a tarefa agendada do Windows o mostre como falha.
+ */
+const EXIT_PARTIAL = 2;
+
 function parseCmdArgs(): Args {
   const raw = parseArgs({
     args: process.argv.slice(3),
@@ -73,7 +88,12 @@ function parseCmdArgs(): Args {
       help: { type: "boolean", short: "h" },
       force: { type: "boolean" },
       "skip-aggregate": { type: "boolean" },
+      // Aceite e ignorado: era o interruptor de activação e continua em
+      // `.bat` instalados. Removê-lo faria o `strict: true` rebentar com
+      // "unknown option" nessas máquinas — uma actualização do agent
+      // partia a tarefa agendada em vez de a melhorar.
       "catch-up": { type: "boolean" },
+      "no-catch-up": { type: "boolean" },
       "max-catch-up": { type: "string" },
     },
     strict: true,
@@ -85,7 +105,7 @@ function parseCmdArgs(): Args {
     help: raw.values.help === true,
     force: raw.values.force === true,
     skipAggregate: raw.values["skip-aggregate"] === true,
-    catchUp: raw.values["catch-up"] === true,
+    semCatchUp: raw.values["no-catch-up"] === true,
     maxCatchUp: mcu !== undefined && Number.isFinite(mcu) && mcu > 0 ? Math.floor(mcu) : undefined,
   };
 }
@@ -97,7 +117,7 @@ function printHelp(): void {
   console.log("");
   console.log("Flags:");
   console.log("  --date YYYY-MM-DD   corre SÓ este dia e desliga o catch-up");
-  console.log("  --catch-up          recupera dias em falta (requer PipelineRun fiável)");
+  console.log("  --no-catch-up       corre só ontem (o catch-up é o default)");
   console.log(`  --max-catch-up N    máximo de dias em atraso por execução (default ${MAX_CATCH_UP_DEFAULT})`);
   console.log("  --force             ignora lockfile existente (CUIDADO)");
   console.log("  --skip-aggregate    só corre daily-sync, salta agregação server-side");
@@ -353,6 +373,61 @@ function fmtEur(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/* ---------- Retry de rede ---------- */
+
+/**
+ * Uma falha de REDE não é uma resposta.
+ *
+ * `fetch failed` do undici é o que se vê quando o pedido nem chegou a ter
+ * resposta: DNS, TCP, TLS, proxy em recarga. Foi o que a Silveirense
+ * apanhou em 2026-08-16 no `aggregate-month` — e como não havia retry, o
+ * dia terminou em erro e nunca mais foi tentado.
+ *
+ * Distinção deliberada: um `SaasApiError` traz um código HTTP, ou seja o
+ * servidor respondeu e decidiu. Um 409 é uma decisão de negócio (gates de
+ * unknowns/orphans) e repetir dava o mesmo 409 três vezes mais devagar.
+ * Só se repete o que não chegou a ser respondido.
+ */
+export function ehFalhaDeRede(err: unknown): boolean {
+  if (err instanceof SaasApiError) return false;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("fetch failed") ||
+    msg.includes("econnrefused") ||
+    msg.includes("econnreset") ||
+    msg.includes("enotfound") ||
+    msg.includes("etimedout") ||
+    msg.includes("socket hang up") ||
+    msg.includes("network") ||
+    msg.includes("aborted")
+  );
+}
+
+const RETRY_REDE_TENTATIVAS = 3;
+const RETRY_REDE_BASE_MS = 3_000;
+
+async function comRetryDeRede<T>(
+  fn: () => Promise<T>,
+  log: (s: string) => void,
+): Promise<T> {
+  let ultimo: unknown;
+  for (let tentativa = 1; tentativa <= RETRY_REDE_TENTATIVAS; tentativa++) {
+    try {
+      return await fn();
+    } catch (err) {
+      ultimo = err;
+      if (!ehFalhaDeRede(err) || tentativa === RETRY_REDE_TENTATIVAS) break;
+      const espera = RETRY_REDE_BASE_MS * tentativa;
+      log(
+        `⚠ falha de rede (tentativa ${tentativa}/${RETRY_REDE_TENTATIVAS}): ` +
+          `${err instanceof Error ? err.message : String(err)} — nova tentativa em ${espera / 1000}s`,
+      );
+      await new Promise((r) => setTimeout(r, espera));
+    }
+  }
+  throw ultimo;
+}
+
 /* ---------- Healthchecks.io ping ---------- */
 
 /**
@@ -503,19 +578,20 @@ export async function dailyPipeline(): Promise<number> {
     return 1;
   }
 
-  // ── Catch-up: DESLIGADO por omissão ──────────────────────────────
+  // ── Catch-up: LIGADO por omissão desde 2026-08-18 ────────────────
   //
-  // O mecanismo está implementado e testado, mas a sua fonte de verdade
-  // é o `PipelineRun` no SaaS — e essa tabela pode estar vazia, porque
-  // `/api/admin/pipeline/record` respondia 404 no proxy e o agent
-  // engolia o erro. Até estar confirmado que o registo chega e persiste,
-  // ligar o catch-up faria decisões sobre dados que não existem.
+  // Esteve desligado à espera de confirmar que `PipelineRun` recebia os
+  // registos. Recebe: a auditoria de produção lê a tabela com estados,
+  // datas e mensagens de erro por dia. A razão para o manter desligado
+  // deixou de existir, e o custo de o manter assim ficou visível — a
+  // Silveirense falhou 2026-08-16 (fornecedores + aggregate-month) e
+  // ficou parada aí, porque a corrida seguinte pediu "ontem", que já era
+  // outro dia. Um dia perdido não voltava a ser proposto por ninguém.
   //
-  // Com a flag desligada o comportamento é o anterior: só ontem.
-  // Confirmado o `PipelineRun`, passa a `--catch-up` no .bat da tarefa.
-  if (!args.catchUp) {
+  // `--no-catch-up` volta ao comportamento antigo para diagnóstico.
+  if (args.semCatchUp) {
     const diaOntem = ontem();
-    console.log(`Catch-up desligado (usa --catch-up). A correr ${diaOntem}.`);
+    console.log(`Catch-up desligado por --no-catch-up. A correr ${diaOntem}.`);
     console.log("");
     return correrDiaCompleto(diaOntem, args);
   }
@@ -537,6 +613,7 @@ export async function dailyPipeline(): Promise<number> {
   // a agregação mensal, e processá-los por cima de um buraco produz
   // números que parecem certos.
   let i = 0;
+  let piorEstado = 0;
   for (const dia of dias) {
     i++;
     if (dias.length > 1) {
@@ -545,6 +622,16 @@ export async function dailyPipeline(): Promise<number> {
       console.log(DOUBLE_RULE);
     }
     const rc = await correrDiaCompleto(dia, args);
+    if (rc === EXIT_PARTIAL) {
+      // Parcial não pára a sequência — ver EXIT_PARTIAL.
+      console.warn("");
+      console.warn(
+        `⚠ ${dia} ficou PARCIAL. Os dias seguintes continuam; ${dia} volta a ser proposto na próxima corrida.`,
+      );
+      console.warn("");
+      piorEstado = piorEstado === 1 ? 1 : EXIT_PARTIAL;
+      continue;
+    }
     if (rc !== 0) {
       console.error("");
       console.error(`✗ ${dia} falhou (exit ${rc}). PARADO — os dias seguintes não correm.`);
@@ -563,7 +650,7 @@ export async function dailyPipeline(): Promise<number> {
     console.log(`  ${adiados.join(", ")}`);
     console.log(`  A próxima corrida apanha-os. Para os fazer já: --max-catch-up ${maxCatchUp + adiados.length}`);
   }
-  return 0;
+  return piorEstado;
 }
 
 async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number> {
@@ -611,7 +698,13 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   await pingHealthcheck(cfg.healthcheckUrl, "start", `daily-pipeline ${parsedDate}`, pipelineLog);
 
   let lockAcquired = false;
-  let pipelineStatus: "OK" | "ERROR" | "ABORTED" = "OK";
+  // PARTIAL: o daily-sync passou mas um pipeline obrigatório falhou. É
+  // diferente de ERROR (o núcleo falhou) e MUITO diferente de OK — só
+  // OK conta como dia concluído, portanto um PARTIAL volta a ser
+  // proposto pelo catch-up até fechar. O servidor confirma esta regra
+  // de forma independente ao gravar (ver /api/admin/pipeline/record),
+  // para que um agent antigo não consiga marcar OK um dia incompleto.
+  let pipelineStatus: "OK" | "PARTIAL" | "ERROR" | "ABORTED" = "OK";
   let errorMessage: string | undefined;
   let farmaciaId: string = "";
 
@@ -689,7 +782,11 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         pipelineLog.log(`  ${p.label} OK em ${fmtDuration(dur)}`);
       } else {
         steps.push({ name: p.label, status: "ERROR", durationMs: dur, message: `exit ${rc}` });
-        pipelineStatus = "ERROR";
+        // PARTIAL e não ERROR: produtos, stock e vendas já ficaram
+        // gravados e correctos. Mas o dia NÃO está fechado, e é isso
+        // que o estado tem de dizer — antes dizia ERROR ou, pior,
+        // deixava o dia contar como feito.
+        if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
         errorMessage = errorMessage ?? `${p.label} falhou (exit ${rc})`;
         pipelineLog.log(`✗ ${p.label} ERROR (exit ${rc}) — repetível com o mesmo --date`);
       }
@@ -720,14 +817,18 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         // `tipoDocumentoClass IN ('VENDA','DEVOLUCAO_ANULACAO')`),
         // portanto isto não altera números — decide apenas se o mês
         // aborta ou avança deixando-as de fora.
-        aggregateResp = await client.pipelineAggregateMonth(
-          {
-            month,
-            write: true,
-            allowUnknowns: cfg.allowUnknowns === true,
-            allowOrphans: cfg.allowOrphans === true,
-          },
-          90_000
+        aggregateResp = await comRetryDeRede(
+          () =>
+            client.pipelineAggregateMonth(
+              {
+                month,
+                write: true,
+                allowUnknowns: cfg.allowUnknowns === true,
+                allowOrphans: cfg.allowOrphans === true,
+              },
+              90_000,
+            ),
+          (s) => pipelineLog.log(s),
         );
         const dur = Date.now() - tAgg;
         steps.push({ name: "aggregate-month", status: "OK", durationMs: dur });
@@ -880,5 +981,5 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     if (lockAcquired) await releaseLock();
   }
 
-  return pipelineStatus === "OK" ? 0 : 1;
+  return pipelineStatus === "OK" ? 0 : pipelineStatus === "PARTIAL" ? EXIT_PARTIAL : 1;
 }

@@ -85,9 +85,19 @@ ok("continua a atirar AggregateAbortError", /throw new AggregateAbortError\(\s*"
 // E as linhas UNKNOWN nunca entram na soma, com ou sem bypass — o que
 // significa que dispensar o gate não altera números, só decide se o mês
 // avança.
+// O predicado saiu do corpo da query para `SQL_LINHAS_ELEGIVEIS`, que é
+// agora a definição única de "linha que conta" — usada pela agregação
+// mensal E pelo relatório de Vendas quando lê as linhas directamente.
+// Duas cópias da regra acabariam por divergir, e a divergência
+// apareceria como uma diferença de números entre duas janelas.
 ok(
   "UNKNOWN nunca entra na agregação",
-  /WHERE "tipoDocumentoClass" IN \('VENDA', 'DEVOLUCAO_ANULACAO'\)/.test(vendamensal),
+  /"tipoDocumentoClass" IN \('VENDA', 'DEVOLUCAO_ANULACAO'\)/.test(vendamensal),
+);
+ok(
+  "…e a regra está num fragmento partilhado, não copiada",
+  /export const SQL_LINHAS_ELEGIVEIS/.test(vendamensal) &&
+    /WHERE \$\{SQL_LINHAS_ELEGIVEIS\}/.test(vendamensal),
 );
 
 console.log("");
@@ -136,13 +146,23 @@ ok(
   /Falha a registar PipelineRun no SaaS/.test(daily),
 );
 
-// ── 4. Catch-up desligado até o PipelineRun ser fiável ────────────
+// ── 4. Catch-up LIGADO por omissão (desde 2026-08-18) ─────────────
+//
+// Esteve desligado à espera de confirmar que o `PipelineRun` recebia os
+// registos. A auditoria de produção lê a tabela com estados, datas e
+// mensagens de erro por dia — recebe. E o custo de o manter desligado
+// ficou visível: a Silveirense falhou 2026-08-16 e ficou parada aí,
+// porque a corrida seguinte pediu "ontem", que já era outro dia.
 
 console.log("");
-console.log("=== catch-up não corre sem se pedir ===");
-ok("existe a flag --catch-up", /"catch-up": \{ type: "boolean" \}/.test(daily));
-ok("sem a flag corre só ontem", /if \(!args\.catchUp\) \{/.test(daily));
-ok("e diz que está desligado", /Catch-up desligado \(usa --catch-up\)/.test(daily));
+console.log("=== catch-up corre por omissão ===");
+ok("o interruptor é agora o de DESLIGAR", /args\.semCatchUp/.test(daily));
+ok("e o de ligar desapareceu", !/if \(!args\.catchUp\) \{/.test(daily));
+// `--catch-up` continua a ser aceite: está escrito em .bat já
+// instalados nas farmácias, e o parser corre com `strict: true` —
+// removê-lo faria uma actualização do agent partir a tarefa agendada.
+ok("`--catch-up` continua aceite para não partir os .bat instalados", /"catch-up": \{ type: "boolean" \}/.test(daily));
+ok("existe `--no-catch-up`", /"no-catch-up": \{ type: "boolean" \}/.test(daily));
 
 // ── 5. Fornecedores antes das compras ─────────────────────────────
 

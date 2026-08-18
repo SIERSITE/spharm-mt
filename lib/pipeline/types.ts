@@ -67,6 +67,39 @@ export type DailyPipelineDetails = {
   }>;
 };
 
+/**
+ * Um passo do dia é OBRIGATÓRIO?
+ *
+ * Passos obrigatórios em falha ⇒ o dia é `PARTIAL`, não `OK`. Sem esta
+ * distinção o dia contava como concluído, o catch-up nunca o repetia e o
+ * tenant ficava permanentemente um dia atrás — foi o que aconteceu à
+ * Silveirense em 2026-08-16: `fornecedores` e `aggregate-month`
+ * falharam, o stock foi actualizado, e o 17/08 nunca chegou a correr.
+ *
+ * Um passo desconhecido conta como obrigatório: um passo novo que
+ * ninguém aqui declarou não deve poder falhar em silêncio.
+ */
+const PASSOS_OPCIONAIS = new Set<string>([]);
+
+export function passoObrigatorio(nome: string): boolean {
+  return !PASSOS_OPCIONAIS.has(nome);
+}
+
+/**
+ * O estado do dia a partir dos seus passos.
+ *
+ * `SKIPPED` não degrada — saltar a agregação com `--skip-aggregate` é
+ * uma decisão explícita do operador, não uma falha.
+ */
+export function estadoDoDia(
+  steps: ReadonlyArray<{ name: string; status: "OK" | "ERROR" | "SKIPPED" }>,
+): "OK" | "PARTIAL" {
+  const falhou = steps.some(
+    (s) => s.status === "ERROR" && passoObrigatorio(s.name),
+  );
+  return falhou ? "PARTIAL" : "OK";
+}
+
 export const PIPELINE_KIND = {
   DAILY: "daily-pipeline",
   DAILY_SYNC: "daily-sync",
@@ -76,6 +109,13 @@ export const PIPELINE_KIND = {
 export const PIPELINE_STATUS = {
   RUNNING: "RUNNING",
   OK: "OK",
+  /**
+   * O essencial passou mas um passo obrigatório falhou. NÃO conta como
+   * dia concluído — `/api/ingest/v1/pipeline/dias-concluidos` filtra
+   * `status="OK"`, portanto um dia PARTIAL volta a ser proposto pelo
+   * catch-up até fechar.
+   */
+  PARTIAL: "PARTIAL",
   ERROR: "ERROR",
   ABORTED: "ABORTED",
 } as const;
@@ -89,5 +129,6 @@ export function isPipelineKind(s: string): s is PipelineKind {
 
 export function isPipelineStatus(s: string): s is PipelineStatus {
   return s === PIPELINE_STATUS.RUNNING || s === PIPELINE_STATUS.OK ||
+         s === PIPELINE_STATUS.PARTIAL ||
          s === PIPELINE_STATUS.ERROR || s === PIPELINE_STATUS.ABORTED;
 }

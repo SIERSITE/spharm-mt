@@ -599,7 +599,12 @@ export type PendingOrdersResponse = {
 export type PipelineRecordBody = {
   farmaciaId: string;
   kind: "daily-pipeline" | "daily-sync" | "aggregate-month";
-  status: "OK" | "ERROR" | "ABORTED";
+  /**
+   * PARTIAL: o núcleo passou mas um passo obrigatório falhou. NÃO conta
+   * como dia concluído — o catch-up volta a propô-lo. Ver
+   * `lib/pipeline/types.ts` no SaaS.
+   */
+  status: "OK" | "PARTIAL" | "ERROR" | "ABORTED";
   startedAt: string;
   finishedAt: string;
   dateRef?: string;
