@@ -40,6 +40,7 @@ import {
   sqlAtendimentoDetalhe,
   sqlAtendimentoSuspDetalhe,
   type FonteRow,
+  type ResultadoFonte,
   type SourceNamespace,
 } from "../vendas-fontes.js";
 import { janela } from "../janela.js";
@@ -1129,26 +1130,40 @@ export async function runSalesPipeline(
   ]);
   for (const linha of resumoSchema(susp, at)) console.log(linha);
 
-  const fontes: Array<{ namespace: SourceNamespace; rotulo: string; sql: string | null }> = [
+  const fontes: Array<{
+    namespace: SourceNamespace;
+    rotulo: string;
+    fonte: ResultadoFonte;
+  }> = [
     {
       namespace: NAMESPACES.ATENDIMENTO_DETALHE,
       rotulo: "Atendimento Detalhe",
-      sql: sqlAtendimentoDetalhe(at),
+      fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
     },
     {
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
-      sql: sqlAtendimentoSuspDetalhe(susp, at),
+      fonte: sqlAtendimentoSuspDetalhe(susp, at),
     },
   ];
 
   const j = janela(fromDate, toDate);
 
-  for (const fonte of fontes) {
-    if (!fonte.sql) {
-      console.log(`  ${fonte.rotulo}: fonte indisponivel nesta instalacao — saltada`);
+  for (const f of fontes) {
+    if (f.fonte.estado === "AUSENTE") {
+      console.log(`  ${f.rotulo}: tabela nao existe nesta instalacao — saltada`);
       continue;
     }
+    if (f.fonte.estado === "POR_LIGAR") {
+      // Um backfill que salte uma fonte existente grava um historico
+      // incompleto e parece ter corrido bem. Para.
+      throw new Error(
+        `${f.rotulo}: a tabela existe mas nao foi possivel liga-la. ` +
+          `Faltam: ${f.fonte.faltam.join(", ")}. ` +
+          `Corre 'agent -- vendas-suspensas-audit' para ver o schema real.`,
+      );
+    }
+    const fonte = { namespace: f.namespace, rotulo: f.rotulo, sql: f.fonte.sql };
     console.log(`  ── ${fonte.rotulo} ──`);
     let lastId = -1;
     let porClassificar = 0;

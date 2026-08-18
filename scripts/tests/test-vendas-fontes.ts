@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import {
   NAMESPACES,
   TIPOS_DOC_REVERSAO,
+  TIPOS_DOC_VENDA,
   assinarQuantidade,
   classificarDocumento,
   comporDocumento,
@@ -173,6 +174,108 @@ console.log("\n=== NC / anulação reduzem a venda, nas DUAS séries ===");
   eq(anul.quantidadeAssinada, -1, "…com sinal negativo");
 }
 
+console.log("\n=== tipo NÃO declarado é RECUSADO, não promovido a venda ===");
+{
+  // A primeira versão devolvia VENDA para tudo o que não fosse reversão.
+  // Os tipos {104,27} foram observados no circuito G; nada prova que o
+  // circuito VSG use os mesmos. Se as NC de VSG usassem outro tipo, o
+  // `else return VENDA` transformava cada nota de crédito numa venda — e
+  // o total subia em vez de descer.
+  for (const desconhecido of [1, 2, 7, 55, 99, 200]) {
+    eq(
+      classificarDocumento(desconhecido),
+      null,
+      `tipoDocumento ${desconhecido} não declarado → recusado, não VENDA`,
+    );
+  }
+  check(TIPOS_DOC_VENDA.has(77), "77 está declarado como VENDA");
+  check(!TIPOS_DOC_VENDA.has(104), "…e 104 não");
+  const r = normalizar(linha({ tipoDocumento: 99 }), NAMESPACES.ATENDIMENTO_SUSP_DETALHE);
+  check("erro" in r, "uma linha VSG com tipo por declarar é recusada");
+  if ("erro" in r) check(/99/.test(r.erro), "…e o erro diz QUAL o tipo, para se declarar");
+}
+
+console.log("\n=== fonte que existe mas não liga: PARA, não salta ===");
+{
+  const at: SchemaAtendimento = {
+    serie: "Serie", numero: "Numero", tipoDocumento: "Tipo Documento",
+    dataVenda: "Data Venda", fimVenda: "Fim Venda",
+  };
+  const meioLigada: SchemaFonteSusp = {
+    existe: true, tabela: "Atendimento Susp Detalhe",
+    pk: "Atendimento Susp Detalhe ID",
+    atendimentoFk: null,          // ← a ligação ao cabeçalho não resolveu
+    codigoId: "CodigoID", sequencia: null, quantidade: "Quantidade",
+    pvpUnitario: null, valorLinha: null, ivaValor: null, descontoValor: null,
+    comparticipacao1: null, comparticipacao2: null, entidadeId: null, dataVenda: null,
+  };
+  const r = sqlAtendimentoSuspDetalhe(meioLigada, at);
+  eq(r.estado, "POR_LIGAR", "tabela existe + FK por resolver = POR_LIGAR, não AUSENTE");
+  if (r.estado === "POR_LIGAR") {
+    check(
+      r.faltam.some((f) => /FK para Atendimento/.test(f)),
+      "…e diz o que falta",
+      "saltar em silêncio uma tabela que TEM vendas é o defeito original",
+    );
+  }
+  // Sem [Tipo Documento] no cabeçalho também não há como separar venda
+  // de nota de crédito.
+  const semTipoDoc = sqlAtendimentoSuspDetalhe(
+    { ...meioLigada, atendimentoFk: "Atendimento ID" },
+    { ...at, tipoDocumento: null },
+  );
+  eq(semTipoDoc.estado, "POR_LIGAR", "sem [Tipo Documento] a fonte também não arranca");
+}
+
+console.log("\n=== os dois pipelines PARAM numa fonte por ligar ===");
+{
+  for (const f of ["daily-sync-runner", "bootstrap-upload"]) {
+    const src = readFileSync(
+      new URL(`../../agent/src/commands/${f}.ts`, import.meta.url), "utf8");
+    check(
+      /estado === "POR_LIGAR"[\s\S]{0,400}throw new Error/.test(src),
+      `${f}: uma fonte que existe e não liga atira, não salta`,
+    );
+    check(
+      /estado === "AUSENTE"[\s\S]{0,250}continue/.test(src),
+      `${f}: …e uma tabela inexistente é saltada, que é correcto`,
+    );
+  }
+}
+
+console.log("\n=== o rebuild histórico tem comando próprio ===");
+{
+  // `daily-pipeline --date` lê o ERP e escreve em sete sítios. Um
+  // rebuild da agregação não deve poder tocar em produtos, stock nem
+  // movimentos.
+  const re = readFileSync(new URL("../../scripts/vendas/reaggregate.ts", import.meta.url), "utf8");
+  check(re.includes("aggregateMonth"), "reaggregate usa a agregação canónica");
+  check(
+    /apply: \{ type: "boolean", default: false \}/.test(re),
+    "dry-run por omissão — sem --apply não escreve",
+  );
+  // Sem comentários: o cabeçalho EXPLICA que não toca nessas tabelas, e
+  // um detector que leia prosa acusa a própria documentação.
+  const reCodigo = re
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+    .join("\n");
+  check(
+    !/StocksMov|bootstrapProducts|movimentoArtigo|produtoFarmacia/i.test(reCodigo),
+    "…e não toca no ERP nem em produtos/stock/movimentos",
+  );
+  check(
+    !/withPool|mssql/.test(reCodigo),
+    "…nem sequer abre ligação ao SQL Server — é uma operação do lado do SaaS",
+  );
+  const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+  check(
+    typeof pkg.scripts["vendas:reaggregate"] === "string",
+    "está registado como `vendas:reaggregate`",
+  );
+}
+
 console.log("\n=== linha por classificar NÃO entra em silêncio ===");
 {
   // Antes: tipo desconhecido → "UNKNOWN", gravado e depois filtrado.
@@ -224,16 +327,17 @@ console.log("\n=== SQL: as duas fontes, e a janela ===");
     comparticipacao1: "PrComp_EUR", comparticipacao2: "PrComp_EUR2",
     entidadeId: "Entidade ID", dataVenda: null,
   };
-  const sqlV = sqlAtendimentoSuspDetalhe(susp, at);
-  check(sqlV !== null, "a fonte VSG produz SQL quando o schema resolve");
-  check(sqlV!.includes("[Atendimento Susp Detalhe]"), "…e lê a tabela certa");
+  const rV = sqlAtendimentoSuspDetalhe(susp, at);
+  eq(rV.estado, "PRONTA", "a fonte VSG fica pronta quando o schema resolve");
+  const sqlV = rV.estado === "PRONTA" ? rV.sql : "";
+  check(sqlV.includes("[Atendimento Susp Detalhe]"), "…e lê a tabela certa");
   check(
-    sqlV!.includes("JOIN [dbo].[Atendimento] a"),
-    "INNER JOIN ao cabeçalho: sem cabeçalho não é uma venda facturada",
+    sqlV.includes("JOIN [dbo].[Atendimento] a ON a.[Atendimento ID] = d.[Atendimento ID]"),
+    "o JOIN é explícito: Susp Detalhe.[Atendimento ID] → Atendimento.[Atendimento ID]",
   );
-  check(sqlV!.includes("[Fim Venda] = 'S'"), "…e o mesmo filtro de venda fechada");
+  check(sqlV.includes("[Fim Venda] = 'S'"), "…e o mesmo filtro de venda fechada");
   check(
-    sqlV!.includes("a.[Serie]") && sqlV!.includes("a.[Tipo Documento]"),
+    sqlV.includes("a.[Serie]") && sqlV.includes("a.[Tipo Documento]"),
     "série e tipo de documento vêm do cabeçalho — é de lá que sai VENDA vs NC",
   );
 }
@@ -249,7 +353,8 @@ console.log("\n=== SQL: as duas fontes, e a janela ===");
     serie: null, numero: null, tipoDocumento: "Tipo Documento",
     dataVenda: "Data Venda", fimVenda: "Fim Venda",
   };
-  eq(sqlAtendimentoSuspDetalhe(semTabela, at), null, "instalação sem a tabela: fonte saltada, sem erro");
+  eq(sqlAtendimentoSuspDetalhe(semTabela, at).estado, "AUSENTE",
+     "instalação sem a tabela: fonte ausente, saltada sem erro");
   const sqlG = sqlAtendimentoDetalhe(at);
   check(sqlG.includes("NULL AS serie"), "coluna em falta cai para NULL em vez de partir a query");
 }
@@ -285,7 +390,7 @@ console.log("\n=== transferências NÃO são vendas ===");
   };
   for (const [nome, s] of [
     ["Atendimento Detalhe", sqlAtendimentoDetalhe(at)],
-    ["Atendimento Susp Detalhe", sqlAtendimentoSuspDetalhe(susp, at)!],
+    ["Atendimento Susp Detalhe", (() => { const r = sqlAtendimentoSuspDetalhe(susp, at); return r.estado === "PRONTA" ? r.sql : ""; })()],
   ] as const) {
     check(!/tblMovStocks/i.test(s), `${nome} não toca em tblMovStocks (transferências)`);
     check(!/Transfer/i.test(s), `${nome} não lê transferências`);

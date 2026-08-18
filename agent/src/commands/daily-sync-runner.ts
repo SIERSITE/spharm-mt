@@ -28,6 +28,7 @@ import {
   sqlAtendimentoDetalhe,
   sqlAtendimentoSuspDetalhe,
   type FonteRow,
+  type ResultadoFonte,
   type SourceNamespace,
 } from "../vendas-fontes.js";
 
@@ -396,25 +397,42 @@ async function pipelineSales(
   ]);
   for (const linha of resumoSchema(susp, at)) logger.log(linha);
 
-  const fontes: FonteVenda[] = [
+  const fontes: Array<{
+    namespace: SourceNamespace;
+    rotulo: string;
+    fonte: ResultadoFonte;
+  }> = [
     {
       namespace: NAMESPACES.ATENDIMENTO_DETALHE,
       rotulo: "Atendimento Detalhe",
-      sql: sqlAtendimentoDetalhe(at),
+      fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
     },
     {
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
-      sql: sqlAtendimentoSuspDetalhe(susp, at),
+      fonte: sqlAtendimentoSuspDetalhe(susp, at),
     },
   ];
 
-  for (const fonte of fontes) {
-    if (!fonte.sql) {
-      logger.log(`  ${fonte.rotulo}: fonte indisponivel nesta instalacao — saltada`);
+  for (const f of fontes) {
+    if (f.fonte.estado === "AUSENTE") {
+      logger.log(`  ${f.rotulo}: tabela nao existe nesta instalacao — saltada`);
       continue;
     }
-    await lerFonte(pool, client, farmaciaId, date, fonte, counts, logger);
+    if (f.fonte.estado === "POR_LIGAR") {
+      // NAO se salta. A tabela existe, portanto ha vendas la dentro, e
+      // ignora-las e o defeito que esta ronda veio corrigir.
+      throw new Error(
+        `${f.rotulo}: a tabela existe mas nao foi possivel liga-la. ` +
+          `Faltam: ${f.fonte.faltam.join(", ")}. ` +
+          `Corre 'agent -- vendas-suspensas-audit' para ver o schema real.`,
+      );
+    }
+    await lerFonte(
+      pool, client, farmaciaId, date,
+      { namespace: f.namespace, rotulo: f.rotulo, sql: f.fonte.sql },
+      counts, logger,
+    );
   }
 }
 

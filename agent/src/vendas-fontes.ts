@@ -135,16 +135,39 @@ export type LinhaVendaCanonica = {
 export const TIPOS_DOC_REVERSAO = new Set<number>([104, 27]);
 
 /**
+ * Tipos de documento conhecidos como VENDA.
+ *
+ * 77 é o que o circuito G usa e é o único observado. A lista é explícita
+ * de propósito — ver `classificarDocumento`.
+ */
+export const TIPOS_DOC_VENDA = new Set<number>([77]);
+
+/**
  * A classe de uma linha, a partir do tipo de documento do ERP.
  *
- * Devolve `null` quando o tipo é desconhecido. Devolver `null` e não
- * `"VENDA"` é deliberado: o caller decide se rejeita a linha ou se a
- * conta, e a decisão fica visível em vez de embebida aqui.
+ * ── PORQUE É QUE O DESCONHECIDO NÃO É VENDA ──────────────────────────
+ *
+ * A primeira versão disto devolvia `VENDA` para tudo o que não fosse
+ * reversão. Parece conservador e é o contrário: os tipos {104, 27} vêm
+ * do circuito G — foram observados em notas de crédito de facturas G — e
+ * NADA prova que o circuito da venda suspensa use os mesmos. Se as NC de
+ * VSG usarem outro tipo, o `else return VENDA` transformava cada nota de
+ * crédito numa venda, e o total subia em vez de descer. Um erro que soma
+ * na direcção errada e continua a parecer plausível.
+ *
+ * Por isso: só classifica o que está declarado. Tudo o resto devolve
+ * `null`, a linha é recusada e o tipo aparece no log — que é o sinal de
+ * que falta declará-lo, e o único que não se perde.
+ *
+ * Fechar esta lista para o circuito VSG exige ver que tipos de documento
+ * lá aparecem: `agent -- vendas-suspensas-audit` responde a isso sem
+ * escrever nada.
  */
 export function classificarDocumento(tipoDocumento: number | null): ClasseVenda | null {
   if (tipoDocumento === null) return null;
   if (TIPOS_DOC_REVERSAO.has(tipoDocumento)) return "DEVOLUCAO_ANULACAO";
-  return "VENDA";
+  if (TIPOS_DOC_VENDA.has(tipoDocumento)) return "VENDA";
+  return null;
 }
 
 /**
@@ -472,14 +495,43 @@ export function sqlAtendimentoDetalhe(at: SchemaAtendimento): string {
  * caso "ainda não é uma venda". A regra fica no JOIN, visível, em vez de
  * num `if` mais abaixo.
  */
+export type ResultadoFonte =
+  /** A tabela não existe nesta instalação. Saltar é correcto. */
+  | { estado: "AUSENTE" }
+  /**
+   * A tabela EXISTE mas não se conseguiu ligar. Isto NÃO pode ser
+   * saltado em silêncio: sabemos que ali dentro há vendas, e ignorá-las
+   * é exactamente o defeito que esta ronda veio corrigir. O pipeline
+   * pára e diz o que falta.
+   */
+  | { estado: "POR_LIGAR"; faltam: string[] }
+  | { estado: "PRONTA"; sql: string };
+
 export function sqlAtendimentoSuspDetalhe(
   susp: SchemaFonteSusp,
   at: SchemaAtendimento,
-): string | null {
-  if (!susp.existe || !susp.pk || !susp.atendimentoFk || !susp.codigoId) return null;
+): ResultadoFonte {
+  if (!susp.existe) return { estado: "AUSENTE" };
+
+  // O JOIN ao cabeçalho não é opcional: sem `[Tipo Documento]` não há
+  // como separar factura de nota de crédito, e sem a FK não há
+  // cabeçalho. Uma fonte meio-ligada daria números errados em silêncio.
+  const faltam = (
+    [
+      ["pk", susp.pk],
+      ["FK para Atendimento", susp.atendimentoFk],
+      ["CodigoID", susp.codigoId],
+      ["quantidade", susp.quantidade],
+      ["Atendimento.[Tipo Documento]", at.tipoDocumento],
+    ] as const
+  )
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (faltam.length > 0) return { estado: "POR_LIGAR", faltam };
+
   const pk = bk(susp.pk)!;
   const fk = bk(susp.atendimentoFk)!;
-  return [
+  const sql = [
     "SELECT TOP (@n)",
     sel("externalLineId", `d.${pk}`),
     sel("externalDocumentId", "a.[Atendimento ID]"),
@@ -506,6 +558,7 @@ export function sqlAtendimentoSuspDetalhe(
     `   AND d.${pk} > @lastId`,
     ` ORDER BY d.${pk}`,
   ].join("\n");
+  return { estado: "PRONTA", sql };
 }
 
 /** Resumo legível do que a descoberta encontrou, para o log da corrida. */
