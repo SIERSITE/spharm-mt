@@ -18,6 +18,18 @@ import sql from "mssql";
 import type { SqlPool } from "../sql-client.js";
 import type { SaasClient } from "../http-client.js";
 import type { BootstrapBatchResponse } from "../http-client.js";
+import {
+  NAMESPACES,
+  descobrirSchemaAtendimento,
+  descobrirSchemaSusp,
+  normalizar,
+  paraPayload,
+  resumoSchema,
+  sqlAtendimentoDetalhe,
+  sqlAtendimentoSuspDetalhe,
+  type FonteRow,
+  type SourceNamespace,
+} from "../vendas-fontes.js";
 
 type SchemaProbeAPI = {
   tableExists: (
@@ -87,11 +99,10 @@ function isoDateOrNull(v: unknown): string | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
   return null;
 }
-function classifyTipoDoc(t: number | null): "VENDA" | "DEVOLUCAO_ANULACAO" | "UNKNOWN" {
-  if (t === 77) return "VENDA";
-  if (t === 104) return "DEVOLUCAO_ANULACAO";
-  return "UNKNOWN";
-}
+// `classifyTipoDoc` saiu daqui. Eram dois numeros fixos — 77 e 104 — e
+// tudo o resto virava "UNKNOWN", gravado e depois filtrado. A regra
+// documental vive agora em `vendas-fontes.ts:classificarDocumento`, e o
+// servidor pode ainda sobrepo-la por `TipoDocumentoClassificacao`.
 
 // ─────────────────────────────────────────────────────────────────────
 // Schema detection
@@ -197,31 +208,10 @@ function buildStockSql(caps: SchemaCapabilities): string {
   `;
 }
 
-const SALES_SQL = `
-  SELECT TOP (@n)
-    a.[Atendimento ID]            AS externalSaleId,
-    d.[Detalhe ID]                AS externalSaleLineId,
-    d.[Sequencia]                 AS sequencia,
-    a.[Data Venda]                AS dataVenda,
-    a.[Tipo Documento]            AS tipoDocumento,
-    d.[CodigoID]                  AS externalProductId,
-    s.[Processa_Stocks]           AS processaStocks,
-    d.[Quantidade]                AS quantidade,
-    d.[Preco Venda Publico_EUR]   AS pvpUnitario,
-    d.[Valor_EUR]                 AS valorLinha,
-    d.[Val_IVA_EUR]               AS ivaValor,
-    d.[Val_Desc_EUR]              AS descontoValor,
-    d.[PrComp_EUR]                AS comparticipacao1,
-    d.[PrComp_EUR2]               AS comparticipacao2,
-    d.[Entidade ID]               AS entidadeId
-  FROM [dbo].[Atendimento] a
-  JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
-  WHERE a.[Fim Venda] = 'S'
-    AND a.[Data Venda] BETWEEN @from AND @to
-    AND d.[Detalhe ID] > @lastId
-  ORDER BY d.[Detalhe ID]
-`;
+// SALES_SQL saiu daqui. As duas fontes fisicas de uma venda — a venda
+// de balcao e a venda suspensa — vivem em `agent/src/vendas-fontes.ts`,
+// que as normaliza para o mesmo shape antes de qualquer POST. Ver o
+// cabecalho desse ficheiro para o defeito que isto fecha.
 
 // ─────────────────────────────────────────────────────────────────────
 // Pipelines
@@ -370,45 +360,20 @@ async function pipelineStock(
   }
 }
 
-type SaleRow = {
-  externalSaleId: number;
-  externalSaleLineId: number;
-  sequencia: number | null;
-  dataVenda: Date | null;
-  tipoDocumento: number | null;
-  externalProductId: number;
-  processaStocks: unknown;
-  quantidade: unknown;
-  pvpUnitario: unknown;
-  valorLinha: unknown;
-  ivaValor: unknown;
-  descontoValor: unknown;
-  comparticipacao1: unknown;
-  comparticipacao2: unknown;
-  entidadeId: number | null;
+/**
+ * As fontes de venda, por ordem. Cada uma tem o seu namespace e o seu
+ * SQL; o resto do caminho e identico — mesma normalizacao, mesmo
+ * payload, mesma idempotencia.
+ *
+ * A venda suspensa fica em ultimo por uma razao operacional: se a
+ * descoberta de schema falhar nessa instalacao, o dia ja gravou as
+ * vendas de balcao antes de o problema aparecer.
+ */
+type FonteVenda = {
+  namespace: SourceNamespace;
+  rotulo: string;
+  sql: string | null;
 };
-
-function rowToSalePayload(r: SaleRow): Record<string, unknown> {
-  const tipo = numOrNull(r.tipoDocumento);
-  return {
-    externalSaleId: numOrNull(r.externalSaleId),
-    externalSaleLineId: numOrNull(r.externalSaleLineId),
-    sequencia: numOrNull(r.sequencia),
-    dataVenda: isoDateOrNull(r.dataVenda),
-    tipoDocumento: tipo,
-    tipoDocumentoClass: classifyTipoDoc(tipo),
-    externalProductId: numOrNull(r.externalProductId),
-    processaStocks: boolOrNull(r.processaStocks),
-    quantidade: numOrNull(r.quantidade),
-    pvpUnitario: numOrNull(r.pvpUnitario),
-    valorLinha: numOrNull(r.valorLinha),
-    ivaValor: numOrNull(r.ivaValor),
-    descontoValor: numOrNull(r.descontoValor),
-    comparticipacao1: numOrNull(r.comparticipacao1),
-    comparticipacao2: numOrNull(r.comparticipacao2),
-    entidadeId: numOrNull(r.entidadeId),
-  };
-}
 
 async function pipelineSales(
   pool: SqlPool,
@@ -418,42 +383,118 @@ async function pipelineSales(
   counts: PipelineRunCounts,
   logger: DailySyncLogger
 ): Promise<void> {
-  let lastId = -1;
-  let batches = 0;
   logger.raw(DOUBLE_RULE);
   logger.log(`▶ Pipeline 3: SALES-LINES (batch=${SALES_BATCH}, [Data Venda]=${date})`);
   logger.raw(DOUBLE_RULE);
+
+  // Descoberta dinamica: os nomes das colunas variam entre instalacoes
+  // Softreis. Uma coluna que falte cai para NULL no SELECT em vez de
+  // partir a query — mesmo padrao do stocksmov desde a rev32.
+  const [at, susp] = await Promise.all([
+    descobrirSchemaAtendimento(pool),
+    descobrirSchemaSusp(pool),
+  ]);
+  for (const linha of resumoSchema(susp, at)) logger.log(linha);
+
+  const fontes: FonteVenda[] = [
+    {
+      namespace: NAMESPACES.ATENDIMENTO_DETALHE,
+      rotulo: "Atendimento Detalhe",
+      sql: sqlAtendimentoDetalhe(at),
+    },
+    {
+      namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
+      rotulo: "Atendimento Susp Detalhe",
+      sql: sqlAtendimentoSuspDetalhe(susp, at),
+    },
+  ];
+
+  for (const fonte of fontes) {
+    if (!fonte.sql) {
+      logger.log(`  ${fonte.rotulo}: fonte indisponivel nesta instalacao — saltada`);
+      continue;
+    }
+    await lerFonte(pool, client, farmaciaId, date, fonte, counts, logger);
+  }
+}
+
+/** Le uma fonte de ponta a ponta, paginando por PK. */
+async function lerFonte(
+  pool: SqlPool,
+  client: SaasClient,
+  farmaciaId: string,
+  date: string,
+  fonte: FonteVenda,
+  counts: PipelineRunCounts,
+  logger: DailySyncLogger
+): Promise<void> {
+  let lastId = -1;
+  let batches = 0;
+  let porClassificar = 0;
+  logger.log(`  ── ${fonte.rotulo} ──`);
 
   while (true) {
     const rs = await pool
       .request()
       .input("lastId", sql.Int, lastId)
       .input("n", sql.Int, SALES_BATCH)
+      // Janela meio-aberta: >= inicio do dia, < inicio do dia seguinte.
+      // `BETWEEN ... 23:59:59` perdia o ultimo segundo do dia.
       .input("from", sql.NVarChar, `${date} 00:00:00`)
-      .input("to", sql.NVarChar, `${date} 23:59:59`)
-      .query<SaleRow>(SALES_SQL);
+      .input("to", sql.NVarChar, `${diaSeguinteIso(date)} 00:00:00`)
+      .query<FonteRow>(fonte.sql!);
 
     if (rs.recordset.length === 0) break;
     counts.salesRead += rs.recordset.length;
-    const items = rs.recordset.map(rowToSalePayload);
-    const response = await client.bootstrapSalesLines(
-      { farmaciaId, items },
-      BATCH_TIMEOUT_MS
-    );
-    counts.salesUpserted += response.upserted;
-    counts.salesSkipped += response.skipped.length;
-    counts.salesErrors += response.errors.length;
-    counts.salesNonStockServices += response.nonStockServiceLines ?? 0;
-    counts.salesOperationalOrphans += response.operationalOrphans ?? 0;
-    batches++;
-    const orphan = response.orphanProductLines ?? 0;
-    logger.log(
-      `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} orphans=${orphan} non_stock=${response.nonStockServiceLines ?? 0} errors=${response.errors.length} (${response.durationMs}ms)`
-    );
+
+    const items: Record<string, unknown>[] = [];
+    for (const row of rs.recordset) {
+      const r = normalizar(row, fonte.namespace);
+      if ("erro" in r) {
+        // Nao entra em silencio: uma linha por classificar e um erro de
+        // ingestao, nao uma gaveta chamada UNKNOWN.
+        porClassificar++;
+        counts.salesSkipped++;
+        if (porClassificar <= 5) {
+          logger.log(`    ⚠ linha ${row.externalLineId} ignorada: ${r.erro}`);
+        }
+        continue;
+      }
+      items.push(paraPayload(r.linha));
+    }
+
+    if (items.length > 0) {
+      const response = await client.bootstrapSalesLines(
+        { farmaciaId, items },
+        BATCH_TIMEOUT_MS
+      );
+      counts.salesUpserted += response.upserted;
+      counts.salesSkipped += response.skipped.length;
+      counts.salesErrors += response.errors.length;
+      counts.salesNonStockServices += response.nonStockServiceLines ?? 0;
+      counts.salesOperationalOrphans += response.operationalOrphans ?? 0;
+      batches++;
+      logger.log(
+        `    batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} orphans=${response.orphanProductLines ?? 0} non_stock=${response.nonStockServiceLines ?? 0} errors=${response.errors.length} (${response.durationMs}ms)`
+      );
+    }
+
     const last = rs.recordset[rs.recordset.length - 1];
-    if (last && typeof last.externalSaleLineId === "number") lastId = last.externalSaleLineId;
+    if (last && typeof last.externalLineId === "number") lastId = last.externalLineId;
     if (rs.recordset.length < SALES_BATCH) break;
   }
+
+  if (porClassificar > 0) {
+    logger.log(
+      `    ⚠ ${porClassificar} linha(s) por classificar em ${fonte.rotulo} — tipo de documento desconhecido`
+    );
+  }
+}
+
+/** Dia civil seguinte, para o `<` da janela meio-aberta. */
+function diaSeguinteIso(dia: string): string {
+  const [y, m, d] = dia.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y!, m! - 1, d! + 1)).toISOString().slice(0, 10);
 }
 
 // ─────────────────────────────────────────────────────────────────────

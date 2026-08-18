@@ -399,8 +399,18 @@ export type LoteIngestao = Prisma.LoteIngestaoModel
 /**
  * Model IngestVendaLinhaRaw
  * Linhas de venda raw vindas do ERP Softreis via agent bootstrap.
- * Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
- * Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
+ * 
+ * Idempotência forte: `@@unique(farmaciaId, sourceNamespace,
+ * externalSaleLineId)`. Reupload da mesma linha actualiza-a.
+ * 
+ * A chave INCLUI a origem desde 2026-08-18. Antes era
+ * `(farmaciaId, externalSaleLineId)`, o que assumia que o ERP tinha uma
+ * só tabela de linhas de venda. Tem mais: uma factura da série VSG
+ * (venda suspensa, que fiscalmente é uma venda como outra qualquer)
+ * vive em `[Atendimento Susp Detalhe]`, com a sua própria sequência de
+ * IDs. Duas sequências independentes não podem partilhar uma chave —
+ * ingerir a segunda sobrescreveria linhas da primeira assim que os
+ * contadores se cruzassem.
  */
 export type IngestVendaLinhaRaw = Prisma.IngestVendaLinhaRawModel
 /**

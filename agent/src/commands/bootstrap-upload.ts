@@ -30,6 +30,18 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type BootstrapBatchResponse } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
+import {
+  NAMESPACES,
+  descobrirSchemaAtendimento,
+  descobrirSchemaSusp,
+  normalizar,
+  paraPayload,
+  resumoSchema,
+  sqlAtendimentoDetalhe,
+  sqlAtendimentoSuspDetalhe,
+  type FonteRow,
+  type SourceNamespace,
+} from "../vendas-fontes.js";
 import { janela } from "../janela.js";
 
 const RULE = "─".repeat(70);
@@ -194,11 +206,10 @@ function isoDateOrNull(v: unknown): string | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
   return null;
 }
-function classifyTipoDoc(t: number | null): SaleLinePayload["tipoDocumentoClass"] {
-  if (t === 77) return "VENDA";
-  if (t === 104) return "DEVOLUCAO_ANULACAO";
-  return "UNKNOWN";
-}
+// `classifyTipoDoc` saiu daqui. Eram dois numeros fixos — 77 e 104 — e
+// tudo o resto virava "UNKNOWN", gravado e depois filtrado. A regra
+// documental vive agora em `vendas-fontes.ts:classificarDocumento`, e o
+// servidor pode ainda sobrepo-la por `TipoDocumentoClassificacao`.
 
 // ─────────────────────────────────────────────────────────────────────
 // CLI
@@ -1106,108 +1117,97 @@ export async function runSalesPipeline(
 ): Promise<PipelineTotals> {
   const dryRun = opts?.dryRun === true;
   const totals = emptyTotals();
-  let lastDetalheId = -1;
   console.log(DOUBLE_RULE);
   console.log(`▶ Pipeline 3: SALES-LINES (batch=${SALES_BATCH}, intervalo ${fromDate} → ${toDate})${dryRun ? " [DRY-RUN]" : ""}`);
   console.log(DOUBLE_RULE);
 
-  while (true) {
-    const rs = await pool
-      .request()
-      .input("lastId", sql.Int, lastDetalheId)
-      .input("n", sql.Int, SALES_BATCH)
-      .input("from", sql.NVarChar, janela(fromDate, toDate).inicio)
-      .input("to", sql.NVarChar, janela(fromDate, toDate).fimExclusivo)
-      .query<{
-        externalSaleId: number;
-        externalSaleLineId: number;
-        sequencia: number | null;
-        dataVenda: Date | null;
-        tipoDocumento: number | null;
-        externalProductId: number;
-        processaStocks: unknown;
-        quantidade: unknown;
-        pvpUnitario: unknown;
-        valorLinha: unknown;
-        ivaValor: unknown;
-        descontoValor: unknown;
-        comparticipacao1: unknown;
-        comparticipacao2: unknown;
-        entidadeId: number | null;
-      }>(`
-        SELECT TOP (@n)
-          a.[Atendimento ID]            AS externalSaleId,
-          d.[Detalhe ID]                AS externalSaleLineId,
-          d.[Sequencia]                 AS sequencia,
-          a.[Data Venda]                AS dataVenda,
-          a.[Tipo Documento]            AS tipoDocumento,
-          d.[CodigoID]                  AS externalProductId,
-          s.[Processa_Stocks]           AS processaStocks,
-          d.[Quantidade]                AS quantidade,
-          d.[Preco Venda Publico_EUR]   AS pvpUnitario,
-          d.[Valor_EUR]                 AS valorLinha,
-          d.[Val_IVA_EUR]               AS ivaValor,
-          d.[Val_Desc_EUR]              AS descontoValor,
-          d.[PrComp_EUR]                AS comparticipacao1,
-          d.[PrComp_EUR2]               AS comparticipacao2,
-          d.[Entidade ID]               AS entidadeId
-        FROM [dbo].[Atendimento] a
-        JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-        LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
-        WHERE a.[Fim Venda] = 'S'
-          AND a.[Data Venda] >= @from
-          AND a.[Data Venda] <  @to
-          AND d.[Detalhe ID] > @lastId
-        ORDER BY d.[Detalhe ID]
-      `);
+  // Descoberta dinamica das duas fontes. Ver agent/src/vendas-fontes.ts:
+  // a venda suspensa (serie VSG) vive noutra tabela e nunca era lida.
+  const [at, susp] = await Promise.all([
+    descobrirSchemaAtendimento(pool),
+    descobrirSchemaSusp(pool),
+  ]);
+  for (const linha of resumoSchema(susp, at)) console.log(linha);
 
-    if (rs.recordset.length === 0) break;
-    totals.read += rs.recordset.length;
+  const fontes: Array<{ namespace: SourceNamespace; rotulo: string; sql: string | null }> = [
+    {
+      namespace: NAMESPACES.ATENDIMENTO_DETALHE,
+      rotulo: "Atendimento Detalhe",
+      sql: sqlAtendimentoDetalhe(at),
+    },
+    {
+      namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
+      rotulo: "Atendimento Susp Detalhe",
+      sql: sqlAtendimentoSuspDetalhe(susp, at),
+    },
+  ];
 
-    const items: SaleLinePayload[] = rs.recordset.map((r) => {
-      const tipo = numOrNull(r.tipoDocumento);
-      return {
-        externalSaleId: numOrNull(r.externalSaleId),
-        externalSaleLineId: numOrNull(r.externalSaleLineId),
-        sequencia: numOrNull(r.sequencia),
-        dataVenda: isoDateOrNull(r.dataVenda),
-        tipoDocumento: tipo,
-        tipoDocumentoClass: classifyTipoDoc(tipo),
-        externalProductId: numOrNull(r.externalProductId),
-        processaStocks: boolOrNull(r.processaStocks),
-        quantidade: numOrNull(r.quantidade),
-        pvpUnitario: numOrNull(r.pvpUnitario),
-        valorLinha: numOrNull(r.valorLinha),
-        ivaValor: numOrNull(r.ivaValor),
-        descontoValor: numOrNull(r.descontoValor),
-        comparticipacao1: numOrNull(r.comparticipacao1),
-        comparticipacao2: numOrNull(r.comparticipacao2),
-        entidadeId: numOrNull(r.entidadeId),
-      };
-    });
+  const j = janela(fromDate, toDate);
 
-    if (dryRun) {
-      totals.batches++;
-      console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
-    } else {
-      const response = await client.bootstrapSalesLines({ farmaciaId, items }, BATCH_TIMEOUT_MS);
-      accumulate(totals, response);
-      const orphan = response.orphanProductLines ?? 0;
-      console.log(
-        `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} orphans=${orphan} skipped=${response.skipped.length} errors=${response.errors.length}`
-      );
-      if (response.errors.length > 0) {
-        for (const e of response.errors.slice(0, 3)) {
-          console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+  for (const fonte of fontes) {
+    if (!fonte.sql) {
+      console.log(`  ${fonte.rotulo}: fonte indisponivel nesta instalacao — saltada`);
+      continue;
+    }
+    console.log(`  ── ${fonte.rotulo} ──`);
+    let lastId = -1;
+    let porClassificar = 0;
+
+    while (true) {
+      const rs = await pool
+        .request()
+        .input("lastId", sql.Int, lastId)
+        .input("n", sql.Int, SALES_BATCH)
+        .input("from", sql.NVarChar, j.inicio)
+        .input("to", sql.NVarChar, j.fimExclusivo)
+        .query<FonteRow>(fonte.sql);
+
+      if (rs.recordset.length === 0) break;
+      totals.read += rs.recordset.length;
+
+      const items: Record<string, unknown>[] = [];
+      for (const row of rs.recordset) {
+        const r = normalizar(row, fonte.namespace);
+        if ("erro" in r) {
+          porClassificar++;
+          if (porClassificar <= 5) {
+            console.log(`    ⚠ linha ${row.externalLineId} ignorada: ${r.erro}`);
+          }
+          continue;
+        }
+        items.push(paraPayload(r.linha));
+      }
+
+      if (dryRun) {
+        totals.batches++;
+        console.log(`  batch ${totals.batches} [dry-run]: read=${rs.recordset.length} payloads=${items.length} (não enviado)`);
+      } else if (items.length > 0) {
+        const response = await client.bootstrapSalesLines(
+          { farmaciaId, items: items as unknown as SaleLinePayload[] },
+          BATCH_TIMEOUT_MS,
+        );
+        accumulate(totals, response);
+        const orphan = response.orphanProductLines ?? 0;
+        console.log(
+          `  batch ${totals.batches}: read=${rs.recordset.length} accepted=${response.accepted} upserted=${response.upserted} orphans=${orphan} skipped=${response.skipped.length} errors=${response.errors.length}`
+        );
+        if (response.errors.length > 0) {
+          for (const e of response.errors.slice(0, 3)) {
+            console.log(`    ✗ idx=${e.index} ext=${e.externalId ?? "?"} ${e.reason}: ${e.message}`);
+          }
         }
       }
+
+      const last = rs.recordset[rs.recordset.length - 1];
+      if (last && typeof last.externalLineId === "number") lastId = last.externalLineId;
+      if (rs.recordset.length < SALES_BATCH) break;
     }
 
-    const last = rs.recordset[rs.recordset.length - 1];
-    if (last && typeof last.externalSaleLineId === "number") {
-      lastDetalheId = last.externalSaleLineId;
+    if (porClassificar > 0) {
+      console.log(
+        `    ⚠ ${porClassificar} linha(s) por classificar em ${fonte.rotulo} — tipo de documento desconhecido`
+      );
     }
-    if (rs.recordset.length < SALES_BATCH) break;
   }
   return totals;
 }

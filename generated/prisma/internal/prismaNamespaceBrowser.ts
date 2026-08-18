@@ -788,8 +788,11 @@ export type LoteIngestaoScalarFieldEnum = (typeof LoteIngestaoScalarFieldEnum)[k
 export const IngestVendaLinhaRawScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
+  sourceNamespace: 'sourceNamespace',
   externalSaleId: 'externalSaleId',
   externalSaleLineId: 'externalSaleLineId',
+  serie: 'serie',
+  documento: 'documento',
   sequencia: 'sequencia',
   dataVenda: 'dataVenda',
   tipoDocumento: 'tipoDocumento',

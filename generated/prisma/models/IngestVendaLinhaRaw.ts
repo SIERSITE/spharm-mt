@@ -15,8 +15,18 @@ import type * as Prisma from "../internal/prismaNamespace"
 /**
  * Model IngestVendaLinhaRaw
  * Linhas de venda raw vindas do ERP Softreis via agent bootstrap.
- * Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
- * Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
+ * 
+ * Idempotência forte: `@@unique(farmaciaId, sourceNamespace,
+ * externalSaleLineId)`. Reupload da mesma linha actualiza-a.
+ * 
+ * A chave INCLUI a origem desde 2026-08-18. Antes era
+ * `(farmaciaId, externalSaleLineId)`, o que assumia que o ERP tinha uma
+ * só tabela de linhas de venda. Tem mais: uma factura da série VSG
+ * (venda suspensa, que fiscalmente é uma venda como outra qualquer)
+ * vive em `[Atendimento Susp Detalhe]`, com a sua própria sequência de
+ * IDs. Duas sequências independentes não podem partilhar uma chave —
+ * ingerir a segunda sobrescreveria linhas da primeira assim que os
+ * contadores se cruzassem.
  */
 export type IngestVendaLinhaRawModel = runtime.Types.Result.DefaultSelection<Prisma.$IngestVendaLinhaRawPayload>
 
@@ -63,8 +73,11 @@ export type IngestVendaLinhaRawSumAggregateOutputType = {
 export type IngestVendaLinhaRawMinAggregateOutputType = {
   id: string | null
   farmaciaId: string | null
+  sourceNamespace: string | null
   externalSaleId: number | null
   externalSaleLineId: number | null
+  serie: string | null
+  documento: string | null
   sequencia: number | null
   dataVenda: Date | null
   tipoDocumento: number | null
@@ -86,8 +99,11 @@ export type IngestVendaLinhaRawMinAggregateOutputType = {
 export type IngestVendaLinhaRawMaxAggregateOutputType = {
   id: string | null
   farmaciaId: string | null
+  sourceNamespace: string | null
   externalSaleId: number | null
   externalSaleLineId: number | null
+  serie: string | null
+  documento: string | null
   sequencia: number | null
   dataVenda: Date | null
   tipoDocumento: number | null
@@ -109,8 +125,11 @@ export type IngestVendaLinhaRawMaxAggregateOutputType = {
 export type IngestVendaLinhaRawCountAggregateOutputType = {
   id: number
   farmaciaId: number
+  sourceNamespace: number
   externalSaleId: number
   externalSaleLineId: number
+  serie: number
+  documento: number
   sequencia: number
   dataVenda: number
   tipoDocumento: number
@@ -167,8 +186,11 @@ export type IngestVendaLinhaRawSumAggregateInputType = {
 export type IngestVendaLinhaRawMinAggregateInputType = {
   id?: true
   farmaciaId?: true
+  sourceNamespace?: true
   externalSaleId?: true
   externalSaleLineId?: true
+  serie?: true
+  documento?: true
   sequencia?: true
   dataVenda?: true
   tipoDocumento?: true
@@ -190,8 +212,11 @@ export type IngestVendaLinhaRawMinAggregateInputType = {
 export type IngestVendaLinhaRawMaxAggregateInputType = {
   id?: true
   farmaciaId?: true
+  sourceNamespace?: true
   externalSaleId?: true
   externalSaleLineId?: true
+  serie?: true
+  documento?: true
   sequencia?: true
   dataVenda?: true
   tipoDocumento?: true
@@ -213,8 +238,11 @@ export type IngestVendaLinhaRawMaxAggregateInputType = {
 export type IngestVendaLinhaRawCountAggregateInputType = {
   id?: true
   farmaciaId?: true
+  sourceNamespace?: true
   externalSaleId?: true
   externalSaleLineId?: true
+  serie?: true
+  documento?: true
   sequencia?: true
   dataVenda?: true
   tipoDocumento?: true
@@ -324,8 +352,11 @@ export type IngestVendaLinhaRawGroupByArgs<ExtArgs extends runtime.Types.Extensi
 export type IngestVendaLinhaRawGroupByOutputType = {
   id: string
   farmaciaId: string
+  sourceNamespace: string
   externalSaleId: number
   externalSaleLineId: number
+  serie: string | null
+  documento: string | null
   sequencia: number | null
   dataVenda: Date | null
   tipoDocumento: number | null
@@ -371,8 +402,11 @@ export type IngestVendaLinhaRawWhereInput = {
   NOT?: Prisma.IngestVendaLinhaRawWhereInput | Prisma.IngestVendaLinhaRawWhereInput[]
   id?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   farmaciaId?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  sourceNamespace?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalSaleId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   externalSaleLineId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
+  serie?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  documento?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   sequencia?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
@@ -397,8 +431,11 @@ export type IngestVendaLinhaRawWhereInput = {
 export type IngestVendaLinhaRawOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  sourceNamespace?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   externalSaleLineId?: Prisma.SortOrder
+  serie?: Prisma.SortOrderInput | Prisma.SortOrder
+  documento?: Prisma.SortOrderInput | Prisma.SortOrder
   sequencia?: Prisma.SortOrderInput | Prisma.SortOrder
   dataVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -422,13 +459,16 @@ export type IngestVendaLinhaRawOrderByWithRelationInput = {
 
 export type IngestVendaLinhaRawWhereUniqueInput = Prisma.AtLeast<{
   id?: string
-  farmaciaId_externalSaleLineId?: Prisma.IngestVendaLinhaRawFarmaciaIdExternalSaleLineIdCompoundUniqueInput
+  farmaciaId_sourceNamespace_externalSaleLineId?: Prisma.IngestVendaLinhaRawFarmaciaIdSourceNamespaceExternalSaleLineIdCompoundUniqueInput
   AND?: Prisma.IngestVendaLinhaRawWhereInput | Prisma.IngestVendaLinhaRawWhereInput[]
   OR?: Prisma.IngestVendaLinhaRawWhereInput[]
   NOT?: Prisma.IngestVendaLinhaRawWhereInput | Prisma.IngestVendaLinhaRawWhereInput[]
   farmaciaId?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  sourceNamespace?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalSaleId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   externalSaleLineId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
+  serie?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  documento?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   sequencia?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
@@ -448,13 +488,16 @@ export type IngestVendaLinhaRawWhereUniqueInput = Prisma.AtLeast<{
   importedAt?: Prisma.DateTimeFilter<"IngestVendaLinhaRaw"> | Date | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoNullableScalarRelationFilter, Prisma.ProdutoWhereInput> | null
-}, "id" | "farmaciaId_externalSaleLineId">
+}, "id" | "farmaciaId_sourceNamespace_externalSaleLineId">
 
 export type IngestVendaLinhaRawOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  sourceNamespace?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   externalSaleLineId?: Prisma.SortOrder
+  serie?: Prisma.SortOrderInput | Prisma.SortOrder
+  documento?: Prisma.SortOrderInput | Prisma.SortOrder
   sequencia?: Prisma.SortOrderInput | Prisma.SortOrder
   dataVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -485,8 +528,11 @@ export type IngestVendaLinhaRawScalarWhereWithAggregatesInput = {
   NOT?: Prisma.IngestVendaLinhaRawScalarWhereWithAggregatesInput | Prisma.IngestVendaLinhaRawScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
   farmaciaId?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
+  sourceNamespace?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
   externalSaleId?: Prisma.IntWithAggregatesFilter<"IngestVendaLinhaRaw"> | number
   externalSaleLineId?: Prisma.IntWithAggregatesFilter<"IngestVendaLinhaRaw"> | number
+  serie?: Prisma.StringNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | string | null
+  documento?: Prisma.StringNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | string | null
   sequencia?: Prisma.IntNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | number | null
   dataVenda?: Prisma.DateTimeNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | number | null
@@ -508,8 +554,11 @@ export type IngestVendaLinhaRawScalarWhereWithAggregatesInput = {
 
 export type IngestVendaLinhaRawCreateInput = {
   id?: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -533,8 +582,11 @@ export type IngestVendaLinhaRawCreateInput = {
 export type IngestVendaLinhaRawUncheckedCreateInput = {
   id?: string
   farmaciaId: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -556,8 +608,11 @@ export type IngestVendaLinhaRawUncheckedCreateInput = {
 
 export type IngestVendaLinhaRawUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -581,8 +636,11 @@ export type IngestVendaLinhaRawUpdateInput = {
 export type IngestVendaLinhaRawUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -605,8 +663,11 @@ export type IngestVendaLinhaRawUncheckedUpdateInput = {
 export type IngestVendaLinhaRawCreateManyInput = {
   id?: string
   farmaciaId: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -628,8 +689,11 @@ export type IngestVendaLinhaRawCreateManyInput = {
 
 export type IngestVendaLinhaRawUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -651,8 +715,11 @@ export type IngestVendaLinhaRawUpdateManyMutationInput = {
 export type IngestVendaLinhaRawUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -682,16 +749,20 @@ export type IngestVendaLinhaRawOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type IngestVendaLinhaRawFarmaciaIdExternalSaleLineIdCompoundUniqueInput = {
+export type IngestVendaLinhaRawFarmaciaIdSourceNamespaceExternalSaleLineIdCompoundUniqueInput = {
   farmaciaId: string
+  sourceNamespace: string
   externalSaleLineId: number
 }
 
 export type IngestVendaLinhaRawCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  sourceNamespace?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   externalSaleLineId?: Prisma.SortOrder
+  serie?: Prisma.SortOrder
+  documento?: Prisma.SortOrder
   sequencia?: Prisma.SortOrder
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
@@ -730,8 +801,11 @@ export type IngestVendaLinhaRawAvgOrderByAggregateInput = {
 export type IngestVendaLinhaRawMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  sourceNamespace?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   externalSaleLineId?: Prisma.SortOrder
+  serie?: Prisma.SortOrder
+  documento?: Prisma.SortOrder
   sequencia?: Prisma.SortOrder
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
@@ -753,8 +827,11 @@ export type IngestVendaLinhaRawMaxOrderByAggregateInput = {
 export type IngestVendaLinhaRawMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   farmaciaId?: Prisma.SortOrder
+  sourceNamespace?: Prisma.SortOrder
   externalSaleId?: Prisma.SortOrder
   externalSaleLineId?: Prisma.SortOrder
+  serie?: Prisma.SortOrder
+  documento?: Prisma.SortOrder
   sequencia?: Prisma.SortOrder
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
@@ -875,8 +952,11 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaNestedInput = {
 
 export type IngestVendaLinhaRawCreateWithoutProdutoInput = {
   id?: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -899,8 +979,11 @@ export type IngestVendaLinhaRawCreateWithoutProdutoInput = {
 export type IngestVendaLinhaRawUncheckedCreateWithoutProdutoInput = {
   id?: string
   farmaciaId: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -951,8 +1034,11 @@ export type IngestVendaLinhaRawScalarWhereInput = {
   NOT?: Prisma.IngestVendaLinhaRawScalarWhereInput | Prisma.IngestVendaLinhaRawScalarWhereInput[]
   id?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   farmaciaId?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  sourceNamespace?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalSaleId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   externalSaleLineId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
+  serie?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
+  documento?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   sequencia?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
@@ -974,8 +1060,11 @@ export type IngestVendaLinhaRawScalarWhereInput = {
 
 export type IngestVendaLinhaRawCreateWithoutFarmaciaInput = {
   id?: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -997,8 +1086,11 @@ export type IngestVendaLinhaRawCreateWithoutFarmaciaInput = {
 
 export type IngestVendaLinhaRawUncheckedCreateWithoutFarmaciaInput = {
   id?: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -1047,8 +1139,11 @@ export type IngestVendaLinhaRawUpdateManyWithWhereWithoutFarmaciaInput = {
 export type IngestVendaLinhaRawCreateManyProdutoInput = {
   id?: string
   farmaciaId: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -1069,8 +1164,11 @@ export type IngestVendaLinhaRawCreateManyProdutoInput = {
 
 export type IngestVendaLinhaRawUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1093,8 +1191,11 @@ export type IngestVendaLinhaRawUpdateWithoutProdutoInput = {
 export type IngestVendaLinhaRawUncheckedUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1116,8 +1217,11 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutProdutoInput = {
 export type IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1138,8 +1242,11 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoInput = {
 
 export type IngestVendaLinhaRawCreateManyFarmaciaInput = {
   id?: string
+  sourceNamespace?: string
   externalSaleId: number
   externalSaleLineId: number
+  serie?: string | null
+  documento?: string | null
   sequencia?: number | null
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
@@ -1161,8 +1268,11 @@ export type IngestVendaLinhaRawCreateManyFarmaciaInput = {
 
 export type IngestVendaLinhaRawUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1184,8 +1294,11 @@ export type IngestVendaLinhaRawUpdateWithoutFarmaciaInput = {
 
 export type IngestVendaLinhaRawUncheckedUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1207,8 +1320,11 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutFarmaciaInput = {
 
 export type IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceNamespace?: Prisma.StringFieldUpdateOperationsInput | string
   externalSaleId?: Prisma.IntFieldUpdateOperationsInput | number
   externalSaleLineId?: Prisma.IntFieldUpdateOperationsInput | number
+  serie?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  documento?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   sequencia?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
@@ -1233,8 +1349,11 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaInput = {
 export type IngestVendaLinhaRawSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   farmaciaId?: boolean
+  sourceNamespace?: boolean
   externalSaleId?: boolean
   externalSaleLineId?: boolean
+  serie?: boolean
+  documento?: boolean
   sequencia?: boolean
   dataVenda?: boolean
   tipoDocumento?: boolean
@@ -1259,8 +1378,11 @@ export type IngestVendaLinhaRawSelect<ExtArgs extends runtime.Types.Extensions.I
 export type IngestVendaLinhaRawSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   farmaciaId?: boolean
+  sourceNamespace?: boolean
   externalSaleId?: boolean
   externalSaleLineId?: boolean
+  serie?: boolean
+  documento?: boolean
   sequencia?: boolean
   dataVenda?: boolean
   tipoDocumento?: boolean
@@ -1285,8 +1407,11 @@ export type IngestVendaLinhaRawSelectCreateManyAndReturn<ExtArgs extends runtime
 export type IngestVendaLinhaRawSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   farmaciaId?: boolean
+  sourceNamespace?: boolean
   externalSaleId?: boolean
   externalSaleLineId?: boolean
+  serie?: boolean
+  documento?: boolean
   sequencia?: boolean
   dataVenda?: boolean
   tipoDocumento?: boolean
@@ -1311,8 +1436,11 @@ export type IngestVendaLinhaRawSelectUpdateManyAndReturn<ExtArgs extends runtime
 export type IngestVendaLinhaRawSelectScalar = {
   id?: boolean
   farmaciaId?: boolean
+  sourceNamespace?: boolean
   externalSaleId?: boolean
   externalSaleLineId?: boolean
+  serie?: boolean
+  documento?: boolean
   sequencia?: boolean
   dataVenda?: boolean
   tipoDocumento?: boolean
@@ -1332,7 +1460,7 @@ export type IngestVendaLinhaRawSelectScalar = {
   importedAt?: boolean
 }
 
-export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "externalSaleId" | "externalSaleLineId" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "externalProductId" | "produtoId" | "isNonStockService" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
+export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "sourceNamespace" | "externalSaleId" | "externalSaleLineId" | "serie" | "documento" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "externalProductId" | "produtoId" | "isNonStockService" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
 export type IngestVendaLinhaRawInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.IngestVendaLinhaRaw$produtoArgs<ExtArgs>
@@ -1356,14 +1484,31 @@ export type $IngestVendaLinhaRawPayload<ExtArgs extends runtime.Types.Extensions
     id: string
     farmaciaId: string
     /**
+     * A tabela ERP de onde a linha veio. Faz parte da identidade.
+     * Valores: "ATENDIMENTO_DETALHE" | "ATENDIMENTO_SUSP_DETALHE".
+     * String e não enum: acrescentar uma fonte não deve exigir migração
+     * de tipo em todos os tenants.
+     */
+    sourceNamespace: string
+    /**
      * Softreis: Atendimento.[Atendimento ID]. Header da venda.
      */
     externalSaleId: number
     /**
-     * Softreis: Atendimento Detalhe.[Detalhe ID]. PK da linha de
-     * detalhe — base da idempotência.
+     * PK da linha DENTRO da sua tabela (`[Detalhe ID]` ou
+     * `[Atendimento Susp Detalhe ID]`). Só é comparável com linhas do
+     * mesmo `sourceNamespace`.
      */
     externalSaleLineId: number
+    /**
+     * Série documental do cabeçalho ("G", "VSG"). Null quando o ERP não
+     * a expõe. Informativa — a classificação vem de `tipoDocumento`.
+     */
+    serie: string | null
+    /**
+     * "VSG/54688" — série e número compostos, para reconciliar com o ERP.
+     */
+    documento: string | null
     /**
      * Sequência da linha dentro do atendimento. Permite ordenar e
      * distinguir linhas duplicadas legítimas no mesmo Atendimento ID.
@@ -1840,8 +1985,11 @@ export interface Prisma__IngestVendaLinhaRawClient<T, Null = never, ExtArgs exte
 export interface IngestVendaLinhaRawFieldRefs {
   readonly id: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly farmaciaId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
+  readonly sourceNamespace: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly externalSaleId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
   readonly externalSaleLineId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
+  readonly serie: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
+  readonly documento: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly sequencia: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
   readonly dataVenda: Prisma.FieldRef<"IngestVendaLinhaRaw", 'DateTime'>
   readonly tipoDocumento: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>

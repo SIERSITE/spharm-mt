@@ -36,8 +36,18 @@ export function dedupeByKey<T>(rows: T[], keyOf: (r: T) => string): T[] {
 
 export type SalesLineRow = {
   farmaciaId: string;
+  /**
+   * Tabela ERP de origem. Parte da identidade — ver a migração
+   * `20260818120000_venda_source_namespace`. `externalSaleLineId` só é
+   * comparável com linhas do mesmo namespace.
+   */
+  sourceNamespace: string;
   externalSaleId: number;
   externalSaleLineId: number;
+  /** Série documental do cabeçalho ("G", "VSG"). */
+  serie: string | null;
+  /** "VSG/54688". Para reconciliar com o ERP sem recompor nada. */
+  documento: string | null;
   sequencia: number | null;
   dataVenda: Date | null;
   tipoDocumento: number | null;
@@ -57,7 +67,14 @@ export type SalesLineRow = {
 };
 
 /**
- * Bulk upsert de `IngestVendaLinhaRaw` por `(farmaciaId, externalSaleLineId)`.
+ * Bulk upsert de `IngestVendaLinhaRaw` por
+ * `(farmaciaId, sourceNamespace, externalSaleLineId)`.
+ *
+ * A origem entra na chave desde 2026-08-18. Sem ela, ingerir
+ * `[Atendimento Susp Detalhe]` sobrescreveria linhas de
+ * `[Atendimento Detalhe]` assim que as duas sequências de IDs se
+ * cruzassem — silenciosamente, e apagando vendas boas.
+ *
  * Devolve o nº de linhas afectadas (insert + update). Lança em erro de SQL
  * (o caller pode cair para per-row para isolar a linha problemática).
  */
@@ -68,7 +85,8 @@ export async function bulkUpsertSalesLines(
   if (rows.length === 0) return 0;
   const values = rows.map(
     (r) => Prisma.sql`(
-      ${randomUUID()}, ${r.farmaciaId}, ${r.externalSaleId}, ${r.externalSaleLineId},
+      ${randomUUID()}, ${r.farmaciaId}, ${r.sourceNamespace},
+      ${r.externalSaleId}, ${r.externalSaleLineId}, ${r.serie}, ${r.documento},
       ${r.sequencia}, ${r.dataVenda}, ${r.tipoDocumento}, ${r.tipoDocumentoClass},
       ${r.externalProductId}, ${r.produtoId}, ${r.isNonStockService},
       ${r.quantidade}, ${r.pvpUnitario}, ${r.valorLinha}, ${r.ivaValor},
@@ -78,15 +96,18 @@ export async function bulkUpsertSalesLines(
   );
   return db.$executeRaw`
     INSERT INTO "IngestVendaLinhaRaw" (
-      "id", "farmaciaId", "externalSaleId", "externalSaleLineId", "sequencia",
+      "id", "farmaciaId", "sourceNamespace",
+      "externalSaleId", "externalSaleLineId", "serie", "documento", "sequencia",
       "dataVenda", "tipoDocumento", "tipoDocumentoClass", "externalProductId",
       "produtoId", "isNonStockService", "quantidade", "pvpUnitario", "valorLinha",
       "ivaValor", "descontoValor", "comparticipacao1", "comparticipacao2",
       "entidadeId", "rawJson", "importedAt"
     )
     VALUES ${Prisma.join(values)}
-    ON CONFLICT ("farmaciaId", "externalSaleLineId") DO UPDATE SET
+    ON CONFLICT ("farmaciaId", "sourceNamespace", "externalSaleLineId") DO UPDATE SET
       "externalSaleId"     = EXCLUDED."externalSaleId",
+      "serie"              = EXCLUDED."serie",
+      "documento"          = EXCLUDED."documento",
       "sequencia"          = EXCLUDED."sequencia",
       "dataVenda"          = EXCLUDED."dataVenda",
       "tipoDocumento"      = EXCLUDED."tipoDocumento",

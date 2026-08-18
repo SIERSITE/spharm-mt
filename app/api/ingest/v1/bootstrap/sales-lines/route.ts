@@ -49,6 +49,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type SaleLinePayload = {
+  /// Tabela ERP de origem. Ausente em agents anteriores a 2026-08-18 —
+  /// nesses, assume-se `ATENDIMENTO_DETALHE`, que e o que eles liam.
+  sourceNamespace: unknown;
+  serie: unknown;
+  documento: unknown;
   externalSaleId: unknown;
   externalSaleLineId: unknown;
   sequencia: unknown;
@@ -81,6 +86,16 @@ type SaleLinePayload = {
  * Qualquer valor fora deste set — seja vindo do payload OU da lookup
  * table — é forçado a "UNKNOWN" (conservador).
  */
+/**
+ * Namespaces aceites. Um valor desconhecido cai para
+ * `ATENDIMENTO_DETALHE` em vez de ser gravado: um namespace inventado
+ * criaria uma ilha de linhas que nenhuma reconciliacao alcanca.
+ */
+const NAMESPACES_VALIDOS = new Set([
+  "ATENDIMENTO_DETALHE",
+  "ATENDIMENTO_SUSP_DETALHE",
+]);
+
 const KNOWN_CLASSES = new Set([
   "VENDA",
   "DEVOLUCAO_ANULACAO",
@@ -133,6 +148,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
 
   type Resolved = {
     index: number;
+    sourceNamespace: string;
+    serie: string | null;
+    documento: string | null;
     externalSaleId: number;
     externalSaleLineId: number;
     sequencia: number | null;
@@ -188,6 +206,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
 
     resolved.push({
       index: i,
+      sourceNamespace: NAMESPACES_VALIDOS.has(asStringOrNull(raw.sourceNamespace) ?? "")
+        ? (asStringOrNull(raw.sourceNamespace) as string)
+        : "ATENDIMENTO_DETALHE",
+      serie: asStringOrNull(raw.serie),
+      documento: asStringOrNull(raw.documento),
       externalSaleId,
       externalSaleLineId,
       sequencia: asIntOrNull(raw.sequencia),
@@ -259,6 +282,9 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     if (isNonStockService) nonStockServiceCount++;
     return {
       farmaciaId,
+      sourceNamespace: r.sourceNamespace,
+      serie: r.serie,
+      documento: r.documento,
       externalSaleId: r.externalSaleId,
       externalSaleLineId: r.externalSaleLineId,
       sequencia: r.sequencia,
@@ -280,7 +306,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     };
   });
 
-  // Dedupe intra-batch por (farmaciaId, externalSaleLineId) — last wins —
+  // Dedupe intra-batch pela chave COMPLETA — last wins —
   // para o ON CONFLICT bulk não recusar a mesma chave duas vezes.
   const deduped = dedupeByKey(
     rows,
@@ -311,8 +337,12 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
         };
         await ctx.prisma.ingestVendaLinhaRaw.upsert({
           where: {
-            farmaciaId_externalSaleLineId: {
+            // A origem faz parte da chave: duas tabelas ERP diferentes
+            // podem ter o mesmo `externalSaleLineId` sem ser a mesma
+            // linha. Ver a migração `venda_source_namespace`.
+            farmaciaId_sourceNamespace_externalSaleLineId: {
               farmaciaId,
+              sourceNamespace: row.sourceNamespace,
               externalSaleLineId: row.externalSaleLineId,
             },
           },

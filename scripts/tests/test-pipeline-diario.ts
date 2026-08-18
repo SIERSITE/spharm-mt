@@ -164,9 +164,14 @@ console.log("\n=== 5. idempotência ===");
   // Re-correr o mesmo dia não duplica vendas nem movimentos: as duas
   // ingestões são idempotentes por chave natural do ERP.
   const schema = readFileSync(new URL("../../prisma/schema.prisma", import.meta.url), "utf8");
+  // A chave ganhou o `sourceNamespace` em 2026-08-18: o ERP tem mais do
+  // que uma tabela de linhas de venda, e duas sequências de IDs
+  // independentes não podem partilhar uma chave. Continua a garantir o
+  // mesmo — re-correr o dia actualiza, não duplica — sobre um universo
+  // maior.
   check(
-    schema.includes('@@unique([farmaciaId, externalSaleLineId])'),
-    "vendas: uma linha do ERP só pode existir uma vez por farmácia",
+    schema.includes('@@unique([farmaciaId, sourceNamespace, externalSaleLineId])'),
+    "vendas: uma linha do ERP só pode existir uma vez por farmácia E origem",
   );
   check(
     schema.includes('@@unique([farmaciaId, externalMovId])'),

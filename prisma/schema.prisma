@@ -1587,17 +1587,40 @@ model LoteIngestao {
 //////////////////////////////////////////////////////
 
 /// Linhas de venda raw vindas do ERP Softreis via agent bootstrap.
-/// Idempotência forte: `@@unique(farmaciaId, externalSaleLineId)`.
-/// Reupload do mesmo Detalhe ID actualiza a row em vez de duplicar.
+///
+/// Idempotência forte: `@@unique(farmaciaId, sourceNamespace,
+/// externalSaleLineId)`. Reupload da mesma linha actualiza-a.
+///
+/// A chave INCLUI a origem desde 2026-08-18. Antes era
+/// `(farmaciaId, externalSaleLineId)`, o que assumia que o ERP tinha uma
+/// só tabela de linhas de venda. Tem mais: uma factura da série VSG
+/// (venda suspensa, que fiscalmente é uma venda como outra qualquer)
+/// vive em `[Atendimento Susp Detalhe]`, com a sua própria sequência de
+/// IDs. Duas sequências independentes não podem partilhar uma chave —
+/// ingerir a segunda sobrescreveria linhas da primeira assim que os
+/// contadores se cruzassem.
 model IngestVendaLinhaRaw {
   id         String @id @default(cuid())
   farmaciaId String
 
+  /// A tabela ERP de onde a linha veio. Faz parte da identidade.
+  /// Valores: "ATENDIMENTO_DETALHE" | "ATENDIMENTO_SUSP_DETALHE".
+  /// String e não enum: acrescentar uma fonte não deve exigir migração
+  /// de tipo em todos os tenants.
+  sourceNamespace String @default("ATENDIMENTO_DETALHE")
+
   /// Softreis: Atendimento.[Atendimento ID]. Header da venda.
   externalSaleId     Int
-  /// Softreis: Atendimento Detalhe.[Detalhe ID]. PK da linha de
-  /// detalhe — base da idempotência.
+  /// PK da linha DENTRO da sua tabela (`[Detalhe ID]` ou
+  /// `[Atendimento Susp Detalhe ID]`). Só é comparável com linhas do
+  /// mesmo `sourceNamespace`.
   externalSaleLineId Int
+
+  /// Série documental do cabeçalho ("G", "VSG"). Null quando o ERP não
+  /// a expõe. Informativa — a classificação vem de `tipoDocumento`.
+  serie     String?
+  /// "VSG/54688" — série e número compostos, para reconciliar com o ERP.
+  documento String?
   /// Sequência da linha dentro do atendimento. Permite ordenar e
   /// distinguir linhas duplicadas legítimas no mesmo Atendimento ID.
   sequencia          Int?
@@ -1642,9 +1665,10 @@ model IngestVendaLinhaRaw {
   farmacia Farmacia @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto  Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
 
-  @@unique([farmaciaId, externalSaleLineId])
+  @@unique([farmaciaId, sourceNamespace, externalSaleLineId])
   @@index([farmaciaId, dataVenda])
   @@index([externalSaleId])
+  @@index([sourceNamespace])
   @@index([tipoDocumento])
   @@index([produtoId])
   @@index([isNonStockService])
