@@ -2,28 +2,57 @@
  * lib/vendas-data.ts
  * Server-side data fetching para a página Vendas.
  *
- * ─── FECHO 2026-06: período dinâmico ─────────────────────────────────────────
+ * ─── FECHO 2026-08: a janela passa a ter DIAS ────────────────────────────────
  *
- * Removido o pivot fixo Jan/Fev/Mar/Abr 2026. A query agora pivota dinamicamente
- * sobre a janela `[from, to]` recebida nos filtros (mesmo padrão de
- * `lib/margens-data.ts`). A saída inclui um array `meses` por linha, com tantos
- * elementos quantos meses houver no período — a UI renderiza N colunas.
+ * Até aqui o loader lia `from`/`to` com um regex `^(\d{4})-(\d{2})` e deitava
+ * o dia fora. Duas consequências, ambas confirmadas em produção:
+ *
+ *   · `01/08→17/08` e `01/08→31/08` devolviam o mesmo — o índice de mês era
+ *     idêntico. Mudar as datas dentro do mesmo mês não mudava nada.
+ *   · o período DEVOLVIDO era o mês inteiro, e a UI acreditava nele: a média
+ *     diária dividia por 31 dias uma janela de 17.
+ *
+ * Agora a janela é de dias (ver `lib/vendas/janela.ts`) e a FONTE é escolhida
+ * por equivalência semântica, não por conveniência:
+ *
+ *   janela mês-alinhada  → `VendaMensal` (a mesma soma, já feita, barata)
+ *   janela parcial       → `IngestVendaLinhaRaw` (a única com dia)
+ *
+ * Sem rateio do mês. `VendaMensal` não tem dias e nenhuma aritmética lhos dá.
+ *
+ * ─── Sinal e universo ────────────────────────────────────────────────────────
+ *
+ * Os dois caminhos usam os fragmentos de `lib/aggregate/vendamensal.ts` —
+ * VENDA soma, DEVOLUCAO_ANULACAO subtrai, UNKNOWN e serviços sem stock ficam
+ * de fora. Era aqui que estava o segundo desvio: o loader somava
+ * `vm.quantidade` (não assinado) e descartava com `HAVING > 0` os produtos de
+ * saldo líquido negativo, inflando o total. Na Silveirense, Agosto/2026, isso
+ * dava 6936 unidades onde o ledger tem 6931.
  *
  * Filtros suportados (canónicos via `SharedReportFilters`):
- *   farmaciaNomes, from, to, categorias, fabricantes, distribuidores, pesquisa,
- *   apenasSemClassif.
+ *   farmaciaNomes, from, to, categorias, subcategorias, utilizacoes,
+ *   fabricantes, distribuidores, pesquisa, apenasSemClassif.
  *
- * Default temporal: início do ano corrente → mês corrente (igual a Margens).
- *
- * Pré-filtros de produto (categorias / fabricantes / distribuidores / pesquisa /
- * semClassif) correm SQL-side antes do pivot — mesma estratégia de Margens
- * para não puxar produtos que vão ser descartados a seguir.
+ * Pré-filtros de produto correm SQL-side antes do pivot — mesma estratégia de
+ * Margens, para não puxar produtos que vão ser descartados a seguir.
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
+import {
+  SQL_LINHAS_ELEGIVEIS,
+  SQL_QUANTIDADE_ASSINADA,
+  SQL_VALOR_BRUTO_ASSINADO,
+} from "@/lib/aggregate/vendamensal";
+import {
+  bucketsDaJanela,
+  decomporJanela,
+  diaSeguinte,
+  normalizarJanela,
+  type JanelaVendas,
+} from "@/lib/vendas/janela";
 
 /** Linha por (CNP × farmácia) com vendas decompostas por mês no período. */
 export type SalesMonthBucket = {
@@ -43,6 +72,16 @@ export type SalesReportRow = {
   meses: SalesMonthBucket[];
   /** Soma das `meses[].quantidade`. */
   totalVendas: number;
+  /**
+   * Valor bruto assinado da janela — PVP × quantidade AO PREÇO DA VENDA,
+   * somado a partir do ledger.
+   *
+   * Existe porque a UI calculava o total em euros como
+   * `totalVendas × pvp`, com `pvp` a vir de `ProdutoFarmacia` — o preço
+   * de hoje na prateleira. Isso reprecifica o histórico: em Agosto/2026
+   * na Silveirense dava 98 952,93 € onde o ledger tem 98 829,51 €.
+   */
+  valorBruto: number;
   existencia: number;
   /** Alias legado de totalVendas — preservado para callers existentes. */
   unidadesVendidas: number;
@@ -69,12 +108,23 @@ export type SalesReportRow = {
  * sem precisarem de inferir a partir das datas.
  */
 export type SalesPeriodHeader = {
-  /** Início efectivo aplicado (ISO yyyy-mm-dd). */
+  /** Início efectivo aplicado (ISO yyyy-mm-dd), inclusivo. */
   from: string;
-  /** Fim efectivo aplicado (ISO yyyy-mm-dd, último dia do mês `toMes`). */
+  /**
+   * Fim efectivo aplicado (ISO yyyy-mm-dd), INCLUSIVO e igual ao dia
+   * pedido. Já não é esticado ao fim do mês: era essa esticadela que
+   * fazia a média diária dividir por dias que o utilizador não pediu.
+   */
   to: string;
   /** Lista de buckets na mesma ordem que aparece em `row.meses`. */
   buckets: { ano: number; mes: number }[];
+  /**
+   * De onde saíram os números desta resposta. Visível de propósito: um
+   * relatório que muda de fonte conforme a janela tem de conseguir
+   * dizê-lo, senão uma divergência entre duas janelas parece um bug de
+   * dados quando é uma diferença de caminho.
+   */
+  fonte: "VENDA_MENSAL" | "LINHAS_RAW" | "MISTA";
 };
 
 export type SalesReportResult = {
@@ -87,63 +137,26 @@ function toF(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * Converte ISO yyyy-mm-dd para índice `ano*12 + mes` (mesma fórmula que
- * `lib/margens-data.ts:ymToIndex` — mantida em paralelo para evitar acoplar
- * Vendas a um helper específico de Margens).
- */
-function ymToIndex(iso: string | undefined, fallback: { y: number; m: number }): number {
-  if (iso) {
-    const m = /^(\d{4})-(\d{2})/.exec(iso);
-    if (m) return parseInt(m[1], 10) * 12 + parseInt(m[2], 10);
-  }
-  return fallback.y * 12 + fallback.m;
-}
-
-function indexToYM(idx: number): { ano: number; mes: number } {
-  const ano = Math.floor((idx - 1) / 12);
-  const mes = ((idx - 1) % 12) + 1;
-  return { ano, mes };
-}
-
-function lastDayOfMonthIso(ano: number, mes: number): string {
-  // Dia 0 do mês seguinte = último dia do mês actual. UTC para evitar TZ.
-  const d = new Date(Date.UTC(ano, mes, 0));
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
 export async function getVendasData(
   filters: SharedReportFilters = {}
 ): Promise<SalesReportResult> {
   const prisma = await getPrisma();
 
-  // ── Período: default = início do ano corrente → mês corrente ────────
-  const now = new Date();
-  const defFrom = { y: now.getUTCFullYear(), m: 1 };
-  const defTo = { y: now.getUTCFullYear(), m: now.getUTCMonth() + 1 };
-  const minIdx = ymToIndex(filters.from, defFrom);
-  const maxIdx = ymToIndex(filters.to, defTo);
-
-  // Lista canónica de buckets mês-a-mês — fonte única para UI + adapter.
-  const buckets: { ano: number; mes: number }[] = [];
-  if (maxIdx >= minIdx) {
-    for (let i = minIdx; i <= maxIdx; i++) {
-      buckets.push(indexToYM(i));
-    }
-  }
-  const periodFrom = buckets[0]
-    ? `${buckets[0].ano}-${String(buckets[0].mes).padStart(2, "0")}-01`
-    : `${defFrom.y}-01-01`;
-  const periodTo = buckets[buckets.length - 1]
-    ? lastDayOfMonthIso(
-        buckets[buckets.length - 1].ano,
-        buckets[buckets.length - 1].mes,
-      )
-    : lastDayOfMonthIso(defTo.y, defTo.m);
-  const period: SalesPeriodHeader = { from: periodFrom, to: periodTo, buckets };
+  // ── Janela: dias civis, ambas as pontas inclusivas ──────────────────
+  const janela = normalizarJanela(filters.from, filters.to);
+  const buckets = bucketsDaJanela(janela);
+  const decomposta = decomporJanela(janela);
+  const period: SalesPeriodHeader = {
+    from: janela.from,
+    to: janela.to,
+    buckets,
+    fonte:
+      decomposta.parciais.length === 0
+        ? "VENDA_MENSAL"
+        : decomposta.mesesInteiros
+          ? "MISTA"
+          : "LINHAS_RAW",
+  };
 
   if (buckets.length === 0) {
     return { period, rows: [] };
@@ -238,35 +251,83 @@ export async function getVendasData(
   // abaixo (não pré-encolhe Produto, porque mesmo produto pode ter
   // distribuidor diferente por farmácia).
 
-  // ── Query principal: SUM dinâmico por (produtoId, farmaciaId, ano, mes)
-  //    no período `[minIdx, maxIdx]`. O pivot final é feito em memória —
-  //    `buckets` define a ordem das colunas no output. SQL devolve só as
-  //    linhas com pelo menos 1 venda no período (filtra noise).
+  // ── Query principal ─────────────────────────────────────────────────
+  //
+  // Um de dois caminhos, escolhido por `mesAlinhada`. Ambos devolvem o
+  // MESMO shape (produto × farmácia × mês, com sinal) e, para uma janela
+  // mês-alinhada, os MESMOS números — é isso que o teste de
+  // reconciliação fixa.
+  //
+  // `HAVING ... <> 0` e não `> 0`: um produto com mais devoluções que
+  // vendas na janela tem saldo líquido negativo e é informação
+  // operacional real. Descartá-lo fazia o total do relatório não bater
+  // com a soma do seu próprio universo.
   type AggRow = {
     produtoId: string;
     farmaciaId: string;
     ano: number;
     mes: number;
     quantidade: number;
+    valorBruto: number;
   };
-  const prodIdCond = produtoIdFilter
-    ? Prisma.sql`AND vm."produtoId" = ANY(${produtoIdFilter})`
-    : Prisma.empty;
-  const aggRows = await prisma.$queryRaw<AggRow[]>(Prisma.sql`
-    SELECT
-      vm."produtoId",
-      vm."farmaciaId",
-      vm.ano,
-      vm.mes,
-      SUM(vm.quantidade)::float AS quantidade
-    FROM "VendaMensal" vm
-    WHERE
-      vm."farmaciaId" = ANY(${farmaciaIds})
-      AND (vm.ano * 12 + vm.mes) BETWEEN ${minIdx} AND ${maxIdx}
-      ${prodIdCond}
-    GROUP BY vm."produtoId", vm."farmaciaId", vm.ano, vm.mes
-    HAVING SUM(vm.quantidade) > 0
-  `);
+  const mensal = (minIdx: number, maxIdx: number) =>
+    prisma.$queryRaw<AggRow[]>(Prisma.sql`
+      SELECT
+        vm."produtoId",
+        vm."farmaciaId",
+        vm.ano,
+        vm.mes,
+        SUM(COALESCE(vm."quantidadeLiquida", vm.quantidade))::float AS quantidade,
+        SUM(COALESCE(vm."valorBruto", 0))::float AS "valorBruto"
+      FROM "VendaMensal" vm
+      WHERE
+        vm."farmaciaId" = ANY(${farmaciaIds})
+        AND (vm.ano * 12 + vm.mes) BETWEEN ${minIdx} AND ${maxIdx}
+        ${
+          produtoIdFilter
+            ? Prisma.sql`AND vm."produtoId" = ANY(${produtoIdFilter})`
+            : Prisma.empty
+        }
+      GROUP BY vm."produtoId", vm."farmaciaId", vm.ano, vm.mes
+      HAVING SUM(COALESCE(vm."quantidadeLiquida", vm.quantidade)) <> 0
+    `);
+
+  // Sem alias na tabela porque os fragmentos partilhados usam nomes de
+  // coluna sem prefixo — é o que garante que este SQL e o da agregação
+  // mensal são literalmente o mesmo. Índice: ("farmaciaId", "dataVenda").
+  const porLinhas = (j: JanelaVendas) =>
+    prisma.$queryRaw<AggRow[]>(Prisma.sql`
+      SELECT
+        "produtoId",
+        "farmaciaId",
+        EXTRACT(YEAR  FROM "dataVenda")::int AS ano,
+        EXTRACT(MONTH FROM "dataVenda")::int AS mes,
+        SUM(${SQL_QUANTIDADE_ASSINADA})::float  AS quantidade,
+        SUM(${SQL_VALOR_BRUTO_ASSINADO})::float AS "valorBruto"
+      FROM "IngestVendaLinhaRaw"
+      WHERE
+        "farmaciaId" = ANY(${farmaciaIds})
+        AND "dataVenda" >= ${`${j.from}T00:00:00.000Z`}::timestamptz
+        AND "dataVenda" <  ${`${diaSeguinte(j.to)}T00:00:00.000Z`}::timestamptz
+        AND ${SQL_LINHAS_ELEGIVEIS}
+        ${
+          produtoIdFilter
+            ? Prisma.sql`AND "produtoId" = ANY(${produtoIdFilter})`
+            : Prisma.empty
+        }
+      GROUP BY "produtoId", "farmaciaId", 3, 4
+      HAVING SUM(${SQL_QUANTIDADE_ASSINADA}) <> 0
+    `);
+
+  // Cada mês pertence a exactamente uma das partes — concatenar não
+  // duplica nada. Em paralelo: são no máximo três consultas disjuntas.
+  const partes = await Promise.all([
+    decomposta.mesesInteiros
+      ? mensal(decomposta.mesesInteiros.minIdx, decomposta.mesesInteiros.maxIdx)
+      : Promise.resolve([] as AggRow[]),
+    ...decomposta.parciais.map(porLinhas),
+  ]);
+  const aggRows = partes.flat();
 
   if (aggRows.length === 0) return { period, rows: [] };
 
@@ -276,6 +337,7 @@ export async function getVendasData(
     farmaciaId: string;
     byBucket: Map<string, number>;
     total: number;
+    valorBruto: number;
   };
   const bucketKey = (ano: number, mes: number) => `${ano}-${mes}`;
   const accByKey = new Map<string, Acc>();
@@ -288,12 +350,17 @@ export async function getVendasData(
         farmaciaId: r.farmaciaId,
         byBucket: new Map(),
         total: 0,
+        valorBruto: 0,
       };
       accByKey.set(key, acc);
     }
     const q = Math.round(toF(r.quantidade));
-    acc.byBucket.set(bucketKey(r.ano, r.mes), q);
+    const bk = bucketKey(r.ano, r.mes);
+    // `+=` e não `set`: as partes da janela são disjuntas por mês, mas
+    // acumular é a operação certa e não depende dessa invariante.
+    acc.byBucket.set(bk, (acc.byBucket.get(bk) ?? 0) + q);
     acc.total += q;
+    acc.valorBruto += toF(r.valorBruto);
   }
 
   // ── Metadata do produto (canónica) + ProdutoFarmacia (PVP/stock/origem)
@@ -376,6 +443,7 @@ export async function getVendasData(
       pvp,
       meses,
       totalVendas,
+      valorBruto: acc.valorBruto,
       existencia,
       unidadesVendidas: totalVendas,
       fornecedor,

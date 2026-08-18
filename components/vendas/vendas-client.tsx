@@ -41,20 +41,15 @@ type AmbitoAnalise = "farmacia" | "grupo" | "comparativo";
 // tipo no loader. Estrutura idêntica (campos `meses` dinâmicos).
 type SalesReportRow = ServerSalesReportRow;
 
-type AggregatedRow = {
-  codigo: string;
-  descricao: string;
-  pvp: number;
-  meses: SalesMonthBucket[];
-  totalVendas: number;
-  existencia: number;
-  unidadesVendidas: number;
-  fornecedor: string;
-  fabricante: string;
-  categoria: string;
-  farmacia: string;
-  grupo: string;
-};
+/**
+ * As linhas agrupadas têm a MESMA forma das linhas do loader.
+ *
+ * Era uma cópia local com menos campos, e foi assim que o filtro de
+ * catálogo passou a compilar sem `subcategoria` nem `utilizacoes`: o
+ * TypeScript não tinha como saber que faltavam. Agora é o tipo do
+ * servidor — acrescentar um campo lá parte aqui, que é o que se quer.
+ */
+type AggregatedRow = SalesReportRow;
 
 // ─── Helpers de datas / labels ───────────────────────────────────────────────
 
@@ -64,14 +59,16 @@ function defaultDataInicio(): string {
   return `${now.getUTCFullYear()}-01-01`;
 }
 
-/** ISO yyyy-mm-dd do último dia do mês corrente (UTC). */
+/**
+ * ISO yyyy-mm-dd de HOJE (UTC).
+ *
+ * Era o último dia do mês corrente — uma data no futuro durante 30 dias
+ * em cada 31. Não trazia vendas que não existem, mas fazia a média
+ * diária dividir por dias que ainda não aconteceram, e o cabeçalho
+ * anunciar um período que ninguém pediu.
+ */
 function defaultDataFim(): string {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth() + 1;
-  // dia 0 do mês seguinte = último dia do mês actual
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+  return new Date().toISOString().slice(0, 10);
 }
 
 const MONTH_LABELS_PT = [
@@ -223,7 +220,7 @@ export function VendasClient({
       ) {
         return false;
       }
-      if (apenasComVendas && row.totalVendas <= 0) return false;
+      if (apenasComVendas && row.totalVendas === 0) return false;
       if (apenasComStock && row.existencia <= 0) return false;
       return true;
     });
@@ -319,11 +316,16 @@ export function VendasClient({
           pvp: first.pvp,
           meses,
           totalVendas,
+          // Soma dos valores gravados, não `totalVendas × pvp`: o pvp é
+          // o preço de hoje e reprecificaria o histórico.
+          valorBruto: groupedRows.reduce((s, r) => s + r.valorBruto, 0),
           existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
           unidadesVendidas: totalVendas,
           fornecedor: first.fornecedor,
           fabricante: first.fabricante,
           categoria: first.categoria,
+          subcategoria: first.subcategoria,
+          utilizacoes: first.utilizacoes,
           farmacia: first.farmacia,
           grupo: first.grupo,
         };
@@ -331,7 +333,7 @@ export function VendasClient({
     );
 
     return aggregated.filter((row) => {
-      if (apenasComVendas && row.totalVendas <= 0) return false;
+      if (apenasComVendas && row.totalVendas === 0) return false;
       if (apenasComStock && row.existencia <= 0) return false;
       return true;
     });
@@ -369,10 +371,11 @@ export function VendasClient({
   }, [currentRows, ordenarPor]);
 
   const resumo = useMemo(() => {
-    const totalVendido = orderedRows.reduce(
-      (sum, row) => sum + row.totalVendas * row.pvp,
-      0
-    );
+    // Valor gravado no ledger, não `totalVendas × pvp`. O `pvp` vem de
+    // ProdutoFarmacia — é o preço de HOJE na prateleira — e usá-lo aqui
+    // reprecificava o histórico: em Agosto/2026, Silveirense, dava
+    // 98 952,93 € onde as linhas de venda somam 98 829,51 €.
+    const totalVendido = orderedRows.reduce((sum, row) => sum + row.valorBruto, 0);
     const totalUnidades = orderedRows.reduce(
       (sum, row) => sum + row.unidadesVendidas,
       0
@@ -431,7 +434,7 @@ export function VendasClient({
         ) {
           return false;
         }
-        if (apenasComVendas && row.totalVendas <= 0) return false;
+        if (apenasComVendas && row.totalVendas === 0) return false;
         if (apenasComStock && row.existencia <= 0) return false;
         return true;
       })
@@ -490,7 +493,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (apenasComVendas && row.totalVendas <= 0) continue;
+      if (apenasComVendas && row.totalVendas === 0) continue;
       if (apenasComStock && row.existencia <= 0) continue;
 
       if (!grouped.has(row.farmacia)) grouped.set(row.farmacia, []);
@@ -514,10 +517,7 @@ export function VendasClient({
         meses,
         totalVendas,
         existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
-        totalValor: groupedRows.reduce(
-          (acc, row) => acc + row.totalVendas * row.pvp,
-          0,
-        ),
+        totalValor: groupedRows.reduce((acc, row) => acc + row.valorBruto, 0),
       };
     });
   }, [

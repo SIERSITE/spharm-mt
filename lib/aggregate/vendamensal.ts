@@ -20,6 +20,46 @@ import { PrismaClient, Prisma } from "@/generated/prisma/client";
 
 export const ORIGEM_AGREGACAO = "agent-bootstrap-staging";
 
+/* ---------- Semântica de venda — fonte única ----------
+ *
+ * Estes três fragmentos definem o que É uma venda no SPharm.MT. Vivem
+ * aqui, e não em cada consumidor, porque a agregação mensal e o
+ * relatório de Vendas TÊM de responder o mesmo para a mesma janela — e
+ * durante meses não responderam: o relatório somava `VendaMensal`
+ * (mês inteiro, sinal perdido) e a agregação somava o raw com sinal.
+ *
+ * Regras, tal como o ERP as reporta:
+ *   · VENDA soma, DEVOLUCAO_ANULACAO subtrai
+ *   · UNKNOWN não entra em soma nenhuma (fica para caracterizar)
+ *   · linhas sem produto operacional (taxas, serviços) ficam de fora
+ *
+ * Os nomes das colunas vêm SEM prefixo de tabela de propósito: obriga
+ * quem os usa a não pôr alias no FROM, e assim os dois caminhos são
+ * literalmente o mesmo SQL.
+ */
+
+/** Unidades com sinal. VENDA positivo, devolução/anulação negativo. */
+export const SQL_QUANTIDADE_ASSINADA = Prisma.sql`
+  CASE "tipoDocumentoClass"
+    WHEN 'VENDA'              THEN  ABS(COALESCE("quantidade", 0))
+    WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("quantidade", 0))
+    ELSE 0
+  END`;
+
+/** Valor bruto com sinal: PVP unitário × quantidade, ao preço da venda. */
+export const SQL_VALOR_BRUTO_ASSINADO = Prisma.sql`
+  CASE "tipoDocumentoClass"
+    WHEN 'VENDA'              THEN  ABS(COALESCE("pvpUnitario", 0) * COALESCE("quantidade", 0))
+    WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("pvpUnitario", 0) * COALESCE("quantidade", 0))
+    ELSE 0
+  END`;
+
+/** As linhas que contam. Idêntico ao WHERE da agregação mensal. */
+export const SQL_LINHAS_ELEGIVEIS = Prisma.sql`
+  "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
+  AND "produtoId" IS NOT NULL
+  AND "isNonStockService" = false`;
+
 export type MonthRange = {
   ano: number;
   mes: number;
@@ -212,20 +252,8 @@ export async function runAggregation(
     SELECT
       "farmaciaId",
       "produtoId"::text AS "produtoId",
-      SUM(
-        CASE "tipoDocumentoClass"
-          WHEN 'VENDA'              THEN ABS(COALESCE("quantidade", 0))
-          WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("quantidade", 0))
-          ELSE 0
-        END
-      ) AS "quantidadeLiquida",
-      SUM(
-        CASE "tipoDocumentoClass"
-          WHEN 'VENDA'              THEN ABS(COALESCE("pvpUnitario", 0) * COALESCE("quantidade", 0))
-          WHEN 'DEVOLUCAO_ANULACAO' THEN -ABS(COALESCE("pvpUnitario", 0) * COALESCE("quantidade", 0))
-          ELSE 0
-        END
-      ) AS "valorBruto",
+      SUM(${SQL_QUANTIDADE_ASSINADA}) AS "quantidadeLiquida",
+      SUM(${SQL_VALOR_BRUTO_ASSINADO}) AS "valorBruto",
       SUM(
         CASE "tipoDocumentoClass"
           WHEN 'VENDA'              THEN ABS(COALESCE("valorLinha", 0))
@@ -243,9 +271,7 @@ export async function runAggregation(
       COUNT(*)                        AS "linhasVenda",
       COUNT(DISTINCT "externalSaleId") AS "atendimentos"
     FROM "IngestVendaLinhaRaw"
-    WHERE "tipoDocumentoClass" IN ('VENDA', 'DEVOLUCAO_ANULACAO')
-      AND "produtoId" IS NOT NULL
-      AND "isNonStockService" = false
+    WHERE ${SQL_LINHAS_ELEGIVEIS}
       AND "dataVenda" >= ${range.fromInclusive}
       AND "dataVenda" <  ${range.toExclusive}
     GROUP BY "farmaciaId", "produtoId"
