@@ -30,6 +30,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type BootstrapBatchResponse } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
+import { ALIAS_FONTE_VENDA, validarSelect } from "../sql-validador.js";
 import {
   NAMESPACES,
   descobrirSchemaAtendimento,
@@ -230,8 +231,21 @@ type Args = {
    * "dry-run" que exercita outro código não valida coisa nenhuma.
    */
   dryRun?: boolean;
+  /**
+   * Que pipelines correr. Omitido = os três, como sempre.
+   *
+   * Existe porque validar o reader de vendas obrigava a reler o catálogo
+   * inteiro e o stock inteiro primeiro — dezenas de minutos e escrita em
+   * duas tabelas, para chegar ao pipeline que interessa. `--only` faz do
+   * ciclo de diagnóstico uma coisa de segundos.
+   */
+  only?: Set<Pipeline>;
   help?: boolean;
 };
+
+/** Os pipelines do bootstrap, pelos nomes que o operador escreve. */
+const PIPELINES = ["products", "stock", "sales-lines"] as const;
+type Pipeline = (typeof PIPELINES)[number];
 
 function parseCmdArgs(): Args {
   const raw = parseArgs({
@@ -240,23 +254,48 @@ function parseCmdArgs(): Args {
       from: { type: "string" },
       to: { type: "string" },
       "dry-run": { type: "boolean", default: false },
+      only: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     strict: true,
     allowPositionals: false,
   });
+  let only: Set<Pipeline> | undefined;
+  if (typeof raw.values.only === "string") {
+    const pedidos = raw.values.only
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0);
+    const invalidos = pedidos.filter((p) => !PIPELINES.includes(p as Pipeline));
+    if (invalidos.length > 0) {
+      // Um nome errado não pode significar "corre tudo": alguém que
+      // escreveu `--only=sales` esperava só as vendas, e correr o
+      // catálogo inteiro em vez disso é o oposto do que pediu.
+      throw new Error(
+        `--only: valor(es) desconhecido(s): ${invalidos.join(", ")}. ` +
+          `Válidos: ${PIPELINES.join(", ")}.`,
+      );
+    }
+    only = new Set(pedidos as Pipeline[]);
+  }
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
     dryRun: raw.values["dry-run"] === true,
+    only,
     help: raw.values.help === true,
   };
 }
 
 function printHelp(): void {
-  console.log("Uso: bootstrap-upload --from YYYY-MM-DD --to YYYY-MM-DD [--dry-run]");
+  console.log("Uso: bootstrap-upload --from YYYY-MM-DD --to YYYY-MM-DD");
+  console.log("                      [--only=products,stock,sales-lines] [--dry-run]");
   console.log("");
   console.log("PRIMEIRA INGESTÃO real para a SaaS. Idempotente.");
+  console.log("");
+  console.log("  --only      corre só estes pipelines. Omitido = os três.");
+  console.log("              Ex.: --only=sales-lines valida o reader de vendas");
+  console.log("              sem reler o catálogo e o stock inteiros.");
   console.log("");
   console.log("  --dry-run   lê o ERP e imprime os counts, sem enviar nada.");
   console.log("              É o único dry-run que passa pelas DUAS fontes de");
@@ -1185,8 +1224,27 @@ export async function runSalesPipeline(
     }
     const fonte = { namespace: f.namespace, rotulo: f.rotulo, sql: f.fonte.sql };
     console.log(`  ── ${fonte.rotulo} ──`);
+
+    // A query é validada ANTES de ir ao servidor. A rev67 foi para a
+    // farmácia com uma lista de SELECT sem vírgulas e o SQL Server
+    // respondeu "Incorrect syntax near 'a'" — depois de abrir ligação,
+    // depois de sincronizar produtos e stock. Um erro de sintaxe é
+    // detectável aqui, de graça, e a mensagem diz o que está mal em vez
+    // de apontar para um token.
+    const problemas = validarSelect(fonte.sql, ALIAS_FONTE_VENDA);
+    if (problemas.length > 0) {
+      console.log("  SQL gerado:");
+      for (const l of fonte.sql.split("\n")) console.log(`    ${l}`);
+      throw new Error(
+        `${fonte.rotulo}: a query gerada não é válida — ` +
+          problemas.map((p) => `[${p.regra}] ${p.detalhe}`).join("; "),
+      );
+    }
+
     let lastId = -1;
     let porClassificar = 0;
+    let payloads = 0;
+    let lidasNestaFonte = 0;
 
     while (true) {
       const rs = await pool
@@ -1199,6 +1257,7 @@ export async function runSalesPipeline(
 
       if (rs.recordset.length === 0) break;
       totals.read += rs.recordset.length;
+      lidasNestaFonte += rs.recordset.length;
 
       const items: Record<string, unknown>[] = [];
       for (const row of rs.recordset) {
@@ -1212,6 +1271,7 @@ export async function runSalesPipeline(
         }
         items.push(paraPayload(r.linha));
       }
+      payloads += items.length;
 
       if (dryRun) {
         totals.batches++;
@@ -1238,9 +1298,22 @@ export async function runSalesPipeline(
       if (rs.recordset.length < SALES_BATCH) break;
     }
 
+    // O total POR FONTE, e não só o agregado. Um agregado esconde
+    // exactamente o que interessa: se o VSG leu zero, o número global
+    // continua a parecer bem.
+    console.log(
+      `  ${fonte.namespace}: read=${lidasNestaFonte} payloads=${payloads} recusadas=${porClassificar}`,
+    );
     if (porClassificar > 0) {
       console.log(
-        `    ⚠ ${porClassificar} linha(s) por classificar em ${fonte.rotulo} — tipo de documento desconhecido`
+        `    ⚠ ${porClassificar} linha(s) recusadas — tipo de documento por declarar. ` +
+          `Ver CLASSIFICACAO em vendas-fontes.ts.`,
+      );
+    }
+    if (lidasNestaFonte === 0) {
+      console.log(
+        `    ⚠ ZERO linhas nesta fonte no intervalo. Se era esperado ter vendas, ` +
+          `a janela ou a ligação estão erradas.`,
       );
     }
   }
@@ -1352,13 +1425,20 @@ export async function bootstrapUpload(): Promise<number> {
 
   try {
     return await withPool(cfg, async (pool) => {
-      const productsTotals = await runProductsPipeline(pool, client, farmaciaId, { dryRun });
+      const corre = (p: Pipeline) => !args.only || args.only.has(p);
+      const VAZIO: PipelineTotals = emptyTotals();
+
+      const productsTotals = corre("products")
+        ? await runProductsPipeline(pool, client, farmaciaId, { dryRun })
+        : (console.log("▶ Pipeline 1: PRODUTOS — saltado (--only)"), VAZIO);
       console.log("");
-      const stockTotals = await runStockPipeline(pool, client, farmaciaId, { dryRun });
+      const stockTotals = corre("stock")
+        ? await runStockPipeline(pool, client, farmaciaId, { dryRun })
+        : (console.log("▶ Pipeline 2: STOCK — saltado (--only)"), VAZIO);
       console.log("");
-      const salesTotals = await runSalesPipeline(pool, client, farmaciaId, fromDate, toDate, {
-        dryRun,
-      });
+      const salesTotals = corre("sales-lines")
+        ? await runSalesPipeline(pool, client, farmaciaId, fromDate, toDate, { dryRun })
+        : (console.log("▶ Pipeline 3: SALES-LINES — saltado (--only)"), VAZIO);
       console.log("");
 
       // ── Summary final

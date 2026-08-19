@@ -17,6 +17,7 @@
 import sql from "mssql";
 import type { SqlPool } from "../sql-client.js";
 import type { SaasClient } from "../http-client.js";
+import { ALIAS_FONTE_VENDA, validarSelect } from "../sql-validador.js";
 import type { BootstrapBatchResponse } from "../http-client.js";
 import {
   NAMESPACES,
@@ -427,7 +428,20 @@ async function pipelineSales(
       throw new Error(
         `${f.rotulo}: a tabela existe mas nao foi possivel liga-la. ` +
           `Faltam: ${f.fonte.faltam.join(", ")}. ` +
-          `Corre 'agent -- vendas-suspensas-audit' para ver o schema real.`,
+          `Corre 'agent -- vendas-susp-cadeia' para ver o schema real.`,
+      );
+    }
+    // A mesma validacao do bootstrap: uma query partida tem de morrer
+    // aqui, com o diagnostico, e nao no servidor com "Incorrect syntax
+    // near 'a'" — ainda por cima dentro do pipeline diario automatico,
+    // onde ninguem esta a ver.
+    const problemas = validarSelect(f.fonte.sql, ALIAS_FONTE_VENDA);
+    if (problemas.length > 0) {
+      logger.log("  SQL gerado:");
+      for (const l of f.fonte.sql.split("\n")) logger.log(`    ${l}`);
+      throw new Error(
+        `${f.rotulo}: a query gerada nao e valida — ` +
+          problemas.map((p) => `[${p.regra}] ${p.detalhe}`).join("; "),
       );
     }
     await lerFonte(

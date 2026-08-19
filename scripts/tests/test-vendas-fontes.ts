@@ -564,6 +564,54 @@ console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");
     /if \(dryRun\)[\s\S]{0,200}não enviado/.test(up),
     "…e no modo dry-run o batch não é enviado",
   );
+
+  // `--only`: validar o reader de vendas não pode obrigar a reler o
+  // catálogo e o stock inteiros primeiro.
+  check(/only: \{ type: "string" \}/.test(up), "bootstrap-upload aceita --only");
+  check(
+    /const PIPELINES = \["products", "stock", "sales-lines"\]/.test(up),
+    "…com os três pipelines nomeados",
+  );
+  check(
+    /--only: valor\(es\) desconhecido\(s\)/.test(up),
+    "…e um valor inválido ABORTA em vez de correr tudo",
+    "quem escreve --only=sales não quer o catálogo inteiro por engano",
+  );
+  for (const p of ["products", "stock", "sales-lines"]) {
+    check(
+      new RegExp(`corre\\("${p}"\\)`).test(up),
+      `…e ${p} respeita o filtro`,
+    );
+  }
+
+  // O output tem de separar as fontes. Um agregado esconde o caso que
+  // interessa: VSG a ler zero com o total global a parecer bem.
+  check(
+    /\$\{fonte\.namespace\}: read=\$\{lidasNestaFonte\} payloads=\$\{payloads\} recusadas=\$\{porClassificar\}/.test(up),
+    "o dry-run reporta read/payloads/recusadas POR namespace",
+  );
+  check(
+    /lidasNestaFonte === 0[\s\S]{0,200}ZERO linhas/.test(up),
+    "…e avisa quando uma fonte lê zero linhas",
+  );
+}
+
+console.log("\n=== a query é validada ANTES de ir ao servidor ===");
+{
+  // A rev67 foi para a farmácia com uma lista de SELECT sem vírgulas.
+  // `Incorrect syntax near 'a'`, depois de sincronizar produtos e stock.
+  for (const f of ["bootstrap-upload", "daily-sync-runner"]) {
+    const src = readFileSync(
+      new URL(`../../agent/src/commands/${f}.ts`, import.meta.url), "utf8");
+    check(
+      /validarSelect\([^)]*ALIAS_FONTE_VENDA\)/.test(src),
+      `${f}: valida a query completa antes de a executar`,
+    );
+    check(
+      /problemas\.length > 0[\s\S]{0,400}throw new Error/.test(src),
+      `${f}: …e uma query inválida atira, com o SQL no log`,
+    );
+  }
 }
 
 console.log("\n=== VendaMensal continua a derivar do raw ===");

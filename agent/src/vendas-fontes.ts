@@ -565,8 +565,29 @@ export async function descobrirSchemaAtendimento(pool: SqlPool): Promise<SchemaA
   };
 }
 
+/**
+ * Um item da lista do SELECT. SEM vírgula: quem sabe se é o último é
+ * quem junta a lista, não quem produz o item.
+ *
+ * ── O DEFEITO QUE ISTO TEVE ──────────────────────────────────────────
+ *
+ * A primeira versão devolvia a linha e o builder juntava tudo com "\n".
+ * Sem vírgula nenhuma. O SQL Server responde "Incorrect syntax near 'a'"
+ * — o token a seguir a `AS externalLineId` — e o pipeline de vendas
+ * morria antes de ler uma única linha, nas DUAS fontes.
+ *
+ * Passou nos testes porque eles verificavam `sql.includes(fragmento)`, e
+ * cada fragmento estava lá. Fragmentos correctos não fazem uma query
+ * correcta: só a query inteira é que é a query. É por isso que agora há
+ * um teste da string completa e um validador estrutural.
+ */
 function sel(alias: string, expr: string | null): string {
   return `    ${expr ?? "NULL"} AS ${alias}`;
+}
+
+/** A lista do SELECT, com as vírgulas onde têm de estar. */
+function listaSelect(itens: string[]): string {
+  return itens.join(",\n");
 }
 
 /**
@@ -577,23 +598,25 @@ function sel(alias: string, expr: string | null): string {
 export function sqlAtendimentoDetalhe(at: SchemaAtendimento): string {
   return [
     "SELECT TOP (@n)",
-    sel("externalLineId", "d.[Detalhe ID]"),
-    sel("externalDocumentId", "a.[Atendimento ID]"),
-    sel("sequencia", "d.[Sequencia]"),
-    sel("dataVenda", "a.[Data Venda]"),
-    sel("tipoDocumento", bk(at.tipoDocumento) ? `a.${bk(at.tipoDocumento)}` : null),
-    sel("serie", at.serie ? `a.${bk(at.serie)}` : null),
-    sel("numero", at.numero ? `a.${bk(at.numero)}` : null),
-    sel("externalProductId", "d.[CodigoID]"),
-    sel("processaStocks", "s.[Processa_Stocks]"),
-    sel("quantidade", "d.[Quantidade]"),
-    sel("pvpUnitario", "d.[Preco Venda Publico_EUR]"),
-    sel("valorLinha", "d.[Valor_EUR]"),
-    sel("ivaValor", "d.[Val_IVA_EUR]"),
-    sel("descontoValor", "d.[Val_Desc_EUR]"),
-    sel("comparticipacao1", "d.[PrComp_EUR]"),
-    sel("comparticipacao2", "d.[PrComp_EUR2]"),
-    sel("entidadeId", "d.[Entidade ID]"),
+    listaSelect([
+      sel("externalLineId", "d.[Detalhe ID]"),
+      sel("externalDocumentId", "a.[Atendimento ID]"),
+      sel("sequencia", "d.[Sequencia]"),
+      sel("dataVenda", "a.[Data Venda]"),
+      sel("tipoDocumento", bk(at.tipoDocumento) ? `a.${bk(at.tipoDocumento)}` : null),
+      sel("serie", at.serie ? `a.${bk(at.serie)}` : null),
+      sel("numero", at.numero ? `a.${bk(at.numero)}` : null),
+      sel("externalProductId", "d.[CodigoID]"),
+      sel("processaStocks", "s.[Processa_Stocks]"),
+      sel("quantidade", "d.[Quantidade]"),
+      sel("pvpUnitario", "d.[Preco Venda Publico_EUR]"),
+      sel("valorLinha", "d.[Valor_EUR]"),
+      sel("ivaValor", "d.[Val_IVA_EUR]"),
+      sel("descontoValor", "d.[Val_Desc_EUR]"),
+      sel("comparticipacao1", "d.[PrComp_EUR]"),
+      sel("comparticipacao2", "d.[PrComp_EUR2]"),
+      sel("entidadeId", "d.[Entidade ID]"),
+    ]),
     "  FROM [dbo].[Atendimento] a",
     "  JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]",
     "  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]",
@@ -671,23 +694,25 @@ export function sqlAtendimentoSuspDetalhe(
   const cabPk = bk(cab.pk)!;
   const sql = [
     "SELECT TOP (@n)",
-    sel("externalLineId", `d.${pk}`),
-    sel("externalDocumentId", `h.${cabPk}`),
-    sel("sequencia", susp.sequencia ? `d.${bk(susp.sequencia)}` : null),
-    sel("dataVenda", `h.${bk(cab.dataVenda)}`),
-    sel("tipoDocumento", `h.${bk(cab.tipoDocumento)}`),
-    sel("serie", cab.serie ? `h.${bk(cab.serie)}` : null),
-    sel("numero", cab.numero ? `h.${bk(cab.numero)}` : null),
-    sel("externalProductId", `d.${bk(susp.codigoId)}`),
-    sel("processaStocks", "s.[Processa_Stocks]"),
-    sel("quantidade", susp.quantidade ? `d.${bk(susp.quantidade)}` : null),
-    sel("pvpUnitario", susp.pvpUnitario ? `d.${bk(susp.pvpUnitario)}` : null),
-    sel("valorLinha", susp.valorLinha ? `d.${bk(susp.valorLinha)}` : null),
-    sel("ivaValor", susp.ivaValor ? `d.${bk(susp.ivaValor)}` : null),
-    sel("descontoValor", susp.descontoValor ? `d.${bk(susp.descontoValor)}` : null),
-    sel("comparticipacao1", susp.comparticipacao1 ? `d.${bk(susp.comparticipacao1)}` : null),
-    sel("comparticipacao2", susp.comparticipacao2 ? `d.${bk(susp.comparticipacao2)}` : null),
-    sel("entidadeId", susp.entidadeId ? `d.${bk(susp.entidadeId)}` : null),
+    listaSelect([
+      sel("externalLineId", `d.${pk}`),
+      sel("externalDocumentId", `h.${cabPk}`),
+      sel("sequencia", susp.sequencia ? `d.${bk(susp.sequencia)}` : null),
+      sel("dataVenda", `h.${bk(cab.dataVenda)}`),
+      sel("tipoDocumento", `h.${bk(cab.tipoDocumento)}`),
+      sel("serie", cab.serie ? `h.${bk(cab.serie)}` : null),
+      sel("numero", cab.numero ? `h.${bk(cab.numero)}` : null),
+      sel("externalProductId", `d.${bk(susp.codigoId)}`),
+      sel("processaStocks", "s.[Processa_Stocks]"),
+      sel("quantidade", susp.quantidade ? `d.${bk(susp.quantidade)}` : null),
+      sel("pvpUnitario", susp.pvpUnitario ? `d.${bk(susp.pvpUnitario)}` : null),
+      sel("valorLinha", susp.valorLinha ? `d.${bk(susp.valorLinha)}` : null),
+      sel("ivaValor", susp.ivaValor ? `d.${bk(susp.ivaValor)}` : null),
+      sel("descontoValor", susp.descontoValor ? `d.${bk(susp.descontoValor)}` : null),
+      sel("comparticipacao1", susp.comparticipacao1 ? `d.${bk(susp.comparticipacao1)}` : null),
+      sel("comparticipacao2", susp.comparticipacao2 ? `d.${bk(susp.comparticipacao2)}` : null),
+      sel("entidadeId", susp.entidadeId ? `d.${bk(susp.entidadeId)}` : null),
+    ]),
     `  FROM [dbo].[${susp.tabela}] d`,
     `  JOIN [dbo].[${cab.tabela}] h ON h.${cabPk} = d.${fk}`,
     `  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.${bk(susp.codigoId)}`,
