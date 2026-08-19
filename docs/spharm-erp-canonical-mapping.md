@@ -497,12 +497,29 @@ type SaleLinePayload = {
 
 **Classificação inicial de `[Tipo Documento]`:**
 
+> **CORRIGIDO 2026-08-19.** A tabela abaixo dizia `77 → VENDA (validado
+> em previews)`. Era falso: o `77` veio do *default do fornecedor* no
+> seed da migração `20260514100000`, e nunca foi observado em ERP nenhum.
+> A rev68 correu na Silveirense em 01/08/2026 e leu 282 linhas de venda,
+> **282 com `[Tipo Documento] = 7`** e zero com `77`. O mesmo seed já
+> registava `7` como *"detectado 2024-01-01 sample"* — o número real
+> estava lá desde o início, marcado como pendente, enquanto a suposição
+> ia sendo repetida como se fosse observação.
+
 | Raw value | Class | Notas |
 |---|---|---|
-| `77` | `VENDA` | Venda real (validado em previews) |
-| `104` | `DEVOLUCAO_ANULACAO` | Linhas negativas; tratamento pendente |
-| `2` | `UNKNOWN` | Incluído nas contagens; **não** marcado como venda ainda |
-| outro | `UNKNOWN` | Listado em quality alert para caracterizar |
+| `7` | `VENDA` | Venda de balcão. **Observado** na Silveirense: 282/282 linhas em 01/08/2026 |
+| `104` | `DEVOLUCAO_ANULACAO` | Nota de crédito / anulação. Chega do ERP já com quantidade e valor negativos |
+| `27` | `DEVOLUCAO_ANULACAO` | Anulação |
+| `107` | `VENDA` | Factura de venda suspensa (série VSG) — circuito `[Atendimento Susp]`, não `[Atendimento]` |
+| `2` | `UNKNOWN` | Incluído nas contagens; **não** marcado como venda |
+| `77` | — | **Removido.** Default do fornecedor, nunca observado |
+| outro | recusado | A linha não entra e o tipo aparece no log, para ser declarado |
+
+A classificação é **por circuito**, não global: os dois circuitos numeram
+em colunas diferentes de tabelas diferentes (`Atendimento.[Tipo Documento]`
+e `Atendimento Susp.[Tipo Documento ID]`), e o mesmo número não significa
+o mesmo dos dois lados. Ver `CLASSIFICACAO` em `agent/src/vendas-fontes.ts`.
 
 A classificação é **JS-side** após o fetch — o SQL não filtra por
 TipoDoc para que os alerts vejam tudo.

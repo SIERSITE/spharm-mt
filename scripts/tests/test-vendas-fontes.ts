@@ -86,7 +86,8 @@ const linha = (over: Partial<FonteRow> = {}): FonteRow => ({
   externalDocumentId: 900,
   sequencia: 1,
   dataVenda: new Date("2026-08-01T10:26:38.000Z"),
-  tipoDocumento: 77,
+  // 7, não 77: é o que o ERP real usa. Ver CLASSIFICACAO.
+  tipoDocumento: 7,
   serie: "G",
   numero: 816760,
   externalProductId: 5001,
@@ -184,6 +185,56 @@ console.log("\n=== G + VSG no mesmo dia somam, e não se sobrepõem ===");
   eq(g.quantidadeAssinada + v.quantidadeAssinada, 5, "o total soma as duas: 3 + 2");
 }
 
+console.log("\n=== a matriz de classificação, tipo a tipo ===");
+{
+  // Os quatro casos que a produção fixou, escritos um por um. A rev68
+  // recusou 282 de 282 linhas de balcão porque a lista dizia 77 e o ERP
+  // diz 7 — um número inventado custa um dia de produção.
+  eq(classificarDocumento(7, G), "VENDA", "tipo 7 em G = VENDA");
+  eq(classificarDocumento(104, G), "DEVOLUCAO_ANULACAO", "tipo 104 em G = DEVOLUCAO_ANULACAO");
+  eq(classificarDocumento(107, VSG), "VENDA", "tipo 107 em VSG = VENDA");
+  eq(classificarDocumento(104, VSG), null, "tipo 104 em VSG = recusado");
+
+  // O 77 sai. Não é compatibilidade histórica: o seed da migração
+  // `20260514100000` descreve-o como "default Softreis" e descreve o 7
+  // como "detectado 2024-01-01 sample". Nunca houve instalação a usá-lo.
+  eq(classificarDocumento(77, G), null, "tipo 77 recusado — era o default do fornecedor");
+  eq(classificarDocumento(77, VSG), null, "…nos dois circuitos");
+  check(!CLASSIFICACAO[G].venda.has(77), "77 não está declarado em G");
+  check(CLASSIFICACAO[G].venda.has(7), "…e 7 está");
+  eq([...CLASSIFICACAO[G].venda], [7], "G: venda = {7}");
+  eq([...CLASSIFICACAO[G].reversao], [104, 27], "G: reversao = {104, 27}");
+  eq([...CLASSIFICACAO[VSG].venda], [107], "VSG: venda = {107}");
+  eq([...CLASSIFICACAO[VSG].reversao], [], "VSG: reversao = {}");
+}
+
+console.log("\n=== o dia combinado: G + VSG ===");
+{
+  // 01/08/2026, Silveirense. O que a rev68 leu do ERP: 282 linhas de
+  // balcão e 15 suspensas. Aqui só interessa que as duas fontes somam
+  // no mesmo universo sem se sobreporem.
+  const balcao = [
+    linha({ externalLineId: 900001, tipoDocumento: 7, quantidade: 3, valorLinha: 12.5 }),
+    linha({ externalLineId: 900002, tipoDocumento: 7, quantidade: 1, valorLinha: 4.2 }),
+    // A NC do circuito G: chega do ERP já negativa.
+    linha({ externalLineId: 900003, tipoDocumento: 104, quantidade: -1, valorLinha: -4.2 }),
+  ].map((r) => normOk(r, G));
+  const suspensas = [NIMED_VSG, ENALAPRIL_VSG].map((r) => normOk(r, VSG));
+
+  const unidadesG = balcao.reduce((a, l) => a + l.quantidadeAssinada, 0);
+  const unidadesVSG = suspensas.reduce((a, l) => a + l.quantidadeAssinada, 0);
+  eq(unidadesG, 3, "G: 3 + 1 − 1 = 3 unidades líquidas");
+  eq(unidadesVSG, 3, "VSG: 2 + 1 = 3 unidades");
+  eq(unidadesG + unidadesVSG, 6, "líquido G+VSG = 6");
+
+  // Nenhuma linha se sobrepõe: a chave inclui a origem.
+  const chaves = [...balcao, ...suspensas].map((l) => `${l.sourceNamespace}|${l.externalLineId}`);
+  eq(new Set(chaves).size, chaves.length, "as 5 linhas têm 5 chaves canónicas distintas");
+  // E as classes ficam separadas por circuito, como o ERP as tem.
+  eq(balcao.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length, 1, "a única reversão é do circuito G");
+  eq(suspensas.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length, 0, "o circuito VSG não traz reversões");
+}
+
 console.log("\n=== a NC da VSG é lida pelo circuito G, e SÓ por ele ===");
 {
   // ISTO É O CENTRO DA RONDA. As 107 relações de
@@ -239,15 +290,16 @@ console.log("\n=== tipo NÃO declarado é RECUSADO, não promovido a venda ===")
   // A primeira versão devolvia VENDA para tudo o que não fosse reversão:
   // uma NC com tipo não listado virava venda e o total SUBIA em vez de
   // descer — um erro que soma na direcção errada e parece plausível.
-  for (const desconhecido of [1, 2, 7, 55, 99, 200]) {
+  // 7 saiu desta lista: passou a ser o tipo REAL da venda de balcão.
+  for (const desconhecido of [1, 2, 55, 77, 99, 200]) {
     eq(classificarDocumento(desconhecido, G), null, `G: tipo ${desconhecido} recusado`);
     eq(classificarDocumento(desconhecido, VSG), null, `VSG: tipo ${desconhecido} recusado`);
   }
   eq(classificarDocumento(null, G), null, "sem tipo de documento não se adivinha");
   // Os dois circuitos numeram em colunas diferentes de tabelas
   // diferentes. O mesmo número não significa o mesmo dos dois lados.
-  eq(classificarDocumento(77, G), "VENDA", "77 é a venda de balcão");
-  eq(classificarDocumento(77, VSG), null, "…e não significa nada no circuito VSG");
+  eq(classificarDocumento(7, G), "VENDA", "7 é a venda de balcão");
+  eq(classificarDocumento(7, VSG), null, "…e não significa nada no circuito VSG");
   eq(classificarDocumento(107, VSG), "VENDA", "107 é a factura suspensa");
   eq(classificarDocumento(107, G), null, "…e não significa nada no circuito G");
   const r = normalizar(linha({ tipoDocumento: 99 }), VSG);

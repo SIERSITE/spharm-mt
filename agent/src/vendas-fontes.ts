@@ -139,11 +139,29 @@ export type LinhaVendaCanonica = {
  * ── O QUE ESTÁ PROVADO NO ERP DA SILVEIRENSE ─────────────────────────
  *
  * Circuito G, `[Atendimento]`:
- *   · 77       venda de balcão
+ *   · 7        venda de balcão
  *   · 104, 27  nota de crédito / anulação
  *
  * Circuito VSG, `[Atendimento Susp]`:
  *   · 107      factura de venda suspensa
+ *
+ * ── PORQUE É 7 E NÃO 77 ──────────────────────────────────────────────
+ *
+ * O 77 esteve aqui durante meses e nunca foi observado em ERP nenhum.
+ * A prova está no seed da própria migração que criou
+ * `TipoDocumentoClassificacao`, que se descreve a si mesmo:
+ *
+ *     (77, 'VENDA',   'Venda comercial (default Softreis)')
+ *     (7,  'UNKNOWN', 'Caracterização pendente — detectado 2024-01-01 sample')
+ *
+ * O 77 era o *default do fornecedor* — uma suposição. O 7 foi *detectado
+ * numa amostra real* e ficou por caracterizar. A rev68 correu em
+ * produção e fechou a questão: 282 linhas do dia, 282 com tipo 7, zero
+ * com 77.
+ *
+ * Por isso o 77 sai em vez de ficar "por compatibilidade": não há
+ * instalação nenhuma a usá-lo, e uma lista de tipos que inclui um número
+ * que ninguém viu é a mesma classe de erro que trouxe esta ronda aqui.
  *
  * E o conjunto de reversões do circuito VSG está VAZIO de propósito, não
  * por esquecimento. As 107 relações de `Atendimento_SuspFT_NC_Susp`
@@ -158,7 +176,7 @@ export const CLASSIFICACAO: Record<
   { venda: ReadonlySet<number>; reversao: ReadonlySet<number> }
 > = {
   [NAMESPACES.ATENDIMENTO_DETALHE]: {
-    venda: new Set([77]),
+    venda: new Set([7]),
     reversao: new Set([104, 27]),
   },
   [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: {
