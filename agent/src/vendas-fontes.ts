@@ -139,11 +139,39 @@ export type LinhaVendaCanonica = {
  * ── O QUE ESTÁ PROVADO NO ERP DA SILVEIRENSE ─────────────────────────
  *
  * Circuito G, `[Atendimento]`:
- *   · 7        venda de balcão
+ *   · 7, 2     venda de balcão
  *   · 104, 27  nota de crédito / anulação
  *
  * Circuito VSG, `[Atendimento Susp]`:
  *   · 107      factura de venda suspensa
+ *
+ * Auditoria de 2024-01-01 a 2026-07-31 na Silveirense, sobre
+ * `[Atendimento]` + `[Atendimento Detalhe]`:
+ *
+ *     tipoDoc      linhas    quantidade
+ *     2                 9             9
+ *     7           387 378       396 132
+ *     27              418          -436
+ *     104           6 138        -6 202
+ *
+ * O sinal separa-os sozinho: 7 e 2 somam, 27 e 104 subtraem. E o ERP já
+ * grava a reversão negativa — ver `assinarQuantidade`.
+ *
+ * ── O TIPO 2 ─────────────────────────────────────────────────────────
+ *
+ * Nove linhas em dois anos e meio. É raro, e é venda: o documento
+ * G/669909 (2024-01-30 09:56:17) tem `Fim Venda = 'S'` e cinco linhas,
+ * todas de quantidade positiva, e o operador confirmou que é uma factura
+ * normal da série G.
+ *
+ * A evidência é diferente da do 7 em quantidade mas não em natureza: um
+ * documento inspeccionado ao detalhe mais o agregado dos dois anos. Não
+ * é o `(2, 'UNKNOWN', 'Caracterização pendente')` que a migração semeou
+ * às cegas — é o que se viu.
+ *
+ * Nove linhas não movem um total. Recusá-las movia: cada corrida do
+ * backfill histórico terminaria com linhas por classificar, e um
+ * relatório com avisos permanentes é um relatório que se deixa de ler.
  *
  * ── PORQUE É 7 E NÃO 77 ──────────────────────────────────────────────
  *
@@ -176,7 +204,7 @@ export const CLASSIFICACAO: Record<
   { venda: ReadonlySet<number>; reversao: ReadonlySet<number> }
 > = {
   [NAMESPACES.ATENDIMENTO_DETALHE]: {
-    venda: new Set([7]),
+    venda: new Set([7, 2]),
     reversao: new Set([104, 27]),
   },
   [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: {

@@ -508,11 +508,11 @@ type SaleLinePayload = {
 
 | Raw value | Class | Notas |
 |---|---|---|
-| `7` | `VENDA` | Venda de balcão. **Observado** na Silveirense: 282/282 linhas em 01/08/2026 |
-| `104` | `DEVOLUCAO_ANULACAO` | Nota de crédito / anulação. Chega do ERP já com quantidade e valor negativos |
-| `27` | `DEVOLUCAO_ANULACAO` | Anulação |
-| `107` | `VENDA` | Factura de venda suspensa (série VSG) — circuito `[Atendimento Susp]`, não `[Atendimento]` |
-| `2` | `UNKNOWN` | Incluído nas contagens; **não** marcado como venda |
+| `7` | `VENDA` | Venda de balcão. **Observado**: 387 378 linhas / 396 132 un (2024-01 → 2026-07) |
+| `2` | `VENDA` | Factura da série G, rara. **Observado**: 9 linhas / 9 un no mesmo período. Documento G/669909 inspeccionado ao detalhe: `Fim Venda='S'`, 5 linhas todas positivas |
+| `104` | `DEVOLUCAO_ANULACAO` | Nota de crédito. **Observado**: 6 138 linhas / −6 202 un. Chega do ERP já negativa |
+| `27` | `DEVOLUCAO_ANULACAO` | Anulação. **Observado**: 418 linhas / −436 un |
+| `107` | `VENDA` | Factura de venda suspensa — circuito `[Atendimento Susp]`, não `[Atendimento]`. A série varia por farmácia (VSG na Silveirense, VSC no Segurado); a classificação é pelo tipo, não pela série |
 | `77` | — | **Removido.** Default do fornecedor, nunca observado |
 | outro | recusado | A linha não entra e o tipo aparece no log, para ser declarado |
 

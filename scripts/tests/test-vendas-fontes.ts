@@ -195,6 +195,17 @@ console.log("\n=== a matriz de classificação, tipo a tipo ===");
   eq(classificarDocumento(107, VSG), "VENDA", "tipo 107 em VSG = VENDA");
   eq(classificarDocumento(104, VSG), null, "tipo 104 em VSG = recusado");
 
+  // O tipo 2: 9 linhas / 9 unidades em dois anos e meio, todas positivas.
+  // Documento G/669909 inspeccionado ao detalhe — Fim Venda='S', 5 linhas
+  // positivas — e confirmado pelo operador como factura normal da série G.
+  eq(classificarDocumento(2, G), "VENDA", "tipo 2 em G = VENDA");
+  eq(classificarDocumento(2, VSG), null, "…e recusado no circuito VSG");
+  {
+    const l = normOk(linha({ tipoDocumento: 2, quantidade: 5, valorLinha: 21.4 }), G);
+    eq(l.classe, "VENDA", "uma linha de tipo 2 entra como venda");
+    eq(l.quantidadeAssinada, 5, "…com a quantidade positiva");
+  }
+
   // O 77 sai. Não é compatibilidade histórica: o seed da migração
   // `20260514100000` descreve-o como "default Softreis" e descreve o 7
   // como "detectado 2024-01-01 sample". Nunca houve instalação a usá-lo.
@@ -202,7 +213,7 @@ console.log("\n=== a matriz de classificação, tipo a tipo ===");
   eq(classificarDocumento(77, VSG), null, "…nos dois circuitos");
   check(!CLASSIFICACAO[G].venda.has(77), "77 não está declarado em G");
   check(CLASSIFICACAO[G].venda.has(7), "…e 7 está");
-  eq([...CLASSIFICACAO[G].venda], [7], "G: venda = {7}");
+  eq([...CLASSIFICACAO[G].venda], [7, 2], "G: venda = {7, 2}");
   eq([...CLASSIFICACAO[G].reversao], [104, 27], "G: reversao = {104, 27}");
   eq([...CLASSIFICACAO[VSG].venda], [107], "VSG: venda = {107}");
   eq([...CLASSIFICACAO[VSG].reversao], [], "VSG: reversao = {}");
@@ -290,8 +301,9 @@ console.log("\n=== tipo NÃO declarado é RECUSADO, não promovido a venda ===")
   // A primeira versão devolvia VENDA para tudo o que não fosse reversão:
   // uma NC com tipo não listado virava venda e o total SUBIA em vez de
   // descer — um erro que soma na direcção errada e parece plausível.
-  // 7 saiu desta lista: passou a ser o tipo REAL da venda de balcão.
-  for (const desconhecido of [1, 2, 55, 77, 99, 200]) {
+  // 7 e 2 sairam desta lista: sao os tipos REAIS da venda de balcao,
+  // ambos observados no ERP. O que fica sao numeros que ninguem viu.
+  for (const desconhecido of [1, 55, 77, 99, 200]) {
     eq(classificarDocumento(desconhecido, G), null, `G: tipo ${desconhecido} recusado`);
     eq(classificarDocumento(desconhecido, VSG), null, `VSG: tipo ${desconhecido} recusado`);
   }
