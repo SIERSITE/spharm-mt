@@ -48,19 +48,44 @@ const RULE = "─".repeat(78);
 const DOUBLE = "═".repeat(78);
 
 /**
- * Os dois casos com prova visual no ERP. Os restantes entram por --cnps.
+ * A população que faltava: as unidades do circuito VSG, por CNP, em
+ * 01/08/2026 na Silveirense.
+ *
+ * ── O GATE É SOBRE VSG, NÃO SOBRE O TOTAL DO PRODUTO ─────────────────
+ *
+ * Estes números são o componente que o SPharm.MT não via — as vendas
+ * suspensas — e NÃO o total diário do artigo. O mesmo CNP pode ter
+ * vendas de balcão no mesmo dia, e tem:
+ *
+ *   9599258   VSG/54684 10:26:38 qtd 2   +   G 12:48:26 qtd 1   → 3 no dia
+ *   3742780   VSG/54685 10:39:04 qtd 1   +   G 18:17:16 qtd 1   → 2 no dia
+ *
+ * São documentos distintos: `externalSaleId` distinto, `externalSaleLineId`
+ * distinto, hora distinta. Não há duplicação nenhuma — há dois eventos.
+ *
+ * Um gate sobre o líquido total acusaria estes dois como divergentes e
+ * mandaria procurar um erro que não existe. O gate certo é o que mede a
+ * população que estava em falta.
  *
  * NÚMEROS, não strings. `Produto.cnp` é `Int @unique` no schema, e o
  * Postgres devolve-o como número — foi comparar um com o outro por `===`
- * que fez esta secção reportar `liquido=0` para CNPs que existiam no
- * raw. Ver `AlvoCnp`.
+ * que fez esta secção reportar `liquido=0` para CNPs que existiam no raw.
  */
-const CNPS_PROVADOS: Array<{ cnp: number; nome: string; esperado: number }> = [
-  { cnp: 9599258, nome: "NIMED", esperado: 2 },
-  { cnp: 3626884, nome: "ENALAPRIL", esperado: 1 },
+const CNPS_PROVADOS: Array<{ cnp: number; nome: string; esperadoVsg: number }> = [
+  { cnp: 9599258, nome: "NIMED", esperadoVsg: 2 },
+  { cnp: 3626884, nome: "ENALAPRIL", esperadoVsg: 1 },
+  { cnp: 5667761, nome: "", esperadoVsg: 1 },
+  { cnp: 5002639, nome: "", esperadoVsg: 1 },
+  { cnp: 5304472, nome: "", esperadoVsg: 1 },
+  { cnp: 7888784, nome: "", esperadoVsg: 1 },
+  { cnp: 7888800, nome: "", esperadoVsg: 1 },
+  { cnp: 5674239, nome: "", esperadoVsg: 1 },
+  { cnp: 3742780, nome: "", esperadoVsg: 1 },
+  { cnp: 5736335, nome: "", esperadoVsg: 1 },
+  { cnp: 9629113, nome: "", esperadoVsg: 1 },
 ];
 
-export type AlvoCnp = { cnp: number; nome: string; esperado: number };
+export type AlvoCnp = { cnp: number; nome: string; esperadoVsg: number };
 
 /** Uma linha do raw, reduzida ao que a secção 5 precisa. */
 export type LinhaCnp = {
@@ -75,38 +100,77 @@ export type LinhaCnp = {
 export type ResumoCnp = {
   cnp: number;
   nome: string;
+  /** Unidades do circuito VSG. É sobre isto que o gate decide. */
+  vsg: number;
+  /** Unidades de venda do circuito G (balcão), sem as reversões. */
+  g: number;
+  /** Reversões, de qualquer circuito. Negativas. */
+  reversoes: number;
+  /** Tudo somado — o que o artigo fez no dia. Informativo. */
   liquido: number;
-  esperado: number;
+  esperadoVsg: number;
   bate: boolean | null;
   linhas: LinhaCnp[];
 };
 
+/** Um CNP pedido na linha de comandos, com ou sem VSG esperado. */
+export type CnpPedido = { cnp: number; esperadoVsg: number };
+
 /**
- * `--cnps=9599258,3626884` → `[9599258, 3626884]`.
+ * `--cnps=9599258,3626884` → sem expectativa.
+ * `--cnps=9599258:2,3742780:1` → com o VSG esperado por CNP.
+ *
+ * A segunda forma existe para o comando não ficar soldado a um dia: a
+ * lista embutida é a de 01/08/2026 na Silveirense, e outra reconciliação
+ * precisa dos seus próprios números sem editar código.
  *
  * Recusa o que não for inteiro em vez de o deixar cair em silêncio: um
  * CNP mal escrito que desaparecesse da lista daria uma reconciliação
  * "sem problemas" que nunca chegou a olhar para ele.
  */
-export function parseCnps(bruto: string | undefined): number[] {
+export function parseCnps(bruto: string | undefined): CnpPedido[] {
   if (!bruto) return [];
   const partes = bruto.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
-  const maus = partes.filter((p) => !/^\d+$/.test(p));
+  const maus = partes.filter((p) => !/^\d+(:\d+)?$/.test(p));
   if (maus.length > 0) {
-    throw new Error(`--cnps: não são CNP válidos: ${maus.join(", ")}. O CNP é um inteiro.`);
+    throw new Error(
+      `--cnps: não são CNP válidos: ${maus.join(", ")}. ` +
+        `Formato: 9599258 ou 9599258:2 (CNP:unidades VSG esperadas).`,
+    );
   }
-  return partes.map((p) => Number(p));
+  return partes.map((p) => {
+    const [cnp, esperado] = p.split(":");
+    return {
+      cnp: Number(cnp),
+      esperadoVsg: esperado === undefined ? Number.NaN : Number(esperado),
+    };
+  });
 }
 
-/** Os alvos, sem duplicados, com os provados primeiro. */
-export function alvosCnp(extra: number[]): AlvoCnp[] {
-  const vistos = new Set(CNPS_PROVADOS.map((c) => c.cnp));
-  return [
-    ...CNPS_PROVADOS,
-    ...extra
-      .filter((c) => !vistos.has(c))
-      .map((cnp) => ({ cnp, nome: "", esperado: Number.NaN })),
-  ];
+/**
+ * Os alvos, sem duplicados, com os provados primeiro.
+ *
+ * Um CNP repetido na linha de comandos não sobrepõe o valor provado sem
+ * o dizer: se trouxer um esperado diferente, é um conflito e atira. Dois
+ * números para a mesma coisa, com um deles a ganhar em silêncio, é como
+ * se perde a confiança num relatório.
+ */
+export function alvosCnp(extra: CnpPedido[]): AlvoCnp[] {
+  const porCnp = new Map(CNPS_PROVADOS.map((c) => [c.cnp, c]));
+  for (const e of extra) {
+    const provado = porCnp.get(e.cnp);
+    if (!provado) {
+      porCnp.set(e.cnp, { cnp: e.cnp, nome: "", esperadoVsg: e.esperadoVsg });
+      continue;
+    }
+    if (!Number.isNaN(e.esperadoVsg) && e.esperadoVsg !== provado.esperadoVsg) {
+      throw new Error(
+        `--cnps: ${e.cnp} pede VSG=${e.esperadoVsg} mas o valor provado é ` +
+          `${provado.esperadoVsg}. Corrigir um dos dois — não se escolhe em silêncio.`,
+      );
+    }
+  }
+  return [...porCnp.values()];
 }
 
 /**
@@ -119,15 +183,24 @@ export function alvosCnp(extra: number[]): AlvoCnp[] {
  * Postgres nunca teria sido escrito.
  */
 export function resumirPorCnp(linhas: LinhaCnp[], alvos: AlvoCnp[]): ResumoCnp[] {
+  const soma = (ls: LinhaCnp[]) => ls.reduce((a, l) => a + l.unidades, 0);
   return alvos.map((alvo) => {
     const minhas = linhas.filter((l) => l.cnp === alvo.cnp);
-    const liquido = minhas.reduce((a, l) => a + l.unidades, 0);
+    const reversao = (l: LinhaCnp) => l.classe === "DEVOLUCAO_ANULACAO";
+    // O gate mede a venda suspensa. As reversões do circuito VSG não
+    // existem por construção (as NC entram por [Atendimento Detalhe]),
+    // mas se aparecerem contam aqui na mesma — é assim que se veria.
+    const vsg = soma(minhas.filter((l) => l.sourceNamespace === NS_VSG));
+    const g = soma(minhas.filter((l) => l.sourceNamespace === NS_G && !reversao(l)));
     return {
       cnp: alvo.cnp,
       nome: minhas[0]?.designacao ?? alvo.nome,
-      liquido,
-      esperado: alvo.esperado,
-      bate: Number.isNaN(alvo.esperado) ? null : liquido === alvo.esperado,
+      vsg,
+      g,
+      reversoes: soma(minhas.filter(reversao)),
+      liquido: soma(minhas),
+      esperadoVsg: alvo.esperadoVsg,
+      bate: Number.isNaN(alvo.esperadoVsg) ? null : vsg === alvo.esperadoVsg,
       linhas: minhas,
     };
   });
@@ -181,9 +254,13 @@ async function main(): Promise<number> {
   }
 
   const { de, ate } = janelaDoDia(values.dia);
-  let cnpsExtra: number[];
+  // Resolvido AQUI, antes de abrir ligação nenhuma: um argumento mal
+  // escrito tem de falhar em seco, e não a meio de um relatório já
+  // meio-impresso contra a base de produção.
+  let alvos: AlvoCnp[];
   try {
-    cnpsExtra = parseCnps(values.cnps);
+    const cnpsExtra: CnpPedido[] = parseCnps(values.cnps);
+    alvos = alvosCnp(cnpsExtra);
   } catch (err) {
     console.error("✗", err instanceof Error ? err.message : String(err));
     return 1;
@@ -380,8 +457,7 @@ async function main(): Promise<number> {
     // A janela é a MESMA das secções 1/2 — o mesmo `dataVenda >= de AND
     // < ate`, sem restrição adicional. Uma linha do dia que aqui não
     // apareça tem de ter uma razão impressa, não desaparecer no JOIN.
-    const cnps = alvosCnp(cnpsExtra);
-    const listaCnp = cnps.map((c) => c.cnp);
+    const listaCnp = alvos.map((c) => c.cnp);
 
     const detalhe = await prisma.$queryRaw<
       Array<{
@@ -429,7 +505,7 @@ async function main(): Promise<number> {
         unidades: n(d.unidades),
         documentos: d.documentos,
       })),
-      cnps,
+      alvos,
     );
 
     console.log("");
@@ -437,33 +513,53 @@ async function main(): Promise<number> {
     console.log("5. OS CNP CONHECIDOS");
     console.log(RULE);
     console.log("  produtoId -> Produto.id -> Produto.cnp   (cnp e Int, nao string)");
+    console.log("");
+    console.log("  O GATE E SOBRE O CIRCUITO VSG, nao sobre o total do artigo.");
+    console.log("  Estes CNP sao a populacao que faltava — as vendas suspensas.");
+    console.log("  O mesmo artigo pode ter venda de balcao no mesmo dia, noutro");
+    console.log("  documento e a outra hora: isso soma ao liquido e NAO e duplicacao.");
     const nSemProduto = Number(semProduto[0]?.n ?? 0);
     if (nSemProduto > 0) {
+      console.log("");
       console.log(
         `  ⚠ ${nSemProduto} linha(s) do dia sem produtoId — nao atribuiveis a CNP nenhum`,
       );
     }
+    console.log("");
+    console.log(
+      `  ${"CNP".padEnd(10)}${"designacao".padEnd(34)}${"VSG".padStart(6)}${"G".padStart(6)}` +
+        `${"NC".padStart(6)}${"liquido".padStart(9)}   gate`,
+    );
     for (const r of resumos) {
-      const veredicto = r.bate === null ? "" : r.bate ? "  OK" : `  ✗ esperado ${r.esperado}`;
+      const veredicto =
+        r.bate === null ? "" : r.bate ? "OK" : `✗ VSG esperado ${r.esperadoVsg}`;
       if (r.bate === false) problemas++;
-      console.log("");
       console.log(
-        `  ${r.cnp}  ${String(r.nome).slice(0, 40).padEnd(42)}liquido=${fmt(r.liquido, 0)}${veredicto}`,
+        `  ${String(r.cnp).padEnd(10)}${String(r.nome).slice(0, 33).padEnd(34)}` +
+          `${fmt(r.vsg, 0).padStart(6)}${fmt(r.g, 0).padStart(6)}${fmt(r.reversoes, 0).padStart(6)}` +
+          `${fmt(r.liquido, 0).padStart(9)}   ${veredicto}`,
       );
       if (r.linhas.length === 0) {
         console.log(
           idsConhecidos.has(r.cnp)
-            ? "    (no catalogo, mas sem linhas de venda neste dia)"
-            : "    (CNP nao existe em Produto — o catalogo nao o conhece)",
+            ? "             (no catalogo, mas sem linhas de venda neste dia)"
+            : "             (CNP nao existe em Produto — o catalogo nao o conhece)",
         );
       }
       for (const d of r.linhas) {
         const circuito = d.sourceNamespace === NS_VSG ? "VSG" : "G";
         console.log(
-          `    ${circuito.padEnd(5)}${d.classe.padEnd(21)}${fmt(d.unidades, 0).padStart(6)}  ${d.documentos ?? ""}`,
+          `             ${circuito.padEnd(5)}${d.classe.padEnd(21)}` +
+            `${fmt(d.unidades, 0).padStart(6)}  ${d.documentos ?? ""}`,
         );
       }
     }
+    const gates = resumos.filter((r) => r.bate !== null);
+    console.log("");
+    console.log(
+      `  gate VSG: ${gates.filter((r) => r.bate).length}/${gates.length} CNP com as ` +
+        `unidades suspensas esperadas`,
+    );
 
     // ── 6. Linhas por classificar ────────────────────────────────
     const naoElegiveis = await prisma.$queryRaw<Array<{ motivo: string; n: bigint }>>(Prisma.sql`

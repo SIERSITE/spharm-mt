@@ -58,63 +58,90 @@ const VSG = "ATENDIMENTO_SUSP_DETALHE";
  * durante meses e têm prova documental (VSG/54684 e VSG/54688). Os
  * restantes nove são do balcão.
  */
-const ESPERADO: Array<[number, number, string]> = [
-  [9599258, 2, VSG],
-  [3626884, 1, VSG],
-  [5667761, 1, G],
-  [5002639, 1, G],
-  [5304472, 1, G],
-  [7888784, 1, G],
-  [7888800, 1, G],
-  [5674239, 1, G],
-  [3742780, 1, G],
-  [5736335, 1, G],
-  [9629113, 1, G],
+const ESPERADO_VSG: Array<[number, number]> = [
+  [9599258, 2],
+  [3626884, 1],
+  [5667761, 1],
+  [5002639, 1],
+  [5304472, 1],
+  [7888784, 1],
+  [7888800, 1],
+  [5674239, 1],
+  [3742780, 1],
+  [5736335, 1],
+  [9629113, 1],
 ];
 
-/** As linhas tal como a query as devolve: `cnp` NÚMERO, não string. */
-const LINHAS: LinhaCnp[] = ESPERADO.map(([cnp, qtd, ns]) => ({
+/** As linhas VSG, tal como a query as devolve: `cnp` NÚMERO, não string. */
+const LINHAS_VSG: LinhaCnp[] = ESPERADO_VSG.map(([cnp, qtd]) => ({
   cnp,
   designacao: `PRODUTO ${cnp}`,
-  sourceNamespace: ns,
+  sourceNamespace: VSG,
   classe: "VENDA",
   unidades: qtd,
-  documentos: ns === VSG ? (cnp === 9599258 ? "VSG/54684" : "VSG/54688") : "G/816760",
+  documentos: cnp === 9599258 ? "VSG/54684" : cnp === 3742780 ? "VSG/54685" : "VSG/54688",
 }));
 
-console.log("=== os 11 CNP do dia, um a um ===");
+/**
+ * As vendas de BALCÃO do mesmo dia, nos mesmos artigos.
+ *
+ * Documentos distintos, horas distintas — dois eventos reais, não uma
+ * duplicação. É por causa destes que o gate não pode ser sobre o
+ * líquido total do artigo.
+ */
+const LINHAS_G: LinhaCnp[] = [
+  { cnp: 9599258, designacao: "PRODUTO 9599258", sourceNamespace: G, classe: "VENDA", unidades: 1, documentos: "G/816801" },
+  { cnp: 3742780, designacao: "PRODUTO 3742780", sourceNamespace: G, classe: "VENDA", unidades: 1, documentos: "G/816860" },
+];
+
+const LINHAS: LinhaCnp[] = [...LINHAS_VSG, ...LINHAS_G];
+
+console.log("=== os 11 CNP do dia: o gate é sobre VSG ===");
 {
-  const alvos = alvosCnp(ESPERADO.map(([cnp]) => cnp));
-  const resumos = resumirPorCnp(LINHAS, alvos);
-  for (const [cnp, qtd] of ESPERADO) {
+  const resumos = resumirPorCnp(LINHAS, alvosCnp([]));
+  for (const [cnp, qtd] of ESPERADO_VSG) {
     const r = resumos.find((x) => x.cnp === cnp);
     check(r !== undefined, `${cnp} aparece no resumo`);
-    eq(r?.liquido, qtd, `${cnp} → ${qtd}`);
+    eq(r?.vsg, qtd, `${cnp} → VSG = ${qtd}`);
+    eq(r?.bate, true, `…e o gate passa`);
   }
-  eq(resumos.length, ESPERADO.length, "nem um CNP a mais nem a menos");
+  eq(resumos.length, ESPERADO_VSG.length, "nem um CNP a mais nem a menos");
+  eq(resumos.filter((r) => r.bate === true).length, 11, "11/11 no gate VSG");
 }
 
-console.log("\n=== os dois gates obrigatórios ===");
+console.log("\n=== venda de balcão no mesmo dia NÃO é duplicação ===");
 {
-  // Estes dois vêm com `esperado` embutido no reconciliador, porque têm
-  // prova visual no ERP. Os outros nove entram por --cnps sem esperado.
+  // Os dois casos que mostraram que o gate anterior estava errado.
   const resumos = resumirPorCnp(LINHAS, alvosCnp([]));
-  const nimed = resumos.find((r) => r.cnp === 9599258);
-  const enalapril = resumos.find((r) => r.cnp === 3626884);
-  eq(nimed?.liquido, 2, "9599258 NIMED = 2");
-  eq(nimed?.bate, true, "…e bate com o esperado");
-  eq(enalapril?.liquido, 1, "3626884 ENALAPRIL = 1");
-  eq(enalapril?.bate, true, "…e bate com o esperado");
-  eq(nimed?.nome, "PRODUTO 9599258", "a designação vem do catálogo, não do alvo");
+  const nimed = resumos.find((r) => r.cnp === 9599258)!;
+  eq(nimed.vsg, 2, "9599258: VSG = 2  (VSG/54684, 10:26:38)");
+  eq(nimed.g, 1, "…mais 1 de balcão  (G, 12:48:26)");
+  eq(nimed.liquido, 3, "…logo o total do dia é 3");
+  eq(nimed.bate, true, "…e o gate passa na mesma, porque mede o VSG");
+
+  const eutirox = resumos.find((r) => r.cnp === 3742780)!;
+  eq(eutirox.vsg, 1, "3742780: VSG = 1  (VSG/54685, 10:39:04)");
+  eq(eutirox.g, 1, "…mais 1 de balcão  (G, 18:17:16)");
+  eq(eutirox.liquido, 2, "…logo o total do dia é 2");
+  eq(eutirox.bate, true, "…e o gate passa na mesma");
+
+  // O que o gate anterior fazia: media o líquido e acusava estes dois.
+  eq(nimed.liquido === 2, false, "um gate sobre o líquido acusaria o 9599258");
+  eq(eutirox.liquido === 1, false, "…e o 3742780");
+
+  const outro = resumos.find((r) => r.cnp === 3626884)!;
+  eq(outro.g, 0, "3626884 não teve balcão nesse dia");
+  eq(outro.liquido, 1, "…logo o líquido coincide com o VSG");
+  eq(nimed.nome, "PRODUTO 9599258", "a designação vem do catálogo, não do alvo");
 }
 
 console.log("\n=== a comparação é numérica, não textual ===");
 {
   // O defeito exacto. Se alguém voltar a comparar com string, isto cai.
   const resumos = resumirPorCnp(LINHAS, [
-    { cnp: 9599258, nome: "NIMED", esperado: 2 },
+    { cnp: 9599258, nome: "NIMED", esperadoVsg: 2 },
   ]);
-  eq(resumos[0]?.liquido, 2, "cnp numérico casa com cnp numérico");
+  eq(resumos[0]?.vsg, 2, "cnp numérico casa com cnp numérico");
   check(typeof LINHAS[0]!.cnp === "number", "a linha traz o cnp como NÚMERO");
   check(typeof resumos[0]!.cnp === "number", "…e o resumo também");
 
@@ -126,53 +153,85 @@ console.log("\n=== a comparação é numérica, não textual ===");
   eq(comoDantes.length, 0, "9599258 === \"9599258\" é falso — era isto que dava zero");
 }
 
-console.log("\n=== somar várias linhas do mesmo CNP ===");
+console.log("\n=== G, VSG, NC e líquido, todos visíveis ===");
 {
-  // Um produto vendido em G e em VSG no mesmo dia soma os dois; uma NC
-  // do circuito G reduz. É o mesmo sinal que a agregação aplica.
+  // O relatório continua a mostrar as quatro medidas. O gate decide
+  // sobre uma delas; as outras três são para se ver o dia.
   const misto: LinhaCnp[] = [
     { cnp: 5667761, designacao: "X", sourceNamespace: G, classe: "VENDA", unidades: 3, documentos: "G/1" },
     { cnp: 5667761, designacao: "X", sourceNamespace: VSG, classe: "VENDA", unidades: 2, documentos: "VSG/1" },
     { cnp: 5667761, designacao: "X", sourceNamespace: G, classe: "DEVOLUCAO_ANULACAO", unidades: -1, documentos: "G/2" },
   ];
-  const r = resumirPorCnp(misto, [{ cnp: 5667761, nome: "", esperado: 4 }]);
-  eq(r[0]?.liquido, 4, "3 + 2 − 1 = 4");
-  eq(r[0]?.bate, true, "…e bate com o esperado");
-  eq(r[0]?.linhas.length, 3, "as três linhas ficam visíveis no detalhe");
+  const r = resumirPorCnp(misto, [{ cnp: 5667761, nome: "", esperadoVsg: 2 }])[0]!;
+  eq(r.vsg, 2, "VSG = 2");
+  eq(r.g, 3, "G = 3 (a venda, sem a reversão)");
+  eq(r.reversoes, -1, "NC = −1");
+  eq(r.liquido, 4, "líquido = 3 + 2 − 1 = 4");
+  eq(r.bate, true, "o gate olha para o VSG, e passa");
+  eq(r.linhas.length, 3, "as três linhas ficam visíveis no detalhe");
 }
 
 console.log("\n=== um CNP sem linhas não inventa nada ===");
 {
-  const r = resumirPorCnp(LINHAS, [{ cnp: 1234567, nome: "", esperado: Number.NaN }]);
-  eq(r[0]?.liquido, 0, "CNP sem linhas → líquido 0");
+  const r = resumirPorCnp(LINHAS, [{ cnp: 1234567, nome: "", esperadoVsg: Number.NaN }]);
+  eq(r[0]?.vsg, 0, "CNP sem linhas → VSG 0");
+  eq(r[0]?.liquido, 0, "…e líquido 0");
   eq(r[0]?.bate, null, "…e sem esperado não há veredicto");
   eq(r[0]?.linhas.length, 0, "…e nenhuma linha no detalhe");
 }
 {
-  const r = resumirPorCnp(LINHAS, [{ cnp: 9599258, nome: "NIMED", esperado: 99 }]);
+  const r = resumirPorCnp(LINHAS, [{ cnp: 9599258, nome: "NIMED", esperadoVsg: 99 }]);
   eq(r[0]?.bate, false, "esperado errado é reportado como falha, não arredondado");
 }
-
-console.log("\n=== --cnps aceita inteiros e recusa o resto ===");
 {
-  eq(parseCnps("9599258,3626884"), [9599258, 3626884], "lista simples");
-  eq(parseCnps(" 9599258 , 3626884 "), [9599258, 3626884], "espaços à volta");
+  // O caso que importa: o artigo existe e vendeu ao balcão, mas a venda
+  // suspensa NÃO chegou. O líquido não é zero e o gate tem de acusar.
+  const soBalcao: LinhaCnp[] = [
+    { cnp: 9599258, designacao: "NIMED", sourceNamespace: G, classe: "VENDA", unidades: 1, documentos: "G/816801" },
+  ];
+  const r = resumirPorCnp(soBalcao, [{ cnp: 9599258, nome: "NIMED", esperadoVsg: 2 }])[0]!;
+  eq(r.liquido, 1, "há líquido…");
+  eq(r.vsg, 0, "…mas VSG = 0");
+  eq(r.bate, false, "…e o gate acusa — é esta a falha que interessa apanhar");
+}
+
+console.log("\n=== --cnps aceita CNP e CNP:esperado ===");
+{
+  eq(
+    parseCnps("9599258,3626884"),
+    [{ cnp: 9599258, esperadoVsg: NaN }, { cnp: 3626884, esperadoVsg: NaN }],
+    "lista simples, sem expectativa",
+  );
+  eq(
+    parseCnps("9599258:2,3742780:1"),
+    [{ cnp: 9599258, esperadoVsg: 2 }, { cnp: 3742780, esperadoVsg: 1 }],
+    "com o VSG esperado por CNP",
+  );
   eq(parseCnps(""), [], "vazio → nenhum");
   eq(parseCnps(undefined), [], "ausente → nenhum");
-  for (const mau of ["abc", "9599258,abc", "95992.58", "-9599258", "95 99258"]) {
+  for (const mau of ["abc", "9599258,abc", "95992.58", "-9599258", "95 99258", "9599258:", "9599258:x"]) {
     let atirou = false;
     try { parseCnps(mau); } catch { atirou = true; }
     check(atirou, `"${mau}" é recusado`, "um CNP mal escrito não pode desaparecer em silêncio");
   }
 }
 
-console.log("\n=== alvosCnp não duplica os provados ===");
+console.log("\n=== alvosCnp: os 11 provados, sem duplicar ===");
 {
-  const a = alvosCnp([9599258, 3626884, 5667761]);
-  eq(a.length, 3, "os dois provados + um novo = 3, não 5");
-  eq(a.filter((x) => x.cnp === 9599258).length, 1, "9599258 aparece uma vez");
-  eq(a[0]?.esperado, 2, "…e mantém o esperado do provado, não o NaN do extra");
-  eq(a.map((x) => x.cnp), [9599258, 3626884, 5667761], "provados primeiro, pela ordem conhecida");
+  const a = alvosCnp([]);
+  eq(a.length, 11, "os 11 CNP da população VSG em falta");
+  eq(a[0]?.esperadoVsg, 2, "9599258 espera 2 unidades VSG");
+  eq(a.filter((x) => x.esperadoVsg === 1).length, 10, "os outros dez esperam 1");
+
+  const b = alvosCnp([{ cnp: 9599258, esperadoVsg: NaN }, { cnp: 1234567, esperadoVsg: NaN }]);
+  eq(b.length, 12, "repetir um provado não o duplica; um novo acrescenta");
+  eq(b.find((x) => x.cnp === 9599258)?.esperadoVsg, 2, "…e o provado mantém o seu esperado");
+
+  // Dois números para a mesma coisa, com um a ganhar em silêncio, é como
+  // se perde a confiança num relatório.
+  let atirou = false;
+  try { alvosCnp([{ cnp: 9599258, esperadoVsg: 5 }]); } catch { atirou = true; }
+  check(atirou, "um esperado em conflito com o provado ATIRA, não escolhe");
 }
 
 console.log("\n=== a secção 5 usa a mesma janela das secções 1/2 ===");
