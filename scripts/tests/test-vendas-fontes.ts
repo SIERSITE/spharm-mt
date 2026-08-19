@@ -596,6 +596,30 @@ console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
     !/\[Fim Venda\][^\n]*Susp|Susp[^\n]*\[Fim Venda\]/.test(fontes),
     "o reader VSG não usa [Fim Venda] em lado nenhum",
   );
+
+  // A auditoria do circuito suspenso mostra [Fim Venda] como coluna,
+  // porque é informação útil — mas nunca o usa para decidir. Foi
+  // refutado como classificador com 11 868 linhas e zero matches.
+  const audit = readFileSync(
+    new URL("../../agent/src/commands/vendas-susp-tipos.ts", import.meta.url), "utf8");
+  const codigoAudit = audit
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+    .join("\n");
+  check(
+    /fimVenda/.test(codigoAudit),
+    "a auditoria MOSTRA [Fim Venda] — é dado útil",
+  );
+  check(
+    !/WHERE[^\n]*[Ff]im\s*Venda|AND[^\n]*[Ff]im\s*Venda/.test(codigoAudit),
+    "…mas nunca o usa num WHERE ou AND",
+    "usá-lo como filtro devolvia zero — já custou uma ronda inteira",
+  );
+  check(
+    !/reversao: new Set/.test(codigoAudit) && !/CLASSIFICACAO\[[^\]]+\]\s*=/.test(codigoAudit),
+    "…e a auditoria não classifica nada: só conta",
+  );
 }
 
 console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");
