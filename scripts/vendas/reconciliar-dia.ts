@@ -47,11 +47,91 @@ import { SQL_LINHAS_ELEGIVEIS, SQL_QUANTIDADE_ASSINADA } from "@/lib/aggregate/v
 const RULE = "─".repeat(78);
 const DOUBLE = "═".repeat(78);
 
-/** Os dois casos com prova visual no ERP. Os restantes entram por --cnps. */
-const CNPS_PROVADOS: Array<{ cnp: string; nome: string; esperado: number }> = [
-  { cnp: "9599258", nome: "NIMED", esperado: 2 },
-  { cnp: "3626884", nome: "ENALAPRIL", esperado: 1 },
+/**
+ * Os dois casos com prova visual no ERP. Os restantes entram por --cnps.
+ *
+ * NÚMEROS, não strings. `Produto.cnp` é `Int @unique` no schema, e o
+ * Postgres devolve-o como número — foi comparar um com o outro por `===`
+ * que fez esta secção reportar `liquido=0` para CNPs que existiam no
+ * raw. Ver `AlvoCnp`.
+ */
+const CNPS_PROVADOS: Array<{ cnp: number; nome: string; esperado: number }> = [
+  { cnp: 9599258, nome: "NIMED", esperado: 2 },
+  { cnp: 3626884, nome: "ENALAPRIL", esperado: 1 },
 ];
+
+export type AlvoCnp = { cnp: number; nome: string; esperado: number };
+
+/** Uma linha do raw, reduzida ao que a secção 5 precisa. */
+export type LinhaCnp = {
+  cnp: number;
+  designacao: string | null;
+  sourceNamespace: string;
+  classe: string;
+  unidades: number;
+  documentos: string | null;
+};
+
+export type ResumoCnp = {
+  cnp: number;
+  nome: string;
+  liquido: number;
+  esperado: number;
+  bate: boolean | null;
+  linhas: LinhaCnp[];
+};
+
+/**
+ * `--cnps=9599258,3626884` → `[9599258, 3626884]`.
+ *
+ * Recusa o que não for inteiro em vez de o deixar cair em silêncio: um
+ * CNP mal escrito que desaparecesse da lista daria uma reconciliação
+ * "sem problemas" que nunca chegou a olhar para ele.
+ */
+export function parseCnps(bruto: string | undefined): number[] {
+  if (!bruto) return [];
+  const partes = bruto.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  const maus = partes.filter((p) => !/^\d+$/.test(p));
+  if (maus.length > 0) {
+    throw new Error(`--cnps: não são CNP válidos: ${maus.join(", ")}. O CNP é um inteiro.`);
+  }
+  return partes.map((p) => Number(p));
+}
+
+/** Os alvos, sem duplicados, com os provados primeiro. */
+export function alvosCnp(extra: number[]): AlvoCnp[] {
+  const vistos = new Set(CNPS_PROVADOS.map((c) => c.cnp));
+  return [
+    ...CNPS_PROVADOS,
+    ...extra
+      .filter((c) => !vistos.has(c))
+      .map((cnp) => ({ cnp, nome: "", esperado: Number.NaN })),
+  ];
+}
+
+/**
+ * Agrupa as linhas por CNP e confronta com o esperado.
+ *
+ * Puro de propósito: o defeito que isto fecha não estava no SQL — a
+ * query devolvia as linhas certas. Estava na comparação em JavaScript,
+ * onde `9599258 === "9599258"` é falso e o total dava sempre zero. Um
+ * teste sem base de dados apanha isso; um teste que precisasse de
+ * Postgres nunca teria sido escrito.
+ */
+export function resumirPorCnp(linhas: LinhaCnp[], alvos: AlvoCnp[]): ResumoCnp[] {
+  return alvos.map((alvo) => {
+    const minhas = linhas.filter((l) => l.cnp === alvo.cnp);
+    const liquido = minhas.reduce((a, l) => a + l.unidades, 0);
+    return {
+      cnp: alvo.cnp,
+      nome: minhas[0]?.designacao ?? alvo.nome,
+      liquido,
+      esperado: alvo.esperado,
+      bate: Number.isNaN(alvo.esperado) ? null : liquido === alvo.esperado,
+      linhas: minhas,
+    };
+  });
+}
 
 const NS_G = "ATENDIMENTO_DETALHE";
 const NS_VSG = "ATENDIMENTO_SUSP_DETALHE";
@@ -101,10 +181,13 @@ async function main(): Promise<number> {
   }
 
   const { de, ate } = janelaDoDia(values.dia);
-  const cnpsExtra = (values.cnps ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  let cnpsExtra: number[];
+  try {
+    cnpsExtra = parseCnps(values.cnps);
+  } catch (err) {
+    console.error("✗", err instanceof Error ? err.message : String(err));
+    return 1;
+  }
 
   const tenant = await getTenantBySlug(values.tenant);
   if (!tenant) {
@@ -285,15 +368,24 @@ async function main(): Promise<number> {
     }
 
     // ── 5. Os CNP conhecidos ─────────────────────────────────────
-    const cnps = [
-      ...CNPS_PROVADOS,
-      ...cnpsExtra
-        .filter((c) => !CNPS_PROVADOS.some((p) => p.cnp === c))
-        .map((cnp) => ({ cnp, nome: "", esperado: NaN })),
-    ];
+    //
+    // A resolução é explícita e em três saltos, sem atalhos:
+    //
+    //     IngestVendaLinhaRaw."produtoId" → Produto."id" → Produto."cnp"
+    //
+    // O CNP não é o `produtoId` (cuid), nem o `externalProductId`
+    // (CodigoID do ERP, um namespace local que pode ser reciclado). É a
+    // identidade do catálogo, e é `Int`.
+    //
+    // A janela é a MESMA das secções 1/2 — o mesmo `dataVenda >= de AND
+    // < ate`, sem restrição adicional. Uma linha do dia que aqui não
+    // apareça tem de ter uma razão impressa, não desaparecer no JOIN.
+    const cnps = alvosCnp(cnpsExtra);
+    const listaCnp = cnps.map((c) => c.cnp);
+
     const detalhe = await prisma.$queryRaw<
       Array<{
-        cnp: string | null;
+        cnp: number;
         designacao: string | null;
         ns: string;
         classe: string;
@@ -308,32 +400,65 @@ async function main(): Promise<number> {
         FROM "IngestVendaLinhaRaw" r
         JOIN "Produto" p ON p."id" = r."produtoId"
        WHERE r."dataVenda" >= ${de} AND r."dataVenda" < ${ate}
-         AND p."cnp" = ANY(${cnps.map((c) => c.cnp)})
+         AND p."cnp" = ANY(${listaCnp}::int[])
        GROUP BY p."cnp", p."designacao", r."sourceNamespace", r."tipoDocumentoClass"
        ORDER BY p."cnp"
     `);
+
+    // O CNP existe no catálogo? Distingue "produto desconhecido" de
+    // "produto conhecido e não vendido" — dois zeros com causas
+    // diferentes, que antes eram o mesmo `liquido=0`.
+    const noCatalogo = await prisma.$queryRaw<Array<{ cnp: number; id: string }>>(Prisma.sql`
+      SELECT "cnp", "id" FROM "Produto" WHERE "cnp" = ANY(${listaCnp}::int[])
+    `);
+    const idsConhecidos = new Set(noCatalogo.map((p) => p.cnp));
+
+    // Linhas do dia que não chegam a ter produto resolvido. Não são
+    // atribuíveis a CNP nenhum, e é isso que tem de ficar dito.
+    const semProduto = await prisma.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`
+      SELECT COUNT(*) AS n FROM "IngestVendaLinhaRaw"
+       WHERE "dataVenda" >= ${de} AND "dataVenda" < ${ate} AND "produtoId" IS NULL
+    `);
+
+    const resumos = resumirPorCnp(
+      detalhe.map((d) => ({
+        cnp: Number(d.cnp),
+        designacao: d.designacao,
+        sourceNamespace: d.ns,
+        classe: d.classe,
+        unidades: n(d.unidades),
+        documentos: d.documentos,
+      })),
+      cnps,
+    );
 
     console.log("");
     console.log(RULE);
     console.log("5. OS CNP CONHECIDOS");
     console.log(RULE);
-    for (const alvo of cnps) {
-      const linhas = detalhe.filter((d) => d.cnp === alvo.cnp);
-      const total = linhas.reduce((a, d) => a + n(d.unidades), 0);
-      const nome = linhas[0]?.designacao ?? alvo.nome ?? "";
-      const veredicto = Number.isNaN(alvo.esperado)
-        ? ""
-        : total === alvo.esperado
-          ? "  OK"
-          : `  ✗ esperado ${alvo.esperado}`;
-      if (!Number.isNaN(alvo.esperado) && total !== alvo.esperado) problemas++;
+    console.log("  produtoId -> Produto.id -> Produto.cnp   (cnp e Int, nao string)");
+    const nSemProduto = Number(semProduto[0]?.n ?? 0);
+    if (nSemProduto > 0) {
+      console.log(
+        `  ⚠ ${nSemProduto} linha(s) do dia sem produtoId — nao atribuiveis a CNP nenhum`,
+      );
+    }
+    for (const r of resumos) {
+      const veredicto = r.bate === null ? "" : r.bate ? "  OK" : `  ✗ esperado ${r.esperado}`;
+      if (r.bate === false) problemas++;
       console.log("");
-      console.log(`  ${alvo.cnp}  ${String(nome).slice(0, 40).padEnd(42)}liquido=${fmt(total, 0)}${veredicto}`);
-      if (linhas.length === 0) {
-        console.log("    (sem linhas — o produto nao foi vendido, ou nao foi ingerido)");
+      console.log(
+        `  ${r.cnp}  ${String(r.nome).slice(0, 40).padEnd(42)}liquido=${fmt(r.liquido, 0)}${veredicto}`,
+      );
+      if (r.linhas.length === 0) {
+        console.log(
+          idsConhecidos.has(r.cnp)
+            ? "    (no catalogo, mas sem linhas de venda neste dia)"
+            : "    (CNP nao existe em Produto — o catalogo nao o conhece)",
+        );
       }
-      for (const d of linhas) {
-        const circuito = d.ns === NS_VSG ? "VSG" : "G";
+      for (const d of r.linhas) {
+        const circuito = d.sourceNamespace === NS_VSG ? "VSG" : "G";
         console.log(
           `    ${circuito.padEnd(5)}${d.classe.padEnd(21)}${fmt(d.unidades, 0).padStart(6)}  ${d.documentos ?? ""}`,
         );
@@ -382,9 +507,19 @@ async function main(): Promise<number> {
   return problemas === 0 ? 0 : 1;
 }
 
-main()
-  .then((c) => process.exit(c))
-  .catch((err) => {
-    console.error("✗", err instanceof Error ? err.message : err);
-    process.exit(1);
-  });
+// Só corre quando é INVOCADO, não quando é importado.
+//
+// Sem esta guarda, importar o módulo para testar `resumirPorCnp` punha o
+// CLI a arrancar: imprimia o "Uso:" e chamava `process.exit` a competir
+// com o do teste. Um teste que morre com o exit code de outra coisa é um
+// teste que às vezes passa.
+// O separador no início não é decoração: sem ele, `test-reconciliar-dia.ts`
+// também casa — e o teste voltava a arrancar o CLI.
+if (/[\\/]reconciliar-dia\.(ts|js|mjs|cjs)$/.test(process.argv[1] ?? "")) {
+  main()
+    .then((c) => process.exit(c))
+    .catch((err) => {
+      console.error("✗", err instanceof Error ? err.message : err);
+      process.exit(1);
+    });
+}

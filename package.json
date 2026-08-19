@@ -61,6 +61,7 @@
     "aggregate:vendamensal": "tsx scripts/aggregate-vendamensal.ts",
     "vendas:reaggregate": "tsx scripts/vendas/reaggregate.ts",
     "vendas:reconciliar": "tsx scripts/vendas/reconciliar-dia.ts",
+    "test:reconciliar-dia": "tsx scripts/tests/test-reconciliar-dia.ts",
     "ingest:list-orphans": "tsx scripts/list-orphan-products.ts",
     "ingest:backfill-services": "tsx scripts/backfill-non-stock-services.ts",
     "pipeline:health": "tsx scripts/pipeline-health.ts",
