@@ -272,6 +272,19 @@ COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # raiz de scripts/, não em catalog-master/. Sem ele, o `fill-rules`
 # encontra "0 nível 1, 0 nível 2" e não classifica nada.
 COPY scripts/seed-taxonomy.ts ./scripts/seed-taxonomy.ts
+# A sequência de vendas: classificar o tipo de documento, propagar a
+# classificação ao staging já ingerido, reagregar e reconciliar.
+#
+# `classify-tipodoc` faltava, e o sintoma foi o de sempre — só na VPS, a
+# meio da correcção do universo de vendas:
+#   npm run ingest:classify-tipodoc → ERR_MODULE_NOT_FOUND /app/scripts/classify-tipodoc.ts
+#
+# `scripts/vendas/` entra inteiro porque tem exactamente estes dois
+# ficheiros e ambos são operacionais — ao contrário de `scripts/admin`
+# e `scripts/catalog-master`, onde a maioria é investigação.
+COPY scripts/classify-tipodoc.ts ./scripts/classify-tipodoc.ts
+COPY scripts/reclassify-ingest-vendas.ts ./scripts/reclassify-ingest-vendas.ts
+COPY scripts/vendas ./scripts/vendas
 COPY --from=builder /app/generated ./generated
 
 # Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro

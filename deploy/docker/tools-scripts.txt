@@ -107,6 +107,36 @@ catalog:promote-global
 admin:reset-user-password
 env:doctor
 
+# ── Vendas: classificação, reagregação, reconciliação ────────────────
+# A sequência que fecha uma correcção do universo de vendas, por ordem
+# de execução. Corre no servidor, contra a base do tenant.
+#
+# A falha que trouxe estes quatro para cá:
+#
+#   docker compose --profile tools run --rm migrate npm run ingest:classify-tipodoc
+#   ERR_MODULE_NOT_FOUND: /app/scripts/classify-tipodoc.ts
+#
+# O comando existia no package.json e o ficheiro não estava na imagem —
+# o mesmo sintoma do `tenant:create` que motivou este manifesto, no
+# mesmo sítio, pela mesma razão: a lista dizia que `ingest:*` era
+# "manutenção pontual" e não operação. Deixou de ser verdade no dia em
+# que a classificação de um tipo de documento passou a ser um passo
+# obrigatório para as vendas contarem.
+#
+# `classify-tipodoc` escreve UMA linha em `TipoDocumentoClassificacao`,
+# e essa tabela ganha ao que o agent envia (ver o endpoint
+# sales-lines). É por isso que é operacional e não investigação: sem
+# ela, linhas de venda entram e não somam.
+ingest:classify-tipodoc
+# Propaga a classificação nova ao staging que já foi ingerido. Sem isto,
+# a correcção só vale para o que vier a seguir.
+ingest:reclassify-vendas
+# Reconstrói VendaMensal a partir do raw. Dry-run por omissão.
+vendas:reaggregate
+# O gate: conta G, VSG, reversões, documentos e duplicados de um dia.
+# Read-only, e falha com exit≠0 se detectar dupla contagem.
+vendas:reconciliar
+
 # ── Pacote do agent ──────────────────────────────────────────────────
 # ATENÇÃO ao que esta linha garante e ao que não garante. A auditoria
 # prova que o CÓDIGO está na imagem — o entrypoint e todos os módulos
@@ -128,6 +158,10 @@ admin:package-agent
 # admin-wizard:*  — PowerShell, corre na máquina do operador
 # catalog:simulate, catalog:audit, catalog:export/import — investigação
 #                   do catálogo, correm na máquina de quem analisa
-# ingest:*        — manutenção pontual de dados, não operação da stack
+# ingest:*        — os restantes. `classify-tipodoc` e
+#                   `reclassify-vendas` SÃO operacionais e estão acima;
+#                   os outros (cleanup-noncanonical-stock,
+#                   reprocess-produto-mapping, backfill-services,
+#                   list-orphans) continuam a ser manutenção pontual
 # test:*, lint, typecheck, dev, build, start — desenvolvimento
 # scheduler       — corre no `runner` (serviço worker), não no migrator

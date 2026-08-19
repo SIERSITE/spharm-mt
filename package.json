@@ -83,7 +83,8 @@
     "agent:health": "tsx agent/src/cli.ts health",
     "agent:package": "node agent/build.mjs",
     "agent:publish-base": "tsx scripts/admin/upload-agent-base.ts",
-    "test:tenant-resolution": "tsx scripts/tests/test-tenant-resolution.ts"
+    "test:tenant-resolution": "tsx scripts/tests/test-tenant-resolution.ts",
+    "test:migrator-entrypoints": "node deploy/docker/audit-tools-entrypoints.mjs . --dockerfile deploy/docker/Dockerfile"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
