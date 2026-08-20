@@ -27,6 +27,7 @@ import {
   ESTADOS_VENDA_G,
   NAMESPACES,
   NATUREZA_POR_NAMESPACE,
+  REGRA_TRANSFERENCIA,
   assinarQuantidade,
   classificarDocumento,
   comporDocumento,
@@ -869,6 +870,58 @@ console.log("\n=== naturezaVenda: dimensão, não classe ===");
     for (const t of [1, 7, 102, 107]) {
       eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem reader`);
     }
+  }
+}
+
+console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
+{
+  // Uma transferência tem dois lados e o nome da série não diz qual
+  // deles o relatório conta. Enquanto o gate mensal não escolher, isto
+  // fica vazio e o reader não corre. Um reader que soma o lado errado dá
+  // um total plausível e errado — a forma de erro que já custou o 77, o
+  // `Fim Venda='S'` e o 107 sem sinal.
+  eq(REGRA_TRANSFERENCIA.direccao, null, "a direcção está por declarar");
+  eq(REGRA_TRANSFERENCIA.series, [], "…e as séries também");
+  check(
+    /vendas-extra-discover/.test(REGRA_TRANSFERENCIA.evidencia),
+    "…e a evidência diz que comando a resolve",
+    "uma constante vazia sem proveniência acaba preenchida por palpite",
+  );
+
+  // A sonda tem de calcular as quatro leituras — não escolher uma.
+  const probe = readFileSync(
+    new URL("../../agent/src/commands/vendas-extra-discover.ts", import.meta.url),
+    "utf8",
+  );
+  for (const h of ["SAIDAS", "ENTRADAS", "AMBAS_SINAL", "AMBAS_ABS"]) {
+    check(probe.includes(h), `a sonda calcula a leitura ${h}`);
+  }
+  check(
+    /GATES_SILVEIRENSE_2026/.test(probe) && /avaliarGate/.test(probe),
+    "…e compara-as com o gate mensal, não com o olho",
+  );
+  check(
+    /NENHUMA das leituras reproduz o gate/.test(probe),
+    "…e diz o que fazer se nenhuma bater",
+    "sem isso, a ausência de match lê-se como erro da sonda e alguém força uma regra",
+  );
+  // Descoberta, não nomes à mão — a mesma lição da §4 do vendas-susp-tipos.
+  check(
+    /listForeignKeysOut/.test(probe) && /listPrimaryKey/.test(probe) && /listColumns/.test(probe),
+    "a sonda resolve tudo por metadata",
+  );
+  check(
+    /COL_CREDITO_FK = "Atendimento Credito Detalhe ID"/.test(probe),
+    "o crédito parte da FK que o stocksmov já usa desde a rev33",
+    "é a única ponte comprovada para o universo de crédito",
+  );
+  // Os namespaces existem, mas continuam fail-closed até haver reader.
+  for (const ns of [NAMESPACES.VENDAS_CREDITO, NAMESPACES.GUIAS_TRANSFERENCIA]) {
+    eq(
+      CLASSIFICACAO[ns].venda.size + CLASSIFICACAO[ns].reversao.size + CLASSIFICACAO[ns].peloSinal.size,
+      0,
+      `${ns}: nenhum tipo declarado — nada entra por engano`,
+    );
   }
 }
 

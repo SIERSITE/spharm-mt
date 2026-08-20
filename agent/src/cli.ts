@@ -40,6 +40,7 @@ import { vendasSuspCadeia } from "./commands/vendas-susp-cadeia.js";
 import { vendasSuspNc } from "./commands/vendas-susp-nc.js";
 import { vendasSuspTipos } from "./commands/vendas-susp-tipos.js";
 import { vendasParidade } from "./commands/vendas-paridade.js";
+import { vendasExtraDiscover } from "./commands/vendas-extra-discover.js";
 import { productsPreview } from "./commands/products-preview.js";
 import { stockPreview } from "./commands/stock-preview.js";
 import { salesPreview } from "./commands/sales-preview.js";
@@ -107,6 +108,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "vendas-susp-tipos": {
     run: vendasSuspTipos,
     desc: "Inventaria os tipos documentais do circuito suspenso, procura reversões pelo SINAL e cruza-as com o circuito G. Read-only, --db aponta outra base.",
+  },
+  "vendas-extra-discover": {
+    run: vendasExtraDiscover,
+    desc: "Descobre por FK as fontes de venda a crédito e de guias de transferência, e testa as quatro leituras possíveis da transferência contra o gate mensal do relatório oficial. Read-only.",
   },
   "vendas-paridade": {
     run: vendasParidade,

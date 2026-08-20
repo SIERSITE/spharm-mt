@@ -292,6 +292,53 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
 };
 
 /**
+ * Como se lê uma guia de transferência.
+ *
+ * ── PORQUE É QUE ISTO ESTÁ VAZIO ─────────────────────────────────────
+ *
+ * Uma transferência tem dois lados. O relatório do SPharm é de VENDAS da
+ * farmácia, e nada no nome da série diz qual dos lados ele conta: as
+ * saídas, as entradas, ou as duas com sinal. As três leituras são
+ * plausíveis e duas estão erradas.
+ *
+ * O gate mensal decide-o objectivamente — Silveirense 2026, Jan 3228,
+ * Fev 2168, Mar 1760, Abr 2266, Mai 2853, Jun 2789, Jul 4617 — e
+ * `vendas-extra-discover` calcula as quatro leituras contra ele com
+ * tolerância zero.
+ *
+ * Até esse comando correr contra o ERP, isto fica por declarar e o
+ * reader recusa-se a correr. Um reader que soma o lado errado produz um
+ * total plausível e errado, que é a forma de erro que este projecto já
+ * pagou três vezes: o 77, o `Fim Venda='S'`, e o 107 sem sinal.
+ *
+ * ── O QUE PREENCHER, DEPOIS DA DESCOBERTA ────────────────────────────
+ *
+ *   direccao : a leitura marcada com ★ no output da §2.4
+ *   series   : as séries que essa leitura abrange (vazio = todas)
+ *
+ * E preferir uma propriedade ESTRUTURAL à série sempre que exista: se o
+ * cabeçalho expuser origem/destino ou um tipo de documento que separe as
+ * duas direcções, é isso que deve entrar aqui, porque um nome de série
+ * muda entre instalações e uma FK não.
+ */
+export type DireccaoTransferencia = "SAIDAS" | "ENTRADAS" | "AMBAS_SINAL" | "AMBAS_ABS";
+
+export type RegraTransferencia = {
+  /** `null` = por declarar. O reader recusa-se a correr. */
+  direccao: DireccaoTransferencia | null;
+  /** Séries abrangidas. Vazio = todas as do universo de transferências. */
+  series: readonly string[];
+  /** De onde veio esta declaração. Para não se perder a proveniência. */
+  evidencia: string;
+};
+
+export const REGRA_TRANSFERENCIA: RegraTransferencia = {
+  direccao: null,
+  series: [],
+  evidencia: "por declarar — correr `vendas-extra-discover` e usar a leitura marcada com ★",
+};
+
+/**
  * A classe de uma linha, dado o tipo de documento, o circuito de onde
  * veio e a quantidade. Fail-closed: o que não está declarado é recusado.
  *
