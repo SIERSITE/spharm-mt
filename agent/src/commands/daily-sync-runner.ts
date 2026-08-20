@@ -28,8 +28,13 @@ import {
   paraPayload,
   resumoSchema,
   sqlAtendimentoDetalhe,
+  sqlAtendimentoCredito,
   sqlAtendimentoSuspDetalhe,
+  descobrirSchemaCredito,
+  namespaceDaSerieCredito,
+  txtSerie,
   type FonteRow,
+  type FonteVenda,
   type ResultadoFonte,
   type SourceNamespace,
 } from "../vendas-fontes.js";
@@ -372,10 +377,11 @@ async function pipelineStock(
  * descoberta de schema falhar nessa instalacao, o dia ja gravou as
  * vendas de balcao antes de o problema aparecer.
  */
-type FonteVenda = {
+type FonteSqlPronta = {
   namespace: SourceNamespace;
   rotulo: string;
   sql: string | null;
+  namespacePorLinha?: (row: FonteRow) => SourceNamespace | null;
 };
 
 async function pipelineSales(
@@ -400,11 +406,12 @@ async function pipelineSales(
   ]);
   for (const linha of resumoSchema(susp, at, cab)) logger.log(linha);
 
-  const fontes: Array<{
-    namespace: SourceNamespace;
-    rotulo: string;
-    fonte: ResultadoFonte;
-  }> = [
+  // AS MESMAS TRÊS FONTES do backfill, com as MESMAS regras. Um reader
+  // correcto no bootstrap e outro no daily foi exactamente o defeito do
+  // `Fim Venda` — o histórico ficava certo e cada noite voltava a
+  // divergir.
+  const credito = await descobrirSchemaCredito(pool);
+  const fontes: FonteVenda[] = [
     {
       namespace: NAMESPACES.ATENDIMENTO_DETALHE,
       rotulo: "Atendimento Detalhe",
@@ -414,6 +421,12 @@ async function pipelineSales(
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
       fonte: sqlAtendimentoSuspDetalhe(susp, cab),
+    },
+    {
+      namespace: NAMESPACES.GUIAS_TRANSFERENCIA,
+      rotulo: "Atendimento Credito (serie decide a natureza)",
+      fonte: sqlAtendimentoCredito(credito),
+      namespacePorLinha: (row) => namespaceDaSerieCredito(txtSerie(row.serie)),
     },
   ];
 
@@ -446,7 +459,12 @@ async function pipelineSales(
     }
     await lerFonte(
       pool, client, farmaciaId, date,
-      { namespace: f.namespace, rotulo: f.rotulo, sql: f.fonte.sql },
+      {
+        namespace: f.namespace,
+        rotulo: f.rotulo,
+        sql: f.fonte.sql,
+        namespacePorLinha: f.namespacePorLinha,
+      },
       counts, logger,
     );
   }
@@ -458,7 +476,7 @@ async function lerFonte(
   client: SaasClient,
   farmaciaId: string,
   date: string,
-  fonte: FonteVenda,
+  fonte: FonteSqlPronta,
   counts: PipelineRunCounts,
   logger: DailySyncLogger
 ): Promise<void> {
@@ -483,7 +501,20 @@ async function lerFonte(
 
     const items: Record<string, unknown>[] = [];
     for (const row of rs.recordset) {
-      const r = normalizar(row, fonte.namespace);
+      // A MESMA regra do backfill: no circuito de crédito é a série que
+      // decide a natureza da linha, não a tabela.
+      const ns = fonte.namespacePorLinha ? fonte.namespacePorLinha(row) : fonte.namespace;
+      if (ns === null) {
+        porClassificar++;
+        counts.salesSkipped++;
+        if (porClassificar <= 5) {
+          logger.log(
+            `    ⚠ linha ${row.externalLineId} ignorada: serie "${row.serie ?? "(nula)"}" por declarar`,
+          );
+        }
+        continue;
+      }
+      const r = normalizar(row, ns);
       if ("erro" in r) {
         // Nao entra em silencio: uma linha por classificar e um erro de
         // ingestao, nao uma gaveta chamada UNKNOWN.

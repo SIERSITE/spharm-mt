@@ -40,8 +40,13 @@ import {
   paraPayload,
   resumoSchema,
   sqlAtendimentoDetalhe,
+  sqlAtendimentoCredito,
   sqlAtendimentoSuspDetalhe,
+  descobrirSchemaCredito,
+  namespaceDaSerieCredito,
+  txtSerie,
   type FonteRow,
+  type FonteVenda,
   type ResultadoFonte,
   type SourceNamespace,
 } from "../vendas-fontes.js";
@@ -1189,11 +1194,8 @@ export async function runSalesPipeline(
   ]);
   for (const linha of resumoSchema(susp, at, cab)) console.log(linha);
 
-  const fontes: Array<{
-    namespace: SourceNamespace;
-    rotulo: string;
-    fonte: ResultadoFonte;
-  }> = [
+  const credito = await descobrirSchemaCredito(pool);
+  const fontes: FonteVenda[] = [
     {
       namespace: NAMESPACES.ATENDIMENTO_DETALHE,
       rotulo: "Atendimento Detalhe",
@@ -1203,6 +1205,16 @@ export async function runSalesPipeline(
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
       rotulo: "Atendimento Susp Detalhe",
       fonte: sqlAtendimentoSuspDetalhe(susp, cab),
+    },
+    // O circuito `[Atendimento Credito]`. A natureza de cada linha vem
+    // da SÉRIE, não da tabela: na Silveirense as `VCG_1` que lá vivem
+    // são guias de transferência, e uma série por declarar é recusada
+    // com o nome dela no log.
+    {
+      namespace: NAMESPACES.GUIAS_TRANSFERENCIA,
+      rotulo: "Atendimento Credito (serie decide a natureza)",
+      fonte: sqlAtendimentoCredito(credito),
+      namespacePorLinha: (row) => namespaceDaSerieCredito(txtSerie(row.serie)),
     },
   ];
 
@@ -1261,7 +1273,20 @@ export async function runSalesPipeline(
 
       const items: Record<string, unknown>[] = [];
       for (const row of rs.recordset) {
-        const r = normalizar(row, fonte.namespace);
+        // O namespace pode depender da linha: no circuito de crédito é a
+        // série que diz se aquilo é uma guia de transferência.
+        const ns = f.namespacePorLinha ? f.namespacePorLinha(row) : fonte.namespace;
+        if (ns === null) {
+          porClassificar++;
+          if (porClassificar <= 5) {
+            console.log(
+              `    ⚠ linha ${row.externalLineId} ignorada: serie "${row.serie ?? "(nula)"}" por declarar — ` +
+                `ver SERIE_CIRCUITO_CREDITO em vendas-fontes.ts`,
+            );
+          }
+          continue;
+        }
+        const r = normalizar(row, ns);
         if ("erro" in r) {
           porClassificar++;
           if (porClassificar <= 5) {

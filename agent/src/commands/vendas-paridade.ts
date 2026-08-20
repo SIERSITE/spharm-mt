@@ -27,12 +27,13 @@ import {
   CLASSIFICACAO,
   ESTADOS_VENDA_G,
   NAMESPACES,
-  REGRA_TRANSFERENCIA,
   descobrirCabecalhoSusp,
   descobrirSchemaAtendimento,
+  descobrirSchemaCredito,
   descobrirSchemaSusp,
+  namespaceDaSerieCredito,
+  sqlAtendimentoCredito,
 } from "../vendas-fontes.js";
-import { descobrirCredito, faltasCredito } from "./vendas-extra-discover.js";
 import {
   ANTES_SPHARM_MT_2026,
   GATES_SILVEIRENSE_2026,
@@ -244,48 +245,68 @@ export async function vendasParidade(): Promise<number> {
     }
     const normal = soma(comU, suspensas);
 
-    // ── CRÉDITO: distinguir "sem reader" de "zero documentos" ────
+    // ── O circuito [Atendimento Credito], por SÉRIE ──────────────
     //
-    // São coisas diferentes e a diferença importa. A rev75 dizia "sem
-    // reader" quando na verdade não tinha sequer procurado as tabelas
-    // como deve ser — e um zero sem explicação lê-se como facto.
+    // A tabela chama-se "Credito" e as suas séries não são todas
+    // crédito: na Silveirense a VCG_1 são guias de transferência. Quem
+    // decide é a série, e séries por declarar aparecem à parte — nunca
+    // somadas a uma natureza que ninguém confirmou.
     const credito = vazio();
-    const esquemaCredito = await descobrirCredito(pool);
-    const faltasCred = faltasCredito(esquemaCredito);
+    const transferencia = vazio();
+    const porDeclarar = new Map<string, number>();
+    const esquemaCredito = await descobrirSchemaCredito(pool);
+    const rc = sqlAtendimentoCredito(esquemaCredito);
     let estadoCredito: string;
-    if (!esquemaCredito.detalheTabela) {
-      estadoCredito = "SEM TABELAS — este ERP não tem circuito de crédito";
-    } else if (faltasCred.length > 0) {
-      estadoCredito = `SEM READER — falta: ${faltasCred.join(", ")}`;
+    let estadoTransf: string;
+
+    if (rc.estado === "AUSENTE") {
+      estadoCredito = "SEM TABELAS — este ERP não tem o circuito";
+      estadoTransf = "SEM TABELAS — este ERP não tem o circuito";
+    } else if (rc.estado === "POR_LIGAR") {
+      estadoCredito = `SEM READER — falta: ${rc.faltam.join(", ")}`;
+      estadoTransf = estadoCredito;
     } else {
       const r = await pool
         .request()
         .input("from", sql.NVarChar, `${args.ano}-01-01`)
         .input("to", sql.NVarChar, `${args.ano + 1}-01-01`)
-        .query<{ mes: number; unidades: number }>(`
+        .query<{ mes: number; serie: string | null; unidades: number }>(`
           SELECT MONTH(h.${quoteIdent(esquemaCredito.data!)}) AS mes,
+                 h.${quoteIdent(esquemaCredito.serie!)} AS serie,
                  SUM(CAST(d.${quoteIdent(esquemaCredito.quantidade!)} AS FLOAT)) AS unidades
-            FROM [dbo].${quoteIdent(esquemaCredito.detalheTabela)} d
+            FROM [dbo].${quoteIdent(esquemaCredito.detalheTabela!)} d
             JOIN [dbo].${quoteIdent(esquemaCredito.cabecalhoTabela!)} h
               ON h.${quoteIdent(esquemaCredito.chaveLigacao!)} = d.${quoteIdent(esquemaCredito.chaveLigacao!)}
            WHERE h.${quoteIdent(esquemaCredito.data!)} >= @from
              AND h.${quoteIdent(esquemaCredito.data!)} < @to
-           GROUP BY MONTH(h.${quoteIdent(esquemaCredito.data!)})
+             AND d.${quoteIdent(esquemaCredito.quantidade!)} <> 0
+           GROUP BY MONTH(h.${quoteIdent(esquemaCredito.data!)}),
+                    h.${quoteIdent(esquemaCredito.serie!)}
         `);
-      for (const x of r.recordset) credito.set(Number(x.mes), Number(x.unidades ?? 0));
-      const total = [...credito.values()].reduce((a, b) => a + b, 0);
+      for (const x of r.recordset) {
+        const mes = Number(x.mes);
+        const un = Number(x.unidades ?? 0);
+        const ns = namespaceDaSerieCredito(x.serie);
+        if (ns === NAMESPACES.GUIAS_TRANSFERENCIA) {
+          transferencia.set(mes, (transferencia.get(mes) ?? 0) + un);
+        } else if (ns === NAMESPACES.VENDAS_CREDITO) {
+          credito.set(mes, (credito.get(mes) ?? 0) + un);
+        } else {
+          const s = (x.serie ?? "(nula)").trim();
+          porDeclarar.set(s, (porDeclarar.get(s) ?? 0) + un);
+        }
+      }
+      const totalC = [...credito.values()].reduce((a, b) => a + b, 0);
+      const totalT = [...transferencia.values()].reduce((a, b) => a + b, 0);
       estadoCredito =
-        total === 0
-          ? "READER OK / ZERO DOCUMENTOS no período"
-          : `READER OK — ${Math.round(total)} unidades no ano`;
+        totalC === 0
+          ? "READER OK / ZERO DOCUMENTOS de crédito no período"
+          : `READER OK — ${Math.round(totalC)} unidades`;
+      estadoTransf =
+        totalT === 0
+          ? "READER OK / ZERO DOCUMENTOS de transferência no período"
+          : `READER OK — ${Math.round(totalT)} unidades (serie VCG_1)`;
     }
-
-    // ── TRANSFERÊNCIAS: a regra está por declarar ────────────────
-    const transferencia = vazio();
-    const estadoTransf =
-      REGRA_TRANSFERENCIA.direccao === null
-        ? "SEM READER — regra por declarar (correr vendas-extra-discover)"
-        : `READER OK — direcção ${REGRA_TRANSFERENCIA.direccao}`;
 
     console.log("");
     console.log(RULE);
@@ -303,6 +324,17 @@ export async function vendasParidade(): Promise<number> {
     console.log("  'ZERO DOCUMENTOS' e 'SEM READER' sao coisas diferentes:");
     console.log("  a primeira e um facto sobre o ERP, a segunda e uma lacuna");
     console.log("  nossa. Um zero sem essa distincao le-se como facto.");
+    if (porDeclarar.size > 0) {
+      console.log("");
+      console.log("  ⚠ SERIES DO CIRCUITO [Atendimento Credito] POR DECLARAR:");
+      for (const [s, un] of porDeclarar) {
+        console.log(`      ${s.padEnd(12)} ${Math.round(un)} unidades — RECUSADAS`);
+      }
+      console.log("    Nao foram somadas a natureza nenhuma. Declarar em");
+      console.log("    SERIE_CIRCUITO_CREDITO so com confirmacao funcional:");
+      console.log("    a VCC_1 da Segurado parece-se com a VCG_1 e nao ha prova");
+      console.log("    de que signifique o mesmo.");
+    }
 
     // ── 3. Os gates ───────────────────────────────────────────────
     console.log("");
@@ -311,23 +343,39 @@ export async function vendasParidade(): Promise<number> {
     console.log(RULE);
     const modoA = soma(normal, credito);
     const modoB = soma(modoA, transferencia);
-    for (const l of renderGates(
-      "MODO A — credito=ON, transferencias=OFF",
-      GATES_SILVEIRENSE_2026.map((g) =>
-        avaliarGate(g.mes, g.normalMaisCredito, Math.round(modoA.get(g.mes) ?? 0)),
-      ),
-    )) {
-      console.log(l);
-    }
+    const gA = GATES_SILVEIRENSE_2026.map((g) =>
+      avaliarGate(g.mes, g.normalMaisCredito, Math.round(modoA.get(g.mes) ?? 0)),
+    );
+    const gT = GATES_SILVEIRENSE_2026.map((g) =>
+      avaliarGate(g.mes, g.transferencias, Math.round(transferencia.get(g.mes) ?? 0)),
+    );
+    const gB = GATES_SILVEIRENSE_2026.map((g) =>
+      avaliarGate(g.mes, g.comTransferencias, Math.round(modoB.get(g.mes) ?? 0)),
+    );
+    for (const l of renderGates("MODO A — credito=ON, transferencias=OFF", gA)) console.log(l);
     console.log("");
-    for (const l of renderGates(
-      "MODO B — credito=ON, transferencias=ON",
-      GATES_SILVEIRENSE_2026.map((g) =>
-        avaliarGate(g.mes, g.comTransferencias, Math.round(modoB.get(g.mes) ?? 0)),
-      ),
-    )) {
-      console.log(l);
+    for (const l of renderGates("TRANSFERENCIA isolada (serie VCG_1)", gT)) console.log(l);
+    console.log("");
+    for (const l of renderGates("MODO B — credito=ON, transferencias=ON", gB)) console.log(l);
+
+    // O veredicto, numa linha. Sem isto, fechar a fase depende de alguém
+    // ler três tabelas e somar de cabeça.
+    const todos = [
+      ["MODO A", gA],
+      ["TRANSFERENCIA", gT],
+      ["MODO B", gB],
+    ] as const;
+    console.log("");
+    console.log(RULE);
+    const falhados = todos.filter(([, r]) => r.some((x) => !x.passa)).map(([n]) => n);
+    if (falhados.length === 0) {
+      console.log("  ✓ OS TRES GATES PASSAM 7/7 COM DESVIO ZERO.");
+      console.log("    A paridade com o relatorio oficial esta fechada.");
+    } else {
+      console.log(`  ✗ GATES POR PASSAR: ${falhados.join(", ")}`);
+      console.log("    NAO fazer backfill ate os tres passarem.");
     }
+    console.log(RULE);
 
     console.log("");
     console.log(RULE);

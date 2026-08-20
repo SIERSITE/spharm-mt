@@ -28,6 +28,8 @@ import {
   NAMESPACES,
   NATUREZA_POR_NAMESPACE,
   REGRA_TRANSFERENCIA,
+  SERIE_CIRCUITO_CREDITO,
+  namespaceDaSerieCredito,
   assinarQuantidade,
   classificarDocumento,
   comporDocumento,
@@ -866,12 +868,25 @@ console.log("\n=== naturezaVenda: dimensão, não classe ===");
   // Os readers de crédito/transferência não existem: os tipos estão
   // vazios e tudo é recusado. Inventar um tipo para "já ficar a
   // funcionar" era repetir o 77, declarado meses sem nunca ter sido visto.
-  for (const ns of [NAMESPACES.VENDAS_CREDITO, NAMESPACES.GUIAS_TRANSFERENCIA]) {
+  // O crédito REAL continua sem tipos declarados: as guias VCG_1 saem
+  // pelo namespace das transferências, e nenhuma instalação confirmou
+  // ainda um documento de crédito verdadeiro.
+  {
+    const ns = NAMESPACES.VENDAS_CREDITO;
     eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhum tipo de venda declarado`);
     eq(CLASSIFICACAO[ns].reversao.size, 0, `${ns}: nenhuma reversão declarada`);
     eq(CLASSIFICACAO[ns].peloSinal.size, 0, `${ns}: nenhum tipo pelo sinal`);
+    for (const t of [1, 7, 38, 102, 107]) {
+      eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem evidência`);
+    }
+  }
+  // As guias têm o 38 declarado, e SÓ o 38.
+  {
+    const ns = NAMESPACES.GUIAS_TRANSFERENCIA;
+    eq([...CLASSIFICACAO[ns].peloSinal], [38], `${ns}: só o tipo 38`);
+    eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhuma venda de classe fixa`);
     for (const t of [1, 7, 102, 107]) {
-      eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem reader`);
+      eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado`);
     }
   }
 }
@@ -1016,6 +1031,170 @@ console.log("\n=== o reader de crédito existe e é fail-closed ===");
   );
 }
 
+console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
+{
+  // A tabela chama-se `Atendimento Credito`. Os documentos VCG_1 que lá
+  // vivem NÃO são vendas a crédito — são guias de transferência. É
+  // conhecimento funcional do operador e prevalece sobre o nome físico:
+  // um nome de tabela é uma escolha de quem a criou; a semântica é de
+  // quem a usa.
+  eq(
+    namespaceDaSerieCredito("VCG_1"),
+    NAMESPACES.GUIAS_TRANSFERENCIA,
+    "VCG_1 → GUIAS_TRANSFERENCIA",
+  );
+  eq(
+    naturezaDe(namespaceDaSerieCredito("VCG_1")!),
+    "TRANSFERENCIA",
+    "…e a natureza é TRANSFERENCIA",
+  );
+  check(
+    namespaceDaSerieCredito("VCG_1") !== NAMESPACES.VENDAS_CREDITO,
+    "VCG_1 NUNCA é crédito",
+    "se fosse, a Silveirense veria 3 228 unidades aparecer em Janeiro ao ligar 'vendas a crédito'",
+  );
+  eq(namespaceDaSerieCredito("vcg_1"), NAMESPACES.GUIAS_TRANSFERENCIA, "…e não depende de maiúsculas");
+  eq(namespaceDaSerieCredito("  VCG_1  "), NAMESPACES.GUIAS_TRANSFERENCIA, "…nem de espaços");
+
+  // A Segurado tem VCC_1, tipo 38, no mesmo circuito. Parece-se — e
+  // "parece-se" foi o que declarou o 77, o Fim Venda='S' e o 107 sem
+  // sinal. Sem confirmação funcional, fica de fora.
+  eq(namespaceDaSerieCredito("VCC_1"), null, "VCC_1 NÃO é automaticamente transferência");
+  eq(namespaceDaSerieCredito("VCG"), null, "…nem VCG");
+  eq(namespaceDaSerieCredito(null), null, "…nem uma série nula");
+  eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
+  eq(Object.keys(SERIE_CIRCUITO_CREDITO), ["VCG_1"], "só UMA série está declarada");
+
+  // Tipo 38, pelo SINAL. Resolve sozinho os dois casos observados: os
+  // documentos `Fim Venda='A'` têm quantidade ZERO e são recusados, e
+  // uma guia estornada chega negativa e sai como anulação.
+  const T = NAMESPACES.GUIAS_TRANSFERENCIA;
+  eq(classificarDocumento(38, T, 5), "VENDA", "tipo 38 positivo → VENDA");
+  eq(classificarDocumento(38, T, -5), "DEVOLUCAO_ANULACAO", "tipo 38 negativo → anulação");
+  eq(
+    classificarDocumento(38, T, 0),
+    null,
+    "tipo 38 com quantidade ZERO é RECUSADO",
+    );
+  {
+    const anulado = normalizar(linha({ tipoDocumento: 38, quantidade: 0 }), T);
+    check("erro" in anulado, "um documento anulado (estado A, qtd 0) não vira venda");
+  }
+  const guia = normOk(linha({ tipoDocumento: 38, quantidade: 12 }), T);
+  eq(guia.natureza, "TRANSFERENCIA", "a linha sai com natureza TRANSFERENCIA");
+  eq(guia.quantidadeAssinada, 12, "…e quantidade positiva, sem alterar NORMAL");
+  eq(paraPayload(guia).sourceNamespace, T, "o payload leva o namespace certo");
+  eq(paraPayload(guia).naturezaVenda, "TRANSFERENCIA", "…e a natureza certa");
+
+  // Não se filtra por [Fim Venda]: já foi refutado como classificador
+  // duas vezes, e o zero trata dos anulados sozinho.
+  const fontes = readFileSync(new URL("../../agent/src/vendas-fontes.ts", import.meta.url), "utf8");
+  const r = sqlAtendimentoCredito({
+    existe: true, cabecalhoTabela: "Atendimento Credito",
+    detalheTabela: "Atendimento Credito Detalhe",
+    cabecalhoPk: "Atendimento Credito ID", detalhePk: "Atendimento Credito Detalhe ID",
+    chaveLigacao: "Atendimento Credito ID", data: "Data Venda",
+    serie: "SerieFacturacao", numero: "Numero Documento",
+    tipoDocumento: "Tipo Documento ID", codigoId: "CodigoID", quantidade: "Quantidade",
+    pvpUnitario: null, valorLinha: "Valor_EUR", ivaValor: "IVA",
+    entidadeId: null, sequencia: null,
+  });
+  if (r.estado === "PRONTA") {
+    check(!/Fim Venda/.test(r.sql), "o reader não filtra por [Fim Venda]");
+    check(/AS serie/.test(r.sql), "…e traz a série, que é quem decide a natureza");
+  }
+  check(
+    !/tblMovStocks/i.test(fontes),
+    "as guias NÃO vêm de tblMovStocksCab",
+    "a rev76 avaliou esse universo contra o gate e não reproduziu",
+  );
+}
+
+console.log("\n=== a MESMA regra no backfill e no daily ===");
+{
+  // Foi precisamente este o defeito do `Fim Venda`: o backfill ficava
+  // certo e cada noite voltava a divergir. As três fontes e a resolução
+  // por série têm de estar nos DOIS caminhos.
+  for (const f of ["bootstrap-upload", "daily-sync-runner"]) {
+    const src = readFileSync(
+      new URL(`../../agent/src/commands/${f}.ts`, import.meta.url),
+      "utf8",
+    );
+    check(
+      /sqlAtendimentoCredito\(credito\)/.test(src),
+      `${f}: lê o circuito [Atendimento Credito]`,
+    );
+    check(
+      /namespacePorLinha: \(row\) => namespaceDaSerieCredito\(txtSerie\(row\.serie\)\)/.test(src),
+      `${f}: resolve a natureza pela SÉRIE, por linha`,
+    );
+    check(
+      /namespacePorLinha \? [^\n]*\(row\) : fonte\.namespace/.test(src),
+      `${f}: e usa esse namespace ao normalizar`,
+    );
+    check(
+      /GUIAS_TRANSFERENCIA/.test(src),
+      `${f}: conhece o namespace das guias`,
+    );
+  }
+}
+
+console.log("\n=== transferências não falseiam procura ===");
+{
+  // Uma transferência entre as nossas farmácias não é procura de utente.
+  // Contá-la como tal inflaria a oportunidade de substituição, a
+  // rotação e as sugestões de reposição com stock que só mudou de sítio.
+  const opp = readFileSync(new URL("../../app/oportunidades/page.tsx", import.meta.url), "utf8");
+  check(
+    /vm\."naturezaVenda" = 'NORMAL'/.test(opp),
+    "oportunidades conta apenas NORMAL",
+  );
+  // E o default do mapa mantém as guias FORA.
+  eq(
+    naturezasIncluidas({}),
+    ["NORMAL", "CREDITO"],
+    "o default do mapa NÃO inclui transferências",
+  );
+  check(
+    !naturezasIncluidas({ incluirCredito: true }).includes("TRANSFERENCIA"),
+    "ligar 'vendas a crédito' NÃO traz as guias",
+    "é o ponto todo de a natureza ser decidida pela série e não pela tabela",
+  );
+  check(
+    naturezasIncluidas({ incluirTransferencias: true }).includes("TRANSFERENCIA"),
+    "…e ligar 'guias de transferência' traz",
+  );
+}
+
+console.log("\n=== os três gates, e a aritmética entre eles ===");
+{
+  // Os totais são FIXTURES de regressão, nunca lógica de produção: o
+  // reader lê o ERP e o gate compara. Se algum dia um deles for usado
+  // para produzir um número, isto deixa de ser uma verificação.
+  for (const g of GATES_SILVEIRENSE_2026) {
+    eq(
+      g.normalMaisCredito + g.transferencias,
+      g.comTransferencias,
+      `${nomeMes(g.mes)}: NORMAL + TRANSFERENCIA = modo B`,
+    );
+  }
+  const par = readFileSync(
+    new URL("../../agent/src/commands/vendas-paridade.ts", import.meta.url),
+    "utf8",
+  );
+  check(/TRANSFERENCIA isolada \(serie VCG_1\)/.test(par), "vendas-paridade testa a transferência isolada");
+  check(/MODO A/.test(par) && /MODO B/.test(par), "…e os dois modos do relatório");
+  check(
+    /OS TRES GATES PASSAM 7\/7 COM DESVIO ZERO/.test(par),
+    "…e dá um veredicto único",
+    "sem ele, fechar a fase depende de alguém ler três tabelas e somar de cabeça",
+  );
+  check(
+    /SERIES DO CIRCUITO \[Atendimento Credito\] POR DECLARAR/.test(par),
+    "…e reporta as séries que recusou, com as unidades",
+  );
+}
+
 console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
 {
   // Uma transferência tem dois lados e o nome da série não diz qual
@@ -1057,14 +1236,15 @@ console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
     /listPrimaryKey/.test(probe) && /listColumns/.test(probe),
     "a sonda resolve tudo por metadata",
   );
-  // Os namespaces existem, mas continuam fail-closed até haver reader.
-  for (const ns of [NAMESPACES.VENDAS_CREDITO, NAMESPACES.GUIAS_TRANSFERENCIA]) {
-    eq(
-      CLASSIFICACAO[ns].venda.size + CLASSIFICACAO[ns].reversao.size + CLASSIFICACAO[ns].peloSinal.size,
-      0,
-      `${ns}: nenhum tipo declarado — nada entra por engano`,
-    );
-  }
+  // O crédito real continua fail-closed. As guias já não: o tipo 38 foi
+  // confirmado funcionalmente e reproduz o gate mensal com desvio zero.
+  eq(
+    CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].venda.size +
+      CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].reversao.size +
+      CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].peloSinal.size,
+    0,
+    "VENDAS_CREDITO: nenhum tipo declarado — nada entra por engano",
+  );
 }
 
 console.log("\n=== os interruptores do mapa ===");

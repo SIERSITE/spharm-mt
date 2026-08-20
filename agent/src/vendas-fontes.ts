@@ -284,10 +284,23 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
     reversao: new Set<number>(),
     peloSinal: new Set<number>(),
   },
+  /**
+   * Guias de transferência — `[Atendimento Credito]`, série `VCG_1`.
+   *
+   * Tipo 38, classificado PELO SINAL, como o circuito suspenso. Não é
+   * uma escolha estética: resolve sozinho os dois casos observados.
+   *
+   *   · `Fim Venda = 'A'` tem quantidade ZERO — documentos anulados. Com
+   *     `peloSinal`, zero é recusado, e nenhum deles se transforma numa
+   *     venda artificial. Não é preciso gate nenhum sobre `Fim Venda`,
+   *     que já foi refutado como classificador duas vezes.
+   *   · uma guia estornada chega negativa e sai `DEVOLUCAO_ANULACAO`,
+   *     em vez de somar na direcção errada.
+   */
   [NAMESPACES.GUIAS_TRANSFERENCIA]: {
     venda: new Set<number>(),
     reversao: new Set<number>(),
-    peloSinal: new Set<number>(),
+    peloSinal: new Set([38]),
   },
 };
 
@@ -321,6 +334,59 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
  * duas direcções, é isso que deve entrar aqui, porque um nome de série
  * muda entre instalações e uma FK não.
  */
+/**
+ * O que cada SÉRIE do circuito `[Atendimento Credito]` significa.
+ *
+ * ── PORQUE É QUE A TABELA NÃO DECIDE ─────────────────────────────────
+ *
+ * A tabela chama-se `Atendimento Credito`. Na Silveirense, os documentos
+ * da série `VCG_1` que lá vivem NÃO são vendas a crédito — são guias de
+ * transferência. Isto é conhecimento funcional do operador, confirmado, e
+ * prevalece sobre o nome físico: um nome de tabela é uma escolha de quem
+ * a criou, e a semântica é de quem a usa.
+ *
+ * Se a natureza fosse derivada da tabela, as guias entravam no mapa
+ * sempre que alguém ligasse "vendas a crédito" — e a Silveirense, que não
+ * emite crédito nenhum, veria 3 228 unidades aparecer em Janeiro com esse
+ * interruptor. Por isso a natureza decide-se POR LINHA, pela série.
+ *
+ * ── PROVA QUANTITATIVA ───────────────────────────────────────────────
+ *
+ * A população `VCG_1` é exactamente a diferença entre os dois modos do
+ * relatório oficial, nos sete meses, com desvio zero:
+ *
+ *     mes   NORMAL   +VCG_1    oficial COM guias
+ *     Jan    13 270   3 228          16 498
+ *     Fev    11 547   2 168          13 715
+ *     Mar    13 397   1 760          15 157
+ *     Abr    12 652   2 266          14 918
+ *     Mai    13 204   2 853          16 057
+ *     Jun    12 380   2 789          15 169
+ *     Jul    14 120   4 617          18 737
+ *
+ * ── PORQUE É QUE O VCC_1 NÃO ESTÁ AQUI ───────────────────────────────
+ *
+ * A Segurado tem `VCC_1`, tipo 38, no mesmo circuito. Parece-se com o
+ * `VCG_1` — e "parece-se" foi o que declarou o 77, o `Fim Venda='S'` e o
+ * 107 sem sinal. Não há confirmação funcional de que `VCC_1` seja
+ * transferência, portanto fica de fora e as suas linhas são recusadas com
+ * a série no log. Uma linha recusada aponta para si própria; uma linha
+ * mal classificada entra na soma e desaparece.
+ */
+export const SERIE_CIRCUITO_CREDITO: Readonly<Record<string, SourceNamespace>> = {
+  VCG_1: NAMESPACES.GUIAS_TRANSFERENCIA,
+};
+
+/**
+ * O namespace de uma linha do circuito `[Atendimento Credito]`, dada a
+ * sua série. `null` = série por declarar, e a linha é recusada.
+ */
+export function namespaceDaSerieCredito(serie: string | null): SourceNamespace | null {
+  const s = (serie ?? "").trim().toUpperCase();
+  if (!s) return null;
+  return SERIE_CIRCUITO_CREDITO[s] ?? null;
+}
+
 export type DireccaoTransferencia = "SAIDAS" | "ENTRADAS" | "AMBAS_SINAL" | "AMBAS_ABS";
 
 export type RegraTransferencia = {
@@ -1093,6 +1159,81 @@ export function sqlAtendimentoCredito(c: SchemaFonteCredito): ResultadoFonte {
     ` ORDER BY d.${pk}`,
   ].join("\n");
   return { estado: "PRONTA", sql: sqlTexto };
+}
+
+/**
+ * Uma fonte de venda, como os pipelines a consomem.
+ *
+ * `namespacePorLinha` existe porque uma tabela pode conter mais do que
+ * uma natureza: `[Atendimento Credito]` tem guias de transferência
+ * (`VCG_1`) e, noutras instalações, possivelmente crédito real. Quem
+ * decide é a série de cada linha, não a tabela.
+ */
+export type FonteVenda = {
+  namespace: SourceNamespace;
+  rotulo: string;
+  fonte: ResultadoFonte;
+  namespacePorLinha?: (row: FonteRow) => SourceNamespace | null;
+};
+
+/** A série de uma linha, normalizada. Exportada para os dois pipelines. */
+export function txtSerie(v: unknown): string | null {
+  return txt(v);
+}
+
+/**
+ * Descobre o circuito `[Atendimento Credito]` por ESTRUTURA.
+ *
+ * Não por FK: a rev75 procurou-o por `sys.foreign_key_columns`, não
+ * encontrou a constraint, e concluiu que o universo não existia. As
+ * tabelas existem — a FK é que não.
+ */
+export async function descobrirSchemaCredito(pool: SqlPool): Promise<SchemaFonteCredito> {
+  const r = await pool.request().query<{ nome: string }>(
+    `SELECT t.name AS nome FROM sys.tables t WHERE t.is_ms_shipped = 0`,
+  );
+  const comCredito = r.recordset
+    .map((x) => x.nome)
+    .filter((n) => /credito/i.test(n) && !/validade/i.test(n));
+  const detalheTabela = comCredito.find((n) => /detalhe/i.test(n)) ?? null;
+  const cabecalhoTabela = comCredito.find((n) => !/detalhe/i.test(n)) ?? null;
+  if (!detalheTabela || !cabecalhoTabela) {
+    return {
+      existe: false, cabecalhoTabela, detalheTabela, cabecalhoPk: null,
+      detalhePk: null, chaveLigacao: null, data: null, serie: null, numero: null,
+      tipoDocumento: null, codigoId: null, quantidade: null, pvpUnitario: null,
+      valorLinha: null, ivaValor: null, entidadeId: null, sequencia: null,
+    };
+  }
+  const colsDet = await colunasDe(pool, detalheTabela);
+  const colsCab = await colunasDe(pool, cabecalhoTabela);
+  // A chave lógica: a coluna que existe nos DOIS lados.
+  const chaveLigacao =
+    (colsCab ?? []).find(
+      (c) =>
+        /credito.*id$/i.test(c.column) &&
+        !/detalhe/i.test(c.column) &&
+        (colsDet ?? []).some((d) => d.column.toLowerCase() === c.column.toLowerCase()),
+    )?.column ?? null;
+  return {
+    existe: true,
+    cabecalhoTabela,
+    detalheTabela,
+    cabecalhoPk: escolher(colsCab, [/^atendimento\s*credito\s*id$/i, /credito\s*id$/i]),
+    detalhePk: escolher(colsDet, [/^atendimento\s*credito\s*detalhe\s*id$/i, /detalhe\s*id$/i]),
+    chaveLigacao,
+    data: escolher(colsCab, [/^data\s*venda$/i, /^data$/i]),
+    serie: escolher(colsCab, [/^serie\s*facturacao$/i, /^seriefacturacao$/i, /^serie$/i]),
+    numero: escolher(colsCab, [/^numero\s*documento$/i, /^numero$/i]),
+    tipoDocumento: escolher(colsCab, [/^tipo\s*documento\s*id$/i, /^tipo\s*documento$/i]),
+    codigoId: escolher(colsDet, [/^codigo\s*id$/i, /^codigoid$/i]),
+    quantidade: escolher(colsDet, [/^quantidade$/i, /^qtd$/i]),
+    pvpUnitario: escolher(colsDet, [/^preco\s*venda\s*publico_eur$/i, /^pvp_eur$/i]),
+    valorLinha: escolher(colsDet, [/^valor_eur$/i, /^valor$/i]),
+    ivaValor: escolher(colsDet, [/^val_iva_eur$/i, /^iva$/i]),
+    entidadeId: escolher(colsDet, [/^entidade\s*id$/i]),
+    sequencia: escolher(colsDet, [/^sequencia$/i]),
+  };
 }
 
 /** Resumo legível do que a descoberta encontrou, para o log da corrida. */
