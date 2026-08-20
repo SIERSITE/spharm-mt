@@ -35,14 +35,17 @@ import {
   naturezaDe,
   normalizar,
   paraPayload,
+  sqlAtendimentoCredito,
   sqlAtendimentoDetalhe,
   sqlAtendimentoSuspDetalhe,
   sqlDistribuicaoEstadoG,
+  type SchemaFonteCredito,
   type FonteRow,
   type SchemaCabecalhoSusp,
   type SchemaFonteSusp,
   type SchemaAtendimento,
 } from "../../agent/src/vendas-fontes";
+import { ALIAS_FONTE_VENDA, validarSelect } from "../../agent/src/sql-validador";
 import {
   DEFAULT_INCLUIR_CREDITO,
   DEFAULT_INCLUIR_TRANSFERENCIAS,
@@ -873,6 +876,146 @@ console.log("\n=== naturezaVenda: dimensão, não classe ===");
   }
 }
 
+console.log("\n=== ausência de FK NÃO é ausência de tabela ===");
+{
+  // O DEFEITO DA REV75. A lição de toda esta investigação foi "FK
+  // declarada em vez de nome", porque escolher uma coluna pelo nome fez
+  // o reader ler zero linhas durante uma ronda inteira. Aplicá-la à
+  // descoberta transformou uma PREFERÊNCIA numa PRÉ-CONDIÇÃO, e a
+  // ausência de FK passou a ser lida como ausência de dados:
+  //
+  //     "A FK nao existe nesta instalacao: nao ha universo de credito."
+  //
+  // `dbo.[Atendimento Credito]` e `dbo.[Atendimento Credito Detalhe]`
+  // existem na Silveirense. A FK é que não.
+  const probe = readFileSync(
+    new URL("../../agent/src/commands/vendas-extra-discover.ts", import.meta.url),
+    "utf8",
+  );
+  check(
+    /sys\.tables/.test(probe),
+    "a descoberta de crédito procura por sys.tables",
+    "por FK, uma instalação sem constraints declaradas parecia não ter as tabelas",
+  );
+  check(
+    /tabelasComNome/.test(probe),
+    "…com uma função dedicada a encontrar tabelas por estrutura",
+  );
+  check(
+    /origemLigacao/.test(probe) && /estrutura \(coluna comum\)/.test(probe),
+    "a ligação detalhe→cabeçalho aceita coluna comum, não só FK",
+  );
+  {
+    // A frase só pode sobreviver como CITAÇÃO do defeito, no comentário
+    // que explica porque é que estava errada — nunca como conclusão que
+    // o comando imprime.
+    const semComentarios = probe
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+    check(
+      !/nao ha universo de credito/.test(semComentarios),
+      "a conclusão errada da rev75 desapareceu do código",
+    );
+  }
+  check(
+    /READER OK \/ ZERO DOCUMENTOS/.test(probe),
+    "…e 'zero documentos' distingue-se de 'sem reader'",
+    "um zero sem essa distinção lê-se como facto sobre o ERP",
+  );
+
+  // O mesmo defeito bloqueava as transferências: exigia FK
+  // StocksMov→tblMovStocksDet e uma coluna Serie que o cabeçalho não tem.
+  check(
+    /detChaveCab: tem\(colsDet, "MovStocksCabID"\)/.test(probe),
+    "cabeçalho↔detalhe liga por coluna comum, sem exigir FK",
+  );
+  check(
+    /smChaveDet: tem\(colsSm, "MovStocksDetID"\)/.test(probe),
+    "…e StocksMov↔detalhe também",
+    "é a ligação que o pipeline stocksmov usa em produção desde a rev33",
+  );
+  check(
+    /nao tem coluna de serie/.test(probe),
+    "a sonda diz que tblMovStocksCab não tem série",
+    "por isso a regra não pode ser por nome de série — foi o que a rev75 exigiu",
+  );
+  // Sobreposição com NORMAL: um candidato já contado em G duplica.
+  check(
+    /smChaveAtendimento/.test(probe) && /SOBREPOSICAO COM NORMAL/.test(probe),
+    "mede a sobreposição com a venda normal antes de aceitar um candidato",
+    "[Detalhe ID] preenchido significa que a linha já entra pelo circuito G",
+  );
+  // Lookups: um motivo 44 não é interpretável; um nome é.
+  check(
+    /lookupDesignacoes/.test(probe),
+    "procura as designações dos IDs documentais",
+    "\"motivo 44\" não é uma regra que se defenda; o nome dele é",
+  );
+  // E o critério de aceitação continua a ser o gate, não a estética.
+  check(
+    /7\/7|GATES_SILVEIRENSE_2026/.test(probe) && /avaliarGate/.test(probe),
+    "os candidatos são julgados pelo gate mensal",
+  );
+}
+
+console.log("\n=== o reader de crédito existe e é fail-closed ===");
+{
+  // Schema suficiente → PRONTA. Schema incompleto → POR_LIGAR com a
+  // lista do que falta, nunca um silêncio.
+  const COMPLETO: SchemaFonteCredito = {
+    existe: true,
+    cabecalhoTabela: "Atendimento Credito",
+    detalheTabela: "Atendimento Credito Detalhe",
+    cabecalhoPk: "Atendimento Credito ID",
+    detalhePk: "Atendimento Credito Detalhe ID",
+    chaveLigacao: "Atendimento Credito ID",
+    data: "Data Venda",
+    serie: "SerieFacturacao",
+    numero: "Numero Documento",
+    tipoDocumento: "Tipo Documento ID",
+    codigoId: "CodigoID",
+    quantidade: "Quantidade",
+    pvpUnitario: null,
+    valorLinha: null,
+    ivaValor: "IVA",
+    entidadeId: null,
+    sequencia: null,
+  };
+  const r = sqlAtendimentoCredito(COMPLETO);
+  eq(r.estado, "PRONTA", "schema completo → fonte pronta");
+  if (r.estado === "PRONTA") {
+    const p = validarSelect(r.sql, ALIAS_FONTE_VENDA);
+    check(p.length === 0, "a query de crédito é válida e completa", JSON.stringify(p));
+    check(
+      /JOIN \[dbo\]\.\[Atendimento Credito\] h ON h\.\[Atendimento Credito ID\] = d\.\[Atendimento Credito ID\]/.test(r.sql),
+      "liga pela chave lógica comum às duas tabelas",
+    );
+    check(/d\.\[Atendimento Credito Detalhe ID\] > @lastId/.test(r.sql), "keyset pela PK do detalhe");
+    check(!/Fim Venda/.test(r.sql), "não filtra por [Fim Venda] — não é classificador");
+  }
+  // Sem tabela → AUSENTE. Faltando uma peça → POR_LIGAR, com diagnóstico.
+  eq(sqlAtendimentoCredito({ ...COMPLETO, existe: false }).estado, "AUSENTE", "sem circuito → AUSENTE");
+  const semQtd = sqlAtendimentoCredito({ ...COMPLETO, quantidade: null });
+  eq(semQtd.estado, "POR_LIGAR", "sem quantidade → POR_LIGAR");
+  if (semQtd.estado === "POR_LIGAR") {
+    check(semQtd.faltam.includes("quantidade"), "…e diz exactamente o que falta");
+  }
+  const semLig = sqlAtendimentoCredito({ ...COMPLETO, chaveLigacao: null });
+  eq(semLig.estado, "POR_LIGAR", "sem chave de ligação → POR_LIGAR");
+
+  // A natureza e o namespace são os declarados, e não se misturam.
+  eq(naturezaDe(NAMESPACES.VENDAS_CREDITO), "CREDITO", "crédito não entra como NORMAL");
+  // Continua fail-closed na classificação: os tipos do circuito de
+  // crédito ainda não foram observados em ERP nenhum.
+  eq(
+    classificarDocumento(1, NAMESPACES.VENDAS_CREDITO, 1),
+    null,
+    "nenhum tipo de crédito está declarado — fail-closed até haver evidência",
+  );
+}
+
 console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
 {
   // Uma transferência tem dois lados e o nome da série não diz qual
@@ -901,19 +1044,18 @@ console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
     "…e compara-as com o gate mensal, não com o olho",
   );
   check(
-    /NENHUMA das leituras reproduz o gate/.test(probe),
-    "…e diz o que fazer se nenhuma bater",
+    /NENHUM CANDIDATO REPRODUZ O GATE/.test(probe),
+    "…e diz o que fazer se nenhum bater",
     "sem isso, a ausência de match lê-se como erro da sonda e alguém força uma regra",
+  );
+  check(
+    /MENOR\s*\n?\s*CONJUNTO DE INFORMACAO EM FALTA|MENOR/.test(probe),
+    "…nomeando o menor conjunto de informação ainda em falta",
   );
   // Descoberta, não nomes à mão — a mesma lição da §4 do vendas-susp-tipos.
   check(
-    /listForeignKeysOut/.test(probe) && /listPrimaryKey/.test(probe) && /listColumns/.test(probe),
+    /listPrimaryKey/.test(probe) && /listColumns/.test(probe),
     "a sonda resolve tudo por metadata",
-  );
-  check(
-    /COL_CREDITO_FK = "Atendimento Credito Detalhe ID"/.test(probe),
-    "o crédito parte da FK que o stocksmov já usa desde a rev33",
-    "é a única ponte comprovada para o universo de crédito",
   );
   // Os namespaces existem, mas continuam fail-closed até haver reader.
   for (const ns of [NAMESPACES.VENDAS_CREDITO, NAMESPACES.GUIAS_TRANSFERENCIA]) {

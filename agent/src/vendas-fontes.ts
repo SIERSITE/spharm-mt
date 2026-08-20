@@ -1008,6 +1008,93 @@ export function sqlAtendimentoSuspDetalhe(
   return { estado: "PRONTA", sql };
 }
 
+/**
+ * As colunas do circuito de crédito, resolvidas por ESTRUTURA.
+ *
+ * A rev75 procurou este universo por FK declarada e não o encontrou —
+ * e concluiu que não existia. As tabelas existem; a FK é que não. Aqui
+ * a ligação é `detalhe.[Atendimento Credito ID] = cabecalho.[…]`, uma
+ * coluna comum às duas tabelas, e a FK entra como confirmação quando
+ * existir.
+ */
+export type SchemaFonteCredito = {
+  existe: boolean;
+  cabecalhoTabela: string | null;
+  detalheTabela: string | null;
+  cabecalhoPk: string | null;
+  detalhePk: string | null;
+  chaveLigacao: string | null;
+  data: string | null;
+  serie: string | null;
+  numero: string | null;
+  tipoDocumento: string | null;
+  codigoId: string | null;
+  quantidade: string | null;
+  pvpUnitario: string | null;
+  valorLinha: string | null;
+  ivaValor: string | null;
+  entidadeId: string | null;
+  sequencia: string | null;
+};
+
+/**
+ * SQL da venda a crédito.
+ *
+ * Mesmo contrato de alias que as outras duas fontes — é isso que faz
+ * `normalizar()` funcionar sem saber de onde a linha veio.
+ */
+export function sqlAtendimentoCredito(c: SchemaFonteCredito): ResultadoFonte {
+  if (!c.existe) return { estado: "AUSENTE" };
+  const faltam = (
+    [
+      ["tabela de cabecalho", c.cabecalhoTabela],
+      ["tabela de detalhe", c.detalheTabela],
+      ["pk do cabecalho", c.cabecalhoPk],
+      ["pk do detalhe", c.detalhePk],
+      ["chave de ligacao detalhe->cabecalho", c.chaveLigacao],
+      ["data", c.data],
+      ["CodigoID", c.codigoId],
+      ["quantidade", c.quantidade],
+      ["tipo de documento", c.tipoDocumento],
+    ] as const
+  )
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (faltam.length > 0) return { estado: "POR_LIGAR", faltam };
+
+  const pk = bk(c.detalhePk)!;
+  const lig = bk(c.chaveLigacao)!;
+  const sqlTexto = [
+    "SELECT TOP (@n)",
+    listaSelect([
+      sel("externalLineId", `d.${pk}`),
+      sel("externalDocumentId", `h.${bk(c.cabecalhoPk)}`),
+      sel("sequencia", c.sequencia ? `d.${bk(c.sequencia)}` : null),
+      sel("dataVenda", `h.${bk(c.data)}`),
+      sel("tipoDocumento", `h.${bk(c.tipoDocumento)}`),
+      sel("serie", c.serie ? `h.${bk(c.serie)}` : null),
+      sel("numero", c.numero ? `h.${bk(c.numero)}` : null),
+      sel("externalProductId", `d.${bk(c.codigoId)}`),
+      sel("processaStocks", "s.[Processa_Stocks]"),
+      sel("quantidade", `d.${bk(c.quantidade)}`),
+      sel("pvpUnitario", c.pvpUnitario ? `d.${bk(c.pvpUnitario)}` : null),
+      sel("valorLinha", c.valorLinha ? `d.${bk(c.valorLinha)}` : null),
+      sel("ivaValor", c.ivaValor ? `d.${bk(c.ivaValor)}` : null),
+      sel("descontoValor", null),
+      sel("comparticipacao1", null),
+      sel("comparticipacao2", null),
+      sel("entidadeId", c.entidadeId ? `d.${bk(c.entidadeId)}` : null),
+    ]),
+    `  FROM [dbo].[${c.detalheTabela}] d`,
+    `  JOIN [dbo].[${c.cabecalhoTabela}] h ON h.${lig} = d.${lig}`,
+    `  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.${bk(c.codigoId)}`,
+    ` WHERE h.${bk(c.data)} >= @from AND h.${bk(c.data)} < @to`,
+    `   AND d.${pk} > @lastId`,
+    ` ORDER BY d.${pk}`,
+  ].join("\n");
+  return { estado: "PRONTA", sql: sqlTexto };
+}
+
 /** Resumo legível do que a descoberta encontrou, para o log da corrida. */
 export function resumoSchema(
   susp: SchemaFonteSusp,

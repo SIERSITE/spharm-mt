@@ -27,10 +27,12 @@ import {
   CLASSIFICACAO,
   ESTADOS_VENDA_G,
   NAMESPACES,
+  REGRA_TRANSFERENCIA,
   descobrirCabecalhoSusp,
   descobrirSchemaAtendimento,
   descobrirSchemaSusp,
 } from "../vendas-fontes.js";
+import { descobrirCredito, faltasCredito } from "./vendas-extra-discover.js";
 import {
   ANTES_SPHARM_MT_2026,
   GATES_SILVEIRENSE_2026,
@@ -242,13 +244,48 @@ export async function vendasParidade(): Promise<number> {
     }
     const normal = soma(comU, suspensas);
 
-    // Os readers de crédito e de transferência ainda não existem. Zero
-    // aqui é a AUSÊNCIA de um reader, não a ausência de documentos — e
-    // dizê-lo é a diferença entre um gate que falha com sentido e um
-    // número que se toma por verdade.
+    // ── CRÉDITO: distinguir "sem reader" de "zero documentos" ────
+    //
+    // São coisas diferentes e a diferença importa. A rev75 dizia "sem
+    // reader" quando na verdade não tinha sequer procurado as tabelas
+    // como deve ser — e um zero sem explicação lê-se como facto.
     const credito = vazio();
+    const esquemaCredito = await descobrirCredito(pool);
+    const faltasCred = faltasCredito(esquemaCredito);
+    let estadoCredito: string;
+    if (!esquemaCredito.detalheTabela) {
+      estadoCredito = "SEM TABELAS — este ERP não tem circuito de crédito";
+    } else if (faltasCred.length > 0) {
+      estadoCredito = `SEM READER — falta: ${faltasCred.join(", ")}`;
+    } else {
+      const r = await pool
+        .request()
+        .input("from", sql.NVarChar, `${args.ano}-01-01`)
+        .input("to", sql.NVarChar, `${args.ano + 1}-01-01`)
+        .query<{ mes: number; unidades: number }>(`
+          SELECT MONTH(h.${quoteIdent(esquemaCredito.data!)}) AS mes,
+                 SUM(CAST(d.${quoteIdent(esquemaCredito.quantidade!)} AS FLOAT)) AS unidades
+            FROM [dbo].${quoteIdent(esquemaCredito.detalheTabela)} d
+            JOIN [dbo].${quoteIdent(esquemaCredito.cabecalhoTabela!)} h
+              ON h.${quoteIdent(esquemaCredito.chaveLigacao!)} = d.${quoteIdent(esquemaCredito.chaveLigacao!)}
+           WHERE h.${quoteIdent(esquemaCredito.data!)} >= @from
+             AND h.${quoteIdent(esquemaCredito.data!)} < @to
+           GROUP BY MONTH(h.${quoteIdent(esquemaCredito.data!)})
+        `);
+      for (const x of r.recordset) credito.set(Number(x.mes), Number(x.unidades ?? 0));
+      const total = [...credito.values()].reduce((a, b) => a + b, 0);
+      estadoCredito =
+        total === 0
+          ? "READER OK / ZERO DOCUMENTOS no período"
+          : `READER OK — ${Math.round(total)} unidades no ano`;
+    }
+
+    // ── TRANSFERÊNCIAS: a regra está por declarar ────────────────
     const transferencia = vazio();
-    const temCredito = await tableExists(pool, { schema: "dbo", table: "Atendimento Credito Detalhe" });
+    const estadoTransf =
+      REGRA_TRANSFERENCIA.direccao === null
+        ? "SEM READER — regra por declarar (correr vendas-extra-discover)"
+        : `READER OK — direcção ${REGRA_TRANSFERENCIA.direccao}`;
 
     console.log("");
     console.log(RULE);
@@ -256,16 +293,16 @@ export async function vendasParidade(): Promise<number> {
     console.log(RULE);
     console.log(`  ${"".padEnd(34)}${GATES_SILVEIRENSE_2026.map((g) => nomeMes(g.mes).padStart(8)).join("")}`);
     console.log(linhaMeses("NORMAL (G + suspenso)", normal));
-    console.log(linhaMeses("CREDITO", credito) + "   <- SEM READER");
-    console.log(linhaMeses("TRANSFERENCIA", transferencia) + "   <- SEM READER");
+    console.log(linhaMeses("CREDITO", credito));
+    console.log(`      estado: ${estadoCredito}`);
+    console.log(linhaMeses("TRANSFERENCIA", transferencia));
+    console.log(`      estado: ${estadoTransf}`);
     console.log(linhaMeses("NORMAL + CREDITO", soma(normal, credito)));
     console.log(linhaMeses("NORMAL + CREDITO + TRANSF", soma(soma(normal, credito), transferencia)));
     console.log("");
-    console.log("  CREDITO e TRANSFERENCIA estao a ZERO porque os readers ainda");
-    console.log("  nao existem — nao porque os documentos nao existam. Ver a fase B.");
-    console.log(
-      `  Indicio: [Atendimento Credito Detalhe] ${temCredito ? "EXISTE" : "nao existe"} nesta base.`,
-    );
+    console.log("  'ZERO DOCUMENTOS' e 'SEM READER' sao coisas diferentes:");
+    console.log("  a primeira e um facto sobre o ERP, a segunda e uma lacuna");
+    console.log("  nossa. Um zero sem essa distincao le-se como facto.");
 
     // ── 3. Os gates ───────────────────────────────────────────────
     console.log("");
