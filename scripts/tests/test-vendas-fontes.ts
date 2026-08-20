@@ -997,6 +997,8 @@ console.log("\n=== o reader de crédito existe e é fail-closed ===");
     ivaValor: "IVA",
     entidadeId: null,
     sequencia: null,
+    estado: "Fim Venda",
+    candidatas: ["Atendimento Credito", "Atendimento Credito Detalhe"],
   };
   const r = sqlAtendimentoCredito(COMPLETO);
   eq(r.estado, "PRONTA", "schema completo → fonte pronta");
@@ -1097,7 +1099,8 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
     serie: "SerieFacturacao", numero: "Numero Documento",
     tipoDocumento: "Tipo Documento ID", codigoId: "CodigoID", quantidade: "Quantidade",
     pvpUnitario: null, valorLinha: "Valor_EUR", ivaValor: "IVA",
-    entidadeId: null, sequencia: null,
+    entidadeId: null, sequencia: null, estado: "Fim Venda",
+    candidatas: ["Atendimento Credito", "Atendimento Credito Detalhe"],
   });
   if (r.estado === "PRONTA") {
     check(!/Fim Venda/.test(r.sql), "o reader não filtra por [Fim Venda]");

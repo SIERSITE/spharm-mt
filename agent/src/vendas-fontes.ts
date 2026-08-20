@@ -1094,6 +1094,8 @@ export type SchemaFonteCredito = {
   serie: string | null;
   numero: string | null;
   tipoDocumento: string | null;
+  /** `Fim Venda`. DADO, nunca filtro — o zero trata dos anulados. */
+  estado: string | null;
   codigoId: string | null;
   quantidade: string | null;
   pvpUnitario: string | null;
@@ -1101,6 +1103,11 @@ export type SchemaFonteCredito = {
   ivaValor: string | null;
   entidadeId: string | null;
   sequencia: string | null;
+  /**
+   * Todas as tabelas com "credito" no nome. Vai para a mensagem de erro:
+   * um `POR_LIGAR` que não diz onde procurou custa uma ronda.
+   */
+  candidatas: string[];
 };
 
 /**
@@ -1122,11 +1129,27 @@ export function sqlAtendimentoCredito(c: SchemaFonteCredito): ResultadoFonte {
       ["CodigoID", c.codigoId],
       ["quantidade", c.quantidade],
       ["tipo de documento", c.tipoDocumento],
+      // A serie decide a natureza da linha. Sem ela, todas as linhas
+      // deste circuito seriam recusadas em silencio — pior do que parar.
+      ["serie", c.serie],
     ] as const
   )
     .filter(([, v]) => !v)
     .map(([k]) => k);
-  if (faltam.length > 0) return { estado: "POR_LIGAR", faltam };
+  if (faltam.length > 0) {
+    // ONDE procurou, e não só o que faltou. A rev77 disse
+    // "Faltam: data, tipo de documento" sobre um cabeçalho errado, e
+    // sem esta linha não havia como saber que a tabela é que estava mal
+    // escolhida.
+    return {
+      estado: "POR_LIGAR",
+      faltam: [
+        ...faltam,
+        `(cabecalho escolhido: ${c.cabecalhoTabela ?? "-"}, detalhe: ${c.detalheTabela ?? "-"}` +
+          `, candidatas: ${c.candidatas.join(" | ") || "nenhuma"})`,
+      ],
+    };
+  }
 
   const pk = bk(c.detalhePk)!;
   const lig = bk(c.chaveLigacao)!;
@@ -1188,51 +1211,178 @@ export function txtSerie(v: unknown): string | null {
  * encontrou a constraint, e concluiu que o universo não existia. As
  * tabelas existem — a FK é que não.
  */
+/**
+ * Uma coluna, resolvida por NOME EXACTO primeiro e por padrão depois.
+ *
+ * Os nomes exactos são os observados em ERP real. Não são o único
+ * caminho — se faltarem, os padrões apanham as variações conhecidas do
+ * Softreis — mas são o primeiro, porque um nome medido vale mais do que
+ * um padrão que também casa noutra coluna qualquer.
+ */
+export function resolverColuna(
+  cols: Coluna[] | null,
+  exactos: readonly string[],
+  padroes: readonly RegExp[] = [],
+): string | null {
+  if (!cols) return null;
+  for (const nome of exactos) {
+    const m = cols.find((c) => c.column.toLowerCase() === nome.toLowerCase());
+    if (m) return m.column;
+  }
+  return escolher(cols, [...padroes]);
+}
+
+/** Um par cabeçalho/detalhe candidato, e o que nele resolveu. */
+type ParCredito = {
+  cabecalho: string;
+  detalhe: string;
+  colsCab: Coluna[];
+  colsDet: Coluna[];
+  chaveLigacao: string;
+  pontos: number;
+};
+
+/**
+ * Descobre o circuito `[Atendimento Credito]` por ESTRUTURA.
+ *
+ * ── O DEFEITO DA REV77 ───────────────────────────────────────────────
+ *
+ * A rev77 abortou o bootstrap da Silveirense com
+ * `Faltam: data, tipo de documento` — numa base onde a rev76 já tinha
+ * impresso `data = Data Venda` e `tipoDoc = Tipo Documento ID`.
+ *
+ * A causa não estava nos padrões das colunas: estava na escolha da
+ * TABELA. O resolver fazia
+ *
+ *     comCredito.find((n) => !/detalhe/i.test(n))
+ *
+ * sobre um `SELECT` de `sys.tables` SEM `ORDER BY`. Qualquer outra
+ * tabela com "credito" no nome — e o ERP tem várias — podia ser
+ * devolvida primeiro e ser escolhida como cabeçalho. E como o padrão da
+ * PK (`/credito\s*id$/i`) não estava ancorado, uma coluna qualquer
+ * terminada em "Credito ID" fazia o par parecer válido. O resultado é
+ * um cabeçalho errado onde `Data Venda` naturalmente não existe.
+ *
+ * A correcção é emparelhar por ESTRUTURA em vez de por ordem de
+ * chegada: um par só é candidato se o detalhe tiver produto e
+ * quantidade, o cabeçalho tiver data, e os dois partilharem a chave de
+ * ligação. Entre os candidatos válidos ganha o que resolve mais campos.
+ */
 export async function descobrirSchemaCredito(pool: SqlPool): Promise<SchemaFonteCredito> {
+  const vazio: SchemaFonteCredito = {
+    existe: false, cabecalhoTabela: null, detalheTabela: null, cabecalhoPk: null,
+    detalhePk: null, chaveLigacao: null, data: null, serie: null, numero: null,
+    tipoDocumento: null, estado: null, codigoId: null, quantidade: null,
+    pvpUnitario: null, valorLinha: null, ivaValor: null, entidadeId: null,
+    sequencia: null, candidatas: [],
+  };
+
   const r = await pool.request().query<{ nome: string }>(
-    `SELECT t.name AS nome FROM sys.tables t WHERE t.is_ms_shipped = 0`,
+    // ORDER BY para a escolha ser determinística. Sem ele, duas corridas
+    // na mesma base podiam escolher tabelas diferentes.
+    `SELECT t.name AS nome FROM sys.tables t WHERE t.is_ms_shipped = 0 ORDER BY t.name`,
   );
   const comCredito = r.recordset
     .map((x) => x.nome)
     .filter((n) => /credito/i.test(n) && !/validade/i.test(n));
-  const detalheTabela = comCredito.find((n) => /detalhe/i.test(n)) ?? null;
-  const cabecalhoTabela = comCredito.find((n) => !/detalhe/i.test(n)) ?? null;
-  if (!detalheTabela || !cabecalhoTabela) {
-    return {
-      existe: false, cabecalhoTabela, detalheTabela, cabecalhoPk: null,
-      detalhePk: null, chaveLigacao: null, data: null, serie: null, numero: null,
-      tipoDocumento: null, codigoId: null, quantidade: null, pvpUnitario: null,
-      valorLinha: null, ivaValor: null, entidadeId: null, sequencia: null,
-    };
+  if (comCredito.length === 0) return vazio;
+
+  const detalhes = comCredito.filter((n) => /detalhe/i.test(n));
+  const cabecalhos = comCredito.filter((n) => !/detalhe/i.test(n));
+  if (detalhes.length === 0 || cabecalhos.length === 0) {
+    return { ...vazio, candidatas: comCredito };
   }
-  const colsDet = await colunasDe(pool, detalheTabela);
-  const colsCab = await colunasDe(pool, cabecalhoTabela);
-  // A chave lógica: a coluna que existe nos DOIS lados.
-  const chaveLigacao =
-    (colsCab ?? []).find(
-      (c) =>
-        /credito.*id$/i.test(c.column) &&
-        !/detalhe/i.test(c.column) &&
-        (colsDet ?? []).some((d) => d.column.toLowerCase() === c.column.toLowerCase()),
-    )?.column ?? null;
+
+  // Colunas de todas as candidatas, uma vez só.
+  const colunas = new Map<string, Coluna[]>();
+  for (const t of comCredito) colunas.set(t, (await colunasDe(pool, t)) ?? []);
+
+  const pares: ParCredito[] = [];
+  for (const det of detalhes) {
+    const colsDet = colunas.get(det) ?? [];
+    const produto = resolverColuna(colsDet, ["CodigoID"], [/^codigo\s*id$/i]);
+    const qtd = resolverColuna(colsDet, ["Quantidade"], [/^quantidade$/i, /^qtd$/i]);
+    if (!produto || !qtd) continue;
+    for (const cab of cabecalhos) {
+      const colsCab = colunas.get(cab) ?? [];
+      // A chave lógica: a coluna que existe nos DOIS lados e identifica
+      // o documento. Não pode ser a PK do detalhe.
+      const chave =
+        colsCab.find(
+          (c) =>
+            /credito.*id$/i.test(c.column) &&
+            !/detalhe/i.test(c.column) &&
+            colsDet.some((d) => d.column.toLowerCase() === c.column.toLowerCase()),
+        )?.column ?? null;
+      if (!chave) continue;
+      const data = resolverColuna(colsCab, ["Data Venda", "Data"], [/^data\s*venda$/i, /^data$/i]);
+      if (!data) continue;
+      const tipo = resolverColuna(
+        colsCab,
+        ["Tipo Documento ID", "Tipo Documento"],
+        [/^tipo\s*documento\s*id$/i, /^tipo\s*documento$/i],
+      );
+      const serie = resolverColuna(
+        colsCab,
+        ["SerieFacturacao", "Serie Facturacao", "Serie"],
+        [/^serie\s*facturacao$/i, /^serie$/i],
+      );
+      // Um par com data + tipo + série é o circuito documental completo;
+      // os pontos servem para escolher entre candidatos, não para
+      // aceitar um par incompleto.
+      const pontos = (tipo ? 2 : 0) + (serie ? 2 : 0) + (/^atendimento\s+credito$/i.test(cab) ? 3 : 0);
+      pares.push({ cabecalho: cab, detalhe: det, colsCab, colsDet, chaveLigacao: chave, pontos });
+    }
+  }
+  if (pares.length === 0) return { ...vazio, candidatas: comCredito };
+
+  pares.sort((a, b) => b.pontos - a.pontos || a.cabecalho.localeCompare(b.cabecalho));
+  const p = pares[0]!;
+
   return {
     existe: true,
-    cabecalhoTabela,
-    detalheTabela,
-    cabecalhoPk: escolher(colsCab, [/^atendimento\s*credito\s*id$/i, /credito\s*id$/i]),
-    detalhePk: escolher(colsDet, [/^atendimento\s*credito\s*detalhe\s*id$/i, /detalhe\s*id$/i]),
-    chaveLigacao,
-    data: escolher(colsCab, [/^data\s*venda$/i, /^data$/i]),
-    serie: escolher(colsCab, [/^serie\s*facturacao$/i, /^seriefacturacao$/i, /^serie$/i]),
-    numero: escolher(colsCab, [/^numero\s*documento$/i, /^numero$/i]),
-    tipoDocumento: escolher(colsCab, [/^tipo\s*documento\s*id$/i, /^tipo\s*documento$/i]),
-    codigoId: escolher(colsDet, [/^codigo\s*id$/i, /^codigoid$/i]),
-    quantidade: escolher(colsDet, [/^quantidade$/i, /^qtd$/i]),
-    pvpUnitario: escolher(colsDet, [/^preco\s*venda\s*publico_eur$/i, /^pvp_eur$/i]),
-    valorLinha: escolher(colsDet, [/^valor_eur$/i, /^valor$/i]),
-    ivaValor: escolher(colsDet, [/^val_iva_eur$/i, /^iva$/i]),
-    entidadeId: escolher(colsDet, [/^entidade\s*id$/i]),
-    sequencia: escolher(colsDet, [/^sequencia$/i]),
+    cabecalhoTabela: p.cabecalho,
+    detalheTabela: p.detalhe,
+    candidatas: comCredito,
+    cabecalhoPk: resolverColuna(
+      p.colsCab,
+      ["Atendimento Credito ID", p.chaveLigacao],
+      [/^atendimento\s*credito\s*id$/i],
+    ),
+    detalhePk: resolverColuna(
+      p.colsDet,
+      ["Atendimento Credito Detalhe ID"],
+      [/^atendimento\s*credito\s*detalhe\s*id$/i, /detalhe\s*id$/i],
+    ),
+    chaveLigacao: p.chaveLigacao,
+    data: resolverColuna(p.colsCab, ["Data Venda", "Data"], [/^data\s*venda$/i, /^data$/i]),
+    serie: resolverColuna(
+      p.colsCab,
+      ["SerieFacturacao", "Serie Facturacao", "Serie"],
+      [/^serie\s*facturacao$/i, /^serie$/i],
+    ),
+    numero: resolverColuna(
+      p.colsCab,
+      ["Numero Documento", "Numero"],
+      [/^numero\s*documento$/i, /^numero$/i],
+    ),
+    tipoDocumento: resolverColuna(
+      p.colsCab,
+      ["Tipo Documento ID", "Tipo Documento"],
+      [/^tipo\s*documento\s*id$/i, /^tipo\s*documento$/i],
+    ),
+    estado: resolverColuna(p.colsCab, ["Fim Venda"], [/fim\s*venda/i, /^estado$/i, /^situacao$/i]),
+    codigoId: resolverColuna(p.colsDet, ["CodigoID"], [/^codigo\s*id$/i]),
+    quantidade: resolverColuna(p.colsDet, ["Quantidade"], [/^quantidade$/i, /^qtd$/i]),
+    pvpUnitario: resolverColuna(
+      p.colsDet,
+      ["Preco Venda Publico_EUR", "PVP_EUR"],
+      [/^preco\s*venda\s*publico_eur$/i, /^pvp_eur$/i],
+    ),
+    valorLinha: resolverColuna(p.colsDet, ["Valor_EUR", "Valor"], [/^valor_eur$/i, /^valor$/i]),
+    ivaValor: resolverColuna(p.colsDet, ["Val_IVA_EUR", "IVA"], [/^val_iva_eur$/i, /^iva$/i]),
+    entidadeId: resolverColuna(p.colsDet, ["Entidade ID"], [/^entidade\s*id$/i]),
+    sequencia: resolverColuna(p.colsDet, ["Sequencia"], [/^sequencia$/i]),
   };
 }
 
