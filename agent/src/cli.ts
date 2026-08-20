@@ -41,6 +41,7 @@ import { vendasSuspNc } from "./commands/vendas-susp-nc.js";
 import { vendasSuspTipos } from "./commands/vendas-susp-tipos.js";
 import { vendasParidade } from "./commands/vendas-paridade.js";
 import { vendasExtraDiscover } from "./commands/vendas-extra-discover.js";
+import { vendasCreditoSeriesAudit } from "./commands/vendas-credito-series-audit.js";
 import { productsPreview } from "./commands/products-preview.js";
 import { stockPreview } from "./commands/stock-preview.js";
 import { salesPreview } from "./commands/sales-preview.js";
@@ -112,6 +113,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "vendas-extra-discover": {
     run: vendasExtraDiscover,
     desc: "Descobre por FK as fontes de venda a crédito e de guias de transferência, e testa as quatro leituras possíveis da transferência contra o gate mensal do relatório oficial. Read-only.",
+  },
+  "vendas-credito-series-audit": {
+    run: vendasCreditoSeriesAudit,
+    desc: "Inventaria TODAS as series de [Atendimento Credito] — serie x tipoDoc x estado x sinal, documentos reais, assinatura documental e contraparte. NAO classifica. Read-only, --db aponta outra base.",
   },
   "vendas-paridade": {
     run: vendasParidade,

@@ -1062,6 +1062,11 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
   // "parece-se" foi o que declarou o 77, o Fim Venda='S' e o 107 sem
   // sinal. Sem confirmação funcional, fica de fora.
   eq(namespaceDaSerieCredito("VCC_1"), null, "VCC_1 NÃO é automaticamente transferência");
+  // A Silveirense tem VOG no mesmo circuito — 2 linhas, medidas no
+  // bootstrap real. Volume residual não é licença para adivinhar: uma
+  // série de 2 linhas declarada por engano vale o mesmo erro que uma de
+  // 2 937, e a de 2 linhas ninguém a vai rever.
+  eq(namespaceDaSerieCredito("VOG"), null, "…nem VOG, por muito residual que seja");
   eq(namespaceDaSerieCredito("VCG"), null, "…nem VCG");
   eq(namespaceDaSerieCredito(null), null, "…nem uma série nula");
   eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
