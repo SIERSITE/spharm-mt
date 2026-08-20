@@ -30,7 +30,12 @@ import sql from "mssql";
 import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { parseDateArg } from "./probe-helpers.js";
-import { janela } from "../janela.js";
+import {
+  janela,
+  OPCOES_INCLUIR_HOJE,
+  aplicarGuardaTemporal,
+  leuIncluirHoje,
+} from "../janela.js";
 import {
   ACERTO_STOCK,
   COLUNAS_FK,
@@ -250,7 +255,7 @@ function amostraParaLinha(r: AmostraRow): LinhaAmostra {
 
 // ── CLI ────────────────────────────────────────────────────────────
 
-type Args = { from?: string; to?: string; amostras: number; motivos: number; help: boolean };
+type Args = { from?: string; to?: string; incluirHoje: boolean; amostras: number; motivos: number; help: boolean };
 
 function parseCmdArgs(): Args {
   const raw = parseArgs({
@@ -258,6 +263,7 @@ function parseCmdArgs(): Args {
     options: {
       from: { type: "string" },
       to: { type: "string" },
+      ...OPCOES_INCLUIR_HOJE,
       amostras: { type: "string" },
       motivos: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -273,6 +279,7 @@ function parseCmdArgs(): Args {
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
+    incluirHoje: leuIncluirHoje(raw.values),
     amostras: num(raw.values.amostras, DEFAULT_AMOSTRAS),
     motivos: num(raw.values.motivos, DEFAULT_MOTIVOS),
     help: raw.values.help === true,
@@ -281,6 +288,7 @@ function parseCmdArgs(): Args {
 
 function printHelp(): void {
   console.log("Uso: acertos-stock-dry-run --from YYYY-MM-DD --to YYYY-MM-DD [--amostras 20] [--motivos 25]");
+  console.log("  --include-today  permite --to = hoje (dia AINDA ABERTO — parcial). Default: até ontem.");
   console.log("");
   console.log("Conta os acertos de stock (origem MOV_INTERNO) da janela. READ-ONLY, SEM POST.");
   console.log("");
@@ -323,6 +331,8 @@ export async function acertosStockDryRun(): Promise<number> {
     console.error(`✗ --from (${from}) é posterior a --to (${to}).`);
     return 1;
   }
+  // Hoje ainda está aberto. Ver `guardaTemporal`.
+  if (!aplicarGuardaTemporal(to, args.incluirHoje)) return 1;
 
   let cfg: AgentConfig;
   try {

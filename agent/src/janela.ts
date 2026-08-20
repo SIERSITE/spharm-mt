@@ -167,3 +167,91 @@ export function diaAindaAberto(dia: string, agora: Date = new Date()): boolean {
   assertData("dia", dia);
   return dia >= hojeNaFarmacia(agora);
 }
+
+/** As opções que o guard temporal aceita da linha de comandos. */
+export const OPCOES_INCLUIR_HOJE = {
+  "include-today": { type: "boolean" },
+  /** Nome antigo. Continua a valer — há operadores com scripts feitos. */
+  "incluir-hoje": { type: "boolean" },
+} as const;
+
+/** Os dois nomes da mesma decisão, reduzidos a um booleano. */
+export function leuIncluirHoje(v: Record<string, unknown>): boolean {
+  return v["include-today"] === true || v["incluir-hoje"] === true;
+}
+
+export type GuardaTemporal =
+  | { ok: true; aviso: string | null }
+  | { ok: false; erro: string[] };
+
+/**
+ * O GUARD TEMPORAL dos comandos históricos.
+ *
+ * ── O QUE ELE IMPEDE ─────────────────────────────────────────────────
+ *
+ * Hoje ainda está aberto: a farmácia continua a vender enquanto a
+ * corrida decorre. Um `--to` que inclua hoje grava um dia PARCIAL — as
+ * vendas da tarde não existem ainda — e a corrida termina com sucesso,
+ * com contagens plausíveis, sem nada que aponte para o buraco.
+ *
+ * A única forma de corrigir é reenviar o dia depois de fechar, e isso
+ * depende de alguém se lembrar. É a mesma família de defeito do
+ * `Fim Venda = 'S'` e do `77`: o número sai plausível e ninguém o
+ * verifica. Recusar por omissão é mais barato do que descobrir.
+ *
+ * ── PORQUE VIVE AQUI E NÃO EM CADA COMANDO ───────────────────────────
+ *
+ * Porque estava em `full-sync` e em mais nenhum. `bootstrap-upload`,
+ * `stocksmov-upload`, `compras`, `devolucoes-fornecedor` e
+ * `acertos-stock` aceitavam `--to` hoje sem dizer nada. Um guard que
+ * protege um caminho e não os outros não é um guard — é uma opinião
+ * sobre qual dos caminhos é que costuma ser usado.
+ *
+ * `--include-today` continua a existir: quem sabe o que faz não fica
+ * bloqueado, mas fica avisado.
+ */
+export function guardaTemporal(
+  to: string,
+  incluirHoje: boolean,
+  agora: Date = new Date(),
+): GuardaTemporal {
+  if (!diaAindaAberto(to, agora)) return { ok: true, aviso: null };
+  if (incluirHoje) {
+    return {
+      ok: true,
+      aviso:
+        `--include-today: ${to} ainda está aberto. As vendas de hoje ficam INCOMPLETAS ` +
+        `e só ficam certas reenviando este dia depois de fechar.`,
+    };
+  }
+  return {
+    ok: false,
+    erro: [
+      `--to (${to}) inclui o dia de HOJE (${hojeNaFarmacia(agora)} em ${FUSO_FARMACIA}), que ainda não fechou.`,
+      `  O histórico ficaria com um dia parcial, e a corrida terminaria com sucesso na mesma.`,
+      `  Usa --to ${ontemNaFarmacia(agora)} (último dia completo),`,
+      `  ou --include-today se sabes o que estás a fazer.`,
+    ],
+  };
+}
+
+/**
+ * O guard, já ligado ao `console`. Devolve `true` se se pode continuar.
+ *
+ * Existe para que ligar o guard a um comando seja uma linha: um guard
+ * que custa dez linhas por comando acaba por não estar em algum deles.
+ */
+export function aplicarGuardaTemporal(
+  to: string,
+  incluirHoje: boolean,
+  agora: Date = new Date(),
+): boolean {
+  const g = guardaTemporal(to, incluirHoje, agora);
+  if (!g.ok) {
+    console.error(`✗ ${g.erro[0]}`);
+    for (const l of g.erro.slice(1)) console.error(l);
+    return false;
+  }
+  if (g.aviso) console.warn(`⚠ ${g.aviso}`);
+  return true;
+}

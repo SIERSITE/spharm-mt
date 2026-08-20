@@ -85,7 +85,7 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
-import { diaAindaAberto, hojeNaFarmacia, ontemNaFarmacia, FUSO_FARMACIA } from "../janela.js";
+import { OPCOES_INCLUIR_HOJE, aplicarGuardaTemporal, leuIncluirHoje } from "../janela.js";
 import {
   runProductsPipeline,
   runStockPipeline,
@@ -123,7 +123,7 @@ function parseCmdArgs(): Args {
       "dry-run": { type: "boolean" },
       force: { type: "boolean" },
       only: { type: "string" },
-      "incluir-hoje": { type: "boolean" },
+      ...OPCOES_INCLUIR_HOJE,
       "allow-unknowns": { type: "boolean" },
       "allow-orphans": { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -137,7 +137,7 @@ function parseCmdArgs(): Args {
     dryRun: raw.values["dry-run"] === true,
     force: raw.values.force === true,
     only: typeof raw.values.only === "string" ? raw.values.only : undefined,
-    incluirHoje: raw.values["incluir-hoje"] === true,
+    incluirHoje: leuIncluirHoje(raw.values),
     allowUnknowns: raw.values["allow-unknowns"] === true,
     allowOrphans: raw.values["allow-orphans"] === true,
     help: raw.values.help === true,
@@ -153,7 +153,8 @@ function printHelp(): void {
   console.log("  --from / --to        intervalo de vendas/compras/devoluções + agregações (obrigatórios)");
   console.log("  --dry-run            não escreve nada (preview ingest + agregações write=false)");
   console.log("  --force              re-corre fases já DONE");
-  console.log("  --incluir-hoje       permite --to = hoje (dia AINDA ABERTO — parcial)");
+  console.log("  --include-today      permite --to = hoje (dia AINDA ABERTO — parcial).");
+  console.log("                       O default é sempre até ontem. --incluir-hoje continua a valer.");
   // Gerado a partir de PHASE_ORDER: uma fase nova aparece aqui sozinha,
   // em vez de ficar por listar num texto que ninguém se lembra de rever.
   console.log(`  --only <fase>        corre só uma fase:`);
@@ -423,21 +424,11 @@ export async function fullSync(): Promise<number> {
     console.error(`✗ --from (${from}) é posterior a --to (${to}).`);
     return 1;
   }
-  // O dia de hoje ainda está aberto: a farmácia continua a vender. Um
-  // histórico que o inclua grava um dia parcial, e a única forma de o
-  // corrigir é reenviá-lo depois de fechado — o que ninguém se lembra de
-  // fazer, porque a corrida terminou com sucesso.
-  if (diaAindaAberto(to) && !args.incluirHoje) {
-    console.error(`✗ --to (${to}) inclui o dia de HOJE (${hojeNaFarmacia()} em ${FUSO_FARMACIA}), que ainda não fechou.`);
-    console.error(`  O histórico ficaria com um dia parcial.`);
-    console.error(`  Usa --to ${ontemNaFarmacia()} (último dia completo),`);
-    console.error(`  ou --incluir-hoje se sabes o que estás a fazer.`);
-    return 1;
-  }
-  if (diaAindaAberto(to) && args.incluirHoje) {
-    console.warn(`⚠ --incluir-hoje: ${to} ainda está aberto. As vendas de hoje ficam INCOMPLETAS`);
-    console.warn(`  e só ficam certas reenviando este dia depois de fechar.`);
-  }
+  // Hoje ainda está aberto. A regra vive em `guardaTemporal` — estava
+  // aqui, e só aqui, enquanto `bootstrap-upload`, `stocksmov-upload`,
+  // `compras`, `devolucoes-fornecedor` e `acertos-stock` aceitavam hoje
+  // sem dizer nada.
+  if (!aplicarGuardaTemporal(to, args.incluirHoje)) return 1;
   if (args.only && !PHASE_ORDER.some((p) => p.id === args.only)) {
     console.error(`✗ --only "${args.only}" inválido. Fases: ${PHASE_ORDER.map((p) => p.id).join(", ")}`);
     return 1;

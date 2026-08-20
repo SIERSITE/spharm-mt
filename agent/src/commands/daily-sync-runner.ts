@@ -20,22 +20,16 @@ import type { SaasClient } from "../http-client.js";
 import { ALIAS_FONTE_VENDA, validarSelect } from "../sql-validador.js";
 import type { BootstrapBatchResponse } from "../http-client.js";
 import {
-  NAMESPACES,
   descobrirSchemaAtendimento,
   descobrirCabecalhoSusp,
   descobrirSchemaSusp,
   normalizar,
   paraPayload,
   resumoSchema,
-  sqlAtendimentoDetalhe,
-  sqlAtendimentoCredito,
-  sqlAtendimentoSuspDetalhe,
+  fontesDeVenda,
   descobrirSchemaCredito,
-  namespaceDaSerieCredito,
-  txtSerie,
   type FonteRow,
   type FonteVenda,
-  type ResultadoFonte,
   type SourceNamespace,
 } from "../vendas-fontes.js";
 
@@ -411,24 +405,7 @@ async function pipelineSales(
   // `Fim Venda` — o histórico ficava certo e cada noite voltava a
   // divergir.
   const credito = await descobrirSchemaCredito(pool);
-  const fontes: FonteVenda[] = [
-    {
-      namespace: NAMESPACES.ATENDIMENTO_DETALHE,
-      rotulo: "Atendimento Detalhe",
-      fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
-    },
-    {
-      namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
-      rotulo: "Atendimento Susp Detalhe",
-      fonte: sqlAtendimentoSuspDetalhe(susp, cab),
-    },
-    {
-      namespace: NAMESPACES.GUIAS_TRANSFERENCIA,
-      rotulo: "Atendimento Credito (serie decide a natureza)",
-      fonte: sqlAtendimentoCredito(credito),
-      namespacePorLinha: (row) => namespaceDaSerieCredito(txtSerie(row.serie)),
-    },
-  ];
+  const fontes: FonteVenda[] = fontesDeVenda(at, susp, cab, credito);
 
   for (const f of fontes) {
     if (f.fonte.estado === "AUSENTE") {

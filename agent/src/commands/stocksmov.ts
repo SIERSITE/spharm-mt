@@ -40,7 +40,12 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError } from "../http-client.js";
 import { parseDateArg } from "./probe-helpers.js";
-import { janela } from "../janela.js";
+import {
+  janela,
+  OPCOES_INCLUIR_HOJE,
+  aplicarGuardaTemporal,
+  leuIncluirHoje,
+} from "../janela.js";
 import {
   classifyRaw,
   type RawStocksMovLine,
@@ -1105,6 +1110,8 @@ type Args = {
   sinceId?: number;
   batchSize?: number;
   help: boolean;
+  /** `--include-today`: aceita um `--to` que inclua hoje. Ver `guardaTemporal`. */
+  incluirHoje: boolean;
 };
 
 function parseCmdArgs(): Args {
@@ -1113,6 +1120,7 @@ function parseCmdArgs(): Args {
     options: {
       from: { type: "string" },
       to: { type: "string" },
+      ...OPCOES_INCLUIR_HOJE,
       "since-id": { type: "string" },
       "batch-size": { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -1125,6 +1133,7 @@ function parseCmdArgs(): Args {
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
+    incluirHoje: leuIncluirHoje(raw.values),
     sinceId: si !== undefined && Number.isFinite(si) && si >= 0 ? si : undefined,
     batchSize: bs && Number.isFinite(bs) && bs > 0 ? bs : undefined,
     help: raw.values.help === true,
@@ -1133,6 +1142,7 @@ function parseCmdArgs(): Args {
 
 function printDryRunHelp(): void {
   console.log("Uso: stocksmov-dry-run --from YYYY-MM-DD --to YYYY-MM-DD [--since-id N]");
+  console.log("  --include-today  permite --to = hoje (dia AINDA ABERTO — parcial). Default: até ontem.");
   console.log("");
   console.log("Lê dbo.StocksMov + JOINs (Cab/Det/Motivo/Atendimento) read-only.");
   console.log("Classifica localmente via lib/movimento-classifier.");
@@ -1143,6 +1153,7 @@ function printUploadHelp(): void {
   console.log(
     "Uso: stocksmov-upload --from YYYY-MM-DD --to YYYY-MM-DD [--since-id N] [--batch-size 100]",
   );
+  console.log("  --include-today  permite --to = hoje (dia AINDA ABERTO — parcial). Default: até ontem.");
   console.log("");
   console.log("Lê dbo.StocksMov + JOINs e POSTa a /api/ingest/v1/movimentos.");
   console.log("Paginação por StocksMovID > since-id (chunks 50k SQL).");
@@ -1187,6 +1198,8 @@ export async function stocksmovDryRun(): Promise<number> {
     console.error(`✗ --from (${from}) é posterior a --to (${to}).`);
     return 1;
   }
+  // Hoje ainda está aberto. Ver `guardaTemporal`.
+  if (!aplicarGuardaTemporal(to, args.incluirHoje)) return 1;
 
   let cfg: AgentConfig;
   try {
@@ -1362,6 +1375,8 @@ export async function stocksmovUpload(): Promise<number> {
     console.error(`✗ --from (${from}) é posterior a --to (${to}).`);
     return 1;
   }
+  // Hoje ainda está aberto. Ver `guardaTemporal`.
+  if (!aplicarGuardaTemporal(to, args.incluirHoje)) return 1;
 
   let cfg: AgentConfig;
   try {

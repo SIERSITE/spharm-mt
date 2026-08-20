@@ -32,25 +32,23 @@ import { SaasClient, SaasApiError, type BootstrapBatchResponse } from "../http-c
 import { parseDateArg } from "./probe-helpers.js";
 import { ALIAS_FONTE_VENDA, validarSelect } from "../sql-validador.js";
 import {
-  NAMESPACES,
   descobrirSchemaAtendimento,
   descobrirCabecalhoSusp,
   descobrirSchemaSusp,
   normalizar,
   paraPayload,
   resumoSchema,
-  sqlAtendimentoDetalhe,
-  sqlAtendimentoCredito,
-  sqlAtendimentoSuspDetalhe,
+  fontesDeVenda,
   descobrirSchemaCredito,
-  namespaceDaSerieCredito,
-  txtSerie,
   type FonteRow,
   type FonteVenda,
-  type ResultadoFonte,
-  type SourceNamespace,
 } from "../vendas-fontes.js";
-import { janela } from "../janela.js";
+import {
+  janela,
+  OPCOES_INCLUIR_HOJE,
+  aplicarGuardaTemporal,
+  leuIncluirHoje,
+} from "../janela.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -246,6 +244,8 @@ type Args = {
    */
   only?: Set<Pipeline>;
   help?: boolean;
+  /** `--include-today`: aceita um `--to` que inclua hoje. Ver `guardaTemporal`. */
+  incluirHoje: boolean;
 };
 
 /** Os pipelines do bootstrap, pelos nomes que o operador escreve. */
@@ -258,6 +258,7 @@ function parseCmdArgs(): Args {
     options: {
       from: { type: "string" },
       to: { type: "string" },
+      ...OPCOES_INCLUIR_HOJE,
       "dry-run": { type: "boolean", default: false },
       only: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -286,6 +287,7 @@ function parseCmdArgs(): Args {
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
+    incluirHoje: leuIncluirHoje(raw.values),
     dryRun: raw.values["dry-run"] === true,
     only,
     help: raw.values.help === true,
@@ -303,6 +305,8 @@ function printHelp(): void {
   console.log("              sem reler o catálogo e o stock inteiros.");
   console.log("");
   console.log("  --dry-run   lê o ERP e imprime os counts, sem enviar nada.");
+  console.log("  --include-today  permite --to = hoje (dia AINDA ABERTO — grava um dia parcial).");
+  console.log("              O default é sempre até ontem.");
   console.log("              É o único dry-run que passa pelas DUAS fontes de");
   console.log("              venda (balcão + suspensa). O comando");
   console.log("              `bootstrap-dry-run` tem SQL próprio e não lê a");
@@ -1195,28 +1199,9 @@ export async function runSalesPipeline(
   for (const linha of resumoSchema(susp, at, cab)) console.log(linha);
 
   const credito = await descobrirSchemaCredito(pool);
-  const fontes: FonteVenda[] = [
-    {
-      namespace: NAMESPACES.ATENDIMENTO_DETALHE,
-      rotulo: "Atendimento Detalhe",
-      fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
-    },
-    {
-      namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
-      rotulo: "Atendimento Susp Detalhe",
-      fonte: sqlAtendimentoSuspDetalhe(susp, cab),
-    },
-    // O circuito `[Atendimento Credito]`. A natureza de cada linha vem
-    // da SÉRIE, não da tabela: na Silveirense as `VCG_1` que lá vivem
-    // são guias de transferência, e uma série por declarar é recusada
-    // com o nome dela no log.
-    {
-      namespace: NAMESPACES.GUIAS_TRANSFERENCIA,
-      rotulo: "Atendimento Credito (serie decide a natureza)",
-      fonte: sqlAtendimentoCredito(credito),
-      namespacePorLinha: (row) => namespaceDaSerieCredito(txtSerie(row.serie)),
-    },
-  ];
+  // AS MESMAS fontes do diário, da MESMA função. Não uma cópia que se
+  // parece — ver `fontesDeVenda`.
+  const fontes: FonteVenda[] = fontesDeVenda(at, susp, cab, credito);
 
   const j = janela(fromDate, toDate);
 
@@ -1405,6 +1390,8 @@ export async function bootstrapUpload(): Promise<number> {
     console.error(`✗ --from (${fromDate}) é posterior a --to (${toDate}).`);
     return 1;
   }
+  // Hoje ainda está aberto. Ver `guardaTemporal`.
+  if (!aplicarGuardaTemporal(toDate, args.incluirHoje)) return 1;
 
   let cfg: AgentConfig;
   try {

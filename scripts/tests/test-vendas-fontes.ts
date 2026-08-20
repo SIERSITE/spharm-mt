@@ -709,9 +709,12 @@ console.log("\n=== o caminho antigo desapareceu ===");
       "77 e 104 eram venda e devolução; tudo o resto virava UNKNOWN e era filtrado",
     );
     check(src.includes("vendas-fontes.js"), `${nome}: usa o normalizador comum`);
+    // A venda suspensa entra pela lista partilhada — ver
+    // `fontesDeVenda`, e a secção "a MESMA regra no backfill e no daily"
+    // que prova que os dois caminhos a usam.
     check(
-      src.includes("sqlAtendimentoSuspDetalhe"),
-      `${nome}: lê também a venda suspensa`,
+      src.includes("fontesDeVenda"),
+      `${nome}: lê também a venda suspensa, pela lista partilhada`,
     );
   }
   check(
@@ -1058,19 +1061,46 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
   eq(namespaceDaSerieCredito("vcg_1"), NAMESPACES.GUIAS_TRANSFERENCIA, "…e não depende de maiúsculas");
   eq(namespaceDaSerieCredito("  VCG_1  "), NAMESPACES.GUIAS_TRANSFERENCIA, "…nem de espaços");
 
-  // A Segurado tem VCC_1, tipo 38, no mesmo circuito. Parece-se — e
-  // "parece-se" foi o que declarou o 77, o Fim Venda='S' e o 107 sem
-  // sinal. Sem confirmação funcional, fica de fora.
-  eq(namespaceDaSerieCredito("VCC_1"), null, "VCC_1 NÃO é automaticamente transferência");
-  // A Silveirense tem VOG no mesmo circuito — 2 linhas, medidas no
-  // bootstrap real. Volume residual não é licença para adivinhar: uma
-  // série de 2 linhas declarada por engano vale o mesmo erro que uma de
-  // 2 937, e a de 2 linhas ninguém a vai rever.
-  eq(namespaceDaSerieCredito("VOG"), null, "…nem VOG, por muito residual que seja");
-  eq(namespaceDaSerieCredito("VCG"), null, "…nem VCG");
+  // O VCC_1 entrou na rev79 por MEDIÇÃO, não por analogia. A rev77
+  // recusou-o exactamente porque "parece-se com o VCG_1" era o mesmo
+  // argumento que declarou o 77, o Fim Venda='S' e o 107 sem sinal.
+  // O que a auditoria mediu na Segurado, e que a semelhança não dava:
+  // 652 docs, 2 937 linhas, 7 741 unidades líquidas, exclusivamente
+  // tipo 38, contraparte FIXA ClienteID 259 / ArmazemID 1 "VSC".
+  // A contraparte fixa é o que fecha — crédito tem clientes, plural.
+  eq(
+    namespaceDaSerieCredito("VCC_1"),
+    NAMESPACES.GUIAS_TRANSFERENCIA,
+    "VCC_1 → GUIAS_TRANSFERENCIA (destino fixo medido: ClienteID 259 / ArmazemID 1)",
+  );
+  eq(naturezaDe(namespaceDaSerieCredito("VCC_1")!), "TRANSFERENCIA", "…e a natureza é TRANSFERENCIA");
+  check(
+    namespaceDaSerieCredito("VCC_1") !== NAMESPACES.VENDAS_CREDITO,
+    "VCC_1 NUNCA é crédito, apesar do nome da tabela",
+  );
+  eq(namespaceDaSerieCredito("vcc_1"), NAMESPACES.GUIAS_TRANSFERENCIA, "…sem depender de maiúsculas");
+  // O VOG fica de fora: 2 linhas, tipo 64, um veículo automóvel +1/−1,
+  // líquido zero. Não é venda nem transferência. Volume residual não é
+  // licença para adivinhar — uma série de 2 linhas declarada por engano
+  // vale o mesmo erro que uma de 2 937, e a de 2 ninguém a vai rever.
+  eq(namespaceDaSerieCredito("VOG"), null, "VOG continua RECUSADA, por muito residual que seja");
+  eq(namespaceDaSerieCredito("VCG"), null, "…e VCG também");
   eq(namespaceDaSerieCredito(null), null, "…nem uma série nula");
   eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
-  eq(Object.keys(SERIE_CIRCUITO_CREDITO), ["VCG_1"], "só UMA série está declarada");
+  eq(
+    Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
+    ["VCC_1", "VCG_1"],
+    "DUAS séries declaradas, e só duas",
+  );
+  // O tipo 64 do VOG não é declarado em circuito nenhum. Mesmo que a
+  // série passasse, a linha era recusada — duas fechaduras, não uma.
+  for (const q of [1, -1, 0]) {
+    eq(
+      classificarDocumento(64, NAMESPACES.GUIAS_TRANSFERENCIA, q),
+      null,
+      `tipo 64 (VOG) com quantidade ${q} é RECUSADO`,
+    );
+  }
 
   // Tipo 38, pelo SINAL. Resolve sozinho os dois casos observados: os
   // documentos `Fim Venda='A'` têm quantidade ZERO e são recusados, e
@@ -1123,28 +1153,39 @@ console.log("\n=== a MESMA regra no backfill e no daily ===");
   // Foi precisamente este o defeito do `Fim Venda`: o backfill ficava
   // certo e cada noite voltava a divergir. As três fontes e a resolução
   // por série têm de estar nos DOIS caminhos.
+  // Até à rev79 eram DOIS literais iguais, mantidos em sincronia por
+  // disciplina — a mesma que deixou o `Fim Venda='S'` em seis sítios e o
+  // `if (t === 77)` em três. Agora é uma função: a igualdade deixa de
+  // ser uma coincidência que alguém verifica e passa a ser construção.
   for (const f of ["bootstrap-upload", "daily-sync-runner"]) {
     const src = readFileSync(
       new URL(`../../agent/src/commands/${f}.ts`, import.meta.url),
       "utf8",
     );
     check(
-      /sqlAtendimentoCredito\(credito\)/.test(src),
-      `${f}: lê o circuito [Atendimento Credito]`,
+      /fontesDeVenda\(at, susp, cab, credito\)/.test(src),
+      `${f}: as fontes vêm de fontesDeVenda`,
     );
     check(
-      /namespacePorLinha: \(row\) => namespaceDaSerieCredito\(txtSerie\(row\.serie\)\)/.test(src),
-      `${f}: resolve a natureza pela SÉRIE, por linha`,
+      !/namespace: NAMESPACES\.GUIAS_TRANSFERENCIA,/.test(src),
+      `${f}: já não declara as fontes por sua conta`,
+      "duas cópias do mesmo literal divergem — é uma questão de tempo",
     );
     check(
       /namespacePorLinha \? [^\n]*\(row\) : fonte\.namespace/.test(src),
-      `${f}: e usa esse namespace ao normalizar`,
-    );
-    check(
-      /GUIAS_TRANSFERENCIA/.test(src),
-      `${f}: conhece o namespace das guias`,
+      `${f}: e usa o namespace por linha ao normalizar`,
     );
   }
+  // E a função declara mesmo as três, com a resolução por série.
+  const vf = readFileSync(new URL("../../agent/src/vendas-fontes.ts", import.meta.url), "utf8");
+  const corpo = vf.slice(vf.indexOf("export function fontesDeVenda"));
+  check(/sqlAtendimentoDetalhe\(at\)/.test(corpo), "fontesDeVenda: circuito G");
+  check(/sqlAtendimentoSuspDetalhe\(susp, cab\)/.test(corpo), "fontesDeVenda: circuito suspenso");
+  check(/sqlAtendimentoCredito\(credito\)/.test(corpo), "fontesDeVenda: [Atendimento Credito]");
+  check(
+    /namespacePorLinha: \(row\) => namespaceDaSerieCredito\(txtSerie\(row\.serie\)\)/.test(corpo),
+    "fontesDeVenda: a natureza decide-se pela SÉRIE, por linha",
+  );
 }
 
 console.log("\n=== transferências não falseiam procura ===");
@@ -1172,6 +1213,29 @@ console.log("\n=== transferências não falseiam procura ===");
     naturezasIncluidas({ incluirTransferencias: true }).includes("TRANSFERENCIA"),
     "…e ligar 'guias de transferência' traz",
   );
+
+  // Os interruptores, percorridos pela cadeia inteira: série → namespace
+  // → natureza → lista incluída. As DUAS séries declaradas têm de se
+  // comportar identicamente — se uma delas escapasse ao interruptor, o
+  // mapa de uma farmácia mexia e o da outra não, e a diferença só
+  // apareceria a comparar com o balcão.
+  for (const serie of ["VCG_1", "VCC_1"]) {
+    const nat = naturezaDe(namespaceDaSerieCredito(serie)!);
+    eq(nat, "TRANSFERENCIA", `${serie}: a natureza é TRANSFERENCIA`);
+    check(
+      !naturezasIncluidas({ incluirTransferencias: false }).includes(nat),
+      `${serie}: com transferências OFF fica FORA do mapa`,
+    );
+    check(
+      naturezasIncluidas({ incluirTransferencias: true }).includes(nat),
+      `${serie}: com transferências ON entra`,
+    );
+    check(
+      !naturezasIncluidas({ incluirCredito: true, incluirTransferencias: false }).includes(nat),
+      `${serie}: o interruptor do CRÉDITO não a traz`,
+      "a tabela chama-se Atendimento Credito — é exactamente esse o erro que isto impede",
+    );
+  }
 }
 
 console.log("\n=== os três gates, e a aritmética entre eles ===");

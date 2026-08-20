@@ -42,6 +42,7 @@ import {
   parseDateArg,
 } from "./probe-helpers.js";
 import { NAMESPACES, classificarDocumento } from "../vendas-fontes.js";
+import { OPCOES_INCLUIR_HOJE, aplicarGuardaTemporal, leuIncluirHoje } from "../janela.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -156,7 +157,7 @@ function classifyTipoDoc(t: number | null, quantidade: number | null): TipoDocCl
 // CLI
 // ─────────────────────────────────────────────────────────────────────
 
-type Args = { from?: string; to?: string; help?: boolean };
+type Args = { from?: string; to?: string; incluirHoje: boolean; help?: boolean };
 
 function parseCmdArgs(): Args {
   const raw = parseArgs({
@@ -164,6 +165,7 @@ function parseCmdArgs(): Args {
     options: {
       from: { type: "string" },
       to: { type: "string" },
+      ...OPCOES_INCLUIR_HOJE,
       help: { type: "boolean", short: "h" },
     },
     strict: true,
@@ -172,12 +174,14 @@ function parseCmdArgs(): Args {
   return {
     from: typeof raw.values.from === "string" ? raw.values.from : undefined,
     to: typeof raw.values.to === "string" ? raw.values.to : undefined,
+    incluirHoje: leuIncluirHoje(raw.values),
     help: raw.values.help === true,
   };
 }
 
 function printHelp(): void {
   console.log("Uso: bootstrap-dry-run --from YYYY-MM-DD --to YYYY-MM-DD");
+  console.log("  --include-today  permite --to = hoje (dia AINDA ABERTO — parcial). Default: até ontem.");
   console.log("");
   console.log("Preview da primeira ingestão. Transforma ERP em payloads canónicos");
   console.log("SPharm.MT e imprime contagens + amostras + alertas. **Sem escrita.**");
@@ -601,6 +605,8 @@ export async function bootstrapDryRun(): Promise<number> {
     console.error(`✗ --from (${fromDate}) é posterior a --to (${toDate}).`);
     return 1;
   }
+  // Hoje ainda está aberto. Ver `guardaTemporal`.
+  if (!aplicarGuardaTemporal(toDate, args.incluirHoje)) return 1;
 
   let cfg: AgentConfig;
   try {

@@ -13,12 +13,15 @@
  *
  * Uso: npx tsx agent/src/janela.test.ts
  */
+import { readFileSync } from "node:fs";
 import {
   diaAindaAberto,
   diaSeguinte,
+  guardaTemporal,
   hojeNaFarmacia,
   janela,
   janelaDoDia,
+  leuIncluirHoje,
   ontemNaFarmacia,
 } from "./janela.js";
 
@@ -95,6 +98,69 @@ for (const [label, fn] of [
   let atirou = false;
   try { fn(); } catch { atirou = true; }
   ok(label, atirou);
+}
+
+console.log("\n=== o guard temporal dos comandos históricos ===");
+{
+  // Uma tarde de trabalho na farmácia: hoje é 12, ontem é 11.
+  const agora = new Date("2026-08-12T14:00:00Z");
+
+  const ontem = guardaTemporal("2026-08-11", false, agora);
+  ok("ontem passa sem avisos", ontem.ok === true && ontem.aviso === null);
+
+  // Hoje ainda está aberto: a farmácia continua a vender enquanto a
+  // corrida decorre. O histórico ficaria com um dia parcial, e a
+  // corrida terminaria com sucesso na mesma — que é o que torna este
+  // defeito caro.
+  const hoje = guardaTemporal("2026-08-12", false, agora);
+  ok("hoje é RECUSADO por omissão", hoje.ok === false);
+  if (hoje.ok === false) {
+    ok("…e a mensagem diz qual é o último dia completo", hoje.erro.join(" ").includes("2026-08-11"));
+    ok("…e nomeia a opção de escape", hoje.erro.join(" ").includes("--include-today"));
+  }
+
+  // Amanhã também: um `--to` no futuro não é uma janela, é um engano.
+  ok("amanhã é RECUSADO", guardaTemporal("2026-08-13", false, agora).ok === false);
+
+  // Quem sabe o que faz não fica bloqueado — mas fica avisado.
+  const forcado = guardaTemporal("2026-08-12", true, agora);
+  ok("--include-today deixa passar", forcado.ok === true);
+  ok("…mas avisa que o dia fica incompleto", forcado.ok === true && forcado.aviso !== null);
+
+  // Os dois nomes da mesma decisão. `--incluir-hoje` já existia em
+  // `full-sync` e há operadores com scripts feitos: mudar o nome sem
+  // manter o antigo partia-os em silêncio.
+  ok("--include-today lê-se", leuIncluirHoje({ "include-today": true }));
+  ok("--incluir-hoje continua a ler-se", leuIncluirHoje({ "incluir-hoje": true }));
+  ok("nenhum dos dois = false", !leuIncluirHoje({}));
+  ok("valores não-true não contam", !leuIncluirHoje({ "include-today": "sim" }));
+}
+
+console.log("\n=== o guard está em TODOS os comandos históricos ===");
+{
+  // Estava só no `full-sync`. Um guard que protege um caminho e não os
+  // outros não é um guard — é uma opinião sobre qual deles costuma ser
+  // usado. `bootstrap-upload` aceitava `--to` hoje sem dizer nada.
+  const HISTORICOS = [
+    "bootstrap-upload",
+    "bootstrap-dry-run",
+    "full-sync",
+    "stocksmov",
+    "compras",
+    "devolucoes-fornecedor",
+    "acertos-stock",
+  ];
+  for (const c of HISTORICOS) {
+    const src = readFileSync(new URL(`./commands/${c}.ts`, import.meta.url), "utf8");
+    ok(`${c}: aplica o guard`, /aplicarGuardaTemporal\(/.test(src));
+    ok(`${c}: aceita a flag`, /OPCOES_INCLUIR_HOJE/.test(src));
+    // Cada comando com `--from/--to` tem de o aplicar em TODAS as suas
+    // entradas: o `compras` tem duas (dry-run e upload), e proteger só
+    // uma delas seria pior do que não proteger nenhuma.
+    const entradas = (src.match(/é posterior a --to/g) ?? []).length;
+    const guardas = (src.match(/aplicarGuardaTemporal\(/g) ?? []).length;
+    eq(`${c}: uma guarda por entrada`, guardas, entradas);
+  }
 }
 
 console.log(`\n${pass} ok, ${fail} falhas`);

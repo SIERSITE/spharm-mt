@@ -364,17 +364,35 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
  *     Jun    12 380   2 789          15 169
  *     Jul    14 120   4 617          18 737
  *
- * ── PORQUE É QUE O VCC_1 NÃO ESTÁ AQUI ───────────────────────────────
+ * ── O VCC_1 (rev79) ──────────────────────────────────────────────────
  *
- * A Segurado tem `VCC_1`, tipo 38, no mesmo circuito. Parece-se com o
- * `VCG_1` — e "parece-se" foi o que declarou o 77, o `Fim Venda='S'` e o
- * 107 sem sinal. Não há confirmação funcional de que `VCC_1` seja
- * transferência, portanto fica de fora e as suas linhas são recusadas com
- * a série no log. Uma linha recusada aponta para si própria; uma linha
- * mal classificada entra na soma e desaparece.
+ * Entrou por MEDIÇÃO, não por analogia. A rev77 recusou-o precisamente
+ * porque "parece-se com o VCG_1" era o mesmo argumento que declarou o
+ * 77, o `Fim Venda='S'` e o 107 sem sinal. O que a auditoria da rev79
+ * mediu na Segurado, e que a semelhança não dava:
+ *
+ *     652 documentos, 2 937 linhas, 7 741 unidades líquidas
+ *     EXCLUSIVAMENTE tipo 38
+ *     contraparte FIXA: ClienteID 259 / ArmazemID 1 "VSC"
+ *
+ * A contraparte fixa é o que fecha. Uma venda a crédito tem clientes —
+ * plural, dispersos. Um destino único, sempre o mesmo armazém, é uma
+ * transferência. E o espelho confirma-o: na Silveirense o `VCG_1` tem a
+ * mesma forma com ClienteID 691 / ArmazemID 1 "f segurado" — cada
+ * farmácia com um destino fixo que é a outra.
+ *
+ * ── O VOG CONTINUA DE FORA ───────────────────────────────────────────
+ *
+ * 2 linhas, tipo 64, um veículo automóvel +1/−1, líquido zero. Não é
+ * venda nem transferência, e o tipo 64 NÃO é declarado em circuito
+ * nenhum: as duas linhas continuam recusadas com a série no log. Volume
+ * residual não é licença para adivinhar — uma série de 2 linhas
+ * declarada por engano vale o mesmo erro que uma de 2 937, e a de 2
+ * linhas ninguém a vai rever.
  */
 export const SERIE_CIRCUITO_CREDITO: Readonly<Record<string, SourceNamespace>> = {
   VCG_1: NAMESPACES.GUIAS_TRANSFERENCIA,
+  VCC_1: NAMESPACES.GUIAS_TRANSFERENCIA,
 };
 
 /**
@@ -1202,6 +1220,54 @@ export type FonteVenda = {
 /** A série de uma linha, normalizada. Exportada para os dois pipelines. */
 export function txtSerie(v: unknown): string | null {
   return txt(v);
+}
+
+/**
+ * AS FONTES DE VENDA. Um sítio só, para o backfill e para o diário.
+ *
+ * ── PORQUE É UMA FUNÇÃO E NÃO DOIS LITERAIS ──────────────────────────
+ *
+ * Porque eram dois literais. `bootstrap-upload` e `daily-sync-runner`
+ * declaravam a mesma lista, palavra por palavra, e mantinham-se iguais
+ * por disciplina — que é a mesma disciplina que deixou o
+ * `Fim Venda = 'S'` em seis sítios e o `if (t === 77)` em três. Quando
+ * divergem, o histórico fica certo e cada noite volta a divergir: o
+ * modo de falha mais caro que este projecto teve.
+ *
+ * A rev79 acrescentou o `VCC_1` a `SERIE_CIRCUITO_CREDITO`. Com dois
+ * literais, essa declaração chegaria aos dois caminhos só porque ambos
+ * chamam `namespaceDaSerieCredito` — verdade hoje, e uma coincidência
+ * que ninguém verifica amanhã. Com uma função, chega por construção.
+ */
+export function fontesDeVenda(
+  at: SchemaAtendimento,
+  susp: SchemaFonteSusp,
+  cab: SchemaCabecalhoSusp,
+  credito: SchemaFonteCredito,
+): FonteVenda[] {
+  return [
+    {
+      namespace: NAMESPACES.ATENDIMENTO_DETALHE,
+      rotulo: "Atendimento Detalhe",
+      fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
+    },
+    {
+      namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
+      rotulo: "Atendimento Susp Detalhe",
+      fonte: sqlAtendimentoSuspDetalhe(susp, cab),
+    },
+    // O circuito `[Atendimento Credito]`. A natureza de cada linha vem
+    // da SÉRIE, não da tabela: `VCG_1` (Silveirense) e `VCC_1`
+    // (Segurado) são guias de transferência, ambas medidas com destino
+    // fixo na outra farmácia. Uma série por declarar — o `VOG` — é
+    // recusada com o nome dela no log.
+    {
+      namespace: NAMESPACES.GUIAS_TRANSFERENCIA,
+      rotulo: "Atendimento Credito (serie decide a natureza)",
+      fonte: sqlAtendimentoCredito(credito),
+      namespacePorLinha: (row) => namespaceDaSerieCredito(txtSerie(row.serie)),
+    },
+  ];
 }
 
 /**

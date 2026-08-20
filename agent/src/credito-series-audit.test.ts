@@ -185,17 +185,21 @@ console.log("\n=== a assinatura mede forma, não natureza ===");
   check(!/FOR XML/i.test(p), "sem extensões do fornecedor no caminho crítico");
 }
 
-console.log("\n=== a sonda não declara nada ===");
+console.log("\n=== a sonda mede; quem declara é o operador ===");
 {
-  // O ponto inteiro da rev79: medir sem decidir. Se alguma destas
-  // deixar de ser null, foi por analogia — que foi como se declarou o
-  // 77, o `Fim Venda='S'` e o 107 sem sinal.
-  eq(namespaceDaSerieCredito("VCC_1"), null, "VCC_1 continua RECUSADA");
+  // A rev79 mediu e não decidiu. A rev80 declarou o VCC_1 a partir do
+  // que ela mediu — contraparte FIXA, ClienteID 259 / ArmazemID 1
+  // "VSC" — e não da sua semelhança com o VCG_1, que era o argumento
+  // que declarou o 77, o `Fim Venda='S'` e o 107 sem sinal.
+  eq(namespaceDaSerieCredito("VCG_1"), "GUIAS_TRANSFERENCIA", "VCG_1 declarado");
+  eq(namespaceDaSerieCredito("VCC_1"), "GUIAS_TRANSFERENCIA", "VCC_1 declarado (rev80)");
+  // O VOG continua fora: 2 linhas, tipo 64, um veículo automóvel
+  // +1/−1, líquido zero. Correr a sonda outra vez não o declara.
   eq(namespaceDaSerieCredito("VOG"), null, "VOG continua RECUSADA");
-  eq(
-    namespaceDaSerieCredito("VCG_1"),
-    "GUIAS_TRANSFERENCIA",
-    "e o VCG_1, confirmado funcionalmente, continua declarado",
+  check(
+    !sqlInventarioSeries(C).includes("VCC_1") && !sqlMatriz(C).includes("VCG_1"),
+    "e nenhuma série está escrita no SQL da sonda",
+    "uma sonda que já sabe a resposta deixa de a medir",
   );
 }
 
