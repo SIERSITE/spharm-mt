@@ -53,7 +53,16 @@ import {
   type SchemaCabecalhoSusp,
   type SchemaFonteSusp,
 } from "../vendas-fontes.js";
-import { formatCell, quoteIdent, tableExists } from "./probe-helpers.js";
+import {
+  formatCell,
+  listColumns,
+  listForeignKeysOut,
+  listPrimaryKey,
+  quoteIdent,
+  tableExists,
+  typeFamily,
+  type ColumnMeta,
+} from "./probe-helpers.js";
 
 const RULE = "─".repeat(74);
 const DOUBLE = "═".repeat(74);
@@ -95,6 +104,31 @@ async function seccao(titulo: string, fn: () => Promise<void>): Promise<void> {
     // Uma secção que falha não leva as outras atrás: um inventário
     // parcial vale mais do que um stack trace.
     console.log(`✗ SECCAO FALHOU: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Corre uma query da sonda. Se falhar, IMPRIME O SQL e devolve `null`.
+ *
+ * A rev71 morreu com `Invalid column name 'Serie'` e mais nada: nem a
+ * query, nem que passo era, e as três secções seguintes morreram atrás.
+ * Custou uma ronda inteira a descobrir onde estava o `Serie` — numa
+ * sonda que existe precisamente para poupar rondas.
+ *
+ * Um passo que falha diz o que tentou e deixa os outros correr.
+ */
+async function consultar<T>(
+  pedido: sql.Request,
+  texto: string,
+  rotulo: string,
+): Promise<{ recordset: T[] } | null> {
+  try {
+    return await pedido.query<T>(texto);
+  } catch (err) {
+    console.log(`      ✗ ${rotulo}: ${err instanceof Error ? err.message : String(err)}`);
+    console.log("        ── SQL que falhou ──");
+    for (const l of texto.split("\n")) console.log(`        | ${l}`);
+    return null;
   }
 }
 
@@ -173,6 +207,326 @@ function montar(susp: SchemaFonteSusp, cab: SchemaCabecalhoSusp, fimVenda: strin
     pkDet: `d.${pkDet}`,
     pkCab: `h.${pkCab}`,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// O circuito G, descoberto. Nada aqui é nomeado à mão.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A §4 da rev71 partiu nas DUAS farmácias com `Invalid column name
+ * 'Serie'`, e não foi um erro de escrita: foi ter escrito `a.[Serie]` à
+ * mão numa sonda cujo resto do agent pergunta ao `sys.columns` antes de
+ * nomear uma coluna. `[Atendimento]` não tem coluna `Serie` nenhuma — a
+ * série "G" dos documentos vem de outro sítio, e o reader do circuito G
+ * já emite `NULL` quando ela falta.
+ *
+ * Daqui sai a exigência: o cruzamento tem de funcionar SEM série do lado
+ * G. A série é um adorno do relatório; a ligação faz-se por
+ * identificador, que é o que a FK declara.
+ */
+type CircuitoG = {
+  existe: boolean;
+  tabela: string;
+  detalhe: string;
+  detalheExiste: boolean;
+  pk: string | null;
+  serie: string | null;
+  numero: string | null;
+  tipoDocumento: string | null;
+  dataVenda: string | null;
+  /** FK DECLARADA de `[Atendimento Detalhe]` para `[Atendimento]`. */
+  detFk: string | null;
+  detQtd: string | null;
+  detCodigo: string | null;
+  /** O que existe mesmo, para o operador ver em vez de adivinhar. */
+  colunasInteresse: string[];
+};
+
+function pickCol(cols: ColumnMeta[], padroes: RegExp[]): string | null {
+  for (const re of padroes) {
+    const m = cols.find((c) => re.test(c.name));
+    if (m) return m.name;
+  }
+  return null;
+}
+
+async function descobrirCircuitoG(pool: SqlPool): Promise<CircuitoG> {
+  const tA = { schema: "dbo", table: T_ATEND };
+  const tD = { schema: "dbo", table: T_ATEND_DET };
+  const [existe, detalheExiste] = await Promise.all([
+    tableExists(pool, tA),
+    tableExists(pool, tD),
+  ]);
+  const base: CircuitoG = {
+    existe,
+    detalheExiste,
+    tabela: T_ATEND,
+    detalhe: T_ATEND_DET,
+    pk: null,
+    serie: null,
+    numero: null,
+    tipoDocumento: null,
+    dataVenda: null,
+    detFk: null,
+    detQtd: null,
+    detCodigo: null,
+    colunasInteresse: [],
+  };
+  if (!existe) return base;
+
+  const colsA = await listColumns(pool, tA);
+  const pkA = await listPrimaryKey(pool, tA);
+  const colsD = detalheExiste ? await listColumns(pool, tD) : [];
+  const fksD = detalheExiste ? await listForeignKeysOut(pool, tD) : [];
+  // FK declarada primeiro, nome só como último recurso — a mesma ordem
+  // que resolveu o `Atendimento Susp ID` contra o `Atendimento ID`.
+  const fkDeclarada =
+    fksD.find((f) => f.toTable.toLowerCase() === `dbo.${T_ATEND}`.toLowerCase())
+      ?.fromColumns[0] ?? null;
+
+  return {
+    ...base,
+    pk: (pkA.length === 1 ? pkA[0] : null) ?? pickCol(colsA, [/^atendimento\s*id$/i]),
+    // Pode simplesmente não existir. Isso é um resultado, não uma falha.
+    serie:
+      pickCol(colsA, [
+        /^serie$/i,
+        /^serie\s*facturacao$/i,
+        /^seriefacturacao$/i,
+        /^serie\s*documento$/i,
+      ]) ??
+      colsA.find((c) => /serie/i.test(c.name) && typeFamily(c.dataType) === "string")?.name ??
+      null,
+    numero:
+      pickCol(colsA, [/^numero\s*documento$/i, /^numero$/i, /^n\s*documento$/i]) ??
+      colsA.find((c) => /numero/i.test(c.name) && typeFamily(c.dataType) === "int")?.name ??
+      null,
+    tipoDocumento: pickCol(colsA, [
+      /^tipo\s*documento$/i,
+      /^tipo\s*documento\s*id$/i,
+      /tipo.*documento/i,
+    ]),
+    dataVenda:
+      pickCol(colsA, [/^data\s*venda$/i, /^data$/i]) ??
+      colsA.find((c) => typeFamily(c.dataType) === "date")?.name ??
+      null,
+    detFk: fkDeclarada ?? pickCol(colsD, [/^atendimento\s*id$/i]),
+    detQtd: pickCol(colsD, [/^quantidade$/i, /^qtd$/i]),
+    detCodigo: pickCol(colsD, [/^codigo\s*id$/i, /^codigoid$/i]),
+    colunasInteresse: colsA
+      .filter((c) => /serie|numero|tipo|data|fim/i.test(c.name))
+      .map((c) => `${c.name} (${c.dataType})`),
+  };
+}
+
+/** Uma relação FT→NC, com as duas pontas já resolvidas contra o ERP. */
+type LinhaCadeia = {
+  suspId: number;
+  suspSerie: string | null;
+  suspNumero: number | null;
+  suspTipo: number | null;
+  ncId: number | null;
+  gTipo: number | null;
+  gData: Date | null;
+  gNumero: number | null;
+  gSerie: string | null;
+  nLinhas: number | null;
+  somaQtd: number | null;
+};
+
+/** As duas pontas de `Atendimento_SuspFT_NC_Susp`, também descobertas. */
+type Relacao = {
+  existe: boolean;
+  tabela: string;
+  colFt: string | null;
+  colNc: string | null;
+  origem: string;
+};
+
+async function descobrirRelacao(pool: SqlPool, tabelaCabSusp: string): Promise<Relacao> {
+  const t = { schema: "dbo", table: T_FT_NC };
+  const existe = await tableExists(pool, t);
+  if (!existe) {
+    return { existe: false, tabela: T_FT_NC, colFt: null, colNc: null, origem: "-" };
+  }
+  const cols = await listColumns(pool, t);
+  const fks = await listForeignKeysOut(pool, t);
+  const alvo = (nome: string) =>
+    fks.find((f) => f.toTable.toLowerCase() === `dbo.${nome}`.toLowerCase())
+      ?.fromColumns[0] ?? null;
+  const ftFk = alvo(tabelaCabSusp);
+  const ncFk = alvo(T_ATEND);
+  const colFt = ftFk ?? pickCol(cols, [/_FT$/i, /susp.*id/i]);
+  let colNc = ncFk ?? pickCol(cols, [/_NC$/i]);
+  if (colNc !== null && colNc === colFt) colNc = null;
+  const origem =
+    ftFk && ncFk ? "FK declarada" : ftFk || ncFk ? "FK declarada + nome" : "nome";
+  return { existe: true, tabela: T_FT_NC, colFt, colNc, origem };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// As queries da §4, como funções puras
+// ─────────────────────────────────────────────────────────────────────
+//
+// Estão fora do comando por um motivo só: para poderem ser construídas e
+// verificadas sem ERP nenhum. A §4 correu contra duas farmácias e partiu
+// nas duas — e ninguém tinha maneira de ver a query antes de a mandar.
+// Agora um teste constrói-as com esquemas fictícios (com série e sem
+// série do lado G) e verifica o texto inteiro, não fragmentos dele.
+
+export type PecasCadeia = {
+  pkCab: string;
+  serie: string;
+  numero: string;
+  tipo: string;
+  data: string;
+  janelaSql: string;
+  cabTabela: string;
+  qRel: string;
+  cFt: string;
+  cNc: string;
+  qA: string;
+  gPk: string;
+  gTipo: string;
+  gData: string;
+  gNumero: string;
+  gSerie: string;
+  linhasExpr: string;
+  somaExpr: string;
+};
+
+/** Uma linha por relação FT→NC: as duas pontas, lado a lado. */
+export function sqlCadeiaFtNc(p: PecasCadeia): string {
+  return [
+    `SELECT ${p.pkCab} AS suspId,`,
+    `       ${p.serie} AS suspSerie,`,
+    `       ${p.numero} AS suspNumero,`,
+    `       ${p.tipo} AS suspTipo,`,
+    `       x.${p.cNc} AS ncId,`,
+    `       ${p.gTipo} AS gTipo,`,
+    `       ${p.gData} AS gData,`,
+    `       ${p.gNumero} AS gNumero,`,
+    `       ${p.gSerie} AS gSerie,`,
+    `       ${p.linhasExpr} AS nLinhas,`,
+    `       ${p.somaExpr} AS somaQtd`,
+    `  FROM ${p.qRel} x`,
+    `  JOIN [dbo].${quoteIdent(p.cabTabela)} h ON ${p.pkCab} = x.${p.cFt}`,
+    // LEFT: uma NC que não resolva no circuito G é precisamente o
+    // resultado que interessa ver, não uma linha para descartar.
+    `  LEFT JOIN ${p.qA} a ON a.${p.gPk} = x.${p.cNc}`,
+    ` WHERE ${p.janelaSql}`,
+    ` ORDER BY ${p.tipo}, ${p.data}`,
+  ].join("\n");
+}
+
+export type PecasAnulacoes = {
+  pkCab: string;
+  tipo: string;
+  fonte: string;
+  janelaSql: string;
+  qtd: string;
+  serieSel: string;
+  numSel: string;
+  qRel: string;
+  cFt: string;
+  cNc: string;
+  gemeaExpr: string;
+  qD: string;
+  dFk: string;
+};
+
+/**
+ * Os documentos suspensos com linha negativa, e onde está a reversão.
+ *
+ * Três desfechos, e só três: a NC tem linhas no circuito G (o reader G já
+ * a lê — declarar reversão aqui subtrai duas vezes); há ponte mas não há
+ * linhas lá (a quantidade só existe do lado suspenso); não há ponte
+ * nenhuma (a anulação vive inteira no circuito suspenso).
+ */
+export function sqlAnulacoesSuspensas(p: PecasAnulacoes): string {
+  return [
+    "WITH neg AS (",
+    `  SELECT DISTINCT ${p.pkCab} AS suspId,`,
+    `         ${p.tipo} AS tipo,`,
+    `         ${p.serieSel} AS serie,`,
+    `         ${p.numSel} AS num`,
+    `    FROM ${p.fonte}`,
+    `   WHERE ${p.janelaSql} AND ${p.qtd} < 0`,
+    "),",
+    "rot AS (",
+    "  SELECT n.tipo AS tipo,",
+    "         n.suspId AS suspId,",
+    `         (SELECT TOP 1 x1.${p.cNc} FROM ${p.qRel} x1 WHERE x1.${p.cFt} = n.suspId) AS ncDirecto,`,
+    `         ${p.gemeaExpr} AS ncGemea`,
+    "    FROM neg n",
+    "),",
+    "res AS (",
+    "  SELECT r.tipo AS tipo,",
+    "         COALESCE(r.ncDirecto, r.ncGemea) AS nc,",
+    "         CASE WHEN r.ncDirecto IS NOT NULL THEN 'D'",
+    "              WHEN r.ncGemea IS NOT NULL THEN 'G'",
+    "              ELSE '-' END AS rota",
+    "    FROM rot r",
+    "),",
+    "fim AS (",
+    "  SELECT res.tipo AS tipo,",
+    "         res.nc AS nc,",
+    "         res.rota AS rota,",
+    "         CASE WHEN res.nc IS NULL THEN 0",
+    `              ELSE (SELECT COUNT(*) FROM ${p.qD} dd WHERE dd.${p.dFk} = res.nc)`,
+    "          END AS nLinhas",
+    "    FROM res",
+    ")",
+    "SELECT s.tipo AS tipo,",
+    "       COUNT(*) AS docsNeg,",
+    "       SUM(CASE WHEN s.nc IS NOT NULL AND s.nLinhas > 0 THEN 1 ELSE 0 END) AS comLinhasG,",
+    "       SUM(CASE WHEN s.nc IS NOT NULL AND s.nLinhas = 0 THEN 1 ELSE 0 END) AS relSemLinhas,",
+    "       SUM(CASE WHEN s.nc IS NULL THEN 1 ELSE 0 END) AS semRelacao,",
+    "       SUM(CASE WHEN s.rota = 'D' THEN 1 ELSE 0 END) AS rotaDirecta,",
+    "       SUM(CASE WHEN s.rota = 'G' THEN 1 ELSE 0 END) AS rotaGemea",
+    "  FROM fim s",
+    " GROUP BY s.tipo",
+    " ORDER BY s.tipo",
+  ].join("\n");
+}
+
+export type PecasCruzDia = {
+  qD: string;
+  qA: string;
+  gPk: string;
+  dFk: string;
+  detCodigo: string;
+  detData: string;
+  detQtd: string;
+  codigo: string;
+  data: string;
+  qtd: string;
+  fonte: string;
+  janelaSql: string;
+};
+
+/** O mesmo cruzamento, sem depender da tabela de relações existir. */
+export function sqlCruzProdutoDia(p: PecasCruzDia): string {
+  return [
+    "SELECT s.codigo AS codigo,",
+    "       s.dia AS dia,",
+    "       s.qtdSusp AS qtdSusp,",
+    "       (SELECT COUNT(*)",
+    `          FROM ${p.qD} gd`,
+    `          JOIN ${p.qA} ga ON ga.${p.gPk} = gd.${p.dFk}`,
+    `         WHERE gd.${p.detCodigo} = s.codigo`,
+    `           AND CAST(ga.${p.detData} AS DATE) = s.dia`,
+    `           AND gd.${p.detQtd} < 0) AS nG`,
+    "  FROM (",
+    `    SELECT ${p.codigo} AS codigo,`,
+    `           CAST(${p.data} AS DATE) AS dia,`,
+    `           SUM(CAST(${p.qtd} AS FLOAT)) AS qtdSusp`,
+    `      FROM ${p.fonte}`,
+    `     WHERE ${p.janelaSql} AND ${p.qtd} < 0`,
+    `     GROUP BY ${p.codigo}, CAST(${p.data} AS DATE)`,
+    "  ) s",
+  ].join("\n");
 }
 
 export async function vendasSuspTipos(): Promise<number> {
@@ -428,107 +782,283 @@ export async function vendasSuspTipos(): Promise<number> {
 
     // ── 4. Cruzamento com o circuito G ───────────────────────────
     await seccao("4. CRUZAMENTO com o circuito G — a mesma operacao nos dois?", async () => {
-      const temRel = await tableExists(pool, { schema: "dbo", table: T_FT_NC });
-      if (!temRel) {
-        console.log(`  [${T_FT_NC}] nao existe nesta instalacao.`);
+      const g = await descobrirCircuitoG(pool);
+      const rel = await descobrirRelacao(pool, cab.tabela);
+
+      // ── 4.0 o que o schema DIZ, antes de qualquer query de dados ──
+      console.log("  4.0 SCHEMA DO CIRCUITO G — resolvido por metadata");
+      console.log(`      [${g.tabela}]        existe=${g.existe} pk=${g.pk ?? "(por resolver)"}`);
+      console.log(
+        `      serie=${g.serie ?? "NAO EXISTE"}  numero=${g.numero ?? "NAO EXISTE"}  ` +
+          `tipoDoc=${g.tipoDocumento ?? "-"}  data=${g.dataVenda ?? "-"}`,
+      );
+      console.log(
+        `      [${g.detalhe}] existe=${g.detalheExiste} ` +
+          `fk->${g.tabela}=${g.detFk ?? "-"} qtd=${g.detQtd ?? "-"} codigo=${g.detCodigo ?? "-"}`,
+      );
+      if (g.colunasInteresse.length > 0) {
+        console.log(`      colunas de [${g.tabela}] com serie/numero/tipo/data/fim no nome:`);
+        for (const c of g.colunasInteresse) console.log(`        · ${c}`);
+      }
+      if (!g.serie) {
+        console.log("      NOTA: o circuito G nao tem coluna de serie nesta base. O");
+        console.log("      cruzamento faz-se por IDENTIFICADOR; a serie do lado G sai");
+        console.log("      NULL e nao afecta nenhuma contagem.");
+      }
+      if (!g.existe || !g.pk) {
+        console.log("      Sem [Atendimento] ou sem pk nao ha cruzamento possivel.");
+        return;
+      }
+
+      const qA = `[dbo].${quoteIdent(g.tabela)}`;
+      const qD = `[dbo].${quoteIdent(g.detalhe)}`;
+      const gPk = quoteIdent(g.pk);
+      const gTipo = g.tipoDocumento ? `a.${quoteIdent(g.tipoDocumento)}` : "NULL";
+      const gData = g.dataVenda ? `a.${quoteIdent(g.dataVenda)}` : "NULL";
+      const gNumero = g.numero ? `a.${quoteIdent(g.numero)}` : "NULL";
+      const gSerie = g.serie ? `a.${quoteIdent(g.serie)}` : "NULL";
+      const podeContarLinhas = g.detalheExiste && g.detFk !== null;
+      const dFk = g.detFk ? quoteIdent(g.detFk) : null;
+
+      console.log("");
+      console.log(`  4.1 RELACAO [${rel.tabela}]`);
+      if (!rel.existe) {
+        console.log("      nao existe nesta instalacao — nao ha ponte declarada");
+        console.log("      entre o circuito suspenso e o G.");
+      } else if (!rel.colFt || !rel.colNc) {
+        console.log(
+          `      existe mas as pontas nao resolvem: FT=${rel.colFt ?? "-"} NC=${rel.colNc ?? "-"}`,
+        );
       } else {
-        const r = await pool.request().query<{
+        const qRel = `[dbo].${quoteIdent(rel.tabela)}`;
+        const cFt = quoteIdent(rel.colFt);
+        const cNc = quoteIdent(rel.colNc);
+        console.log(`      pontas (${rel.origem}): FT=${rel.colFt} -> [${cab.tabela}]`);
+        console.log(`                              NC=${rel.colNc} -> [${g.tabela}]`);
+
+        const sqlTotais = [
+          "SELECT COUNT(*) AS n,",
+          `       COUNT(DISTINCT x.${cFt}) AS ft,`,
+          `       COUNT(DISTINCT x.${cNc}) AS nc,`,
+          `       SUM(CASE WHEN x.${cFt} IS NULL THEN 1 ELSE 0 END) AS ftNulo,`,
+          `       SUM(CASE WHEN x.${cNc} IS NULL THEN 1 ELSE 0 END) AS ncNulo`,
+          `  FROM ${qRel} x`,
+        ].join("\n");
+        const tot = await consultar<{
           n: number;
           ft: number;
           nc: number;
           ftNulo: number;
           ncNulo: number;
-        }>(`
-          SELECT COUNT(*) AS n,
-                 COUNT(DISTINCT [Atendimento Susp ID_FT]) AS ft,
-                 COUNT(DISTINCT [Atendimento ID_NC]) AS nc,
-                 SUM(CASE WHEN [Atendimento Susp ID_FT] IS NULL THEN 1 ELSE 0 END) AS ftNulo,
-                 SUM(CASE WHEN [Atendimento ID_NC] IS NULL THEN 1 ELSE 0 END) AS ncNulo
-            FROM [dbo].${quoteIdent(T_FT_NC)}
-        `);
-        const d = r.recordset[0];
-        console.log(`  [${T_FT_NC}]: ${d?.n ?? 0} relacoes`);
-        console.log(`    lado FT (suspenso) : ${d?.ft ?? 0} distintos, ${d?.ftNulo ?? 0} nulos`);
-        console.log(`    lado NC ([Atendimento]) : ${d?.nc ?? 0} distintos, ${d?.ncNulo ?? 0} nulos`);
-
-        // Os tipos documentais de cada lado. É isto que diz se a
-        // anulação de uma VSG vive no circuito G.
-        const ladoNc = await pool.request().query<{
-          serie: string | null;
-          tipo: number | null;
-          n: number;
-        }>(`
-          SELECT a.[Serie] AS serie, a.[Tipo Documento] AS tipo, COUNT(*) AS n
-            FROM [dbo].${quoteIdent(T_FT_NC)} x
-            JOIN [dbo].${quoteIdent(T_ATEND)} a ON a.[Atendimento ID] = x.[Atendimento ID_NC]
-           GROUP BY a.[Serie], a.[Tipo Documento]
-           ORDER BY COUNT(*) DESC
-        `);
-        console.log("");
-        console.log("    lado NC resolvido contra [Atendimento] — serie x tipo:");
-        if (ladoNc.recordset.length === 0) {
-          console.log("      (nenhuma relacao resolve — as NC nao vivem no circuito G)");
-        }
-        for (const x of ladoNc.recordset) {
+        }>(pool.request(), sqlTotais, "4.1 totais da relacao");
+        const d0 = tot?.recordset[0];
+        if (tot) {
           console.log(
-            `      serie=${formatCell(x.serie, 8).padEnd(9)} tipo=${String(x.tipo ?? "-").padEnd(6)} n=${x.n}`,
+            `      ${d0?.n ?? 0} relacoes | FT distintos=${d0?.ft ?? 0} (nulos ${d0?.ftNulo ?? 0}) ` +
+              `| NC distintos=${d0?.nc ?? 0} (nulos ${d0?.ncNulo ?? 0})`,
           );
         }
-        const temLinhas = await pool.request().query<{ comLinhas: number; semLinhas: number }>(`
-          SELECT
-            SUM(CASE WHEN e.n > 0 THEN 1 ELSE 0 END) AS comLinhas,
-            SUM(CASE WHEN e.n = 0 THEN 1 ELSE 0 END) AS semLinhas
-          FROM (
-            SELECT x.[Atendimento ID_NC] AS id,
-                   (SELECT COUNT(*) FROM [dbo].${quoteIdent(T_ATEND_DET)} dd
-                     WHERE dd.[Atendimento ID] = x.[Atendimento ID_NC]) AS n
-              FROM [dbo].${quoteIdent(T_FT_NC)} x
-             WHERE x.[Atendimento ID_NC] IS NOT NULL
-          ) e
-        `);
-        const e = temLinhas.recordset[0];
+
+        // ── 4.2 a cadeia, relação a relação ────────────────────
+        const linhasExpr = podeContarLinhas
+          ? `(SELECT COUNT(*) FROM ${qD} dd WHERE dd.${dFk} = x.${cNc})`
+          : "NULL";
+        const somaExpr =
+          podeContarLinhas && g.detQtd
+            ? `(SELECT SUM(CAST(dd.${quoteIdent(g.detQtd)} AS FLOAT)) FROM ${qD} dd WHERE dd.${dFk} = x.${cNc})`
+            : "NULL";
+
+        const sqlCadeia = sqlCadeiaFtNc({
+          pkCab: C.pkCab,
+          serie: C.serie,
+          numero: C.numero,
+          tipo: C.tipo,
+          data: C.data,
+          janelaSql,
+          cabTabela: cab.tabela,
+          qRel,
+          cFt,
+          cNc,
+          qA,
+          gPk,
+          gTipo,
+          gData,
+          gNumero,
+          gSerie,
+          linhasExpr,
+          somaExpr,
+        });
         console.log("");
-        console.log(`    NC com linhas em [${T_ATEND_DET}] : ${e?.comLinhas ?? 0}`);
-        console.log(`    NC sem linhas la               : ${e?.semLinhas ?? 0}`);
-        console.log("");
-        console.log("    DECISAO:");
-        console.log("     . NC COM linhas no circuito G  -> o reader G ja as le.");
-        console.log("       Declarar uma reversao no circuito suspenso subtraia a");
-        console.log("       MESMA nota de credito duas vezes.");
-        console.log("     . NC SEM linhas no circuito G  -> a anulacao so existe no");
-        console.log("       circuito suspenso e o reader suspenso TEM de a ler.");
+        console.log("  4.2 A CADEIA, relacao a relacao — separada por tipoDoc suspenso");
+        const cadeia = await consultar<LinhaCadeia>(req(), sqlCadeia, "4.2 cadeia FT->NC");
+        if (cadeia && cadeia.recordset.length === 0) {
+          console.log("      (nenhuma relacao com cabecalho suspenso dentro da janela)");
+        }
+        const porTipo = new Map<string, LinhaCadeia[]>();
+        for (const x of cadeia?.recordset ?? []) {
+          const k = String(x.suspTipo ?? "(nulo)");
+          const lista = porTipo.get(k);
+          if (lista) lista.push(x);
+          else porTipo.set(k, [x]);
+        }
+        const MAX = 40;
+        for (const [tipo, lista] of porTipo) {
+          console.log("");
+          console.log(`      ── tipoDoc suspenso ${tipo} — ${lista.length} relacao(oes)`);
+          console.log(
+            `        ${"suspId".padStart(9)} ${"doc susp".padEnd(16)}${"tipo".padStart(5)}  ` +
+              `${"ncId".padStart(9)} ${"tipoG".padStart(6)} ${"data G".padEnd(12)}` +
+              `${"doc G".padEnd(16)}${"linhas".padStart(7)}${"soma qtd".padStart(10)}`,
+          );
+          for (const x of lista.slice(0, MAX)) {
+            const docSusp =
+              x.suspSerie || x.suspNumero !== null
+                ? `${x.suspSerie ?? "?"}/${x.suspNumero ?? "?"}`
+                : "·";
+            const docG =
+              x.gSerie || x.gNumero !== null ? `${x.gSerie ?? "?"}/${x.gNumero ?? "?"}` : "·";
+            console.log(
+              `        ${String(x.suspId).padStart(9)} ${docSusp.padEnd(16)}` +
+                `${String(x.suspTipo ?? "-").padStart(5)}  ${String(x.ncId ?? "-").padStart(9)} ` +
+                `${String(x.gTipo ?? "-").padStart(6)} ${formatCell(x.gData, 19).slice(0, 10).padEnd(12)}` +
+                `${docG.padEnd(16)}${String(x.nLinhas ?? "-").padStart(7)}` +
+                `${String(x.somaQtd ?? "-").padStart(10)}` +
+                (x.ncId === null ? "  <- sem NC" : x.gTipo === null ? "  <- NC nao resolve no G" : ""),
+            );
+          }
+          if (lista.length > MAX) {
+            console.log(`        (+${lista.length - MAX} omitidas deste tipo — o total acima e completo)`);
+          }
+        }
+
+        // ── 4.3 as anulações suspensas, e onde está a reversão ──
+        if (!podeContarLinhas) {
+          console.log("");
+          console.log(`  4.3 impossivel: [${g.detalhe}] sem FK resolvida para [${g.tabela}].`);
+        } else {
+          const serieSel = cab.serie ? C.serie : "CAST(NULL AS NVARCHAR(50))";
+          const numSel = cab.numero ? `ABS(${C.numero})` : "CAST(NULL AS INT)";
+          // A NC pode estar ligada ao PRÓPRIO documento negativo ou ao
+          // seu gémeo positivo (mesma serie + mesmo |numero|). Contam-se
+          // as duas rotas, e diz-se qual carregou.
+          const gemeaExpr =
+            cab.serie && cab.numero
+              ? `(SELECT TOP 1 x2.${cNc}` +
+                ` FROM ${qRel} x2` +
+                ` JOIN [dbo].${quoteIdent(cab.tabela)} h2 ON h2.${quoteIdent(cab.pk!)} = x2.${cFt}` +
+                ` WHERE h2.${quoteIdent(cab.serie)} = n.serie` +
+                ` AND ABS(h2.${quoteIdent(cab.numero)}) = n.num` +
+                ` AND h2.${quoteIdent(cab.pk!)} <> n.suspId)`
+              : "NULL";
+
+          const sqlBuckets = sqlAnulacoesSuspensas({
+            pkCab: C.pkCab,
+            tipo: C.tipo,
+            fonte: C.fonte,
+            janelaSql,
+            qtd: C.qtd,
+            serieSel,
+            numSel,
+            qRel,
+            cFt,
+            cNc,
+            gemeaExpr,
+            qD,
+            dFk: dFk!,
+          });
+          console.log("");
+          console.log("  4.3 ANULACOES SUSPENSAS (documentos com linha negativa) — por tipoDoc");
+          const buckets = await consultar<{
+            tipo: number | null;
+            docsNeg: number;
+            comLinhasG: number;
+            relSemLinhas: number;
+            semRelacao: number;
+            rotaDirecta: number;
+            rotaGemea: number;
+          }>(req(), sqlBuckets, "4.3 anulacoes suspensas");
+          if (buckets && buckets.recordset.length === 0) {
+            console.log("      (nenhum documento suspenso com linhas negativas na janela)");
+          } else if (buckets) {
+            console.log(
+              `      ${"tipoDoc".padEnd(9)}${"docs -".padStart(8)}${"NC c/ linhas G".padStart(16)}` +
+                `${"rel s/ linhas".padStart(15)}${"sem relacao".padStart(13)}   rota`,
+            );
+          }
+          for (const b of buckets?.recordset ?? []) {
+            console.log(
+              `      ${String(b.tipo ?? "-").padEnd(9)}${String(b.docsNeg).padStart(8)}` +
+                `${String(b.comLinhasG).padStart(16)}${String(b.relSemLinhas).padStart(15)}` +
+                `${String(b.semRelacao).padStart(13)}   directa=${b.rotaDirecta} gemea=${b.rotaGemea}`,
+            );
+          }
+          console.log("");
+          console.log("      COMO SE LE:");
+          console.log("       . NC c/ linhas no G  -> a reversao JA entra pelo reader G.");
+          console.log("         Declarar reversao no circuito suspenso subtrai a MESMA");
+          console.log("         operacao duas vezes. Canonico: circuito G.");
+          console.log("       . rel s/ linhas no G -> ha ponte mas nao ha linhas la. A");
+          console.log("         quantidade so existe do lado suspenso.");
+          console.log("       . sem relacao       -> a anulacao vive INTEIRA no circuito");
+          console.log("         suspenso e o reader suspenso tem de a ler, ou perde-se.");
+        }
       }
 
-      // Independentemente da tabela de relações: as linhas negativas do
-      // circuito suspenso têm equivalente no G, no mesmo dia e produto?
-      const cruz = await req().query<{ codigo: number; dia: string; qtdSusp: number; nG: number }>(`
-        SELECT s.codigo, s.dia, s.qtdSusp,
-               (SELECT COUNT(*)
-                  FROM [dbo].${quoteIdent(T_ATEND_DET)} gd
-                  JOIN [dbo].${quoteIdent(T_ATEND)} ga ON ga.[Atendimento ID] = gd.[Atendimento ID]
-                 WHERE gd.[CodigoID] = s.codigo
-                   AND CAST(ga.[Data Venda] AS DATE) = s.dia
-                   AND gd.[Quantidade] < 0) AS nG
-          FROM (
-            SELECT ${C.codigo} AS codigo, CAST(${C.data} AS DATE) AS dia,
-                   SUM(CAST(${C.qtd} AS FLOAT)) AS qtdSusp
-              FROM ${C.fonte}
-             WHERE ${janelaSql} AND ${C.qtd} < 0
-             GROUP BY ${C.codigo}, CAST(${C.data} AS DATE)
-          ) s
-      `);
-      console.log("");
-      console.log(
-        `  linhas suspensas NEGATIVAS com NC do circuito G no mesmo dia/produto:`,
-      );
-      if (cruz.recordset.length === 0) {
-        console.log("    (nao ha linhas suspensas negativas nesta janela)");
+      // ── 4.4 sem depender da tabela de relações ────────────────
+      if (!podeContarLinhas || !g.detCodigo || !g.detQtd || !g.dataVenda) {
+        console.log("");
+        console.log("  4.4 cruzamento por produto+dia indisponivel: falta");
+        console.log(
+          `      ${[
+            podeContarLinhas ? null : `fk [${g.detalhe}]->[${g.tabela}]`,
+            g.detCodigo ? null : "CodigoID no detalhe",
+            g.detQtd ? null : "quantidade no detalhe",
+            g.dataVenda ? null : `data em [${g.tabela}]`,
+          ]
+            .filter(Boolean)
+            .join(", ")}`,
+        );
+        return;
       }
+      const sqlCruz = sqlCruzProdutoDia({
+        qD,
+        qA,
+        gPk,
+        dFk: dFk!,
+        detCodigo: quoteIdent(g.detCodigo),
+        detData: quoteIdent(g.dataVenda),
+        detQtd: quoteIdent(g.detQtd),
+        codigo: C.codigo,
+        data: C.data,
+        qtd: C.qtd,
+        fonte: C.fonte,
+        janelaSql,
+      });
+      console.log("");
+      console.log("  4.4 SEM a tabela de relacoes — linhas suspensas negativas que");
+      console.log("      tenham NC do circuito G no mesmo dia e produto:");
+      const cruz = await consultar<{
+        codigo: number;
+        dia: string;
+        qtdSusp: number;
+        nG: number;
+      }>(req(), sqlCruz, "4.4 cruzamento produto+dia");
+      if (!cruz) return;
+      if (cruz.recordset.length === 0) {
+        console.log("      (nao ha linhas suspensas negativas nesta janela)");
+      }
+      const comG = cruz.recordset.filter((x) => x.nG > 0).length;
+      console.log(
+        `      ${cruz.recordset.length} par(es) produto+dia | ${comG} tambem com NC no G`,
+      );
       for (const x of cruz.recordset.slice(0, 20)) {
         console.log(
-          `    CodigoID=${String(x.codigo).padEnd(9)} ${x.dia} susp=${x.qtdSusp} ` +
+          `        CodigoID=${String(x.codigo).padEnd(9)} ${x.dia} susp=${x.qtdSusp} ` +
             `${x.nG > 0 ? `TAMBEM no G (${x.nG} linha(s)) <- risco de dupla contagem` : "so no circuito suspenso"}`,
         );
+      }
+      if (cruz.recordset.length > 20) {
+        console.log(`        (+${cruz.recordset.length - 20} omitidos — os totais acima sao completos)`);
       }
     });
 

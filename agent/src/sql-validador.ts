@@ -43,32 +43,98 @@ function esqueleto(sql: string): string {
   return sql.replace(/'[^']*'/g, "''").replace(/\[[^\]]*\]/g, "[]");
 }
 
+/** Remove o conteúdo dos parêntesis, deixando só o nível de topo. */
+function semSubexpressoes(s: string): string {
+  let fora = "";
+  let nivel = 0;
+  for (const c of s) {
+    if (c === "(") {
+      nivel++;
+      continue;
+    }
+    if (c === ")") {
+      nivel--;
+      continue;
+    }
+    if (nivel === 0) fora += c;
+  }
+  return fora;
+}
+
 /**
  * A lista de itens entre `SELECT` e `FROM`, cortada pelas vírgulas de
  * topo — as que não estão dentro de parêntesis.
+ *
+ * ── PORQUE É QUE O `FROM` NÃO PODE SER PROCURADO POR REGEX ───────────
+ *
+ * A primeira versão cortava a lista no primeiro `\n FROM`. Basta um item
+ * ser uma subquery correlacionada —
+ *
+ *     (SELECT COUNT(*)
+ *        FROM [dbo].[Atendimento Detalhe] dd
+ *       WHERE dd.[Atendimento ID] = x.[Atendimento ID_NC]) AS nLinhas
+ *
+ * — para esse `FROM` de dentro terminar a lista antes do fim, e os itens
+ * seguintes desaparecerem da verificação. Uma verificação que olha para
+ * metade da lista dá luz verde a metade dos defeitos.
+ *
+ * Portanto o corte é feito pela mesma travessia que já conta os
+ * parêntesis: `FROM` só termina a lista quando está ao nível zero.
  */
-function itensDoSelect(sql: string): string[] {
+export function itensDoSelect(sql: string): string[] {
   const i = sql.search(/\bSELECT\b/i);
-  const j = sql.search(/\n\s*FROM\b/i);
-  if (i < 0 || j < 0 || j < i) return [];
-  let lista = sql.slice(i, j).replace(/^\s*SELECT\s+/i, "");
-  lista = lista.replace(/^TOP\s*\([^)]*\)\s*/i, "").replace(/^TOP\s+\d+\s*/i, "");
+  if (i < 0) return [];
+  let k = i + "SELECT".length;
+  const mTop = sql.slice(k).match(/^\s*TOP\s*(?:\([^)]*\)|\d+)\s*/i);
+  if (mTop) k += mTop[0].length;
+
   const itens: string[] = [];
-  let nivel = 0;
   let actual = "";
+  let nivel = 0;
   let emString = false;
   let emBracket = false;
-  for (const c of lista) {
-    if (c === "'" && !emBracket) emString = !emString;
-    if (!emString) {
-      if (c === "[") emBracket = true;
-      else if (c === "]") emBracket = false;
-      else if (c === "(") nivel++;
-      else if (c === ")") nivel--;
-      else if (c === "," && nivel === 0 && !emBracket) {
+  for (; k < sql.length; k++) {
+    const c = sql[k]!;
+    if (emString) {
+      actual += c;
+      if (c === "'") emString = false;
+      continue;
+    }
+    if (emBracket) {
+      actual += c;
+      if (c === "]") emBracket = false;
+      continue;
+    }
+    if (c === "'") {
+      emString = true;
+      actual += c;
+      continue;
+    }
+    if (c === "[") {
+      emBracket = true;
+      actual += c;
+      continue;
+    }
+    if (c === "(") {
+      nivel++;
+      actual += c;
+      continue;
+    }
+    if (c === ")") {
+      nivel--;
+      actual += c;
+      continue;
+    }
+    if (nivel === 0) {
+      if (c === ",") {
         itens.push(actual.trim());
         actual = "";
         continue;
+      }
+      // `FROM` de topo fecha a lista. Precedido de espaço para não
+      // apanhar um identificador que por acaso comece por "from".
+      if ((c === "F" || c === "f") && /^from\b/i.test(sql.slice(k)) && /\s/.test(sql[k - 1] ?? " ")) {
+        break;
       }
     }
     actual += c;
@@ -124,7 +190,11 @@ export function validarSelect(sql: string, aliasEsperados?: readonly string[]): 
     }
     // ISTO é o que apanha o defeito original: sem vírgula, dois itens
     // colam-se e o item fica com dois `AS`.
-    const nAs = (esqueleto(item).match(/\bAS\b/gi) ?? []).length;
+    //
+    // Contado só ao NÍVEL DE TOPO: um `CAST(x AS FLOAT)` ou uma subquery
+    // trazem `AS` legítimos lá dentro, e contá-los transformava a regra
+    // que apanha o defeito num aviso falso sempre que a query cresce.
+    const nAs = (semSubexpressoes(esqueleto(item)).match(/\bAS\b/gi) ?? []).length;
     if (nAs === 0) {
       erro("alias", `item sem AS: ${item.slice(0, 60)}`);
       continue;

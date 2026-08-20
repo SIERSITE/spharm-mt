@@ -620,6 +620,53 @@ console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
     !/reversao: new Set/.test(codigoAudit) && !/CLASSIFICACAO\[[^\]]+\]\s*=/.test(codigoAudit),
     "…e a auditoria não classifica nada: só conta",
   );
+
+  // ── A sonda não nomeia colunas à mão ───────────────────────────
+  //
+  // A §4 partiu nas DUAS farmácias com `Invalid column name 'Serie'`,
+  // porque estava lá escrito `a.[Serie]`. Não foi um typo: foi uma
+  // coluna nomeada à mão numa sonda cujo resto pergunta ao `sys.columns`
+  // antes de nomear seja o que for. `[Atendimento]` não tem `Serie`.
+  //
+  // Este teste fecha a classe inteira, não o caso: qualquer coluna do
+  // ERP escrita literalmente dentro de SQL volta a partir na instalação
+  // seguinte, e a instalação seguinte é sempre a que não vimos.
+  const sqlDaAuditoria = codigoAudit.replace(/console\.log\((?:[^()]|\([^()]*\))*\)/g, "");
+  const nomeadasAMao = [
+    "[Serie]",
+    "[Tipo Documento]",
+    "[Tipo Documento ID]",
+    "[Atendimento ID]",
+    "[Atendimento Susp ID]",
+    "[Data Venda]",
+    "[CodigoID]",
+    "[Quantidade]",
+    "[Detalhe ID]",
+    "[Atendimento Susp ID_FT]",
+    "[Atendimento ID_NC]",
+  ].filter((c) => sqlDaAuditoria.includes(c));
+  check(
+    nomeadasAMao.length === 0,
+    "a auditoria não nomeia nenhuma coluna ERP à mão no SQL",
+    `nomeadas à mão: ${nomeadasAMao.join(", ")} — foi assim que a §4 partiu nas duas bases`,
+  );
+
+  // …e o que substituiu os nomes é descoberta a sério: FK declarada
+  // primeiro, `sys.columns` depois, nome só como último recurso.
+  for (const fn of ["descobrirCircuitoG", "descobrirRelacao"]) {
+    check(codigoAudit.includes(fn), `a §4 resolve o circuito G via ${fn}()`);
+  }
+  for (const meta of ["listForeignKeysOut", "listColumns", "listPrimaryKey"]) {
+    check(codigoAudit.includes(meta), `…e pergunta ao schema com ${meta}()`);
+  }
+
+  // O circuito G pode simplesmente não ter série — foi o que o ERP
+  // respondeu. O cruzamento liga por identificador; a série é adorno.
+  check(
+    /g\.serie\s*\?\s*`a\.\$\{quoteIdent\(g\.serie\)\}`\s*:\s*"NULL"/.test(codigoAudit),
+    "a série do lado G é opcional: sem coluna, sai NULL",
+    "exigir série do circuito G bloqueava o cruzamento inteiro por causa de um adorno",
+  );
 }
 
 console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");
