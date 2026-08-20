@@ -52,6 +52,14 @@ export type SalesLineRow = {
   dataVenda: Date | null;
   tipoDocumento: number | null;
   tipoDocumentoClass: string;
+  /**
+   * "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+   *
+   * Ortogonal a `tipoDocumentoClass`: aquela diz se soma ou subtrai,
+   * esta diz o que a linha é. Uma devolução de venda a crédito precisa
+   * das duas para ser respondida.
+   */
+  naturezaVenda: string;
   externalProductId: number;
   produtoId: string | null;
   isNonStockService: boolean;
@@ -88,6 +96,7 @@ export async function bulkUpsertSalesLines(
       ${randomUUID()}, ${r.farmaciaId}, ${r.sourceNamespace},
       ${r.externalSaleId}, ${r.externalSaleLineId}, ${r.serie}, ${r.documento},
       ${r.sequencia}, ${r.dataVenda}, ${r.tipoDocumento}, ${r.tipoDocumentoClass},
+      ${r.naturezaVenda},
       ${r.externalProductId}, ${r.produtoId}, ${r.isNonStockService},
       ${r.quantidade}, ${r.pvpUnitario}, ${r.valorLinha}, ${r.ivaValor},
       ${r.descontoValor}, ${r.comparticipacao1}, ${r.comparticipacao2}, ${r.entidadeId},
@@ -98,7 +107,8 @@ export async function bulkUpsertSalesLines(
     INSERT INTO "IngestVendaLinhaRaw" (
       "id", "farmaciaId", "sourceNamespace",
       "externalSaleId", "externalSaleLineId", "serie", "documento", "sequencia",
-      "dataVenda", "tipoDocumento", "tipoDocumentoClass", "externalProductId",
+      "dataVenda", "tipoDocumento", "tipoDocumentoClass", "naturezaVenda",
+      "externalProductId",
       "produtoId", "isNonStockService", "quantidade", "pvpUnitario", "valorLinha",
       "ivaValor", "descontoValor", "comparticipacao1", "comparticipacao2",
       "entidadeId", "rawJson", "importedAt"
@@ -112,6 +122,7 @@ export async function bulkUpsertSalesLines(
       "dataVenda"          = EXCLUDED."dataVenda",
       "tipoDocumento"      = EXCLUDED."tipoDocumento",
       "tipoDocumentoClass" = EXCLUDED."tipoDocumentoClass",
+      "naturezaVenda"      = EXCLUDED."naturezaVenda",
       "externalProductId"  = EXCLUDED."externalProductId",
       "produtoId"          = EXCLUDED."produtoId",
       "isNonStockService"  = EXCLUDED."isNonStockService",

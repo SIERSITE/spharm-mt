@@ -75,6 +75,10 @@ export default async function OportunidadesPage() {
           AND (vm.ano * 12 + vm.mes) <
               ((EXTRACT(YEAR FROM NOW())::int * 12) + EXTRACT(MONTH FROM NOW())::int)
           AND vm."farmaciaId" = ANY(${farmaciaIds})
+          -- Só venda normal. Uma transferência entre as nossas próprias
+          -- farmácias não é procura de utente: contá-la como tal inflaria
+          -- a oportunidade de substituição com stock que só mudou de sítio.
+          AND vm."naturezaVenda" = 'NORMAL'
         GROUP BY vm."produtoId", vm."farmaciaId"
       )
       SELECT

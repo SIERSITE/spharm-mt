@@ -67,11 +67,50 @@ import type { SqlPool } from "./sql-client.js";
 export const NAMESPACES = {
   /// `dbo.[Atendimento Detalhe]` — a venda de balcão. Série G.
   ATENDIMENTO_DETALHE: "ATENDIMENTO_DETALHE",
-  /// `dbo.[Atendimento Susp Detalhe]` — venda suspensa. Série VSG.
+  /// `dbo.[Atendimento Susp Detalhe]` — venda suspensa. Série VSG/VSC.
   ATENDIMENTO_SUSP_DETALHE: "ATENDIMENTO_SUSP_DETALHE",
+  /// Venda a crédito. Reader por construir — ver `NATUREZA_POR_NAMESPACE`.
+  VENDAS_CREDITO: "VENDAS_CREDITO",
+  /// Guia de transferência entre farmácias. Reader por construir.
+  GUIAS_TRANSFERENCIA: "GUIAS_TRANSFERENCIA",
 } as const;
 
 export type SourceNamespace = (typeof NAMESPACES)[keyof typeof NAMESPACES];
+
+/**
+ * A natureza operacional de uma venda.
+ *
+ * ── PORQUE É UMA DIMENSÃO E NÃO UMA CLASSE ───────────────────────────
+ *
+ * `ClasseVenda` responde "isto soma ou subtrai?". `NaturezaVenda` responde
+ * "isto é o quê?". São perguntas independentes: uma devolução de uma venda
+ * a crédito é `DEVOLUCAO_ANULACAO` + `CREDITO`, e misturar as duas numa só
+ * coluna tornava impossível responder a qualquer uma.
+ *
+ * O relatório oficial do SPharm tem dois interruptores — incluir vendas a
+ * crédito, incluir guias de transferência — e o SPharm.MT tem de os ter
+ * também. Um total já somado não se desliga: por isso a natureza viaja com
+ * a linha, sobrevive à agregação, e só se soma no fim, ao desenhar.
+ */
+export type NaturezaVenda = "NORMAL" | "CREDITO" | "TRANSFERENCIA";
+
+/**
+ * De que natureza é cada circuito.
+ *
+ * A venda suspensa é NORMAL: fiscal e contabilisticamente é uma venda
+ * como outra qualquer, e é assim que o relatório oficial a conta. O que
+ * a distingue é a tabela de onde vem, não a sua natureza comercial.
+ */
+export const NATUREZA_POR_NAMESPACE: Record<SourceNamespace, NaturezaVenda> = {
+  [NAMESPACES.ATENDIMENTO_DETALHE]: "NORMAL",
+  [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: "NORMAL",
+  [NAMESPACES.VENDAS_CREDITO]: "CREDITO",
+  [NAMESPACES.GUIAS_TRANSFERENCIA]: "TRANSFERENCIA",
+};
+
+export function naturezaDe(ns: SourceNamespace): NaturezaVenda {
+  return NATUREZA_POR_NAMESPACE[ns] ?? "NORMAL";
+}
 
 /**
  * A classe canónica de uma linha. DUAS, e só duas.
@@ -99,7 +138,10 @@ export type LinhaVendaCanonica = {
   tipoDocumento: number | null;
 
   // ── classificação ─────────────────────────────────────────────
+  /** Soma ou subtrai. */
   classe: ClasseVenda;
+  /** O que isto é: venda normal, a crédito, ou transferência. */
+  natureza: NaturezaVenda;
 
   // ── medidas, ao valor histórico da linha ──────────────────────
   /** Positiva na venda, negativa na NC/anulação. */
@@ -224,6 +266,28 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
     // pelo circuito G. Ver acima.
     reversao: new Set<number>(),
     peloSinal: new Set([107, 102]),
+  },
+  // ── Crédito e transferências: DECLARADOS, sem tipos ─────────────
+  //
+  // Os namespaces existem para que a dimensão `naturezaVenda` esteja
+  // completa de ponta a ponta — schema, agregação, filtros do mapa. Os
+  // readers não existem, e os conjuntos de tipos estão vazios porque
+  // NINGUÉM os mediu ainda.
+  //
+  // Vazio aqui significa fail-closed: uma linha destes circuitos é
+  // recusada e o tipo aparece no log. É o desfecho certo — inventar um
+  // tipo para "já ficar a funcionar" era repetir exactamente o erro do
+  // 77, que esteve declarado durante meses sem nunca ter sido visto num
+  // ERP.
+  [NAMESPACES.VENDAS_CREDITO]: {
+    venda: new Set<number>(),
+    reversao: new Set<number>(),
+    peloSinal: new Set<number>(),
+  },
+  [NAMESPACES.GUIAS_TRANSFERENCIA]: {
+    venda: new Set<number>(),
+    reversao: new Set<number>(),
+    peloSinal: new Set<number>(),
   },
 };
 
@@ -584,6 +648,7 @@ export function normalizar(
       documento: comporDocumento(serie, r.numero),
       tipoDocumento,
       classe,
+      natureza: naturezaDe(sourceNamespace),
       quantidadeAssinada: assinarQuantidade(qtd, classe),
       pvpUnitario: num(r.pvpUnitario),
       valorBruto: num(r.valorLinha),
@@ -615,6 +680,10 @@ export function paraPayload(l: LinhaVendaCanonica): Record<string, unknown> {
     dataVenda: l.dataVenda,
     tipoDocumento: l.tipoDocumento,
     tipoDocumentoClass: l.classe,
+    // A natureza viaja com a linha. Sem ela, o servidor teria de a
+    // inferir do namespace — e uma inferência duplicada é uma
+    // divergência à espera de acontecer.
+    naturezaVenda: l.natureza,
     externalProductId: l.externalProductId,
     processaStocks: l.processaStocks,
     // A quantidade viaja ASSINADA. O servidor não volta a decidir o
@@ -690,7 +759,57 @@ function listaSelect(itens: string[]): string {
  * acrescentados — o resto é idêntico, de propósito: esta fonte já
  * funcionava e não é para mudar de comportamento.
  */
+/**
+ * Os estados de `[Fim Venda]` que correspondem a uma venda concretizada
+ * no circuito G.
+ *
+ * ── O DEFEITO QUE ISTO CORRIGE ───────────────────────────────────────
+ *
+ * O reader tinha `WHERE a.[Fim Venda] = 'S'`, escrito à mão, sem nunca
+ * ter sido medido. Deixava de fora todos os documentos com `U` — que são
+ * vendas reais de TipoDoc 7, com produto e quantidade positiva:
+ *
+ *     2026-08-19  doc 819893  TipoDoc 7  Fim Venda U  qtd  2
+ *     2026-08-18  doc 819565  TipoDoc 7  Fim Venda U  qtd 10
+ *
+ * A assinatura mensal do que faltava bate 1:1 com o que o gate excluía:
+ *
+ *     mes    falta no SPharm.MT    TipoDoc 7 / U
+ *     Jan          408                  407
+ *     Fev          358                  358
+ *     Mar          326                  326
+ *     Abr          303                  302
+ *     Mai          323                  323
+ *     Jun          384                  384
+ *     Jul          345                  346
+ *
+ * O `U` NÃO é venda a crédito nem transferência — essas são populações
+ * com circuito próprio. É um estado dentro de uma venda TipoDoc 7 normal.
+ *
+ * ── PORQUE É QUE O `N` CONTINUA DE FORA ──────────────────────────────
+ *
+ * Porque S+U reproduz o relatório oficial e S+U+N não reproduziria nada
+ * medido. Um documento por fechar não é uma venda concretizada. Se um dia
+ * aparecer outro estado, ele aparece no relatório de excluídos — que é a
+ * diferença entre este gate e o anterior: este VÊ-SE.
+ */
+export const ESTADOS_VENDA_G = ["S", "U"] as const;
+
+/**
+ * O predicado do estado, ou `null` quando a coluna não existe.
+ *
+ * Se `[Fim Venda]` não existir nesta instalação, NÃO se filtra: ler a
+ * mais e reportar é recuperável; ler a menos em silêncio foi o que
+ * custou 400 unidades por mês durante meses.
+ */
+export function filtroEstadoG(at: SchemaAtendimento): string | null {
+  if (!at.fimVenda) return null;
+  const lista = ESTADOS_VENDA_G.map((e) => `'${e}'`).join(", ");
+  return `a.${bk(at.fimVenda)} IN (${lista})`;
+}
+
 export function sqlAtendimentoDetalhe(at: SchemaAtendimento): string {
+  const estado = filtroEstadoG(at);
   return [
     "SELECT TOP (@n)",
     listaSelect([
@@ -715,10 +834,34 @@ export function sqlAtendimentoDetalhe(at: SchemaAtendimento): string {
     "  FROM [dbo].[Atendimento] a",
     "  JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]",
     "  LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]",
-    " WHERE a.[Fim Venda] = 'S'",
-    "   AND a.[Data Venda] >= @from AND a.[Data Venda] < @to",
+    " WHERE a.[Data Venda] >= @from AND a.[Data Venda] < @to",
+    ...(estado ? [`   AND ${estado}`] : []),
     "   AND d.[Detalhe ID] > @lastId",
     " ORDER BY d.[Detalhe ID]",
+  ].join("\n");
+}
+
+/**
+ * Quantas linhas o gate de estado deixa de fora, por estado.
+ *
+ * Existe porque o gate anterior era invisível: excluía ~400 unidades por
+ * mês e não havia nada, em lado nenhum, que o dissesse. Um filtro que não
+ * reporta o que corta é indistinguível de dados que não existem.
+ */
+export function sqlDistribuicaoEstadoG(at: SchemaAtendimento): string | null {
+  if (!at.fimVenda) return null;
+  const col = `a.${bk(at.fimVenda)}`;
+  const tipo = at.tipoDocumento ? `a.${bk(at.tipoDocumento)}` : "NULL";
+  return [
+    "SELECT " + col + " AS estado,",
+    `       ${tipo} AS tipoDocumento,`,
+    "       COUNT(*) AS linhas,",
+    "       SUM(CAST(d.[Quantidade] AS FLOAT)) AS unidades",
+    "  FROM [dbo].[Atendimento] a",
+    "  JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]",
+    " WHERE a.[Data Venda] >= @from AND a.[Data Venda] < @to",
+    " GROUP BY " + col + ", " + tipo,
+    " ORDER BY 1, 2",
   ].join("\n");
 }
 

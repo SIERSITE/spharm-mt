@@ -39,6 +39,7 @@ import { probeTable } from "./commands/probe-table.js";
 import { vendasSuspCadeia } from "./commands/vendas-susp-cadeia.js";
 import { vendasSuspNc } from "./commands/vendas-susp-nc.js";
 import { vendasSuspTipos } from "./commands/vendas-susp-tipos.js";
+import { vendasParidade } from "./commands/vendas-paridade.js";
 import { productsPreview } from "./commands/products-preview.js";
 import { stockPreview } from "./commands/stock-preview.js";
 import { salesPreview } from "./commands/sales-preview.js";
@@ -106,6 +107,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "vendas-susp-tipos": {
     run: vendasSuspTipos,
     desc: "Inventaria os tipos documentais do circuito suspenso, procura reversões pelo SINAL e cruza-as com o circuito G. Read-only, --db aponta outra base.",
+  },
+  "vendas-paridade": {
+    run: vendasParidade,
+    desc: "Dry-run: as cinco populações de venda por mês (NORMAL/CREDITO/TRANSFERENCIA e as somas), comparadas automaticamente com o relatório oficial do SPharm. Read-only.",
   },
   "vendas-susp-nc": {
     run: vendasSuspNc,

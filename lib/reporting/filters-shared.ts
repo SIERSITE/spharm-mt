@@ -52,6 +52,21 @@ export type SharedReportFilters = {
   distribuidores?: string[];
   /** Texto livre para CNP ou descrição (loader trata como ILIKE). */
   pesquisa?: string;
+  /**
+   * Incluir vendas a crédito. **Default ON.**
+   *
+   * É a configuração do relatório oficial do SPharm que usamos como
+   * referência: "Incluir Vendas a Crédito = Sim".
+   */
+  incluirCredito?: boolean;
+  /**
+   * Incluir guias de transferência entre farmácias. **Default OFF.**
+   *
+   * Também por paridade com o relatório oficial. Na Silveirense 2026 a
+   * diferença não é cosmética — Julho passa de 14 120 para 18 737
+   * unidades quando se ligam as transferências.
+   */
+  incluirTransferencias?: boolean;
   /** Se true, restringe a produtos sem classificação canónica. */
   apenasSemClassif?: boolean;
 };

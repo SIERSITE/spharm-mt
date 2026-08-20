@@ -94,7 +94,27 @@ type SaleLinePayload = {
 const NAMESPACES_VALIDOS = new Set([
   "ATENDIMENTO_DETALHE",
   "ATENDIMENTO_SUSP_DETALHE",
+  "VENDAS_CREDITO",
+  "GUIAS_TRANSFERENCIA",
 ]);
+
+/**
+ * A natureza de cada circuito.
+ *
+ * É DERIVADA do namespace, não aceite do payload. A natureza é uma
+ * propriedade da fonte, não uma opinião do cliente: um agent com um bug
+ * que marcasse vendas de balcão como TRANSFERENCIA fazia-as desaparecer
+ * do mapa por defeito, e o mapa continuava a parecer certo.
+ *
+ * A venda suspensa é NORMAL: fiscalmente é uma venda como outra
+ * qualquer, e é assim que o relatório oficial a conta.
+ */
+const NATUREZA_POR_NAMESPACE: Record<string, string> = {
+  ATENDIMENTO_DETALHE: "NORMAL",
+  ATENDIMENTO_SUSP_DETALHE: "NORMAL",
+  VENDAS_CREDITO: "CREDITO",
+  GUIAS_TRANSFERENCIA: "TRANSFERENCIA",
+};
 
 const KNOWN_CLASSES = new Set([
   "VENDA",
@@ -189,6 +209,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     dataVenda: Date | null;
     tipoDocumento: number | null;
     tipoDocumentoClass: string;
+    naturezaVenda: string;
     externalProductId: number;
     processaStocks: boolean | null;
     quantidade: number | null;
@@ -248,11 +269,14 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       origemClasse.semDecisao++;
     }
 
+    const ns = NAMESPACES_VALIDOS.has(asStringOrNull(raw.sourceNamespace) ?? "")
+      ? (asStringOrNull(raw.sourceNamespace) as string)
+      : "ATENDIMENTO_DETALHE";
+
     resolved.push({
       index: i,
-      sourceNamespace: NAMESPACES_VALIDOS.has(asStringOrNull(raw.sourceNamespace) ?? "")
-        ? (asStringOrNull(raw.sourceNamespace) as string)
-        : "ATENDIMENTO_DETALHE",
+      sourceNamespace: ns,
+      naturezaVenda: NATUREZA_POR_NAMESPACE[ns] ?? "NORMAL",
       serie: asStringOrNull(raw.serie),
       documento: asStringOrNull(raw.documento),
       externalSaleId,
@@ -335,6 +359,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       dataVenda: r.dataVenda,
       tipoDocumento: r.tipoDocumento,
       tipoDocumentoClass: r.tipoDocumentoClass,
+      naturezaVenda: r.naturezaVenda,
       externalProductId: r.externalProductId,
       produtoId,
       isNonStockService,

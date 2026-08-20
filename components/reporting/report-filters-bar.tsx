@@ -29,6 +29,11 @@ import type {
   ReportFilterOptions,
   SharedReportFilters,
 } from "@/lib/reporting/filters-shared";
+import {
+  DEFAULT_INCLUIR_CREDITO,
+  DEFAULT_INCLUIR_TRANSFERENCIAS,
+  rotuloNaturezas,
+} from "@/lib/reporting/natureza-venda";
 
 type Props = {
   options: ReportFilterOptions;
@@ -38,6 +43,13 @@ type Props = {
   hideDates?: boolean;
   /** Placeholder customizável para o input de pesquisa. */
   searchPlaceholder?: string;
+  /**
+   * Mostra os interruptores de crédito / guias de transferência.
+   *
+   * Só faz sentido onde há vendas: o Inventário é um snapshot de stock e
+   * não tem naturezas para ligar ou desligar.
+   */
+  mostrarNaturezas?: boolean;
 };
 
 export function ReportFiltersBar({
@@ -46,6 +58,7 @@ export function ReportFiltersBar({
   onChange,
   hideDates = false,
   searchPlaceholder = "Pesquisar produto, CNP, fornecedor ou fabricante",
+  mostrarNaturezas = false,
 }: Props) {
   const patch = (delta: Partial<SharedReportFilters>) => onChange({ ...value, ...delta });
 
@@ -165,6 +178,35 @@ export function ReportFiltersBar({
           />
           <span>Apenas produtos sem classificação canónica</span>
         </label>
+      )}
+
+      {/* Os dois interruptores do relatório oficial do SPharm.
+          Os defaults são os do relatório contra o qual reconciliamos —
+          crédito Sim, transferências Não — e são explícitos aqui para
+          que ninguém tenha de adivinhar o que está a ver. Um total já
+          somado não se desligava: a natureza vive até à query. */}
+      {mostrarNaturezas && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
+            <input
+              type="checkbox"
+              checked={value.incluirCredito ?? DEFAULT_INCLUIR_CREDITO}
+              onChange={(e) => patch({ incluirCredito: e.target.checked })}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>Incluir vendas a crédito</span>
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
+            <input
+              type="checkbox"
+              checked={value.incluirTransferencias ?? DEFAULT_INCLUIR_TRANSFERENCIAS}
+              onChange={(e) => patch({ incluirTransferencias: e.target.checked })}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>Incluir guias de transferência</span>
+          </label>
+          <span className="text-[11px] text-slate-400">{rotuloNaturezas(value)}</span>
+        </div>
       )}
     </section>
   );

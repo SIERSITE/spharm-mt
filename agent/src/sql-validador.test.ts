@@ -162,8 +162,8 @@ const G_ESPERADA = `SELECT TOP (@n)
   FROM [dbo].[Atendimento] a
   JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
   LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
- WHERE a.[Fim Venda] = 'S'
-   AND a.[Data Venda] >= @from AND a.[Data Venda] < @to
+ WHERE a.[Data Venda] >= @from AND a.[Data Venda] < @to
+   AND a.[Fim Venda] IN ('S', 'U')
    AND d.[Detalhe ID] > @lastId
  ORDER BY d.[Detalhe ID]`;
 

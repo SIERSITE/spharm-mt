@@ -24,6 +24,11 @@ import type {
   SalesReportRow as ServerSalesReportRow,
 } from "@/lib/vendas-data";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import {
+  DEFAULT_INCLUIR_CREDITO,
+  DEFAULT_INCLUIR_TRANSFERENCIAS,
+  rotuloNaturezas,
+} from "@/lib/reporting/natureza-venda";
 
 type Agrupamento =
   | "artigo"
@@ -164,6 +169,13 @@ export function VendasClient({
   const [modoVisualizacao, setModoVisualizacao] =
     useState<ModoVisualizacao>("tabela");
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  // Os defaults são os do relatório oficial do SPharm contra o qual
+  // reconciliamos: "Incluir Vendas a Crédito = Sim", "Incluir Guias de
+  // Transferência = Não".
+  const [incluirCredito, setIncluirCredito] = useState(DEFAULT_INCLUIR_CREDITO);
+  const [incluirTransferencias, setIncluirTransferencias] = useState(
+    DEFAULT_INCLUIR_TRANSFERENCIAS,
+  );
 
   // Buckets de meses para render — só existe depois de gerar.
   const buckets = periodHeader?.buckets ?? [];
@@ -571,6 +583,11 @@ export function VendasClient({
               ? fornecedoresSelecionados
               : undefined,
           pesquisa: artigo.trim() ? artigo.trim() : undefined,
+          // Explícitos, não `|| undefined`: um `false` desligado pelo
+          // utilizador tem de chegar ao loader como `false`, não como
+          // "não disse nada" — que voltaria ao default ON.
+          incluirCredito,
+          incluirTransferencias,
         });
         setRows(result.rows);
         setPeriodHeader(result.period);
@@ -785,6 +802,36 @@ export function VendasClient({
                     );
                   }}
                 />
+              </div>
+
+              {/* Os dois interruptores do relatório oficial do SPharm.
+                  Os defaults — crédito ON, transferências OFF — são os
+                  do relatório contra o qual reconciliamos, e estão à
+                  vista para ninguém ter de adivinhar o que está a ver.
+                  Alternar é um filtro na query: a natureza sobrevive à
+                  agregação, portanto não há nada a reprocessar. */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={incluirCredito}
+                    onChange={(e) => setIncluirCredito(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>Incluir vendas a crédito</span>
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={incluirTransferencias}
+                    onChange={(e) => setIncluirTransferencias(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>Incluir guias de transferência</span>
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  {rotuloNaturezas({ incluirCredito, incluirTransferencias })}
+                </span>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">

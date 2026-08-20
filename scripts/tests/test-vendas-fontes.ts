@@ -24,22 +24,42 @@
 import { readFileSync } from "node:fs";
 import {
   CLASSIFICACAO,
+  ESTADOS_VENDA_G,
   NAMESPACES,
+  NATUREZA_POR_NAMESPACE,
   assinarQuantidade,
   classificarDocumento,
   comporDocumento,
+  filtroEstadoG,
+  naturezaDe,
   normalizar,
   paraPayload,
   sqlAtendimentoDetalhe,
   sqlAtendimentoSuspDetalhe,
+  sqlDistribuicaoEstadoG,
   type FonteRow,
   type SchemaCabecalhoSusp,
   type SchemaFonteSusp,
   type SchemaAtendimento,
 } from "../../agent/src/vendas-fontes";
+import {
+  DEFAULT_INCLUIR_CREDITO,
+  DEFAULT_INCLUIR_TRANSFERENCIAS,
+  naturezasIncluidas,
+} from "../../lib/reporting/natureza-venda";
+import {
+  ANTES_SPHARM_MT_2026,
+  GATES_SILVEIRENSE_2026,
+  TOLERANCIA_UNIDADES,
+  avaliarGate,
+  nomeMes,
+} from "../../agent/src/gates-silveirense";
 
 const G = NAMESPACES.ATENDIMENTO_DETALHE;
 const VSG = NAMESPACES.ATENDIMENTO_SUSP_DETALHE;
+
+/** Os namespaces que têm reader. Os outros existem só para a dimensão. */
+const NAMESPACES_LIDOS = [G, VSG] as const;
 
 /** O cabeçalho suspenso tal como o ERP da Silveirense o tem. */
 const CAB: SchemaCabecalhoSusp = {
@@ -533,7 +553,34 @@ console.log("\n=== SQL: as duas fontes, e a janela ===");
     sqlG.includes(">= @from") && sqlG.includes("< @to"),
     "janela meio-aberta — `BETWEEN ... 23:59:59` perdia o último segundo do dia",
   );
-  check(sqlG.includes("[Fim Venda] = 'S'"), "só vendas fechadas");
+  // ── O gate de estado do circuito G ─────────────────────────────
+  //
+  // Era `[Fim Venda] = 'S'`, escrito à mão e nunca medido. Deixava de
+  // fora todos os documentos com `U` — vendas reais de TipoDoc 7, com
+  // produto e quantidade positiva. A assinatura mensal do que faltava no
+  // SPharm.MT bate 1:1 com o que o gate excluía: Jan −408 contra 407,
+  // Fev −358 contra 358, Jun −384 contra 384.
+  check(!/\[Fim Venda\] = 'S'/.test(sqlG), "o gate `= 'S'` desapareceu");
+  check(/IN \('S', 'U'\)/.test(sqlG), "…e passou a incluir os dois estados de venda");
+  eq([...ESTADOS_VENDA_G], ["S", "U"], "os estados declarados são S e U");
+  // `N` continua de fora: S+U reproduz o relatório oficial, S+U+N não
+  // reproduziria nada medido. Um documento por fechar não é uma venda.
+  check(!/'N'/.test(sqlG), "o estado N não entra — não é uma venda concretizada");
+  {
+    // Sem a coluna, NÃO se filtra. Ler a mais e reportar é recuperável;
+    // ler a menos em silêncio custou 400 unidades por mês.
+    const semEstado = sqlAtendimentoDetalhe({ ...at, fimVenda: null });
+    check(!/Fim Venda/.test(semEstado), "sem a coluna de estado, não há filtro nenhum");
+    check(/Data Venda/.test(semEstado), "…mas a janela temporal mantém-se");
+    eq(filtroEstadoG({ ...at, fimVenda: null }), null, "filtroEstadoG devolve null sem coluna");
+  }
+  // E o gate tem de ser VISÍVEL: o anterior cortava ~400 unidades/mês e
+  // não havia nada, em lado nenhum, que o dissesse.
+  {
+    const dist = sqlDistribuicaoEstadoG(at);
+    check(dist !== null && /GROUP BY/.test(dist), "há uma query que reporta o que o gate corta");
+    eq(sqlDistribuicaoEstadoG({ ...at, fimVenda: null }), null, "…e é null quando não há gate");
+  }
 
   const rV = sqlAtendimentoSuspDetalhe(SUSP, CAB);
   eq(rV.estado, "PRONTA", "a fonte VSG fica pronta quando o schema resolve");
@@ -611,7 +658,10 @@ console.log("\n=== transferências NÃO são vendas ===");
     check(!/tblMovStocks/i.test(s), `${nome} não toca em tblMovStocks (transferências)`);
     check(!/Transfer/i.test(s), `${nome} não lê transferências`);
   }
-  eq([...NAMESPACES ? Object.values(NAMESPACES) : []].length, 2, "só existem DUAS fontes de venda");
+  // Duas fontes LIDAS. Os outros dois namespaces existem para a dimensão
+  // `naturezaVenda` estar completa de ponta a ponta, e os seus readers
+  // ainda não foram escritos — ver `CLASSIFICACAO`, que os declara vazios.
+  eq(NAMESPACES_LIDOS.length, 2, "só existem DUAS fontes de venda LIDAS");
 }
 
 console.log("\n=== o caminho antigo desapareceu ===");
@@ -670,7 +720,7 @@ console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
   // Só há duas fontes, e a segunda é a venda POSITIVA da VSG. Um reader
   // de `Atendimento_SuspFT_NC_Susp` significaria ler a mesma NC que o
   // circuito G já lê.
-  eq(Object.values(NAMESPACES).length, 2, "só existem DUAS fontes de venda");
+  eq(NAMESPACES_LIDOS.length, 2, "só existem DUAS fontes de venda LIDAS");
   check(
     !/Atendimento_SuspFT_NC_Susp|Atendimento_FT_NC_Susp/.test(
       fontes.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !/^\s*(\/\/|\*)/.test(l)).join("\n"),
@@ -758,6 +808,141 @@ console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
     "a série do lado G é opcional: sem coluna, sai NULL",
     "exigir série do circuito G bloqueava o cruzamento inteiro por causa de um adorno",
   );
+}
+
+console.log("\n=== naturezaVenda: dimensão, não classe ===");
+{
+  // `classe` diz se soma ou subtrai. `natureza` diz o que a linha É. São
+  // perguntas independentes: uma devolução de venda a crédito é
+  // DEVOLUCAO_ANULACAO + CREDITO, e numa coluna só nenhuma teria resposta.
+  eq(naturezaDe(G), "NORMAL", "circuito G = NORMAL");
+  eq(naturezaDe(VSG), "NORMAL", "circuito suspenso = NORMAL");
+  eq(naturezaDe(NAMESPACES.VENDAS_CREDITO), "CREDITO", "vendas a crédito = CREDITO");
+  eq(naturezaDe(NAMESPACES.GUIAS_TRANSFERENCIA), "TRANSFERENCIA", "guias = TRANSFERENCIA");
+  // A venda suspensa é NORMAL: fiscalmente é uma venda como outra
+  // qualquer, e é assim que o relatório oficial a conta. O que a
+  // distingue é a tabela de onde vem, não a natureza comercial.
+  check(
+    NATUREZA_POR_NAMESPACE[VSG] === NATUREZA_POR_NAMESPACE[G],
+    "a venda suspensa conta como venda normal",
+    "não é um detalhe: pô-la noutra natureza tirava-a do mapa por defeito",
+  );
+
+  // A natureza viaja no payload — o servidor não a re-infere.
+  const p = paraPayload(normOk(NIMED_VSG, VSG));
+  eq(p.naturezaVenda, "NORMAL", "o payload leva a natureza");
+  eq(p.sourceNamespace, VSG, "…e o namespace de onde veio");
+
+  // Os readers de crédito/transferência não existem: os tipos estão
+  // vazios e tudo é recusado. Inventar um tipo para "já ficar a
+  // funcionar" era repetir o 77, declarado meses sem nunca ter sido visto.
+  for (const ns of [NAMESPACES.VENDAS_CREDITO, NAMESPACES.GUIAS_TRANSFERENCIA]) {
+    eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhum tipo de venda declarado`);
+    eq(CLASSIFICACAO[ns].reversao.size, 0, `${ns}: nenhuma reversão declarada`);
+    eq(CLASSIFICACAO[ns].peloSinal.size, 0, `${ns}: nenhum tipo pelo sinal`);
+    for (const t of [1, 7, 102, 107]) {
+      eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem reader`);
+    }
+  }
+}
+
+console.log("\n=== os interruptores do mapa ===");
+{
+  // Os defaults são a configuração do relatório oficial contra o qual
+  // reconciliamos: crédito = Sim, transferências = Não. Um default
+  // errado aqui não dá erro nenhum — dá um mapa que não bate com o balcão.
+  eq(naturezasIncluidas({}), ["NORMAL", "CREDITO"], "default: normal + crédito");
+  eq(
+    naturezasIncluidas({ incluirTransferencias: true }),
+    ["NORMAL", "CREDITO", "TRANSFERENCIA"],
+    "com transferências: as três",
+  );
+  eq(naturezasIncluidas({ incluirCredito: false }), ["NORMAL"], "sem crédito: só normal");
+  eq(
+    naturezasIncluidas({ incluirCredito: false, incluirTransferencias: true }),
+    ["NORMAL", "TRANSFERENCIA"],
+    "os dois interruptores são independentes",
+  );
+  // NORMAL está sempre lá: um mapa de vendas sem a venda de balcão não é
+  // um mapa de vendas.
+  for (const c of [true, false]) {
+    for (const t of [true, false]) {
+      check(
+        naturezasIncluidas({ incluirCredito: c, incluirTransferencias: t }).includes("NORMAL"),
+        `NORMAL presente com credito=${c} transf=${t}`,
+      );
+    }
+  }
+  eq(DEFAULT_INCLUIR_CREDITO, true, "o default de crédito é ON");
+  eq(DEFAULT_INCLUIR_TRANSFERENCIAS, false, "o default de transferências é OFF");
+
+  // A MESMA lista nos dois caminhos do loader. Se divergissem, um
+  // relatório que atravessa o início de um mês somava populações
+  // diferentes de cada lado da fronteira — e só nos períodos que
+  // ninguém verifica à mão.
+  const loader = readFileSync(new URL("../../lib/vendas-data.ts", import.meta.url), "utf8");
+  const usos = (loader.match(/naturezaVenda"\s*=\s*ANY\(\$\{naturezas\}\)/g) ?? []).length;
+  eq(usos, 2, "o filtro de natureza aplica-se aos DOIS caminhos (VendaMensal e raw)");
+  check(
+    /const naturezas = naturezasIncluidas\(filters\)/.test(loader),
+    "…e a lista é calculada UMA vez",
+  );
+}
+
+console.log("\n=== a agregação preserva a dimensão ===");
+{
+  // Somar as três naturezas na agregação seria irreversível: a partir daí
+  // não há filtro que as separe, e ligar/desligar o crédito no mapa
+  // obrigava a reprocessar o histórico.
+  const agg = readFileSync(new URL("../../lib/aggregate/vendamensal.ts", import.meta.url), "utf8");
+  check(
+    /GROUP BY "farmaciaId", "produtoId", "naturezaVenda"/.test(agg),
+    "a agregação agrupa POR natureza",
+  );
+  check(/naturezaVenda: r\.naturezaVenda/.test(agg), "…e escreve-a em VendaMensal");
+  const schema = readFileSync(new URL("../../prisma/schema.prisma", import.meta.url), "utf8");
+  check(
+    /@@unique\(\[farmaciaId, produtoId, ano, mes, naturezaVenda\]\)/.test(schema),
+    "a natureza faz parte da CHAVE de VendaMensal",
+    "sem isso, duas naturezas do mesmo produto/mês colidiam e uma sobrescrevia a outra",
+  );
+  // O default preserva o histórico: tudo o que está gravado veio dos dois
+  // circuitos normais, portanto nada pode ter outra natureza.
+  check(
+    /naturezaVenda String @default\("NORMAL"\)/.test(schema),
+    "o default é NORMAL — o histórico existente não precisa de reprocessamento",
+  );
+}
+
+console.log("\n=== os gates do relatório oficial ===");
+{
+  // Enquanto os alvos viverem numa conversa, cada corrida acaba com
+  // alguém a olhar para duas colunas e a decidir se está bom.
+  eq(GATES_SILVEIRENSE_2026.length, 7, "sete meses com gate — Jan a Jul");
+  check(
+    !GATES_SILVEIRENSE_2026.some((g) => g.mes === 8),
+    "Agosto está de fora",
+    "os dois relatórios cobrem períodos diferentes (um até 19/08); comparar produziria um desvio que não é defeito",
+  );
+  for (const g of GATES_SILVEIRENSE_2026) {
+    eq(
+      g.comTransferencias - g.normalMaisCredito,
+      g.transferencias,
+      `${nomeMes(g.mes)}: modo B − modo A = população de transferências`,
+    );
+    // O que faltava no SPharm.MT tem de ser explicado pelo TipoDoc 7 / U.
+    const faltava = g.normalMaisCredito - (ANTES_SPHARM_MT_2026[g.mes] ?? 0);
+    check(
+      Math.abs(faltava - g.tipoDoc7EstadoU) <= 1,
+      `${nomeMes(g.mes)}: o buraco (${faltava}) bate com TipoDoc 7/U (${g.tipoDoc7EstadoU})`,
+      "se deixar de bater, a causa raiz mudou e a correcção do reader deixou de ser suficiente",
+    );
+  }
+  // O gate não arredonda: 0 unidades de tolerância.
+  eq(TOLERANCIA_UNIDADES, 0, "a tolerância é ZERO — paridade, não aproximação");
+  eq(avaliarGate(1, 13270, 13270).passa, true, "bate exactamente → PASSA");
+  eq(avaliarGate(1, 13270, 13269).passa, false, "uma unidade a menos → FALHA");
+  eq(avaliarGate(1, 13270, 12862).desvio, -408, "o desvio é reportado com sinal");
 }
 
 console.log("\n=== a regra do sinal tem de SOBREVIVER ao servidor ===");

@@ -1211,15 +1211,28 @@ model VendaMensal {
   /// Timestamp da primeira escrita do row (separa criação de actualização).
   createdAt           DateTime @default(now())
 
+  /// A natureza da venda: "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+  ///
+  /// FAZ PARTE DA CHAVE. Sem isto, ligar e desligar as vendas a crédito
+  /// no mapa obrigava a reprocessar o histórico — e o relatório oficial
+  /// do SPharm alterna esses interruptores à vontade.
+  ///
+  /// As linhas que já existiam são todas NORMAL, e isso não é uma
+  /// suposição: os readers de crédito e transferência ainda não existem,
+  /// portanto nada do que está gravado pode ter outra natureza. O default
+  /// preserva o histórico inteiro sem reprocessamento.
+  naturezaVenda String @default("NORMAL")
+
   farmacia     Farmacia      @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   produto      Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   loteIngestao LoteIngestao? @relation(fields: [loteIngestaoId], references: [id])
 
-  @@unique([farmaciaId, produtoId, ano, mes])
+  @@unique([farmaciaId, produtoId, ano, mes, naturezaVenda])
   @@index([ano, mes])
   @@index([farmaciaId, ano, mes])
   @@index([produtoId, ano, mes])
   @@index([origemAgregacao])
+  @@index([farmaciaId, ano, mes, naturezaVenda])
 }
 
 /// Compras diárias agregadas por produto-dia-farmácia-fornecedor.
@@ -1632,6 +1645,17 @@ model IngestVendaLinhaRaw {
   /// para não criar dependência cross-tenant em Prisma enums.
   /// Valores conhecidos: "VENDA", "DEVOLUCAO_ANULACAO", "UNKNOWN".
   tipoDocumentoClass String
+
+  /// O que a linha É: "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+  ///
+  /// Dimensão ORTOGONAL a `tipoDocumentoClass`, que diz se soma ou
+  /// subtrai. Uma devolução de venda a crédito é DEVOLUCAO_ANULACAO +
+  /// CREDITO; numa coluna só, nenhuma das duas perguntas teria resposta.
+  ///
+  /// O relatório oficial do SPharm tem dois interruptores — incluir
+  /// vendas a crédito, incluir guias de transferência. Um total já
+  /// somado não se desliga, por isso a natureza sobrevive até ao UI.
+  naturezaVenda String @default("NORMAL")
 
   /// Softreis: CodigoID. Sempre presente.
   externalProductId Int

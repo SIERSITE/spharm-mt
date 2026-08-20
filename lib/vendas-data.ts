@@ -41,6 +41,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
 import {
   SQL_LINHAS_ELEGIVEIS,
   SQL_QUANTIDADE_ASSINADA,
@@ -270,6 +271,11 @@ export async function getVendasData(
     quantidade: number;
     valorBruto: number;
   };
+  // Os dois interruptores do relatório oficial. A MESMA lista nos dois
+  // caminhos: se divergissem, um período que atravessa o início de um mês
+  // somava populações diferentes de cada lado da fronteira.
+  const naturezas = naturezasIncluidas(filters);
+
   const mensal = (minIdx: number, maxIdx: number) =>
     prisma.$queryRaw<AggRow[]>(Prisma.sql`
       SELECT
@@ -282,6 +288,7 @@ export async function getVendasData(
       FROM "VendaMensal" vm
       WHERE
         vm."farmaciaId" = ANY(${farmaciaIds})
+        AND vm."naturezaVenda" = ANY(${naturezas})
         AND (vm.ano * 12 + vm.mes) BETWEEN ${minIdx} AND ${maxIdx}
         ${
           produtoIdFilter
@@ -309,6 +316,7 @@ export async function getVendasData(
         "farmaciaId" = ANY(${farmaciaIds})
         AND "dataVenda" >= ${`${j.from}T00:00:00.000Z`}::timestamptz
         AND "dataVenda" <  ${`${diaSeguinte(j.to)}T00:00:00.000Z`}::timestamptz
+        AND "naturezaVenda" = ANY(${naturezas})
         AND ${SQL_LINHAS_ELEGIVEIS}
         ${
           produtoIdFilter

@@ -94,6 +94,14 @@ export type PreflightStats = {
 export type AggRow = {
   farmaciaId: string;
   produtoId: string;
+  /**
+   * "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+   *
+   * Faz parte do GROUP BY, e é isso que permite ao mapa ligar e desligar
+   * as vendas a crédito sem reprocessar o histórico. Somar as três aqui
+   * seria irreversível: a partir daí não há filtro que as separe.
+   */
+  naturezaVenda: string;
   quantidadeLiquida: Prisma.Decimal;
   valorBruto: Prisma.Decimal;
   valorPagoUtente: Prisma.Decimal;
@@ -241,6 +249,7 @@ export async function runAggregation(
     Array<{
       farmaciaId: string;
       produtoId: string;
+      naturezaVenda: string;
       quantidadeLiquida: string | number | null;
       valorBruto: string | number | null;
       valorPagoUtente: string | number | null;
@@ -252,6 +261,7 @@ export async function runAggregation(
     SELECT
       "farmaciaId",
       "produtoId"::text AS "produtoId",
+      "naturezaVenda",
       SUM(${SQL_QUANTIDADE_ASSINADA}) AS "quantidadeLiquida",
       SUM(${SQL_VALOR_BRUTO_ASSINADO}) AS "valorBruto",
       SUM(
@@ -274,12 +284,13 @@ export async function runAggregation(
     WHERE ${SQL_LINHAS_ELEGIVEIS}
       AND "dataVenda" >= ${range.fromInclusive}
       AND "dataVenda" <  ${range.toExclusive}
-    GROUP BY "farmaciaId", "produtoId"
+    GROUP BY "farmaciaId", "produtoId", "naturezaVenda"
     ORDER BY "valorBruto" DESC
   `;
   return rows.map((r) => ({
     farmaciaId: r.farmaciaId,
     produtoId: r.produtoId,
+    naturezaVenda: r.naturezaVenda,
     quantidadeLiquida: new Prisma.Decimal(r.quantidadeLiquida ?? 0),
     valorBruto: new Prisma.Decimal(r.valorBruto ?? 0),
     valorPagoUtente: new Prisma.Decimal(r.valorPagoUtente ?? 0),
@@ -332,6 +343,7 @@ export async function writeAggregation(
       produtoId: r.produtoId,
       ano: range.ano,
       mes: range.mes,
+      naturezaVenda: r.naturezaVenda,
       quantidade: r.quantidadeLiquida,
       valorTotal: r.valorBruto,
       mesCompleto: true,
