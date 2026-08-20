@@ -582,6 +582,32 @@ console.log("\n=== SQL: as duas fontes, e a janela ===");
     eq(sqlDistribuicaoEstadoG({ ...at, fimVenda: null }), null, "…e é null quando não há gate");
   }
 
+  // ── NENHUM caminho do agent pode ficar com o gate antigo ────────
+  //
+  // `daily-sync` tem SQL próprio e ESCREVE. Corrigir só o reader do
+  // bootstrap deixava o backfill certo e cada noite seguinte a perder
+  // outra vez os documentos U — com dois totais consoante o comando que
+  // o operador tivesse corrido. Os previews contam: um preview que
+  // discorda do reader é exactamente o que deixou isto esconder-se.
+  for (const f of [
+    "daily-sync",
+    "daily-sync-runner",
+    "bootstrap-dry-run",
+    "bootstrap-upload",
+    "sales-preview",
+    "sales-summary-preview",
+  ]) {
+    const src = readFileSync(
+      new URL(`../../agent/src/commands/${f}.ts`, import.meta.url),
+      "utf8",
+    );
+    check(
+      !/\[Fim Venda\]\s*=\s*'S'/.test(src),
+      `${f}: sem o gate \`= 'S'\``,
+      "um caminho com o gate antigo lê menos 400 unidades/mês do que os outros",
+    );
+  }
+
   const rV = sqlAtendimentoSuspDetalhe(SUSP, CAB);
   eq(rV.estado, "PRONTA", "a fonte VSG fica pronta quando o schema resolve");
   const sqlV = rV.estado === "PRONTA" ? rV.sql : "";

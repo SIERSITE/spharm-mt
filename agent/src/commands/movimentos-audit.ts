@@ -750,7 +750,7 @@ async function getCorrelation(
       OUTER APPLY (
         SELECT COUNT_BIG(*) n FROM [dbo].[Atendimento Detalhe] ad
         JOIN [dbo].[Atendimento] a ON a.[Atendimento ID]=ad.[Atendimento ID]
-        WHERE CAST(a.[Data Venda] AS DATE) = d.dia AND a.[Fim Venda]='S'
+        WHERE CAST(a.[Data Venda] AS DATE) = d.dia AND a.[Fim Venda] IN ('S','U')
       ) ven
       OUTER APPLY (
         SELECT COUNT_BIG(*) n FROM [dbo].[Recepcao Detalhe] rd

@@ -15,7 +15,7 @@
  *   2) TOP 10 documentos por SUM([Valor_EUR]) DESC
  *
  * Filtros idênticos a sales-preview:
- *   · a.[Fim Venda] = 'S'
+ *   · a.[Fim Venda] IN ('S','U')
  *   · a.[Data Venda] BETWEEN @from AND @to
  *
  * Sem agregação fina por produto. Sem persistência. Sem ingest SaaS.
@@ -66,7 +66,7 @@ function printHelp(): void {
   console.log("Mostra também TOP 10 documentos por SUM([Valor_EUR]) DESC.");
   console.log("");
   console.log("Filtros hardcoded:");
-  console.log("  a.[Fim Venda] = 'S'");
+  console.log("  a.[Fim Venda] IN ('S','U')");
   console.log("  a.[Data Venda] BETWEEN @from AND @to");
   console.log("");
   console.log("Métricas (query 1, GROUP BY TipoDoc+EntidadeID):");
@@ -170,7 +170,7 @@ export async function salesSummaryPreview(): Promise<number> {
         `FROM [dbo].[Atendimento] a\n` +
         `JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]\n` +
         `JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]\n` +
-        `WHERE a.[Fim Venda] = 'S'\n` +
+        `WHERE a.[Fim Venda] IN ('S','U')\n` +
         `  AND a.[Data Venda] BETWEEN @from AND @to\n` +
         `GROUP BY a.[Tipo Documento], d.[Entidade ID]\n` +
         `ORDER BY a.[Tipo Documento], d.[Entidade ID]`;
@@ -193,7 +193,7 @@ export async function salesSummaryPreview(): Promise<number> {
         `FROM [dbo].[Atendimento] a\n` +
         `JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]\n` +
         `JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]\n` +
-        `WHERE a.[Fim Venda] = 'S'\n` +
+        `WHERE a.[Fim Venda] IN ('S','U')\n` +
         `  AND a.[Data Venda] BETWEEN @from AND @to\n` +
         `GROUP BY a.[Atendimento ID], a.[Data Venda], a.[Tipo Documento]\n` +
         `ORDER BY SUM(d.[Valor_EUR]) DESC`;
@@ -210,7 +210,7 @@ export async function salesSummaryPreview(): Promise<number> {
       console.log(RULE);
       console.log(`Database         : ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
       console.log(`Tabelas          : dbo.Atendimento, dbo.Atendimento Detalhe, dbo.Stocks`);
-      console.log(`Filtros          : [Fim Venda]='S' AND [Data Venda] BETWEEN ${fromDate} AND ${toDate}`);
+      console.log(`Filtros          : [Fim Venda] IN ('S','U') AND [Data Venda] BETWEEN ${fromDate} AND ${toDate}`);
       console.log("");
 
       console.log(`══ Query 1 ── GROUP BY [Tipo Documento], [Entidade ID]`);

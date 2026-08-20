@@ -15,7 +15,7 @@
  *      Filtro: [Retirado]=0 AND [Processa_Stocks]<>0.
  *   2. STOCK — dbo.ArmazensStocks JOIN dbo.Stocks (mesmo filtro).
  *   3. VENDAS — dbo.Atendimento JOIN dbo.Atendimento Detalhe.
- *      Filtros: [Fim Venda]='S' AND [Data Venda] BETWEEN @from AND @to.
+ *      Filtros: [Fim Venda] IN ('S','U') AND [Data Venda] BETWEEN @from AND @to.
  *      Classificação JS-side de [Tipo Documento]:
  *        77  → VENDA
  *        104 → DEVOLUCAO_ANULACAO
@@ -173,7 +173,7 @@ function printHelp(): void {
   console.log("Três pipelines:");
   console.log("  1. PRODUTOS  — Stocks + ArmazensStocks (fornecedor) + Fornecedores");
   console.log("  2. STOCK     — ArmazensStocks (filtro operacional via Stocks)");
-  console.log("  3. VENDAS    — Atendimento + Detalhe (--from/--to + Fim Venda='S')");
+  console.log("  3. VENDAS    — Atendimento + Detalhe (--from/--to + Fim Venda IN ('S','U'))");
   console.log("");
   console.log("Classificação inicial TipoDoc:");
   console.log("  77 → VENDA                104 → DEVOLUCAO_ANULACAO");
@@ -428,7 +428,7 @@ async function runSalesPipeline(
       CAST(SUM(ISNULL(d.[PrComp_EUR],0) + ISNULL(d.[PrComp_EUR2],0)) AS DECIMAL(18,2)) AS SumComp
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-    WHERE a.[Fim Venda] = 'S'
+    WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
     GROUP BY a.[Tipo Documento], d.[Entidade ID]
     ORDER BY a.[Tipo Documento], d.[Entidade ID]
@@ -450,7 +450,7 @@ async function runSalesPipeline(
       CAST(SUM(ISNULL(d.[PrComp_EUR],0) + ISNULL(d.[PrComp_EUR2],0)) AS DECIMAL(18,2)) AS sumComp
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-    WHERE a.[Fim Venda] = 'S'
+    WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
   `);
   const aggRow = rAgg.recordset[0];
@@ -494,7 +494,7 @@ async function runSalesPipeline(
       d.[Entidade ID]               AS entidadeId
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-    WHERE a.[Fim Venda] = 'S'
+    WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
     ORDER BY a.[Data Venda] DESC, a.[Atendimento ID], d.[Sequencia]
   `);
@@ -525,7 +525,7 @@ async function runSalesPipeline(
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
     LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
-    WHERE a.[Fim Venda] = 'S'
+    WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
       AND s.CodigoID IS NULL
   `);
@@ -536,7 +536,7 @@ async function runSalesPipeline(
     SELECT a.[Tipo Documento] AS tipoDoc, COUNT(*) AS linhas
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
-    WHERE a.[Fim Venda] = 'S'
+    WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
       AND (a.[Tipo Documento] IS NULL OR a.[Tipo Documento] NOT IN (77, 104, 2))
     GROUP BY a.[Tipo Documento]
@@ -644,7 +644,7 @@ export async function bootstrapDryRun(): Promise<number> {
       console.log(`Database         : ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
       console.log(`Intervalo vendas : ${fromDate} → ${toDate}`);
       console.log(`Filtro produtos  : [Retirado]=0 AND [Processa_Stocks]<>0`);
-      console.log(`Filtro vendas    : [Fim Venda]='S' AND [Data Venda] BETWEEN @from AND @to`);
+      console.log(`Filtro vendas    : [Fim Venda] IN ('S','U') AND [Data Venda] BETWEEN @from AND @to`);
       console.log("");
 
       // ── Pipeline 1: PRODUTOS

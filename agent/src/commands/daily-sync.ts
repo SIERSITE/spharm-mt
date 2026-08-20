@@ -18,7 +18,7 @@
  *   · STOCK    — produtos com movimento em `dbo.StocksMov.[DataMov]` =
  *                @date. Para cada, re-fetch ArmazensStocks corrente
  *                (snapshot) — captura estado actual, não o delta.
- *   · VENDAS   — `Atendimento.[Data Venda]` no dia, `[Fim Venda]='S'`.
+ *   · VENDAS   — `Atendimento.[Data Venda]` no dia, `[Fim Venda] IN ('S','U')`.
  *
  * Exports:
  *   · `dailySync()`        — runs SQL + POSTs (scope=both)
@@ -39,6 +39,11 @@ import { withPool, type SqlPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type BootstrapBatchResponse } from "../http-client.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import { janelaDoDia } from "../janela.js";
+import {
+  NAMESPACES,
+  NATUREZA_POR_NAMESPACE,
+  classificarDocumento,
+} from "../vendas-fontes.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -81,10 +86,26 @@ function isoDateOrNull(v: unknown): string | null {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
   return null;
 }
-function classifyTipoDoc(t: number | null): "VENDA" | "DEVOLUCAO_ANULACAO" | "UNKNOWN" {
-  if (t === 77) return "VENDA";
-  if (t === 104) return "DEVOLUCAO_ANULACAO";
-  return "UNKNOWN";
+/**
+ * A classificação canónica, não uma cópia local.
+ *
+ * A versão anterior era `77 -> VENDA, 104 -> DEVOLUCAO_ANULACAO, resto
+ * UNKNOWN`. O 77 nunca foi observado em ERP nenhum — era o default do
+ * fornecedor — e o tipo real da venda de balcão é o 7. Este caminho
+ * ESCREVE: cada dia sincronizado por aqui gravava as vendas todas como
+ * UNKNOWN, que a agregação não soma.
+ *
+ * Uma segunda cópia da regra é uma segunda regra. Passa a chamar a que
+ * está em `vendas-fontes.ts`, com o namespace do circuito de onde esta
+ * query lê.
+ */
+function classifyTipoDoc(
+  t: number | null,
+  quantidade: number | null,
+): "VENDA" | "DEVOLUCAO_ANULACAO" | "UNKNOWN" {
+  return (
+    classificarDocumento(t, NAMESPACES.ATENDIMENTO_DETALHE, quantidade) ?? "UNKNOWN"
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -147,7 +168,7 @@ function printHelp(isDryRun: boolean): void {
   console.log("  · produtos — Stocks.[Data Ultima Venda] OU [Data Ultima Compra]");
   console.log("               (OU [Data_Actualiz] se existir)");
   console.log("  · stock    — produtos com StocksMov.[DataMov] no dia, snapshot ArmazensStocks");
-  console.log("  · vendas   — Atendimento.[Data Venda] no dia, [Fim Venda]='S'");
+  console.log("  · vendas   — Atendimento.[Data Venda] no dia, [Fim Venda] IN ('S','U')");
   console.log("");
   console.log("Pré-requisitos:");
   if (!isDryRun) console.log("  · ENABLE_AGENT_BOOTSTRAP=1 no SaaS");
@@ -307,7 +328,14 @@ const SALES_SQL = `
   FROM [dbo].[Atendimento] a
   JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
   LEFT JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]
-  WHERE a.[Fim Venda] = 'S'
+  -- Os dois estados de venda, nao so o fechado. O gate anterior excluia
+  -- os documentos com estado U -- vendas reais de TipoDoc 7 -- e custava
+  -- ~400 unidades por mes na Silveirense. ESTADOS_VENDA_G em
+  -- vendas-fontes.ts e a declaracao canonica; esta query e o caminho
+  -- legado do daily-sync e tem de concordar com ela. Duas rotas de
+  -- escrita a ler populacoes diferentes dao dois totais consoante o
+  -- comando que o operador correu.
+  WHERE a.[Fim Venda] IN ('S', 'U')
     AND a.[Data Venda] >= @from
     AND a.[Data Venda] <  @to
     AND d.[Detalhe ID] > @lastId
@@ -522,13 +550,19 @@ type SaleRow = {
 
 function rowToSalePayload(r: SaleRow): Record<string, unknown> {
   const tipo = numOrNull(r.tipoDocumento);
+  const qtd = numOrNull(r.quantidade);
   return {
+    // A origem faz parte da identidade. Sem isto o servidor assumia
+    // `ATENDIMENTO_DETALHE` por defeito — que aqui até calha, mas
+    // depender de um default para acertar não é acertar.
+    sourceNamespace: NAMESPACES.ATENDIMENTO_DETALHE,
+    naturezaVenda: NATUREZA_POR_NAMESPACE[NAMESPACES.ATENDIMENTO_DETALHE],
     externalSaleId: numOrNull(r.externalSaleId),
     externalSaleLineId: numOrNull(r.externalSaleLineId),
     sequencia: numOrNull(r.sequencia),
     dataVenda: isoDateOrNull(r.dataVenda),
     tipoDocumento: tipo,
-    tipoDocumentoClass: classifyTipoDoc(tipo),
+    tipoDocumentoClass: classifyTipoDoc(tipo, qtd),
     externalProductId: numOrNull(r.externalProductId),
     processaStocks: boolOrNull(r.processaStocks),
     quantidade: numOrNull(r.quantidade),

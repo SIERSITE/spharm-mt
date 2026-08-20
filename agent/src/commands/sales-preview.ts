@@ -16,7 +16,7 @@
  * imediato via `assertColumnsExist`.
  *
  * Filtros HARDCODED no SQL:
- *   · a.[Fim Venda] = 'S'       — só vendas concluídas
+ *   · a.[Fim Venda] IN ('S','U')       — só vendas concluídas
  *   · a.[Data Venda] BETWEEN @from AND @to
  *
  * Tipo Documento aparece no SELECT mas NÃO no WHERE — operador valida
@@ -75,7 +75,7 @@ function printHelp(): void {
   console.log("e mostra TOP 20 ordenado por [Data Venda] DESC.");
   console.log("");
   console.log("Filtros hardcoded:");
-  console.log("  a.[Fim Venda] = 'S'                          (vendas concluídas)");
+  console.log("  a.[Fim Venda] IN ('S','U')                          (vendas concluídas)");
   console.log("  a.[Data Venda] BETWEEN @from AND @to         (intervalo obrigatório)");
   console.log("");
   console.log("Colunas (todas fixas, validadas 2026-05-13):");
@@ -194,7 +194,7 @@ export async function salesPreview(): Promise<number> {
         `FROM [dbo].[Atendimento] a\n` +
         `JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]\n` +
         `JOIN [dbo].[Stocks] s ON s.CodigoID = d.[CodigoID]\n` +
-        `WHERE a.[Fim Venda] = 'S'\n` +
+        `WHERE a.[Fim Venda] IN ('S', 'U')\n` +
         `  AND a.[Data Venda] BETWEEN @from AND @to\n` +
         `ORDER BY a.[Data Venda] DESC, a.[Atendimento ID], d.[Sequencia]`;
 
@@ -209,7 +209,7 @@ export async function salesPreview(): Promise<number> {
       console.log(RULE);
       console.log(`Database         : ${cfg.sqlDatabase}@${cfg.sqlHost}:${cfg.sqlPort}`);
       console.log(`Tabelas          : dbo.Atendimento, dbo.Atendimento Detalhe, dbo.Stocks`);
-      console.log(`Filtros          : [Fim Venda]='S' AND [Data Venda] BETWEEN ${fromDate} AND ${toDate}`);
+      console.log(`Filtros          : [Fim Venda] IN ('S','U') AND [Data Venda] BETWEEN ${fromDate} AND ${toDate}`);
       console.log(`Order            : [Data Venda] DESC, [Atendimento ID], [Sequencia]`);
       console.log("");
 
@@ -231,7 +231,7 @@ export async function salesPreview(): Promise<number> {
       console.log(RULE);
       if (res.recordset.length === 0) {
         console.log(
-          `⚠ 0 linhas — verifica que existem vendas com [Fim Venda]='S' no intervalo. ` +
+          `⚠ 0 linhas — verifica que existem vendas com [Fim Venda] IN ('S','U') no intervalo. ` +
             `[Tipo Documento] não está filtrado; se mesmo assim vier vazio, alarga --from.`
         );
       } else {
