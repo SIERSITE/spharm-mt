@@ -161,6 +161,25 @@ console.log("\n=== o guard está em TODOS os comandos históricos ===");
     const guardas = (src.match(/aplicarGuardaTemporal\(/g) ?? []).length;
     eq(`${c}: uma guarda por entrada`, guardas, entradas);
   }
+
+  // `daily-sync` é o caso à parte: leva `--date`, um dia só, e tem dois
+  // modos. O guard aplica-se ao que ESCREVE — um dia ainda aberto
+  // gravado como se estivesse fechado não volta a ser reenviado. O
+  // dry-run de hoje não grava nada e é diagnóstico legítimo.
+  {
+    const ds = readFileSync(new URL("./commands/daily-sync.ts", import.meta.url), "utf8");
+    ok("daily-sync: aplica o guard", /aplicarGuardaTemporal\(/.test(ds));
+    ok("daily-sync: só no modo que escreve", /!dryRun && !aplicarGuardaTemporal\(/.test(ds));
+    ok("daily-sync: aceita a flag", /OPCOES_INCLUIR_HOJE/.test(ds));
+  }
+
+  // `daily-pipeline` não precisa de guard: calcula ontem sozinho e o
+  // `--date` explícito é uma reposição manual. Um guard aqui recusaria o
+  // caso normal do Task Scheduler.
+  {
+    const dp = readFileSync(new URL("./commands/daily-pipeline.ts", import.meta.url), "utf8");
+    ok("daily-pipeline: a janela default é ontem", /ontemNaFarmacia\(\)/.test(dp));
+  }
 }
 
 console.log(`\n${pass} ok, ${fail} falhas`);

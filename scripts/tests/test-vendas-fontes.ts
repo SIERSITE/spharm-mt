@@ -1176,6 +1176,43 @@ console.log("\n=== a MESMA regra no backfill e no daily ===");
       `${f}: e usa o namespace por linha ao normalizar`,
     );
   }
+  // O TERCEIRO reader. `daily-sync` — o `run-daily-sync.bat` que está
+  // nas farmácias — tinha SALES_SQL próprio: só o circuito G, colunas à
+  // mão, e `sourceNamespace: ATENDIMENTO_DETALHE` em todas as linhas.
+  // Um dia corrido por aí gravava a fatia G e mais nada, com sucesso.
+  {
+    const ds = readFileSync(
+      new URL("../../agent/src/commands/daily-sync.ts", import.meta.url),
+      "utf8",
+    );
+    // Comentários à parte: o que interessa é não haver SQL de vendas.
+    const codigo = ds
+      .split("\n")
+      .filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l))
+      .join("\n");
+    check(
+      !/FROM \[dbo\]\.\[Atendimento\]/i.test(codigo),
+      "daily-sync: já não tem SQL de vendas próprio",
+      "eram 18 481 linhas suspensas mais as guias a não chegarem, sem erro nenhum",
+    );
+    check(
+      !/SALES_SQL\s*=/.test(codigo),
+      "daily-sync: o SALES_SQL desapareceu",
+    );
+    check(
+      !/sourceNamespace:\s*NAMESPACES\./.test(codigo),
+      "daily-sync: já não carimba um namespace fixo em todas as linhas",
+    );
+    check(
+      /runPipelineForDay\(/.test(codigo),
+      "daily-sync: delega no MESMO runner do daily-pipeline",
+    );
+    check(
+      /dryRun,/.test(codigo) && /amostras,/.test(codigo),
+      "daily-sync: o dry-run é a mesma leitura sem POST, com os payloads reais",
+      "um dry-run que exercita outro código não valida coisa nenhuma",
+    );
+  }
   // E a função declara mesmo as três, com a resolução por série.
   const vf = readFileSync(new URL("../../agent/src/vendas-fontes.ts", import.meta.url), "utf8");
   const corpo = vf.slice(vf.indexOf("export function fontesDeVenda"));

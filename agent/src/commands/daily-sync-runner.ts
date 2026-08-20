@@ -65,6 +65,44 @@ export type PipelineRunCounts = {
   salesOperationalOrphans: number;
 };
 
+/**
+ * Amostras dos payloads, para o dry-run.
+ *
+ * O valor do dry-run não é a contagem — é VER o que sairia. Sem isto o
+ * `daily-sync-dry-run` teria de ter leitura própria só para imprimir
+ * exemplos, que é exactamente o segundo reader que este ficheiro passou
+ * a existir para não haver.
+ */
+export type Amostras = {
+  produtos: unknown[];
+  stock: unknown[];
+  vendas: unknown[];
+};
+
+export function amostrasVazias(): Amostras {
+  return { produtos: [], stock: [], vendas: [] };
+}
+
+/**
+ * Escrever ou só olhar.
+ *
+ * `dryRun` não é um segundo caminho de leitura: é a MESMA leitura sem o
+ * POST no fim. É essa a diferença entre um dry-run que valida o que vai
+ * acontecer e um que valida outro código qualquer — e o
+ * `daily-sync-dry-run` era o segundo.
+ */
+type Envio = { dryRun: boolean; amostras?: Amostras };
+
+const AMOSTRA_MAX = 5;
+
+function guardarAmostra(destino: unknown[] | undefined, itens: unknown[]): void {
+  if (!destino) return;
+  for (const i of itens) {
+    if (destino.length >= AMOSTRA_MAX) return;
+    destino.push(i);
+  }
+}
+
 const PRODUCTS_BATCH = 50;
 const STOCK_BATCH = 100;
 const SALES_BATCH = 200;
@@ -256,11 +294,12 @@ function rowToProductPayload(r: ProductRow): Record<string, unknown> {
 async function pipelineProducts(
   pool: SqlPool,
   caps: SchemaCapabilities,
-  client: SaasClient,
+  client: SaasClient | null,
   farmaciaId: string,
   date: string,
   counts: PipelineRunCounts,
-  logger: DailySyncLogger
+  logger: DailySyncLogger,
+  envio: Envio,
 ): Promise<void> {
   const sqlText = buildProductsSql(caps);
   let lastId = -1;
@@ -280,17 +319,22 @@ async function pipelineProducts(
     if (rs.recordset.length === 0) break;
     counts.productsRead += rs.recordset.length;
     const items = rs.recordset.map(rowToProductPayload);
-    const response: BootstrapBatchResponse = await client.bootstrapProducts(
-      { farmaciaId, items },
-      BATCH_TIMEOUT_MS
-    );
-    counts.productsUpserted += response.upserted;
-    counts.productsSkipped += response.skipped.length;
-    counts.productsErrors += response.errors.length;
     batches++;
-    logger.log(
-      `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length} (${response.durationMs}ms)`
-    );
+    if (envio.dryRun || !client) {
+      guardarAmostra(envio.amostras?.produtos, items);
+      logger.log(`  batch ${batches}: read=${rs.recordset.length} (dry-run — sem POST)`);
+    } else {
+      const response: BootstrapBatchResponse = await client.bootstrapProducts(
+        { farmaciaId, items },
+        BATCH_TIMEOUT_MS
+      );
+      counts.productsUpserted += response.upserted;
+      counts.productsSkipped += response.skipped.length;
+      counts.productsErrors += response.errors.length;
+      logger.log(
+        `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length} (${response.durationMs}ms)`
+      );
+    }
     const last = rs.recordset[rs.recordset.length - 1];
     if (last && typeof last.externalProductId === "number") lastId = last.externalProductId;
     if (rs.recordset.length < PRODUCTS_BATCH) break;
@@ -322,11 +366,12 @@ function rowToStockPayload(r: StockRow): Record<string, unknown> {
 async function pipelineStock(
   pool: SqlPool,
   caps: SchemaCapabilities,
-  client: SaasClient,
+  client: SaasClient | null,
   farmaciaId: string,
   date: string,
   counts: PipelineRunCounts,
-  logger: DailySyncLogger
+  logger: DailySyncLogger,
+  envio: Envio,
 ): Promise<void> {
   const sqlText = buildStockSql(caps);
   let lastId = -1;
@@ -348,14 +393,21 @@ async function pipelineStock(
     const items = rs.recordset.map(rowToStockPayload);
     const distinctProducts = new Set<number>();
     for (const r of rs.recordset) distinctProducts.add(r.externalProductId);
-    const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS);
-    counts.stockUpserted += response.upserted;
-    counts.stockErrors += response.errors.length;
     batches++;
-    const aggregated = (response as { aggregated?: number }).aggregated ?? distinctProducts.size;
-    logger.log(
-      `  batch ${batches}: read=${rs.recordset.length} produtos=${distinctProducts.size} aggregated=${aggregated} upserted=${response.upserted} errors=${response.errors.length} (${response.durationMs}ms)`
-    );
+    if (envio.dryRun || !client) {
+      guardarAmostra(envio.amostras?.stock, items);
+      logger.log(
+        `  batch ${batches}: read=${rs.recordset.length} produtos=${distinctProducts.size} (dry-run — sem POST)`
+      );
+    } else {
+      const response = await client.bootstrapStock({ farmaciaId, items }, BATCH_TIMEOUT_MS);
+      counts.stockUpserted += response.upserted;
+      counts.stockErrors += response.errors.length;
+      const aggregated = (response as { aggregated?: number }).aggregated ?? distinctProducts.size;
+      logger.log(
+        `  batch ${batches}: read=${rs.recordset.length} produtos=${distinctProducts.size} aggregated=${aggregated} upserted=${response.upserted} errors=${response.errors.length} (${response.durationMs}ms)`
+      );
+    }
     const last = rs.recordset[rs.recordset.length - 1];
     if (last && typeof last.externalProductId === "number") lastId = last.externalProductId;
     if (distinctProducts.size < STOCK_BATCH) break;
@@ -380,11 +432,12 @@ type FonteSqlPronta = {
 
 async function pipelineSales(
   pool: SqlPool,
-  client: SaasClient,
+  client: SaasClient | null,
   farmaciaId: string,
   date: string,
   counts: PipelineRunCounts,
-  logger: DailySyncLogger
+  logger: DailySyncLogger,
+  envio: Envio,
 ): Promise<void> {
   logger.raw(DOUBLE_RULE);
   logger.log(`▶ Pipeline 3: SALES-LINES (batch=${SALES_BATCH}, [Data Venda]=${date})`);
@@ -442,7 +495,7 @@ async function pipelineSales(
         sql: f.fonte.sql,
         namespacePorLinha: f.namespacePorLinha,
       },
-      counts, logger,
+      counts, logger, envio,
     );
   }
 }
@@ -450,12 +503,13 @@ async function pipelineSales(
 /** Le uma fonte de ponta a ponta, paginando por PK. */
 async function lerFonte(
   pool: SqlPool,
-  client: SaasClient,
+  client: SaasClient | null,
   farmaciaId: string,
   date: string,
   fonte: FonteSqlPronta,
   counts: PipelineRunCounts,
-  logger: DailySyncLogger
+  logger: DailySyncLogger,
+  envio: Envio,
 ): Promise<void> {
   let lastId = -1;
   let batches = 0;
@@ -506,19 +560,26 @@ async function lerFonte(
     }
 
     if (items.length > 0) {
-      const response = await client.bootstrapSalesLines(
-        { farmaciaId, items },
-        BATCH_TIMEOUT_MS
-      );
-      counts.salesUpserted += response.upserted;
-      counts.salesSkipped += response.skipped.length;
-      counts.salesErrors += response.errors.length;
-      counts.salesNonStockServices += response.nonStockServiceLines ?? 0;
-      counts.salesOperationalOrphans += response.operationalOrphans ?? 0;
       batches++;
-      logger.log(
-        `    batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} orphans=${response.orphanProductLines ?? 0} non_stock=${response.nonStockServiceLines ?? 0} errors=${response.errors.length} (${response.durationMs}ms)`
-      );
+      if (envio.dryRun || !client) {
+        guardarAmostra(envio.amostras?.vendas, items);
+        logger.log(
+          `    batch ${batches}: read=${rs.recordset.length} payloads=${items.length} (dry-run — sem POST)`
+        );
+      } else {
+        const response = await client.bootstrapSalesLines(
+          { farmaciaId, items },
+          BATCH_TIMEOUT_MS
+        );
+        counts.salesUpserted += response.upserted;
+        counts.salesSkipped += response.skipped.length;
+        counts.salesErrors += response.errors.length;
+        counts.salesNonStockServices += response.nonStockServiceLines ?? 0;
+        counts.salesOperationalOrphans += response.operationalOrphans ?? 0;
+        logger.log(
+          `    batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} orphans=${response.orphanProductLines ?? 0} non_stock=${response.nonStockServiceLines ?? 0} errors=${response.errors.length} (${response.durationMs}ms)`
+        );
+      }
     }
 
     const last = rs.recordset[rs.recordset.length - 1];
@@ -545,13 +606,24 @@ function diaSeguinteIso(dia: string): string {
 
 export async function runPipelineForDay(opts: {
   pool: SqlPool;
-  client: SaasClient;
+  /** `null` só é aceitável com `dryRun`: sem cliente não há para onde enviar. */
+  client: SaasClient | null;
   farmaciaId: string;
   date: string;
   schemaProbes: SchemaProbeAPI;
   logger: DailySyncLogger;
+  /** Lê tudo e não envia nada. Ver `Envio`. */
+  dryRun?: boolean;
+  /** Onde deixar os primeiros payloads de cada pipeline, no dry-run. */
+  amostras?: Amostras;
 }): Promise<PipelineRunCounts> {
   const { pool, client, farmaciaId, date, schemaProbes, logger } = opts;
+  const envio: Envio = { dryRun: opts.dryRun === true, amostras: opts.amostras };
+  // Um `client` em falta fora do dry-run seria um dia inteiro lido e
+  // deitado fora, com contagens de leitura a dar a impressão contrária.
+  if (!envio.dryRun && !client) {
+    throw new Error("runPipelineForDay: sem SaasClient e sem dryRun — nao ha para onde escrever.");
+  }
   const counts: PipelineRunCounts = {
     productsRead: 0, productsUpserted: 0, productsSkipped: 0, productsErrors: 0,
     stockRead: 0, stockUpserted: 0, stockErrors: 0,
@@ -564,10 +636,10 @@ export async function runPipelineForDay(opts: {
   if (!caps.hasStocksMov) {
     throw new Error("dbo.StocksMov é OBRIGATÓRIO para o pipeline de stock incremental.");
   }
-  await pipelineProducts(pool, caps, client, farmaciaId, date, counts, logger);
+  await pipelineProducts(pool, caps, client, farmaciaId, date, counts, logger, envio);
   logger.raw("");
-  await pipelineStock(pool, caps, client, farmaciaId, date, counts, logger);
+  await pipelineStock(pool, caps, client, farmaciaId, date, counts, logger, envio);
   logger.raw("");
-  await pipelineSales(pool, client, farmaciaId, date, counts, logger);
+  await pipelineSales(pool, client, farmaciaId, date, counts, logger, envio);
   return counts;
 }
