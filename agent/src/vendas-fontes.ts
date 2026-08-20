@@ -124,6 +124,21 @@ export type LinhaVendaCanonica = {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
+ * A regra de um circuito.
+ *
+ * `venda` e `reversao` são tipos cuja classe é uma propriedade do TIPO:
+ * um 104 é uma nota de crédito venha com que sinal vier. `peloSinal` são
+ * tipos em que o mesmo número documental serve as duas operações, e é a
+ * quantidade que diz qual.
+ */
+export type RegraCircuito = {
+  venda: ReadonlySet<number>;
+  reversao: ReadonlySet<number>;
+  /** Positivo = venda, negativo = reversão, zero = recusado. */
+  peloSinal: ReadonlySet<number>;
+};
+
+/**
  * Que tipos de documento são venda e quais são reversão, POR CIRCUITO.
  *
  * ── PORQUE É POR NAMESPACE E NÃO UMA LISTA GLOBAL ────────────────────
@@ -136,14 +151,7 @@ export type LinhaVendaCanonica = {
  * `Atendimento ID`, logo aponta para o `Atendimento`" — que fez o reader
  * ler zero linhas durante uma ronda inteira.
  *
- * ── O QUE ESTÁ PROVADO NO ERP DA SILVEIRENSE ─────────────────────────
- *
- * Circuito G, `[Atendimento]`:
- *   · 7, 2     venda de balcão
- *   · 104, 27  nota de crédito / anulação
- *
- * Circuito VSG, `[Atendimento Susp]`:
- *   · 107      factura de venda suspensa
+ * ── CIRCUITO G: A CLASSE ESTÁ NO TIPO ────────────────────────────────
  *
  * Auditoria de 2024-01-01 a 2026-07-31 na Silveirense, sobre
  * `[Atendimento]` + `[Atendimento Detalhe]`:
@@ -154,69 +162,81 @@ export type LinhaVendaCanonica = {
  *     27              418          -436
  *     104           6 138        -6 202
  *
- * O sinal separa-os sozinho: 7 e 2 somam, 27 e 104 subtraem. E o ERP já
+ * Cada tipo tem um sinal só. 7 e 2 somam, 27 e 104 subtraem, e o ERP já
  * grava a reversão negativa — ver `assinarQuantidade`.
  *
- * ── O TIPO 2 ─────────────────────────────────────────────────────────
+ * O tipo 2 são nove linhas em dois anos e meio. É raro, e é venda: o
+ * documento G/669909 (2024-01-30 09:56:17) tem cinco linhas, todas de
+ * quantidade positiva, e o operador confirmou que é uma factura normal
+ * da série G.
  *
- * Nove linhas em dois anos e meio. É raro, e é venda: o documento
- * G/669909 (2024-01-30 09:56:17) tem `Fim Venda = 'S'` e cinco linhas,
- * todas de quantidade positiva, e o operador confirmou que é uma factura
- * normal da série G.
+ * O 77 esteve aqui durante meses e nunca foi observado em ERP nenhum. A
+ * prova está no seed da própria migração, que se descreve a si mesmo:
+ * `(77, 'VENDA', 'default Softreis')` contra `(7, 'UNKNOWN', 'detectado
+ * 2024-01-01 sample')`. O 77 era a suposição do fornecedor; o 7 foi o
+ * que se viu. A rev68 fechou a questão em produção: 282 linhas do dia,
+ * 282 com tipo 7, zero com 77.
  *
- * A evidência é diferente da do 7 em quantidade mas não em natureza: um
- * documento inspeccionado ao detalhe mais o agregado dos dois anos. Não
- * é o `(2, 'UNKNOWN', 'Caracterização pendente')` que a migração semeou
- * às cegas — é o que se viu.
+ * ── CIRCUITO SUSPENSO: A CLASSE ESTÁ NO SINAL ────────────────────────
  *
- * Nove linhas não movem um total. Recusá-las movia: cada corrida do
- * backfill histórico terminaria com linhas por classificar, e um
- * relatório com avisos permanentes é um relatório que se deixa de ler.
+ * Aqui o mesmo tipo documental serve a factura e a sua anulação. Não é
+ * uma hipótese — é o que as duas farmácias responderam, no mesmo
+ * período:
  *
- * ── PORQUE É 7 E NÃO 77 ──────────────────────────────────────────────
+ *     Silveirense  VSG 107   16 168 linhas +      2 078 linhas −
+ *                            336 documentos negativos, em pares +N/−N
+ *                            pelo mesmo |Numero Documento|
+ *     Segurado     VSC 107    8 982 linhas +        583 linhas −
+ *                            92 documentos negativos
+ *     Segurado     VSC 102       25 linhas +          5 linhas −
+ *                            +31186/−31186 e +31187/−31187 confirmados
+ *                            funcionalmente como facturas VS e as suas
+ *                            anulações
  *
- * O 77 esteve aqui durante meses e nunca foi observado em ERP nenhum.
- * A prova está no seed da própria migração que criou
- * `TipoDocumentoClassificacao`, que se descreve a si mesmo:
+ * Produto+instante com quantidades opostas anulam exactamente. Um `Set`
+ * de tipos não consegue exprimir isto: declarar 107 como venda faria as
+ * 2 078 linhas negativas somarem, e declará-lo como reversão faria as
+ * 16 168 positivas subtrair. Qualquer das duas dá um total plausível e
+ * errado — que é a forma de erro que este projecto já pagou duas vezes.
  *
- *     (77, 'VENDA',   'Venda comercial (default Softreis)')
- *     (7,  'UNKNOWN', 'Caracterização pendente — detectado 2024-01-01 sample')
+ * Por isso a regra do circuito suspenso é por tipo E sinal. E o sinal
+ * vem do ERP: não é inferido de nome, série nem de `Fim Venda`, que foi
+ * refutado como classificador com 11 868 linhas e zero matches.
  *
- * O 77 era o *default do fornecedor* — uma suposição. O 7 foi *detectado
- * numa amostra real* e ficou por caracterizar. A rev68 correu em
- * produção e fechou a questão: 282 linhas do dia, 282 com tipo 7, zero
- * com 77.
+ * ── O 104 NÃO ENTRA AQUI, E É DE PROPÓSITO ───────────────────────────
  *
- * Por isso o 77 sai em vez de ficar "por compatibilidade": não há
- * instalação nenhuma a usá-lo, e uma lista de tipos que inclui um número
- * que ninguém viu é a mesma classe de erro que trouxe esta ronda aqui.
- *
- * E o conjunto de reversões do circuito VSG está VAZIO de propósito, não
- * por esquecimento. As 107 relações de `Atendimento_SuspFT_NC_Susp`
- * resolvem 107/107 para `[Atendimento]`, com `[Tipo Documento] = 104`, e
- * as suas linhas vivem em `[Atendimento Detalhe]` — que o reader do
- * circuito G já lê. Declarar 104 aqui faria a MESMA nota de crédito ser
- * lida duas vezes e subtraída duas vezes: o erro simétrico daquele que
- * andámos a corrigir, e igualmente plausível à vista.
+ * As 107 relações de `Atendimento_SuspFT_NC_Susp` resolvem 107/107 para
+ * `[Atendimento]`, com `[Tipo Documento] = 104`, e as suas linhas vivem
+ * em `[Atendimento Detalhe]` — que o reader do circuito G já lê.
+ * Declarar 104 aqui faria a MESMA nota de crédito ser lida duas vezes e
+ * subtraída duas vezes: o erro simétrico daquele que andámos a corrigir,
+ * e igualmente plausível à vista.
  */
-export const CLASSIFICACAO: Record<
-  SourceNamespace,
-  { venda: ReadonlySet<number>; reversao: ReadonlySet<number> }
-> = {
+export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
   [NAMESPACES.ATENDIMENTO_DETALHE]: {
     venda: new Set([7, 2]),
     reversao: new Set([104, 27]),
+    peloSinal: new Set<number>(),
   },
   [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: {
-    venda: new Set([107]),
-    // Vazio por decisão, não por omissão. Ver acima.
+    venda: new Set<number>(),
+    // Vazio por decisão, não por omissão: o 104 das NC de VSG é lido
+    // pelo circuito G. Ver acima.
     reversao: new Set<number>(),
+    peloSinal: new Set([107, 102]),
   },
 };
 
 /**
- * A classe de uma linha, dado o tipo de documento e o circuito de onde
- * veio. Fail-closed: o que não está declarado é recusado.
+ * A classe de uma linha, dado o tipo de documento, o circuito de onde
+ * veio e a quantidade. Fail-closed: o que não está declarado é recusado.
+ *
+ * ── PORQUE É QUE A QUANTIDADE É UM ARGUMENTO ─────────────────────────
+ *
+ * Porque no circuito suspenso ela é a única coisa que distingue uma
+ * factura da sua anulação. Passá-la depois — classificar primeiro e
+ * corrigir o sinal a seguir — seria ter duas fontes de verdade sobre a
+ * mesma linha, que é como se instalam as divergências silenciosas.
  *
  * ── PORQUE É QUE O DESCONHECIDO NÃO É VENDA ──────────────────────────
  *
@@ -233,12 +253,30 @@ export const CLASSIFICACAO: Record<
 export function classificarDocumento(
   tipoDocumento: number | null,
   sourceNamespace: SourceNamespace,
+  quantidade: number | null,
 ): ClasseVenda | null {
   if (tipoDocumento === null) return null;
   const regras = CLASSIFICACAO[sourceNamespace];
   if (!regras) return null;
+
+  // A classe que é propriedade do tipo decide-se primeiro e ignora o
+  // sinal: uma NC do circuito G chega negativa e continua a ser NC.
   if (regras.reversao.has(tipoDocumento)) return "DEVOLUCAO_ANULACAO";
   if (regras.venda.has(tipoDocumento)) return "VENDA";
+
+  if (regras.peloSinal.has(tipoDocumento)) {
+    // Sem quantidade não há sinal, e sem sinal não há classe. Devolver
+    // `VENDA` por defeito era transformar cada anulação por ler numa
+    // venda — exactamente a direcção de erro que não se detecta.
+    if (quantidade === null || !Number.isFinite(quantidade)) return null;
+    if (quantidade > 0) return "VENDA";
+    if (quantidade < 0) return "DEVOLUCAO_ANULACAO";
+    // Zero não é venda nem anulação: é uma linha sem operação. Entra no
+    // relatório de recusadas, onde se vê, em vez de somar zero em
+    // silêncio numa classe que não lhe pertence.
+    return null;
+  }
+
   return null;
 }
 
@@ -516,14 +554,25 @@ export function normalizar(
   if (externalProductId === null) return { erro: "sem CodigoID" };
 
   const tipoDocumento = num(r.tipoDocumento);
-  const classe = classificarDocumento(tipoDocumento, sourceNamespace);
+  // A quantidade é lida ANTES de classificar porque no circuito suspenso
+  // é ela que decide a classe. `num` devolve `null` quando não há
+  // quantidade legível — e aí o classificador recusa, em vez de a tratar
+  // como zero e depois como venda.
+  const quantidade = num(r.quantidade);
+  const classe = classificarDocumento(tipoDocumento, sourceNamespace, quantidade);
   if (classe === null) {
+    const porque =
+      quantidade === 0
+        ? " (quantidade zero — sem operação)"
+        : quantidade === null
+          ? " (sem quantidade legível)"
+          : "";
     return {
-      erro: `tipo de documento por classificar em ${sourceNamespace}: ${tipoDocumento ?? "(nulo)"}`,
+      erro: `tipo de documento por classificar em ${sourceNamespace}: ${tipoDocumento ?? "(nulo)"}${porque}`,
     };
   }
 
-  const qtd = num(r.quantidade) ?? 0;
+  const qtd = quantidade ?? 0;
   const serie = txt(r.serie);
 
   return {
@@ -811,9 +860,13 @@ export function resumoSchema(
   if (faltam.length > 0) {
     linhas.push(`  ATENCAO colunas por resolver: ${faltam.join(", ")}`);
   }
+  const regraSusp = CLASSIFICACAO[NAMESPACES.ATENDIMENTO_SUSP_DETALHE];
   linhas.push(
-    `  classificacao VSG: venda={${[...CLASSIFICACAO.ATENDIMENTO_SUSP_DETALHE.venda].join(",")}} ` +
-      `reversao={} (as NC de VSG sao lidas pelo circuito G)`,
+    `  classificacao suspensa: tipos {${[...regraSusp.peloSinal].join(",")}} classificados PELO SINAL ` +
+      `(qtd>0 venda, qtd<0 anulacao, qtd=0 recusada)`,
+  );
+  linhas.push(
+    `  o 104 das NC de VSG NAO e declarado aqui — e lido pelo circuito G`,
   );
   return linhas;
 }

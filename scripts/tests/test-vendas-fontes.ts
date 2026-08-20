@@ -190,16 +190,18 @@ console.log("\n=== a matriz de classificação, tipo a tipo ===");
   // Os quatro casos que a produção fixou, escritos um por um. A rev68
   // recusou 282 de 282 linhas de balcão porque a lista dizia 77 e o ERP
   // diz 7 — um número inventado custa um dia de produção.
-  eq(classificarDocumento(7, G), "VENDA", "tipo 7 em G = VENDA");
-  eq(classificarDocumento(104, G), "DEVOLUCAO_ANULACAO", "tipo 104 em G = DEVOLUCAO_ANULACAO");
-  eq(classificarDocumento(107, VSG), "VENDA", "tipo 107 em VSG = VENDA");
-  eq(classificarDocumento(104, VSG), null, "tipo 104 em VSG = recusado");
+  // No circuito G a classe é propriedade do TIPO: o sinal da quantidade
+  // não a muda. Por isso passa-se `+1` em todos e o resultado é o mesmo.
+  eq(classificarDocumento(7, G, 1), "VENDA", "tipo 7 em G = VENDA");
+  eq(classificarDocumento(27, G, -1), "DEVOLUCAO_ANULACAO", "tipo 27 em G = DEVOLUCAO_ANULACAO");
+  eq(classificarDocumento(104, G, -1), "DEVOLUCAO_ANULACAO", "tipo 104 em G = DEVOLUCAO_ANULACAO");
+  eq(classificarDocumento(104, VSG, -1), null, "tipo 104 em VSG = recusado");
 
   // O tipo 2: 9 linhas / 9 unidades em dois anos e meio, todas positivas.
-  // Documento G/669909 inspeccionado ao detalhe — Fim Venda='S', 5 linhas
-  // positivas — e confirmado pelo operador como factura normal da série G.
-  eq(classificarDocumento(2, G), "VENDA", "tipo 2 em G = VENDA");
-  eq(classificarDocumento(2, VSG), null, "…e recusado no circuito VSG");
+  // Documento G/669909 inspeccionado ao detalhe — 5 linhas positivas — e
+  // confirmado pelo operador como factura normal da série G.
+  eq(classificarDocumento(2, G, 1), "VENDA", "tipo 2 em G = VENDA");
+  eq(classificarDocumento(2, VSG, 1), null, "…e recusado no circuito VSG");
   {
     const l = normOk(linha({ tipoDocumento: 2, quantidade: 5, valorLinha: 21.4 }), G);
     eq(l.classe, "VENDA", "uma linha de tipo 2 entra como venda");
@@ -209,14 +211,89 @@ console.log("\n=== a matriz de classificação, tipo a tipo ===");
   // O 77 sai. Não é compatibilidade histórica: o seed da migração
   // `20260514100000` descreve-o como "default Softreis" e descreve o 7
   // como "detectado 2024-01-01 sample". Nunca houve instalação a usá-lo.
-  eq(classificarDocumento(77, G), null, "tipo 77 recusado — era o default do fornecedor");
-  eq(classificarDocumento(77, VSG), null, "…nos dois circuitos");
+  eq(classificarDocumento(77, G, 1), null, "tipo 77 recusado — era o default do fornecedor");
+  eq(classificarDocumento(77, VSG, 1), null, "…nos dois circuitos");
   check(!CLASSIFICACAO[G].venda.has(77), "77 não está declarado em G");
   check(CLASSIFICACAO[G].venda.has(7), "…e 7 está");
   eq([...CLASSIFICACAO[G].venda], [7, 2], "G: venda = {7, 2}");
   eq([...CLASSIFICACAO[G].reversao], [104, 27], "G: reversao = {104, 27}");
-  eq([...CLASSIFICACAO[VSG].venda], [107], "VSG: venda = {107}");
-  eq([...CLASSIFICACAO[VSG].reversao], [], "VSG: reversao = {}");
+  eq([...CLASSIFICACAO[G].peloSinal], [], "G: nenhum tipo depende do sinal");
+  eq([...CLASSIFICACAO[VSG].peloSinal], [107, 102], "suspenso: {107, 102} pelo sinal");
+  eq([...CLASSIFICACAO[VSG].venda], [], "suspenso: nenhuma venda de classe fixa");
+  eq([...CLASSIFICACAO[VSG].reversao], [], "suspenso: nenhuma reversão de classe fixa");
+}
+
+console.log("\n=== circuito suspenso: o SINAL é que classifica ===");
+{
+  // Não é uma escolha de desenho — é o que as duas farmácias têm, no
+  // mesmo período de 2024-01-01 a 2026-07-31:
+  //
+  //   Silveirense VSG 107   16 168 linhas +   /   2 078 linhas −
+  //                         336 documentos negativos, em pares +N/−N
+  //   Segurado    VSC 107    8 982 linhas +   /     583 linhas −
+  //   Segurado    VSC 102       25 linhas +   /       5 linhas −
+  //
+  // Um `Set` de tipos não exprime isto: declarar 107 venda fazia as 2 078
+  // negativas somar; declará-lo reversão fazia as 16 168 positivas
+  // subtrair. As duas dão um total plausível e errado.
+  eq(classificarDocumento(107, VSG, 2), "VENDA", "107 com +2 = VENDA");
+  eq(classificarDocumento(107, VSG, -2), "DEVOLUCAO_ANULACAO", "107 com −2 = DEVOLUCAO_ANULACAO");
+  eq(classificarDocumento(102, VSG, 1), "VENDA", "102 com +1 = VENDA");
+  eq(classificarDocumento(102, VSG, -1), "DEVOLUCAO_ANULACAO", "102 com −1 = DEVOLUCAO_ANULACAO");
+
+  // O sinal aplica-se UMA vez: a linha negativa do ERP fica negativa.
+  const mais = normOk(linha({ externalLineId: 147214, tipoDocumento: 107, quantidade: 2 }), VSG);
+  const menos = normOk(linha({ externalLineId: 147215, tipoDocumento: 107, quantidade: -2 }), VSG);
+  eq(mais.classe, "VENDA", "a factura suspensa entra como venda");
+  eq(mais.quantidadeAssinada, 2, "…com +2");
+  eq(menos.classe, "DEVOLUCAO_ANULACAO", "a anulação entra como reversão");
+  eq(menos.quantidadeAssinada, -2, "…com −2, sem o sinal ser aplicado duas vezes");
+  eq(mais.quantidadeAssinada + menos.quantidadeAssinada, 0, "o par +2/−2 dá líquido ZERO");
+
+  // O caso funcional confirmado da Segurado: VSC 102, documento 31187,
+  // quatro linhas positivas e as quatro anulações.
+  const doc31187 = [
+    ...[1, 2, 3, 4].map((i) =>
+      linha({ externalLineId: 311870 + i, tipoDocumento: 102, quantidade: 1, numero: 31187 }),
+    ),
+    ...[1, 2, 3, 4].map((i) =>
+      linha({ externalLineId: 311880 + i, tipoDocumento: 102, quantidade: -1, numero: -31187 }),
+    ),
+  ].map((r) => normOk(r, VSG));
+  eq(doc31187.filter((l) => l.classe === "VENDA").length, 4, "31187: quatro linhas de venda");
+  eq(
+    doc31187.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length,
+    4,
+    "31187: quatro linhas de anulação",
+  );
+  eq(
+    doc31187.reduce((a, l) => a + l.quantidadeAssinada, 0),
+    0,
+    "31187: líquido ZERO — a factura VS e a sua anulação cancelam-se",
+  );
+
+  // Zero não é venda nem anulação: é uma linha sem operação. Classificá-la
+  // como venda somava zero numa classe que não é a dela e escondia-a.
+  eq(classificarDocumento(107, VSG, 0), null, "107 com quantidade ZERO = recusado");
+  eq(classificarDocumento(102, VSG, 0), null, "102 com quantidade ZERO = recusado");
+  {
+    const z = normalizar(linha({ tipoDocumento: 107, quantidade: 0 }), VSG);
+    check("erro" in z, "uma linha suspensa de quantidade zero não entra");
+    if ("erro" in z) check(/zero/.test(z.erro), "…e o erro diz porquê");
+  }
+  // Sem quantidade legível também não há sinal — e sem sinal não há
+  // classe. Devolver VENDA por defeito transformava cada anulação por
+  // ler numa venda, que é a direcção de erro que não se detecta.
+  eq(classificarDocumento(107, VSG, null), null, "107 sem quantidade = recusado");
+  {
+    const s = normalizar(linha({ tipoDocumento: 107, quantidade: null }), VSG);
+    check("erro" in s, "uma linha suspensa sem quantidade não entra");
+  }
+
+  // No circuito G o sinal NÃO decide: a quantidade zero de um tipo com
+  // classe fixa continua classificável, e soma zero. Fica escrito para
+  // não se tornar ambíguo por omissão.
+  eq(classificarDocumento(7, G, 0), "VENDA", "no circuito G o zero não muda a classe do tipo");
 }
 
 console.log("\n=== o dia combinado: G + VSG ===");
@@ -242,8 +319,12 @@ console.log("\n=== o dia combinado: G + VSG ===");
   const chaves = [...balcao, ...suspensas].map((l) => `${l.sourceNamespace}|${l.externalLineId}`);
   eq(new Set(chaves).size, chaves.length, "as 5 linhas têm 5 chaves canónicas distintas");
   // E as classes ficam separadas por circuito, como o ERP as tem.
-  eq(balcao.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length, 1, "a única reversão é do circuito G");
-  eq(suspensas.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length, 0, "o circuito VSG não traz reversões");
+  eq(balcao.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length, 1, "a reversão do circuito G");
+  eq(
+    suspensas.filter((l) => l.classe === "DEVOLUCAO_ANULACAO").length,
+    0,
+    "e nenhuma no suspenso — porque estas duas linhas são positivas, não porque o circuito não as tenha",
+  );
 }
 
 console.log("\n=== a NC da VSG é lida pelo circuito G, e SÓ por ele ===");
@@ -254,17 +335,21 @@ console.log("\n=== a NC da VSG é lida pelo circuito G, e SÓ por ele ===");
   // reader G já lê. Se o namespace VSG também classificasse 104 como
   // reversão, a MESMA nota de crédito era subtraída duas vezes.
   eq(
-    classificarDocumento(104, G),
+    classificarDocumento(104, G, -1),
     "DEVOLUCAO_ANULACAO",
     "104 no circuito G é reversão — é por aqui que a NC entra",
   );
+  // Continua recusado mesmo com sinal negativo, que é a forma em que
+  // chegaria: o que o exclui é o TIPO não estar declarado neste
+  // circuito, não o sinal com que veio.
   eq(
-    classificarDocumento(104, VSG),
+    classificarDocumento(104, VSG, -1),
     null,
     "104 no circuito VSG é RECUSADO — senão a mesma NC era subtraída duas vezes",
   );
-  eq(CLASSIFICACAO[VSG].reversao.size, 0, "o circuito VSG não tem reversões próprias");
-  check(CLASSIFICACAO[VSG].venda.has(107), "…só a factura suspensa, tipo 107");
+  eq(classificarDocumento(104, VSG, 1), null, "…e com sinal positivo também");
+  check(!CLASSIFICACAO[VSG].peloSinal.has(104), "104 não é dos tipos classificados pelo sinal");
+  check(CLASSIFICACAO[VSG].peloSinal.has(107), "…107 é");
 
   const nc = normalizar({ ...NIMED_VSG, tipoDocumento: 104 }, VSG);
   check("erro" in nc, "uma linha suspensa com tipo 104 não entra como reversão");
@@ -303,17 +388,23 @@ console.log("\n=== tipo NÃO declarado é RECUSADO, não promovido a venda ===")
   // descer — um erro que soma na direcção errada e parece plausível.
   // 7 e 2 sairam desta lista: sao os tipos REAIS da venda de balcao,
   // ambos observados no ERP. O que fica sao numeros que ninguem viu.
+  // Testados com os DOIS sinais: um tipo por declarar é recusado venha
+  // como vier. O sinal só classifica os tipos que foram declarados como
+  // dependentes dele — não promove um número desconhecido a venda.
   for (const desconhecido of [1, 55, 77, 99, 200]) {
-    eq(classificarDocumento(desconhecido, G), null, `G: tipo ${desconhecido} recusado`);
-    eq(classificarDocumento(desconhecido, VSG), null, `VSG: tipo ${desconhecido} recusado`);
+    for (const q of [1, -1]) {
+      eq(classificarDocumento(desconhecido, G, q), null, `G: tipo ${desconhecido} (${q}) recusado`);
+      eq(classificarDocumento(desconhecido, VSG, q), null, `VSG: tipo ${desconhecido} (${q}) recusado`);
+    }
   }
-  eq(classificarDocumento(null, G), null, "sem tipo de documento não se adivinha");
+  eq(classificarDocumento(null, G, 1), null, "sem tipo de documento não se adivinha");
   // Os dois circuitos numeram em colunas diferentes de tabelas
   // diferentes. O mesmo número não significa o mesmo dos dois lados.
-  eq(classificarDocumento(7, G), "VENDA", "7 é a venda de balcão");
-  eq(classificarDocumento(7, VSG), null, "…e não significa nada no circuito VSG");
-  eq(classificarDocumento(107, VSG), "VENDA", "107 é a factura suspensa");
-  eq(classificarDocumento(107, G), null, "…e não significa nada no circuito G");
+  eq(classificarDocumento(7, G, 1), "VENDA", "7 é a venda de balcão");
+  eq(classificarDocumento(7, VSG, 1), null, "…e não significa nada no circuito VSG");
+  eq(classificarDocumento(107, VSG, 1), "VENDA", "107 é a factura suspensa");
+  eq(classificarDocumento(107, G, 1), null, "…e não significa nada no circuito G");
+  eq(classificarDocumento(102, G, 1), null, "102 também não significa nada no circuito G");
   const r = normalizar(linha({ tipoDocumento: 99 }), VSG);
   check("erro" in r, "uma linha VSG com tipo por declarar é recusada");
   if ("erro" in r) {
@@ -667,6 +758,52 @@ console.log("\n=== NÃO existe um segundo reader de NC (dupla contagem) ===");
     "a série do lado G é opcional: sem coluna, sai NULL",
     "exigir série do circuito G bloqueava o cruzamento inteiro por causa de um adorno",
   );
+}
+
+console.log("\n=== a regra do sinal tem de SOBREVIVER ao servidor ===");
+{
+  // ISTO É O PONTO QUE FAZ A REGRA VALER ALGUMA COISA.
+  //
+  // O agent classifica por circuito + tipo + sinal. O endpoint de
+  // ingestão tinha uma tabela `TipoDocumentoClassificacao` indexada só
+  // por `tipoDocumento`, e essa tabela GANHAVA ao payload. Uma linha
+  // `107 → VENDA` lá dentro reescrevia as 2 078 anulações da
+  // Silveirense como vendas, à entrada, e todo o trabalho do agent
+  // desaparecia sem um único erro.
+  const rota = readFileSync(
+    new URL("../../app/api/ingest/v1/bootstrap/sales-lines/route.ts", import.meta.url),
+    "utf8",
+  );
+  check(
+    /CLASSES_DECIDIDAS\.has\(clientClass\)/.test(rota),
+    "a decisão do agent é consultada PRIMEIRO",
+    "só o agent conhece o circuito e o sinal; a tabela não vê nem um nem outro",
+  );
+  check(
+    /if \(CLASSES_DECIDIDAS\.has\(clientClass\)\)[\s\S]{0,120}else if \([\s\S]{0,60}classifierMap\.has/.test(rota),
+    "…e a tabela server-side é o FALLBACK, não o contrário",
+  );
+  check(
+    !/CLASSES_DECIDIDAS = new Set\(\[[^\]]*"UNKNOWN"/.test(rota),
+    "UNKNOWN não conta como decisão — cai para a tabela, como sempre caiu",
+    "deixá-lo ganhar transformava um agent que não sabe num agent que impõe que não se sabe",
+  );
+  check(/origemClasse/.test(rota), "…e o log diz de onde veio a classe de cada linha");
+
+  // O outro caminho por onde a regra podia ser desfeita: um UPDATE em
+  // massa por tipo, sobre todos os circuitos, num só comando.
+  const recl = readFileSync(
+    new URL("../../scripts/reclassify-ingest-vendas.ts", import.meta.url),
+    "utf8",
+  );
+  check(
+    /foraDoSuspenso\s*=\s*\{ sourceNamespace: \{ not: NS_SUSPENSO \} \}/.test(recl),
+    "reclassify-ingest-vendas exclui o circuito suspenso",
+    "updateMany por tipo reescrevia as duas metades do 107 com a mesma classe",
+  );
+  // O filtro do UPDATE tem de ser o MESMO do diff que o operador viu.
+  const nUpdate = (recl.match(/\.\.\.foraDoSuspenso/g) ?? []).length;
+  check(nUpdate >= 3, `…no diff, no UPDATE e no aviso de não-classificados (${nUpdate} usos)`);
 }
 
 console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");

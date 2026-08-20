@@ -506,15 +506,54 @@ type SaleLinePayload = {
 > estava lá desde o início, marcado como pendente, enquanto a suposição
 > ia sendo repetida como se fosse observação.
 
+**Circuito G** — `[Atendimento]` + `[Atendimento Detalhe]`. A classe é
+propriedade do TIPO: cada um tem um sinal só.
+
 | Raw value | Class | Notas |
 |---|---|---|
 | `7` | `VENDA` | Venda de balcão. **Observado**: 387 378 linhas / 396 132 un (2024-01 → 2026-07) |
-| `2` | `VENDA` | Factura da série G, rara. **Observado**: 9 linhas / 9 un no mesmo período. Documento G/669909 inspeccionado ao detalhe: `Fim Venda='S'`, 5 linhas todas positivas |
+| `2` | `VENDA` | Factura da série G, rara. **Observado**: 9 linhas / 9 un no mesmo período. Documento G/669909 inspeccionado ao detalhe: 5 linhas todas positivas |
 | `104` | `DEVOLUCAO_ANULACAO` | Nota de crédito. **Observado**: 6 138 linhas / −6 202 un. Chega do ERP já negativa |
 | `27` | `DEVOLUCAO_ANULACAO` | Anulação. **Observado**: 418 linhas / −436 un |
-| `107` | `VENDA` | Factura de venda suspensa — circuito `[Atendimento Susp]`, não `[Atendimento]`. A série varia por farmácia (VSG na Silveirense, VSC no Segurado); a classificação é pelo tipo, não pela série |
 | `77` | — | **Removido.** Default do fornecedor, nunca observado |
 | outro | recusado | A linha não entra e o tipo aparece no log, para ser declarado |
+
+**Circuito suspenso** — `[Atendimento Susp]` + `[Atendimento Susp Detalhe]`.
+Aqui o mesmo tipo documental serve a factura e a sua anulação, e quem as
+separa é o **sinal da quantidade**.
+
+| Raw value | Quantidade | Class |
+|---|---|---|
+| `107` | `> 0` | `VENDA` |
+| `107` | `< 0` | `DEVOLUCAO_ANULACAO` |
+| `102` | `> 0` | `VENDA` |
+| `102` | `< 0` | `DEVOLUCAO_ANULACAO` |
+| `107` / `102` | `= 0` | recusado — linha sem operação |
+| `104` | qualquer | recusado — a NC de VSG é lida pelo circuito G |
+| outro | qualquer | recusado |
+
+Observado no mesmo período nas duas farmácias:
+
+```
+Silveirense  VSG 107   16 168 linhas +   /   2 078 linhas −
+                       336 documentos negativos, em pares +N/−N pelo
+                       mesmo |Numero Documento|; produto+instante com
+                       quantidades opostas anulam exactamente
+Segurado     VSC 107    8 982 linhas +   /     583 linhas −
+                       92 documentos negativos
+Segurado     VSC 102       25 linhas +   /       5 linhas −
+                       +31186/−31186 e +31187/−31187 confirmados
+                       funcionalmente como facturas VS e as suas anulações
+```
+
+Um `Set` de tipos não exprime isto. Declarar `107` venda fazia as 2 078
+linhas negativas da Silveirense somar; declará-lo reversão fazia as
+16 168 positivas subtrair. Qualquer das duas dá um total plausível e
+errado.
+
+A série **não** classifica (VSG na Silveirense, VSC no Segurado) e
+`Fim Venda` **não** classifica — foi refutado com 11 868 linhas e zero
+matches.
 
 A classificação é **por circuito**, não global: os dois circuitos numeram
 em colunas diferentes de tabelas diferentes (`Atendimento.[Tipo Documento]`
@@ -1034,33 +1073,66 @@ já editadas pelo operador. Re-correr a migration é seguro.
 
 ### 10.4 Endpoint behaviour — `/api/ingest/v1/bootstrap/sales-lines`
 
+**A precedência inverteu-se em 2026-08-20.** Ver a nota no fim desta secção.
+
 ```typescript
 // 0) Pre-fetch (1 query por request)
 const classifierMap = new Map(...) // tipoDocumento → classe
 
-// Por item:
-const tipoRaw = asIntOrNull(item.tipoDocumento);
+// Por item — a DECISÃO de quem leu o documento ganha:
+const clientClass = asStringOrNull(item.tipoDocumentoClass) ?? "UNKNOWN";
 let tipoDocumentoClass;
-if (tipoRaw && classifierMap.has(tipoRaw)) {
-  tipoDocumentoClass = classifierMap.get(tipoRaw)!;  // server wins
+if (CLASSES_DECIDIDAS.has(clientClass)) {
+  tipoDocumentoClass = clientClass;                   // agent wins
+} else if (tipoRaw !== null && classifierMap.has(tipoRaw)) {
+  tipoDocumentoClass = classifierMap.get(tipoRaw)!;   // fallback: tabela
 } else {
-  // Fallback legacy — agent rev10 envia classe; se mapeada → usa.
-  const clientClass = item.tipoDocumentoClass ?? "UNKNOWN";
   tipoDocumentoClass = KNOWN_CLASSES.has(clientClass) ? clientClass : "UNKNOWN";
 }
 ```
 
+`CLASSES_DECIDIDAS = {VENDA, DEVOLUCAO_ANULACAO, IGNORE_TECHNICAL}`.
+`UNKNOWN` está de fora de propósito: é a ausência de decisão, e deixá-lo
+ganhar transformava um agent que não sabe num agent que impõe que não se
+sabe.
+
 Log da distribuição por classe é emitido no `done` log de cada batch
-para observabilidade:
+para observabilidade, com a ORIGEM de cada classe:
 
 ```text
 [bootstrap/sales-lines] done {
   "received":200, "upserted":200,
   "classDist":{"VENDA":180,"UNKNOWN":15,"DEVOLUCAO_ANULACAO":5},
+  "origemClasse":{"agent":185,"tabela":0,"semDecisao":15},
   "classifierTableSize":4,
   ...
 }
 ```
+
+#### Porque é que a tabela deixou de ganhar
+
+A decisão de 2026-05-14 pôs a classificação server-side e tratou
+`tipoDocumentoClass` do payload como fallback legacy. Isso assume que **o
+tipo de documento chega para classificar a linha**. Não chega.
+
+No circuito suspenso o mesmo tipo serve a factura e a sua anulação — ver
+§ da classificação acima. `TipoDocumentoClassificacao` é indexada por
+`tipoDocumento` e mais nada: não conhece o circuito nem o sinal. Uma
+linha `107 → VENDA` na tabela fazia as 2 078 linhas negativas da
+Silveirense somarem em vez de subtrair, à entrada, sem um único erro.
+
+O agent sabe de que circuito leu a linha e com que sinal ela veio. Por
+isso decide ele, e a tabela passou a servir:
+
+- agents antigos, que não enviam classe;
+- linhas cujo payload não decidiu (`UNKNOWN`);
+- correcção retroactiva do que já está gravado, via
+  `scripts/reclassify-ingest-vendas.ts`.
+
+**Esse script exclui o circuito suspenso por construção.** Um
+`updateMany({ where: { tipoDocumento: 107 } })` reescreveria as duas
+metades com a mesma classe, num comando e sem erro. Para corrigir o
+circuito suspenso, re-corre o reader — é ele que conhece o sinal.
 
 ### 10.5 Workflow operacional
 

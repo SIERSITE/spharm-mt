@@ -363,16 +363,57 @@ async function main(): Promise<number> {
     );
     console.log(`  valor bruto liquido (EUR)       ${fmt(somaValor(null, null)).padStart(14)}`);
 
-    // O reader VSG não tem reversões próprias: as NC das VSG entram por
-    // `[Atendimento Detalhe]`. Uma reversão no circuito VSG significa
-    // que alguém declarou um tipo de reversão lá — e é dupla contagem.
-    if (reversoesVSG !== 0) {
+    // ── 2b. Reversões nos dois circuitos: suspeita, não veredicto ──
+    //
+    // Até à rev72 isto era um erro fatal: o circuito suspenso não tinha
+    // reversões próprias, portanto qualquer uma era dupla contagem. O ERP
+    // das duas farmácias refutou-o — Silveirense 2 078 linhas negativas
+    // em VSG 107, Segurado 583 em VSC 107 e 5 em VSC 102, em pares +N/−N
+    // pelo mesmo número absoluto. A anulação de uma venda suspensa PODE
+    // viver dentro do próprio circuito suspenso.
+    //
+    // Fica a suspeita, e só a suspeita: uma anulação pode aparecer nos
+    // dois circuitos, e aí seria subtraída duas vezes. Mas produto+dia
+    // NÃO é identidade documental — dois clientes podem devolver o mesmo
+    // artigo no mesmo dia por vias diferentes, e deduplicar por essa
+    // hipótese apagaria uma devolução verdadeira. Por isso isto REPORTA e
+    // não bloqueia: o reader continua a ler tudo, e quem confronta o ERP
+    // decide olhando para os documentos.
+    if (reversoesVSG !== 0 && reversoesG !== 0) {
+      const suspeitas = await prisma.$queryRaw<
+        Array<{ cnp: number | null; designacao: string | null; qtdSusp: Prisma.Decimal | null; qtdG: Prisma.Decimal | null }>
+      >(Prisma.sql`
+        SELECT p."cnp", p."designacao",
+               SUM(CASE WHEN r."sourceNamespace" = ${NS_VSG} THEN ${SQL_QUANTIDADE_ASSINADA} ELSE 0 END) AS "qtdSusp",
+               SUM(CASE WHEN r."sourceNamespace" = ${NS_G}   THEN ${SQL_QUANTIDADE_ASSINADA} ELSE 0 END) AS "qtdG"
+          FROM "IngestVendaLinhaRaw" r
+          JOIN "Produto" p ON p."id" = r."produtoId"
+         WHERE r."dataVenda" >= ${de} AND r."dataVenda" < ${ate}
+           AND r."tipoDocumentoClass" = 'DEVOLUCAO_ANULACAO'
+           AND ${SQL_LINHAS_ELEGIVEIS}
+         GROUP BY p."cnp", p."designacao"
+        HAVING SUM(CASE WHEN r."sourceNamespace" = ${NS_VSG} THEN 1 ELSE 0 END) > 0
+           AND SUM(CASE WHEN r."sourceNamespace" = ${NS_G}   THEN 1 ELSE 0 END) > 0
+         ORDER BY p."cnp"
+      `);
       console.log("");
-      console.log("  ✗ HA REVERSOES NO CIRCUITO VSG.");
-      console.log("    As NC das VSG entram por [Atendimento Detalhe], lidas pelo");
-      console.log("    circuito G. Reversoes aqui significam a MESMA nota de credito");
-      console.log("    subtraida duas vezes. Ver CLASSIFICACAO em vendas-fontes.ts.");
-      problemas++;
+      console.log(`  ⚠ REVERSOES NOS DOIS CIRCUITOS NO MESMO DIA: ${suspeitas.length} produto(s)`);
+      if (suspeitas.length > 0) {
+        console.log(`    ${"CNP".padEnd(11)}${"produto".padEnd(34)}${"susp".padStart(8)}${"G".padStart(8)}`);
+        for (const s of suspeitas.slice(0, 25)) {
+          console.log(
+            `    ${String(s.cnp ?? "-").padEnd(11)}${(s.designacao ?? "?").slice(0, 33).padEnd(34)}` +
+              `${fmt(s.qtdSusp, 0).padStart(8)}${fmt(s.qtdG, 0).padStart(8)}`,
+          );
+        }
+        if (suspeitas.length > 25) {
+          console.log(`    (+${suspeitas.length - 25} — a contagem acima e completa)`);
+        }
+      }
+      console.log("");
+      console.log("    Isto NAO e um erro e NAO foi deduplicado. Produto+dia nao e");
+      console.log("    identidade documental: podem ser duas devolucoes distintas.");
+      console.log("    Confronta os documentos no ERP antes de concluir seja o que for.");
     }
 
     // ── 3. Documentos por série ──────────────────────────────────

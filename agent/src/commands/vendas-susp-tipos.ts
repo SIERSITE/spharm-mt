@@ -634,16 +634,11 @@ export async function vendasSuspTipos(): Promise<number> {
           `${"linhas".padStart(8)}${"docs".padStart(7)}${"soma qtd".padStart(11)}   periodo`,
       );
       const declarados = CLASSIFICACAO[NAMESPACES.ATENDIMENTO_SUSP_DETALHE];
+      const conhecido = (td: number) =>
+        declarados.venda.has(td) || declarados.reversao.has(td) || declarados.peloSinal.has(td);
       for (const d of r.recordset) {
         const td = d.tipoDoc;
-        const estado =
-          td === null
-            ? ""
-            : declarados.venda.has(td)
-              ? ""
-              : declarados.reversao.has(td)
-                ? ""
-                : "   <- POR DECLARAR";
+        const estado = td === null || conhecido(td) ? "" : "   <- POR DECLARAR";
         console.log(
           `  ${String(d.tipoDoc ?? "-").padEnd(9)}${formatCell(d.serie, 8).padEnd(9)}` +
             `${formatCell(d.fimVenda, 9).padEnd(10)}${d.sinal.padEnd(10)}` +
@@ -1089,7 +1084,8 @@ export async function vendasSuspTipos(): Promise<number> {
       for (const d of r.recordset) {
         const td = d.tipoDoc;
         const conhecido =
-          td !== null && (decl.venda.has(td) || decl.reversao.has(td));
+          td !== null &&
+          (decl.venda.has(td) || decl.reversao.has(td) || decl.peloSinal.has(td));
         const leitura =
           d.neg > 0 && d.pos > 0
             ? "os DOIS sinais — regra por tipo+sinal"
@@ -1104,8 +1100,9 @@ export async function vendasSuspTipos(): Promise<number> {
       }
       console.log("");
       console.log(`  Declarado hoje para este circuito:`);
-      console.log(`    venda    = {${[...decl.venda].join(", ")}}`);
-      console.log(`    reversao = {${[...decl.reversao].join(", ")}}`);
+      console.log(`    pelo sinal = {${[...decl.peloSinal].join(", ")}}  (qtd>0 venda, qtd<0 anulacao, qtd=0 recusada)`);
+      console.log(`    venda fixa = {${[...decl.venda].join(", ")}}`);
+      console.log(`    reversao fixa = {${[...decl.reversao].join(", ")}}`);
       console.log("");
       console.log("  Um tipo [POR DECLARAR] tem as linhas RECUSADAS pelo reader:");
       console.log("  nao entram como venda nem como anulacao. Se aparecer aqui");

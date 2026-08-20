@@ -103,6 +103,16 @@ const KNOWN_CLASSES = new Set([
   "IGNORE_TECHNICAL",
 ]);
 
+/**
+ * As classes que representam uma DECISÃO de quem leu o documento.
+ *
+ * `UNKNOWN` está deliberadamente de fora: é a ausência de decisão, e
+ * deixá-lo ganhar à tabela transformava um agent que não sabe num agent
+ * que impõe que não se sabe. Um payload `UNKNOWN` cai para a tabela,
+ * como sempre caiu.
+ */
+const CLASSES_DECIDIDAS = new Set(["VENDA", "DEVOLUCAO_ANULACAO", "IGNORE_TECHNICAL"]);
+
 export const POST = withIntegrationAuth(async (ctx, req) => {
   const t0 = Date.now();
 
@@ -127,9 +137,31 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // 0) Pre-fetch server-side classifier table. Lookup map por
   //    tipoDocumento → classe. Lido em CADA request — alterações à
   //    tabela são imediatas para uploads subsequentes.
-  //    Decisão arquitectural 2026-05-14 (mapping doc §10):
-  //    classificação centralizada server-side, agent envia tipoDocumento
-  //    raw; `tipoDocumentoClass` no payload é fallback legacy.
+  //
+  //    ── PORQUE É QUE ESTA TABELA DEIXOU DE GANHAR ────────────────────
+  //
+  //    A decisão de 2026-05-14 (mapping doc §10) pôs a classificação
+  //    server-side e tratou `tipoDocumentoClass` do payload como fallback
+  //    legacy. Isso assumia que o tipo de documento CHEGA para classificar
+  //    a linha. Não chega, e o ERP das duas farmácias mostrou-o:
+  //
+  //      Silveirense VSG 107  16 168 linhas +  /  2 078 linhas −
+  //      Segurado    VSC 107   8 982 linhas +  /    583 linhas −
+  //      Segurado    VSC 102      25 linhas +  /      5 linhas −
+  //
+  //    No circuito suspenso o MESMO tipo documental serve a factura e a
+  //    sua anulação; quem as separa é o sinal da quantidade. Uma tabela
+  //    indexada só por `tipoDocumento` não consegue exprimir isso: uma
+  //    linha `107 → VENDA` faria as 2 078 negativas da Silveirense somar
+  //    em vez de subtrair, e o total ficaria plausível e errado.
+  //
+  //    O agent sabe o circuito de onde leu a linha e o sinal com que ela
+  //    veio; esta tabela não sabe nem uma coisa nem outra. Por isso a
+  //    precedência inverteu-se: quando o payload traz uma DECISÃO
+  //    (VENDA / DEVOLUCAO_ANULACAO / IGNORE_TECHNICAL), é essa que fica.
+  //    A tabela continua a servir os agents antigos e as linhas cujo
+  //    payload não decidiu — e `reclassify-ingest-vendas` continua a
+  //    poder corrigir o que já está gravado.
   const classifications = await ctx.prisma.tipoDocumentoClassificacao.findMany({
     select: { tipoDocumento: true, classe: true },
   });
@@ -170,6 +202,12 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     raw: SaleLinePayload;
   };
 
+  // De onde veio a classe de cada linha. Sem isto, uma inversão de
+  // precedência é invisível no log — e uma classificação que muda de
+  // origem sem ninguém dar por isso é como se instalam os totais
+  // plausíveis e errados.
+  const origemClasse = { agent: 0, tabela: 0, semDecisao: 0 };
+
   const resolved: Resolved[] = [];
   for (let i = 0; i < items.length; i++) {
     const raw = items[i] ?? ({} as SaleLinePayload);
@@ -193,15 +231,21 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       });
       continue;
     }
-    // Resolução de tipoDocumentoClass: classifier server-side > payload
-    // legacy > UNKNOWN.
+    // Resolução de tipoDocumentoClass: decisão do agent > tabela
+    // server-side > UNKNOWN. Ver a nota no topo — só o agent conhece o
+    // circuito e o sinal.
     const tipoRaw = asIntOrNull(raw.tipoDocumento);
+    const clientClass = asStringOrNull(raw.tipoDocumentoClass) ?? "UNKNOWN";
     let tipoDocumentoClass: string;
-    if (tipoRaw !== null && classifierMap.has(tipoRaw)) {
+    if (CLASSES_DECIDIDAS.has(clientClass)) {
+      tipoDocumentoClass = clientClass;
+      origemClasse.agent++;
+    } else if (tipoRaw !== null && classifierMap.has(tipoRaw)) {
       tipoDocumentoClass = classifierMap.get(tipoRaw)!;
+      origemClasse.tabela++;
     } else {
-      const clientClass = asStringOrNull(raw.tipoDocumentoClass) ?? "UNKNOWN";
       tipoDocumentoClass = KNOWN_CLASSES.has(clientClass) ? clientClass : "UNKNOWN";
+      origemClasse.semDecisao++;
     }
 
     resolved.push({
@@ -381,6 +425,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       skipped: skipped.length,
       errors: errors.length,
       classDist,
+      origemClasse,
       classifierTableSize: classifierMap.size,
       durationMs,
     })}`

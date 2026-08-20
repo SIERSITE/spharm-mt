@@ -270,6 +270,46 @@ console.log("\n=== a secção 5 usa a mesma janela das secções 1/2 ===");
   );
 }
 
+console.log("\n=== reversões nos dois circuitos: reporta, NÃO deduplica ===");
+{
+  // Até à rev72 uma reversão no circuito suspenso era erro fatal — o
+  // circuito não tinha reversões próprias, portanto qualquer uma era
+  // dupla contagem. O ERP refutou-o: Silveirense 2 078 linhas negativas
+  // em VSG 107, Segurado 583 em VSC 107 e 5 em VSC 102, em pares +N/−N.
+  check(
+    !/HA REVERSOES NO CIRCUITO VSG/.test(FONTE),
+    "reversões no circuito suspenso deixaram de ser erro fatal",
+    "são legítimas: a anulação de uma venda suspensa pode viver no próprio circuito",
+  );
+  // A suspeita fica, mas é suspeita. Produto+dia não é identidade
+  // documental — dois clientes podem devolver o mesmo artigo no mesmo
+  // dia por vias diferentes, e deduplicar por essa hipótese apagava uma
+  // devolução verdadeira.
+  check(
+    /REVERSOES NOS DOIS CIRCUITOS NO MESMO DIA/.test(FONTE),
+    "…e passaram a ser DETECTADAS e reportadas quando ocorrem nos dois",
+  );
+  check(
+    /NAO e um erro e NAO foi deduplicado/.test(FONTE),
+    "…com o relatório a dizer explicitamente que não deduplicou",
+  );
+  check(
+    /identidade documental/.test(FONTE),
+    "…e porquê: produto+dia não é identidade documental",
+  );
+  // O gate não pode contar isto como problema: bloquearia o backfill por
+  // uma hipótese que ninguém confirmou.
+  const bloco = FONTE.slice(
+    FONTE.indexOf("REVERSOES NOS DOIS CIRCUITOS"),
+    FONTE.indexOf("3. DOCUMENTOS POR SERIE"),
+  );
+  check(
+    bloco.length > 0 && !/problemas\+\+/.test(bloco),
+    "a suspeita NÃO incrementa o contador de problemas",
+    "bloquear o reader por uma hipótese não verificada é pior do que reportá-la",
+  );
+}
+
 console.log("\n=== importar o módulo NÃO arranca o CLI ===");
 {
   // Se arrancar, o `process.exit` do CLI compete com o do teste e o

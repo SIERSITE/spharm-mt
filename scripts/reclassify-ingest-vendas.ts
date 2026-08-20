@@ -82,7 +82,39 @@ async function main() {
       );
     }
 
-    // 2) Diff per-tipo
+    // 2) Diff per-tipo, FORA do circuito suspenso.
+    //
+    // ── PORQUE É QUE O CIRCUITO SUSPENSO ESTÁ PROTEGIDO ───────────────
+    //
+    // `TipoDocumentoClassificacao` é indexada por `tipoDocumento` e mais
+    // nada. No circuito suspenso o mesmo tipo serve a factura e a sua
+    // anulação — Silveirense VSG 107 tem 16 168 linhas positivas e 2 078
+    // negativas; Segurado VSC 107 tem 8 982 e 583; VSC 102 tem 25 e 5.
+    // Quem as separa é o sinal da quantidade, que esta tabela não vê.
+    //
+    // Um `updateMany({ where: { tipoDocumento: 107 } })` reescreveria as
+    // duas metades com a mesma classe — num comando, e sem erro nenhum.
+    // As 2 078 anulações da Silveirense passariam a somar. Por isso as
+    // linhas do circuito suspenso ficam de fora por construção: qualquer
+    // classe que esta tabela produza para elas está errada de origem.
+    //
+    // Para as corrigir, re-corre o reader — é ele que conhece o sinal.
+    // `sourceNamespace` é NOT NULL com default, portanto `not` exclui
+    // exactamente o circuito suspenso e não engole linhas por nulidade.
+    const NS_SUSPENSO = "ATENDIMENTO_SUSP_DETALHE";
+    const foraDoSuspenso = { sourceNamespace: { not: NS_SUSPENSO } };
+
+    const protegidas = await prisma.ingestVendaLinhaRaw.count({
+      where: { sourceNamespace: NS_SUSPENSO },
+    });
+    if (protegidas > 0) {
+      console.log(
+        `\n${protegidas} linhas do circuito suspenso (${NS_SUSPENSO}) NÃO são tocadas:`,
+      );
+      console.log("  a classe delas depende do SINAL da quantidade, que esta tabela");
+      console.log("  não representa. Para as reclassificar, re-corre o reader.");
+    }
+
     console.log("\nDiff (linhas com tipoDocumentoClass ≠ regra actual):");
     let totalChanged = 0;
     const changes: Array<{ tipo: number; classe: string; n: number }> = [];
@@ -91,6 +123,7 @@ async function main() {
         where: {
           tipoDocumento: c.tipoDocumento,
           NOT: { tipoDocumentoClass: c.classe },
+          ...foraDoSuspenso,
         },
       });
       if (n > 0) {
@@ -101,9 +134,12 @@ async function main() {
 
     // 3) TipoDocs em IngestVendaLinhaRaw que NÃO estão no classifier
     const known = classifications.map((c) => c.tipoDocumento);
+    // Também sem o circuito suspenso: avisar que o 107 "não está no
+    // classifier" empurrava o operador para o adicionar — que é
+    // exactamente a acção que parte a regra do sinal.
     const unclassifiedRows = await prisma.ingestVendaLinhaRaw.groupBy({
       by: ["tipoDocumento"],
-      where: { tipoDocumento: { notIn: known } },
+      where: { tipoDocumento: { notIn: known }, ...foraDoSuspenso },
       _count: { _all: true },
     });
 
@@ -143,6 +179,9 @@ async function main() {
         where: {
           tipoDocumento: ch.tipo,
           NOT: { tipoDocumentoClass: ch.classe },
+          // O MESMO filtro do diff. Um UPDATE mais largo do que a
+          // contagem que o operador aprovou é a definição de surpresa.
+          ...foraDoSuspenso,
         },
         data: { tipoDocumentoClass: ch.classe },
       });
