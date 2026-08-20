@@ -1025,10 +1025,18 @@ console.log("\n=== o dry-run tem de exercitar o reader NOVO ===");
   // próprio `bootstrap-upload`.
   const dry = readFileSync(
     new URL("../../agent/src/commands/bootstrap-dry-run.ts", import.meta.url), "utf8");
+  // Importa a CLASSIFICAÇÃO de `vendas-fontes` — e deve, senão o preview
+  // discorda do reader. O que continua a não fazer é LER a fonte
+  // suspensa: não toca em `[Atendimento Susp Detalhe]` nem no namespace.
   check(
-    !dry.includes("vendas-fontes"),
+    !/Atendimento Susp/.test(dry) && !dry.includes("ATENDIMENTO_SUSP_DETALHE"),
     "bootstrap-dry-run NÃO lê a venda suspensa — é outro caminho",
     "se um dia passar a ler, esta asserção cai e o aviso no --help deixa de ser verdade",
+  );
+  check(
+    dry.includes("classificarDocumento"),
+    "…mas classifica com a MESMA regra do reader",
+    "tinha uma cópia local com o 77, e mostrava a venda toda como UNKNOWN",
   );
   const up = readFileSync(
     new URL("../../agent/src/commands/bootstrap-upload.ts", import.meta.url), "utf8");

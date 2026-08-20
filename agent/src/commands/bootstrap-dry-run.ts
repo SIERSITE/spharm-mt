@@ -16,11 +16,11 @@
  *   2. STOCK — dbo.ArmazensStocks JOIN dbo.Stocks (mesmo filtro).
  *   3. VENDAS — dbo.Atendimento JOIN dbo.Atendimento Detalhe.
  *      Filtros: [Fim Venda] IN ('S','U') AND [Data Venda] BETWEEN @from AND @to.
- *      Classificação JS-side de [Tipo Documento]:
- *        77  → VENDA
- *        104 → DEVOLUCAO_ANULACAO
- *        2   → UNKNOWN (incluído nas contagens, não marcado como venda)
- *        ?   → UNKNOWN, listado em quality alert
+ *      Classificação JS-side de [Tipo Documento], delegada à regra
+ *      canónica em `vendas-fontes.ts`:
+ *        7, 2    → VENDA
+ *        27, 104 → DEVOLUCAO_ANULACAO
+ *        ?       → UNKNOWN, listado em quality alert
  *
  * Garantias:
  *   · Read-only, sem ORM, SQL 2008 R2 (incl. OUTER APPLY).
@@ -41,6 +41,7 @@ import {
   renderSampleHorizontal,
   parseDateArg,
 } from "./probe-helpers.js";
+import { NAMESPACES, classificarDocumento } from "../vendas-fontes.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -134,10 +135,21 @@ function isoDateOrNull(v: unknown): string | null {
   return null;
 }
 
-function classifyTipoDoc(t: number | null): TipoDocClass {
-  if (t === 77) return "VENDA";
-  if (t === 104) return "DEVOLUCAO_ANULACAO";
-  return "UNKNOWN";
+/**
+ * A classificação canónica, não uma terceira cópia dela.
+ *
+ * Era `77 -> VENDA, 104 -> DEVOLUCAO_ANULACAO, resto UNKNOWN`. O 77 nunca
+ * foi observado em ERP nenhum e o tipo real da venda de balcão é o 7 —
+ * portanto este preview mostrava a venda toda como UNKNOWN.
+ *
+ * Isto não escreve nada, e é precisamente por isso que importa: é o
+ * comando com que se vai VER se está bem antes de carregar. Um preview
+ * que discorda do reader confirma o erro em vez de o mostrar.
+ */
+function classifyTipoDoc(t: number | null, quantidade: number | null): TipoDocClass {
+  return (
+    classificarDocumento(t, NAMESPACES.ATENDIMENTO_DETALHE, quantidade) ?? "UNKNOWN"
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -176,8 +188,8 @@ function printHelp(): void {
   console.log("  3. VENDAS    — Atendimento + Detalhe (--from/--to + Fim Venda IN ('S','U'))");
   console.log("");
   console.log("Classificação inicial TipoDoc:");
-  console.log("  77 → VENDA                104 → DEVOLUCAO_ANULACAO");
-  console.log("   2 → UNKNOWN              ?   → UNKNOWN (listado em alerts)");
+  console.log("  7, 2 → VENDA             27, 104 → DEVOLUCAO_ANULACAO");
+  console.log("  suspenso 107/102 pelo SINAL      ?   → recusado (listado em alerts)");
   console.log("");
   console.log("NÃO executa: chamadas SaaS, escrita em Neon, bootstrap real, sync.");
   console.log("");
@@ -506,7 +518,7 @@ async function runSalesPipeline(
       externalSaleLineId: numOrNull(r.externalSaleLineId),
       dataVenda: isoDateOrNull(r.dataVenda),
       tipoDocumento: tipo,
-      tipoDocumentoClass: classifyTipoDoc(tipo),
+      tipoDocumentoClass: classifyTipoDoc(tipo, numOrNull(r.quantidade)),
       externalProductId: numOrNull(r.externalProductId),
       quantidade: numOrNull(r.quantidade),
       pvpUnitario: numOrNull(r.pvpUnitario),
@@ -531,14 +543,14 @@ async function runSalesPipeline(
   `);
   const orphanProducts = Number(rOrphan.recordset[0]?.n ?? 0);
 
-  // Quality: TipoDocs não classificados — fora de {77, 104, 2}
+  // Quality: TipoDocs não classificados — fora dos tipos declarados em CLASSIFICACAO
   const rUnknown = await params(pool.request()).query<{ tipoDoc: number | null; linhas: number }>(`
     SELECT a.[Tipo Documento] AS tipoDoc, COUNT(*) AS linhas
     FROM [dbo].[Atendimento] a
     JOIN [dbo].[Atendimento Detalhe] d ON d.[Atendimento ID] = a.[Atendimento ID]
     WHERE a.[Fim Venda] IN ('S', 'U')
       AND a.[Data Venda] BETWEEN @from AND @to
-      AND (a.[Tipo Documento] IS NULL OR a.[Tipo Documento] NOT IN (77, 104, 2))
+      AND (a.[Tipo Documento] IS NULL OR a.[Tipo Documento] NOT IN (7, 2, 27, 104))
     GROUP BY a.[Tipo Documento]
     ORDER BY COUNT(*) DESC
   `);
@@ -715,9 +727,9 @@ export async function bootstrapDryRun(): Promise<number> {
       console.log(`Quality alerts (vendas):`);
       console.log(`  · linhas com produto não-encontrado em Stocks : ${sales.orphanProducts}`);
       if (sales.unknownTipoDocs.length === 0) {
-        console.log(`  · TipoDocs desconhecidos (fora de 77/104/2)   : 0`);
+        console.log(`  · TipoDocs desconhecidos (fora de 7/2/27/104)   : 0`);
       } else {
-        console.log(`  · TipoDocs desconhecidos (fora de 77/104/2)   :`);
+        console.log(`  · TipoDocs desconhecidos (fora de 7/2/27/104)   :`);
         for (const u of sales.unknownTipoDocs) {
           console.log(`      · TipoDoc ${u.tipoDoc ?? "(NULL)"} → ${u.linhas} linhas`);
         }
