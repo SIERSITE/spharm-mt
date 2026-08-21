@@ -278,9 +278,10 @@ test_scheduler() {
   fi
 
   # ── Guarda do refresh-ipf ────────────────────────────────────────────
-  # O mesmo build corre na Vercel, onde o cron continua agendado. Sem a
-  # guarda, o disparo seguinte mudava de comportamento sozinho e passava
-  # a escrever nas bases dos tenants em vez da base actual.
+  # Sem a guarda, o disparo seguinte do refresh-ipf mudava de
+  # comportamento sozinho e passava a escrever nas bases dos tenants em
+  # vez da base actual. O default falso é o que torna a mudança uma
+  # decisão e não um efeito secundário de um deploy.
   local rc="${DEPLOY_DIR}/../lib/runtime-config.ts"
   local route="${DEPLOY_DIR}/../app/api/jobs/refresh-ipf/route.ts"
 

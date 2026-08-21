@@ -663,7 +663,7 @@ TENANT_DB_PORT=5432
 # cliente — e em silêncio, porque a página abre na mesma.
 ALLOW_LEGACY_DATABASE_FALLBACK=0
 
-# ── Scheduler local (substitui o Vercel Cron) ────────────────────────
+# ── Scheduler da plataforma (o unico agendador) ──────────────────────
 # DESLIGADO por defeito. Activa só depois de os dados estarem migrados e
 # validados — um cron a correr contra uma base meio-migrada é pior do que
 # cron nenhum.
@@ -678,14 +678,12 @@ ALLOW_LEGACY_DATABASE_FALLBACK=0
 SCHEDULER_ENABLED=${scheduler_enabled}
 SCHEDULER_JOBS=${scheduler_jobs}
 
-# Fluxo do /api/jobs/refresh-ipf. A 0 corre o caminho legacy single-DB,
-# que é o que está em produção na Vercel. A 1 itera os tenants ACTIVE.
+# Fluxo do /api/jobs/refresh-ipf. A 0 corre o caminho legacy single-DB.
+# A 1 itera os tenants ACTIVE.
 #
 # Fica a 0 nesta fase mesmo aqui. Só passa a 1 depois de, por esta ordem:
-# catálogo instalado, tenants reais criados, jobs validados à mão,
-# SCHEDULER_ENABLED=1 nesta VPS, e o cron equivalente da Vercel
-# desligado. Ligar antes do último ponto põe dois schedulers a escrever
-# nas mesmas bases.
+# catálogo instalado, tenants reais criados, jobs validados à mão e
+# SCHEDULER_ENABLED=1 nesta VPS.
 REFRESH_IPF_MULTI_TENANT_ENABLED=0
 
 # ── Feature flags ────────────────────────────────────────────────────
@@ -704,9 +702,8 @@ TENANT_FALLBACK_ENABLED=1
 # ── ZIP base do agent ────────────────────────────────────────────────
 # De onde o Admin Wizard descarrega o template do agent para depois lhe
 # injectar o agent.config.json. Servido pelo PRÓPRIO servidor
-# (/agent-base/, ver proxy/spharmmt.conf) e não pela Vercel Blob — é
-# assim que a instalação de uma farmácia deixa de depender de
-# infra-estrutura externa.
+# (/agent-base/, ver proxy/spharmmt.conf) — a instalação de uma farmácia
+# não depende de infra-estrutura externa.
 #
 # O nome do ficheiro é ESTÁVEL de propósito. Publicar uma revisão nova é
 # copiar o ZIP para este nome:

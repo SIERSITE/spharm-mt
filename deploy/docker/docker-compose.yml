@@ -423,7 +423,7 @@ services:
       - ${PROXY_CONF_DIR:-/opt/spharmmt/proxy/conf}:/etc/nginx/conf.d:ro
       - ${PROXY_CERTS_DIR:-/opt/spharmmt/proxy/certs}:/etc/nginx/certs:ro
       # ZIP base do agent, servido pelo próprio servidor em /agent-base/.
-      # É o que remove a Vercel Blob do caminho operacional: o Admin
+      # Mantém o caminho operacional sem storage externo: o Admin
       # Wizard descarrega o template daqui, do mesmo host a que já se
       # autenticou. Só-leitura, e o conteúdo não tem segredos — o
       # agent.config.json (que leva a ingest key) é injectado no ZIP
