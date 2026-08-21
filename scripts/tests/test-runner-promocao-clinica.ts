@@ -335,6 +335,53 @@ async function main(): Promise<void> {
     check(fase5.recusadas.length === 5, "…e conta as cinco como já sabidas");
   }
 
+  console.log("\n=== DEPENDENTE de representante RECUSADO fica com estado terminal ===");
+  {
+    // O representante devolve DESCONHECIDO: o gate recusa e nada é escrito
+    // no produto dele nem no do irmão. Mas o irmão TEM de ficar com linha
+    // de cache — senão volta ao residual, a mesma família escolhe o mesmo
+    // representante, que falha da mesma maneira, para sempre.
+    //
+    // Medido no canary de 25 de 2026-08-21: 4 dependentes exactamente
+    // nesta situação ficaram sem cache, sem estado e sem contagem.
+    const escritas: string[] = [];
+    const residual = [
+      linha(1111111, "Ozempic 0.25 Mg Sol. Injetável"),
+      linha(2222222, "Ozempic 0.5 Mg Sol. Injetável"),
+    ];
+    const cacheados: Array<{ cnp: number; persistido: boolean; propagadoDe: number | null }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prisma = prismaFalso(residual, escritas) as any;
+    prisma.knowledgeEnrichmentCache = {
+      upsert: async (arg: {
+        create: { cnp: number; persistido: boolean; propagadoDeCnp: number | null };
+      }) => {
+        cacheados.push({
+          cnp: arg.create.cnp,
+          persistido: arg.create.persistido,
+          propagadoDe: arg.create.propagadoDeCnp ?? null,
+        });
+        return {};
+      },
+    };
+    const recusado = [cru(1111111, { evidenceType: "DESCONHECIDO", confidence: 0.4, confidenceClinica: 0 })];
+    await runKnowledgeEnrichment(prisma, {
+      dryRun: false,
+      tenantSlug: "tenant-teste",
+      classificar: resposta(recusado) as never,
+      verificar: resposta(recusado) as never,
+      promover: (async () => RESULTADO_VAZIO) as never,
+    });
+
+    const rep = cacheados.find((c) => c.cnp === 1111111);
+    const dep = cacheados.find((c) => c.cnp === 2222222);
+    check(!!rep, "o representante recusado fica com linha de cache");
+    check(rep?.persistido === false, "…com persistido=false");
+    check(!!dep, "o DEPENDENTE também fica com linha de cache (antes não ficava)");
+    check(dep?.persistido === false, "…também com persistido=false — não se escreveu nada");
+    check(dep?.propagadoDe === 1111111, "…e com a proveniência do representante", String(dep?.propagadoDe));
+  }
+
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);
 }

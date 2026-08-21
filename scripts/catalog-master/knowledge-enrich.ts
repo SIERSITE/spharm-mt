@@ -270,7 +270,8 @@ async function main() {
   console.log(`  ${pad(r.excluidosOpacos)}  excluídos: designação opaca`);
   console.log(`  ${pad(r.familiasPropagaveis)}  famílias propagáveis (1 representante + N dependentes)`);
   console.log(`  ${pad(r.representantesEnviados)}  representantes enviados`);
-  console.log(`  ${pad(r.propagados)}  propagados a partir da decisão do representante`);
+  console.log(`  ${pad(r.propagados)}  propagados do representante (decisão aceite OU recusada)`);
+  console.log(`  ${pad(r.dependentesOrfaos)}  dependentes sem decisão do representante — voltam ao residual`);
   console.log(`  ${pad(r.conflitosFamilia)}  famílias em conflito (não propagam, vão sozinhas)`);
   console.log(`  ${pad(r.enviadosAoModelo)}  ENVIADOS AO MODELO  (de ${r.residualAnalisado} do residual)`);
   if (r.residualAnalisado > 0) {
@@ -288,13 +289,15 @@ async function main() {
       r.excluidosBaixaCobertura +
       r.excluidosOpacos +
       r.enviadosAoModelo +
-      r.propagados;
+      r.propagados +
+      r.dependentesOrfaos;
     const semDestino = r.residualAnalisado - contabilizados;
     console.log("");
     console.log(
       `  reconciliação: ${r.residualAnalisado} residual = ${r.jaConhecidosGlobal} global` +
         ` + ${r.excluidosBaixaCobertura} baixa-cobertura + ${r.excluidosOpacos} opacos` +
-        ` + ${r.enviadosAoModelo} enviados + ${r.propagados} propagados`,
+        ` + ${r.enviadosAoModelo} enviados` +
+        ` + ${r.propagados} propagados + ${r.dependentesOrfaos} orfaos`,
     );
     if (semDestino !== 0) {
       console.log(`  !! ${semDestino} produto(s) SEM destino contabilizado — é um defeito, não um arredondamento.`);

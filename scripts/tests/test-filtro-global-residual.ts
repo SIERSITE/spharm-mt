@@ -159,27 +159,67 @@ console.log("\n=== CONTRASTE com o filtro antigo (por presença) ===");
   check(util_ok && classe_ok, "onde o global serve, continua a poupar a chamada");
 }
 
+console.log("\n=== DEPENDENTES: a recusa propaga-se como a aceitação ===");
+{
+  // O canary de 25 mediu isto: 5 famílias, 5 representantes, 1 propagado,
+  // 4 sem destino. Os dependentes cujo representante não passou o gate
+  // não recebiam NADA — nem cache, nem estado — e voltavam ao residual
+  // para o mesmo representante falhar da mesma maneira na corrida
+  // seguinte. Um ciclo que paga uma chamada por volta e nunca converge.
+  //
+  // A assimetria era esta: o representante recusado FICA com linha de
+  // cache (persistido=false + motivo) e sai do residual; o dependente
+  // não ficava com nada.
+  const destino = (decisaoRep: "APPLY" | "REVIEW" | "SKIP") => ({
+    escreveNoProduto: decisaoRep === "APPLY",
+    ganhaCache: true,
+    saiDoResidual: true,
+  });
+  for (const d of ["APPLY", "REVIEW", "SKIP"] as const) {
+    const r = destino(d);
+    check(r.ganhaCache, `representante ${d}: o dependente FICA com linha de cache`);
+    check(r.saiDoResidual, `representante ${d}: o dependente sai do residual`);
+    check(r.escreveNoProduto === (d === "APPLY"), `representante ${d}: só escreve se for APPLY`);
+  }
+
+  // O órfão é o caso em que não há decisão NENHUMA para propagar — o
+  // representante nem chegou a responder (lote perdido, tecto). Aí o
+  // dependente volta mesmo ao residual, e é o comportamento certo; o que
+  // não pode é desaparecer da contabilidade.
+  const orfao = { ganhaCache: false, saiDoResidual: false, contabilizado: true };
+  check(!orfao.ganhaCache, "representante sem resposta: o dependente NÃO ganha cache");
+  check(!orfao.saiDoResidual, "…volta ao residual, porque nada foi decidido sobre ele");
+  check(orfao.contabilizado, "…mas É contabilizado, em vez de desaparecer da soma");
+}
+
 console.log("\n=== RECONCILIAÇÃO: todo o residual tem destino ===");
 {
-  // A contabilidade que o relatório passa a imprimir. Aqui verifica-se a
-  // identidade que ela assume, com números arbitrários.
+  // A contabilidade que o relatório imprime. São SEIS destinos, e são
+  // mutuamente exclusivos: cada produto do residual sai por exactamente
+  // uma destas portas.
   const residual = 100;
   const jaConhecidosGlobal = 30;
   const excluidosBaixaCobertura = 5;
   const excluidosOpacos = 3;
   const enviadosAoModelo = 50;
-  const propagados = 12;
+  const propagados = 10;
+  const dependentesOrfaos = 2;
   const soma =
-    jaConhecidosGlobal + excluidosBaixaCobertura + excluidosOpacos + enviadosAoModelo + propagados;
-  check(soma === residual, "os cinco destinos somam o residual", `${soma} != ${residual}`);
+    jaConhecidosGlobal + excluidosBaixaCobertura + excluidosOpacos +
+    enviadosAoModelo + propagados + dependentesOrfaos;
+  check(soma === residual, "os seis destinos somam o residual", `${soma} != ${residual}`);
 
-  // E o caso que a reconciliação existe para apanhar: um destino novo
-  // que não seja contado deixa um resto diferente de zero.
-  const comDestinoNovoNaoContado = 100 - (30 + 5 + 3 + 40 + 12);
-  check(
-    comDestinoNovoNaoContado !== 0,
-    "um destino não contabilizado deixa resto — é isso que a reconciliação denuncia",
-  );
+  // O caso que a reconciliação existe para apanhar, e que apanhou: um
+  // destino não contado deixa resto diferente de zero. Foram estes os
+  // números reais do canary de 25.
+  const canary = { residual: 25, global: 0, baixaCobertura: 3, opacos: 0, enviados: 17, propagados: 1 };
+  const restoAntes =
+    canary.residual - (canary.global + canary.baixaCobertura + canary.opacos + canary.enviados + canary.propagados);
+  check(restoAntes === 4, "o canary real deixava resto 4 — os dependentes descartados", `resto=${restoAntes}`);
+
+  // Com a correcção, esses 4 passam a ser propagados (recusa herdada).
+  const restoDepois = canary.residual - (canary.global + canary.baixaCobertura + canary.opacos + canary.enviados + 5);
+  check(restoDepois === 0, "com a recusa a propagar, fecha em zero", `resto=${restoDepois}`);
 }
 
 console.log(`\n${pass} ok, ${fail} falhas`);

@@ -315,6 +315,13 @@ export type RunnerResumo = {
    * eram 7 690 dos 7 692 saltados na medição que motivou a correcção.
    */
   globalInsuficiente: number;
+  /**
+   * Dependentes cujo representante nunca chegou a ter decisão — lote
+   * perdido, ou tecto atingido antes de ele ser enviado. Nada foi
+   * decidido sobre eles, voltam ao residual, e contam-se para a
+   * reconciliação fechar em vez de desaparecerem da soma.
+   */
+  dependentesOrfaos: number;
   /** Candidatos promovidos ao catálogo global nesta corrida. */
   promovidosAoGlobal: number;
   /** Problemas não fatais (ex.: control plane inacessível). */
@@ -637,6 +644,7 @@ export async function runKnowledgeEnrichment(
     residualAnalisado: residual.length,
     jaConhecidosGlobal: 0,
     globalInsuficiente: 0,
+    dependentesOrfaos: 0,
     promovidosAoGlobal: 0,
     avisos: [],
     falhaInfraestrutura: null,
@@ -679,6 +687,8 @@ export async function runKnowledgeEnrichment(
   // Candidatos a promover ao catálogo global. Recolhidos durante a
   // corrida, escritos de uma vez no fim.
   const candidatosGlobais: ConhecimentoCandidato[] = [];
+  /** Representantes que voltaram do modelo com resposta. */
+  const comResultado = new Set<number>();
 
   /**
    * Junta um resultado APPLY à fila de promoção.
@@ -1305,6 +1315,10 @@ export async function runKnowledgeEnrichment(
     for (const r of p1.resultados) {
       const p = porCnp.get(r.cnp);
       if (!p) continue;
+      // Quem voltou com resposta. Serve para, no fim, saber que
+      // dependentes ficaram órfãos por o representante nunca ter tido
+      // decisão — um lote perdido, um tecto que cortou antes do envio.
+      comResultado.add(r.cnp);
 
       resumo.porEvidencia[r.evidenceType] = (resumo.porEvidencia[r.evidenceType] ?? 0) + 1;
 
@@ -1384,6 +1398,55 @@ export async function runKnowledgeEnrichment(
       await escrever(r, p, gate, utilizacoesFinais, r.confidence, FONTE, "MODEL_INFERRED");
       juntarCandidato(r, p, gate, utilizacoesFinais, r.confidence, "MODELO");
       await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo, "CLAUDE", null);
+
+      // ── DEPENDENTES SEM DECISÃO APROVEITÁVEL ─────────────────────
+      //
+      // O representante não passou o gate — REVIEW por discordância, ou
+      // SKIP por o modelo não ter produzido nada seguro. Os dependentes
+      // dele NÃO herdam escrita nenhuma, e é correcto que não herdem.
+      //
+      // O que estava errado era o que lhes acontecia a seguir: NADA. Sem
+      // linha de cache, sem estado, sem contagem. O canary de 25 de
+      // 2026-08-21 mediu-o — 5 famílias, 5 representantes, 1 único
+      // propagado, e a reconciliação a acusar 4 produtos sem destino:
+      //
+      //   2046787  rep 2046688  SKIP   "nenhuma utilização segura"
+      //   2055283  rep 2055184  REVIEW "discordância: proposta ..."
+      //   2149391  rep 2050896  SKIP   "nenhuma utilização segura"
+      //   2175693  rep 2050490  SKIP   "nenhuma utilização segura"
+      //
+      // Os quatro ficaram exactamente como estavam antes da corrida, e
+      // voltariam ao residual na corrida seguinte — onde a mesma família
+      // escolheria o mesmo representante (o de cnp menor), que voltaria
+      // a falhar da mesma maneira, e o dependente voltaria a ser
+      // descartado. Um ciclo que paga uma chamada por volta e nunca
+      // converge.
+      //
+      // A assimetria era esta: o representante recusado FICA com linha de
+      // cache (`persistido=false` + motivo) e sai do residual; o
+      // dependente não ficava com nada. A recusa propaga-se tão
+      // legitimamente como a aceitação — é a mesma família e a mesma
+      // designação — e é o que dá ao dependente um estado terminal
+      // honesto: "não foi escrito, e eis porquê".
+      if (gate.decisao !== "APPLY") {
+        for (const dep of dependentes.get(r.cnp) ?? []) {
+          resumo.propagados++;
+          metrica(dep.estrato).propagados++;
+          if (!dryRun) {
+            await gravarCache(
+              prisma,
+              { ...r, ...semApresentacao(r), cnp: dep.cnp },
+              dep,
+              // `persistido = false`: não se escreveu nada no produto, e
+              // a cache tem de dizer a verdade sobre isso.
+              false,
+              `representante ${r.cnp} não aplicável (${gate.decisao}): ${motivo}`,
+              "PROPAGADO",
+              r.cnp,
+            );
+          }
+        }
+      }
 
       // ── PROPAGAÇÃO ────────────────────────────────────────────────
       // Só depois de o representante ter passado o gate. Os dependentes
@@ -1492,6 +1555,26 @@ export async function runKnowledgeEnrichment(
     }
   };
   await Promise.all(Array.from({ length: nTrabalhadores }, () => trabalhador()));
+
+  // ── DEPENDENTES ÓRFÃOS ──────────────────────────────────────────────
+  //
+  // O representante nunca chegou a ter decisão: o lote perdeu-se, ou o
+  // tecto cortou antes de ele ser enviado. Os dependentes não receberam
+  // nada — nem aceitação nem recusa — e é correcto que não recebam: não
+  // há decisão para propagar.
+  //
+  // Mas TÊM de ser contados. Sem isto voltavam a ser o buraco silencioso
+  // que a reconciliação existe para denunciar, só que por outra porta:
+  // em vez de "o representante recusou" seria "o representante não
+  // respondeu", e o efeito visível era o mesmo — produtos a desaparecer
+  // da soma.
+  //
+  // Voltam ao residual na corrida seguinte, e é o comportamento certo:
+  // nada foi decidido sobre eles.
+  for (const [repCnp, deps] of dependentes) {
+    if (comResultado.has(repCnp)) continue;
+    resumo.dependentesOrfaos += deps.length;
+  }
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
 
