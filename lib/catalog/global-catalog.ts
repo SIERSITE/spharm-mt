@@ -41,6 +41,8 @@
  * inferido e o regulamentar continuam a subir pelas regras de sempre.
  */
 
+import { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
+
 /** Origem do conhecimento, por ordem de autoridade. */
 export type OrigemGlobal = "HUMANO" | "REGULATORY" | "DETERMINISTICA" | "MODELO" | "PROPAGADO";
 
@@ -142,6 +144,83 @@ export function origemDaClassificacao(p: {
 }
 
 /**
+ * A proveniência de UM CAMPO CLÍNICO, no tenant.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * ATRIBUIÇÃO POR VALOR, NÃO POR PALPITE
+ *
+ * A base de um tenant não guarda a origem de cada campo clínico. Guarda o
+ * valor em `Produto` e, à parte, o que a corrida do modelo decidiu em
+ * `KnowledgeEnrichmentCache` e o que uma fonte regulamentar trouxe em
+ * `RegulatoryRecord`. A origem tem de ser DERIVADA — e derivá-la mal é
+ * pior do que não a derivar, porque um ATC do modelo carimbado como
+ * REGULATORY passa a ser inamovível no catálogo nacional.
+ *
+ * Por isso a atribuição é por IGUALDADE DE VALOR: só se diz que um campo
+ * veio de uma fonte quando essa fonte tem exactamente aquele valor. Se o
+ * valor que está no `Produto` não bate com nenhuma fonte conhecida, a
+ * origem é `null` e o campo não sobe. Não há ramo final que carimbe uma
+ * origem por defeito — foi um `else` desses que, na classificação,
+ * marcava MODELO em tudo o que não reconhecia.
+ *
+ * A ordem é a da precedência: começa-se pela fonte mais autoritária, e a
+ * primeira que reclamar o valor fica com ele.
+ */
+export function origemDaClinica(p: {
+  /** O que está no `Produto` do tenant, para este campo. */
+  valorProduto: string;
+  /** O produto foi curado por uma pessoa? */
+  validadoManualmente: boolean;
+  /** O mesmo campo em `RegulatoryRecord`, quando existe. */
+  valorRegulatorio: string | null;
+  /** O mesmo campo na `KnowledgeEnrichmentCache` persistida. */
+  valorCache: string | null;
+  /** `KnowledgeEnrichmentCache.origem` — CLAUDE, PROPAGADO, CATALOGO_GLOBAL… */
+  cacheOrigem: string | null;
+}): Mapeamento {
+  const igual = (a: string | null) =>
+    !!a && a.trim().toUpperCase() === p.valorProduto.trim().toUpperCase();
+
+  // 1. Humano. Uma pessoa que corrigiu o produto responde por tudo o que
+  //    lá está — e por isso mesmo não sobe sem aprovação explícita.
+  if (p.validadoManualmente) {
+    return { origem: "HUMANO", motivo: "produto validado manualmente no tenant" };
+  }
+
+  // 2. Regulamentar. Hoje `RegulatoryRecord` está vazio em produção, mas
+  //    o caminho existe e é o que faz o INFARMED prevalecer sobre o
+  //    modelo no dia em que entrar — sem precisar de mexer nesta regra.
+  if (igual(p.valorRegulatorio)) {
+    return { origem: "REGULATORY", motivo: "valor igual ao do RegulatoryRecord" };
+  }
+
+  // 3. O catálogo global. Isto veio de LÁ; repromovê-lo fecharia o ciclo
+  //    de lavagem que `origemDaClassificacao` já documenta — a projecção
+  //    escreve no tenant, o backfill volta a lê-lo como se fosse local, e
+  //    o global acaba a acreditar numa fonte independente que não existe.
+  if (p.cacheOrigem === ORIGEM_CACHE_GLOBAL && igual(p.valorCache)) {
+    return { origem: null, motivo: "veio do catálogo global — não se repromove" };
+  }
+
+  // 4. O modelo. `PROPAGADO` é conclusão sobre um irmão da família e vale
+  //    menos que `MODELO`, que é conclusão sobre este cnp.
+  if (igual(p.valorCache)) {
+    if (p.cacheOrigem === "PROPAGADO") {
+      return { origem: "PROPAGADO", motivo: "conclusão do modelo sobre um irmão da família" };
+    }
+    if (p.cacheOrigem === "CLAUDE") {
+      return { origem: "MODELO", motivo: "decisão do modelo sobre este cnp" };
+    }
+    return { origem: null, motivo: `origem de cache por mapear: ${p.cacheOrigem ?? "null"}` };
+  }
+
+  // 5. Não se sabe. O valor está no produto e nenhuma fonte conhecida o
+  //    reclama — pode ter vindo do ERP, de um import antigo, de um
+  //    script. Fica onde está e não sobe.
+  return { origem: null, motivo: "sem fonte conhecida que explique este valor" };
+}
+
+/**
  * A proveniência de UMA UTILIZAÇÃO, a partir de `ProdutoUtilizacao.fonte`.
  *
  * Cada associação tem a sua: um produto pode ter a classificação vinda de
@@ -214,6 +293,12 @@ export type ConhecimentoCandidato = {
   versaoRegras: string;
   verificado: boolean;
   tenantOrigem: string;
+  /**
+   * Campos clínicos que este tenant propõe. Só entram os que têm valor —
+   * um campo ausente NÃO é um candidato a null, e é assim que se garante
+   * que um valor em falta nunca apaga o que o global já sabe.
+   */
+  clinica?: ClinicaCandidata[];
 };
 
 export type ConhecimentoGlobal = {
@@ -226,6 +311,8 @@ export type ConhecimentoGlobal = {
   versaoRegras: string;
   verificado: boolean;
   utilizacoes: Array<{ slug: string; confidence: number; origem: OrigemGlobal }>;
+  /** Estado clínico actual, por campo. Ausente = o global não sabe nada. */
+  clinica?: ReadonlyMap<CampoClinico, ClinicaGlobal>;
 };
 
 /**
@@ -258,6 +345,13 @@ export type DecisaoPromocao = {
     promover: UtilizacaoCandidata[];
     recusadas: Array<{ slug: string; motivo: string; aguardaAprovacao: boolean }>;
   };
+  /**
+   * TERCEIRA parte, independente das outras duas.
+   *
+   * Um produto cuja classificação global já é imbatível continua a poder
+   * subir o ATC e a DCI que o global não tem. Ver `avaliarClinica`.
+   */
+  clinica: DecisaoClinica;
   /** Resumo, para contadores e para o rasto: o motivo da classificação. */
   motivo: string;
   aguardaAprovacao?: boolean;
@@ -388,10 +482,17 @@ export function avaliarPromocao(
     recusadas.push({ slug: u.slug, motivo: "o global já tem esta utilização igual ou melhor", aguardaAprovacao: false });
   }
 
+  // A clínica é avaliada com o estado clínico do global, e NÃO com a
+  // decisão da classificação. Passá-la pelo gate da classificação era o
+  // defeito que fechava a porta a 1 124 ATC assim que a taxonomia deles
+  // ficasse boa.
+  const clinica = avaliarClinica(candidato.clinica ?? [], global?.clinica ?? null, ctx);
+
   return {
-    promover: classificacao.promover || promover.length > 0,
+    promover: classificacao.promover || promover.length > 0 || clinica.promover.length > 0,
     classificacao,
     utilizacoes: { promover, recusadas },
+    clinica,
     motivo: classificacao.motivo,
     aguardaAprovacao: classificacao.aguardaAprovacao,
   };
@@ -438,6 +539,14 @@ export function origemDaPromocao(
   let melhor: OrigemGlobal | null = null;
   for (const u of decisao.utilizacoes.promover) {
     if (u.origem && (melhor === null || ORIGEM_RANK[u.origem] < ORIGEM_RANK[melhor])) melhor = u.origem;
+  }
+  // A clínica conta aqui, e não contava. Sem isto, uma promoção que só
+  // levasse ATC e DCI saía sem origem, `registoPromocao` devolvia null, e
+  // quem chama saltava a linha inteira — a clínica nunca chegava a ser
+  // escrita. O sintoma seria um backfill a dizer que promoveu e um
+  // catálogo global sem um único ATC.
+  for (const c of decisao.clinica?.promover ?? []) {
+    if (c.origem && (melhor === null || ORIGEM_RANK[c.origem] < ORIGEM_RANK[melhor])) melhor = c.origem;
   }
   return melhor;
 }
@@ -588,4 +697,218 @@ export function avaliarProjeccao(
  */
 export function estaDesactualizado(global: ConhecimentoGlobal, versaoActual: string): boolean {
   return global.versaoRegras !== versaoActual;
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// CLÍNICA — decidida à parte da taxonomia, e campo a campo
+// ═════════════════════════════════════════════════════════════════════
+//
+// PORQUE É QUE ISTO NÃO PODE PASSAR PELO GATE DA CLASSIFICAÇÃO
+//
+// A promoção de 2026-08-21 levou 1 318 produtos ao global. Na passagem
+// seguinte, os mesmos 1 318 foram recusados — correctamente — com «o
+// global já tem conhecimento igual ou melhor». Se a clínica dependesse
+// dessa decisão, os 1 124 ATC e 1 126 DCI desses produtos nunca mais
+// teriam como subir: a classificação está óptima, e seria exactamente
+// isso a bloquear o resto.
+//
+// Um produto pode ter, ao mesmo tempo:
+//   · classificação global imbatível;
+//   · ATC global vazio;
+//   · DCI global vazio.
+//
+// A classificação fica intocada e o ATC e a DCI sobem. São perguntas
+// diferentes sobre o mesmo produto, e respondem-se em separado — tal
+// como as utilizações já se respondiam.
+
+/** Conjunto FECHADO. O modelo não inventa campos, como não inventa categorias. */
+export const CAMPOS_CLINICOS = [
+  "CODIGO_ATC",
+  "DCI",
+  "FORMA_FARMACEUTICA",
+  "DOSAGEM",
+  "EMBALAGEM",
+] as const;
+
+export type CampoClinico = (typeof CAMPOS_CLINICOS)[number];
+
+/**
+ * PRECEDÊNCIA DAS ORIGENS CLÍNICAS — explicitamente a mesma da taxonomia.
+ *
+ *   HUMANO 0 < REGULATORY 1 < DETERMINISTICA 2 < MODELO 3 < PROPAGADO 4
+ *
+ * Menor é mais autoritário. É o `ORIGEM_RANK`, reutilizado de propósito e
+ * não copiado: uma segunda tabela de precedência acabaria por divergir da
+ * primeira, e a divergência apareceria como um ATC do INFARMED a perder
+ * para um palpite do modelo.
+ *
+ * O que isto garante, em concreto:
+ *
+ *   · uma inferência do modelo (MODELO/PROPAGADO) NUNCA substitui
+ *     informação regulamentar (REGULATORY) nem humana (HUMANO);
+ *   · quando existir fonte INFARMED, o ATC dela PREVALECE sobre o do
+ *     modelo — sem tocar nos campos que o INFARMED não trouxer, porque
+ *     cada campo é uma linha com a sua própria origem;
+ *   · PROPAGADO (conclusão sobre um irmão de família) perde para MODELO
+ *     (conclusão sobre este cnp), que é a ordem certa.
+ */
+export const PRECEDENCIA_CLINICA = ORIGEM_RANK;
+
+/**
+ * Quanto é que a confiança tem de subir para trocar um valor por outro
+ * DA MESMA ORIGEM.
+ *
+ * Sem margem, duas corridas do mesmo modelo com 0.91 e 0.92 fariam o
+ * valor oscilar a cada passagem: escrita a mais, rasto poluído, e nenhuma
+ * informação nova. Com margem, uma corrida nova só desloca informação
+ * clínica já estabelecida se trouxer uma diferença que signifique alguma
+ * coisa.
+ */
+export const MARGEM_CONFIANCA_CLINICA = 0.05;
+
+/** O que o tenant propõe para UM campo clínico. */
+export type ClinicaCandidata = {
+  campo: CampoClinico;
+  valor: string;
+  /** null = não foi possível atribuir proveniência; não sobe. */
+  origem: OrigemGlobal | null;
+  /** `confidenceClinica`, não a confiança da classificação. */
+  confianca: number;
+  versaoRegras: string;
+  /** Porque é que a origem é esta — vai para o relatório, suba ou não. */
+  motivoOrigem: string;
+};
+
+/** O que o global já sabe sobre UM campo clínico. */
+export type ClinicaGlobal = {
+  campo: CampoClinico;
+  valor: string;
+  origem: OrigemGlobal;
+  confianca: number;
+  versaoRegras: string;
+};
+
+export type DecisaoClinica = {
+  promover: ClinicaCandidata[];
+  recusadas: Array<{ campo: CampoClinico; motivo: string; aguardaAprovacao: boolean }>;
+};
+
+/**
+ * O valor é estruturalmente aceitável para este campo?
+ *
+ * O ATC continua sujeito à validação de código COMPLETO — os mesmos sete
+ * caracteres que o `knowledge-enrichment` exige, importados de lá e não
+ * recopiados. Um "N02" não é um ATC incompleto que se aproveite: é um
+ * valor que não identifica substância nenhuma, e entrar no catálogo
+ * nacional espalha-o por todos os tenants de uma vez.
+ *
+ * Isto é uma segunda tranca, não a primeira. O runner já rejeita na
+ * origem; esta existe porque o global recebe de vários sítios e não pode
+ * depender da higiene de quem lhe chama.
+ */
+export function validarValorClinico(campo: CampoClinico, valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const v = valor.trim();
+  if (!v) return null;
+
+  if (campo === "CODIGO_ATC") {
+    const norm = v.toUpperCase().replace(/\s+/g, "");
+    return ATC_COMPLETO.test(norm) ? norm : null;
+  }
+  if (campo === "DCI") {
+    return DCI_PLAUSIVEL.test(v) ? v : null;
+  }
+  // Forma, dosagem e embalagem não têm gramática fixa — "cáps lib prol",
+  // "12,5 mg/5 ml", "x 60" são todos legítimos. O que se exige é que
+  // sejam curtos: um texto longo aqui é uma frase que o modelo escreveu
+  // no sítio errado, não uma apresentação.
+  return v.length <= 80 ? v : null;
+}
+
+/**
+ * Decide, campo a campo, o que sobe ao global.
+ *
+ * REGRAS, por ordem de aplicação:
+ *
+ *   1. valor inválido para o campo            → não sobe (e não apaga);
+ *   2. origem por mapear                      → não sobe;
+ *   3. origem HUMANO sem aprovação explícita  → não sobe, e fica marcado
+ *                                               como "à espera de alguém";
+ *   4. o global não tem o campo               → SOBE (preenche a lacuna);
+ *   5. origem nova mais autoritária           → SOBE;
+ *   6. origem nova menos autoritária          → não sobe;
+ *   7. mesma origem e MESMO valor             → não sobe (idempotência:
+ *                                               repetir não escreve);
+ *   8. mesma origem, valor diferente, e a
+ *      confiança sobe pelo menos a margem     → SOBE;
+ *   9. tudo o resto                           → não sobe.
+ *
+ * Um candidato a `null` não chega aqui: quem monta a lista já o deixou de
+ * fora. É essa a garantia de que um valor ausente nunca apaga informação
+ * existente — não há caminho neste código que escreva null nem que remova
+ * uma linha.
+ */
+export function avaliarClinica(
+  candidatos: readonly ClinicaCandidata[],
+  global: ReadonlyMap<CampoClinico, ClinicaGlobal> | null,
+  ctx: ContextoPromocao = {},
+): DecisaoClinica {
+  const promover: ClinicaCandidata[] = [];
+  const recusadas: DecisaoClinica["recusadas"] = [];
+
+  for (const c of candidatos) {
+    const valor = validarValorClinico(c.campo, c.valor);
+    if (!valor) {
+      recusadas.push({ campo: c.campo, motivo: `valor invalido para ${c.campo}`, aguardaAprovacao: false });
+      continue;
+    }
+    if (!c.origem) {
+      recusadas.push({ campo: c.campo, motivo: c.motivoOrigem, aguardaAprovacao: false });
+      continue;
+    }
+    const semAprovacao = faltaAprovacao(c.origem, ctx);
+    if (semAprovacao) {
+      recusadas.push({ campo: c.campo, motivo: semAprovacao, aguardaAprovacao: true });
+      continue;
+    }
+
+    const actual = global?.get(c.campo);
+    if (!actual) {
+      promover.push({ ...c, valor });
+      continue;
+    }
+
+    const rankNovo = PRECEDENCIA_CLINICA[c.origem];
+    const rankActual = PRECEDENCIA_CLINICA[actual.origem];
+
+    if (rankNovo < rankActual) {
+      promover.push({ ...c, valor });
+      continue;
+    }
+    if (rankNovo > rankActual) {
+      recusadas.push({
+        campo: c.campo,
+        motivo: `origem clinica menos autoritaria que a global (${c.origem} < ${actual.origem})`,
+        aguardaAprovacao: false,
+      });
+      continue;
+    }
+    // Mesma origem. O valor igual não se reescreve — é isto que faz uma
+    // segunda passagem custar zero escritas.
+    if (valor === actual.valor) {
+      recusadas.push({ campo: c.campo, motivo: "o global ja tem este valor", aguardaAprovacao: false });
+      continue;
+    }
+    if (c.confianca >= actual.confianca + MARGEM_CONFIANCA_CLINICA) {
+      promover.push({ ...c, valor });
+      continue;
+    }
+    recusadas.push({
+      campo: c.campo,
+      motivo: `mesma origem e confianca sem margem (${c.confianca.toFixed(2)} vs ${actual.confianca.toFixed(2)})`,
+      aguardaAprovacao: false,
+    });
+  }
+
+  return { promover, recusadas };
 }

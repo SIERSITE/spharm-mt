@@ -92,6 +92,8 @@ async function main(): Promise<void> {
 
   tabela("origem da CLASSIFICAÇÃO (derivada — ver origemDaClassificacao):", leitura.porOrigem);
   tabela("origem das UTILIZAÇÕES (por associação, de ProdutoUtilizacao.fonte):", leitura.porOrigemUtilizacao);
+  tabela("campos CLÍNICOS encontrados no tenant:", leitura.clinicaPorCampo);
+  tabela("origem atribuída a esses campos clínicos:", leitura.clinicaPorOrigem);
   // A proveniência que a base guarda é a do productType, não a da
   // classificação. Mostra-se crua para não se confundir com a de cima.
   tabela("Produto.classificationSource (proveniência do productType):", leitura.porFonteOriginal);
@@ -124,6 +126,19 @@ async function main(): Promise<void> {
   // das recusadas. Rótulos diferentes porque as coisas são diferentes.
   tabela("motivo de cada decisão — classificações (promoções incluídas):", r.motivosClassificacao);
   tabela("porque foram recusadas utilizações:", r.motivosUtilizacao);
+
+  // ── Clínica ────────────────────────────────────────────────────────
+  // Impressa em bloco próprio porque é decidida em bloco próprio: um
+  // produto com a classificação recusada por "igual ou melhor" pode ter
+  // subido aqui o ATC e a DCI, e misturar as duas contagens escondia
+  // exactamente isso.
+  console.log("");
+  console.log("── clínica (decidida à parte, campo a campo) ───────");
+  console.log(`  ${pad(r.clinicaTotal)}  campos clínicos ${apply ? "promovidos" : "a promover"}`);
+  console.log(`  ${pad(r.recusasClinica)}  campos clínicos recusados`);
+  tabela("por campo:", r.clinicaPromovida);
+  tabela("por origem:", r.clinicaPorOrigem);
+  tabela("porque foram recusados campos clínicos:", r.motivosClinica);
 
   if (r.aguardamAprovacao > 0) {
     console.log("\n── à espera de decisão humana ─────────────────────");

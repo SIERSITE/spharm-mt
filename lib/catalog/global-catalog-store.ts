@@ -15,23 +15,43 @@
  */
 import { controlPrisma } from "../control-plane";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { chaveCache } from "./knowledge-enrichment";
+import { chaveCache, LIMIAR_CLINICO } from "./knowledge-enrichment";
 import {
   avaliarProjeccao,
   avaliarPromocao,
   ehEspecifica,
   origemDaClassificacao,
+  origemDaClinica,
   origemDaUtilizacao,
   registoPromocao,
+  validarValorClinico,
+  CAMPOS_CLINICOS,
   FATOR_PROJECCAO,
   ORIGEM_CACHE_GLOBAL,
   type AprovacaoHumana,
+  type CampoClinico,
+  type ClinicaCandidata,
   type ConhecimentoCandidato,
   type ConhecimentoGlobal,
   type EstadoLocal,
   type OrigemGlobal,
   type UtilizacaoCandidata,
 } from "./global-catalog";
+
+/**
+ * Campo clínico → coluna em `Produto` e coluna na `KnowledgeEnrichmentCache`.
+ *
+ * Os dois nomes divergem num campo — `formaFarmaceutica` no produto,
+ * `forma` na cache — e essa divergência já existia antes desta camada.
+ * Fica escrita UMA vez, aqui, em vez de repetida em cada query.
+ */
+const COLUNAS_CLINICAS: Record<CampoClinico, { produto: string; cache: string }> = {
+  CODIGO_ATC: { produto: "codigoATC", cache: "codigoATC" },
+  DCI: { produto: "dci", cache: "dci" },
+  FORMA_FARMACEUTICA: { produto: "formaFarmaceutica", cache: "forma" },
+  DOSAGEM: { produto: "dosagem", cache: "dosagem" },
+  EMBALAGEM: { produto: "embalagem", cache: "embalagem" },
+};
 
 /** Marca de proveniência das escritas que vêm do catálogo global. */
 export const FONTE_GLOBAL = "CATALOGO_GLOBAL";
@@ -56,7 +76,10 @@ export async function lerConhecimentoGlobal(
     const bloco = cnps.slice(i, i + BLOCO);
     const linhas = await controlPrisma.catalogoGlobal.findMany({
       where: { cnp: { in: [...bloco] } },
-      include: { utilizacoes: true },
+      // `clinica` entra pelo mesmo caminho das `utilizacoes`, e pela
+      // mesma razão: cada linha traz a sua própria origem e confiança, e
+      // é avaliada sozinha.
+      include: { utilizacoes: true, clinica: true },
     });
     for (const l of linhas) {
       out.set(l.cnp, {
@@ -73,6 +96,18 @@ export async function lerConhecimentoGlobal(
           confidence: u.confidence,
           origem: u.origem as OrigemGlobal,
         })),
+        clinica: new Map(
+          l.clinica.map((c) => [
+            c.campo as CampoClinico,
+            {
+              campo: c.campo as CampoClinico,
+              valor: c.valor,
+              origem: c.origem as OrigemGlobal,
+              confianca: c.confianca,
+              versaoRegras: c.versaoRegras,
+            },
+          ]),
+        ),
       });
     }
   }
@@ -128,6 +163,16 @@ export type ResultadoPromocao = {
   motivosClassificacao: Record<string, number>;
   /** Só recusas — contado dentro do laço das utilizações recusadas. */
   motivosUtilizacao: Record<string, number>;
+  /** Campos clínicos escritos no global, por campo. */
+  clinicaPromovida: Record<string, number>;
+  /** Campos clínicos escritos, por origem. */
+  clinicaPorOrigem: Record<string, number>;
+  /** Só recusas clínicas — contado dentro do laço das recusadas. */
+  motivosClinica: Record<string, number>;
+  /** Total de campos clínicos escritos. Soma de `clinicaPromovida`. */
+  clinicaTotal: number;
+  /** Campos clínicos recusados. */
+  recusasClinica: number;
 };
 
 const contar = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
@@ -174,6 +219,11 @@ export async function promoverAoGlobal(
     porOrigemUtilizacao: {},
     motivosClassificacao: {},
     motivosUtilizacao: {},
+    clinicaPromovida: {},
+    clinicaPorOrigem: {},
+    motivosClinica: {},
+    clinicaTotal: 0,
+    recusasClinica: 0,
   };
   if (candidatos.length === 0) return r;
 
@@ -199,6 +249,16 @@ export async function promoverAoGlobal(
     for (const u of decisao.utilizacoes.recusadas) {
       r.recusasUtilizacao++;
       contar(r.motivosUtilizacao, u.motivo);
+    }
+
+    for (const c of decisao.clinica.promover) {
+      r.clinicaTotal++;
+      contar(r.clinicaPromovida, c.campo);
+      if (c.origem) contar(r.clinicaPorOrigem, c.origem);
+    }
+    for (const c of decisao.clinica.recusadas) {
+      r.recusasClinica++;
+      contar(r.motivosClinica, c.motivo);
     }
 
     if (!decisao.promover) continue;
@@ -289,6 +349,37 @@ export async function promoverAoGlobal(
         update: { confidence: u.confidence, origem: u.origem!, versaoRegras: c.versaoRegras },
       });
     }
+
+    // Clínica: uma linha por campo, cada uma com a SUA origem. Só chegam
+    // aqui os campos que `avaliarClinica` aprovou — um campo recusado não
+    // é escrito, e um campo ausente nunca chegou a ser candidato. Não há
+    // `delete` neste ficheiro: informação clínica não se apaga por uma
+    // corrida não a ter trazido.
+    for (const cl of decisao.clinica.promover) {
+      await controlPrisma.catalogoGlobalClinica.upsert({
+        where: { cnp_campo: { cnp: c.cnp, campo: cl.campo } },
+        create: {
+          cnp: c.cnp,
+          campo: cl.campo,
+          valor: cl.valor,
+          origem: cl.origem!,
+          confianca: cl.confianca,
+          versaoRegras: cl.versaoRegras,
+          tenantOrigem: c.tenantOrigem,
+          promovidoPor: registo.actor,
+          promovidoEm: agora,
+        },
+        update: {
+          valor: cl.valor,
+          origem: cl.origem!,
+          confianca: cl.confianca,
+          versaoRegras: cl.versaoRegras,
+          tenantOrigem: c.tenantOrigem,
+          promovidoPor: registo.actor,
+          promovidoEm: agora,
+        },
+      });
+    }
   }
   return r;
 }
@@ -312,7 +403,17 @@ type LinhaTenant = {
   cacheOrigem: string | null;
   cacheConfidence: number | null;
   cacheEvidence: string | null;
-};
+  cacheConfClinica: number | null;
+  cacheVersao: string | null;
+} & Partial<
+  // Uma coluna por campo clínico e por fonte, com prefixo:
+  //   p… valor no `Produto`   k… valor na cache   r… valor regulamentar
+  //
+  // Os prefixos existem porque as três fontes têm de chegar aqui LADO A
+  // LADO: a origem de um campo sai da igualdade entre elas, e comparar
+  // exige tê-las todas na mesma linha.
+  Record<`p${CampoClinico}` | `k${CampoClinico}` | `r${CampoClinico}`, string | null>
+>;
 
 export type OpcoesLeituraCandidatos = {
   /** Códigos internos da farmácia não entram no catálogo nacional. */
@@ -336,6 +437,10 @@ export type LeituraCandidatos = {
   porOrigemUtilizacao: Record<string, number>;
   /** Candidatos que só têm utilizações: sem classificação específica. */
   soUtilizacoes: number;
+  /** Quantos campos clínicos com valor foram encontrados, por campo. */
+  clinicaPorCampo: Record<string, number>;
+  /** Origem atribuída a esses campos — inclui os que ficaram por atribuir. */
+  clinicaPorOrigem: Record<string, number>;
   candidatos: ConhecimentoCandidato[];
 };
 
@@ -389,9 +494,29 @@ export async function lerCandidatosDoTenant(
             coalesce(array_agg(u.slug)   filter (where u.slug is not null), '{}') as "utilSlugs",
             coalesce(array_agg(pu.fonte) filter (where u.slug is not null), '{}') as "utilFontes",
             coalesce(array_agg(coalesce(pu.confianca, 1)) filter (where u.slug is not null), '{}') as "utilConfs",
-            max(k.origem)         as "cacheOrigem",
-            max(k.confidence)     as "cacheConfidence",
-            max(k."evidenceType") as "cacheEvidence"
+            max(k.origem)              as "cacheOrigem",
+            max(k.confidence)          as "cacheConfidence",
+            max(k."evidenceType")      as "cacheEvidence",
+            max(k."confidenceClinica") as "cacheConfClinica",
+            max(k.versao)              as "cacheVersao",
+            -- Clínica: valor no produto, valor na cache, valor na fonte
+            -- regulamentar. A origem sai da IGUALDADE entre eles, em
+            -- origemDaClinica() -- nunca de um default.
+            p."codigoATC"          as "pCODIGO_ATC",
+            p.dci                  as "pDCI",
+            p."formaFarmaceutica"  as "pFORMA_FARMACEUTICA",
+            p.dosagem              as "pDOSAGEM",
+            p.embalagem            as "pEMBALAGEM",
+            max(k."codigoATC")     as "kCODIGO_ATC",
+            max(k.dci)             as "kDCI",
+            max(k.forma)           as "kFORMA_FARMACEUTICA",
+            max(k.dosagem)         as "kDOSAGEM",
+            max(k.embalagem)       as "kEMBALAGEM",
+            max(r."codigoATC")         as "rCODIGO_ATC",
+            max(r.dci)                 as "rDCI",
+            max(r."formaFarmaceutica") as "rFORMA_FARMACEUTICA",
+            max(r.dosagem)             as "rDOSAGEM",
+            max(r.embalagem)           as "rEMBALAGEM"
        from "Produto" p
        left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
        left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
@@ -401,7 +526,8 @@ export async function lerCandidatosDoTenant(
        left join "KnowledgeEnrichmentCache" k on k.cnp = p.cnp and k.persistido = true
       where ${filtros.join("\n        and ")}
       group by p.id, p.cnp, p.designacao, p."productType", p."validadoManualmente",
-               p."classificationSource", p."productTypeConfidence", c1.nome, c2.nome, r.cnp`,
+               p."classificationSource", p."productTypeConfidence", c1.nome, c2.nome, r.cnp,
+               p."codigoATC", p.dci, p."formaFarmaceutica", p.dosagem, p.embalagem`,
     ...params,
   );
 
@@ -412,6 +538,8 @@ export async function lerCandidatosDoTenant(
     porFonteOriginal: {},
     porOrigemUtilizacao: {},
     soUtilizacoes: 0,
+    clinicaPorCampo: {},
+    clinicaPorOrigem: {},
     candidatos: [],
   };
 
@@ -420,8 +548,46 @@ export async function lerCandidatosDoTenant(
     const fontes = l.utilFontes ?? [];
     const confs = l.utilConfs ?? [];
     const temClassificacao = !!l.categoria && ehEspecifica(l.subcategoria);
-    if (!temClassificacao && slugs.length === 0) { out.semNada++; continue; }
-    if (!temClassificacao) out.soUtilizacoes++;
+
+    // ── Clínica, campo a campo ────────────────────────────────────────
+    //
+    // Só entram campos COM VALOR. Um campo vazio não vira candidato a
+    // null: é assim que se garante, na estrutura e não por disciplina,
+    // que um valor em falta nunca apaga o que o global já sabe.
+    const clinica: ClinicaCandidata[] = [];
+    for (const campo of CAMPOS_CLINICOS) {
+      const valorProduto = l[`p${campo}`] ?? null;
+      if (!valorProduto || !valorProduto.trim()) continue;
+      contar(out.clinicaPorCampo, campo);
+
+      const m = origemDaClinica({
+        valorProduto,
+        validadoManualmente: l.validadoManualmente,
+        valorRegulatorio: l[`r${campo}`] ?? null,
+        valorCache: l[`k${campo}`] ?? null,
+        cacheOrigem: l.cacheOrigem,
+      });
+      contar(out.clinicaPorOrigem, m.origem ?? `(nao atribuido) ${m.motivo}`);
+
+      clinica.push({
+        campo,
+        valor: valorProduto,
+        origem: m.origem,
+        // A confiança clínica é a do gate clínico (0.90), não a da
+        // classificação (0.85). Um valor humano vale 1; um valor sem
+        // confiança registada não passa a valer o da classificação —
+        // seria misturar duas medidas diferentes — e fica no piso do
+        // gate que o deixou entrar.
+        confianca: m.origem === "HUMANO" ? 1 : (l.cacheConfClinica ?? LIMIAR_CLINICO),
+        versaoRegras: l.cacheVersao ?? opts.versaoRegras,
+        motivoOrigem: m.motivo,
+      });
+    }
+
+    // "Nada a promover" passa a incluir a clínica: um produto sem
+    // classificação e sem utilizações pode na mesma trazer um ATC.
+    if (!temClassificacao && slugs.length === 0 && clinica.length === 0) { out.semNada++; continue; }
+    if (!temClassificacao && slugs.length > 0) out.soUtilizacoes++;
 
     const mapeada = origemDaClassificacao({
       validadoManualmente: l.validadoManualmente,
@@ -465,6 +631,7 @@ export async function lerCandidatosDoTenant(
       // dispensa-a. O registo regulamentar, quando existir, também.
       verificado: mapeada.origem === "HUMANO" || mapeada.origem === "REGULATORY",
       tenantOrigem: tenantSlug,
+      clinica,
     });
   }
 
@@ -484,6 +651,12 @@ export type ResumoProjeccao = {
   intocaveis: number;
   revisoesAbertas: number;
   semVocabulario: number;
+  /** Campos clínicos escritos no tenant, por campo. */
+  clinicaEscrita: Record<string, number>;
+  /** Total de campos clínicos escritos. */
+  clinicaTotal: number;
+  /** Campos que o global tinha e o tenant já tinha preenchidos. */
+  clinicaJaPreenchida: number;
   exemplosRevisao: Array<{ cnp: number; global: string; local: string }>;
 };
 
@@ -562,6 +735,7 @@ export async function projectarParaTenant(
       tenantSlug, cnpsNoTenant: 0, cnpsConhecidosGlobal: 0,
       classificacoesEscritas: 0, productTypesEscritos: 0, utilizacoesEscritas: 0,
       noOp: 0, intocaveis: 0, revisoesAbertas: 0, semVocabulario: 0,
+      clinicaEscrita: {}, clinicaTotal: 0, clinicaJaPreenchida: 0,
       exemplosRevisao: [],
     };
   }
@@ -576,6 +750,9 @@ export async function projectarParaTenant(
     intocaveis: 0,
     revisoesAbertas: 0,
     semVocabulario: 0,
+    clinicaEscrita: {},
+    clinicaTotal: 0,
+    clinicaJaPreenchida: 0,
     exemplosRevisao: [],
   };
 
@@ -584,8 +761,11 @@ export async function projectarParaTenant(
     id: string; cnp: number; designacao: string; validadoManualmente: boolean;
     categoria: string | null; subcategoria: string | null; productType: string | null;
     utilizacoes: string[] | null; fontes: string[] | null; confiancas: number[] | null;
+    codigoATC: string | null; dci: string | null; formaFarmaceutica: string | null;
+    dosagem: string | null; embalagem: string | null;
   }>>(
     `select p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType",
+            p."codigoATC", p.dci, p."formaFarmaceutica", p.dosagem, p.embalagem,
             c1.nome as categoria,
             c2.nome as subcategoria,
             coalesce(array_agg(u.slug)        filter (where u.slug is not null), '{}') as utilizacoes,
@@ -597,7 +777,8 @@ export async function projectarParaTenant(
        left join "ProdutoUtilizacao" pu on pu."produtoId" = p.id
        left join "Utilizacao" u on u.id = pu."utilizacaoId"
       ${opts.cnps ? `where p.cnp = any('{${opts.cnps.map((n) => Number(n) | 0).join(",")}}'::int[])` : ""}
-      group by p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType", c1.nome, c2.nome`,
+      group by p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType", c1.nome, c2.nome,
+               p."codigoATC", p.dci, p."formaFarmaceutica", p.dosagem, p.embalagem`,
   );
   r.cnpsNoTenant = produtos.length;
 
@@ -643,6 +824,60 @@ export async function projectarParaTenant(
     };
 
     const d = avaliarProjeccao(g, local);
+
+    // ── CLÍNICA: ANTES dos `continue` da taxonomia ───────────────────
+    //
+    // Deliberadamente aqui, e não lá em baixo com as escritas de
+    // classificação. A decisão da taxonomia para a maior parte dos
+    // produtos é NO_OP — o tenant já tem a classificação certa — e um
+    // `continue` nesse ramo saltava a clínica de todos eles. O resultado
+    // seria o pior possível: a projecção a dizer que correu, e o ATC a
+    // não chegar precisamente aos produtos mais bem classificados.
+    //
+    // A única excepção é INTOCAVEL, que é `validadoManualmente`: aí não
+    // se toca em nada, e isso inclui a clínica.
+    if (d.accao !== "INTOCAVEL" && g.clinica && g.clinica.size > 0) {
+      const localClinica: Record<CampoClinico, string | null> = {
+        CODIGO_ATC: p.codigoATC,
+        DCI: p.dci,
+        FORMA_FARMACEUTICA: p.formaFarmaceutica,
+        DOSAGEM: p.dosagem,
+        EMBALAGEM: p.embalagem,
+      };
+      for (const [campo, cg] of g.clinica) {
+        // O tenant não guarda a origem de cada campo clínico, portanto
+        // não há como PROVAR que o global é superior ao que já lá está.
+        // Sem prova, não se substitui: preenche-se a lacuna e mais nada.
+        // É a mesma política do runner (`and p."<coluna>" is null`), e é
+        // conservadora de propósito — o custo de não preencher é um
+        // campo vazio; o de substituir às cegas é apagar informação
+        // melhor do que a que entra.
+        if (localClinica[campo]) { r.clinicaJaPreenchida++; continue; }
+        const valor = validarValorClinico(campo, cg.valor);
+        if (!valor) continue;
+        if (dryRun) {
+          r.clinicaTotal++;
+          r.clinicaEscrita[campo] = (r.clinicaEscrita[campo] ?? 0) + 1;
+          continue;
+        }
+        const coluna = COLUNAS_CLINICAS[campo].produto;
+        // A guarda repete-se no WHERE, como no runner: entre o SELECT e
+        // este UPDATE o estado pode ter mudado, e a garantia tem de
+        // viver onde a escrita acontece.
+        const n = await prisma.$executeRawUnsafe(
+          `update "Produto" p
+              set "${coluna}" = $1, "dataAtualizacao" = now()
+            where p.cnp = $2
+              and p."validadoManualmente" = false
+              and p."${coluna}" is null`,
+          valor, cnp,
+        );
+        if (Number(n) > 0) {
+          r.clinicaTotal++;
+          r.clinicaEscrita[campo] = (r.clinicaEscrita[campo] ?? 0) + 1;
+        }
+      }
+    }
 
     if (d.accao === "INTOCAVEL") { r.intocaveis++; continue; }
     if (d.accao === "NO_OP") { r.noOp++; continue; }
