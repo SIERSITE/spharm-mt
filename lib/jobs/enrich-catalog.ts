@@ -89,6 +89,12 @@ export type KnowledgeCycleSummary = {
   categoriasEscritas: number;
   productTypesEscritos: number;
   utilizacoesEscritas: number;
+  /** Total de campos clínicos escritos (dci+atc+forma+dosagem+embalagem). */
+  clinicaEscrita: number;
+  dciEscritas: number;
+  atcEscritos: number;
+  /** Resultados com clínica proposta mas abaixo de LIMIAR_CLINICO. */
+  clinicaRecusadaPorConfianca: number;
   paraRevisao: number;
   /** Propostas que a segunda passagem não confirmou. Vigiar esta série. */
   discordancias: number;
@@ -102,6 +108,13 @@ export type EnrichCycleSummary = {
   reclassify: ReclassifySummary;
   /** `null` quando a fase 3 não foi pedida. */
   knowledge: KnowledgeCycleSummary | null;
+  /**
+   * Segunda passagem do mapper, a seguir ao knowledge. `null` quando a
+   * fase 3 não correu ou não escreveu clínica nenhuma — nesse caso não
+   * há sinal novo e voltar a correr o mapper seria trabalho garantido
+   * sem resultado.
+   */
+  reclassifyPosKnowledge: ReclassifySummary | null;
   totalDurationMs: number;
 };
 
@@ -438,6 +451,14 @@ export async function runEnrichCycle(opts: {
         categoriasEscritas: r.categoriasEscritas,
         productTypesEscritos: r.productTypesEscritos,
         utilizacoesEscritas: r.utilizacoesEscritas,
+        // Quantos campos clínicos esta corrida escreveu. É o gatilho da
+        // fase 4 e a métrica que a auditoria final reporta.
+        clinicaEscrita:
+          r.dciEscritas + r.atcEscritos + r.formasEscritas +
+          r.dosagensEscritas + r.embalagensEscritas,
+        dciEscritas: r.dciEscritas,
+        atcEscritos: r.atcEscritos,
+        clinicaRecusadaPorConfianca: r.clinicaRecusadaPorConfianca,
         paraRevisao: r.review,
         discordancias: r.relatorio.filter((l) => l.discordancia).length,
         custoEstimadoUsd: Number(r.custoEstimadoUsd.toFixed(4)),
@@ -449,11 +470,40 @@ export async function runEnrichCycle(opts: {
       // fica registada e o cron do dia seguinte tenta outra vez.
       knowledge = {
         residual: 0, categoriasEscritas: 0, productTypesEscritos: 0,
-        utilizacoesEscritas: 0, paraRevisao: 0, discordancias: 0, custoEstimadoUsd: 0,
+        utilizacoesEscritas: 0, clinicaEscrita: 0, dciEscritas: 0, atcEscritos: 0,
+        clinicaRecusadaPorConfianca: 0,
+        paraRevisao: 0, discordancias: 0, custoEstimadoUsd: 0,
         erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
       };
     }
   }
 
-  return { sync, reclassify, knowledge, totalDurationMs: Date.now() - t0 };
+  // ── Fase 4: reclassificar OUTRA VEZ, depois do knowledge ────────────
+  //
+  // A fase 2 correu antes do knowledge e viu o catálogo como ele estava:
+  // sem ATC e sem DCI. Desde ke-2.0 o knowledge escreve esses campos,
+  // portanto os sinais de que o mapper precisa só existem DEPOIS dele.
+  // Sem esta segunda passagem, um produto que acabou de receber
+  // "N02BE01" continuava em "Outros Medicamentos" até ao cron do dia
+  // seguinte — e a redução que se mede no fim da corrida seria a de
+  // ontem, não a desta.
+  //
+  // Barata quando não há nada a fazer: a consulta filtra por produtos em
+  // "Outros Medicamentos" ou sem nível 2, e devolve vazio se a fase 3
+  // não escreveu nada.
+  let reclassifyPosKnowledge: ReclassifySummary | null = null;
+  if (knowledge && !knowledge.erro && knowledge.clinicaEscrita > 0) {
+    reclassifyPosKnowledge = await reclassifyByCanonicalMapping({
+      prisma: opts.prisma,
+      limit: opts.reclassifyLimit ?? 500,
+    });
+  }
+
+  return {
+    sync,
+    reclassify,
+    knowledge,
+    reclassifyPosKnowledge,
+    totalDurationMs: Date.now() - t0,
+  };
 }

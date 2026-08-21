@@ -31,6 +31,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import {
   KNOWLEDGE_MODEL,
   KNOWLEDGE_VERSION,
+  LIMIAR_CLINICO,
   TAMANHO_LOTE,
   alvoParaProduto,
   avaliarGate,
@@ -282,6 +283,16 @@ export type RunnerResumo = {
   categoriasEscritas: number;
   productTypesEscritos: number;
   utilizacoesEscritas: number;
+  /** ke-2.0 — campos clínicos gravados, um contador por campo. */
+  dciEscritas: number;
+  atcEscritos: number;
+  formasEscritas: number;
+  dosagensEscritas: number;
+  embalagensEscritas: number;
+  /** Resultados em que o modelo devolveu clínica mas ficou abaixo do limiar. */
+  clinicaRecusadaPorConfianca: number;
+  /** Resultados em que o ATC veio malformado e foi deitado fora. */
+  atcRejeitadoPorFormato: number;
   porEvidencia: Record<string, number>;
   usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
   custoEstimadoUsd: number;
@@ -514,6 +525,13 @@ export async function runKnowledgeEnrichment(
     categoriasEscritas: 0,
     productTypesEscritos: 0,
     utilizacoesEscritas: 0,
+    dciEscritas: 0,
+    atcEscritos: 0,
+    formasEscritas: 0,
+    dosagensEscritas: 0,
+    embalagensEscritas: 0,
+    clinicaRecusadaPorConfianca: 0,
+    atcRejeitadoPorFormato: 0,
     porEvidencia: {},
     usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     custoEstimadoUsd: 0,
@@ -801,6 +819,53 @@ export async function runKnowledgeEnrichment(
         p.cnp,
       );
       if (Number(n) > 0) resumo.productTypesEscritos++;
+    }
+
+    // ── Campos clínicos (ke-2.0) ──────────────────────────────────
+    //
+    // Gate próprio, separado do gate de classificação: um produto pode
+    // ter categoria gravada e clínica recusada, ou o contrário. É essa
+    // separação que permite aproveitar "sei que é um antidiabético" sem
+    // aceitar junto um ATC de que o modelo não tinha a certeza.
+    //
+    // Todas as escritas são `is null` — esta fase PREENCHE buracos, não
+    // corrige valores. Se o INFARMED entrar amanhã, escreve primeiro e
+    // isto deixa de tocar no campo. E todas carimbam
+    // `classificationVersion = KNOWLEDGE_VERSION`, portanto
+    //   update "Produto" set dci=null, "codigoATC"=null
+    //    where "classificationVersion" = 'ke-2.0'
+    // desfaz exactamente o que esta fase escreveu, e nada mais.
+    const temClinica = r.dci || r.codigoATC || r.forma || r.dosagem || r.embalagem;
+    if (temClinica && r.confidenceClinica < LIMIAR_CLINICO) {
+      resumo.clinicaRecusadaPorConfianca++;
+    }
+    if (temClinica && r.confidenceClinica >= LIMIAR_CLINICO) {
+      // Um par (campo, valor) de cada vez: um UPDATE só, com COALESCE,
+      // gravaria os cinco ou nenhum, e perdia-se a contagem por campo
+      // que a auditoria final precisa de reportar.
+      const campos: Array<[string, string | null, () => void]> = [
+        ["dci", r.dci, () => resumo.dciEscritas++],
+        ["codigoATC", r.codigoATC, () => resumo.atcEscritos++],
+        ["formaFarmaceutica", r.forma, () => resumo.formasEscritas++],
+        ["dosagem", r.dosagem, () => resumo.dosagensEscritas++],
+        ["embalagem", r.embalagem, () => resumo.embalagensEscritas++],
+      ];
+      for (const [coluna, valor, contar] of campos) {
+        if (!valor) continue;
+        const n = await prisma.$executeRawUnsafe(
+          `update "Produto" p
+              set "${coluna}"              = $1,
+                  "classificationVersion"  = $2,
+                  "dataAtualizacao"        = now()
+            where p.cnp = $3
+              and p."validadoManualmente" = false
+              and p."${coluna}" is null`,
+          valor,
+          KNOWLEDGE_VERSION,
+          p.cnp,
+        );
+        if (Number(n) > 0) contar();
+      }
     }
 
     // Utilizações seguem a política do backfill de regras: MANUAL nunca
@@ -1165,6 +1230,14 @@ async function gravarCache(
       // Guardado como evidência de que o modelo entendeu o produto.
       // NUNCA escrito em Produto.formaFarmaceutica — ver CAMPOS_PROIBIDOS.
       forma: r.forma,
+      // ke-2.0: guardados sempre, persistidos ou não. É o que impede a
+      // segunda passagem de voltar a pagar a chamada por um produto cujo
+      // ATC já se sabe que veio abaixo do limiar.
+      dci: r.dci,
+      codigoATC: r.codigoATC,
+      dosagem: r.dosagem,
+      embalagem: r.embalagem,
+      confidenceClinica: r.confidenceClinica,
       utilizacoes: r.utilizacoes,
       confidence: r.confidence,
       evidenceType: r.evidenceType,
