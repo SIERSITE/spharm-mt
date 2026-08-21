@@ -149,7 +149,20 @@ enum EnriquecimentoEstado {
   EM_PROCESSAMENTO
   SUCESSO
   SUCESSO_PARCIAL
+  /// Falha TÉCNICA (API em baixo, timeout, lote perdido). Retentável,
+  /// com backoff e tecto de tentativas — ver `MAX_TENTATIVAS_FILA`.
   FALHOU
+  /// O pipeline correu, o modelo respondeu, e a resposta NÃO foi escrita:
+  /// não reconheceu o produto (DESCONHECIDO), ficou abaixo do limiar, ou
+  /// só soube dizer um fallback.
+  ///
+  /// Estado TERMINAL, e é esse o ponto. Antes disto, um produto assim
+  /// saía da fila marcado como SUCESSO_PARCIAL — indistinguível de um que
+  /// tivesse sido classificado — e desaparecia como se estivesse
+  /// resolvido. Não está: está à espera de uma pessoa, ou de uma fonte
+  /// que ainda não existe. Repetir a chamada não muda a resposta, por
+  /// isso não volta à fila; mas tem de ser contável.
+  REVISAO_NECESSARIA
 }
 
 enum VerificationStatus {

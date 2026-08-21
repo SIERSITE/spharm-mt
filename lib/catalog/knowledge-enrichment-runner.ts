@@ -78,6 +78,27 @@ export const MIN_CNP = 2_000_000;
  */
 export const CONCORRENCIA_OMISSAO = 4;
 
+/**
+ * Quantas vezes uma entrada de fila em FALHOU volta a ser tentada.
+ *
+ * FALHOU é falha TÉCNICA — API em baixo, timeout, lote perdido por saída
+ * malformada. Repetir faz sentido; repetir para sempre não. Sem tecto,
+ * um produto que falha de forma determinística (uma designação que parte
+ * sempre o mesmo caminho) gera chamadas de 15 em 15 minutos até alguém
+ * reparar na factura.
+ */
+export const MAX_TENTATIVAS_FILA = 5;
+
+/**
+ * Backoff entre tentativas: 1h, 4h, 16h, 64h, 256h.
+ *
+ * Exponencial de base 4 e não 2: uma indisponibilidade de API que dure
+ * horas não deve ser martelada de hora a hora, e o custo de esperar mais
+ * é irrelevante — o produto já está classificado a zero ou vai ficar em
+ * REVISAO_NECESSARIA de qualquer maneira.
+ */
+export const BACKOFF_BASE_HORAS = 1;
+
 /** Marca de proveniência em ProdutoUtilizacao.fonte. */
 export const FONTE = "MODELO";
 /**
@@ -148,7 +169,24 @@ export function corpoResidual(estrato?: Estrato, apenasFila = false): string {
        )
        ${apenasFila ? `and exists (
              select 1 from "EnriquecimentoFila" f
-              where f."produtoId" = p.id and f.estado in ('PENDENTE', 'FALHOU')
+              where f."produtoId" = p.id
+                and (
+                      f.estado = 'PENDENTE'
+                      -- FALHOU volta, mas com tecto e com espera. Sem as
+                      -- duas condições, um produto que falha sempre gera
+                      -- chamadas de 15 em 15 minutos para sempre.
+                      or (
+                           f.estado = 'FALHOU'
+                       and f."numeroTentativas" < ${MAX_TENTATIVAS_FILA}
+                       and (
+                             f."ultimaTentativa" is null
+                          or f."ultimaTentativa" < now() - (
+                               interval '${BACKOFF_BASE_HORAS} hour'
+                               * power(4, f."numeroTentativas")
+                             )
+                           )
+                         )
+                    )
        )` : ""}`;
 }
 
@@ -1264,39 +1302,73 @@ export async function runKnowledgeEnrichment(
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
 
-  // ── Fechar as entradas de fila que já têm resposta ──────────────────
+  // ── Fechar a fila: três destinos, não um ────────────────────────────
   //
-  // "Tem resposta" é ter linha na cache desta versão — e isso inclui o
-  // DESCONHECIDO e o que foi para revisão. É a definição certa: a fila
-  // pergunta "já perguntámos por este produto?", não "já conseguimos
-  // classificá-lo?". Sem isto, um produto que o modelo não reconhece
-  // voltava à fila em cada ciclo curto, para sempre, e o ciclo deixava
-  // de ser barato quando não há trabalho.
+  // Estava tudo a sair como SUCESSO_PARCIAL, o que apagava a diferença
+  // entre "classificámos" e "o modelo não soube". Um produto que o
+  // modelo não reconhece não está resolvido — está à espera de uma
+  // pessoa ou de uma fonte que ainda não existe — e sair da fila como se
+  // estivesse tornava-o incontável. O objectivo do pipeline é que
+  // nenhum produto fique esquecido, e isso exige que "não resolvido"
+  // tenha nome próprio.
   //
-  // Fica em SUCESSO_PARCIAL, não SUCESSO: o produto passou pelo
-  // pipeline, mas nem toda a passagem produz classificação. Distinguir
-  // as duas coisas é o que permite mais tarde procurar "o que passou e
-  // não deu nada" sem confundir com "o que nunca correu".
+  //   SUCESSO             a cache diz `persistido` — foi escrito.
+  //   REVISAO_NECESSARIA  respondeu e não escrevemos: DESCONHECIDO,
+  //                       abaixo do limiar, ou só um fallback. TERMINAL:
+  //                       repetir a chamada não muda a resposta.
+  //   FALHOU              foi seleccionado e não voltou com resposta
+  //                       nenhuma — falha técnica. Retentável com
+  //                       backoff, até MAX_TENTATIVAS_FILA.
   if (!dryRun) {
+    const cnpsVistos = residual.map((l) => Number(l.cnp) | 0);
     try {
+      // 1+2. Quem tem linha na cache desta versão sai da fila, e o
+      //      destino é decidido pelo `persistido` dessa linha.
       await prisma.$executeRawUnsafe(
         `update "EnriquecimentoFila" f
-            set estado = 'SUCESSO_PARCIAL',
-                "ultimaTentativa" = now(),
+            set estado = case when k.persistido then 'SUCESSO'::"EnriquecimentoEstado"
+                              else 'REVISAO_NECESSARIA'::"EnriquecimentoEstado" end,
+                "ultimaTentativa"  = now(),
                 "numeroTentativas" = f."numeroTentativas" + 1,
-                "ultimaFonte" = $3,
-                "dataAtualizacao" = now()
+                "ultimaFonte"      = $3,
+                "mensagemErro"     = case when k.persistido then null else k.motivo end,
+                "dataAtualizacao"  = now()
            from "Produto" p
+           join "KnowledgeEnrichmentCache" k
+             on k.cnp = p.cnp and k.versao = $1 and k.modelo = $2
           where p.id = f."produtoId"
-            and f.estado in ('PENDENTE', 'FALHOU')
-            and exists (
-                  select 1 from "KnowledgeEnrichmentCache" k
-                   where k.cnp = p.cnp and k.versao = $1 and k.modelo = $2
-            )`,
+            and f.estado in ('PENDENTE', 'FALHOU')`,
         KNOWLEDGE_VERSION,
         KNOWLEDGE_MODEL,
         `knowledge:${KNOWLEDGE_VERSION}`,
       );
+
+      // 3. Seleccionado, sem cache: o lote perdeu-se. Conta a tentativa,
+      //    para o tecto e o backoff terem o que limitar. Sem este passo,
+      //    "retentativas limitadas" não teria nada que contar e o
+      //    produto voltava de 15 em 15 minutos indefinidamente.
+      if (cnpsVistos.length > 0) {
+        await prisma.$executeRawUnsafe(
+          `update "EnriquecimentoFila" f
+              set estado = 'FALHOU',
+                  "ultimaTentativa"  = now(),
+                  "numeroTentativas" = f."numeroTentativas" + 1,
+                  "ultimaFonte"      = $3,
+                  "mensagemErro"     = 'sem resposta do modelo nesta passagem',
+                  "dataAtualizacao"  = now()
+             from "Produto" p
+            where p.id = f."produtoId"
+              and f.estado in ('PENDENTE', 'FALHOU')
+              and p.cnp = any('{${cnpsVistos.join(",")}}'::int[])
+              and not exists (
+                    select 1 from "KnowledgeEnrichmentCache" k
+                     where k.cnp = p.cnp and k.versao = $1 and k.modelo = $2
+              )`,
+          KNOWLEDGE_VERSION,
+          KNOWLEDGE_MODEL,
+          `knowledge:${KNOWLEDGE_VERSION}`,
+        );
+      }
     } catch (e) {
       // A fila é contabilidade, não o trabalho. O que interessa já foi
       // escrito no Produto e na cache; falhar a fechá-la faz o ciclo

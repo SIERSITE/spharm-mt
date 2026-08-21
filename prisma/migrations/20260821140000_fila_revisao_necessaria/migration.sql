@@ -1,0 +1,11 @@
+-- Estado terminal para "o modelo respondeu e nós não escrevemos".
+--
+-- Sem ele, um produto que o modelo não reconhece saía da fila como
+-- SUCESSO_PARCIAL, indistinguível de um classificado, e deixava de ser
+-- contável. O objectivo do pipeline é que nenhum produto fique esquecido
+-- — o que exige que "não resolvido" tenha nome próprio.
+--
+-- ADD VALUE é aditivo e irreversível no sentido de que o valor não se
+-- remove; nenhuma linha existente muda, e nada passa a usá-lo até o
+-- código o escrever.
+ALTER TYPE "EnriquecimentoEstado" ADD VALUE IF NOT EXISTS 'REVISAO_NECESSARIA';

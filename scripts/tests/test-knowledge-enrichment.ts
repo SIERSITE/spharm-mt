@@ -44,6 +44,8 @@ import {
 import {
   QUOTAS_CANARY,
   runKnowledgeEnrichment,
+  MAX_TENTATIVAS_FILA,
+  corpoResidual,
   selecionarCanary,
   type Estrato,
 } from "../../lib/catalog/knowledge-enrichment-runner";
@@ -1139,4 +1141,77 @@ console.log("\n=== ke-2.0: a propagacao por familia nao leva a apresentacao do i
   for (const campo of ["dci", "codigoATC"]) {
     check(!decl.includes(`${campo}: null`), `${campo} continua a propagar (e da substancia)`);
   }
+}
+
+console.log("");
+console.log("=== fila: tres destinos distintos, e o DESCONHECIDO nao desaparece ===");
+{
+  const src = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+
+  // O bug que isto fixa: tudo saia como SUCESSO_PARCIAL, o que tornava
+  // um produto que o modelo nao reconheceu indistinguivel de um
+  // classificado — e portanto incontavel.
+  check(
+    !src.includes("set estado = 'SUCESSO_PARCIAL'"),
+    "a fila ja nao fecha tudo no mesmo estado",
+  );
+  check(
+    src.includes("REVISAO_NECESSARIA"),
+    "existe estado terminal para 'respondeu e nao escrevemos'",
+  );
+  check(
+    src.includes("when k.persistido then 'SUCESSO'"),
+    "o destino e decidido pelo `persistido` da cache, nao adivinhado",
+  );
+  check(
+    src.includes("'FALHOU'") && src.includes("sem resposta do modelo nesta passagem"),
+    "quem foi seleccionado e nao voltou com resposta e marcado FALHOU",
+  );
+
+  // Sem contar a tentativa, "retentativas limitadas" nao teria o que
+  // limitar: o produto voltava de 15 em 15 minutos para sempre.
+  const contagens = src.match(/"numeroTentativas" = f\."numeroTentativas" \+ 1/g) ?? [];
+  check(
+    contagens.length >= 2,
+    `ambos os caminhos de fecho contam a tentativa (encontrados ${contagens.length})`,
+  );
+}
+
+console.log("");
+console.log("=== fila: FALHOU tem tecto e backoff, nao chamadas indefinidas ===");
+{
+  const filtro = corpoResidual(undefined, true);
+  const semFila = corpoResidual(undefined, false);
+
+  check(
+    !semFila.includes("EnriquecimentoFila"),
+    "sem apenasFila o SQL nao toca na fila (a varredura das 04:00 nao se restringe)",
+  );
+  check(
+    filtro.includes("EnriquecimentoFila"),
+    "com apenasFila o residual e restringido a fila",
+  );
+  check(
+    filtro.includes("f.estado = 'PENDENTE'"),
+    "PENDENTE entra sempre",
+  );
+  check(
+    filtro.includes(`f."numeroTentativas" < ${MAX_TENTATIVAS_FILA}`),
+    `FALHOU so volta abaixo do tecto de ${MAX_TENTATIVAS_FILA} tentativas`,
+  );
+  check(
+    /power\(4, f\."numeroTentativas"\)/.test(filtro),
+    "…e so depois do backoff exponencial",
+  );
+  check(
+    !filtro.includes("REVISAO_NECESSARIA"),
+    "REVISAO_NECESSARIA e TERMINAL — nunca volta a fila (repetir nao muda a resposta)",
+  );
+  check(
+    !filtro.includes("estado in ('PENDENTE', 'FALHOU')"),
+    "…e o filtro antigo sem tecto nem backoff desapareceu",
+  );
 }

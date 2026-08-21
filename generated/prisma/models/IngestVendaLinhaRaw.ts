@@ -82,6 +82,7 @@ export type IngestVendaLinhaRawMinAggregateOutputType = {
   dataVenda: Date | null
   tipoDocumento: number | null
   tipoDocumentoClass: string | null
+  naturezaVenda: string | null
   externalProductId: number | null
   produtoId: string | null
   isNonStockService: boolean | null
@@ -108,6 +109,7 @@ export type IngestVendaLinhaRawMaxAggregateOutputType = {
   dataVenda: Date | null
   tipoDocumento: number | null
   tipoDocumentoClass: string | null
+  naturezaVenda: string | null
   externalProductId: number | null
   produtoId: string | null
   isNonStockService: boolean | null
@@ -134,6 +136,7 @@ export type IngestVendaLinhaRawCountAggregateOutputType = {
   dataVenda: number
   tipoDocumento: number
   tipoDocumentoClass: number
+  naturezaVenda: number
   externalProductId: number
   produtoId: number
   isNonStockService: number
@@ -195,6 +198,7 @@ export type IngestVendaLinhaRawMinAggregateInputType = {
   dataVenda?: true
   tipoDocumento?: true
   tipoDocumentoClass?: true
+  naturezaVenda?: true
   externalProductId?: true
   produtoId?: true
   isNonStockService?: true
@@ -221,6 +225,7 @@ export type IngestVendaLinhaRawMaxAggregateInputType = {
   dataVenda?: true
   tipoDocumento?: true
   tipoDocumentoClass?: true
+  naturezaVenda?: true
   externalProductId?: true
   produtoId?: true
   isNonStockService?: true
@@ -247,6 +252,7 @@ export type IngestVendaLinhaRawCountAggregateInputType = {
   dataVenda?: true
   tipoDocumento?: true
   tipoDocumentoClass?: true
+  naturezaVenda?: true
   externalProductId?: true
   produtoId?: true
   isNonStockService?: true
@@ -361,6 +367,7 @@ export type IngestVendaLinhaRawGroupByOutputType = {
   dataVenda: Date | null
   tipoDocumento: number | null
   tipoDocumentoClass: string
+  naturezaVenda: string
   externalProductId: number
   produtoId: string | null
   isNonStockService: boolean
@@ -411,6 +418,7 @@ export type IngestVendaLinhaRawWhereInput = {
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  naturezaVenda?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
@@ -440,6 +448,7 @@ export type IngestVendaLinhaRawOrderByWithRelationInput = {
   dataVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumentoClass?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrderInput | Prisma.SortOrder
   isNonStockService?: Prisma.SortOrder
@@ -473,6 +482,7 @@ export type IngestVendaLinhaRawWhereUniqueInput = Prisma.AtLeast<{
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  naturezaVenda?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
@@ -502,6 +512,7 @@ export type IngestVendaLinhaRawOrderByWithAggregationInput = {
   dataVenda?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrderInput | Prisma.SortOrder
   tipoDocumentoClass?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrderInput | Prisma.SortOrder
   isNonStockService?: Prisma.SortOrder
@@ -537,6 +548,7 @@ export type IngestVendaLinhaRawScalarWhereWithAggregatesInput = {
   dataVenda?: Prisma.DateTimeNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | number | null
   tipoDocumentoClass?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
+  naturezaVenda?: Prisma.StringWithAggregatesFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntWithAggregatesFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableWithAggregatesFilter<"IngestVendaLinhaRaw"> | string | null
   isNonStockService?: Prisma.BoolWithAggregatesFilter<"IngestVendaLinhaRaw"> | boolean
@@ -563,6 +575,7 @@ export type IngestVendaLinhaRawCreateInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -591,6 +604,7 @@ export type IngestVendaLinhaRawUncheckedCreateInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   produtoId?: string | null
   isNonStockService?: boolean
@@ -617,6 +631,7 @@ export type IngestVendaLinhaRawUpdateInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -645,6 +660,7 @@ export type IngestVendaLinhaRawUncheckedUpdateInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -672,6 +688,7 @@ export type IngestVendaLinhaRawCreateManyInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   produtoId?: string | null
   isNonStockService?: boolean
@@ -698,6 +715,7 @@ export type IngestVendaLinhaRawUpdateManyMutationInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -724,6 +742,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -767,6 +786,7 @@ export type IngestVendaLinhaRawCountOrderByAggregateInput = {
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
   tipoDocumentoClass?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   isNonStockService?: Prisma.SortOrder
@@ -810,6 +830,7 @@ export type IngestVendaLinhaRawMaxOrderByAggregateInput = {
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
   tipoDocumentoClass?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   isNonStockService?: Prisma.SortOrder
@@ -836,6 +857,7 @@ export type IngestVendaLinhaRawMinOrderByAggregateInput = {
   dataVenda?: Prisma.SortOrder
   tipoDocumento?: Prisma.SortOrder
   tipoDocumentoClass?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   produtoId?: Prisma.SortOrder
   isNonStockService?: Prisma.SortOrder
@@ -961,6 +983,7 @@ export type IngestVendaLinhaRawCreateWithoutProdutoInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -988,6 +1011,7 @@ export type IngestVendaLinhaRawUncheckedCreateWithoutProdutoInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1043,6 +1067,7 @@ export type IngestVendaLinhaRawScalarWhereInput = {
   dataVenda?: Prisma.DateTimeNullableFilter<"IngestVendaLinhaRaw"> | Date | string | null
   tipoDocumento?: Prisma.IntNullableFilter<"IngestVendaLinhaRaw"> | number | null
   tipoDocumentoClass?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
+  naturezaVenda?: Prisma.StringFilter<"IngestVendaLinhaRaw"> | string
   externalProductId?: Prisma.IntFilter<"IngestVendaLinhaRaw"> | number
   produtoId?: Prisma.StringNullableFilter<"IngestVendaLinhaRaw"> | string | null
   isNonStockService?: Prisma.BoolFilter<"IngestVendaLinhaRaw"> | boolean
@@ -1069,6 +1094,7 @@ export type IngestVendaLinhaRawCreateWithoutFarmaciaInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1095,6 +1121,7 @@ export type IngestVendaLinhaRawUncheckedCreateWithoutFarmaciaInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   produtoId?: string | null
   isNonStockService?: boolean
@@ -1148,6 +1175,7 @@ export type IngestVendaLinhaRawCreateManyProdutoInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   isNonStockService?: boolean
   quantidade?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1173,6 +1201,7 @@ export type IngestVendaLinhaRawUpdateWithoutProdutoInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1200,6 +1229,7 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutProdutoInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1226,6 +1256,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutProdutoInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1251,6 +1282,7 @@ export type IngestVendaLinhaRawCreateManyFarmaciaInput = {
   dataVenda?: Date | string | null
   tipoDocumento?: number | null
   tipoDocumentoClass: string
+  naturezaVenda?: string
   externalProductId: number
   produtoId?: string | null
   isNonStockService?: boolean
@@ -1277,6 +1309,7 @@ export type IngestVendaLinhaRawUpdateWithoutFarmaciaInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
   quantidade?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
@@ -1303,6 +1336,7 @@ export type IngestVendaLinhaRawUncheckedUpdateWithoutFarmaciaInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1329,6 +1363,7 @@ export type IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaInput = {
   dataVenda?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   tipoDocumento?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   tipoDocumentoClass?: Prisma.StringFieldUpdateOperationsInput | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   externalProductId?: Prisma.IntFieldUpdateOperationsInput | number
   produtoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   isNonStockService?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1358,6 +1393,7 @@ export type IngestVendaLinhaRawSelect<ExtArgs extends runtime.Types.Extensions.I
   dataVenda?: boolean
   tipoDocumento?: boolean
   tipoDocumentoClass?: boolean
+  naturezaVenda?: boolean
   externalProductId?: boolean
   produtoId?: boolean
   isNonStockService?: boolean
@@ -1387,6 +1423,7 @@ export type IngestVendaLinhaRawSelectCreateManyAndReturn<ExtArgs extends runtime
   dataVenda?: boolean
   tipoDocumento?: boolean
   tipoDocumentoClass?: boolean
+  naturezaVenda?: boolean
   externalProductId?: boolean
   produtoId?: boolean
   isNonStockService?: boolean
@@ -1416,6 +1453,7 @@ export type IngestVendaLinhaRawSelectUpdateManyAndReturn<ExtArgs extends runtime
   dataVenda?: boolean
   tipoDocumento?: boolean
   tipoDocumentoClass?: boolean
+  naturezaVenda?: boolean
   externalProductId?: boolean
   produtoId?: boolean
   isNonStockService?: boolean
@@ -1445,6 +1483,7 @@ export type IngestVendaLinhaRawSelectScalar = {
   dataVenda?: boolean
   tipoDocumento?: boolean
   tipoDocumentoClass?: boolean
+  naturezaVenda?: boolean
   externalProductId?: boolean
   produtoId?: boolean
   isNonStockService?: boolean
@@ -1460,7 +1499,7 @@ export type IngestVendaLinhaRawSelectScalar = {
   importedAt?: boolean
 }
 
-export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "sourceNamespace" | "externalSaleId" | "externalSaleLineId" | "serie" | "documento" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "externalProductId" | "produtoId" | "isNonStockService" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
+export type IngestVendaLinhaRawOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "sourceNamespace" | "externalSaleId" | "externalSaleLineId" | "serie" | "documento" | "sequencia" | "dataVenda" | "tipoDocumento" | "tipoDocumentoClass" | "naturezaVenda" | "externalProductId" | "produtoId" | "isNonStockService" | "quantidade" | "pvpUnitario" | "valorLinha" | "ivaValor" | "descontoValor" | "comparticipacao1" | "comparticipacao2" | "entidadeId" | "rawJson" | "importedAt", ExtArgs["result"]["ingestVendaLinhaRaw"]>
 export type IngestVendaLinhaRawInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.IngestVendaLinhaRaw$produtoArgs<ExtArgs>
@@ -1525,6 +1564,18 @@ export type $IngestVendaLinhaRawPayload<ExtArgs extends runtime.Types.Extensions
      * Valores conhecidos: "VENDA", "DEVOLUCAO_ANULACAO", "UNKNOWN".
      */
     tipoDocumentoClass: string
+    /**
+     * O que a linha É: "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+     * 
+     * Dimensão ORTOGONAL a `tipoDocumentoClass`, que diz se soma ou
+     * subtrai. Uma devolução de venda a crédito é DEVOLUCAO_ANULACAO +
+     * CREDITO; numa coluna só, nenhuma das duas perguntas teria resposta.
+     * 
+     * O relatório oficial do SPharm tem dois interruptores — incluir
+     * vendas a crédito, incluir guias de transferência. Um total já
+     * somado não se desliga, por isso a natureza sobrevive até ao UI.
+     */
+    naturezaVenda: string
     /**
      * Softreis: CodigoID. Sempre presente.
      */
@@ -1994,6 +2045,7 @@ export interface IngestVendaLinhaRawFieldRefs {
   readonly dataVenda: Prisma.FieldRef<"IngestVendaLinhaRaw", 'DateTime'>
   readonly tipoDocumento: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
   readonly tipoDocumentoClass: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
+  readonly naturezaVenda: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly externalProductId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Int'>
   readonly produtoId: Prisma.FieldRef<"IngestVendaLinhaRaw", 'String'>
   readonly isNonStockService: Prisma.FieldRef<"IngestVendaLinhaRaw", 'Boolean'>

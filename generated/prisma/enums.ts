@@ -185,7 +185,8 @@ export const EnriquecimentoEstado = {
   EM_PROCESSAMENTO: 'EM_PROCESSAMENTO',
   SUCESSO: 'SUCESSO',
   SUCESSO_PARCIAL: 'SUCESSO_PARCIAL',
-  FALHOU: 'FALHOU'
+  FALHOU: 'FALHOU',
+  REVISAO_NECESSARIA: 'REVISAO_NECESSARIA'
 } as const
 
 export type EnriquecimentoEstado = (typeof EnriquecimentoEstado)[keyof typeof EnriquecimentoEstado]

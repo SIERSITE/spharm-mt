@@ -85,6 +85,7 @@ export type VendaMensalMinAggregateOutputType = {
   atendimentos: number | null
   origemAgregacao: string | null
   createdAt: Date | null
+  naturezaVenda: string | null
 }
 
 export type VendaMensalMaxAggregateOutputType = {
@@ -107,6 +108,7 @@ export type VendaMensalMaxAggregateOutputType = {
   atendimentos: number | null
   origemAgregacao: string | null
   createdAt: Date | null
+  naturezaVenda: string | null
 }
 
 export type VendaMensalCountAggregateOutputType = {
@@ -129,6 +131,7 @@ export type VendaMensalCountAggregateOutputType = {
   atendimentos: number
   origemAgregacao: number
   createdAt: number
+  naturezaVenda: number
   _all: number
 }
 
@@ -179,6 +182,7 @@ export type VendaMensalMinAggregateInputType = {
   atendimentos?: true
   origemAgregacao?: true
   createdAt?: true
+  naturezaVenda?: true
 }
 
 export type VendaMensalMaxAggregateInputType = {
@@ -201,6 +205,7 @@ export type VendaMensalMaxAggregateInputType = {
   atendimentos?: true
   origemAgregacao?: true
   createdAt?: true
+  naturezaVenda?: true
 }
 
 export type VendaMensalCountAggregateInputType = {
@@ -223,6 +228,7 @@ export type VendaMensalCountAggregateInputType = {
   atendimentos?: true
   origemAgregacao?: true
   createdAt?: true
+  naturezaVenda?: true
   _all?: true
 }
 
@@ -332,6 +338,7 @@ export type VendaMensalGroupByOutputType = {
   atendimentos: number | null
   origemAgregacao: string | null
   createdAt: Date
+  naturezaVenda: string
   _count: VendaMensalCountAggregateOutputType | null
   _avg: VendaMensalAvgAggregateOutputType | null
   _sum: VendaMensalSumAggregateOutputType | null
@@ -377,6 +384,7 @@ export type VendaMensalWhereInput = {
   atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
   origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
   createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
+  naturezaVenda?: Prisma.StringFilter<"VendaMensal"> | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
@@ -402,6 +410,7 @@ export type VendaMensalOrderByWithRelationInput = {
   atendimentos?: Prisma.SortOrderInput | Prisma.SortOrder
   origemAgregacao?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
   loteIngestao?: Prisma.LoteIngestaoOrderByWithRelationInput
@@ -409,7 +418,7 @@ export type VendaMensalOrderByWithRelationInput = {
 
 export type VendaMensalWhereUniqueInput = Prisma.AtLeast<{
   id?: string
-  farmaciaId_produtoId_ano_mes?: Prisma.VendaMensalFarmaciaIdProdutoIdAnoMesCompoundUniqueInput
+  farmaciaId_produtoId_ano_mes_naturezaVenda?: Prisma.VendaMensalFarmaciaIdProdutoIdAnoMesNaturezaVendaCompoundUniqueInput
   AND?: Prisma.VendaMensalWhereInput | Prisma.VendaMensalWhereInput[]
   OR?: Prisma.VendaMensalWhereInput[]
   NOT?: Prisma.VendaMensalWhereInput | Prisma.VendaMensalWhereInput[]
@@ -431,10 +440,11 @@ export type VendaMensalWhereUniqueInput = Prisma.AtLeast<{
   atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
   origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
   createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
+  naturezaVenda?: Prisma.StringFilter<"VendaMensal"> | string
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   loteIngestao?: Prisma.XOR<Prisma.LoteIngestaoNullableScalarRelationFilter, Prisma.LoteIngestaoWhereInput> | null
-}, "id" | "farmaciaId_produtoId_ano_mes">
+}, "id" | "farmaciaId_produtoId_ano_mes_naturezaVenda">
 
 export type VendaMensalOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -456,6 +466,7 @@ export type VendaMensalOrderByWithAggregationInput = {
   atendimentos?: Prisma.SortOrderInput | Prisma.SortOrder
   origemAgregacao?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
   _count?: Prisma.VendaMensalCountOrderByAggregateInput
   _avg?: Prisma.VendaMensalAvgOrderByAggregateInput
   _max?: Prisma.VendaMensalMaxOrderByAggregateInput
@@ -486,6 +497,7 @@ export type VendaMensalScalarWhereWithAggregatesInput = {
   atendimentos?: Prisma.IntNullableWithAggregatesFilter<"VendaMensal"> | number | null
   origemAgregacao?: Prisma.StringNullableWithAggregatesFilter<"VendaMensal"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"VendaMensal"> | Date | string
+  naturezaVenda?: Prisma.StringWithAggregatesFilter<"VendaMensal"> | string
 }
 
 export type VendaMensalCreateInput = {
@@ -505,6 +517,7 @@ export type VendaMensalCreateInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
@@ -530,6 +543,7 @@ export type VendaMensalUncheckedCreateInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalUpdateInput = {
@@ -549,6 +563,7 @@ export type VendaMensalUpdateInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
@@ -574,6 +589,7 @@ export type VendaMensalUncheckedUpdateInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalCreateManyInput = {
@@ -596,6 +612,7 @@ export type VendaMensalCreateManyInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalUpdateManyMutationInput = {
@@ -615,6 +632,7 @@ export type VendaMensalUpdateManyMutationInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalUncheckedUpdateManyInput = {
@@ -637,6 +655,7 @@ export type VendaMensalUncheckedUpdateManyInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalListRelationFilter = {
@@ -649,11 +668,12 @@ export type VendaMensalOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type VendaMensalFarmaciaIdProdutoIdAnoMesCompoundUniqueInput = {
+export type VendaMensalFarmaciaIdProdutoIdAnoMesNaturezaVendaCompoundUniqueInput = {
   farmaciaId: string
   produtoId: string
   ano: number
   mes: number
+  naturezaVenda: string
 }
 
 export type VendaMensalCountOrderByAggregateInput = {
@@ -676,6 +696,7 @@ export type VendaMensalCountOrderByAggregateInput = {
   atendimentos?: Prisma.SortOrder
   origemAgregacao?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
 }
 
 export type VendaMensalAvgOrderByAggregateInput = {
@@ -711,6 +732,7 @@ export type VendaMensalMaxOrderByAggregateInput = {
   atendimentos?: Prisma.SortOrder
   origemAgregacao?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
 }
 
 export type VendaMensalMinOrderByAggregateInput = {
@@ -733,6 +755,7 @@ export type VendaMensalMinOrderByAggregateInput = {
   atendimentos?: Prisma.SortOrder
   origemAgregacao?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  naturezaVenda?: Prisma.SortOrder
 }
 
 export type VendaMensalSumOrderByAggregateInput = {
@@ -891,6 +914,7 @@ export type VendaMensalCreateWithoutProdutoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -914,6 +938,7 @@ export type VendaMensalUncheckedCreateWithoutProdutoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalCreateOrConnectWithoutProdutoInput = {
@@ -965,6 +990,7 @@ export type VendaMensalScalarWhereInput = {
   atendimentos?: Prisma.IntNullableFilter<"VendaMensal"> | number | null
   origemAgregacao?: Prisma.StringNullableFilter<"VendaMensal"> | string | null
   createdAt?: Prisma.DateTimeFilter<"VendaMensal"> | Date | string
+  naturezaVenda?: Prisma.StringFilter<"VendaMensal"> | string
 }
 
 export type VendaMensalCreateWithoutFarmaciaInput = {
@@ -984,6 +1010,7 @@ export type VendaMensalCreateWithoutFarmaciaInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
   loteIngestao?: Prisma.LoteIngestaoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -1007,6 +1034,7 @@ export type VendaMensalUncheckedCreateWithoutFarmaciaInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalCreateOrConnectWithoutFarmaciaInput = {
@@ -1052,6 +1080,7 @@ export type VendaMensalCreateWithoutLoteIngestaoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendasMensaisInput
   produto: Prisma.ProdutoCreateNestedOneWithoutVendasMensaisInput
 }
@@ -1075,6 +1104,7 @@ export type VendaMensalUncheckedCreateWithoutLoteIngestaoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalCreateOrConnectWithoutLoteIngestaoInput = {
@@ -1122,6 +1152,7 @@ export type VendaMensalCreateManyProdutoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalUpdateWithoutProdutoInput = {
@@ -1141,6 +1172,7 @@ export type VendaMensalUpdateWithoutProdutoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
 }
@@ -1164,6 +1196,7 @@ export type VendaMensalUncheckedUpdateWithoutProdutoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutProdutoInput = {
@@ -1185,6 +1218,7 @@ export type VendaMensalUncheckedUpdateManyWithoutProdutoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalCreateManyFarmaciaInput = {
@@ -1206,6 +1240,7 @@ export type VendaMensalCreateManyFarmaciaInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalUpdateWithoutFarmaciaInput = {
@@ -1225,6 +1260,7 @@ export type VendaMensalUpdateWithoutFarmaciaInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
   loteIngestao?: Prisma.LoteIngestaoUpdateOneWithoutVendasMensaisNestedInput
 }
@@ -1248,6 +1284,7 @@ export type VendaMensalUncheckedUpdateWithoutFarmaciaInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutFarmaciaInput = {
@@ -1269,6 +1306,7 @@ export type VendaMensalUncheckedUpdateManyWithoutFarmaciaInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalCreateManyLoteIngestaoInput = {
@@ -1290,6 +1328,7 @@ export type VendaMensalCreateManyLoteIngestaoInput = {
   atendimentos?: number | null
   origemAgregacao?: string | null
   createdAt?: Date | string
+  naturezaVenda?: string
 }
 
 export type VendaMensalUpdateWithoutLoteIngestaoInput = {
@@ -1309,6 +1348,7 @@ export type VendaMensalUpdateWithoutLoteIngestaoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutVendasMensaisNestedInput
 }
@@ -1332,6 +1372,7 @@ export type VendaMensalUncheckedUpdateWithoutLoteIngestaoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 export type VendaMensalUncheckedUpdateManyWithoutLoteIngestaoInput = {
@@ -1353,6 +1394,7 @@ export type VendaMensalUncheckedUpdateManyWithoutLoteIngestaoInput = {
   atendimentos?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   origemAgregacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  naturezaVenda?: Prisma.StringFieldUpdateOperationsInput | string
 }
 
 
@@ -1377,6 +1419,7 @@ export type VendaMensalSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   atendimentos?: boolean
   origemAgregacao?: boolean
   createdAt?: boolean
+  naturezaVenda?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1402,6 +1445,7 @@ export type VendaMensalSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   atendimentos?: boolean
   origemAgregacao?: boolean
   createdAt?: boolean
+  naturezaVenda?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1427,6 +1471,7 @@ export type VendaMensalSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   atendimentos?: boolean
   origemAgregacao?: boolean
   createdAt?: boolean
+  naturezaVenda?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   loteIngestao?: boolean | Prisma.VendaMensal$loteIngestaoArgs<ExtArgs>
@@ -1452,9 +1497,10 @@ export type VendaMensalSelectScalar = {
   atendimentos?: boolean
   origemAgregacao?: boolean
   createdAt?: boolean
+  naturezaVenda?: boolean
 }
 
-export type VendaMensalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "ano" | "mes" | "quantidade" | "valorTotal" | "mesCompleto" | "origemBootstrap" | "dataAtualizacao" | "loteIngestaoId" | "quantidadeLiquida" | "valorBruto" | "valorPagoUtente" | "valorComparticipado" | "linhasVenda" | "atendimentos" | "origemAgregacao" | "createdAt", ExtArgs["result"]["vendaMensal"]>
+export type VendaMensalOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "produtoId" | "ano" | "mes" | "quantidade" | "valorTotal" | "mesCompleto" | "origemBootstrap" | "dataAtualizacao" | "loteIngestaoId" | "quantidadeLiquida" | "valorBruto" | "valorPagoUtente" | "valorComparticipado" | "linhasVenda" | "atendimentos" | "origemAgregacao" | "createdAt" | "naturezaVenda", ExtArgs["result"]["vendaMensal"]>
 export type VendaMensalInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1523,6 +1569,19 @@ export type $VendaMensalPayload<ExtArgs extends runtime.Types.Extensions.Interna
      * Timestamp da primeira escrita do row (separa criação de actualização).
      */
     createdAt: Date
+    /**
+     * A natureza da venda: "NORMAL" | "CREDITO" | "TRANSFERENCIA".
+     * 
+     * FAZ PARTE DA CHAVE. Sem isto, ligar e desligar as vendas a crédito
+     * no mapa obrigava a reprocessar o histórico — e o relatório oficial
+     * do SPharm alterna esses interruptores à vontade.
+     * 
+     * As linhas que já existiam são todas NORMAL, e isso não é uma
+     * suposição: os readers de crédito e transferência ainda não existem,
+     * portanto nada do que está gravado pode ter outra natureza. O default
+     * preserva o histórico inteiro sem reprocessamento.
+     */
+    naturezaVenda: string
   }, ExtArgs["result"]["vendaMensal"]>
   composites: {}
 }
@@ -1968,6 +2027,7 @@ export interface VendaMensalFieldRefs {
   readonly atendimentos: Prisma.FieldRef<"VendaMensal", 'Int'>
   readonly origemAgregacao: Prisma.FieldRef<"VendaMensal", 'String'>
   readonly createdAt: Prisma.FieldRef<"VendaMensal", 'DateTime'>
+  readonly naturezaVenda: Prisma.FieldRef<"VendaMensal", 'String'>
 }
     
 

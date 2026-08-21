@@ -578,7 +578,8 @@ export const VendaMensalScalarFieldEnum = {
   linhasVenda: 'linhasVenda',
   atendimentos: 'atendimentos',
   origemAgregacao: 'origemAgregacao',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  naturezaVenda: 'naturezaVenda'
 } as const
 
 export type VendaMensalScalarFieldEnum = (typeof VendaMensalScalarFieldEnum)[keyof typeof VendaMensalScalarFieldEnum]
@@ -797,6 +798,7 @@ export const IngestVendaLinhaRawScalarFieldEnum = {
   dataVenda: 'dataVenda',
   tipoDocumento: 'tipoDocumento',
   tipoDocumentoClass: 'tipoDocumentoClass',
+  naturezaVenda: 'naturezaVenda',
   externalProductId: 'externalProductId',
   produtoId: 'produtoId',
   isNonStockService: 'isNonStockService',
@@ -1034,6 +1036,11 @@ export const KnowledgeEnrichmentCacheScalarFieldEnum = {
   confidence: 'confidence',
   evidenceType: 'evidenceType',
   rationale: 'rationale',
+  dci: 'dci',
+  codigoATC: 'codigoATC',
+  dosagem: 'dosagem',
+  embalagem: 'embalagem',
+  confidenceClinica: 'confidenceClinica',
   persistido: 'persistido',
   motivo: 'motivo',
   origem: 'origem',
