@@ -112,7 +112,17 @@ async function main(): Promise<void> {
 
   tabela("por origem real — classificações:", r.porOrigemClassificacao);
   tabela("por origem real — utilizações:", r.porOrigemUtilizacao);
-  tabela("porque foram recusadas classificações:", r.motivosClassificacao);
+  // NÃO é "porque foram recusadas", como já se leu aqui. O contador
+  // `motivosClassificacao` regista o motivo de CADA decisão, promoções
+  // incluídas — e as promoções vêm com motivos afirmativos ("cnp ainda
+  // não conhecido globalmente", "mesma origem, confiança superior").
+  // Sob o rótulo antigo, a linha mais visível de uma promoção bem
+  // sucedida aparecia na lista das recusas, e os números não fechavam
+  // com o total de recusas impresso três linhas acima.
+  //
+  // O de utilizações é mesmo só recusas — esse conta dentro do laço
+  // das recusadas. Rótulos diferentes porque as coisas são diferentes.
+  tabela("motivo de cada decisão — classificações (promoções incluídas):", r.motivosClassificacao);
   tabela("porque foram recusadas utilizações:", r.motivosUtilizacao);
 
   if (r.aguardamAprovacao > 0) {

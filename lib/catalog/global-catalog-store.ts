@@ -117,7 +117,16 @@ export type ResultadoPromocao = {
   /** Distribuição por origem REAL, das que subiram. */
   porOrigemClassificacao: Record<string, number>;
   porOrigemUtilizacao: Record<string, number>;
+  /**
+   * Motivo de CADA decisão de classificação — promoções incluídas.
+   *
+   * Não é a distribuição das recusas: uma promoção também tem motivo
+   * ("cnp ainda não conhecido globalmente"), e é contado aqui. Quem
+   * imprimir isto sob o rótulo de "recusas" mostra números que não
+   * fecham com `recusasClassificacao`.
+   */
   motivosClassificacao: Record<string, number>;
+  /** Só recusas — contado dentro do laço das utilizações recusadas. */
   motivosUtilizacao: Record<string, number>;
 };
 
