@@ -63,6 +63,7 @@ import {
 } from "../../scripts/tenancy/_shared";
 import { issueIngestKey } from "./ingest-key";
 import { seedUtilizacoes } from "@/lib/catalog/utilizacoes-ciclo";
+import { seedTaxonomia } from "@/lib/catalog/taxonomia-seed";
 
 export type Reporter = {
   step: (name: string) => void;
@@ -381,7 +382,40 @@ export async function createClient(input: CreateClientInput): Promise<CreateClie
         farmaciasCreated.push({ nome: f.nome, id: f.id });
       }
 
-      // ── Step 8b: vocabulário de utilizações ──────────────────────
+      // ── Step 8b: taxonomia canónica ──────────────────────────────
+      //
+      // Pelo mesmo motivo do passo seguinte, e com mais consequências.
+      // Sem `Classificacao` na base do tenant, a projecção do catálogo
+      // global não tem onde pousar a categoria que já conhece: conta
+      // `semVocabulario` e segue em frente. O produto nasce com
+      // `productType` e utilizações, e sem N1/N2.
+      //
+      // E falha calada. O resumo da importação devolve
+      // `classificacoesProjectadas: 0`, que é indistinguível de "não
+      // havia nada para projectar". Medido no tenant `sier`: 3 CNPs
+      // conhecidos do global, 6 utilizações projectadas, 0
+      // classificações — sem uma linha de erro em lado nenhum.
+      //
+      // Não aborta a criação, pela mesma razão que o seed seguinte não
+      // aborta: o `catalog:seed-taxonomy` repõe, e o passo fica
+      // registado como falhado.
+      result.step = "seed-taxonomia";
+      reporter.step("seed-taxonomia");
+      try {
+        const t = await seedTaxonomia(tenantDb);
+        reporter.info(
+          `taxonomia: ${t.nivel1Criados} N1 + ${t.nivel2Criados} N2 criados` +
+            (t.inativas.length ? ` · ${t.inativas.length} canónicas INACTIVAS (não tocadas)` : ""),
+        );
+      } catch (err) {
+        console.warn(
+          `[create-client] seed-taxonomia falhou para ${input.slug}: ${
+            err instanceof Error ? err.message : String(err)
+          } — correr catalog:seed-taxonomy --tenant=${input.slug} --apply.`,
+        );
+      }
+
+      // ── Step 8c: vocabulário de utilizações ──────────────────────
       //
       // Aqui e não no job: um tenant criado pelo Wizard tem de sair
       // completo. Se o vocabulário só chegasse na passagem seguinte do
