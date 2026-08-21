@@ -237,6 +237,11 @@ case "$mode" in
     drop_admin_credentials
     # Sem aprovisionamento: o worker nao expoe API e nao cria clientes.
     unset POSTGRES_PROVISIONER_PASSWORD
+    # Sem credencial do modelo: o worker DISPARA o job de enriquecimento
+    # por HTTP, mas quem chama a API e o `web`. Uma chave que este
+    # processo nunca usa e uma chave a mais na memoria de um processo a
+    # mais — e o custo de a tirar e uma linha.
+    unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
     ensure_db_urls
     log "a arrancar o worker (SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-0})"
     exec node scripts/workers/scheduler.mjs "$@"

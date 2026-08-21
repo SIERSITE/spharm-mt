@@ -299,6 +299,26 @@ test_scheduler() {
   refute "nota final NÃO afirma SCHEDULER_ENABLED=0 às cegas" \
     grep -q 'O scheduler está DESLIGADO (SCHEDULER_ENABLED=0)' "$inst"
 
+  # ── Credencial do modelo ─────────────────────────────────────────────
+  # A chave vive no mecanismo de segredos e é entregue APENAS ao serviço
+  # que a usa. O job de enriquecimento corre dentro do `web`; o worker só
+  # dispara o pedido HTTP e não precisa dela.
+  local entry="${DOCKER_DIR}/entrypoint.sh"
+  assert "a chave do modelo entra pelo ficheiro de segredos" \
+    grep -q "printf 'ANTHROPIC_API_KEY=%s" "$inst"
+  assert "…e é opcional (a plataforma instala sem ela)" \
+    grep -q 'sem ANTHROPIC_API_KEY' "$inst"
+  refute "a chave NÃO é escrita no platform.env (que é configuração, não segredo)" \
+    grep -q '^ANTHROPIC_API_KEY=' "${SCRIPTS_DIR}/install-platform.sh"
+  if [ -f "$entry" ]; then
+    assert "o worker descarta a chave do modelo no arranque" \
+      grep -q 'unset ANTHROPIC_API_KEY' "$entry"
+  fi
+  # Um segredo em variável de ambiente do host apareceria em
+  # `docker compose config` e no `ps` de quem estivesse a ver.
+  refute "a chave NÃO passa pelo compose como variável" \
+    grep -q 'ANTHROPIC' "$COMPOSE"
+
   # ── Guarda do refresh-ipf ────────────────────────────────────────────
   # Sem a guarda, o disparo seguinte do refresh-ipf mudava de
   # comportamento sozinho e passava a escrever nas bases dos tenants em

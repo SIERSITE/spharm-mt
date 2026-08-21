@@ -583,9 +583,35 @@ derive_secrets() {
     # feita pela API — que corre no `web`. O entrypoint descarta-a no
     # worker: só o web precisa dela.
     printf 'POSTGRES_PROVISIONER_PASSWORD=%s\n' "$POSTGRES_PROVISIONER_PASSWORD"
+    # ── Credencial da API do modelo ────────────────────────────────────
+    #
+    # OPCIONAL. Sem ela a plataforma funciona inteira; o que não corre é
+    # o enriquecimento de catálogo — e não corre com um erro explícito de
+    # infraestrutura, em vez de queimar as tentativas dos produtos (ver
+    # `credencialConfigurada` em lib/catalog/knowledge-enrichment.ts).
+    #
+    # Vai para o app.secrets.env e NÃO para o platform.env: o platform.env
+    # é configuração legível e versionável em espírito, esta é uma
+    # credencial. Aqui fica a 0600 root:root como as outras, e nunca
+    # aparece num `docker compose config` porque não passa por variável
+    # de ambiente do host — é lida do ficheiro de segredos da plataforma.
+    #
+    # O DESTINO É O `web`, e só ele. O job /api/jobs/enrich-catalog corre
+    # dentro da aplicação; o worker limita-se a disparar o pedido HTTP e
+    # não precisa da chave. O entrypoint descarta-a no arranque do
+    # worker, exactamente como já faz à POSTGRES_PROVISIONER_PASSWORD.
+    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+      printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
+    fi
   } >> "$app_file"
   chmod 0600 "$app_file"; chown root:root "$app_file"
-  ok "app.secrets.env (7 chaves, 0600 root:root)"
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    ok "app.secrets.env (8 chaves, 0600 root:root) — inclui a credencial do modelo"
+  else
+    ok "app.secrets.env (7 chaves, 0600 root:root)"
+    info "sem ANTHROPIC_API_KEY — o enriquecimento de catálogo fica indisponível"
+    info "  para activar: acrescentar ANTHROPIC_API_KEY a ${SPHARMMT_SECRETS_FILE}"
+  fi
 
   enforce_secret_file_modes
 }

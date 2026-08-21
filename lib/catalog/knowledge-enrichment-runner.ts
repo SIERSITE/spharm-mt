@@ -48,6 +48,9 @@ import {
   type Decisao,
   type KnowledgeResult,
   type ProdutoResidual,
+  FalhaInfraestrutura,
+  classificarFalhaInfra,
+  credencialConfigurada,
 } from "./knowledge-enrichment";
 import {
   FATOR_CONFIANCA_PROPAGADA,
@@ -298,6 +301,15 @@ export type RunnerResumo = {
   promovidosAoGlobal: number;
   /** Problemas não fatais (ex.: control plane inacessível). */
   avisos: string[];
+  /**
+   * A corrida parou por causa da INFRAESTRUTURA, não do catálogo.
+   *
+   * Enquanto isto estiver preenchido, a fila não é tocada: nem estados,
+   * nem `numeroTentativas`. Uma noite sem saldo não pode consumir as
+   * cinco tentativas de milhares de produtos que nunca chegaram a ser
+   * perguntados.
+   */
+  falhaInfraestrutura: { categoria: string; mensagem: string } | null;
   /** Não foram ao modelo: subcategoria sem utilização plausível. */
   excluidosBaixaCobertura: number;
   /** Não foram ao modelo: designação sem conteúdo reconhecível. */
@@ -545,6 +557,32 @@ export async function runKnowledgeEnrichment(
     verificarUtilizacoes?: typeof verificarUtilizacoesLote;
   } = {},
 ): Promise<RunnerResumo> {
+  // ── CREDENCIAL: antes de olhar sequer para a fila ──────────────────
+  //
+  // Verificada AQUI, e não à primeira chamada. A diferença é onde o erro
+  // aparece: à primeira chamada, o lote já foi seleccionado e o caminho
+  // de fecho da fila já está à espera com um `numeroTentativas + 1` para
+  // cada produto. Uma instalação sem chave marcaria FALHOU em tudo o que
+  // tocou, e ao fim de cinco passagens do scheduler o catálogo inteiro
+  // estava fora da fila sem uma única pergunta ter sido feita.
+  //
+  // Em dry-run não se exige: uma simulação que não escreve também não
+  // paga, e recusar aqui impedia medir o residual numa máquina sem
+  // credencial.
+  //
+  // Também não se exige quando quem chama INJECTA o modelo (`classificar`
+  // / `verificar`). Nesse caso o cliente do SDK nunca é instanciado — é
+  // o que os testes fazem — e pedir uma credencial que ninguém vai usar
+  // seria exigir um segredo para correr uma simulação.
+  const usaClienteProprio = !opts.classificar && !opts.verificar;
+  if (!(opts.dryRun ?? false) && usaClienteProprio && !credencialConfigurada()) {
+    throw new FalhaInfraestrutura(
+      "CREDENCIAL_AUSENTE",
+      "sem ANTHROPIC_API_KEY nem ANTHROPIC_AUTH_TOKEN no ambiente deste processo. " +
+        "A fila NÃO foi tocada — nenhum produto gastou tentativa.",
+    );
+  }
+
   const dryRun = opts.dryRun ?? false;
   const classificar = opts.classificar ?? classificarLote;
   const verificar = opts.verificar ?? verificarLote;
@@ -574,6 +612,7 @@ export async function runKnowledgeEnrichment(
     jaConhecidosGlobal: 0,
     promovidosAoGlobal: 0,
     avisos: [],
+    falhaInfraestrutura: null,
     excluidosBaixaCobertura: 0,
     excluidosOpacos: 0,
     familiasPropagaveis: 0,
@@ -1293,9 +1332,22 @@ export async function runKnowledgeEnrichment(
         resumo.cortadoPorTecto = true;
         return;
       }
+      // Uma falha de infraestrutura pára TODOS os trabalhadores, e não só
+      // aquele que a apanhou. Continuar seria repetir a mesma falha por
+      // cada lote restante — e, pior, dar-lhe a aparência de muitas
+      // falhas independentes em vez de uma só, que é a conta.
+      if (resumo.falhaInfraestrutura) return;
       const i = proximo++;
       if (i >= lotes.length) return;
-      await processarLote(lotes[i]!);
+      try {
+        await processarLote(lotes[i]!);
+      } catch (err) {
+        const infra = classificarFalhaInfra(err);
+        if (!infra) throw err;
+        resumo.falhaInfraestrutura = { categoria: infra.categoria, mensagem: infra.message };
+        resumo.avisos.push(`corrida interrompida — ${infra.categoria}: ${infra.message}`);
+        return;
+      }
     }
   };
   await Promise.all(Array.from({ length: nTrabalhadores }, () => trabalhador()));
@@ -1319,7 +1371,17 @@ export async function runKnowledgeEnrichment(
   //   FALHOU              foi seleccionado e não voltou com resposta
   //                       nenhuma — falha técnica. Retentável com
   //                       backoff, até MAX_TENTATIVAS_FILA.
-  if (!dryRun) {
+  if (!dryRun && resumo.falhaInfraestrutura) {
+    // O ponto todo desta mudança. A fila fica exactamente como estava:
+    // os produtos continuam PENDENTE, com o mesmo `numeroTentativas`, e
+    // a passagem seguinte do scheduler volta a apanhá-los. Não é uma
+    // omissão — é a decisão.
+    resumo.avisos.push(
+      "fila NÃO alterada: a falha foi de infraestrutura " +
+        `(${resumo.falhaInfraestrutura.categoria}) e não dos produtos. ` +
+        "Nenhum produto gastou tentativa.",
+    );
+  } else if (!dryRun) {
     const cnpsVistos = residual.map((l) => Number(l.cnp) | 0);
     try {
       // 1+2. Quem tem linha na cache desta versão sai da fila, e o
