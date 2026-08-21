@@ -2,10 +2,10 @@
 /**
  * scripts/workers/scheduler.mjs
  *
- * Scheduler local — substitui o Vercel Cron num alojamento self-hosted.
+ * Scheduler da plataforma — o ÚNICO agendador de produção.
  *
- * Não corre lógica de negócio nenhuma: dispara os MESMOS endpoints
- * `/api/jobs/*` que o Vercel Cron dispararia, com o mesmo `CRON_SECRET`.
+ * Não corre lógica de negócio nenhuma: dispara os endpoints
+ * `/api/jobs/*` da própria aplicação, autenticados por `CRON_SECRET`.
  * É essa a razão de ser desta forma — o lock, o ledger `SyncRun`, a
  * iteração por tenant e o tratamento de erros vivem todos nos handlers,
  * e existe uma só implementação para manter correcta em vez de duas.
@@ -47,9 +47,10 @@ import { writeFile } from "node:fs/promises";
 // Plano
 // ─────────────────────────────────────────────────────────────────────
 //
-// Espelha `vercel.json`. Os dois têm de ser mudados em conjunto — em
-// Vercel o plano é o `vercel.json`, aqui é esta tabela, e divergirem
-// significa que um cliente tem um comportamento que o outro não tem.
+// Esta tabela é o plano de produção, e é a única. O `vercel.json` na
+// raiz do repositório é LEGADO de um alojamento abandonado: não é lido
+// por nada nesta infraestrutura e não deve ser usado como referência.
+// Alterar o agendamento faz-se aqui.
 //
 // Horas em UTC. A ordem é a das dependências: o refresh do read-model
 // primeiro, o enriquecimento depois, a aquisição regulamentar por fim.
@@ -81,11 +82,7 @@ const JOBS = [
   //
   // A varredura das 04:00 continua a ser a rede de segurança: apanha o
   // que ficou PENDENTE ou FALHOU e o que nunca chegou a entrar em fila.
-  //
-  // NÃO tem entrada em `vercel.json`, e é deliberado: os crons do Vercel
-  // não descem abaixo da hora. O `utilizacoes` acima já vive com a mesma
-  // assimetria. Em Vercel, quem apanha estes produtos é a varredura das
-  // 04:00 — mais tarde, mas nunca perdidos.
+
   {
     name: "enrich-fila",
     path: "/api/jobs/enrich-catalog?apenasFila=1&knowledgeLimit=100&knowledgeCapUsd=2",
