@@ -1011,6 +1011,11 @@ console.log("\n=== tecto de custo corta imediatamente ===");
     // Offline: sem isto o runner tentava alcançar o control plane.
     usarGlobal: false,
     tectoUsd: 0.01,
+    // Sequencial de propósito: o que este bloco fixa é a SEMÂNTICA do
+    // tecto — que ele corta — e não o comportamento do pool. Com N>1 há
+    // lotes já em voo quando o limite cai, e isso é medido no bloco
+    // seguinte, onde é a propriedade em teste em vez de ruído.
+    concorrencia: 1,
     classificar: caro,
     verificar: caro,
   });
@@ -1018,6 +1023,67 @@ console.log("\n=== tecto de custo corta imediatamente ===");
   check(chamadas === 1, `parou à primeira chamada, sem sair a verificação (chamadas=${chamadas})`);
   check(r.cortadoPorTecto, "o corte por tecto fica registado no resumo");
   check(r.residualAnalisado === 60 && r.chamadasProposta === 1, "…e não percorreu os 3 lotes que tinha pela frente");
+}
+
+console.log("");
+console.log("=== concorrencia: o tecto continua a cortar, com excesso limitado ===");
+{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fake: any = {
+    $queryRawUnsafe: async (sql: string) => {
+      if (ehQueryContexto(sql)) return CONTEXTO;
+      if (/from "Classificacao"/i.test(sql)) return [];
+      if (/from "Utilizacao"/i.test(sql)) return [];
+      return Array.from({ length: 500 }, (_, i) => ({
+        cnp: 2_000_001 + i,
+        designacao: `Produto ${i}`,
+        productType: null,
+        categoriaAtual: null,
+        subcategoriaAtual: null,
+        estrato: "NAO_CLASSIFICADO" as const,
+      }));
+    },
+    $executeRawUnsafe: async () => 0,
+    knowledgeEnrichmentCache: { upsert: async () => ({}) },
+  };
+
+  let chamadas = 0;
+  let emVoo = 0;
+  let picoEmVoo = 0;
+  const caro = async () => {
+    chamadas++;
+    emVoo++;
+    picoEmVoo = Math.max(picoEmVoo, emVoo);
+    // Cede o controlo para que os outros trabalhadores arranquem — sem
+    // isto o `await` resolvia já e o pool nunca ficaria com N em voo.
+    await new Promise((r) => setTimeout(r, 0));
+    emVoo--;
+    return {
+      resultados: [{ ...base, cnp: 2_000_001 }],
+      usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    };
+  };
+
+  const N = 4;
+  CONTEXTO = contextoNeutro(Array.from({ length: 500 }, (_, i) => 2_000_001 + i));
+  const r = await runKnowledgeEnrichment(fake, {
+    dryRun: true,
+    usarGlobal: false,
+    tectoUsd: 0.01,
+    concorrencia: N,
+    classificar: caro,
+    verificar: caro,
+  });
+
+  check(r.cortadoPorTecto, "o tecto corta na mesma com o pool ligado");
+  // 500 produtos são 20 lotes. O que interessa é que pare quase logo, e
+  // que o excesso seja proporcional a N e não ao tamanho da corrida.
+  check(
+    r.chamadasProposta <= N,
+    `o excesso está limitado a N lotes em voo (propostas=${r.chamadasProposta}, N=${N})`,
+  );
+  check(picoEmVoo > 1, `houve mesmo paralelismo (pico em voo=${picoEmVoo})`);
+  check(picoEmVoo <= N, `…e nunca passou de N (pico=${picoEmVoo}, N=${N})`);
 }
 }
 

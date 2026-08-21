@@ -66,6 +66,18 @@ import type { ConhecimentoCandidato, OrigemGlobal } from "./global-catalog";
 /** Códigos internos da farmácia não entram no catálogo regulamentar. */
 export const MIN_CNP = 2_000_000;
 
+/**
+ * Lotes tratados em paralelo.
+ *
+ * Quatro e não mais: o ganho de latência achata-se depressa (o tempo é
+ * dominado pela geração, não pela ligação) e cada trabalhador extra
+ * aproxima o tecto de custo de ser ultrapassado por mais um lote. Quatro
+ * transforma dezasseis horas em cerca de quatro sem chegar perto dos
+ * limites de ritmo da API — e o runner já recupera de 429 com backoff,
+ * portanto o modo de falha ao subir demais é abrandar, não partir.
+ */
+export const CONCORRENCIA_OMISSAO = 4;
+
 /** Marca de proveniência em ProdutoUtilizacao.fonte. */
 export const FONTE = "MODELO";
 /**
@@ -454,6 +466,11 @@ export async function runKnowledgeEnrichment(
     dryRun?: boolean;
     /** Corta a corrida quando o custo estimado passa disto. */
     tectoUsd?: number;
+    /**
+     * Lotes em paralelo. Omitido = `CONCORRENCIA_OMISSAO`.
+     * 1 restaura o comportamento sequencial anterior.
+     */
+    concorrencia?: number;
     /** Amostra estratificada em vez dos primeiros N. */
     canary?: Partial<Record<Estrato, number>>;
     /** Slug do tenant — registado como origem do conhecimento promovido. */
@@ -1016,12 +1033,14 @@ export async function runKnowledgeEnrichment(
   }
 
   let processados = 0;
-  for (const lote of lotes) {
-    if (tectoAtingido()) {
-      resumo.cortadoPorTecto = true;
-      break;
-    }
 
+  /**
+   * Trata um lote de ponta a ponta: propor, verificar, decidir, escrever.
+   *
+   * Extraído de um `for` sequencial para poder correr N em paralelo. O
+   * corpo não mudou — o que mudou é quem o chama.
+   */
+  const processarLote = async (lote: LinhaResidual[]): Promise<void> => {
     const estratoLote = lote[0]!.estrato;
     const m = metrica(estratoLote);
     // O alvo é do produto, não do estrato — mas num lote homogéneo são a
@@ -1182,7 +1201,49 @@ export async function runKnowledgeEnrichment(
 
     processados += lote.length;
     opts.onProgress?.(processados, residual.length);
-  }
+  };
+
+  // ── Pool de N lotes em paralelo ─────────────────────────────────────
+  //
+  // Era estritamente sequencial: um lote de 25 de cada vez, duas chamadas
+  // por lote, uma após a outra. Numa corrida de 20 000 produtos isso dá
+  // dezasseis horas em que a rede está parada à espera quase todo o tempo.
+  //
+  // O que torna isto seguro, e foi verificado antes de mudar:
+  //
+  //  · ORDEM. Os dependentes de uma família são tratados DENTRO da
+  //    iteração do próprio representante e nunca entram em `lotes`. Não
+  //    há um lote que precise de outro ter corrido primeiro.
+  //  · ESTADO. Os contadores são `++` entre `await`s e o JS é
+  //    single-threaded: não há leitura-modificação-escrita a competir.
+  //  · QUALIDADE. Cada lote é um pedido independente com o seu próprio
+  //    contexto. Correr quatro ao mesmo tempo não muda nenhuma resposta.
+  //
+  // O que muda de facto, e é aceite:
+  //
+  //  · O TECTO pode ser ultrapassado por até N-1 lotes — os que já
+  //    estavam em voo quando o limite foi cruzado. Com lotes de 25 e N=4
+  //    isso são cêntimos, e a alternativa (um semáforo antes de cada
+  //    chamada) trocaria essa margem por serialização.
+  //  · A CACHE DE PROMPT é falhada pelos primeiros N pedidos em vez de
+  //    por um só, porque arrancam antes de o primeiro a escrever. É
+  //    desperdício de arranque, uma vez por corrida.
+  const nTrabalhadores = Math.max(1, Math.min(opts.concorrencia ?? CONCORRENCIA_OMISSAO, lotes.length));
+  let proximo = 0;
+  const trabalhador = async (): Promise<void> => {
+    for (;;) {
+      // Verificado por trabalhador e não no despacho: um lote que demore
+      // não impede os outros de pararem assim que o tecto cai.
+      if (tectoAtingido()) {
+        resumo.cortadoPorTecto = true;
+        return;
+      }
+      const i = proximo++;
+      if (i >= lotes.length) return;
+      await processarLote(lotes[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: nTrabalhadores }, () => trabalhador()));
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
 
