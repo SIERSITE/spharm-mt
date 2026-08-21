@@ -29,7 +29,7 @@
  *
  * Porque é que o default é o legacy: o mesmo commit que introduziu o
  * fluxo multi-tenant é implantado na Vercel, onde o cron continua
- * agendado (`vercel.json`). Sem esta guarda, o disparo seguinte mudava
+ * agendado (ver `scripts/workers/scheduler.mjs`). Sem esta guarda, o disparo seguinte mudava
  * de comportamento sozinho — passava a escrever nas bases dos tenants
  * em vez da base actual, sem ninguém ter decidido isso. Uma alteração
  * de comportamento em produção tem de ser um acto explícito.

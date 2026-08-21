@@ -1,7 +1,9 @@
 /**
  * app/api/jobs/enqueue-regulatory/route.ts
  *
- * Cron diário (`vercel.json`) de enqueue do regulatory acquisition pipeline.
+ * Job diário de enqueue do regulatory acquisition pipeline. O
+ * agendamento vive em `scripts/workers/scheduler.mjs`, que é o
+ * agendador de produção na VPS.
  * Itera todos os tenants ACTIVE e, para cada um, marca como PENDENTE
  * todos os CNPs MEDICAMENTO que precisam de aquisição regulatória
  * (campos clínicos ou imagem em falta), até `maxNewJobs` por tenant.

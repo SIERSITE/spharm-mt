@@ -1,7 +1,7 @@
 /**
  * app/api/jobs/enrich-catalog/route.ts
  *
- * Cron diário (`vercel.json: 0 4 * * *`) de enriquecimento incremental
+ * Job diário (04:00 UTC no scheduler da VPS) de enriquecimento incremental
  * do catálogo. Para cada tenant ACTIVE no control plane, corre 2 fases
  * idempotentes:
  *
