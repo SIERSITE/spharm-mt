@@ -1024,10 +1024,47 @@ postflight() {
   check "worker a correr"                  container_running spharmmt-worker
   check "proxy a correr"                   container_running "$SPHARMMT_PROXY_CONTAINER"
 
-  # O scheduler tem de estar desligado nesta fase. Verificado no ambiente
-  # REAL do container, não no ficheiro — é o que o processo vê.
-  check "scheduler DESLIGADO" \
-    bash -c "[ \"\$(docker exec spharmmt-worker printenv SCHEDULER_ENABLED 2>/dev/null || echo 0)\" != '1' ]"
+  # Estado do scheduler, lido no ambiente REAL do container e não no
+  # ficheiro: é o que o processo vê que decide se dispara jobs.
+  #
+  # ISTO NÃO É UM CHECK DE "TEM DE ESTAR DESLIGADO". Era, e estava
+  # errado. O install-stack.sh corre em duas situações muito diferentes:
+  # a primeira instalação, onde o scheduler ainda não foi validado e
+  # está a 0; e cada actualização subsequente de uma plataforma em
+  # produção, onde ligá-lo foi uma decisão deliberada registada no
+  # platform.env. A asserção só descrevia a primeira, portanto uma
+  # instalação saudável com SCHEDULER_ENABLED=1 falhava o postflight —
+  # um falso negativo que convidava a "arranjar" produção para calar o
+  # instalador. O deploy nem sequer é quem decide isto: o valor vem do
+  # platform.env, que o install-stack não escreve.
+  #
+  # O que se verifica agora é COERÊNCIA. Ligado é um estado legítimo,
+  # desde que o worker consiga mesmo trabalhar.
+  local sched_on sched_jobs
+  sched_on=$(docker exec spharmmt-worker printenv SCHEDULER_ENABLED 2>/dev/null || echo 0)
+  if [ "$sched_on" = "1" ]; then
+    sched_jobs=$(docker exec spharmmt-worker printenv SCHEDULER_JOBS 2>/dev/null || echo "")
+    ok "scheduler LIGADO — jobs: ${sched_jobs:-TODOS}"
+    # Sem CRON_SECRET o scheduler recusa arrancar (ver scripts/workers/
+    # scheduler.mjs). Ligado sem segredo é um worker que não dispara
+    # nada e ninguém repara — é isto que merece um FAIL, e não o facto
+    # de estar ligado.
+    check "scheduler ligado tem CRON_SECRET" \
+      bash -c "[ -n \"\$(docker exec spharmmt-worker printenv CRON_SECRET 2>/dev/null || echo '')\" ]"
+    # SCHEDULER_JOBS vazio activa TODOS os jobs, incluindo os nocturnos
+    # que podem não estar validados nesta instalação. É legítimo, mas
+    # deve ser uma escolha e não um descuido.
+    if [ -z "${sched_jobs// /}" ]; then
+      check_warn "SCHEDULER_JOBS vazio — TODOS os jobs activos; confirma que é intencional" false
+    fi
+    # Um worker ligado tem de estar de facto vivo. `container_running`
+    # já foi verificado acima; aqui interessa o healthcheck, que é o que
+    # distingue "o processo arrancou" de "o scheduler está a correr".
+    check_warn "worker saudável com o scheduler ligado" \
+      bash -c "[ \"\$(docker inspect spharmmt-worker -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sem-healthcheck{{end}}' 2>/dev/null)\" != 'unhealthy' ]"
+  else
+    ok "scheduler desligado (SCHEDULER_ENABLED=${sched_on})"
+  fi
 
   local bind; bind=$(awk -F= '/^PROXY_BIND=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || echo "")
   if [ "${bind:-127.0.0.1}" = "127.0.0.1" ]; then
@@ -1083,8 +1120,20 @@ main() {
     info "Estado:            sudo ${SPHARMMT_ROOT}/scripts/verify-platform.sh"
     info "Logs:              docker compose -f ${SPHARMMT_COMPOSE_FILE} -p spharmmt logs -f web"
     printf '\n'
-    warn "O scheduler está DESLIGADO (SCHEDULER_ENABLED=0) e nenhum tenant foi criado."
-    warn "As portas 80/443 continuam fechadas: o proxy só ouve em 127.0.0.1."
+    # Esta nota descrevia sempre uma primeira instalação. Numa
+    # actualização de uma plataforma em produção — com o scheduler
+    # ligado de propósito e tenants a servir — dizia o contrário do que
+    # se acabou de instalar. Passa a ler o estado real.
+    local sched_on
+    sched_on=$(docker exec spharmmt-worker printenv SCHEDULER_ENABLED 2>/dev/null || echo 0)
+    if [ "$sched_on" = "1" ]; then
+      local sched_jobs
+      sched_jobs=$(docker exec spharmmt-worker printenv SCHEDULER_JOBS 2>/dev/null || echo "")
+      info "Scheduler LIGADO — jobs: ${sched_jobs:-TODOS}"
+    else
+      warn "O scheduler está DESLIGADO (SCHEDULER_ENABLED=${sched_on})."
+    fi
+    warn "Se o proxy estiver em 127.0.0.1, as portas 80/443 continuam fechadas ao exterior."
   fi
   finish "$rc"
 }

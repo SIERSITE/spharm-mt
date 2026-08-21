@@ -277,6 +277,28 @@ test_scheduler() {
     printf '  (scheduler.mjs fora do alcance — saltado)\n'
   fi
 
+  # ── Postflight do install-stack ──────────────────────────────────────
+  # O postflight asseverava "scheduler DESLIGADO" e falhava contra uma
+  # plataforma em produção onde ligá-lo tinha sido uma decisão registada
+  # no platform.env — que o install-stack.sh nem sequer escreve. Um
+  # falso negativo que convidava a mexer em produção para calar o
+  # instalador. O que se verifica agora é coerência, não estado.
+  local inst="${SCRIPTS_DIR}/install-stack.sh"
+  refute "postflight NÃO exige o scheduler desligado" \
+    grep -q 'check "scheduler DESLIGADO"' "$inst"
+  assert "postflight aceita o scheduler ligado" \
+    grep -q 'scheduler LIGADO — jobs:' "$inst"
+  # Ligado sem CRON_SECRET é um worker que não dispara nada e ninguém
+  # repara — é ISSO que merece falhar.
+  assert "postflight exige CRON_SECRET com o scheduler ligado" \
+    grep -q 'check "scheduler ligado tem CRON_SECRET"' "$inst"
+  assert "postflight avisa se SCHEDULER_JOBS estiver vazio" \
+    grep -q 'SCHEDULER_JOBS vazio' "$inst"
+  # A nota final descrevia sempre uma primeira instalação, e numa
+  # actualização dizia o contrário do que se acabou de instalar.
+  refute "nota final NÃO afirma SCHEDULER_ENABLED=0 às cegas" \
+    grep -q 'O scheduler está DESLIGADO (SCHEDULER_ENABLED=0)' "$inst"
+
   # ── Guarda do refresh-ipf ────────────────────────────────────────────
   # Sem a guarda, o disparo seguinte do refresh-ipf mudava de
   # comportamento sozinho e passava a escrever nas bases dos tenants em
