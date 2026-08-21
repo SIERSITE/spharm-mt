@@ -488,6 +488,14 @@ test_postgres() {
     grep -q 'installed_scripts_current' "${SCRIPTS_DIR}/install-stack.sh"
   assert "verify-platform.sh está na lista instalada" \
     grep -q 'SPHARMMT_OPERATIONAL_SCRIPTS=.*verify-platform.sh' "$common"
+  # O encadeador de lotes do backlog e operacional como os outros: vem do
+  # repositorio pelo instalador, e o postflight compara a copia instalada
+  # com a do checkout. Copia-lo a mao punha na VPS uma versao que ninguem
+  # reve e que o `installed_scripts_current` nao vigia.
+  assert "backlog-knowledge.sh esta na lista instalada" \
+    grep -q 'SPHARMMT_OPERATIONAL_SCRIPTS=.*backlog-knowledge.sh' "$common"
+  assert "backlog-knowledge.sh existe na origem" \
+    test -f "${SCRIPTS_DIR}/backlog-knowledge.sh"
 
   # ── Origens das Server Actions ───────────────────────────────────────
   # Entram no BUILD: o Next fixa allowedOrigins no bundle do servidor.

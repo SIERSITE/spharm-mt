@@ -35,6 +35,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { SAIDA, codigoDeSaida } from "../../lib/catalog/knowledge-enrich-saida";
 import {
   CAMPOS_ESCRITOS,
   CAMPOS_PROIBIDOS,
@@ -161,6 +162,9 @@ async function main() {
   // pelo scheduler como sucesso, e foi assim que os 4 e os 2 produtos
   // sem destino passaram duas corridas sem ninguém parar.
   let falhaContabilistica = false;
+  // Saldo, credencial, 429/5xx persistente, rede. Distinta da
+  // contabilística: esta não é defeito do código, é o mundo lá fora.
+  let falhaInfra = false;
 
   console.log("\n\n── amostra ────────────────────────────────────────");
   console.log(`  ${pad(r.residualAnalisado)}  produtos entraram`);
@@ -377,6 +381,27 @@ async function main() {
     console.log("  os três estratos não custam o mesmo por produto.");
   }
 
+  // ── AVISOS E FALHA DE INFRAESTRUTURA ───────────────────────
+  //
+  // O relatório nunca imprimia nem `avisos` nem `falhaInfraestrutura`.
+  // Uma corrida que parasse por saldo esgotado, credencial inválida ou
+  // 429 persistente saía com código 0 e um relatório curto —
+  // indistinguível de "já não havia trabalho". Num encadeamento
+  // automático de lotes isso é o pior caso: o lote seguinte arranca,
+  // falha da mesma maneira, e a série inteira passa em branco sem
+  // ninguém ver.
+  if (r.avisos.length > 0) {
+    console.log("\n── avisos ─────────────────────────────────────");
+    for (const a of r.avisos) console.log(`  • ${a}`);
+  }
+  if (r.falhaInfraestrutura) {
+    console.log("\n── FALHA DE INFRAESTRUTURA ─────────────────────");
+    console.log(`  categoria: ${r.falhaInfraestrutura.categoria}`);
+    console.log(`  ${r.falhaInfraestrutura.mensagem}`);
+    console.log("  A fila NÃO foi tocada: nenhum produto gastou tentativa.");
+    falhaInfra = true;
+  }
+
   console.log("\n── custo ──────────────────────────────────────────");
   console.log(`  chamadas: ${r.chamadasProposta} proposta + ${r.chamadasVerificacao} verificação`);
   console.log(`  tokens: in ${r.usage.inputTokens} · out ${r.usage.outputTokens}`);
@@ -422,14 +447,29 @@ async function main() {
 
   await prisma.$disconnect();
 
-  if (falhaContabilistica) {
+  // A decisão do código de saída vive em `codigoDeSaida`, testada à
+  // parte: é este número que o encadeamento de lotes usa para decidir
+  // se lança o seguinte, e uma decisão que gasta dinheiro sozinha tem
+  // de poder ser exercitada sem base de dados nem chave da API.
+  const saida = codigoDeSaida({
+    falhaInfraestrutura: falhaInfra,
+    semDestino: falhaContabilistica,
+  });
+
+  if (saida === SAIDA.INFRAESTRUTURA) {
+    console.error(
+      "\nCORRIDA INTERROMPIDA POR INFRAESTRUTURA. Nada foi decidido sobre os\n" +
+        "produtos que faltavam, e a fila ficou intacta. Resolver a causa e\n" +
+        "voltar a correr — nenhuma chamada já paga será repetida.",
+    );
+  } else if (saida === SAIDA.RECONCILIACAO) {
     console.error(
       "\nRECONCILIAÇÃO NÃO FECHOU. Há produtos lidos do residual sem destino\n" +
         "contabilizado: alguns produtos passaram pela corrida sem estado e sem\n" +
         "nome. NÃO retomar o backlog até a causa estar identificada.",
     );
-    process.exit(2);
   }
+  if (saida !== SAIDA.OK) process.exit(saida);
 }
 
 main().catch((e) => {

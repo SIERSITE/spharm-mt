@@ -26,21 +26,25 @@ check() {
 # Quantos jobs aparecem ligados/desligados no plano.
 ligados()    { printf '%s' "$1" | grep -c '\[on \]'; }
 desligados() { printf '%s' "$1" | grep -c '\[off\]'; }
-tem_ligado() { printf '%s' "$1" | grep -E "\[on \].*\b$2\b" >/dev/null && echo sim || echo nao; }
+# O nome do job vem ANTES do caminho. Sem o `[^/]*`, procurar
+# "enrich-catalog" acertava na linha do `enrich-fila`, cujo path e
+# /api/jobs/enrich-catalog?apenasFila=1 — e o teste dizia que um job
+# desligado estava ligado.
+tem_ligado() { printf '%s' "$1" | grep -E "\\[on \\][^/]*\\b$2\\b" >/dev/null && echo sim || echo nao; }
 
 echo "=== sem SCHEDULER_JOBS: todos activos (comportamento anterior) ==="
 out=$(SCHEDULER_JOBS= node "$S" --list 2>&1)
-check "6 jobs ligados"    "$(ligados "$out")"    "6"
+check "7 jobs ligados"    "$(ligados "$out")"    "7"
 check "0 jobs desligados" "$(desligados "$out")" "0"
 
 echo
 echo "=== SCHEDULER_JOBS=utilizacoes: só esse ==="
 out=$(SCHEDULER_JOBS=utilizacoes node "$S" --list 2>&1)
 check "1 job ligado"      "$(ligados "$out")"    "1"
-check "5 desligados"      "$(desligados "$out")" "5"
+check "6 desligados"      "$(desligados "$out")" "6"
 check "é o utilizacoes"   "$(tem_ligado "$out" utilizacoes)" "sim"
 # Os que o utilizador não quer activar agora.
-for j in enrich-catalog enrich-retail acquire-regulatory refresh-ipf; do
+for j in enrich-catalog enrich-retail acquire-regulatory refresh-ipf enrich-fila; do
   check "${j} fica desligado" "$(tem_ligado "$out" "$j")" "nao"
 done
 
@@ -59,11 +63,24 @@ check "espaços são ignorados" "$(tem_ligado "$out" utilizacoes)" "sim"
 check "nome desconhecido não liga nada" "$(ligados "$out")" "1"
 
 echo
+echo "=== utilizacoes,enrich-fila: a combinação que vamos activar ==="
+# O backlog historico corre pelo CLI; o `enrich-fila` e' para os produtos
+# que chegam por importacao, e so' toca no que esta' na EnriquecimentoFila.
+# Ligar um nao pode ligar os cinco nocturnos por arrasto.
+out=$(SCHEDULER_JOBS=utilizacoes,enrich-fila node "$S" --list 2>&1)
+check "2 ligados"           "$(ligados "$out")" "2"
+check "utilizacoes ligado"  "$(tem_ligado "$out" utilizacoes)" "sim"
+check "enrich-fila ligado"  "$(tem_ligado "$out" enrich-fila)" "sim"
+for j in enrich-catalog enrich-retail acquire-regulatory refresh-ipf enqueue-regulatory; do
+  check "${j} continua desligado" "$(tem_ligado "$out" "$j")" "nao"
+done
+
+echo
 echo "=== os desligados continuam VISÍVEIS no plano ==="
 # Esconder um job desligado transformaria "não corre" em "não existe", e
 # é essa a pergunta de quem corre --list.
 out=$(SCHEDULER_JOBS=utilizacoes node "$S" --list 2>&1)
-check "os 6 aparecem" "$(( $(ligados "$out") + $(desligados "$out") ))" "6"
+check "os 7 aparecem" "$(( $(ligados "$out") + $(desligados "$out") ))" "7"
 
 echo
 printf '%d ok, %d falhas\n' "$pass" "$fail"

@@ -46,6 +46,8 @@
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:preselection": "tsx scripts/tests/test-preselection.ts",
     "test:janela-residual": "tsx scripts/tests/test-janela-residual.ts",
+    "test:codigos-saida": "tsx scripts/tests/test-codigos-saida.ts",
+    "test:backlog-knowledge": "bash deploy/tests/test-backlog-knowledge.sh",
     "test:dependentes-terminais": "tsx scripts/tests/test-dependentes-terminais.ts",
     "test:global-catalog-clinica": "tsx scripts/tests/test-global-catalog-clinica.ts",
     "test:falha-infraestrutura": "tsx scripts/tests/test-falha-infraestrutura.ts",

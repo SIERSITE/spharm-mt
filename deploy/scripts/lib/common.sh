@@ -881,7 +881,7 @@ ensure_pgdata_dir() {
 # `install-stack.sh` fica DE FORA de propósito: precisa da árvore do
 # repositório ao lado (Dockerfile, compose, init do PostgreSQL) e a partir
 # de /opt/spharmmt não a encontraria.
-SPHARMMT_OPERATIONAL_SCRIPTS="bootstrap-vps.sh install-docker.sh install-platform.sh prepare-data-disk.sh verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh healthcheck.sh"
+SPHARMMT_OPERATIONAL_SCRIPTS="bootstrap-vps.sh install-docker.sh install-platform.sh prepare-data-disk.sh verify-platform.sh update-platform.sh backup-platform.sh restore-platform.sh healthcheck.sh backlog-knowledge.sh"
 
 # install_operational_scripts <src_dir> <owner>
 install_operational_scripts() {
