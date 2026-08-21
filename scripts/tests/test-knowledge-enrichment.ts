@@ -1040,3 +1040,37 @@ testesDoRunner()
     console.error("\n[FALHA] os testes do runner rebentaram:", e);
     process.exit(1);
   });
+
+console.log("\n=== ke-2.0: a propagacao por familia nao leva a apresentacao do irmao ===");
+{
+  const runnerSrc = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+  // O HALDOL 5 MG herdou a dosagem "1 mg" do irmao de 1 mg na corrida de
+  // validacao de 2026-08-21. A causa era `{ ...r, cnp: dep.cnp }`, que
+  // espalhava o resultado inteiro do representante — incluindo o que
+  // distingue os irmaos uns dos outros.
+  check(
+    runnerSrc.includes("semApresentacao"),
+    "existe um filtro explicito do que nao se propaga",
+  );
+  check(
+    !/escrever\(\s*\{ \.\.\.r, cnp: dep\.cnp \}/.test(runnerSrc),
+    "a escrita do dependente ja nao espalha o resultado inteiro do representante",
+  );
+  check(
+    !/gravarCache\(\s*prisma,\s*\{ \.\.\.r, cnp: dep\.cnp, confidence/.test(runnerSrc),
+    "…e a cache do dependente tambem nao",
+  );
+  // dci e codigoATC SAO propriedades da substancia e continuam a
+  // propagar: o ATC do haloperidol e N05AD01 em qualquer dosagem.
+  const corpo = runnerSrc.slice(runnerSrc.indexOf("const semApresentacao"));
+  const decl = corpo.slice(0, corpo.indexOf("});"));
+  for (const campo of ["forma", "dosagem", "embalagem"]) {
+    check(decl.includes(`${campo}: null`), `${campo} e limpo na propagacao`);
+  }
+  for (const campo of ["dci", "codigoATC"]) {
+    check(!decl.includes(`${campo}: null`), `${campo} continua a propagar (e da substancia)`);
+  }
+}

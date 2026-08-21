@@ -763,6 +763,34 @@ export async function runKnowledgeEnrichment(
    * vezes, e um dia estariam escritas de duas maneiras. O que muda entre
    * os dois é só a confiança, a fonte e o tier — nunca as guardas.
    */
+  /**
+   * O que NÃO se propaga de um representante para os irmãos.
+   *
+   * A propagação por família existe porque "Ozempic 0,25 mg" e "Ozempic
+   * 0,5 mg" são o mesmo produto para efeitos de ARRUMAÇÃO: mesma
+   * categoria, mesma subcategoria, mesmas utilizações, mesma substância.
+   * Não são o mesmo produto para efeitos de APRESENTAÇÃO — a dosagem é
+   * precisamente aquilo que os distingue.
+   *
+   * Sem esta separação, o HALDOL 5 MG herdava a dosagem "1 mg" do irmão
+   * de 1 mg. Aconteceu mesmo, na corrida de validação de 2026-08-21, e é
+   * pior que não ter dosagem nenhuma: um campo vazio lê-se como "não
+   * sabemos", um campo errado lê-se como facto.
+   *
+   * `dci` e `codigoATC` continuam a propagar: são propriedades da
+   * substância, iguais em toda a família por definição — o ATC do
+   * haloperidol é N05AD01 em qualquer dosagem.
+   */
+  const semApresentacao = (r: KnowledgeResult) => ({
+    forma: null as string | null,
+    dosagem: null as string | null,
+    embalagem: null as string | null,
+    // A confiança clínica do representante refere-se à apresentação DELE.
+    // Mantém-se só o que sobrevive — se ficou sem apresentação, o que
+    // resta é a substância, e essa é a mesma.
+    confidenceClinica: r.dci || r.codigoATC ? r.confidenceClinica : 0,
+  });
+
   const escrever = async (
     r: KnowledgeResult,
     p: ProdutoResidual,
@@ -1131,7 +1159,7 @@ export async function runKnowledgeEnrichment(
         for (const dep of dependentes.get(r.cnp) ?? []) {
           const gateDep = registarPropagado(dep, r, gate, utilizacoesFinais);
           await escrever(
-            { ...r, cnp: dep.cnp },
+            { ...r, ...semApresentacao(r), cnp: dep.cnp },
             dep,
             gateDep,
             utilizacoesFinais,
@@ -1141,7 +1169,7 @@ export async function runKnowledgeEnrichment(
           );
           await gravarCache(
             prisma,
-            { ...r, cnp: dep.cnp, confidence: confiancaProp },
+            { ...r, ...semApresentacao(r), cnp: dep.cnp, confidence: confiancaProp },
             dep,
             true,
             `propagado do representante ${r.cnp}`,
