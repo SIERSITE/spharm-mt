@@ -138,6 +138,17 @@ async function main() {
     dryRun: !apply,
     tectoUsd,
     canary: canary ? QUOTAS_CANARY : undefined,
+    // SEM ISTO O BACKLOG NAO PROMOVIA NADA. O runner exige `tenantSlug`
+    // para registar a origem do conhecimento; sem ele limita-se a avisar
+    // "N candidatos nao promovidos: falta tenantSlug" e a promocao nao
+    // acontece. Era este o caminho da corrida de backlog — 1 548
+    // produtos classificados que so chegaram ao catalogo global porque
+    // alguem correu, a mao, o `catalog:bootstrap-global` a seguir.
+    //
+    // Pode nao existir: este comando aceita `--db=<base>` alem de
+    // `--tenant=<slug>`. Sem tenant o comportamento e o de antes — avisa
+    // e nao promove, porque nao ha origem para registar.
+    tenantSlug: alvo.tenant ?? undefined,
     onProgress: (feito, total) => process.stdout.write(`\r  ${feito}/${total}`),
   });
 

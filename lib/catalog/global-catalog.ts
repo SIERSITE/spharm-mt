@@ -294,11 +294,28 @@ export type ConhecimentoCandidato = {
   verificado: boolean;
   tenantOrigem: string;
   /**
-   * Campos clínicos que este tenant propõe. Só entram os que têm valor —
-   * um campo ausente NÃO é um candidato a null, e é assim que se garante
-   * que um valor em falta nunca apaga o que o global já sabe.
+   * Campos clínicos que este candidato propõe. Só entram os que têm
+   * valor — um campo ausente NÃO é um candidato a null, e é assim que se
+   * garante que um valor em falta nunca apaga o que o global já sabe.
+   *
+   * OBRIGATÓRIO, e é de propósito. Era opcional, e a opcionalidade
+   * custou: o `juntarCandidato` do knowledge-enrichment-runner foi
+   * escrito antes desta camada e nunca preenchia o campo. O compilador
+   * não se queixou — um campo opcional em falta é um campo omitido, não
+   * um erro — e o defeito só apareceu num E2E, pelos autores das duas
+   * escritas no rasto de auditoria:
+   *
+   *   13:09:05.640  catalog:knowledge-enrich  classificação
+   *   13:09:05.673  job:enrich-catalog        clínica ×5   ← outra fase
+   *
+   * A fase 5 tapou o buraco nesse caminho. No runner isolado (o CLI
+   * `catalog:knowledge-enrich`, que é como o backlog corre) não há fase 5,
+   * e a clínica acabada de pagar não subia.
+   *
+   * Um array vazio é uma AFIRMAÇÃO — «este candidato não traz clínica».
+   * Um campo em falta é um esquecimento. Só o primeiro deve compilar.
    */
-  clinica?: ClinicaCandidata[];
+  clinica: ClinicaCandidata[];
 };
 
 export type ConhecimentoGlobal = {
@@ -551,6 +568,44 @@ export function origemDaPromocao(
   return melhor;
 }
 
+/**
+ * O que esta promoção levou, dito como é.
+ *
+ * ── PORQUE É UMA FUNÇÃO E NÃO UM TERNÁRIO ───────────────────────────
+ *
+ * Era um ternário de duas saídas: ou o motivo da classificação, ou
+ * "só utilizações: <slugs>". Escrito quando havia duas partes. Com a
+ * clínica passaram a ser três, e o rasto de auditoria de uma promoção
+ * exclusivamente clínica ficava assim, em produção:
+ *
+ *   5737465 | job:enrich-catalog | só utilizações:
+ *
+ * Sem utilizações nenhumas depois dos dois pontos, porque não havia —
+ * o que subiu foram cinco campos clínicos. Um rasto que descreve mal o
+ * que aconteceu é pior do que não existir: convida a acreditar nele.
+ *
+ * As seis combinações têm nome próprio. É isso que se lê meses depois,
+ * quando alguém pergunta porque é que este produto nacional é isto.
+ */
+export function descreverPromocao(decisao: DecisaoPromocao): string {
+  const partes: string[] = [];
+  if (decisao.classificacao.promover) partes.push("classificação");
+  if (decisao.utilizacoes.promover.length > 0) {
+    partes.push(`utilizações (${decisao.utilizacoes.promover.map((u) => u.slug).join(", ")})`);
+  }
+  if (decisao.clinica.promover.length > 0) {
+    partes.push(`clínica (${decisao.clinica.promover.map((c) => c.campo).join(", ")})`);
+  }
+  if (partes.length === 0) return "nada a promover";
+
+  // Quando a classificação sobe, o motivo DELA é o que interessa — diz
+  // porquê ("cnp ainda não conhecido globalmente", "origem mais
+  // autoritária"), e não só o quê. O resto acrescenta-se.
+  const cabeca = decisao.classificacao.promover ? decisao.motivo : `só ${partes.join(" + ")}`;
+  const extra = decisao.classificacao.promover ? partes.slice(1) : [];
+  return extra.length > 0 ? `${cabeca}; e ainda ${extra.join(" + ")}` : cabeca;
+}
+
 export function registoPromocao(
   candidato: ConhecimentoCandidato,
   decisao: DecisaoPromocao,
@@ -559,9 +614,7 @@ export function registoPromocao(
   const origem = origemDaPromocao(candidato, decisao);
   if (!origem) return null;
   const aprovada = aprovacaoValida(ctx.aprovacao) ? ctx.aprovacao : null;
-  const motivoAutomatico = decisao.classificacao.promover
-    ? decisao.motivo
-    : `só utilizações: ${decisao.utilizacoes.promover.map((u) => u.slug).join(", ")}`;
+  const motivoAutomatico = descreverPromocao(decisao);
   return {
     cnp: candidato.cnp,
     origem,

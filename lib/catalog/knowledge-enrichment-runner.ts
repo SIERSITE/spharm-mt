@@ -64,7 +64,13 @@ import {
   type ProdutoPreselecao,
 } from "./preselection";
 import { lerConhecimentoGlobal, promoverAoGlobal } from "./global-catalog-store";
-import type { ConhecimentoCandidato, OrigemGlobal } from "./global-catalog";
+import { validarValorClinico } from "./global-catalog";
+import type {
+  CampoClinico,
+  ClinicaCandidata,
+  ConhecimentoCandidato,
+  OrigemGlobal,
+} from "./global-catalog";
 
 /** Códigos internos da farmácia não entram no catálogo regulamentar. */
 export const MIN_CNP = 2_000_000;
@@ -538,6 +544,14 @@ export async function runKnowledgeEnrichment(
      * condenar um produto a ficar de fora até alguém reparar.
      */
     apenasFila?: boolean;
+    /**
+     * Substitui a promoção ao catálogo global. Existe pela mesma razão
+     * que `classificar` e `verificar`: sem isto, provar que os candidatos
+     * levam a clínica exigia base de dados e control plane de pé — e o
+     * defeito que isto guarda é de ESTRUTURA do candidato, não de
+     * persistência.
+     */
+    promover?: typeof promoverAoGlobal;
     /** Amostra estratificada em vez dos primeiros N. */
     canary?: Partial<Record<Estrato, number>>;
     /** Slug do tenant — registado como origem do conhecimento promovido. */
@@ -660,6 +674,69 @@ export async function runKnowledgeEnrichment(
    * conhecimento e não serve nenhum outro tenant. `avaliarPromocao`
    * recusa-o de qualquer forma — não enviar poupa a viagem.
    */
+  /**
+   * Os campos clínicos deste resultado, prontos a promover.
+   *
+   * ── O QUE ISTO REPARA ────────────────────────────────────────────
+   *
+   * O `juntarCandidato` foi escrito antes da camada clínica e nunca
+   * preenchia `ConhecimentoCandidato.clinica`. Como o campo era
+   * opcional, o compilador não se queixou. O defeito só apareceu num
+   * E2E, pelos autores das duas escritas no rasto de auditoria:
+   *
+   *   13:09:05.640  catalog:knowledge-enrich  classificação
+   *   13:09:05.673  job:enrich-catalog        clínica ×5   ← outra fase
+   *
+   * A fase 5 do ciclo tapava o buraco. No runner isolado — o CLI
+   * `catalog:knowledge-enrich`, que é como o backlog corre — não há
+   * fase 5, e a clínica acabada de pagar não subia ao global.
+   *
+   * ── AS GUARDAS, TODAS ELAS ───────────────────────────────────────
+   *
+   *  · `LIMIAR_CLINICO` (0.90). A mesma barra que autoriza a ESCRITA no
+   *    tenant autoriza a promoção. Promover o que não se escreveu seria
+   *    dar ao catálogo nacional uma confiança que a base local recusou.
+   *  · `validarValorClinico` recusa um ATC incompleto e uma DCI que seja
+   *    uma frase — a MESMA função que o global usa, não uma cópia.
+   *  · Um campo sem valor NÃO gera candidato. Nunca há candidato a null,
+   *    logo nunca há caminho que apague.
+   *  · O chamador aplica `semApresentacao()` aos dependentes ANTES de
+   *    chegar aqui, portanto um irmão de família nunca traz forma,
+   *    dosagem nem embalagem do representante — só a substância, que é
+   *    o que a família de facto partilha.
+   */
+  const clinicaDoResultado = (
+    r: KnowledgeResult,
+    origem: OrigemGlobal,
+  ): ClinicaCandidata[] => {
+    if (r.confidenceClinica < LIMIAR_CLINICO) return [];
+    const motivo =
+      origem === "PROPAGADO"
+        ? "conclusão do modelo sobre um irmão da família"
+        : "decisão do modelo sobre este cnp";
+    const pares: Array<[CampoClinico, string | null]> = [
+      ["CODIGO_ATC", r.codigoATC],
+      ["DCI", r.dci],
+      ["FORMA_FARMACEUTICA", r.forma],
+      ["DOSAGEM", r.dosagem],
+      ["EMBALAGEM", r.embalagem],
+    ];
+    const out: ClinicaCandidata[] = [];
+    for (const [campo, bruto] of pares) {
+      const valor = validarValorClinico(campo, bruto);
+      if (!valor) continue;
+      out.push({
+        campo,
+        valor,
+        origem,
+        confianca: r.confidenceClinica,
+        versaoRegras: KNOWLEDGE_VERSION,
+        motivoOrigem: motivo,
+      });
+    }
+    return out;
+  };
+
   const juntarCandidato = (
     r: KnowledgeResult,
     p: ProdutoResidual,
@@ -670,8 +747,14 @@ export async function runKnowledgeEnrichment(
   ): void => {
     if (gate.decisao !== "APPLY") return;
     const temClassificacao = !!r.categoria && !!r.subcategoria && !/^outros\b/i.test(r.subcategoria);
-    if (!temClassificacao && utilizacoes.length === 0) return;
+    const clinica = clinicaDoResultado(r, origem);
+    // A clínica conta para o produto valer a viagem. Um produto sem
+    // classificação específica e sem utilizações pode na mesma trazer um
+    // ATC e uma DCI — e antes desta linha era descartado antes de
+    // alguém sequer olhar para ele.
+    if (!temClassificacao && utilizacoes.length === 0 && clinica.length === 0) return;
     candidatosGlobais.push({
+      clinica,
       cnp: p.cnp,
       designacaoReferencia: p.designacao,
       productType: gate.gravarProductType ? r.productType : null,
@@ -1289,6 +1372,24 @@ export async function runKnowledgeEnrichment(
             "PROPAGADO",
             r.cnp,
           );
+          // Os dependentes nunca chegavam a ser candidatos: o
+          // `juntarCandidato` só era chamado para o representante. O
+          // conhecimento propagado ficava no tenant e não subia, e o
+          // bootstrap manual tinha depois de o ir buscar — foram 432
+          // PROPAGADO na promoção de 2026-08-21, todos eles atrasados
+          // por isto.
+          //
+          // `semApresentacao` aplicado aqui é o que impede o irmão de
+          // herdar forma, dosagem e embalagem do representante: HALDOL
+          // 5 MG não leva "1 mg" só por partilhar a família.
+          juntarCandidato(
+            { ...r, ...semApresentacao(r), cnp: dep.cnp },
+            dep,
+            gateDep,
+            utilizacoesFinais,
+            confiancaProp,
+            "PROPAGADO",
+          );
         }
       }
     }
@@ -1456,7 +1557,8 @@ export async function runKnowledgeEnrichment(
       // O runner nunca produz candidatos de origem HUMANO — só MODELO e
       // PROPAGADO — portanto não passa aprovação nenhuma. A validação
       // manual de um tenant sobe pelo caminho explícito, não por aqui.
-      const res = await promoverAoGlobal(candidatosGlobais, {
+      const promover = opts.promover ?? promoverAoGlobal;
+      const res = await promover(candidatosGlobais, {
         dryRun,
         actor: "catalog:knowledge-enrich",
       });

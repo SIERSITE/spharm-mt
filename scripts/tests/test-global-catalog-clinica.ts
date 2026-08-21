@@ -317,6 +317,7 @@ console.log("\n=== INDEPENDÊNCIA: a clínica não passa pelo gate da classifica
 console.log("\n=== …e o inverso: sem clínica, nada muda no comportamento antigo ===");
 {
   const c: ConhecimentoCandidato = {
+    clinica: [],
     cnp: 1, designacaoReferencia: "x", productType: null,
     categoria: "MEDICAMENTOS", subcategoria: "Analgésicos e Anti-inflamatórios",
     utilizacoes: [], confidence: 0.95, evidenceType: null,

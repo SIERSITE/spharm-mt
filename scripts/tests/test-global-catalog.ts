@@ -56,6 +56,9 @@ const util = (over: Partial<UtilizacaoCandidata> = {}): UtilizacaoCandidata => (
 });
 
 const candidato = (over: Partial<ConhecimentoCandidato> = {}): ConhecimentoCandidato => ({
+  // Vazio e nao omitido: `clinica` e obrigatorio de proposito, para
+  // que um chamador que se esqueca dele nao compile.
+  clinica: [],
   cnp: 5678901,
   designacaoReferencia: "Ozempic 0.25 Mg Sol. Injetável",
   productType: "MEDICAMENTO",
@@ -402,7 +405,16 @@ console.log("\n=== rasto de auditoria: quem, onde, quando, porquê ===");
   const reg = registoPromocao(c, d, { actor: "catalog:knowledge-enrich" })!;
   check(reg.aprovador === null, "promoção automática não inventa um aprovador");
   check(reg.actor === "catalog:knowledge-enrich", "…mas identifica o processo que a fez");
-  check(reg.motivo === d.motivo, "…e guarda o motivo da decisão automática");
+  // O motivo COMEÇA pelo da classificação — que diz PORQUÊ ("cnp ainda
+  // não conhecido globalmente") e não só o quê — e acrescenta o que mais
+  // subiu. Antes era só o da classificação, e uma promoção que levasse
+  // também utilizações ou clínica não o dizia em lado nenhum.
+  check(reg.motivo.startsWith(d.motivo), "…e guarda o motivo da decisão automática");
+  check(
+    reg.motivo.includes("utilizações"),
+    "…e nomeia o que mais subiu além da classificação",
+    reg.motivo,
+  );
   check(reg.origem === "MODELO", "…e a origem é a da classificação que subiu");
 }
 {

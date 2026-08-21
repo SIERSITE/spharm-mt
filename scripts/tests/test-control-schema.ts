@@ -125,6 +125,7 @@ async function main(): Promise<void> {
   const { promoverAoGlobal } = await import("../../lib/catalog/global-catalog-store");
 
   const base = {
+    clinica: [],
     designacaoReferencia: "Produto de prova",
     productType: "MEDICAMENTO",
     confidence: 0.9,
