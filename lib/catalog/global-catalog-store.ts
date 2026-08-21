@@ -529,9 +529,33 @@ async function marcarComoProjectada(
 export async function projectarParaTenant(
   prisma: PrismaClient,
   tenantSlug: string,
-  opts: { dryRun?: boolean; limite?: number } = {},
+  opts: {
+    dryRun?: boolean;
+    limite?: number;
+    /**
+     * Restringe a projecção a estes CNPs.
+     *
+     * Existe para a importação poder projectar SÓ o lote que acabou de
+     * entrar, em vez de varrer o catálogo inteiro a cada upload. A
+     * alternativa era uma segunda função com a mesma lógica — e duas
+     * cópias da regra de não-degradação acabariam por divergir.
+     *
+     * Omitido = catálogo todo, que é o comportamento do CLI.
+     */
+    cnps?: readonly number[];
+  } = {},
 ): Promise<ResumoProjeccao> {
   const dryRun = opts.dryRun ?? true;
+  // Lista vazia é diferente de ausente: "projecta estes zero produtos"
+  // devolve zero, e não "projecta tudo".
+  if (opts.cnps && opts.cnps.length === 0) {
+    return {
+      tenantSlug, cnpsNoTenant: 0, cnpsConhecidosGlobal: 0,
+      classificacoesEscritas: 0, productTypesEscritos: 0, utilizacoesEscritas: 0,
+      noOp: 0, intocaveis: 0, revisoesAbertas: 0, semVocabulario: 0,
+      exemplosRevisao: [],
+    };
+  }
   const r: ResumoProjeccao = {
     tenantSlug,
     cnpsNoTenant: 0,
@@ -563,6 +587,7 @@ export async function projectarParaTenant(
        left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
        left join "ProdutoUtilizacao" pu on pu."produtoId" = p.id
        left join "Utilizacao" u on u.id = pu."utilizacaoId"
+      ${opts.cnps ? `where p.cnp = any('{${opts.cnps.map((n) => Number(n) | 0).join(",")}}'::int[])` : ""}
       group by p.id, p.cnp, p.designacao, p."validadoManualmente", p."productType", c1.nome, c2.nome`,
   );
   r.cnpsNoTenant = produtos.length;

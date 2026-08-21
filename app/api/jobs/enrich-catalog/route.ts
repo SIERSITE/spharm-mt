@@ -163,6 +163,9 @@ async function handle(req: NextRequest): Promise<Response> {
           await heartbeatSyncRun(run.id);
           const summary = await runEnrichCycle({
             prisma, syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd,
+            // Fase 5 (promoção ao catálogo global) só corre com slug: o
+            // global regista de que tenant veio cada conclusão.
+            tenantSlug: tenant.slug,
           });
           await completeSyncRun(run.id, {
             recordsUpdated: summary.sync.updated + summary.reclassify.updated,

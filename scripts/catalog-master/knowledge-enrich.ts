@@ -41,6 +41,7 @@ import {
   KNOWLEDGE_MODEL,
   KNOWLEDGE_VERSION,
   LIMIAR_PERSISTENCIA,
+  LIMIAR_CLINICO,
   MAX_RETENTATIVAS,
   TIMEOUT_MS,
 } from "../../lib/catalog/knowledge-enrichment";
@@ -211,9 +212,23 @@ async function main() {
     console.log(`  ${pad(r.categoriasEscritas)}  categorias`);
     console.log(`  ${pad(r.productTypesEscritos)}  productType (só onde faltava)`);
     console.log(`  ${pad(r.utilizacoesEscritas)}  utilizações`);
+    console.log("");
+    console.log("  campos clínicos (ke-2.0, só onde estava NULL):");
+    console.log(`  ${pad(r.dciEscritas)}  DCI`);
+    console.log(`  ${pad(r.atcEscritos)}  código ATC`);
+    console.log(`  ${pad(r.formasEscritas)}  forma farmacêutica`);
+    console.log(`  ${pad(r.dosagensEscritas)}  dosagem`);
+    console.log(`  ${pad(r.embalagensEscritas)}  embalagem`);
   } else {
     console.log("  dry-run — nada foi escrito.");
   }
+
+  // Vale sempre, com ou sem --apply: mede quanta clínica o modelo
+  // devolveu e quanta é que o gate recusou. Em dry-run é a única
+  // maneira de saber se o limiar está bem posto antes de gastar.
+  console.log("");
+  console.log("── gate clínico ───────────────────────────────────");
+  console.log(`  ${pad(r.clinicaRecusadaPorConfianca)}  resultados com clínica recusada (confidenceClinica < ${LIMIAR_CLINICO})`);
 
   console.log("\n── evidência ──────────────────────────────────────");
   for (const [k, v] of Object.entries(r.porEvidencia).sort((a, b) => b[1] - a[1])) {

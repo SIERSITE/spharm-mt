@@ -56,6 +56,10 @@ import {
 } from "@/lib/ingest/bulk";
 import { normalizeIva } from "@/lib/iva";
 import { applyErpCatalogFields } from "@/lib/ingest/catalog-from-erp";
+import {
+  reconciliarImportacaoComGlobal,
+  type ResumoReconciliacao,
+} from "@/lib/catalog/reconciliar-importacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -185,6 +189,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     substituidos: Record<string, number>;
     preservados: Record<string, number>;
   } | null = null;
+  let reconciliacaoGlobal: ResumoReconciliacao | null = null;
 
   // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
   //    sem CNP o produto não entra no catálogo.
@@ -292,6 +297,40 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     } catch (err) {
       console.error(
         "[bootstrap/products] enriquecimento a partir do ERP falhou (ingestão continua):",
+        err instanceof Error ? err.message : err,
+      );
+    }
+
+    // Catálogo global: o CNP que já se conhece é projectado AGORA, e o
+    // desconhecido entra em fila para o ciclo das 04:00. Corre depois do
+    // upsert e depois do enriquecimento ERP, de propósito — o ERP pode
+    // ter acabado de classificar um produto, e nesse caso ele já não
+    // precisa de ir à fila.
+    //
+    // Mesma política de erro do bloco acima: isto é enriquecimento por
+    // cima do contrato do endpoint, e uma falha aqui não pode fazer a
+    // farmácia perder o upload de stock do dia.
+    try {
+      reconciliacaoGlobal = await reconciliarImportacaoComGlobal(
+        ctx.prisma,
+        ctx.tenant.slug,
+        dedup.map((a) => a.cnp),
+      );
+      const rg = reconciliacaoGlobal;
+      if (rg.conhecidosNoGlobal > 0 || rg.enfileirados > 0) {
+        console.log(
+          `[bootstrap/products] catálogo global: ${rg.conhecidosNoGlobal}/${rg.candidatos} conhecidos, ` +
+            `${rg.classificacoesProjectadas} classificações projectadas, ` +
+            `${rg.utilizacoesProjectadas} utilizações, ` +
+            `${rg.enfileirados} enfileirados (${rg.jaEmFila} já em fila)`,
+        );
+      }
+      if (rg.erro) {
+        console.error(`[bootstrap/products] reconciliação com o global falhou: ${rg.erro}`);
+      }
+    } catch (err) {
+      console.error(
+        "[bootstrap/products] reconciliação com o global falhou (ingestão continua):",
         err instanceof Error ? err.message : err,
       );
     }
@@ -433,9 +472,16 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
   // rev46 — contagens do enriquecimento a partir do ERP, para o técnico
   // ver no ecrã do agent quantos campos entraram, sem ir à base de dados.
   // Campo extra e opcional: agents antigos ignoram-no.
-  return NextResponse.json(
-    catalogoErp
-      ? { ...response, produtosNovos, produtosAtualizados, catalogoErp }
-      : { ...response, produtosNovos, produtosAtualizados },
-  );
+  // `catalogoGlobal` diz ao técnico, no ecrã do agent, quantos produtos
+  // nasceram já classificados por o catálogo nacional os conhecer e
+  // quantos ficaram em fila. Sem isto, a diferença entre "o pipeline
+  // correu e não havia nada a fazer" e "o pipeline não correu" só se via
+  // indo à base. Campo extra e opcional: agents antigos ignoram-no.
+  return NextResponse.json({
+    ...response,
+    produtosNovos,
+    produtosAtualizados,
+    ...(catalogoErp ? { catalogoErp } : {}),
+    ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
+  });
 });

@@ -45,12 +45,14 @@ export type AggregateKnowledgeEnrichmentCache = {
 export type KnowledgeEnrichmentCacheAvgAggregateOutputType = {
   cnp: number | null
   confidence: number | null
+  confidenceClinica: number | null
   propagadoDeCnp: number | null
 }
 
 export type KnowledgeEnrichmentCacheSumAggregateOutputType = {
   cnp: number | null
   confidence: number | null
+  confidenceClinica: number | null
   propagadoDeCnp: number | null
 }
 
@@ -67,6 +69,11 @@ export type KnowledgeEnrichmentCacheMinAggregateOutputType = {
   confidence: number | null
   evidenceType: string | null
   rationale: string | null
+  dci: string | null
+  codigoATC: string | null
+  dosagem: string | null
+  embalagem: string | null
+  confidenceClinica: number | null
   persistido: boolean | null
   motivo: string | null
   origem: string | null
@@ -87,6 +94,11 @@ export type KnowledgeEnrichmentCacheMaxAggregateOutputType = {
   confidence: number | null
   evidenceType: string | null
   rationale: string | null
+  dci: string | null
+  codigoATC: string | null
+  dosagem: string | null
+  embalagem: string | null
+  confidenceClinica: number | null
   persistido: boolean | null
   motivo: string | null
   origem: string | null
@@ -108,6 +120,11 @@ export type KnowledgeEnrichmentCacheCountAggregateOutputType = {
   confidence: number
   evidenceType: number
   rationale: number
+  dci: number
+  codigoATC: number
+  dosagem: number
+  embalagem: number
+  confidenceClinica: number
   persistido: number
   motivo: number
   origem: number
@@ -120,12 +137,14 @@ export type KnowledgeEnrichmentCacheCountAggregateOutputType = {
 export type KnowledgeEnrichmentCacheAvgAggregateInputType = {
   cnp?: true
   confidence?: true
+  confidenceClinica?: true
   propagadoDeCnp?: true
 }
 
 export type KnowledgeEnrichmentCacheSumAggregateInputType = {
   cnp?: true
   confidence?: true
+  confidenceClinica?: true
   propagadoDeCnp?: true
 }
 
@@ -142,6 +161,11 @@ export type KnowledgeEnrichmentCacheMinAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  dci?: true
+  codigoATC?: true
+  dosagem?: true
+  embalagem?: true
+  confidenceClinica?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -162,6 +186,11 @@ export type KnowledgeEnrichmentCacheMaxAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  dci?: true
+  codigoATC?: true
+  dosagem?: true
+  embalagem?: true
+  confidenceClinica?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -183,6 +212,11 @@ export type KnowledgeEnrichmentCacheCountAggregateInputType = {
   confidence?: true
   evidenceType?: true
   rationale?: true
+  dci?: true
+  codigoATC?: true
+  dosagem?: true
+  embalagem?: true
+  confidenceClinica?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -291,6 +325,11 @@ export type KnowledgeEnrichmentCacheGroupByOutputType = {
   confidence: number
   evidenceType: string
   rationale: string | null
+  dci: string | null
+  codigoATC: string | null
+  dosagem: string | null
+  embalagem: string | null
+  confidenceClinica: number | null
   persistido: boolean
   motivo: string | null
   origem: string | null
@@ -335,6 +374,11 @@ export type KnowledgeEnrichmentCacheWhereInput = {
   confidence?: Prisma.FloatFilter<"KnowledgeEnrichmentCache"> | number
   evidenceType?: Prisma.StringFilter<"KnowledgeEnrichmentCache"> | string
   rationale?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  dci?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  codigoATC?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  dosagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  embalagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  confidenceClinica?: Prisma.FloatNullableFilter<"KnowledgeEnrichmentCache"> | number | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -356,6 +400,11 @@ export type KnowledgeEnrichmentCacheOrderByWithRelationInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
+  dci?: Prisma.SortOrderInput | Prisma.SortOrder
+  codigoATC?: Prisma.SortOrderInput | Prisma.SortOrder
+  dosagem?: Prisma.SortOrderInput | Prisma.SortOrder
+  embalagem?: Prisma.SortOrderInput | Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -380,6 +429,11 @@ export type KnowledgeEnrichmentCacheWhereUniqueInput = Prisma.AtLeast<{
   confidence?: Prisma.FloatFilter<"KnowledgeEnrichmentCache"> | number
   evidenceType?: Prisma.StringFilter<"KnowledgeEnrichmentCache"> | string
   rationale?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  dci?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  codigoATC?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  dosagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  embalagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  confidenceClinica?: Prisma.FloatNullableFilter<"KnowledgeEnrichmentCache"> | number | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -401,6 +455,11 @@ export type KnowledgeEnrichmentCacheOrderByWithAggregationInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrderInput | Prisma.SortOrder
+  dci?: Prisma.SortOrderInput | Prisma.SortOrder
+  codigoATC?: Prisma.SortOrderInput | Prisma.SortOrder
+  dosagem?: Prisma.SortOrderInput | Prisma.SortOrder
+  embalagem?: Prisma.SortOrderInput | Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -430,6 +489,11 @@ export type KnowledgeEnrichmentCacheScalarWhereWithAggregatesInput = {
   confidence?: Prisma.FloatWithAggregatesFilter<"KnowledgeEnrichmentCache"> | number
   evidenceType?: Prisma.StringWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string
   rationale?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  dci?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  codigoATC?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  dosagem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  embalagem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  confidenceClinica?: Prisma.FloatNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | number | null
   persistido?: Prisma.BoolWithAggregatesFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -451,6 +515,11 @@ export type KnowledgeEnrichmentCacheCreateInput = {
   confidence: number
   evidenceType: string
   rationale?: string | null
+  dci?: string | null
+  codigoATC?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  confidenceClinica?: number | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -472,6 +541,11 @@ export type KnowledgeEnrichmentCacheUncheckedCreateInput = {
   confidence: number
   evidenceType: string
   rationale?: string | null
+  dci?: string | null
+  codigoATC?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  confidenceClinica?: number | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -493,6 +567,11 @@ export type KnowledgeEnrichmentCacheUpdateInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.StringFieldUpdateOperationsInput | string
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -514,6 +593,11 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.StringFieldUpdateOperationsInput | string
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -535,6 +619,11 @@ export type KnowledgeEnrichmentCacheCreateManyInput = {
   confidence: number
   evidenceType: string
   rationale?: string | null
+  dci?: string | null
+  codigoATC?: string | null
+  dosagem?: string | null
+  embalagem?: string | null
+  confidenceClinica?: number | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -556,6 +645,11 @@ export type KnowledgeEnrichmentCacheUpdateManyMutationInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.StringFieldUpdateOperationsInput | string
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -577,6 +671,11 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateManyInput = {
   confidence?: Prisma.FloatFieldUpdateOperationsInput | number
   evidenceType?: Prisma.StringFieldUpdateOperationsInput | string
   rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -598,6 +697,11 @@ export type KnowledgeEnrichmentCacheCountOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  dci?: Prisma.SortOrder
+  codigoATC?: Prisma.SortOrder
+  dosagem?: Prisma.SortOrder
+  embalagem?: Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -608,6 +712,7 @@ export type KnowledgeEnrichmentCacheCountOrderByAggregateInput = {
 export type KnowledgeEnrichmentCacheAvgOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   confidence?: Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrder
 }
 
@@ -624,6 +729,11 @@ export type KnowledgeEnrichmentCacheMaxOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  dci?: Prisma.SortOrder
+  codigoATC?: Prisma.SortOrder
+  dosagem?: Prisma.SortOrder
+  embalagem?: Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -644,6 +754,11 @@ export type KnowledgeEnrichmentCacheMinOrderByAggregateInput = {
   confidence?: Prisma.SortOrder
   evidenceType?: Prisma.SortOrder
   rationale?: Prisma.SortOrder
+  dci?: Prisma.SortOrder
+  codigoATC?: Prisma.SortOrder
+  dosagem?: Prisma.SortOrder
+  embalagem?: Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -654,6 +769,7 @@ export type KnowledgeEnrichmentCacheMinOrderByAggregateInput = {
 export type KnowledgeEnrichmentCacheSumOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   confidence?: Prisma.SortOrder
+  confidenceClinica?: Prisma.SortOrder
   propagadoDeCnp?: Prisma.SortOrder
 }
 
@@ -682,6 +798,11 @@ export type KnowledgeEnrichmentCacheSelect<ExtArgs extends runtime.Types.Extensi
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  dci?: boolean
+  codigoATC?: boolean
+  dosagem?: boolean
+  embalagem?: boolean
+  confidenceClinica?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -703,6 +824,11 @@ export type KnowledgeEnrichmentCacheSelectCreateManyAndReturn<ExtArgs extends ru
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  dci?: boolean
+  codigoATC?: boolean
+  dosagem?: boolean
+  embalagem?: boolean
+  confidenceClinica?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -724,6 +850,11 @@ export type KnowledgeEnrichmentCacheSelectUpdateManyAndReturn<ExtArgs extends ru
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  dci?: boolean
+  codigoATC?: boolean
+  dosagem?: boolean
+  embalagem?: boolean
+  confidenceClinica?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -745,6 +876,11 @@ export type KnowledgeEnrichmentCacheSelectScalar = {
   confidence?: boolean
   evidenceType?: boolean
   rationale?: boolean
+  dci?: boolean
+  codigoATC?: boolean
+  dosagem?: boolean
+  embalagem?: boolean
+  confidenceClinica?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -752,7 +888,7 @@ export type KnowledgeEnrichmentCacheSelectScalar = {
   criadoEm?: boolean
 }
 
-export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "persistido" | "motivo" | "origem" | "propagadoDeCnp" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
+export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "dci" | "codigoATC" | "dosagem" | "embalagem" | "confidenceClinica" | "persistido" | "motivo" | "origem" | "propagadoDeCnp" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
 export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "KnowledgeEnrichmentCache"
@@ -774,6 +910,22 @@ export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Exten
     confidence: number
     evidenceType: string
     rationale: string | null
+    /**
+     * ke-2.0 — campos clínicos inferidos pelo modelo.
+     * 
+     * Guardados aqui mesmo quando não são persistidos em `Produto`: é o
+     * que torna a corrida idempotente. Sem isto, uma segunda passagem
+     * voltaria a pagar a chamada para um produto cujo ATC já se sabe que
+     * veio abaixo do limiar.
+     */
+    dci: string | null
+    codigoATC: string | null
+    dosagem: string | null
+    embalagem: string | null
+    /**
+     * Confiança nos campos clínicos, distinta de `confidence`.
+     */
+    confidenceClinica: number | null
     /**
      * Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
      * não soube" de "o modelo soube e nós recusámos" na hora de explicar
@@ -1232,6 +1384,11 @@ export interface KnowledgeEnrichmentCacheFieldRefs {
   readonly confidence: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Float'>
   readonly evidenceType: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly rationale: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly dci: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly codigoATC: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly dosagem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly embalagem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly confidenceClinica: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Float'>
   readonly persistido: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Boolean'>
   readonly motivo: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly origem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>

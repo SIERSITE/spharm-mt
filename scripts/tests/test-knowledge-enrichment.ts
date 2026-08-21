@@ -27,6 +27,7 @@ import {
   KNOWLEDGE_MODEL,
   KNOWLEDGE_VERSION,
   LIMIAR_PERSISTENCIA,
+  LIMIAR_CLINICO,
   MAX_RETENTATIVAS,
   TIMEOUT_MS,
   alvoParaProduto,
@@ -210,21 +211,121 @@ console.log("\n=== limiar: abaixo dele não se escreve nada ===");
   check(!d.gravarCategoria && d.decisao === "REVIEW", "sem categoria válida (pós-filtro) vai para revisão");
 }
 
-console.log("\n=== âmbito de escrita: só 4 campos, e nunca os que têm fonte melhor ===");
+console.log("\n=== ambito de escrita: ke-2.0 alarga aos clinicos; fabricante e imagem continuam fora ===");
 {
+  // A lista mudou em 2026-08-21 por decisao explicita do operador: os
+  // campos clinicos passaram de proibidos a escritos porque nao existe
+  // fonte melhor (RegulatoryRecord vazia, sem dataset INFARMED). O teste
+  // acompanha a decisao em vez de a contrariar — mas continua a FIXAR a
+  // lista, para que um alargamento futuro tenha de ser outra vez
+  // deliberado em vez de acontecer por descuido.
   check(
     [...CAMPOS_ESCRITOS].sort().join() ===
-      ["ProdutoUtilizacao", "classificacaoNivel1Id", "classificacaoNivel2Id", "productType"].sort().join(),
-    "a lista de campos escritos é exactamente a acordada",
+      [
+        "ProdutoUtilizacao", "classificacaoNivel1Id", "classificacaoNivel2Id", "productType",
+        "dci", "codigoATC", "formaFarmaceutica", "dosagem", "embalagem",
+      ].sort().join(),
+    "a lista de campos escritos e exactamente a acordada",
     [...CAMPOS_ESCRITOS].join(", "),
   );
-  for (const campo of ["codigoATC", "dci", "fabricanteId", "imagemUrl", "formaFarmaceutica"]) {
+  // Estes dois continuam fora, por razoes que nao mudaram: o fabricante
+  // ja vem do ERP em 95% do catalogo, e uma imagem nao e inferivel — um
+  // modelo nao pode devolver um ficheiro que nunca viu.
+  for (const campo of ["fabricanteId", "imagemUrl"]) {
     check(
       (CAMPOS_PROIBIDOS as readonly string[]).includes(campo) &&
         !(CAMPOS_ESCRITOS as readonly string[]).includes(campo),
-      `${campo} é proibido e não consta dos escritos`,
+      `${campo} e proibido e nao consta dos escritos`,
     );
   }
+  for (const campo of ["codigoATC", "dci", "formaFarmaceutica", "dosagem", "embalagem"]) {
+    check(
+      (CAMPOS_ESCRITOS as readonly string[]).includes(campo) &&
+        !(CAMPOS_PROIBIDOS as readonly string[]).includes(campo),
+      `${campo} passou a escrito (ke-2.0) e saiu dos proibidos`,
+    );
+  }
+}
+
+console.log("\n=== ke-2.0: o gate clinico nao deixa passar ATC inventado ===");
+{
+  const cnps = new Set([5440987]);
+  const base = {
+    cnp: 5440987, productType: "MEDICAMENTO",
+    categoria: "MEDICAMENTOS", subcategoria: "Analgésicos e Anti-inflamatórios",
+    forma: "comprimido", utilizacoes: [], confidence: 0.97,
+    evidenceType: "MARCA_CONHECIDA", rationale: "Ben-u-ron é paracetamol.",
+    dosagem: "500 mg", embalagem: "20 comprimidos", confidenceClinica: 0.96,
+  };
+
+  const ok = validarResultado({ ...base, dci: "Paracetamol", codigoATC: "N02BE01" }, cnps);
+  check(ok?.codigoATC === "N02BE01", "ATC completo e bem formado sobrevive");
+  check(ok?.dci === "Paracetamol", "DCI plausivel sobrevive");
+
+  // O caso que interessa: o modelo sabe o grupo mas nao a substancia.
+  const truncado = validarResultado({ ...base, dci: "Paracetamol", codigoATC: "N02" }, cnps);
+  check(truncado?.codigoATC === null, "ATC truncado 'N02' e rejeitado, nao completado");
+  check(truncado?.dci === "Paracetamol", "...e a DCI sobrevive — os campos sao independentes");
+
+  for (const mau of ["N02BE0", "N02BE011", "I02BE01", "NO2BE01", "", "  "]) {
+    const r = validarResultado({ ...base, codigoATC: mau }, cnps);
+    check(r?.codigoATC === null, `ATC invalido ${JSON.stringify(mau)} e rejeitado`);
+  }
+  // Minusculas e espacos sao normalizados, nao rejeitados: e a mesma
+  // resposta escrita de outra maneira, nao outra resposta.
+  const sujo = validarResultado({ ...base, codigoATC: " n02be01 " }, cnps);
+  check(sujo?.codigoATC === "N02BE01", "ATC em minusculas com espacos e normalizado");
+
+  // Uma frase no campo da DCI e o sinal classico de o modelo estar a
+  // explicar em vez de nomear.
+  const frase = validarResultado(
+    { ...base, dci: "nao sei ao certo, possivelmente paracetamol ou ibuprofeno consoante a apresentacao" },
+    cnps,
+  );
+  check(frase?.dci === null, "DCI demasiado longa (frase, nao denominacao) e rejeitada");
+
+  const semClinica = validarResultado(
+    { ...base, dci: "", codigoATC: "", dosagem: "", embalagem: "", confidenceClinica: 0.1 },
+    cnps,
+  );
+  check(
+    semClinica !== null && semClinica.dci === null && semClinica.codigoATC === null,
+    "vazios ficam null e o resultado continua valido",
+  );
+  check(
+    semClinica?.categoria === "MEDICAMENTOS",
+    "...e a categoria sobrevive mesmo sem clinica nenhuma — a classificacao nao se perde",
+  );
+}
+
+console.log("\n=== ke-2.0: as escritas clinicas sao preenchimento, nunca correccao ===");
+{
+  const runnerSrc = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+  // A guarda real contra sobrepor uma fonte melhor nao e o comentario —
+  // e o `is null` no WHERE. Se alguem o tirar, este teste cai.
+  for (const campo of ["dci", "codigoATC", "formaFarmaceutica", "dosagem", "embalagem"]) {
+    check(
+      runnerSrc.includes(`p."${campo}" is null`) ||
+        runnerSrc.includes('p."${coluna}" is null'),
+      `o UPDATE de ${campo} exige que a coluna esteja NULL`,
+    );
+  }
+  check(
+    runnerSrc.includes("r.confidenceClinica >= LIMIAR_CLINICO"),
+    "nenhum campo clinico e escrito abaixo de LIMIAR_CLINICO",
+  );
+  check(
+    runnerSrc.includes('"classificationVersion"'),
+    "as escritas clinicas carimbam a versao — e o que as torna reversiveis em bloco",
+  );
+  check(
+    LIMIAR_CLINICO > LIMIAR_PERSISTENCIA,
+    "a barra para gravar um ATC e mais alta que a barra para gravar uma categoria",
+    `clinico ${LIMIAR_CLINICO} > classificacao ${LIMIAR_PERSISTENCIA}`,
+  );
 }
 {
   // A garantia real não é a constante — é não existir UPDATE que lhes toque.
@@ -939,3 +1040,37 @@ testesDoRunner()
     console.error("\n[FALHA] os testes do runner rebentaram:", e);
     process.exit(1);
   });
+
+console.log("\n=== ke-2.0: a propagacao por familia nao leva a apresentacao do irmao ===");
+{
+  const runnerSrc = readFileSync(
+    new URL("../../lib/catalog/knowledge-enrichment-runner.ts", import.meta.url),
+    "utf8",
+  );
+  // O HALDOL 5 MG herdou a dosagem "1 mg" do irmao de 1 mg na corrida de
+  // validacao de 2026-08-21. A causa era `{ ...r, cnp: dep.cnp }`, que
+  // espalhava o resultado inteiro do representante — incluindo o que
+  // distingue os irmaos uns dos outros.
+  check(
+    runnerSrc.includes("semApresentacao"),
+    "existe um filtro explicito do que nao se propaga",
+  );
+  check(
+    !/escrever\(\s*\{ \.\.\.r, cnp: dep\.cnp \}/.test(runnerSrc),
+    "a escrita do dependente ja nao espalha o resultado inteiro do representante",
+  );
+  check(
+    !/gravarCache\(\s*prisma,\s*\{ \.\.\.r, cnp: dep\.cnp, confidence/.test(runnerSrc),
+    "…e a cache do dependente tambem nao",
+  );
+  // dci e codigoATC SAO propriedades da substancia e continuam a
+  // propagar: o ATC do haloperidol e N05AD01 em qualquer dosagem.
+  const corpo = runnerSrc.slice(runnerSrc.indexOf("const semApresentacao"));
+  const decl = corpo.slice(0, corpo.indexOf("});"));
+  for (const campo of ["forma", "dosagem", "embalagem"]) {
+    check(decl.includes(`${campo}: null`), `${campo} e limpo na propagacao`);
+  }
+  for (const campo of ["dci", "codigoATC"]) {
+    check(!decl.includes(`${campo}: null`), `${campo} continua a propagar (e da substancia)`);
+  }
+}

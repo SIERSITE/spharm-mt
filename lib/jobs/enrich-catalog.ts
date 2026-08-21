@@ -89,6 +89,12 @@ export type KnowledgeCycleSummary = {
   categoriasEscritas: number;
   productTypesEscritos: number;
   utilizacoesEscritas: number;
+  /** Total de campos clínicos escritos (dci+atc+forma+dosagem+embalagem). */
+  clinicaEscrita: number;
+  dciEscritas: number;
+  atcEscritos: number;
+  /** Resultados com clínica proposta mas abaixo de LIMIAR_CLINICO. */
+  clinicaRecusadaPorConfianca: number;
   paraRevisao: number;
   /** Propostas que a segunda passagem não confirmou. Vigiar esta série. */
   discordancias: number;
@@ -97,11 +103,33 @@ export type KnowledgeCycleSummary = {
   erro: string | null;
 };
 
+export type PromocaoGlobalSummary = {
+  candidatosLidos: number;
+  produtosPromovidos: number;
+  classificacoesPromovidas: number;
+  utilizacoesPromovidas: number;
+  aguardamAprovacao: number;
+  erro: string | null;
+};
+
 export type EnrichCycleSummary = {
   sync: SyncRegulatorySummary;
   reclassify: ReclassifySummary;
   /** `null` quando a fase 3 não foi pedida. */
   knowledge: KnowledgeCycleSummary | null;
+  /**
+   * Segunda passagem do mapper, a seguir ao knowledge. `null` quando a
+   * fase 3 não correu ou não escreveu clínica nenhuma — nesse caso não
+   * há sinal novo e voltar a correr o mapper seria trabalho garantido
+   * sem resultado.
+   */
+  reclassifyPosKnowledge: ReclassifySummary | null;
+  /**
+   * Fase 5 — o que subiu ao catálogo global. `null` quando o ciclo não
+   * recebeu `tenantSlug` (a promoção é por tenant e o global é por CNP;
+   * sem saber de onde vem o conhecimento não há proveniência a registar).
+   */
+  promocaoGlobal: PromocaoGlobalSummary | null;
   totalDurationMs: number;
 };
 
@@ -409,6 +437,12 @@ export async function runEnrichCycle(opts: {
    */
   knowledgeLimit?: number;
   knowledgeCapUsd?: number;
+  /**
+   * Slug do tenant. Sem ele, a fase 5 não corre: a promoção ao catálogo
+   * global regista de que tenant veio cada conclusão, e promover sem
+   * essa proveniência tornaria a origem impossível de auditar depois.
+   */
+  tenantSlug?: string;
 }): Promise<EnrichCycleSummary> {
   const t0 = Date.now();
   // Ordem obrigatória: o determinístico primeiro, sempre. Só o que ele
@@ -438,6 +472,14 @@ export async function runEnrichCycle(opts: {
         categoriasEscritas: r.categoriasEscritas,
         productTypesEscritos: r.productTypesEscritos,
         utilizacoesEscritas: r.utilizacoesEscritas,
+        // Quantos campos clínicos esta corrida escreveu. É o gatilho da
+        // fase 4 e a métrica que a auditoria final reporta.
+        clinicaEscrita:
+          r.dciEscritas + r.atcEscritos + r.formasEscritas +
+          r.dosagensEscritas + r.embalagensEscritas,
+        dciEscritas: r.dciEscritas,
+        atcEscritos: r.atcEscritos,
+        clinicaRecusadaPorConfianca: r.clinicaRecusadaPorConfianca,
         paraRevisao: r.review,
         discordancias: r.relatorio.filter((l) => l.discordancia).length,
         custoEstimadoUsd: Number(r.custoEstimadoUsd.toFixed(4)),
@@ -449,11 +491,94 @@ export async function runEnrichCycle(opts: {
       // fica registada e o cron do dia seguinte tenta outra vez.
       knowledge = {
         residual: 0, categoriasEscritas: 0, productTypesEscritos: 0,
-        utilizacoesEscritas: 0, paraRevisao: 0, discordancias: 0, custoEstimadoUsd: 0,
+        utilizacoesEscritas: 0, clinicaEscrita: 0, dciEscritas: 0, atcEscritos: 0,
+        clinicaRecusadaPorConfianca: 0,
+        paraRevisao: 0, discordancias: 0, custoEstimadoUsd: 0,
         erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
       };
     }
   }
 
-  return { sync, reclassify, knowledge, totalDurationMs: Date.now() - t0 };
+  // ── Fase 4: reclassificar OUTRA VEZ, depois do knowledge ────────────
+  //
+  // A fase 2 correu antes do knowledge e viu o catálogo como ele estava:
+  // sem ATC e sem DCI. Desde ke-2.0 o knowledge escreve esses campos,
+  // portanto os sinais de que o mapper precisa só existem DEPOIS dele.
+  // Sem esta segunda passagem, um produto que acabou de receber
+  // "N02BE01" continuava em "Outros Medicamentos" até ao cron do dia
+  // seguinte — e a redução que se mede no fim da corrida seria a de
+  // ontem, não a desta.
+  //
+  // Barata quando não há nada a fazer: a consulta filtra por produtos em
+  // "Outros Medicamentos" ou sem nível 2, e devolve vazio se a fase 3
+  // não escreveu nada.
+  let reclassifyPosKnowledge: ReclassifySummary | null = null;
+  if (knowledge && !knowledge.erro && knowledge.clinicaEscrita > 0) {
+    reclassifyPosKnowledge = await reclassifyByCanonicalMapping({
+      prisma: opts.prisma,
+      limit: opts.reclassifyLimit ?? 500,
+    });
+  }
+
+  // ── Fase 5: promover ao catálogo global ─────────────────────────────
+  //
+  // O passo que faltava, e que se media: 15 260 CNPs no global contra
+  // 15 370 elegíveis no tenant. Os 110 de diferença eram produtos que
+  // uma corrida classificou e que nunca subiram, porque só o comando
+  // manual `catalog:bootstrap-global` os fazia subir. O desvio crescia a
+  // cada corrida.
+  //
+  // Promove SEM aprovação humana, portanto sobe só o que é determinístico
+  // ou inferido pelo modelo — uma validação manual continua a exigir o
+  // `catalog:promote-global` com aprovador e motivo. Essa distinção é
+  // deliberada e não se dilui aqui: quem corrige um produto ao balcão
+  // pode estar a acomodar uma particularidade daquela farmácia, e isso
+  // não deve chegar às outras sem alguém assinar por baixo.
+  //
+  // Como o `avaliarPromocao` recusa fallbacks e recusa repetir o que o
+  // global já sabe, correr isto sem nada de novo é barato e não escreve.
+  let promocaoGlobal: PromocaoGlobalSummary | null = null;
+  if (opts.tenantSlug) {
+    try {
+      const { lerCandidatosDoTenant, promoverAoGlobal } = await import(
+        "../catalog/global-catalog-store"
+      );
+      const { MIN_CNP } = await import("../catalog/knowledge-enrichment-runner");
+      const { KNOWLEDGE_VERSION } = await import("../catalog/knowledge-enrichment");
+
+      const leitura = await lerCandidatosDoTenant(opts.prisma, opts.tenantSlug, {
+        minCnp: MIN_CNP,
+        versaoRegras: KNOWLEDGE_VERSION,
+      });
+      const promo = await promoverAoGlobal(leitura.candidatos, {
+        dryRun: false,
+        actor: "job:enrich-catalog",
+      });
+      promocaoGlobal = {
+        candidatosLidos: leitura.lidos,
+        produtosPromovidos: promo.produtosPromovidos,
+        classificacoesPromovidas: promo.classificacoesPromovidas,
+        utilizacoesPromovidas: promo.utilizacoesPromovidas,
+        aguardamAprovacao: promo.aguardamAprovacao,
+        erro: null,
+      };
+    } catch (e) {
+      // Como as fases 3 e 4: nunca derruba o ciclo. As escritas no tenant
+      // já aconteceram e são o caminho crítico; a promoção é partilha.
+      promocaoGlobal = {
+        candidatosLidos: 0, produtosPromovidos: 0, classificacoesPromovidas: 0,
+        utilizacoesPromovidas: 0, aguardamAprovacao: 0,
+        erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+      };
+    }
+  }
+
+  return {
+    sync,
+    reclassify,
+    knowledge,
+    reclassifyPosKnowledge,
+    promocaoGlobal,
+    totalDurationMs: Date.now() - t0,
+  };
 }

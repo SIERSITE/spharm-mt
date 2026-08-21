@@ -2284,6 +2284,19 @@ model KnowledgeEnrichmentCache {
   evidenceType String
   rationale    String?
 
+  /// ke-2.0 — campos clínicos inferidos pelo modelo.
+  ///
+  /// Guardados aqui mesmo quando não são persistidos em `Produto`: é o
+  /// que torna a corrida idempotente. Sem isto, uma segunda passagem
+  /// voltaria a pagar a chamada para um produto cujo ATC já se sabe que
+  /// veio abaixo do limiar.
+  dci               String?
+  codigoATC         String?
+  dosagem           String?
+  embalagem         String?
+  /// Confiança nos campos clínicos, distinta de `confidence`.
+  confidenceClinica Float?
+
   /// Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
   /// não soube" de "o modelo soube e nós recusámos" na hora de explicar
   /// uma cobertura que não subiu.

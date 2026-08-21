@@ -62,7 +62,7 @@ import type { ProductType } from "../catalog-types";
  * versão nova invalida o que estava lá sem apagar nada, e permite
  * comparar duas versões lado a lado sobre o mesmo catálogo.
  */
-export const KNOWLEDGE_VERSION = "ke-1.1";
+export const KNOWLEDGE_VERSION = "ke-2.0";
 
 /**
  * Os ÚNICOS campos que esta fonte pode escrever.
@@ -82,15 +82,41 @@ export const CAMPOS_ESCRITOS = [
   "classificacaoNivel1Id",
   "classificacaoNivel2Id",
   "ProdutoUtilizacao",
+  // ── ke-2.0: campos clínicos ────────────────────────────────────────
+  // Decisão explícita do operador (2026-08-21), contra a política
+  // original deste ficheiro. O raciocínio antigo — "o modelo seria a
+  // pior fonte disponível" — continua verdadeiro; o que mudou é que
+  // não existe fonte melhor: `RegulatoryRecord` está vazia e não há
+  // dataset INFARMED. A escolha é entre um valor inferido, marcado
+  // como inferido, e nenhum valor.
+  //
+  // Três guardas tornam isto reversível:
+  //   · `taxaIvaSource`-style: gravamos MODEL_INFERRED em
+  //     `classificationSource` e a versão em `classificationVersion`,
+  //     portanto um UPDATE ... WHERE classificationVersion = 'ke-2.0'
+  //     apaga tudo o que esta fase escreveu.
+  //   · `is null` no WHERE: nunca sobrepõe um valor existente. Se um
+  //     dia entrar o INFARMED, ele escreve primeiro e isto não toca.
+  //   · LIMIAR_CLINICO > LIMIAR_PERSISTENCIA: a barra para gravar um
+  //     ATC é mais alta que a barra para gravar uma categoria.
+  "dci",
+  "codigoATC",
+  "formaFarmaceutica",
+  "dosagem",
+  "embalagem",
 ] as const;
 
-/** Campos que esta fonte está proibida de escrever, por terem fonte melhor. */
+/**
+ * Campos que esta fonte continua proibida de escrever.
+ *
+ * `fabricanteId` e `imagemUrl` ficam de fora do alargamento ke-2.0 de
+ * propósito: o fabricante já vem do ERP em 95% do catálogo (não falta),
+ * e uma imagem não é inferível — um modelo não pode devolver um ficheiro
+ * que não viu. Alargar a estes dois seria inventar sem sequer o ganho.
+ */
 export const CAMPOS_PROIBIDOS = [
-  "codigoATC",
-  "dci",
   "fabricanteId",
   "imagemUrl",
-  "formaFarmaceutica",
 ] as const;
 
 // ─── Modelo ───────────────────────────────────────────────────────────
@@ -196,6 +222,36 @@ async function comRetentativa<T>(fn: () => Promise<T>): Promise<T> {
 export const LIMIAR_PERSISTENCIA = 0.85;
 
 /**
+ * Barra para gravar campos clínicos (DCI, ATC, forma, dosagem, embalagem).
+ *
+ * Mais alta que `LIMIAR_PERSISTENCIA` porque o custo do erro é outro. Uma
+ * categoria errada põe o produto na prateleira errada e vê-se; um ATC
+ * errado é sete caracteres plausíveis que ninguém confere e que passam a
+ * alimentar o mapper de subcategorias — um erro que se propaga em vez de
+ * ficar parado.
+ */
+export const LIMIAR_CLINICO = 0.9;
+
+/**
+ * Forma canónica de um código ATC completo: N02BE01.
+ *
+ *   1 letra   grupo anatómico (as 14 letras que a OMS usa — I, K, O, ...
+ *             não existem, e aceitá-las deixaria passar erros de OCR)
+ *   2 dígitos grupo terapêutico
+ *   2 letras  subgrupo farmacológico e químico
+ *   2 dígitos substância
+ *
+ * Só o código completo é aceite. Um ATC truncado ("N02", "N02BE") é
+ * verdadeiro mas não identifica a substância, e guardá-lo num campo que
+ * a jusante é lido como identificação faria passar por facto o que é
+ * meia-resposta.
+ */
+const ATC_COMPLETO = /^[ABCDGHJLMNPRSV][0-9]{2}[A-Z]{2}[0-9]{2}$/;
+
+/** Aceita a DCI se parecer uma denominação e não uma frase. */
+const DCI_PLAUSIVEL = /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 ,''\-\/()+.]{1,79}$/;
+
+/**
  * Produtos por chamada. 25 mantém o pedido pequeno o suficiente para o
  * modelo não perder linhas no fim do lote, e amortiza o prefixo da
  * taxonomia por 25 em vez de por 1.
@@ -222,8 +278,26 @@ export type KnowledgeResult = {
   subcategoria: string | null;
   /** Forma farmacêutica normalizada, quando dedutível. */
   forma: string | null;
+  /** Denominação Comum Internacional da substância activa. ke-2.0. */
+  dci: string | null;
+  /** Código ATC completo (7 caracteres), validado por `ATC_COMPLETO`. */
+  codigoATC: string | null;
+  /** Dosagem tal como identificada ("500 mg", "0,25 mg/ml"). */
+  dosagem: string | null;
+  /** Apresentação/embalagem ("30 comprimidos", "frasco 200 ml"). */
+  embalagem: string | null;
   utilizacoes: string[];
   confidence: number;
+  /**
+   * Confiança NOS CAMPOS CLÍNICOS, independente de `confidence`.
+   *
+   * Existe separada porque as duas perguntas são mesmo diferentes: o
+   * modelo pode saber com certeza que o Ozempic é um antidiabético
+   * (categoria segura) e não ter a certeza se o ATC é A10BJ06 ou
+   * A10BJ02. Uma só confiança obrigaria a escolher entre perder a
+   * categoria ou aceitar o ATC de má qualidade.
+   */
+  confidenceClinica: number;
   evidenceType: EvidenceType;
   rationale: string;
   /** Que pergunta deu origem a este resultado. */
@@ -271,6 +345,11 @@ const SCHEMA = {
           categoria: { type: "string", description: "Nível 1 da taxonomia, exacto. Vazio se não souber." },
           subcategoria: { type: "string", description: "Nível 2 da taxonomia, exacto e filho da categoria. Vazio se não souber." },
           forma: { type: "string", description: "Forma farmacêutica se dedutível (comprimido, xarope, colírio, ...). Vazio se não aplicável." },
+          dci: { type: "string", description: "Denominação Comum Internacional da substância activa, sem dosagem nem marca (ex.: \"Paracetamol\", \"Insulina glargina\"). Vazio se não for medicamento ou não souberes." },
+          codigoATC: { type: "string", description: "Código ATC COMPLETO de 7 caracteres (ex.: N02BE01). Vazio se não souberes o código completo — um ATC truncado como \"N02\" é rejeitado pelo sistema." },
+          dosagem: { type: "string", description: "Dosagem tal como consta da designação (ex.: \"500 mg\", \"0,25 mg/ml\"). Vazio se não constar." },
+          embalagem: { type: "string", description: "Apresentação/embalagem (ex.: \"30 comprimidos\", \"frasco 200 ml\"). Vazio se não constar." },
+          confidenceClinica: { type: "number", description: "0 a 1. Confiança APENAS em dci/codigoATC/dosagem/embalagem — independente de confidence." },
           utilizacoes: {
             type: "array",
             items: { type: "string" },
@@ -285,6 +364,7 @@ const SCHEMA = {
         },
         required: [
           "cnp", "productType", "categoria", "subcategoria", "forma",
+          "dci", "codigoATC", "dosagem", "embalagem", "confidenceClinica",
           "utilizacoes", "confidence", "evidenceType", "rationale",
         ],
         additionalProperties: false,
@@ -373,6 +453,20 @@ REGRAS
 5. Preferir a subcategoria específica à genérica "Outros <X>". Se só sabes o nível 1, devolve "Outros <X>" — continua a ser melhor que nada. Se nem isso, deixa vazio.
 
 6. Um medicamento veterinário é VETERINARIA, não MEDICAMENTO. Um suplemento em cápsulas é SUPLEMENTO, não MEDICAMENTO.
+
+7. CAMPOS CLÍNICOS (dci, codigoATC, dosagem, embalagem). Só para medicamentos. Para tudo o resto deixa-os vazios — um champô não tem DCI e inventar-lhe uma é pior que deixar em branco.
+
+   · dci: a substância activa pelo nome comum internacional, sem marca e sem dosagem. "Paracetamol", não "Ben-u-ron 500". Se o produto tem várias substâncias, lista-as separadas por " + ".
+   · codigoATC: o código COMPLETO de 7 caracteres, como N02BE01. Se só tens a certeza do grupo ("é um analgésico, portanto N02"), deixa VAZIO — o sistema rejeita códigos truncados e um código parcial não identifica a substância. Não construas o código a partir da categoria: ou o sabes de cor para esta substância, ou não o sabes.
+   · dosagem e embalagem: copia o que está na designação, não deduzas. Se a designação diz "500 Mg X 20", dosagem="500 mg" e embalagem="20 comprimidos" só se o "X 20" for mesmo a contagem. Na dúvida, vazio.
+
+8. confidenceClinica é SEPARADA de confidence e mede só os campos do ponto 7:
+   · 0.95+ — sabes a substância e o ATC de cor (Paracetamol N02BE01, Omeprazol A02BC01).
+   · 0.90–0.94 — sabes a substância com certeza; o ATC confirmaste-o mentalmente.
+   · <0.90 — não tens a certeza do ATC. Devolve dci se a souberes e deixa codigoATC vazio; põe confidenceClinica baixa.
+   Abaixo de 0.90 nenhum campo clínico é gravado. Um ATC errado propaga-se: alimenta o mapper de subcategorias e passa a estar em dois sítios em vez de um.
+
+   Preencher dci e deixar codigoATC vazio é uma resposta boa e frequente. As duas coisas não têm de vir juntas.
 
 Devolves um resultado por produto de entrada, com o cnp exacto que recebeste.`;
 
@@ -505,8 +599,16 @@ export function validarResultadoUtilizacoes(
     categoria: null,
     subcategoria: null,
     forma: null,
+    // O pedido de utilizações não pergunta nada de clínico e o esquema
+    // reduzido nem sequer tem estes campos. Ficam null para que este
+    // caminho não possa escrever um ATC por acidente.
+    dci: null,
+    codigoATC: null,
+    dosagem: null,
+    embalagem: null,
     utilizacoes,
     confidence: Math.max(0, Math.min(1, confidence)),
+    confidenceClinica: 0,
     evidenceType,
     rationale: typeof r.rationale === "string" ? r.rationale.trim().slice(0, 400) : "",
     alvo: "UTILIZACOES",
@@ -581,14 +683,50 @@ export function validarResultado(
   const forma = typeof r.forma === "string" && r.forma.trim() ? r.forma.trim().slice(0, 120) : null;
   const rationale = typeof r.rationale === "string" ? r.rationale.trim().slice(0, 400) : "";
 
+  // ── Campos clínicos (ke-2.0) ────────────────────────────────────────
+  //
+  // Mesma disciplina do resto do ficheiro: rejeitar em silêncio, nunca
+  // corrigir. Um ATC com 5 caracteres não é encurtado nem completado —
+  // é deitado fora. Completá-lo seria inventar dois dígitos.
+  const texto = (v: unknown, max: number): string | null => {
+    if (typeof v !== "string") return null;
+    const t = v.trim();
+    return t ? t.slice(0, max) : null;
+  };
+
+  // Validar ANTES de truncar, e nao depois.
+  //
+  // Com o `slice(80)` a correr primeiro, uma frase de 86 caracteres
+  // ("nao sei ao certo, possivelmente paracetamol ou ...") ficava com 80
+  // e passava a regex — a truncagem transformava uma nao-resposta em
+  // algo com forma de denominacao. E exactamente o "corrigir em vez de
+  // rejeitar" que o resto deste ficheiro proibe. Uma DCI a mais de 80
+  // caracteres nao e uma DCI comprida: e outra coisa qualquer.
+  const dciBruta = typeof r.dci === "string" ? r.dci.trim() : "";
+  const dci = dciBruta && DCI_PLAUSIVEL.test(dciBruta) ? dciBruta : null;
+
+  const atcBruto = texto(r.codigoATC, 16)?.toUpperCase().replace(/\s+/g, "") ?? null;
+  const codigoATC = atcBruto && ATC_COMPLETO.test(atcBruto) ? atcBruto : null;
+
+  const dosagem = texto(r.dosagem, 60);
+  const embalagem = texto(r.embalagem, 60);
+
+  const confClinicaBruta =
+    typeof r.confidenceClinica === "number" ? r.confidenceClinica : 0;
+
   return {
     cnp,
     productType,
     categoria,
     subcategoria,
     forma,
+    dci,
+    codigoATC,
+    dosagem,
+    embalagem,
     utilizacoes,
     confidence: Math.max(0, Math.min(1, confidence)),
+    confidenceClinica: Math.max(0, Math.min(1, confClinicaBruta)),
     evidenceType,
     rationale,
   };
