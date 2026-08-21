@@ -399,12 +399,67 @@ validate_proxy_conf() {
     die "o utilizador nginx NÃO consegue listar /etc/nginx/conf.d (dir a ${dmode}) — era isto que deixava o proxy sem server{}"
   fi
 
-  # `nginx -t` com EXACTAMENTE o mount do compose. Um teste que use outro
-  # caminho valida um cenário que não é o que vai correr.
+  # `nginx -t` com EXACTAMENTE os mounts do compose. Um teste que use
+  # outro conjunto valida um cenário que não é o que vai correr.
+  #
+  # NÃO CHEGA montar o conf.d. O `nginx -t` não é só um parser: ao
+  # carregar a configuração ABRE os ficheiros referidos por directivas
+  # como `ssl_certificate`. Com spharmmt-tls.conf instalado e sem o mount
+  # dos certificados, o teste morria com
+  #
+  #   cannot load certificate "/etc/nginx/certs/fullchain.pem"
+  #
+  # a acusar certificados em falta que existem no host e que o proxy real
+  # monta e serve sem problema. O defeito estava no ambiente do teste, e
+  # abortava o deploy de uma configuração válida.
+  #
+  # Os caminhos são os mesmos que o install_stack_env escreve em
+  # PROXY_CERTS_DIR/ACME_DIR/AGENT_BASE_DIR e que o compose consome; ver
+  # o serviço `proxy` em deploy/docker/docker-compose.yml.
+  #
+  # `[ -d ]` antes de cada um, e não incondicional: um bind mount cujo
+  # caminho não existe é CRIADO pelo Docker como root, e um proxy/certs
+  # root:root a 0755 é exactamente a regressão de permissões que o
+  # verify-platform.sh existe para apanhar. Se faltar mesmo um caminho de
+  # que a configuração precisa, o `nginx -t` falha — que é o resultado
+  # correcto, e agora por uma razão verdadeira.
   local image
   image=$(awk -F'image: ' '/image: nginx:/ {print $2; exit}' "$SPHARMMT_COMPOSE_FILE" | tr -d '\r')
   image=${image:-nginx:1.29-alpine}
+
+  local mounts=(-v "${SPHARMMT_PROXY_CONF_DIR}:/etc/nginx/conf.d:ro")
+  local montado="conf.d"
+  # Certificados TLS: ssl_certificate / ssl_certificate_key em
+  # spharmmt-tls.conf são lidos durante o `nginx -t`.
+  if [ -d "${SPHARMMT_ROOT}/proxy/certs" ]; then
+    mounts+=(-v "${SPHARMMT_ROOT}/proxy/certs:/etc/nginx/certs:ro")
+    montado="${montado} · certs"
+  fi
+  # Webroot do ACME e ZIP do agent: `root`/`alias` não são abertos pelo
+  # `nginx -t`, mas montá-los mantém o container de validação igual ao
+  # proxy real — e é essa igualdade que dá valor a este teste.
+  if [ -d "${SPHARMMT_ROOT}/proxy/acme" ]; then
+    mounts+=(-v "${SPHARMMT_ROOT}/proxy/acme:/var/www/acme:ro")
+    montado="${montado} · acme"
+  fi
+  if [ -d "${SPHARMMT_ROOT}/agent-base" ]; then
+    mounts+=(-v "${SPHARMMT_ROOT}/agent-base:/usr/share/nginx/agent-base:ro")
+    montado="${montado} · agent-base"
+  fi
   info "nginx -t (${image}) com ${SPHARMMT_PROXY_CONF_DIR} → /etc/nginx/conf.d"
+  info "  mounts: ${montado}"
+
+  # Se o TLS está instalado, os certificados TÊM de estar montados — e
+  # existir. Sem esta guarda o sintoma volta a ser a mensagem do nginx
+  # sobre um caminho de dentro do container, que não diz onde procurar.
+  if [ -f "${SPHARMMT_PROXY_CONF_DIR}/spharmmt-tls.conf" ]; then
+    local pem
+    for pem in fullchain.pem privkey.pem; do
+      [ -f "${SPHARMMT_ROOT}/proxy/certs/${pem}" ] \
+        || die "spharmmt-tls.conf está instalado mas falta ${SPHARMMT_ROOT}/proxy/certs/${pem} — o proxy NÃO foi tocado"
+    done
+    ok "certificados presentes em ${SPHARMMT_ROOT}/proxy/certs"
+  fi
 
   # `--add-host web:127.0.0.1`: o nginx resolve os nomes dos `upstream`
   # ao CARREGAR a configuração, e `web` ainda não está de pé nesta fase.
@@ -413,7 +468,7 @@ validate_proxy_conf() {
   # `--network none`: isto valida sintaxe e estrutura, não conectividade.
   local out rc=0
   out=$(docker run --rm --network none --add-host "web:127.0.0.1" \
-          -v "${SPHARMMT_PROXY_CONF_DIR}:/etc/nginx/conf.d:ro" \
+          "${mounts[@]}" \
           "$image" nginx -t 2>&1) || rc=$?
   if [ "$rc" -ne 0 ]; then
     printf '%s\n' "$out" | sed 's/^/    /'

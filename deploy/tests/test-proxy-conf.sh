@@ -142,6 +142,25 @@ test_validation_before_recreate() {
   assert "nginx -t resolve o upstream sem a web de pé" \
     grep -q 'add-host "web:127.0.0.1"' "$INSTALL"
 
+  # O `nginx -t` ABRE os ficheiros do ssl_certificate. Sem o mount dos
+  # certificados, um deploy com TLS instalado abortava com "cannot load
+  # certificate /etc/nginx/certs/fullchain.pem" — a acusar certificados
+  # em falta que o proxy real tinha e servia. O defeito era do ambiente
+  # do teste, e travava o deploy de uma configuração válida.
+  assert "nginx -t monta os certificados como o compose" \
+    grep -q 'proxy/certs:/etc/nginx/certs:ro' "$INSTALL"
+  assert "nginx -t monta o webroot do ACME" \
+    grep -q 'proxy/acme:/var/www/acme:ro' "$INSTALL"
+  # Só monta o que existe: um bind mount cujo caminho falta é criado pelo
+  # Docker como root, e proxy/certs root:root é uma regressão de
+  # permissões — não um mount em falta.
+  assert "não cria proxy/certs por engano com um mount incondicional" \
+    grep -q 'if \[ -d "${SPHARMMT_ROOT}/proxy/certs" \]' "$INSTALL"
+  # Com TLS instalado, a ausência dos .pem tem de ter mensagem própria: a
+  # do nginx aponta um caminho de dentro do container e não diz onde ir.
+  assert "diagnostica certificados em falta com TLS instalado" \
+    grep -q 'spharmmt-tls.conf está instalado mas falta' "$INSTALL"
+
   # A ordem é o que interessa: validar depois de recriar não serve de nada.
   local n_validate n_up
   n_validate=$(grep -n '^  validate_proxy_conf$' "$INSTALL" | cut -d: -f1)
