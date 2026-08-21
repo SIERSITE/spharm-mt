@@ -59,6 +59,7 @@ export const ModelName = {
   CatalogoGlobal: 'CatalogoGlobal',
   CatalogoGlobalPromocao: 'CatalogoGlobalPromocao',
   CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
+  CatalogoGlobalClinica: 'CatalogoGlobalClinica',
   CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
 } as const
 
@@ -221,6 +222,23 @@ export const CatalogoGlobalUtilizacaoScalarFieldEnum = {
 } as const
 
 export type CatalogoGlobalUtilizacaoScalarFieldEnum = (typeof CatalogoGlobalUtilizacaoScalarFieldEnum)[keyof typeof CatalogoGlobalUtilizacaoScalarFieldEnum]
+
+
+export const CatalogoGlobalClinicaScalarFieldEnum = {
+  cnp: 'cnp',
+  campo: 'campo',
+  valor: 'valor',
+  origem: 'origem',
+  confianca: 'confianca',
+  versaoRegras: 'versaoRegras',
+  tenantOrigem: 'tenantOrigem',
+  promovidoPor: 'promovidoPor',
+  promovidoEm: 'promovidoEm',
+  criadoEm: 'criadoEm',
+  actualizadoEm: 'actualizadoEm'
+} as const
+
+export type CatalogoGlobalClinicaScalarFieldEnum = (typeof CatalogoGlobalClinicaScalarFieldEnum)[keyof typeof CatalogoGlobalClinicaScalarFieldEnum]
 
 
 export const CatalogoGlobalRevisaoScalarFieldEnum = {

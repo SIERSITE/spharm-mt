@@ -354,6 +354,7 @@ export type CatalogoGlobalWhereInput = {
   actualizadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoListRelationFilter
   revisoes?: Prisma.CatalogoGlobalRevisaoListRelationFilter
+  clinica?: Prisma.CatalogoGlobalClinicaListRelationFilter
 }
 
 export type CatalogoGlobalOrderByWithRelationInput = {
@@ -380,6 +381,7 @@ export type CatalogoGlobalOrderByWithRelationInput = {
   actualizadoEm?: Prisma.SortOrder
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoOrderByRelationAggregateInput
   revisoes?: Prisma.CatalogoGlobalRevisaoOrderByRelationAggregateInput
+  clinica?: Prisma.CatalogoGlobalClinicaOrderByRelationAggregateInput
 }
 
 export type CatalogoGlobalWhereUniqueInput = Prisma.AtLeast<{
@@ -409,6 +411,7 @@ export type CatalogoGlobalWhereUniqueInput = Prisma.AtLeast<{
   actualizadoEm?: Prisma.DateTimeFilter<"CatalogoGlobal"> | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoListRelationFilter
   revisoes?: Prisma.CatalogoGlobalRevisaoListRelationFilter
+  clinica?: Prisma.CatalogoGlobalClinicaListRelationFilter
 }, "cnp">
 
 export type CatalogoGlobalOrderByWithAggregationInput = {
@@ -491,6 +494,7 @@ export type CatalogoGlobalCreateInput = {
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoCreateNestedManyWithoutProdutoInput
   revisoes?: Prisma.CatalogoGlobalRevisaoCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalUncheckedCreateInput = {
@@ -517,6 +521,7 @@ export type CatalogoGlobalUncheckedCreateInput = {
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalUpdateInput = {
@@ -543,6 +548,7 @@ export type CatalogoGlobalUpdateInput = {
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUpdateManyWithoutProdutoNestedInput
   revisoes?: Prisma.CatalogoGlobalRevisaoUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUpdateManyWithoutProdutoNestedInput
 }
 
 export type CatalogoGlobalUncheckedUpdateInput = {
@@ -569,6 +575,7 @@ export type CatalogoGlobalUncheckedUpdateInput = {
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 export type CatalogoGlobalCreateManyInput = {
@@ -762,6 +769,20 @@ export type CatalogoGlobalUpdateOneRequiredWithoutUtilizacoesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.CatalogoGlobalUpdateToOneWithWhereWithoutUtilizacoesInput, Prisma.CatalogoGlobalUpdateWithoutUtilizacoesInput>, Prisma.CatalogoGlobalUncheckedUpdateWithoutUtilizacoesInput>
 }
 
+export type CatalogoGlobalCreateNestedOneWithoutClinicaInput = {
+  create?: Prisma.XOR<Prisma.CatalogoGlobalCreateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedCreateWithoutClinicaInput>
+  connectOrCreate?: Prisma.CatalogoGlobalCreateOrConnectWithoutClinicaInput
+  connect?: Prisma.CatalogoGlobalWhereUniqueInput
+}
+
+export type CatalogoGlobalUpdateOneRequiredWithoutClinicaNestedInput = {
+  create?: Prisma.XOR<Prisma.CatalogoGlobalCreateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedCreateWithoutClinicaInput>
+  connectOrCreate?: Prisma.CatalogoGlobalCreateOrConnectWithoutClinicaInput
+  upsert?: Prisma.CatalogoGlobalUpsertWithoutClinicaInput
+  connect?: Prisma.CatalogoGlobalWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.CatalogoGlobalUpdateToOneWithWhereWithoutClinicaInput, Prisma.CatalogoGlobalUpdateWithoutClinicaInput>, Prisma.CatalogoGlobalUncheckedUpdateWithoutClinicaInput>
+}
+
 export type CatalogoGlobalCreateNestedOneWithoutRevisoesInput = {
   create?: Prisma.XOR<Prisma.CatalogoGlobalCreateWithoutRevisoesInput, Prisma.CatalogoGlobalUncheckedCreateWithoutRevisoesInput>
   connectOrCreate?: Prisma.CatalogoGlobalCreateOrConnectWithoutRevisoesInput
@@ -799,6 +820,7 @@ export type CatalogoGlobalCreateWithoutUtilizacoesInput = {
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalUncheckedCreateWithoutUtilizacoesInput = {
@@ -824,6 +846,7 @@ export type CatalogoGlobalUncheckedCreateWithoutUtilizacoesInput = {
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalCreateOrConnectWithoutUtilizacoesInput = {
@@ -865,6 +888,7 @@ export type CatalogoGlobalUpdateWithoutUtilizacoesInput = {
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   revisoes?: Prisma.CatalogoGlobalRevisaoUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUpdateManyWithoutProdutoNestedInput
 }
 
 export type CatalogoGlobalUncheckedUpdateWithoutUtilizacoesInput = {
@@ -889,6 +913,127 @@ export type CatalogoGlobalUncheckedUpdateWithoutUtilizacoesInput = {
   promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedUpdateManyWithoutProdutoNestedInput
+}
+
+export type CatalogoGlobalCreateWithoutClinicaInput = {
+  cnp: number
+  designacaoReferencia: string
+  productType?: string | null
+  categoria?: string | null
+  subcategoria?: string | null
+  confidence: number
+  evidenceType?: string | null
+  rationale?: string | null
+  fonteOriginal?: string | null
+  origem: $Enums.OrigemConhecimento
+  modelo?: string | null
+  versaoRegras: string
+  verificado?: boolean
+  tenantOrigem?: string | null
+  propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
+  criadoEm?: Date | string
+  actualizadoEm?: Date | string
+  utilizacoes?: Prisma.CatalogoGlobalUtilizacaoCreateNestedManyWithoutProdutoInput
+  revisoes?: Prisma.CatalogoGlobalRevisaoCreateNestedManyWithoutProdutoInput
+}
+
+export type CatalogoGlobalUncheckedCreateWithoutClinicaInput = {
+  cnp: number
+  designacaoReferencia: string
+  productType?: string | null
+  categoria?: string | null
+  subcategoria?: string | null
+  confidence: number
+  evidenceType?: string | null
+  rationale?: string | null
+  fonteOriginal?: string | null
+  origem: $Enums.OrigemConhecimento
+  modelo?: string | null
+  versaoRegras: string
+  verificado?: boolean
+  tenantOrigem?: string | null
+  propagadoDeCnp?: number | null
+  promovidoPor?: string | null
+  promovidoEm?: Date | string | null
+  promovidoDeTenant?: string | null
+  promocaoMotivo?: string | null
+  criadoEm?: Date | string
+  actualizadoEm?: Date | string
+  utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
+  revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedCreateNestedManyWithoutProdutoInput
+}
+
+export type CatalogoGlobalCreateOrConnectWithoutClinicaInput = {
+  where: Prisma.CatalogoGlobalWhereUniqueInput
+  create: Prisma.XOR<Prisma.CatalogoGlobalCreateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedCreateWithoutClinicaInput>
+}
+
+export type CatalogoGlobalUpsertWithoutClinicaInput = {
+  update: Prisma.XOR<Prisma.CatalogoGlobalUpdateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedUpdateWithoutClinicaInput>
+  create: Prisma.XOR<Prisma.CatalogoGlobalCreateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedCreateWithoutClinicaInput>
+  where?: Prisma.CatalogoGlobalWhereInput
+}
+
+export type CatalogoGlobalUpdateToOneWithWhereWithoutClinicaInput = {
+  where?: Prisma.CatalogoGlobalWhereInput
+  data: Prisma.XOR<Prisma.CatalogoGlobalUpdateWithoutClinicaInput, Prisma.CatalogoGlobalUncheckedUpdateWithoutClinicaInput>
+}
+
+export type CatalogoGlobalUpdateWithoutClinicaInput = {
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  designacaoReferencia?: Prisma.StringFieldUpdateOperationsInput | string
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidence?: Prisma.FloatFieldUpdateOperationsInput | number
+  evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
+  modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
+  verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUpdateManyWithoutProdutoNestedInput
+  revisoes?: Prisma.CatalogoGlobalRevisaoUpdateManyWithoutProdutoNestedInput
+}
+
+export type CatalogoGlobalUncheckedUpdateWithoutClinicaInput = {
+  cnp?: Prisma.IntFieldUpdateOperationsInput | number
+  designacaoReferencia?: Prisma.StringFieldUpdateOperationsInput | string
+  productType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  categoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoria?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confidence?: Prisma.FloatFieldUpdateOperationsInput | number
+  evidenceType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  rationale?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fonteOriginal?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemConhecimentoFieldUpdateOperationsInput | $Enums.OrigemConhecimento
+  modelo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  versaoRegras?: Prisma.StringFieldUpdateOperationsInput | string
+  verificado?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  tenantOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  propagadoDeCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  promovidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promovidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  promovidoDeTenant?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promocaoMotivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
   revisoes?: Prisma.CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
@@ -915,6 +1060,7 @@ export type CatalogoGlobalCreateWithoutRevisoesInput = {
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalUncheckedCreateWithoutRevisoesInput = {
@@ -940,6 +1086,7 @@ export type CatalogoGlobalUncheckedCreateWithoutRevisoesInput = {
   criadoEm?: Date | string
   actualizadoEm?: Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedCreateNestedManyWithoutProdutoInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedCreateNestedManyWithoutProdutoInput
 }
 
 export type CatalogoGlobalCreateOrConnectWithoutRevisoesInput = {
@@ -981,6 +1128,7 @@ export type CatalogoGlobalUpdateWithoutRevisoesInput = {
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUpdateManyWithoutProdutoNestedInput
 }
 
 export type CatalogoGlobalUncheckedUpdateWithoutRevisoesInput = {
@@ -1006,6 +1154,7 @@ export type CatalogoGlobalUncheckedUpdateWithoutRevisoesInput = {
   criadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   actualizadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   utilizacoes?: Prisma.CatalogoGlobalUtilizacaoUncheckedUpdateManyWithoutProdutoNestedInput
+  clinica?: Prisma.CatalogoGlobalClinicaUncheckedUpdateManyWithoutProdutoNestedInput
 }
 
 
@@ -1016,11 +1165,13 @@ export type CatalogoGlobalUncheckedUpdateWithoutRevisoesInput = {
 export type CatalogoGlobalCountOutputType = {
   utilizacoes: number
   revisoes: number
+  clinica: number
 }
 
 export type CatalogoGlobalCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizacoes?: boolean | CatalogoGlobalCountOutputTypeCountUtilizacoesArgs
   revisoes?: boolean | CatalogoGlobalCountOutputTypeCountRevisoesArgs
+  clinica?: boolean | CatalogoGlobalCountOutputTypeCountClinicaArgs
 }
 
 /**
@@ -1045,6 +1196,13 @@ export type CatalogoGlobalCountOutputTypeCountUtilizacoesArgs<ExtArgs extends ru
  */
 export type CatalogoGlobalCountOutputTypeCountRevisoesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.CatalogoGlobalRevisaoWhereInput
+}
+
+/**
+ * CatalogoGlobalCountOutputType without action
+ */
+export type CatalogoGlobalCountOutputTypeCountClinicaArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.CatalogoGlobalClinicaWhereInput
 }
 
 
@@ -1072,6 +1230,7 @@ export type CatalogoGlobalSelect<ExtArgs extends runtime.Types.Extensions.Intern
   actualizadoEm?: boolean
   utilizacoes?: boolean | Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>
   revisoes?: boolean | Prisma.CatalogoGlobal$revisoesArgs<ExtArgs>
+  clinica?: boolean | Prisma.CatalogoGlobal$clinicaArgs<ExtArgs>
   _count?: boolean | Prisma.CatalogoGlobalCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["catalogoGlobal"]>
 
@@ -1151,6 +1310,7 @@ export type CatalogoGlobalOmit<ExtArgs extends runtime.Types.Extensions.Internal
 export type CatalogoGlobalInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizacoes?: boolean | Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>
   revisoes?: boolean | Prisma.CatalogoGlobal$revisoesArgs<ExtArgs>
+  clinica?: boolean | Prisma.CatalogoGlobal$clinicaArgs<ExtArgs>
   _count?: boolean | Prisma.CatalogoGlobalCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type CatalogoGlobalIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1161,6 +1321,7 @@ export type $CatalogoGlobalPayload<ExtArgs extends runtime.Types.Extensions.Inte
   objects: {
     utilizacoes: Prisma.$CatalogoGlobalUtilizacaoPayload<ExtArgs>[]
     revisoes: Prisma.$CatalogoGlobalRevisaoPayload<ExtArgs>[]
+    clinica: Prisma.$CatalogoGlobalClinicaPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     /**
@@ -1628,6 +1789,7 @@ export interface Prisma__CatalogoGlobalClient<T, Null = never, ExtArgs extends r
   readonly [Symbol.toStringTag]: "PrismaPromise"
   utilizacoes<T extends Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CatalogoGlobal$utilizacoesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CatalogoGlobalUtilizacaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   revisoes<T extends Prisma.CatalogoGlobal$revisoesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CatalogoGlobal$revisoesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CatalogoGlobalRevisaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  clinica<T extends Prisma.CatalogoGlobal$clinicaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.CatalogoGlobal$clinicaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CatalogoGlobalClinicaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2116,6 +2278,30 @@ export type CatalogoGlobal$revisoesArgs<ExtArgs extends runtime.Types.Extensions
   take?: number
   skip?: number
   distinct?: Prisma.CatalogoGlobalRevisaoScalarFieldEnum | Prisma.CatalogoGlobalRevisaoScalarFieldEnum[]
+}
+
+/**
+ * CatalogoGlobal.clinica
+ */
+export type CatalogoGlobal$clinicaArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the CatalogoGlobalClinica
+   */
+  select?: Prisma.CatalogoGlobalClinicaSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the CatalogoGlobalClinica
+   */
+  omit?: Prisma.CatalogoGlobalClinicaOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CatalogoGlobalClinicaInclude<ExtArgs> | null
+  where?: Prisma.CatalogoGlobalClinicaWhereInput
+  orderBy?: Prisma.CatalogoGlobalClinicaOrderByWithRelationInput | Prisma.CatalogoGlobalClinicaOrderByWithRelationInput[]
+  cursor?: Prisma.CatalogoGlobalClinicaWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.CatalogoGlobalClinicaScalarFieldEnum | Prisma.CatalogoGlobalClinicaScalarFieldEnum[]
 }
 
 /**

@@ -96,6 +96,36 @@ export type CatalogoGlobalPromocao = Prisma.CatalogoGlobalPromocaoModel
  */
 export type CatalogoGlobalUtilizacao = Prisma.CatalogoGlobalUtilizacaoModel
 /**
+ * Model CatalogoGlobalClinica
+ * Informação clínica canónica sobre um CNP — UMA LINHA POR CAMPO.
+ * 
+ * ── Porque é uma tabela e não cinco colunas em CatalogoGlobal ────────
+ * 
+ * Porque cada campo tem a SUA proveniência, e isso não é hipotético.
+ * Hoje os 1 124 ATC e 1 126 DCI do catálogo vieram todos do modelo
+ * (ke-2.0). Amanhã o INFARMED dá o ATC e a DCI de um produto cuja forma
+ * farmacêutica continua a ser inferida. Com um único bloco de origem
+ * por produto, só havia duas saídas — e ambas erradas:
+ * 
+ * · carimbar REGULATORY no bloco todo, e passar a forma inferida pelo
+ * modelo por informação regulamentar;
+ * · recusar a subida do ATC do INFARMED para não contaminar o resto.
+ * 
+ * A primeira é exactamente o que não se quer: «não quero que um ATC
+ * inferido pelo Claude apareça no global como se tivesse origem
+ * regulatória» vale nos dois sentidos. A segunda deita fora a melhor
+ * fonte que existe.
+ * 
+ * Uma linha por campo resolve as duas: o ATC sobe a REGULATORY, a forma
+ * fica MODELO, e cada um responde por si. É o mesmo desenho que
+ * `CatalogoGlobalUtilizacao` já usa — cada utilização tem a sua origem e
+ * a sua confiança, e é avaliada sozinha.
+ * 
+ * Efeito lateral útil: um sexto campo clínico passa a ser uma linha, não
+ * uma migração.
+ */
+export type CatalogoGlobalClinica = Prisma.CatalogoGlobalClinicaModel
+/**
  * Model CatalogoGlobalRevisao
  * Divergência entre o global e o que um tenant tem. NUNCA é resolvida
  * automaticamente: o global é conhecimento sobre o produto nacional, o

@@ -49,3 +49,14 @@ export const OrigemConhecimento = {
 } as const
 
 export type OrigemConhecimento = (typeof OrigemConhecimento)[keyof typeof OrigemConhecimento]
+
+
+export const CampoClinico = {
+  CODIGO_ATC: 'CODIGO_ATC',
+  DCI: 'DCI',
+  FORMA_FARMACEUTICA: 'FORMA_FARMACEUTICA',
+  DOSAGEM: 'DOSAGEM',
+  EMBALAGEM: 'EMBALAGEM'
+} as const
+
+export type CampoClinico = (typeof CampoClinico)[keyof typeof CampoClinico]

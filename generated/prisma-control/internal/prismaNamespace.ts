@@ -392,6 +392,7 @@ export const ModelName = {
   CatalogoGlobal: 'CatalogoGlobal',
   CatalogoGlobalPromocao: 'CatalogoGlobalPromocao',
   CatalogoGlobalUtilizacao: 'CatalogoGlobalUtilizacao',
+  CatalogoGlobalClinica: 'CatalogoGlobalClinica',
   CatalogoGlobalRevisao: 'CatalogoGlobalRevisao'
 } as const
 
@@ -408,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "tenant" | "tenantEvent" | "globalAdmin" | "globalAdminTenant" | "syncRun" | "catalogoGlobal" | "catalogoGlobalPromocao" | "catalogoGlobalUtilizacao" | "catalogoGlobalRevisao"
+    modelProps: "tenant" | "tenantEvent" | "globalAdmin" | "globalAdminTenant" | "syncRun" | "catalogoGlobal" | "catalogoGlobalPromocao" | "catalogoGlobalUtilizacao" | "catalogoGlobalClinica" | "catalogoGlobalRevisao"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1004,6 +1005,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CatalogoGlobalClinica: {
+      payload: Prisma.$CatalogoGlobalClinicaPayload<ExtArgs>
+      fields: Prisma.CatalogoGlobalClinicaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoGlobalClinicaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoGlobalClinicaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoGlobalClinicaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoGlobalClinicaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoGlobalClinicaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoGlobalClinicaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoGlobalClinicaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoGlobalClinicaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoGlobalClinicaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        update: {
+          args: Prisma.CatalogoGlobalClinicaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoGlobalClinicaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoGlobalClinicaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoGlobalClinicaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoGlobalClinicaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoGlobalClinicaPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoGlobalClinicaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoGlobalClinica>
+        }
+        groupBy: {
+          args: Prisma.CatalogoGlobalClinicaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoGlobalClinicaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoGlobalClinicaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoGlobalClinicaCountAggregateOutputType> | number
+        }
+      }
+    }
     CatalogoGlobalRevisao: {
       payload: Prisma.$CatalogoGlobalRevisaoPayload<ExtArgs>
       fields: Prisma.CatalogoGlobalRevisaoFieldRefs
@@ -1262,6 +1337,23 @@ export const CatalogoGlobalUtilizacaoScalarFieldEnum = {
 export type CatalogoGlobalUtilizacaoScalarFieldEnum = (typeof CatalogoGlobalUtilizacaoScalarFieldEnum)[keyof typeof CatalogoGlobalUtilizacaoScalarFieldEnum]
 
 
+export const CatalogoGlobalClinicaScalarFieldEnum = {
+  cnp: 'cnp',
+  campo: 'campo',
+  valor: 'valor',
+  origem: 'origem',
+  confianca: 'confianca',
+  versaoRegras: 'versaoRegras',
+  tenantOrigem: 'tenantOrigem',
+  promovidoPor: 'promovidoPor',
+  promovidoEm: 'promovidoEm',
+  criadoEm: 'criadoEm',
+  actualizadoEm: 'actualizadoEm'
+} as const
+
+export type CatalogoGlobalClinicaScalarFieldEnum = (typeof CatalogoGlobalClinicaScalarFieldEnum)[keyof typeof CatalogoGlobalClinicaScalarFieldEnum]
+
+
 export const CatalogoGlobalRevisaoScalarFieldEnum = {
   id: 'id',
   cnp: 'cnp',
@@ -1426,6 +1518,20 @@ export type ListEnumOrigemConhecimentoFieldRefInput<$PrismaModel> = FieldRefInpu
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
+
+/**
+ * Reference to a field of type 'CampoClinico'
+ */
+export type EnumCampoClinicoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CampoClinico'>
+    
+
+
+/**
+ * Reference to a field of type 'CampoClinico[]'
+ */
+export type ListEnumCampoClinicoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'CampoClinico[]'>
+    
+
 /**
  * Batch Payload for updateMany & deleteMany & createMany
  */
@@ -1529,6 +1635,7 @@ export type GlobalOmitConfig = {
   catalogoGlobal?: Prisma.CatalogoGlobalOmit
   catalogoGlobalPromocao?: Prisma.CatalogoGlobalPromocaoOmit
   catalogoGlobalUtilizacao?: Prisma.CatalogoGlobalUtilizacaoOmit
+  catalogoGlobalClinica?: Prisma.CatalogoGlobalClinicaOmit
   catalogoGlobalRevisao?: Prisma.CatalogoGlobalRevisaoOmit
 }
 

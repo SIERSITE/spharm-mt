@@ -185,6 +185,120 @@ export const MAX_RETENTATIVAS = 3;
  * o operador ver a mensagem que interessa. E se for facturável, paga-se
  * três vezes um pedido que nunca ia servir.
  */
+// ═════════════════════════════════════════════════════════════════════
+// FALHA DE INFRAESTRUTURA ≠ FALHA DO PRODUTO
+// ═════════════════════════════════════════════════════════════════════
+//
+// A distinção não é académica. A fila conta tentativas por PRODUTO, com
+// tecto de cinco e backoff exponencial, e a contagem existe para impedir
+// que um produto que o modelo nunca vai conseguir classificar gere
+// chamadas para sempre.
+//
+// Quando o que falha é a conta — chave ausente, saldo esgotado, serviço
+// em baixo — nada disso diz respeito ao produto. Se essas falhas
+// contarem como tentativas, uma noite sem saldo queima as cinco
+// tentativas de milhares de produtos de uma vez, e no dia seguinte,
+// com saldo, eles já não voltam à fila. O pipeline dá-se por concluído
+// tendo processado zero.
+//
+// Foi por um triz que isso não aconteceu: a corrida de 2026-08-21 morreu
+// com «Your credit balance is too low» e a excepção derrubou o processo
+// inteiro ANTES de a fila ser fechada. A fila safou-se por acidente, não
+// por desenho. É esse acidente que isto substitui por uma regra.
+
+export type CategoriaInfra =
+  /** Não há credencial nenhuma. Erro de configuração, não do produto. */
+  | "CREDENCIAL_AUSENTE"
+  /** Há credencial e não serve: revogada, errada, sem permissões. */
+  | "AUTENTICACAO"
+  /** Saldo esgotado. A conta, não o catálogo. */
+  | "SALDO"
+  /** Estamos a bater no limite. Voltar mais tarde resolve. */
+  | "RATE_LIMIT"
+  /** O serviço está em baixo ou sobrecarregado. */
+  | "SERVICO_INDISPONIVEL"
+  /** Não chegámos lá: DNS, timeout de ligação, proxy. */
+  | "REDE";
+
+/**
+ * Falha que NÃO é do produto. Quem apanhar isto não deve contar
+ * tentativas nem mudar o estado de nada na fila.
+ */
+export class FalhaInfraestrutura extends Error {
+  constructor(
+    readonly categoria: CategoriaInfra,
+    mensagem: string,
+    readonly causa?: unknown,
+  ) {
+    super(mensagem);
+    this.name = "FalhaInfraestrutura";
+  }
+}
+
+/**
+ * Há credencial configurada?
+ *
+ * O SDK aceita `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou um perfil
+ * de `ant auth login`. Só as duas primeiras são verificáveis daqui sem
+ * fazer uma chamada — e é por isso que esta função responde "não sei"
+ * em vez de "não", devolvendo `true` quando não consegue provar a
+ * ausência. Um falso positivo custa uma chamada que devolve 401 e é
+ * classificada como infra na mesma; um falso negativo travava uma
+ * instalação legítima.
+ */
+export function credencialConfigurada(): boolean {
+  return !!(process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim());
+}
+
+/**
+ * Este erro é da infraestrutura? Devolve a falha tipada, ou `null` se o
+ * problema é mesmo do produto ou da resposta.
+ *
+ * A classificação é por STATUS e por tipo de erro do SDK, não por texto
+ * — excepto o saldo, que a API devolve como `invalid_request_error` com
+ * HTTP 400. Um 400 é normalmente culpa de quem pergunta, e este 400 em
+ * particular não é: sem olhar para a mensagem, o saldo esgotado seria
+ * classificado como erro do pedido e contava tentativas em todos os
+ * produtos do lote.
+ */
+export function classificarFalhaInfra(err: unknown): FalhaInfraestrutura | null {
+  if (err instanceof FalhaInfraestrutura) return err;
+
+  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+    return new FalhaInfraestrutura("REDE", "timeout de ligação à API", err);
+  }
+  if (err instanceof Anthropic.APIConnectionError) {
+    return new FalhaInfraestrutura("REDE", "não foi possível contactar a API", err);
+  }
+
+  const mensagem = err instanceof Error ? err.message : String(err ?? "");
+  const status = (err as { status?: number } | null)?.status;
+
+  // O SDK lança isto no construtor quando não encontra credencial
+  // nenhuma. Chega antes de qualquer status HTTP.
+  if (/apiKey|api_key|authentication_error|credential/i.test(mensagem) && typeof status !== "number") {
+    return new FalhaInfraestrutura("CREDENCIAL_AUSENTE", `sem credencial utilizável: ${mensagem}`, err);
+  }
+
+  if (typeof status !== "number") return null;
+
+  if (status === 401) return new FalhaInfraestrutura("AUTENTICACAO", "credencial recusada (401)", err);
+  if (status === 403) return new FalhaInfraestrutura("AUTENTICACAO", "credencial sem permissões (403)", err);
+  if (status === 429) return new FalhaInfraestrutura("RATE_LIMIT", "limite de pedidos atingido (429)", err);
+  if (status >= 500) {
+    return new FalhaInfraestrutura("SERVICO_INDISPONIVEL", `serviço indisponível (${status})`, err);
+  }
+  // O saldo. Único caso em que se lê a mensagem, e com razão declarada
+  // acima.
+  if (status === 400 && /credit balance|billing|quota|insufficient/i.test(mensagem)) {
+    return new FalhaInfraestrutura("SALDO", "saldo insuficiente na conta Anthropic", err);
+  }
+
+  // 400 de esquema, 422, uma recusa, uma resposta que não valida: isso é
+  // do produto ou da resposta, e conta tentativa.
+  return null;
+}
+
 export function deveRepetir(err: unknown): boolean {
   if (err instanceof Anthropic.APIConnectionTimeoutError) return true;
   if (err instanceof Anthropic.APIConnectionError) return true;
@@ -246,10 +360,12 @@ export const LIMIAR_CLINICO = 0.9;
  * a jusante é lido como identificação faria passar por facto o que é
  * meia-resposta.
  */
-const ATC_COMPLETO = /^[ABCDGHJLMNPRSV][0-9]{2}[A-Z]{2}[0-9]{2}$/;
-
-/** Aceita a DCI se parecer uma denominação e não uma frase. */
-const DCI_PLAUSIVEL = /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 ,''\-\/()+.]{1,79}$/;
+// A gramática dos campos clínicos vive em `clinica-validacao.ts`:
+// o catálogo global valida o MESMO ATC com a MESMA regra, e esse
+// módulo é puro — importá-lo de cá arrastava o SDK do Anthropic
+// para dentro do control plane.
+export { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
+import { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
 
 /**
  * Produtos por chamada. 25 mantém o pedido pequeno o suficiente para o

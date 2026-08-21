@@ -297,6 +297,23 @@ export type BoolWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedBoolFilter<$PrismaModel>
 }
 
+export type EnumCampoClinicoFilter<$PrismaModel = never> = {
+  equals?: $Enums.CampoClinico | Prisma.EnumCampoClinicoFieldRefInput<$PrismaModel>
+  in?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel> | $Enums.CampoClinico
+}
+
+export type EnumCampoClinicoWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.CampoClinico | Prisma.EnumCampoClinicoFieldRefInput<$PrismaModel>
+  in?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCampoClinicoWithAggregatesFilter<$PrismaModel> | $Enums.CampoClinico
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel>
+}
+
 export type NestedStringFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -580,6 +597,23 @@ export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedBoolFilter<$PrismaModel>
   _max?: Prisma.NestedBoolFilter<$PrismaModel>
+}
+
+export type NestedEnumCampoClinicoFilter<$PrismaModel = never> = {
+  equals?: $Enums.CampoClinico | Prisma.EnumCampoClinicoFieldRefInput<$PrismaModel>
+  in?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel> | $Enums.CampoClinico
+}
+
+export type NestedEnumCampoClinicoWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.CampoClinico | Prisma.EnumCampoClinicoFieldRefInput<$PrismaModel>
+  in?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  notIn?: $Enums.CampoClinico[] | Prisma.ListEnumCampoClinicoFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumCampoClinicoWithAggregatesFilter<$PrismaModel> | $Enums.CampoClinico
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumCampoClinicoFilter<$PrismaModel>
 }
 
 
