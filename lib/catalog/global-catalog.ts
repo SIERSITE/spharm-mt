@@ -627,6 +627,92 @@ export function registoPromocao(
   };
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// O GLOBAL RESOLVE O QUE FALTA A ESTE PRODUTO?
+// ═════════════════════════════════════════════════════════════════════
+//
+// A pergunta certa, e não a que se fazia.
+//
+// ── O DEFEITO, MEDIDO ────────────────────────────────────────────────
+//
+// O filtro do runner era `conhecidos.has(cnp)`: se o catálogo global
+// tivesse uma linha para aquele CNP, o produto não ia ao modelo. Presença,
+// não utilidade.
+//
+// O canary de 25 produtos de 2026-08-21 tornou isso visível: 25 entraram
+// no residual, 25 foram saltados, 0 chamadas, custo $0. E ao olhar para o
+// que o global tinha sobre eles:
+//
+//   19 SEM_UTILIZACOES      global tem classificação, 0 utilizações
+//    6 OUTROS_MEDICAMENTOS  global tem utilizações, 0 classificação
+//
+// Exactamente ao contrário do que faltava a cada um. Um produto sem
+// utilizações foi dispensado por o global saber a categoria — que ele já
+// tinha. Um produto em "Outros Medicamentos" foi dispensado por o global
+// saber as utilizações — que ele já tinha.
+//
+// À escala do catálogo, no mesmo dia: 7 692 dos 18 485 residuais eram
+// saltados, e em 7 690 deles o global não tinha nada que os ajudasse.
+// Dois. De sete mil seiscentos e noventa e dois.
+//
+// Estes produtos ficavam num limbo estável: o global não os classificava
+// porque não sabia, e o modelo nunca os via porque o global "conhecia-os".
+// Nenhuma corrida os desbloquearia, e o relatório dizia "chamadas
+// poupadas 100%" — que soa a eficiência e era paralisia.
+//
+// ── A REGRA ──────────────────────────────────────────────────────────
+//
+// O estrato diz o que falta. O global só dispensa a chamada se tiver
+// precisamente isso:
+//
+//   NAO_CLASSIFICADO      falta classificação  → global precisa de par
+//   OUTROS_MEDICAMENTOS   (é um fallback)        (categoria, subcategoria)
+//                                                ESPECÍFICO
+//   SEM_UTILIZACOES       faltam utilizações   → global precisa de ≥1
+//
+// Um "Outros <X>" no global não resolve um "Outros <X>" no tenant: é o
+// mesmo não-saber, escrito duas vezes.
+
+/** O que falta a um produto, derivado do estado dele no tenant. */
+export type EstratoResidual =
+  | "NAO_CLASSIFICADO"
+  | "OUTROS_MEDICAMENTOS"
+  | "SEM_UTILIZACOES";
+
+export type DecisaoGlobalResidual = {
+  /** O global tem o que falta — a chamada ao modelo é dispensável. */
+  resolve: boolean;
+  motivo: string;
+};
+
+/**
+ * O conhecimento global cobre o que este produto tem em falta?
+ *
+ * Pura, e por isso testável sem base de dados. Recebe o estrato (o que
+ * falta) e o que o global sabe; devolve se dispensa a chamada e porquê —
+ * o motivo é para o relatório o poder mostrar, que era a outra metade do
+ * problema.
+ */
+export function globalResolveResidual(
+  estrato: EstratoResidual,
+  g: ConhecimentoGlobal | undefined,
+): DecisaoGlobalResidual {
+  if (!g) return { resolve: false, motivo: "o global não conhece este cnp" };
+
+  if (estrato === "SEM_UTILIZACOES") {
+    return g.utilizacoes.length > 0
+      ? { resolve: true, motivo: `global tem ${g.utilizacoes.length} utilização(ões)` }
+      : { resolve: false, motivo: "global conhece o cnp mas SEM utilizações — é isso que falta" };
+  }
+
+  // NAO_CLASSIFICADO e OUTROS_MEDICAMENTOS pedem os dois a mesma coisa:
+  // uma classificação que seja conhecimento e não um fallback.
+  const especifica = !!g.categoria && ehEspecifica(g.subcategoria);
+  return especifica
+    ? { resolve: true, motivo: `global tem ${g.categoria} > ${g.subcategoria}` }
+    : { resolve: false, motivo: "global conhece o cnp mas SEM classificação específica — é isso que falta" };
+}
+
 // ─── Projecção: global → tenant ───────────────────────────────────────
 
 export type EstadoLocal = {

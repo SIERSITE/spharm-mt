@@ -64,7 +64,7 @@ import {
   type ProdutoPreselecao,
 } from "./preselection";
 import { lerConhecimentoGlobal, promoverAoGlobal } from "./global-catalog-store";
-import { validarValorClinico } from "./global-catalog";
+import { globalResolveResidual, validarValorClinico } from "./global-catalog";
 import type {
   CampoClinico,
   ClinicaCandidata,
@@ -302,7 +302,19 @@ export type LinhaPreselecao = {
 export type RunnerResumo = {
   residualAnalisado: number;
   /** CNPs que o catálogo global já conhecia — não foram ao modelo. */
+  /**
+   * CNPs que o global conhecia e cujo conhecimento RESOLVIA o que
+   * faltava — esses não vão ao modelo e são projectados.
+   */
   jaConhecidosGlobal: number;
+  /**
+   * CNPs que o global conhecia e cujo conhecimento NÃO resolvia o que
+   * faltava: vão ao modelo na mesma.
+   *
+   * Existe porque estes eram, antes, indistinguíveis dos de cima — e
+   * eram 7 690 dos 7 692 saltados na medição que motivou a correcção.
+   */
+  globalInsuficiente: number;
   /** Candidatos promovidos ao catálogo global nesta corrida. */
   promovidosAoGlobal: number;
   /** Problemas não fatais (ex.: control plane inacessível). */
@@ -624,6 +636,7 @@ export async function runKnowledgeEnrichment(
   const resumo: RunnerResumo = {
     residualAnalisado: residual.length,
     jaConhecidosGlobal: 0,
+    globalInsuficiente: 0,
     promovidosAoGlobal: 0,
     avisos: [],
     falhaInfraestrutura: null,
@@ -849,10 +862,37 @@ export async function runKnowledgeEnrichment(
     try {
       const conhecidos = await lerConhecimentoGlobal(residual.map((l) => l.cnp));
       if (conhecidos.size > 0) {
-        const antes = residual.length;
-        residual = residual.filter((l) => !conhecidos.has(l.cnp));
-        resumo.jaConhecidosGlobal = antes - residual.length;
-        for (const l of residual) void l;
+        // POR NECESSIDADE, NÃO POR PRESENÇA.
+        //
+        // Era `residual.filter((l) => !conhecidos.has(l.cnp))`: bastava o
+        // global ter uma linha do CNP para o produto não ir ao modelo.
+        //
+        // O canary de 25 de 2026-08-21 mostrou o que isso valia — 25
+        // entraram, 25 saltados, 0 chamadas, custo $0 — e o que o global
+        // tinha sobre eles era exactamente o contrário do que lhes
+        // faltava: 19 sem utilizações foram dispensados por o global
+        // saber a categoria que eles já tinham; 6 em "Outros" foram
+        // dispensados por o global saber as utilizações que eles já
+        // tinham.
+        //
+        // À escala: 7 692 dos 18 485 residuais eram saltados, e em 7 690
+        // o global não tinha nada que os ajudasse. Ficavam num limbo
+        // estável — o global não os sabia classificar, o modelo nunca os
+        // via — e o relatório chamava-lhe "chamadas poupadas 100%".
+        const restantes: LinhaResidual[] = [];
+        for (const l of residual) {
+          const d = globalResolveResidual(l.estrato, conhecidos.get(l.cnp));
+          if (d.resolve) {
+            resumo.jaConhecidosGlobal++;
+            continue;
+          }
+          // Conhecido mas insuficiente: contado à parte porque é a
+          // diferença entre "o global tratou disto" e "o global tem uma
+          // linha e não serve para nada aqui".
+          if (conhecidos.has(l.cnp)) resumo.globalInsuficiente++;
+          restantes.push(l);
+        }
+        residual = restantes;
       }
     } catch (err) {
       // O control plane estar em baixo não pode impedir uma corrida: o

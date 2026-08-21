@@ -258,6 +258,14 @@ async function main() {
   }
 
   console.log("\n── pré-selecção (o que NÃO foi ao modelo) ─────────");
+  // A PRIMEIRA LINHA, e não estava aqui. O `jaConhecidosGlobal` existia
+  // no resumo e nunca era impresso: os produtos dispensados pelo catálogo
+  // global desapareciam para dentro de "chamadas poupadas", sem causa
+  // visível. Num canary em que TODOS foram dispensados, o relatório dizia
+  // "0 famílias, 0 exclusões, 25 chamadas poupadas 100%" — cada linha
+  // verdadeira, e o conjunto ilegível.
+  console.log(`  ${pad(r.jaConhecidosGlobal)}  já conhecidos no catálogo global (resolvem o que faltava)`);
+  console.log(`  ${pad(r.globalInsuficiente)}  conhecidos no global mas INSUFICIENTES — vão ao modelo`);
   console.log(`  ${pad(r.excluidosBaixaCobertura)}  excluídos: subcategoria sem utilização plausível (<2%, pop>=30)`);
   console.log(`  ${pad(r.excluidosOpacos)}  excluídos: designação opaca`);
   console.log(`  ${pad(r.familiasPropagaveis)}  famílias propagáveis (1 representante + N dependentes)`);
@@ -268,6 +276,31 @@ async function main() {
   if (r.residualAnalisado > 0) {
     const poupadas = r.residualAnalisado - r.enviadosAoModelo;
     console.log(`  ${pad(poupadas)}  chamadas poupadas  ${pct(poupadas, r.residualAnalisado)}`);
+
+    // ── RECONCILIAÇÃO ────────────────────────────────────────────────
+    //
+    // Todo o residual tem de ter um destino NOMEADO. Sem esta soma, um
+    // caminho de exclusão novo — ou um que passe a apanhar mais do que
+    // devia — soma-se em silêncio a "chamadas poupadas" e ninguém repara.
+    // Foi exactamente o que aconteceu com o filtro do catálogo global.
+    const contabilizados =
+      r.jaConhecidosGlobal +
+      r.excluidosBaixaCobertura +
+      r.excluidosOpacos +
+      r.enviadosAoModelo +
+      r.propagados;
+    const semDestino = r.residualAnalisado - contabilizados;
+    console.log("");
+    console.log(
+      `  reconciliação: ${r.residualAnalisado} residual = ${r.jaConhecidosGlobal} global` +
+        ` + ${r.excluidosBaixaCobertura} baixa-cobertura + ${r.excluidosOpacos} opacos` +
+        ` + ${r.enviadosAoModelo} enviados + ${r.propagados} propagados`,
+    );
+    if (semDestino !== 0) {
+      console.log(`  !! ${semDestino} produto(s) SEM destino contabilizado — é um defeito, não um arredondamento.`);
+    } else {
+      console.log("  ok  fecha: todo o residual tem destino nomeado.");
+    }
   }
 
   if (r.metricasPorEstrato.length > 0) {
