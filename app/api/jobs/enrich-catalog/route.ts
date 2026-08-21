@@ -101,6 +101,7 @@ function parseLimits(req: NextRequest): {
   reclassifyLimit: number;
   knowledgeLimit: number;
   knowledgeCapUsd: number;
+  apenasFila: boolean;
   onlySlugs: string[] | undefined;
 } {
   const url = req.nextUrl;
@@ -117,11 +118,15 @@ function parseLimits(req: NextRequest): {
   // para que um catálogo grande nao gere uma fatura surpresa.
   const knowledgeLimit = parsePositiveInt(url.searchParams.get("knowledgeLimit"), 0, 2000);
   const knowledgeCapUsd = parsePositiveInt(url.searchParams.get("knowledgeCapUsd"), 5, 100);
+  // Ciclo curto: `?apenasFila=1` restringe ao que está na fila. É o que o
+  // scheduler dispara de poucos em poucos minutos; sem o parâmetro, o job
+  // faz a varredura completa das 04:00.
+  const apenasFila = url.searchParams.get("apenasFila") === "1";
   const onlySlugsRaw = url.searchParams.get("onlySlugs");
   const onlySlugs = onlySlugsRaw
     ? onlySlugsRaw.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
     : undefined;
-  return { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, onlySlugs };
+  return { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, apenasFila, onlySlugs };
 }
 
 async function handle(req: NextRequest): Promise<Response> {
@@ -136,7 +141,8 @@ async function handle(req: NextRequest): Promise<Response> {
     return NextResponse.json(payload, { status });
   }
 
-  const { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, onlySlugs } = parseLimits(req);
+  const { syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, apenasFila, onlySlugs } =
+    parseLimits(req);
 
   const tenants: TenantResult[] = [];
   let iteratorSummary: TenantIterSummary;
@@ -162,7 +168,7 @@ async function handle(req: NextRequest): Promise<Response> {
         try {
           await heartbeatSyncRun(run.id);
           const summary = await runEnrichCycle({
-            prisma, syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd,
+            prisma, syncLimit, reclassifyLimit, knowledgeLimit, knowledgeCapUsd, apenasFila,
             // Fase 5 (promoção ao catálogo global) só corre com slug: o
             // global regista de que tenant veio cada conclusão.
             tenantSlug: tenant.slug,

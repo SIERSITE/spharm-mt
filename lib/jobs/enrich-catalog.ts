@@ -438,6 +438,18 @@ export async function runEnrichCycle(opts: {
   knowledgeLimit?: number;
   knowledgeCapUsd?: number;
   /**
+   * Ciclo curto: processar só o que está na `EnriquecimentoFila`.
+   *
+   * É o modo do job de poucos-em-poucos-minutos. Um produto acabado de
+   * importar entra na fila e é apanhado logo, em vez de esperar pela
+   * varredura das 04:00 — que passa a ser a rede de segurança, apanhando
+   * o que ficou pendente ou falhou.
+   *
+   * Barato quando não há nada: o `exists` sobre a fila não devolve nada
+   * e o ciclo acaba sem uma única chamada ao modelo.
+   */
+  apenasFila?: boolean;
+  /**
    * Slug do tenant. Sem ele, a fase 5 não corre: a promoção ao catálogo
    * global regista de que tenant veio cada conclusão, e promover sem
    * essa proveniência tornaria a origem impossível de auditar depois.
@@ -466,6 +478,11 @@ export async function runEnrichCycle(opts: {
       const r = await runKnowledgeEnrichment(opts.prisma, {
         limite: opts.knowledgeLimit,
         tectoUsd: opts.knowledgeCapUsd ?? 5,
+        apenasFila: opts.apenasFila === true,
+        // A promoção ao global acontece dentro do runner, para o
+        // conhecimento acabado de pagar ficar disponível aos outros
+        // tenants sem esperar pela fase 5.
+        tenantSlug: opts.tenantSlug,
       });
       knowledge = {
         residual: r.residualAnalisado,

@@ -65,6 +65,32 @@ const JOBS = [
   // pesquisa preenchida. Barato quando não há trabalho: o handler
   // compara dois timestamps por tenant e devolve logo.
   { name: "utilizacoes", path: "/api/jobs/utilizacoes", everyMinutes: 10 },
+  // Ciclo curto do enriquecimento: processa SÓ o que está na
+  // EnriquecimentoFila, onde a importação põe cada CNP que o catálogo
+  // global ainda não conhece.
+  //
+  // Existe porque o `enrich-catalog` das 04:00 chegava tarde demais: uma
+  // farmácia que importa às 09:00 ficava com produtos por classificar até
+  // à madrugada seguinte. Aqui são minutos.
+  //
+  // Barato quando não há nada a fazer — o filtro da fila não devolve
+  // linhas e o ciclo acaba sem uma única chamada ao modelo. O tecto de
+  // custo baixo é a segunda tranca: mesmo com a fila cheia por engano,
+  // um ciclo destes não pode gastar mais do que uns cêntimos, e o que
+  // sobrar fica para o seguinte.
+  //
+  // A varredura das 04:00 continua a ser a rede de segurança: apanha o
+  // que ficou PENDENTE ou FALHOU e o que nunca chegou a entrar em fila.
+  //
+  // NÃO tem entrada em `vercel.json`, e é deliberado: os crons do Vercel
+  // não descem abaixo da hora. O `utilizacoes` acima já vive com a mesma
+  // assimetria. Em Vercel, quem apanha estes produtos é a varredura das
+  // 04:00 — mais tarde, mas nunca perdidos.
+  {
+    name: "enrich-fila",
+    path: "/api/jobs/enrich-catalog?apenasFila=1&knowledgeLimit=100&knowledgeCapUsd=2",
+    everyMinutes: 15,
+  },
 ];
 
 const TICK_MS = 30_000;

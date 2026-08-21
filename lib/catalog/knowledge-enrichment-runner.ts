@@ -120,7 +120,7 @@ export type Estrato = "OUTROS_MEDICAMENTOS" | "NAO_CLASSIFICADO" | "SEM_UTILIZAC
  * 'Outros %') E fora de SEM_UTILIZACOES (o `not ilike` não deu TRUE),
  * apesar de o `case` o classificar como SEM_UTILIZACOES pelo ramo `else`.
  */
-export function corpoResidual(estrato?: Estrato): string {
+export function corpoResidual(estrato?: Estrato, apenasFila = false): string {
   const semUtilizacoes = `not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id)`;
   const filtro =
     estrato === "NAO_CLASSIFICADO"
@@ -145,10 +145,14 @@ export function corpoResidual(estrato?: Estrato): string {
        and not exists (
              select 1 from "KnowledgeEnrichmentCache" k
               where k.cnp = p.cnp and k.versao = $2 and k.modelo = $3
-       )`;
+       )
+       ${apenasFila ? `and exists (
+             select 1 from "EnriquecimentoFila" f
+              where f."produtoId" = p.id and f.estado in ('PENDENTE', 'FALHOU')
+       )` : ""}`;
 }
 
-function sqlResidual(estrato?: Estrato): string {
+function sqlResidual(estrato?: Estrato, apenasFila = false): string {
   return `
     select p.cnp,
            p.designacao,
@@ -160,7 +164,7 @@ function sqlResidual(estrato?: Estrato): string {
              when c2.nome ilike 'Outros %'          then 'OUTROS_MEDICAMENTOS'
              else 'SEM_UTILIZACOES'
            end as estrato
-    ${corpoResidual(estrato)}
+    ${corpoResidual(estrato, apenasFila)}
      order by p.cnp
      limit $4`;
 }
@@ -173,8 +177,8 @@ function sqlResidual(estrato?: Estrato): string {
  * output — zero linhas — e a corrida entrega uma amostra encolhida sem
  * dizer que encolheu.
  */
-function sqlContagem(estrato?: Estrato): string {
-  return `select count(*)::int as n ${corpoResidual(estrato)}`;
+function sqlContagem(estrato?: Estrato, apenasFila = false): string {
+  return `select count(*)::int as n ${corpoResidual(estrato, apenasFila)}`;
 }
 
 /** Uma linha do relatório por produto — o que o dry-run imprime. */
@@ -471,6 +475,19 @@ export async function runKnowledgeEnrichment(
      * 1 restaura o comportamento sequencial anterior.
      */
     concorrencia?: number;
+    /**
+     * Restringe o residual ao que está na `EnriquecimentoFila` em
+     * PENDENTE ou FALHOU.
+     *
+     * É o modo do ciclo curto: um produto acabado de importar entra na
+     * fila e é apanhado minutos depois, em vez de esperar pela varredura
+     * das 04:00. Barato quando a fila está vazia — o `exists` não
+     * devolve nada e a corrida acaba sem uma única chamada.
+     *
+     * FALHOU entra de propósito: uma falha transitória da API não pode
+     * condenar um produto a ficar de fora até alguém reparar.
+     */
+    apenasFila?: boolean;
     /** Amostra estratificada em vez dos primeiros N. */
     canary?: Partial<Record<Estrato, number>>;
     /** Slug do tenant — registado como origem do conhecimento promovido. */
@@ -506,7 +523,7 @@ export async function runKnowledgeEnrichment(
     quotasCanary = amostra.quotas;
   } else {
     residual = await prisma.$queryRawUnsafe<LinhaResidual[]>(
-      sqlResidual(),
+      sqlResidual(undefined, opts.apenasFila === true),
       MIN_CNP,
       KNOWLEDGE_VERSION,
       KNOWLEDGE_MODEL,
@@ -1246,6 +1263,50 @@ export async function runKnowledgeEnrichment(
   await Promise.all(Array.from({ length: nTrabalhadores }, () => trabalhador()));
 
   resumo.custoEstimadoUsd = estimarCusto(resumo.usage);
+
+  // ── Fechar as entradas de fila que já têm resposta ──────────────────
+  //
+  // "Tem resposta" é ter linha na cache desta versão — e isso inclui o
+  // DESCONHECIDO e o que foi para revisão. É a definição certa: a fila
+  // pergunta "já perguntámos por este produto?", não "já conseguimos
+  // classificá-lo?". Sem isto, um produto que o modelo não reconhece
+  // voltava à fila em cada ciclo curto, para sempre, e o ciclo deixava
+  // de ser barato quando não há trabalho.
+  //
+  // Fica em SUCESSO_PARCIAL, não SUCESSO: o produto passou pelo
+  // pipeline, mas nem toda a passagem produz classificação. Distinguir
+  // as duas coisas é o que permite mais tarde procurar "o que passou e
+  // não deu nada" sem confundir com "o que nunca correu".
+  if (!dryRun) {
+    try {
+      await prisma.$executeRawUnsafe(
+        `update "EnriquecimentoFila" f
+            set estado = 'SUCESSO_PARCIAL',
+                "ultimaTentativa" = now(),
+                "numeroTentativas" = f."numeroTentativas" + 1,
+                "ultimaFonte" = $3,
+                "dataAtualizacao" = now()
+           from "Produto" p
+          where p.id = f."produtoId"
+            and f.estado in ('PENDENTE', 'FALHOU')
+            and exists (
+                  select 1 from "KnowledgeEnrichmentCache" k
+                   where k.cnp = p.cnp and k.versao = $1 and k.modelo = $2
+            )`,
+        KNOWLEDGE_VERSION,
+        KNOWLEDGE_MODEL,
+        `knowledge:${KNOWLEDGE_VERSION}`,
+      );
+    } catch (e) {
+      // A fila é contabilidade, não o trabalho. O que interessa já foi
+      // escrito no Produto e na cache; falhar a fechá-la faz o ciclo
+      // seguinte reprocessar, e a cache torna isso gratuito.
+      console.error(
+        "[knowledge] não consegui fechar as entradas de fila:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
 
   // ── PROMOÇÃO AO CATÁLOGO GLOBAL ─────────────────────────────────────
   //
