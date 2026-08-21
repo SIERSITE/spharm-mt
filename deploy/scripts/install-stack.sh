@@ -583,32 +583,59 @@ derive_secrets() {
     # feita pela API — que corre no `web`. O entrypoint descarta-a no
     # worker: só o web precisa dela.
     printf 'POSTGRES_PROVISIONER_PASSWORD=%s\n' "$POSTGRES_PROVISIONER_PASSWORD"
-    # ── Credencial da API do modelo ────────────────────────────────────
-    #
-    # OPCIONAL. Sem ela a plataforma funciona inteira; o que não corre é
-    # o enriquecimento de catálogo — e não corre com um erro explícito de
-    # infraestrutura, em vez de queimar as tentativas dos produtos (ver
-    # `credencialConfigurada` em lib/catalog/knowledge-enrichment.ts).
-    #
-    # Vai para o app.secrets.env e NÃO para o platform.env: o platform.env
-    # é configuração legível e versionável em espírito, esta é uma
-    # credencial. Aqui fica a 0600 root:root como as outras, e nunca
-    # aparece num `docker compose config` porque não passa por variável
-    # de ambiente do host — é lida do ficheiro de segredos da plataforma.
-    #
-    # O DESTINO É O `web`, e só ele. O job /api/jobs/enrich-catalog corre
-    # dentro da aplicação; o worker limita-se a disparar o pedido HTTP e
-    # não precisa da chave. O entrypoint descarta-a no arranque do
-    # worker, exactamente como já faz à POSTGRES_PROVISIONER_PASSWORD.
-    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-      printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
-    fi
   } >> "$app_file"
   chmod 0600 "$app_file"; chown root:root "$app_file"
+  ok "app.secrets.env (7 chaves, 0600 root:root)"
+
+  # ── Credencial da API do modelo ──────────────────────────────────────
+  #
+  # FICHEIRO QUARTO, e não uma linha no app.secrets.env. A primeira
+  # versão pôs a chave lá, contando com o `unset ANTHROPIC_API_KEY` do
+  # entrypoint para a tirar ao worker. Medido em produção, o `unset`
+  # funciona — o PID 1 do worker não tem a variável — e mesmo assim a
+  # chave ficava acessível:
+  #
+  #   docker exec spharmmt-worker printenv ANTHROPIC_API_KEY   → PRESENTE
+  #   /proc/1/environ do worker                                → ausente
+  #   docker inspect spharmmt-worker -f '{{.Config.Env}}'      → PRESENTE
+  #
+  # A razão é que `env_file` grava o valor na CONFIGURAÇÃO do container.
+  # O `unset` só limpa o ambiente do processo que o entrypoint executa;
+  # não apaga nada de `Config.Env`. Cada `docker exec` constrói o
+  # ambiente do processo novo a partir dessa configuração — e por isso
+  # recebe a chave apesar de o worker nunca a ter tido.
+  #
+  # Um segredo que qualquer `docker exec` no container errado devolve não
+  # está entregue "apenas ao serviço que precisa dele". A correcção é não
+  # o entregar: o ficheiro é montado pelo `web` (onde corre o job
+  # /api/jobs/enrich-catalog) e pelo `migrate` (onde corre o
+  # catalog:knowledge-enrich do perfil tools), e NUNCA pelo worker.
+  #
+  # OPCIONAL. Sem chave a plataforma funciona inteira; o que não corre é o
+  # enriquecimento — e não corre com um erro explícito de infraestrutura,
+  # em vez de queimar as tentativas dos produtos (ver
+  # `credencialConfigurada` em lib/catalog/knowledge-enrichment.ts).
+  #
+  # CRIADO SEMPRE, mesmo vazio: o `env_file` do compose falha se o
+  # caminho não existir, e um ficheiro só com comentários não define
+  # variável nenhuma.
+  local model_file="${SPHARMMT_ROOT}/secrets/model.secrets.env"
+  install -m 0600 -o root -g root /dev/null "$model_file"
+  {
+    printf '# %s\n' "$model_file"
+    printf '# DERIVADO de %s por install-stack.sh. Não editar à mão.\n' "$SPHARMMT_SECRETS_FILE"
+    printf '# Montado pelo `web` e pelo `migrate`. NUNCA pelo `worker`.\n'
+    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+      printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
+    else
+      printf '# (sem ANTHROPIC_API_KEY — enriquecimento indisponível)\n'
+    fi
+  } >> "$model_file"
+  chmod 0600 "$model_file"; chown root:root "$model_file"
   if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    ok "app.secrets.env (8 chaves, 0600 root:root) — inclui a credencial do modelo"
+    ok "model.secrets.env (1 chave, 0600 root:root, sem o worker)"
   else
-    ok "app.secrets.env (7 chaves, 0600 root:root)"
+    ok "model.secrets.env (vazio, 0600 root:root)"
     info "sem ANTHROPIC_API_KEY — o enriquecimento de catálogo fica indisponível"
     info "  para activar: acrescentar ANTHROPIC_API_KEY a ${SPHARMMT_SECRETS_FILE}"
   fi

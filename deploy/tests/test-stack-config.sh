@@ -310,14 +310,48 @@ test_scheduler() {
     grep -q 'sem ANTHROPIC_API_KEY' "$inst"
   refute "a chave NÃO é escrita no platform.env (que é configuração, não segredo)" \
     grep -q '^ANTHROPIC_API_KEY=' "${SCRIPTS_DIR}/install-platform.sh"
+  # ── QUEM MONTA A CHAVE ───────────────────────────────────────────────
+  #
+  # A regressão que isto fixa foi medida em produção. Com a chave no
+  # app.secrets.env — que o web E o worker montam — o worker ficava com
+  # ela em `Config.Env`, e portanto:
+  #
+  #   /proc/1/environ do worker    → ausente   (o `unset` funciona)
+  #   docker exec ... printenv     → PRESENTE  (o env vem de Config.Env)
+  #
+  # O `unset` do entrypoint limpa o processo e não a configuração. O que
+  # tira mesmo a chave ao worker é ela viver num ficheiro que o worker
+  # não monta.
+  assert "existe um ficheiro de segredos só para a credencial do modelo" \
+    grep -q 'model.secrets.env' "$inst"
+  refute "a chave NÃO vai para o app.secrets.env (que o worker monta)" \
+    bash -c "awk '/app_file=\"/,/ok \"app.secrets.env/' '$inst' | grep -q ANTHROPIC"
+
+  local monta
+  monta=" $(awk '
+    /^  [a-z][a-z0-9_-]*:[[:space:]]*$/ { svc = $1; sub(/:/, "", svc) }
+    /model\.secrets\.env/ && $0 !~ /^[[:space:]]*#/ { print svc }
+  ' "$COMPOSE" | sort -u | tr "\n" " ")"
+  case "$monta" in
+    *" worker "*) bad_ "o worker NÃO pode montar model.secrets.env (montam:${monta})" ;;
+    *)            ok_  "o worker não monta model.secrets.env (montam:${monta})" ;;
+  esac
+  case "$monta" in
+    *" web "*) ok_  "o web monta model.secrets.env" ;;
+    *)         bad_ "o web TEM de montar model.secrets.env (montam:${monta})" ;;
+  esac
+
   if [ -f "$entry" ]; then
-    assert "o worker descarta a chave do modelo no arranque" \
+    assert "o worker descarta a chave do modelo no arranque (defesa em profundidade)" \
       grep -q 'unset ANTHROPIC_API_KEY' "$entry"
+    assert "…e o comentário diz que o unset não chega sozinho" \
+      grep -q 'DEFESA EM PROFUNDIDADE' "$entry"
   fi
+
   # Um segredo em variável de ambiente do host apareceria em
   # `docker compose config` e no `ps` de quem estivesse a ver.
-  refute "a chave NÃO passa pelo compose como variável" \
-    grep -q 'ANTHROPIC' "$COMPOSE"
+  refute "a chave NÃO passa pelo compose como variável de ambiente" \
+    grep -qE '^[^#]*\$\{ANTHROPIC' "$COMPOSE"
 
   # ── Guarda do refresh-ipf ────────────────────────────────────────────
   # Sem a guarda, o disparo seguinte do refresh-ipf mudava de

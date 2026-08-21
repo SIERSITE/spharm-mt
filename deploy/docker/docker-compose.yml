@@ -250,6 +250,10 @@ services:
       # da base a processos que servem tráfego. Há um teste que falha se
       # isso acontecer.
       - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/tools.secrets.env
+      # `catalog:knowledge-enrich` está em tools-scripts.txt e é o
+      # caminho de uma corrida manual de backlog. Sem isto, o comando
+      # existe na imagem e falha sempre por falta de credencial.
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/model.secrets.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -292,6 +296,17 @@ services:
     env_file:
       - ${SPHARMMT_ENV_FILE:-/opt/spharmmt/docker/env/platform.env}
       - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/app.secrets.env
+      # Credencial do modelo. AQUI e no `migrate`, nunca no `worker`: o
+      # job /api/jobs/enrich-catalog corre dentro desta aplicação, e o
+      # worker limita-se a disparar o pedido HTTP.
+      #
+      # Um `env_file` grava o valor em `Config.Env` do container, e cada
+      # `docker exec` constrói o ambiente a partir daí. Pô-lo no worker
+      # entregava a chave a quem fizesse `docker exec` nele, mesmo com o
+      # entrypoint a fazer `unset` — que só limpa o processo, não a
+      # configuração. Por isso é um ficheiro à parte e não uma linha no
+      # app.secrets.env, que os dois serviços montam.
+      - ${SPHARMMT_ROOT:-/opt/spharmmt}/secrets/model.secrets.env
 
     depends_on:
       postgres:

@@ -237,10 +237,29 @@ case "$mode" in
     drop_admin_credentials
     # Sem aprovisionamento: o worker nao expoe API e nao cria clientes.
     unset POSTGRES_PROVISIONER_PASSWORD
-    # Sem credencial do modelo: o worker DISPARA o job de enriquecimento
-    # por HTTP, mas quem chama a API e o `web`. Uma chave que este
-    # processo nunca usa e uma chave a mais na memoria de um processo a
-    # mais — e o custo de a tirar e uma linha.
+    # Credencial do modelo: DEFESA EM PROFUNDIDADE, nao o mecanismo.
+    #
+    # O que tira mesmo a chave ao worker e o compose: `model.secrets.env`
+    # e montado pelo `web` e pelo `migrate` e nunca por este servico. Este
+    # `unset` so protege o caso de alguem voltar a acrescentar o ficheiro
+    # aqui — e protege-o so a meio, o que e importante saber.
+    #
+    # Medido em producao, com a chave no app.secrets.env que os dois
+    # montam:
+    #
+    #   /proc/1/environ do worker                       -> ausente
+    #   docker exec spharmmt-worker printenv ANTHROPIC.. -> PRESENTE
+    #   docker inspect -f '{{.Config.Env}}'             -> PRESENTE
+    #
+    # O `unset` limpa o ambiente DESTE processo e do que ele executa. Nao
+    # apaga nada de `Config.Env`, que e onde o `env_file` grava o valor —
+    # e cada `docker exec` constroi o ambiente do processo novo a partir
+    # dai. Por isso o worker nunca teve a chave e qualquer `docker exec`
+    # nele devolvia-a na mesma.
+    #
+    # Um segredo que se apanha com um `docker exec` no container errado
+    # nao esta entregue apenas a quem precisa dele. Nao o entregar e a
+    # unica forma de o nao entregar.
     unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
     ensure_db_urls
     log "a arrancar o worker (SCHEDULER_ENABLED=${SCHEDULER_ENABLED:-0})"
