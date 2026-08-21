@@ -46,9 +46,10 @@ import {
   runKnowledgeEnrichment,
   MAX_TENTATIVAS_FILA,
   corpoResidual,
-  selecionarCanary,
+  lerJanelaCanary,
   type Estrato,
 } from "../../lib/catalog/knowledge-enrichment-runner";
+import { agruparFamilias } from "../../lib/catalog/preselection";
 import { readFileSync } from "node:fs";
 import { SOURCE_TIER_RANK } from "../../lib/catalog-types";
 
@@ -729,15 +730,22 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
           }
           consultas.push(`rows:${est}`);
           const limite = Number(params[3] ?? 0);
-          const n = Math.min(disponivel, limite);
-          return Array.from({ length: n }, (_, i) => ({
-            cnp: baseCnp[est] + i,
-            designacao: `${est} ${i}`,
-            productType: null,
-            categoriaAtual: null,
-            subcategoriaAtual: null,
-            estrato: est,
-          }));
+          // O cursor é `$5` e a ordem é o cnp: a página seguinte começa
+          // no primeiro cnp acima dele. Sem isto o duplo falso devolvia
+          // sempre a mesma página e a paginação passava por acidente.
+          const cursor = Number(params[4] ?? 0);
+          const todos = Array.from({ length: disponivel }, (_, i) => baseCnp[est] + i);
+          return todos
+            .filter((cnp) => cnp > cursor)
+            .slice(0, limite)
+            .map((cnp) => ({
+              cnp,
+              designacao: `${est} ${cnp}`,
+              productType: null,
+              categoriaAtual: null,
+              subcategoriaAtual: null,
+              estrato: est,
+            }));
         },
         $executeRawUnsafe: async () => 0,
         knowledgeEnrichmentCache: { upsert: async () => ({}) },
@@ -746,6 +754,48 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     };
   }
 
+  // A janela precisa do contexto do tenant para saber o que é
+  // processável. Nomes só de letras e únicos por cnp: com designações
+  // repetidas todos os produtos cairiam na MESMA família, o estrato
+  // teria um único processável, e as quotas passariam a medir outra
+  // coisa sem se queixarem.
+  const BASE_CNP: Record<string, number> = {
+    NAO_CLASSIFICADO: 3_000_000,
+    OUTROS_MEDICAMENTOS: 4_000_000,
+    SEM_UTILIZACOES: 5_000_000,
+  };
+  const soLetras = (n: number) => {
+    let s = "";
+    let x = n;
+    do {
+      s = String.fromCharCode(97 + (x % 26)) + s;
+      x = Math.floor(x / 26);
+    } while (x > 0);
+    return `Zeta${s}`;
+  };
+  const contextoDaPopulacao = (pop: Record<string, number>): LinhaContexto[] => {
+    const out: LinhaContexto[] = [];
+    for (const [est, n] of Object.entries(pop)) {
+      for (let i = 0; i < n; i++) {
+        const cnp = BASE_CNP[est] + i;
+        out.push({ cnp, designacao: soLetras(cnp), nivel1: null, nivel2: null, utilizacoes: [] });
+      }
+    }
+    return out;
+  };
+  const janelaCanary = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prisma: any,
+    pop: Record<string, number>,
+  ) => {
+    const contexto = contextoDaPopulacao(pop);
+    return lerJanelaCanary(prisma, QUOTAS_CANARY, {
+      contexto,
+      familias: agruparFamilias(contexto),
+      subExcluidas: new Set<string>(),
+    });
+  };
+
   // ── Caso 1: os três estratos com produtos de sobra ──────────────────
   {
     const { prisma, consultas } = prismaEstratos({
@@ -753,7 +803,11 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       NAO_CLASSIFICADO: 500,
       SEM_UTILIZACOES: 500,
     });
-    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+    const a = await janelaCanary(prisma, {
+      OUTROS_MEDICAMENTOS: 500,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 500,
+    });
 
     check(a.linhas.length === 100, `100 produtos no total (obtidos ${a.linhas.length})`);
     const porEstrato = a.linhas.reduce<Record<string, number>>((m, l) => {
@@ -780,7 +834,11 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       NAO_CLASSIFICADO: 500,
       SEM_UTILIZACOES: 0,
     });
-    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+    const a = await janelaCanary(prisma, {
+      OUTROS_MEDICAMENTOS: 0,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 0,
+    });
 
     check(a.linhas.length === 30, "com dois estratos vazios vêm 30 produtos — o número que apareceu em produção");
     const q = Object.fromEntries(a.quotas.map((x) => [x.estrato, x]));
@@ -804,7 +862,11 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       NAO_CLASSIFICADO: 500,
       SEM_UTILIZACOES: 500,
     });
-    const a = await selecionarCanary(prisma, QUOTAS_CANARY);
+    const a = await janelaCanary(prisma, {
+      OUTROS_MEDICAMENTOS: 12,
+      NAO_CLASSIFICADO: 500,
+      SEM_UTILIZACOES: 500,
+    });
     const q = Object.fromEntries(a.quotas.map((x) => [x.estrato, x]));
     check(q.OUTROS_MEDICAMENTOS.obtido === 12 && q.OUTROS_MEDICAMENTOS.defice === 28,
       "estrato com 12 elegíveis dá 12 e reporta défice de 28");

@@ -156,6 +156,11 @@ async function main() {
 
   const pad = (n: number) => String(n).padStart(6);
   const pct = (n: number, d: number) => (d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "—");
+  // A reconciliação não é decorativa: se não fechar, o comando sai com
+  // código 2. Um relatório que denuncia um defeito e devolve 0 é lido
+  // pelo scheduler como sucesso, e foi assim que os 4 e os 2 produtos
+  // sem destino passaram duas corridas sem ninguém parar.
+  let falhaContabilistica = false;
 
   console.log("\n\n── amostra ────────────────────────────────────────");
   console.log(`  ${pad(r.residualAnalisado)}  produtos entraram`);
@@ -257,6 +262,17 @@ async function main() {
     if (n > 25) console.log(`  … e mais ${n - 25}`);
   }
 
+  console.log("\n── a janela ───────────────────────────────────────");
+  // `--limite=N` significa N produtos DESTINADOS ao modelo. A leitura
+  // pagina por cursor e atravessa os condicionais em vez de lhes dar
+  // lugar — sem isto, 11,8% do residual do silveira ocupava a cabeça da
+  // janela para sempre e o lote acabava por não fazer trabalho nenhum.
+  console.log(`  ${pad(r.janela.alvoProcessaveis)}  processáveis pedidos (--limite)`);
+  console.log(`  ${pad(r.residualLido)}  cnp lidos do residual em ${r.janela.paginasLidas} página(s) de ${r.janela.tamanhoPagina}`);
+  console.log(`  ${pad(r.residualAnalisado)}  entraram na janela`);
+  console.log(`  ${pad(r.foraDaJanela)}  lidos e devolvidos (ainda não chegou a vez)`);
+  if (r.janela.esgotado) console.log("  o residual esgotou-se antes de a janela encher.");
+
   console.log("\n── pré-selecção (o que NÃO foi ao modelo) ─────────");
   // A PRIMEIRA LINHA, e não estava aqui. O `jaConhecidosGlobal` existia
   // no resumo e nunca era impresso: os produtos dispensados pelo catálogo
@@ -266,43 +282,56 @@ async function main() {
   // verdadeira, e o conjunto ilegível.
   console.log(`  ${pad(r.jaConhecidosGlobal)}  já conhecidos no catálogo global (resolvem o que faltava)`);
   console.log(`  ${pad(r.globalInsuficiente)}  conhecidos no global mas INSUFICIENTES — vão ao modelo`);
-  console.log(`  ${pad(r.excluidosBaixaCobertura)}  excluídos: subcategoria sem utilização plausível (<2%, pop>=30)`);
-  console.log(`  ${pad(r.excluidosOpacos)}  excluídos: designação opaca`);
+  console.log(`  ${pad(r.excluidosBaixaCobertura)}  CONDICIONAIS: subcategoria sem utilização plausível (<2%, pop>=30)`);
+  console.log(`  ${pad(r.excluidosOpacos)}  CONDICIONAIS: designação opaca`);
   console.log(`  ${pad(r.familiasPropagaveis)}  famílias propagáveis (1 representante + N dependentes)`);
   console.log(`  ${pad(r.representantesEnviados)}  representantes enviados`);
   console.log(`  ${pad(r.propagados)}  propagados do representante (decisão aceite OU recusada)`);
+  console.log(`  ${pad(r.propagadosSemEscrita)}    …destes, herdaram uma decisão que NÃO escreve`);
   console.log(`  ${pad(r.dependentesOrfaos)}  dependentes sem decisão do representante — voltam ao residual`);
+  console.log(`  ${pad(r.semContexto)}  sem linha no contexto do tenant — NÃO tratados`);
   console.log(`  ${pad(r.conflitosFamilia)}  famílias em conflito (não propagam, vão sozinhas)`);
-  console.log(`  ${pad(r.enviadosAoModelo)}  ENVIADOS AO MODELO  (de ${r.residualAnalisado} do residual)`);
-  if (r.residualAnalisado > 0) {
+  console.log(`  ${pad(r.enviadosAoModelo)}  ENVIADOS AO MODELO  (de ${r.residualAnalisado} na janela)`);
+  if (r.residualLido > 0) {
     const poupadas = r.residualAnalisado - r.enviadosAoModelo;
-    console.log(`  ${pad(poupadas)}  chamadas poupadas  ${pct(poupadas, r.residualAnalisado)}`);
+    console.log(`  ${pad(poupadas)}  chamadas poupadas na janela  ${pct(poupadas, r.residualAnalisado)}`);
 
     // ── RECONCILIAÇÃO ────────────────────────────────────────────────
     //
-    // Todo o residual tem de ter um destino NOMEADO. Sem esta soma, um
-    // caminho de exclusão novo — ou um que passe a apanhar mais do que
-    // devia — soma-se em silêncio a "chamadas poupadas" e ninguém repara.
-    // Foi exactamente o que aconteceu com o filtro do catálogo global.
+    // Tudo o que foi LIDO tem de ter destino NOMEADO — e os destinos são
+    // mutuamente exclusivos. Sem esta soma, um caminho de exclusão novo
+    // — ou um que passe a apanhar mais do que devia — soma-se em
+    // silêncio a "chamadas poupadas" e ninguém repara. Foi o que
+    // aconteceu com o filtro do catálogo global (7 692 produtos), com os
+    // dependentes de representantes recusados (4 e depois 2), e com os
+    // dependentes recusados pelo gate próprio.
+    //
+    // Fecha sobre `residualLido` e não sobre a janela: a paginação lê
+    // mais do que trata, e o excedente ("ainda não chegou a vez") é um
+    // destino tão nomeado como os outros.
     const contabilizados =
       r.jaConhecidosGlobal +
       r.excluidosBaixaCobertura +
       r.excluidosOpacos +
       r.enviadosAoModelo +
       r.propagados +
-      r.dependentesOrfaos;
-    const semDestino = r.residualAnalisado - contabilizados;
+      r.dependentesOrfaos +
+      r.semContexto +
+      r.foraDaJanela;
+    const semDestino = r.residualLido - contabilizados;
     console.log("");
     console.log(
-      `  reconciliação: ${r.residualAnalisado} residual = ${r.jaConhecidosGlobal} global` +
+      `  reconciliação: ${r.residualLido} lidos = ${r.jaConhecidosGlobal} global` +
         ` + ${r.excluidosBaixaCobertura} baixa-cobertura + ${r.excluidosOpacos} opacos` +
-        ` + ${r.enviadosAoModelo} enviados` +
-        ` + ${r.propagados} propagados + ${r.dependentesOrfaos} orfaos`,
+        ` + ${r.enviadosAoModelo} enviados + ${r.propagados} propagados` +
+        ` + ${r.dependentesOrfaos} orfaos + ${r.semContexto} sem-contexto` +
+        ` + ${r.foraDaJanela} fora-da-janela`,
     );
     if (semDestino !== 0) {
       console.log(`  !! ${semDestino} produto(s) SEM destino contabilizado — é um defeito, não um arredondamento.`);
+      falhaContabilistica = true;
     } else {
-      console.log("  ok  fecha: todo o residual tem destino nomeado.");
+      console.log("  ok  fecha: tudo o que foi lido tem destino nomeado.");
     }
   }
 
@@ -363,7 +392,44 @@ async function main() {
     console.log("  esta média só se aplica a uma população com a mesma mistura de estratos.");
   }
 
+  // ── MÉTRICA DE BACKLOG ─────────────────────────────────
+  //
+  // "residual = 0" NÃO é o critério de conclusão e nunca poderia ser. As
+  // exclusões condicionais — subcategoria sem cobertura, designação
+  // opaca — não recebem estado terminal DE PROPÓSITO: dependem dos dados
+  // do tenant e têm de poder voltar quando os dados mudarem. Ficam no
+  // residual para sempre enquanto a condição se mantiver, e está certo.
+  //
+  // O que tem de chegar a zero é outra coisa.
+  console.log("\n── backlog ─────────────────────────────────────");
+  const condicionais = r.excluidosBaixaCobertura + r.excluidosOpacos;
+  const terminaisNovos = r.enviadosAoModelo + r.propagados - r.dependentesOrfaos;
+  console.log(`  ${pad(r.residualLido)}  residual lido nesta passagem`);
+  console.log(`  ${pad(condicionais)}  CONDICIONAIS — não consomem API, voltam enquanto a condição durar`);
+  console.log(`  ${pad(r.residualAnalisado - condicionais - r.dependentesOrfaos)}  PROCESSÁVEIS tratados nesta passagem`);
+  console.log(`  ${pad(Math.max(0, terminaisNovos))}  decisões TERMINAIS novas (cache desta versão — não voltam)`);
+  console.log(`  ${pad(r.enviadosAoModelo)}  enviados ao modelo`);
+  console.log(`  ${pad(r.propagados)}  propagados (${r.propagadosSemEscrita} sem escrita)`);
+  console.log(`  ${pad(r.dependentesOrfaos)}  ÓRFÃOS TRANSITÓRIOS — sem decisão para herdar, voltam e podem gastar API`);
+  console.log("");
+  console.log("  BACKLOG PROCESSÁVEL CONCLUÍDO quando, e só quando:");
+  console.log("    processáveis restantes = 0");
+  console.log("    E sem destino contabilizado = 0");
+  console.log("    E nenhuma decisão terminal volta a consumir API");
+  console.log("  O residual bruto pode ficar > 0 para sempre: são os condicionais.");
+  console.log("  Os órfãos por falha de infraestrutura repetem-se legitimamente —");
+  console.log("  não houve decisão para herdar, e repetir não é desperdício.");
+
   await prisma.$disconnect();
+
+  if (falhaContabilistica) {
+    console.error(
+      "\nRECONCILIAÇÃO NÃO FECHOU. Há produtos lidos do residual sem destino\n" +
+        "contabilizado: alguns produtos passaram pela corrida sem estado e sem\n" +
+        "nome. NÃO retomar o backlog até a causa estar identificada.",
+    );
+    process.exit(2);
+  }
 }
 
 main().catch((e) => {

@@ -61,6 +61,8 @@ import {
   preselecionar,
   subcategoriasExcluiveis,
   type Destino,
+  type Familia,
+  type Preselecao,
   type ProdutoPreselecao,
 } from "./preselection";
 import { lerConhecimentoGlobal, promoverAoGlobal } from "./global-catalog-store";
@@ -150,7 +152,7 @@ export type Estrato = "OUTROS_MEDICAMENTOS" | "NAO_CLASSIFICADO" | "SEM_UTILIZAC
  * 'Outros %') E fora de SEM_UTILIZACOES (o `not ilike` não deu TRUE),
  * apesar de o `case` o classificar como SEM_UTILIZACOES pelo ramo `else`.
  */
-export function corpoResidual(estrato?: Estrato, apenasFila = false): string {
+export function corpoResidual(estrato?: Estrato, apenasFila = false, comCursor = false): string {
   const semUtilizacoes = `not exists (select 1 from "ProdutoUtilizacao" pu where pu."produtoId" = p.id)`;
   const filtro =
     estrato === "NAO_CLASSIFICADO"
@@ -170,6 +172,7 @@ export function corpoResidual(estrato?: Estrato, apenasFila = false): string {
       left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
       left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
      where p.cnp >= $1
+       ${comCursor ? "and p.cnp > $5" : ""}
        and p."validadoManualmente" = false
        ${filtro}
        and not exists (
@@ -199,7 +202,15 @@ export function corpoResidual(estrato?: Estrato, apenasFila = false): string {
        )` : ""}`;
 }
 
-function sqlResidual(estrato?: Estrato, apenasFila = false): string {
+/**
+ * Uma página do residual, em ordem determinística e sem repetir.
+ *
+ * `comCursor` acrescenta `p.cnp > $5`: é o que torna a leitura paginável.
+ * A ordem é sempre `p.cnp` e o cursor é sempre o último cnp devolvido,
+ * portanto duas páginas consecutivas não podem sobrepor-se nem saltar —
+ * a fronteira é o próprio valor da chave por que se ordena.
+ */
+function sqlResidual(estrato?: Estrato, apenasFila = false, comCursor = false): string {
   return `
     select p.cnp,
            p.designacao,
@@ -211,7 +222,7 @@ function sqlResidual(estrato?: Estrato, apenasFila = false): string {
              when c2.nome ilike 'Outros %'          then 'OUTROS_MEDICAMENTOS'
              else 'SEM_UTILIZACOES'
            end as estrato
-    ${corpoResidual(estrato, apenasFila)}
+    ${corpoResidual(estrato, apenasFila, comCursor)}
      order by p.cnp
      limit $4`;
 }
@@ -300,7 +311,51 @@ export type LinhaPreselecao = {
 };
 
 export type RunnerResumo = {
+  /**
+   * Linhas do residual que esta corrida assumiu — a janela depois do
+   * corte. Não é o mesmo que `residualLido`.
+   */
   residualAnalisado: number;
+  /**
+   * CNPs que a paginação leu da base para encher a janela, incluindo os
+   * que ficaram de fora. É sobre ESTE número que a reconciliação fecha:
+   * tudo o que foi lido tem de ter destino nomeado, mesmo que o destino
+   * seja "ainda não chegou a vez".
+   */
+  residualLido: number;
+  /**
+   * Lidos para lá do corte da janela, devolvidos intactos. Nada foi
+   * decidido sobre eles e voltam na corrida seguinte — é o
+   * comportamento certo, e tem de ser contado.
+   */
+  foraDaJanela: number;
+  /**
+   * Estavam no residual e não têm linha no contexto do tenant.
+   *
+   * Era um `if (!pre) continue` mudo: o produto desaparecia da
+   * contabilidade e da corrida sem deixar rasto. Hoje é teoricamente
+   * inalcançável — o contexto é superconjunto do residual — mas nenhum
+   * produto do residual pode sumir-se por um `continue` sem nome.
+   */
+  semContexto: number;
+  /** Os CNPs de `semContexto`, para o relatório os poder mostrar. */
+  cnpsSemContexto: number[];
+  /** Como é que a janela foi enchida. */
+  janela: {
+    /** Quantos destinos processáveis foram pedidos (`--limite`). */
+    alvoProcessaveis: number;
+    paginasLidas: number;
+    tamanhoPagina: number;
+    /** O residual acabou antes de a janela encher. */
+    esgotado: boolean;
+  };
+  /**
+   * Dependentes que herdaram uma decisão que NÃO escreve — o
+   * representante foi recusado, ou o gate próprio do dependente recusou.
+   * Subconjunto de `propagados`; existe para a poupança da propagação
+   * não parecer maior do que é.
+   */
+  propagadosSemEscrita: number;
   /** CNPs que o catálogo global já conhecia — não foram ao modelo. */
   /**
    * CNPs que o global conhecia e cujo conhecimento RESOLVIA o que
@@ -421,84 +476,16 @@ export type QuotaEstrato = {
   pedido: number;
   /** Quantos existem no estrato, sem limite. */
   elegiveis: number;
-  /** Quantos entraram na amostra, já sem duplicados. */
+  /**
+   * Quantos PROCESSÁVEIS a quota deu — os que vão ao modelo, não as
+   * linhas lidas. Um estrato onde a pré-selecção exclua tudo reporta
+   * zero e o défice inteiro, em vez de parecer servido.
+   */
   obtido: number;
   /** `pedido - obtido`. Zero quando a quota foi servida por inteiro. */
   defice: number;
 };
 
-export type AmostraCanary = {
-  linhas: LinhaResidual[];
-  quotas: QuotaEstrato[];
-};
-
-/**
- * Amostra estratificada. Os primeiros N por cnp não são uma amostra do
- * catálogo — são uma amostra dos cnp mais baixos, que é outra coisa e
- * não representa as três fatias do residual.
- *
- * Cada estrato tem a sua consulta e a sua quota. Devolve TAMBÉM o que
- * cada um deu: um estrato vazio deixa de ser indistinguível de um estrato
- * que não foi consultado, que era o furo — a amostra encolhia em silêncio
- * e o relatório saía a dizer 30 produtos como se fossem os 100 pedidos.
- *
- * Não se compensa um estrato com produtos de outro. A amostra é
- * estratificada por uma razão; enchê-la com o que sobra do estrato ao
- * lado dava um total bonito e uma amostra que já não representa nada.
- */
-export async function selecionarCanary(
-  prisma: PrismaClient,
-  quotas: Partial<Record<Estrato, number>> = QUOTAS_CANARY,
-): Promise<AmostraCanary> {
-  const linhas: LinhaResidual[] = [];
-  const relatorioQuotas: QuotaEstrato[] = [];
-  // Os estratos são mutuamente exclusivos por construção, mas a garantia
-  // de unicidade fica aqui e não na confiança de que assim seja: um cnp
-  // repetido custaria uma classificação paga duas vezes e uma linha
-  // duplicada no relatório.
-  const vistos = new Set<number>();
-
-  for (const [estrato, pedido] of Object.entries(quotas) as [Estrato, number][]) {
-    if (!pedido) continue;
-
-    const [{ n: elegiveis }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
-      sqlContagem(estrato),
-      MIN_CNP,
-      KNOWLEDGE_VERSION,
-      KNOWLEDGE_MODEL,
-    );
-
-    const doEstrato = await prisma.$queryRawUnsafe<LinhaResidual[]>(
-      sqlResidual(estrato),
-      MIN_CNP,
-      KNOWLEDGE_VERSION,
-      KNOWLEDGE_MODEL,
-      pedido,
-    );
-
-    let obtido = 0;
-    for (const l of doEstrato) {
-      if (vistos.has(l.cnp)) continue;
-      vistos.add(l.cnp);
-      // O estrato é o da consulta que o trouxe. O `case` da query e o
-      // filtro dizem sempre o mesmo desde que os filtros particionam o
-      // residual — mas se um dia divergirem, é a consulta que manda,
-      // senão a contagem por estrato mentiria sobre a sua própria quota.
-      linhas.push({ ...l, estrato });
-      obtido++;
-    }
-
-    relatorioQuotas.push({
-      estrato,
-      pedido,
-      elegiveis: Number(elegiveis) || 0,
-      obtido,
-      defice: Math.max(0, pedido - obtido),
-    });
-  }
-
-  return { linhas, quotas: relatorioQuotas };
-}
 
 /**
  * Contexto para a pré-selecção: o catálogo INTEIRO, não só o residual.
@@ -538,10 +525,330 @@ async function carregarContexto(prisma: PrismaClient): Promise<ProdutoPreselecao
   }));
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// A JANELA: N PRODUTOS PROCESSÁVEIS, NÃO N LINHAS LIDAS
+// ═════════════════════════════════════════════════════════════════════
+//
+// ── O DEFEITO, MEDIDO ────────────────────────────────────────────────
+//
+// A leitura era `order by cnp limit N` e a pré-selecção corria depois.
+// Os produtos que a pré-selecção exclui por CONDIÇÃO — subcategoria sem
+// utilização plausível, designação opaca — não recebem cache e por isso
+// não saem do residual. Voltam a ser dos N mais baixos na corrida
+// seguinte, e na seguinte, para sempre.
+//
+// O canary de 2026-08-21 no silveira mediu a progressão:
+//
+//   corrida das 14:34    3 de 25 eram peso morto   (12%)
+//   corrida das 14:50   10 de 25                   (40%)
+//   corrida seguinte    12 de 25                   (48%)
+//
+// E o residual completo tinha 2 184 destes em 18 454 (11,8%). Como se
+// acumulam à cabeça e nunca saem, a janela acaba inteiramente ocupada
+// por produtos que não vão a lado nenhum: o lote deixa de fazer trabalho
+// e ~16 000 processáveis ficam parados acima da fronteira. Não é
+// lentidão — é paragem.
+//
+// ── A REGRA ──────────────────────────────────────────────────────────
+//
+// `--limite=N` passa a significar N produtos DESTINADOS ao modelo. A
+// leitura pagina por cursor e continua enquanto não tiver N destinos
+// processáveis ou enquanto houver páginas. Os condicionais são
+// atravessados: contam-se, aparecem no relatório, e não ocupam lugar.
+//
+// Não é um factor fixo (`limit N * 10`). Um factor fixo volta a falhar
+// assim que a concentração de condicionais passar o que o factor previa
+// — que é exactamente o modo de falha que isto substitui.
+//
+// ── PORQUE É QUE A PRÉ-SELECÇÃO CORRE SOBRE O ACUMULADO ─────────────
+//
+// As famílias são procuradas entre irmãos que estejam no residual E no
+// mesmo estrato. Se cada página fosse pré-seleccionada isoladamente, um
+// irmão da página 2 não seria reconhecido como irmão de um da página 1:
+// em vez de um representante e um dependente, dois envios pagos. Por
+// isso o `preselecionar` corre sempre sobre tudo o que já foi acumulado.
+
+/** Quantos CNPs se lêem de cada vez ao encher a janela. */
+export const TAMANHO_PAGINA_RESIDUAL = 250;
+
+export type JanelaResidual = {
+  /** As linhas que esta corrida vai tratar, em ordem de cnp. */
+  linhas: LinhaResidual[];
+  /** Destinos, calculados sobre o acumulado e estáveis daqui para a frente. */
+  preselecao: Map<number, Preselecao>;
+  /** CNPs lidos da base, incluindo os que ficaram fora da janela. */
+  cnpsLidos: number;
+  paginasLidas: number;
+  /** Resolvidos pelo catálogo global — não chegam a entrar na janela. */
+  jaConhecidosGlobal: number;
+  /** Conhecidos pelo global mas sem resolver o que faltava. */
+  globalInsuficiente: number;
+  /**
+   * Lidos, para lá do corte, e devolvidos intactos ao residual. Não é
+   * uma exclusão: é "ainda não chegou a vez". Existe para a
+   * reconciliação poder fechar sobre `cnpsLidos`.
+   */
+  foraDaJanela: number;
+  /**
+   * Lidos e sem linha no contexto do tenant — `preselecionar` não lhes
+   * soube atribuir destino. Não entram em `linhas`: seguir com eles
+   * seria arrastar produtos sobre os quais nada se pode decidir. Saem
+   * daqui contados e nomeados, nunca por um `continue` mudo.
+   */
+  semContexto: number;
+  cnpsSemContexto: number[];
+  /** O residual acabou antes de a janela encher. */
+  esgotado: boolean;
+};
+
+/** ENVIAR e REPRESENTANTE são os dois destinos que custam uma chamada. */
+function ehProcessavel(d: Destino | undefined): boolean {
+  return d === "ENVIAR" || d === "REPRESENTANTE";
+}
+
+/**
+ * Lê o residual até ter `alvoProcessaveis` destinos que vão ao modelo.
+ *
+ * O corte é feito no acumulado e não na leitura: guardam-se as linhas até
+ * ao N-ésimo processável e, depois dele, só os DEPENDENTES de
+ * representantes que ficaram dentro. Um dependente não custa chamada
+ * nenhuma — deixá-lo de fora obrigaria a família a ser paga outra vez.
+ */
+export async function lerJanelaProcessavel(
+  prisma: PrismaClient,
+  opts: {
+    alvoProcessaveis: number;
+    estrato?: Estrato;
+    apenasFila?: boolean;
+    contexto: readonly ProdutoPreselecao[];
+    familias: Map<string, Familia>;
+    subExcluidas: ReadonlySet<string>;
+    /** Aplica o catálogo global a uma página. Omitido = sem filtro. */
+    resolverGlobal?: (
+      linhas: LinhaResidual[],
+    ) => Promise<{ restantes: LinhaResidual[]; resolvidos: number; insuficientes: number }>;
+    tamanhoPagina?: number;
+  },
+): Promise<JanelaResidual> {
+  const tamanhoPagina = Math.max(1, opts.tamanhoPagina ?? TAMANHO_PAGINA_RESIDUAL);
+  const acumulado: LinhaResidual[] = [];
+  // Duas páginas não se podem sobrepor pela construção do cursor, mas a
+  // garantia fica aqui e não na confiança de que assim seja: um cnp
+  // repetido custaria uma classificação paga duas vezes.
+  const vistos = new Set<number>();
+  let cursor = MIN_CNP - 1;
+  let cnpsLidos = 0;
+  let paginasLidas = 0;
+  let jaConhecidosGlobal = 0;
+  let globalInsuficiente = 0;
+  let esgotado = false;
+  let preselecao = new Map<number, Preselecao>();
+  let processaveis = 0;
+
+  while (processaveis < opts.alvoProcessaveis) {
+    const pagina = await prisma.$queryRawUnsafe<LinhaResidual[]>(
+      sqlResidual(opts.estrato, opts.apenasFila === true, true),
+      MIN_CNP,
+      KNOWLEDGE_VERSION,
+      KNOWLEDGE_MODEL,
+      tamanhoPagina,
+      cursor,
+    );
+    paginasLidas++;
+    if (pagina.length === 0) {
+      esgotado = true;
+      break;
+    }
+
+    const novas: LinhaResidual[] = [];
+    for (const l of pagina) {
+      const cnp = Number(l.cnp);
+      cursor = Math.max(cursor, cnp);
+      if (vistos.has(cnp)) continue;
+      vistos.add(cnp);
+      cnpsLidos++;
+      // No modo estratificado o estrato é o da consulta que trouxe a
+      // linha: se um dia o `case` e o filtro divergirem, é o filtro que
+      // manda, senão a quota mentiria sobre si própria.
+      novas.push(opts.estrato ? { ...l, cnp, estrato: opts.estrato } : { ...l, cnp });
+    }
+
+    if (opts.resolverGlobal && novas.length > 0) {
+      const g = await opts.resolverGlobal(novas);
+      jaConhecidosGlobal += g.resolvidos;
+      globalInsuficiente += g.insuficientes;
+      acumulado.push(...g.restantes);
+    } else {
+      acumulado.push(...novas);
+    }
+
+    preselecao = preselecionar(acumulado, opts.contexto, {
+      familias: opts.familias,
+      subcategoriasExcluidas: opts.subExcluidas,
+    });
+    processaveis = acumulado.reduce(
+      (n, l) => n + (ehProcessavel(preselecao.get(l.cnp)?.destino) ? 1 : 0),
+      0,
+    );
+
+    if (pagina.length < tamanhoPagina) {
+      esgotado = true;
+      break;
+    }
+  }
+
+  // ── O CORTE ────────────────────────────────────────────────────────
+  const linhas: LinhaResidual[] = [];
+  const dentro = new Set<number>();
+  const cnpsSemContexto: number[] = [];
+  let contados = 0;
+  let corte = acumulado.length;
+  for (let i = 0; i < acumulado.length; i++) {
+    const pre = preselecao.get(acumulado[i].cnp);
+    if (!pre) {
+      // Sem destino possível: fica contado e fora da janela, em vez de
+      // ser arrastado para uma corrida que nada lhe pode fazer.
+      cnpsSemContexto.push(acumulado[i].cnp);
+      continue;
+    }
+    if (ehProcessavel(pre.destino) && contados >= opts.alvoProcessaveis) {
+      corte = i;
+      break;
+    }
+    if (ehProcessavel(pre.destino)) contados++;
+    linhas.push(acumulado[i]);
+    dentro.add(acumulado[i].cnp);
+  }
+  // Depois do corte só entram DEPENDENTES de representantes que ficaram
+  // dentro: não custam chamada, e deixá-los de fora obrigaria a família
+  // a ser paga outra vez na corrida seguinte.
+  for (let i = corte; i < acumulado.length; i++) {
+    const pre = preselecao.get(acumulado[i].cnp);
+    if (!pre) {
+      cnpsSemContexto.push(acumulado[i].cnp);
+      continue;
+    }
+    if (pre.destino === "PROPAGAR" && pre.representanteCnp !== null && dentro.has(pre.representanteCnp)) {
+      linhas.push(acumulado[i]);
+      dentro.add(acumulado[i].cnp);
+    }
+  }
+  linhas.sort((a, b) => a.cnp - b.cnp);
+
+  return {
+    linhas,
+    preselecao,
+    cnpsLidos,
+    paginasLidas,
+    jaConhecidosGlobal,
+    globalInsuficiente,
+    semContexto: cnpsSemContexto.length,
+    cnpsSemContexto,
+    foraDaJanela: cnpsLidos - jaConhecidosGlobal - linhas.length - cnpsSemContexto.length,
+    esgotado,
+  };
+}
+
+/**
+ * A janela do canary: uma quota de PROCESSÁVEIS por estrato.
+ *
+ * Substituiu o `selecionarCanary`, que lia `limit quota` por estrato e
+ * sofria do mesmo entupimento do caminho normal — uma quota de 30 gasta
+ * em 30 produtos que a pré-selecção ia excluir dá um canary de zero
+ * chamadas e a aparência de "poupança".
+ *
+ * A pré-selecção restringida a um estrato dá exactamente o mesmo que a
+ * global restringida a esse estrato: as famílias só procuram irmãos no
+ * MESMO estrato, e cobertura e opacidade são propriedades do produto.
+ * Por isso juntar os mapas dos três é legítimo, e não uma aproximação.
+ */
+export async function lerJanelaCanary(
+  prisma: PrismaClient,
+  quotas: Partial<Record<Estrato, number>>,
+  base: {
+    apenasFila?: boolean;
+    contexto: readonly ProdutoPreselecao[];
+    familias: Map<string, Familia>;
+    subExcluidas: ReadonlySet<string>;
+    resolverGlobal?: (
+      linhas: LinhaResidual[],
+    ) => Promise<{ restantes: LinhaResidual[]; resolvidos: number; insuficientes: number }>;
+    tamanhoPagina?: number;
+  },
+): Promise<JanelaResidual & { quotas: QuotaEstrato[] }> {
+  const linhas: LinhaResidual[] = [];
+  const preselecao = new Map<number, Preselecao>();
+  const relatorio: QuotaEstrato[] = [];
+  let cnpsLidos = 0;
+  let paginasLidas = 0;
+  let jaConhecidosGlobal = 0;
+  let globalInsuficiente = 0;
+  let foraDaJanela = 0;
+  let esgotado = false;
+  const cnpsSemContexto: number[] = [];
+
+  for (const [estrato, pedido] of Object.entries(quotas) as [Estrato, number][]) {
+    if (!pedido) continue;
+    // A contagem SEM limite é o que distingue "este estrato está vazio"
+    // de "a consulta partiu-se": sem ela, as duas hipóteses produzem o
+    // mesmo output — zero linhas — e a amostra encolhe em silêncio.
+    const [{ n: elegiveis }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+      sqlContagem(estrato, base.apenasFila === true),
+      MIN_CNP,
+      KNOWLEDGE_VERSION,
+      KNOWLEDGE_MODEL,
+    );
+    const j = await lerJanelaProcessavel(prisma, { ...base, alvoProcessaveis: pedido, estrato });
+    linhas.push(...j.linhas);
+    for (const [k, v] of j.preselecao) preselecao.set(k, v);
+    cnpsLidos += j.cnpsLidos;
+    paginasLidas += j.paginasLidas;
+    jaConhecidosGlobal += j.jaConhecidosGlobal;
+    globalInsuficiente += j.globalInsuficiente;
+    foraDaJanela += j.foraDaJanela;
+    cnpsSemContexto.push(...j.cnpsSemContexto);
+    esgotado = esgotado || j.esgotado;
+
+    // `obtido` conta PROCESSÁVEIS, não linhas: é a quota que interessa.
+    const obtido = j.linhas.filter((l) => ehProcessavel(j.preselecao.get(l.cnp)?.destino)).length;
+    relatorio.push({
+      estrato,
+      pedido,
+      elegiveis: Number(elegiveis) || 0,
+      obtido,
+      defice: Math.max(0, pedido - obtido),
+    });
+  }
+
+  // Os cnp são distintos por estrato — os filtros particionam o residual
+  // — mas a ordenação global é o que o resto do runner assume.
+  linhas.sort((a, b) => a.cnp - b.cnp);
+  return {
+    linhas,
+    preselecao,
+    quotas: relatorio,
+    cnpsLidos,
+    paginasLidas,
+    jaConhecidosGlobal,
+    globalInsuficiente,
+    foraDaJanela,
+    semContexto: cnpsSemContexto.length,
+    cnpsSemContexto,
+    esgotado,
+  };
+}
+
 export async function runKnowledgeEnrichment(
   prisma: PrismaClient,
   opts: {
+    /**
+     * Quantos produtos DESTINADOS ao modelo esta corrida pode tratar.
+     * Deixou de significar "quantas linhas ler": os condicionais que a
+     * pre-seleccao exclui sao atravessados e nao ocupam lugar.
+     */
     limite?: number;
+    /** Pagina da leitura do residual. So os testes mexem nisto. */
+    tamanhoPagina?: number;
     dryRun?: boolean;
     /** Corta a corrida quando o custo estimado passa disto. */
     tectoUsd?: number;
@@ -624,24 +931,25 @@ export async function runKnowledgeEnrichment(
   const classificarUtil = opts.classificarUtilizacoes ?? opts.classificar ?? classificarUtilizacoesLote;
   const verificarUtil = opts.verificarUtilizacoes ?? opts.verificar ?? verificarUtilizacoesLote;
 
+  // A leitura do residual passou para depois da verificação de schema e
+  // do carregamento do contexto: encher a janela precisa das famílias e
+  // da cobertura, que se medem no tenant.
   let quotasCanary: QuotaEstrato[] | null = null;
-  let residual: LinhaResidual[];
-  if (opts.canary) {
-    const amostra = await selecionarCanary(prisma, opts.canary);
-    residual = amostra.linhas;
-    quotasCanary = amostra.quotas;
-  } else {
-    residual = await prisma.$queryRawUnsafe<LinhaResidual[]>(
-      sqlResidual(undefined, opts.apenasFila === true),
-      MIN_CNP,
-      KNOWLEDGE_VERSION,
-      KNOWLEDGE_MODEL,
-      opts.limite ?? 500,
-    );
-  }
+  let residual: LinhaResidual[] = [];
 
   const resumo: RunnerResumo = {
-    residualAnalisado: residual.length,
+    residualAnalisado: 0,
+    residualLido: 0,
+    foraDaJanela: 0,
+    semContexto: 0,
+    cnpsSemContexto: [],
+    janela: {
+      alvoProcessaveis: opts.limite ?? 500,
+      paginasLidas: 0,
+      tamanhoPagina: opts.tamanhoPagina ?? TAMANHO_PAGINA_RESIDUAL,
+      esgotado: false,
+    },
+    propagadosSemEscrita: 0,
     jaConhecidosGlobal: 0,
     globalInsuficiente: 0,
     dependentesOrfaos: 0,
@@ -807,9 +1115,9 @@ export async function runKnowledgeEnrichment(
 
   // Métricas por estrato, criadas à medida que cada um é tocado.
   const metricas = new Map<Estrato, MetricasEstrato>();
-  const elegiveisPorEstrato = new Map<Estrato, number>(
-    (quotasCanary ?? []).map((q) => [q.estrato, q.elegiveis]),
-  );
+  // Preenchido depois de a janela do canary correr — as quotas só
+  // existem a partir daí. Vazio no caminho normal.
+  const elegiveisPorEstrato = new Map<Estrato, number>();
   const metrica = (estrato: Estrato): MetricasEstrato => {
     let m = metricas.get(estrato);
     if (!m) {
@@ -840,8 +1148,6 @@ export async function runKnowledgeEnrichment(
     return m;
   };
 
-  for (const l of residual) resumo.porEstrato[l.estrato] = (resumo.porEstrato[l.estrato] ?? 0) + 1;
-  if (residual.length === 0) return resumo;
 
   // A proveniência vive em colunas que uma migração acrescentou. Sem
   // elas, cada gravação de cache falharia a meio de uma corrida paga.
@@ -859,68 +1165,11 @@ export async function runKnowledgeEnrichment(
     }
   }
 
-  // ── CATÁLOGO GLOBAL: o filtro que vem antes de todos ────────────────
-  //
-  // O mesmo CNP é o mesmo produto nacional. Um CNP que outro tenant já
-  // pagou não volta ao modelo — é projectado a partir do global.
-  //
-  // Isto corre ANTES da pré-selecção de propósito: não vale a pena
-  // calcular famílias e cobertura para produtos que nem sequer vão à
-  // fila. Desligável (`usarGlobal: false`) para se poder medir uma
-  // corrida sem esta camada.
-  if (opts.usarGlobal !== false) {
-    try {
-      const conhecidos = await lerConhecimentoGlobal(residual.map((l) => l.cnp));
-      if (conhecidos.size > 0) {
-        // POR NECESSIDADE, NÃO POR PRESENÇA.
-        //
-        // Era `residual.filter((l) => !conhecidos.has(l.cnp))`: bastava o
-        // global ter uma linha do CNP para o produto não ir ao modelo.
-        //
-        // O canary de 25 de 2026-08-21 mostrou o que isso valia — 25
-        // entraram, 25 saltados, 0 chamadas, custo $0 — e o que o global
-        // tinha sobre eles era exactamente o contrário do que lhes
-        // faltava: 19 sem utilizações foram dispensados por o global
-        // saber a categoria que eles já tinham; 6 em "Outros" foram
-        // dispensados por o global saber as utilizações que eles já
-        // tinham.
-        //
-        // À escala: 7 692 dos 18 485 residuais eram saltados, e em 7 690
-        // o global não tinha nada que os ajudasse. Ficavam num limbo
-        // estável — o global não os sabia classificar, o modelo nunca os
-        // via — e o relatório chamava-lhe "chamadas poupadas 100%".
-        const restantes: LinhaResidual[] = [];
-        for (const l of residual) {
-          const d = globalResolveResidual(l.estrato, conhecidos.get(l.cnp));
-          if (d.resolve) {
-            resumo.jaConhecidosGlobal++;
-            continue;
-          }
-          // Conhecido mas insuficiente: contado à parte porque é a
-          // diferença entre "o global tratou disto" e "o global tem uma
-          // linha e não serve para nada aqui".
-          if (conhecidos.has(l.cnp)) resumo.globalInsuficiente++;
-          restantes.push(l);
-        }
-        residual = restantes;
-      }
-    } catch (err) {
-      // O control plane estar em baixo não pode impedir uma corrida: o
-      // pior que acontece é pagar-se por CNPs que já eram conhecidos.
-      resumo.avisos.push(
-        `catálogo global inacessível — corrida sem ele: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-  if (residual.length === 0) {
-    resumo.metricasPorEstrato = [...metricas.values()];
-    return resumo;
-  }
-
-  // ── PRÉ-SELECÇÃO ────────────────────────────────────────────────────
-  // Decide, sem gastar uma chamada, o que não precisa de ir ao modelo.
+  // ── CONTEXTO DO TENANT ──────────────────────────────────────────────
   // Tudo o que aqui se calcula vem dos dados DESTE tenant: a cobertura
-  // por subcategoria e as famílias são medidas na hora, não configuradas.
+  // por subcategoria e as famílias são medidas na hora, não
+  // configuradas. Carrega-se ANTES de ler o residual porque é disto que
+  // a janela precisa para saber o que é processável.
   const contexto = await carregarContexto(prisma);
   const familias = agruparFamilias(contexto);
   const cobertura = coberturaPorSubcategoria(contexto);
@@ -929,15 +1178,142 @@ export async function runKnowledgeEnrichment(
     LIMIAR_COBERTURA_PERCENT,
     POPULACAO_MINIMA_SUBCATEGORIA,
   );
-  const preselecao = preselecionar(residual, contexto, { familias, subcategoriasExcluidas: subExcluidas });
   const contextoPorCnp = new Map(contexto.map((p) => [p.cnp, p]));
+
+  // ── CATÁLOGO GLOBAL: o filtro que vem antes de todos ────────────────
+  //
+  // O mesmo CNP é o mesmo produto nacional. Um CNP que outro tenant já
+  // pagou não volta ao modelo — é projectado a partir do global.
+  //
+  // Corre por página, dentro da janela, e ANTES da pré-selecção: não
+  // vale a pena calcular famílias e cobertura para produtos que nem
+  // sequer vão à fila. Desligável (`usarGlobal: false`) para se poder
+  // medir uma corrida sem esta camada.
+  const resolverGlobal =
+    opts.usarGlobal === false
+      ? undefined
+      : async (linhas: LinhaResidual[]) => {
+          try {
+            const conhecidos = await lerConhecimentoGlobal(linhas.map((l) => l.cnp));
+            if (conhecidos.size === 0) return { restantes: linhas, resolvidos: 0, insuficientes: 0 };
+            // POR NECESSIDADE, NÃO POR PRESENÇA.
+            //
+            // Era `residual.filter((l) => !conhecidos.has(l.cnp))`:
+            // bastava o global ter uma linha do CNP para o produto não
+            // ir ao modelo.
+            //
+            // O canary de 25 de 2026-08-21 mostrou o que isso valia —
+            // 25 entraram, 25 saltados, 0 chamadas, custo $0 — e o que o
+            // global tinha sobre eles era exactamente o contrário do que
+            // lhes faltava: 19 sem utilizações foram dispensados por o
+            // global saber a categoria que eles já tinham; 6 em "Outros"
+            // foram dispensados por o global saber as utilizações que
+            // eles já tinham.
+            //
+            // À escala: 7 692 dos 18 485 residuais eram saltados, e em
+            // 7 690 o global não tinha nada que os ajudasse. Ficavam num
+            // limbo estável — o global não os sabia classificar, o modelo
+            // nunca os via — e o relatório chamava-lhe "chamadas poupadas
+            // 100%".
+            const restantes: LinhaResidual[] = [];
+            let resolvidos = 0;
+            let insuficientes = 0;
+            for (const l of linhas) {
+              const d = globalResolveResidual(l.estrato, conhecidos.get(l.cnp));
+              if (d.resolve) {
+                resolvidos++;
+                continue;
+              }
+              // Conhecido mas insuficiente: contado à parte porque é a
+              // diferença entre "o global tratou disto" e "o global tem
+              // uma linha e não serve para nada aqui".
+              if (conhecidos.has(l.cnp)) insuficientes++;
+              restantes.push(l);
+            }
+            return { restantes, resolvidos, insuficientes };
+          } catch (err) {
+            // O control plane estar em baixo não pode impedir uma
+            // corrida: o pior que acontece é pagar-se por CNPs que já
+            // eram conhecidos.
+            resumo.avisos.push(
+              `catálogo global inacessível — corrida sem ele: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            return { restantes: linhas, resolvidos: 0, insuficientes: 0 };
+          }
+        };
+
+  // ── A JANELA ────────────────────────────────────────────────────────
+  // `limite` = produtos DESTINADOS ao modelo. A leitura pagina por cursor
+  // e atravessa os condicionais em vez de lhes dar lugar.
+  const baseJanela = {
+    apenasFila: opts.apenasFila === true,
+    contexto,
+    familias,
+    subExcluidas,
+    resolverGlobal,
+    tamanhoPagina: opts.tamanhoPagina,
+  };
+  let preselecao: Map<number, Preselecao>;
+
+  if (opts.canary) {
+    const j = await lerJanelaCanary(prisma, opts.canary, baseJanela);
+    residual = j.linhas;
+    preselecao = j.preselecao;
+    quotasCanary = j.quotas;
+    resumo.quotasCanary = j.quotas;
+    resumo.residualLido = j.cnpsLidos;
+    resumo.foraDaJanela = j.foraDaJanela;
+    resumo.jaConhecidosGlobal = j.jaConhecidosGlobal;
+    resumo.globalInsuficiente = j.globalInsuficiente;
+    resumo.janela.paginasLidas = j.paginasLidas;
+    resumo.janela.esgotado = j.esgotado;
+    resumo.semContexto = j.semContexto;
+    resumo.cnpsSemContexto = [...j.cnpsSemContexto];
+    resumo.janela.alvoProcessaveis = j.quotas.reduce((n, q) => n + q.pedido, 0);
+    for (const q of j.quotas) elegiveisPorEstrato.set(q.estrato, q.elegiveis);
+  } else {
+    const j = await lerJanelaProcessavel(prisma, {
+      ...baseJanela,
+      alvoProcessaveis: opts.limite ?? 500,
+    });
+    residual = j.linhas;
+    preselecao = j.preselecao;
+    resumo.residualLido = j.cnpsLidos;
+    resumo.foraDaJanela = j.foraDaJanela;
+    resumo.jaConhecidosGlobal = j.jaConhecidosGlobal;
+    resumo.globalInsuficiente = j.globalInsuficiente;
+    resumo.janela.paginasLidas = j.paginasLidas;
+    resumo.janela.esgotado = j.esgotado;
+    resumo.semContexto = j.semContexto;
+    resumo.cnpsSemContexto = [...j.cnpsSemContexto];
+  }
+
+  resumo.residualAnalisado = residual.length;
+  for (const l of residual) resumo.porEstrato[l.estrato] = (resumo.porEstrato[l.estrato] ?? 0) + 1;
+  if (residual.length === 0) {
+    resumo.metricasPorEstrato = [...metricas.values()];
+    return resumo;
+  }
 
   // Dependentes por representante: quem espera pela decisão de quem.
   const dependentes = new Map<number, LinhaResidual[]>();
   const enviar: LinhaResidual[] = [];
   for (const l of residual) {
     const pre = preselecao.get(l.cnp);
-    if (!pre) continue;
+    if (!pre) {
+      // NUNCA UM `continue` MUDO.
+      //
+      // `preselecionar` salta um cnp que não exista no contexto do
+      // tenant. Hoje é inalcançável — o contexto é superconjunto do
+      // residual — mas era a única porta por onde um produto do residual
+      // podia sair da corrida E da contabilidade ao mesmo tempo, sem
+      // cache, sem contador e sem aparecer no relatório. Um buraco que
+      // ainda não abriu continua a ser um buraco.
+      resumo.semContexto++;
+      resumo.cnpsSemContexto.push(l.cnp);
+      metrica(l.estrato).universoInicial++;
+      continue;
+    }
     const m = metrica(l.estrato);
     m.universoInicial++;
     switch (pre.destino) {
@@ -971,6 +1347,13 @@ export async function runKnowledgeEnrichment(
         motivo: pre.motivo,
       });
     }
+  }
+  if (resumo.semContexto > 0) {
+    resumo.avisos.push(
+      `${resumo.semContexto} produto(s) do residual sem linha no contexto do tenant — ` +
+        `não foram tratados: ${resumo.cnpsSemContexto.slice(0, 20).join(", ")}` +
+        (resumo.cnpsSemContexto.length > 20 ? ` … (+${resumo.cnpsSemContexto.length - 20})` : ""),
+    );
   }
   for (const f of familias.values()) if (f.conflito) resumo.conflitosFamilia++;
   resumo.familiasPropagaveis = dependentes.size;
@@ -1190,14 +1573,33 @@ export async function runKnowledgeEnrichment(
       gravarCategoria: gateRep.gravarCategoria && gateDep.gravarCategoria,
       gravarProductType: gateRep.gravarProductType && gateDep.gravarProductType,
       utilizacoes: gateDep.decisao === "APPLY" ? utilizacoesFinais : [],
-      motivo: `propagado do representante ${r.cnp}`,
+      // O MOTIVO TEM DE DISTINGUIR AS DUAS RECUSAS.
+      //
+      // "propagado do representante N" dizia o mesmo quando se escrevia
+      // e quando não se escrevia. Quem lesse a cache depois não
+      // conseguia separar "o irmão resolveu isto" de "o irmão resolveu,
+      // mas o gate deste produto recusou" — e são coisas diferentes: a
+      // segunda é uma decisão sobre ESTE cnp.
+      motivo:
+        gateDep.decisao === "APPLY"
+          ? `propagado do representante ${r.cnp}`
+          : `propagado do representante ${r.cnp}, recusado pelo gate próprio (${gateDep.decisao}): ${gateDep.motivo}`,
     };
 
+    // ── CONTA SEMPRE ────────────────────────────────────────────────
+    //
+    // Era `if (efectivo.decisao === "APPLY")`. Um dependente cujo gate
+    // próprio recusasse — em SEM_UTILIZACOES com `utilizacoesFinais`
+    // vazia, ou já classificado de forma específica e divergente —
+    // recebia cache e não era contado por ninguém. A reconciliação
+    // fechava a menos e nem se sabia porquê.
+    //
+    // O dependente TEVE destino: herdou uma decisão. Que a decisão não
+    // escreva não a torna inexistente.
     const m = metrica(dep.estrato);
-    if (efectivo.decisao === "APPLY") {
-      resumo.propagados++;
-      m.propagados++;
-    }
+    resumo.propagados++;
+    m.propagados++;
+    if (efectivo.decisao !== "APPLY") resumo.propagadosSemEscrita++;
     resumo.relatorio.push({
       cnp: dep.cnp,
       designacao: dep.designacao,
@@ -1431,6 +1833,7 @@ export async function runKnowledgeEnrichment(
       if (gate.decisao !== "APPLY") {
         for (const dep of dependentes.get(r.cnp) ?? []) {
           resumo.propagados++;
+          resumo.propagadosSemEscrita++;
           metrica(dep.estrato).propagados++;
           if (!dryRun) {
             await gravarCache(
@@ -1466,12 +1869,25 @@ export async function runKnowledgeEnrichment(
             FONTE_PROPAGADA,
             "MODEL_PROPAGATED",
           );
+          // `persistido` TEM DE SER O QUE ACONTECEU.
+          //
+          // Estava `true` fixo. Um dependente recusado pelo gate próprio
+          // ficava com uma linha a dizer "persistido, sem motivo" sem
+          // nada ter sido escrito no Produto — e a fila, que decide o
+          // estado a partir deste campo, fechava-o como SUCESSO. Um
+          // produto por resolver saía da fila como resolvido.
+          //
+          // Agora: APPLY → persistido, SUCESSO. Não-APPLY → não
+          // persistido, REVISAO_NECESSARIA, com o motivo a dizer que foi
+          // o gate próprio que recusou. Em qualquer dos casos há linha
+          // de cache, portanto o produto não volta ao residual a pedir
+          // outra chamada por uma pergunta já respondida.
           await gravarCache(
             prisma,
             { ...r, ...semApresentacao(r), cnp: dep.cnp, confidence: confiancaProp },
             dep,
-            true,
-            `propagado do representante ${r.cnp}`,
+            gateDep.decisao === "APPLY",
+            gateDep.motivo,
             "PROPAGADO",
             r.cnp,
           );
