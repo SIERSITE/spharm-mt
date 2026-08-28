@@ -64,7 +64,7 @@ export function UtilizadoresClient({
           text: `Password temporária: ${r.temporaryPassword} — comunica ao utilizador. Será forçado a alterar no próximo login.`,
         });
       } else {
-        setFeedback({ kind: "err", text: "Falha no reset." });
+        setFeedback({ kind: "err", text: r.error });
       }
     });
   };

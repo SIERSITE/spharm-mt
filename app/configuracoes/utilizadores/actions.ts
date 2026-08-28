@@ -3,10 +3,41 @@
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { getPrisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/permissions";
+import { requireSession } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import {
+  exigirGestaoUtilizadores,
+  validarAlteracaoDePerfil,
+  validarAlteracaoDeEstado,
+} from "@/lib/utilizadores-guardas";
 
+/**
+ * Gestão de contas do tenant.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * TODAS AS ACÇÕES DESTE FICHEIRO SÃO EXCLUSIVAS DO `ADMINISTRADOR`
+ *
+ * Cada uma começa com `requireSession()` seguido de
+ * `exigirGestaoUtilizadores()`, e devolve a recusa ANTES de tocar em
+ * Prisma. Não é o botão escondido que protege isto: uma server action é
+ * um endpoint HTTP e pode ser chamada directamente, sem passar pela
+ * página. A página esconder o menu é conveniência; a recusa aqui é a
+ * defesa.
+ *
+ * O que um GESTOR_GRUPO pode fazer à sua conta — trocar a password —
+ * não vive aqui. Vive em `app/alterar-password/`, que exige a password
+ * actual e só mexe na conta da própria sessão.
+ */
 type Perfil = "ADMINISTRADOR" | "GESTOR_GRUPO" | "GESTOR_FARMACIA" | "OPERADOR";
+
+/** Administradores ATIVOS, para as guardas de despromoção/desactivação. */
+async function contarAdministradoresAtivos(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+): Promise<number> {
+  return prisma.utilizador.count({
+    where: { perfil: "ADMINISTRADOR", estado: "ATIVO" },
+  });
+}
 
 export type UpsertUtilizadorInput = {
   id?: string;
@@ -31,17 +62,15 @@ function randomPassword(len = 12): string {
 }
 
 export async function createUtilizador(input: UpsertUtilizadorInput) {
-  const session = await requirePermission("users.manage");
+  const session = await requireSession();
+  const portao = exigirGestaoUtilizadores(session.perfil);
+  if (!portao.ok) return { ok: false as const, error: portao.erro };
+
   if (!input.email || !input.nome) {
     return { ok: false as const, error: "Email e nome são obrigatórios." };
   }
   if (!input.password || input.password.length < 8) {
     return { ok: false as const, error: "Password deve ter pelo menos 8 caracteres." };
-  }
-
-  // GESTOR_GRUPO não pode criar ADMINISTRADOR
-  if (session.perfil !== "ADMINISTRADOR" && input.perfil === "ADMINISTRADOR") {
-    return { ok: false as const, error: "Só um Administrador pode criar outro Administrador." };
   }
 
   const passwordHash = await bcrypt.hash(input.password, 10);
@@ -77,15 +106,44 @@ export async function createUtilizador(input: UpsertUtilizadorInput) {
 }
 
 export async function updateUtilizador(input: UpsertUtilizadorInput) {
-  const session = await requirePermission("users.manage");
+  const session = await requireSession();
+  const portao = exigirGestaoUtilizadores(session.perfil);
+  if (!portao.ok) return { ok: false as const, error: portao.erro };
+
   if (!input.id) return { ok: false as const, error: "ID em falta." };
 
-  if (session.perfil !== "ADMINISTRADOR" && input.perfil === "ADMINISTRADOR") {
-    return { ok: false as const, error: "Só um Administrador pode atribuir o perfil Administrador." };
-  }
+  const prisma = await getPrisma();
+
+  // O perfil ACTUAL do alvo é preciso para decidir se esta alteração
+  // deixa o tenant sem administração. Vem da base, não do formulário:
+  // o que o formulário diz que o alvo era pode estar desactualizado, e
+  // é justamente o campo que a guarda tem de julgar.
+  const alvo = await prisma.utilizador.findUnique({
+    where: { id: input.id },
+    select: { id: true, perfil: true, estado: true },
+  });
+  if (!alvo) return { ok: false as const, error: "Utilizador não encontrado." };
+
+  const perfilOk = validarAlteracaoDePerfil({
+    actorId: session.sub,
+    actorPerfil: session.perfil,
+    alvoId: alvo.id,
+    alvoPerfilActual: alvo.perfil,
+    perfilPedido: input.perfil,
+    totalAdministradoresAtivos: await contarAdministradoresAtivos(prisma),
+  });
+  if (!perfilOk.ok) return { ok: false as const, error: perfilOk.erro };
+
+  const estadoOk = validarAlteracaoDeEstado({
+    actorId: session.sub,
+    alvoId: alvo.id,
+    alvoPerfil: alvo.perfil,
+    estadoPedido: input.estado,
+    totalAdministradoresAtivos: await contarAdministradoresAtivos(prisma),
+  });
+  if (!estadoOk.ok) return { ok: false as const, error: estadoOk.erro };
 
   try {
-    const prisma = await getPrisma();
     await prisma.$transaction(async (tx) => {
       await tx.utilizador.update({
         where: { id: input.id! },
@@ -128,14 +186,27 @@ export async function updateUtilizador(input: UpsertUtilizadorInput) {
 }
 
 export async function toggleEstadoUtilizador(id: string) {
-  const session = await requirePermission("users.manage");
+  const session = await requireSession();
+  const portao = exigirGestaoUtilizadores(session.perfil);
+  if (!portao.ok) return { ok: false as const, error: portao.erro };
+
   const prisma = await getPrisma();
   const current = await prisma.utilizador.findUnique({
     where: { id },
-    select: { estado: true, email: true },
+    select: { estado: true, email: true, perfil: true },
   });
   if (!current) return { ok: false as const, error: "Utilizador não encontrado." };
   const next = current.estado === "ATIVO" ? "INATIVO" : "ATIVO";
+
+  const estadoOk = validarAlteracaoDeEstado({
+    actorId: session.sub,
+    alvoId: id,
+    alvoPerfil: current.perfil,
+    estadoPedido: next,
+    totalAdministradoresAtivos: await contarAdministradoresAtivos(prisma),
+  });
+  if (!estadoOk.ok) return { ok: false as const, error: estadoOk.erro };
+
   await prisma.utilizador.update({ where: { id }, data: { estado: next } });
   await logAudit({
     actorId: session.sub,
@@ -149,7 +220,10 @@ export async function toggleEstadoUtilizador(id: string) {
 }
 
 export async function resetPasswordUtilizador(id: string) {
-  const session = await requirePermission("users.manage");
+  const session = await requireSession();
+  const portao = exigirGestaoUtilizadores(session.perfil);
+  if (!portao.ok) return { ok: false as const, error: portao.erro };
+
   const temp = randomPassword(12);
   const passwordHash = await bcrypt.hash(temp, 10);
   const prisma = await getPrisma();

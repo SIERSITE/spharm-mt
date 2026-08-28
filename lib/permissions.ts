@@ -7,8 +7,13 @@ import { getSession, type SessionUser } from "@/lib/auth";
  *
  *   ADMINISTRADOR    — tudo, incluindo gestão de utilizadores e config
  *                      global (SMTP, etc.). Acesso a todas as farmácias.
- *   GESTOR_GRUPO     — tudo em todas as farmácias do grupo, excepto
- *                      criar/apagar outros GESTOR_GRUPO/ADMINISTRADOR.
+ *                      É o ÚNICO perfil que gere utilizadores.
+ *   GESTOR_GRUPO     — tudo em todas as farmácias do grupo, MENOS a
+ *                      gestão de utilizadores: não cria, não edita, não
+ *                      desactiva, não repõe passwords, não atribui
+ *                      perfis — nem a terceiros nem a si próprio. A
+ *                      única conta em que pode mexer é a sua password,
+ *                      em /alterar-password.
  *   GESTOR_FARMACIA  — tudo dentro da(s) sua(s) farmácia(s). Não pode
  *                      ver dados de outras farmácias.
  *   OPERADOR         — só leitura dentro da(s) sua(s) farmácia(s). Não
@@ -31,9 +36,24 @@ export type Permission =
   | "catalog.write"          // editar Produto/Fabricante/etc.
   | "catalog.read";
 
+/**
+ * ── PORQUE É QUE O `GESTOR_GRUPO` SAIU DAQUI ──────────────────────────
+ *
+ * `users.manage` e `users.view` incluíam o GESTOR_GRUPO. A única coisa
+ * que o distinguia de um ADMINISTRADOR era uma linha no
+ * `updateUtilizador` a proibi-lo de ATRIBUIR o perfil ADMINISTRADOR.
+ * Podia, com tudo o resto: editar qualquer conta, repor a password de
+ * qualquer pessoa, desactivar contas, e DESPROMOVER um administrador —
+ * o que lhe permitia tirar do caminho quem o pudesse travar.
+ *
+ * `users.manage` e `users.view` passam a ser exclusivos do
+ * ADMINISTRADOR. O que sobra ao GESTOR_GRUPO é o trabalho do grupo:
+ * relatórios, encomendas, catálogo, configuração — e a sua própria
+ * password, que não passa por aqui porque não é gestão de utilizadores.
+ */
 const PERMISSIONS: Record<Permission, Perfil[]> = {
-  "users.manage": ["ADMINISTRADOR", "GESTOR_GRUPO"],
-  "users.view": ["ADMINISTRADOR", "GESTOR_GRUPO"],
+  "users.manage": ["ADMINISTRADOR"],
+  "users.view": ["ADMINISTRADOR"],
   "settings.global": ["ADMINISTRADOR", "GESTOR_GRUPO"],
   "settings.farmacia": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA"],
   "reports.write": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA"],

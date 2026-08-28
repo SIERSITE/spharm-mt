@@ -1,14 +1,25 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { MainShell } from "@/components/layout/main-shell";
 import { AlterarPasswordForm } from "./alterar-password-form";
 
 /**
- * A página que o `mustChangePassword` obriga a atravessar.
+ * Trocar a própria password.
  *
- * Não usa a `MainShell`: a barra lateral leva a rotas que o middleware
- * vai recusar enquanto a password não for trocada, e uma navegação que
- * volta sempre ao mesmo sítio parece uma avaria. Aqui há uma coisa para
- * fazer e um sítio para a fazer.
+ * Serve dois casos, e a diferença entre eles está na barra lateral.
+ *
+ * OBRIGATÓRIA (`mustChangePassword`): sem `MainShell`. A barra lateral
+ * leva a rotas que o middleware vai recusar enquanto a password não for
+ * trocada, e uma navegação que volta sempre ao mesmo sítio parece uma
+ * avaria. Aqui há uma coisa para fazer e um sítio para a fazer.
+ *
+ * VOLUNTÁRIA (entrada «Alterar password» no menu): com `MainShell`, como
+ * qualquer outra página. Quem veio de livre vontade tem de poder voltar
+ * ao que estava a fazer sem trocar a password nem sair da aplicação.
+ *
+ * É a única página de conta aberta a QUALQUER perfil autenticado — não
+ * exige `users.manage`, e por isso um GESTOR_GRUPO chega aqui sem
+ * chegar à gestão de utilizadores.
  */
 export const dynamic = "force-dynamic";
 
@@ -18,8 +29,16 @@ export default async function AlterarPasswordPage() {
 
   const obrigatoria = sessao.mustChangePassword === true;
 
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+  const conteudo = (
+    <main
+      className={
+        obrigatoria
+          // Ecrã inteiro: não há barra lateral por baixo.
+          ? "flex min-h-screen items-center justify-center bg-slate-50 p-6"
+          // Dentro da MainShell — o ecrã já é da barra lateral.
+          : "flex items-center justify-center p-6"
+      }
+    >
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
         <h1 className="text-2xl font-semibold text-slate-900">
           {obrigatoria ? "Define a tua password" : "Alterar password"}
@@ -37,4 +56,6 @@ export default async function AlterarPasswordPage() {
       </div>
     </main>
   );
+
+  return obrigatoria ? conteudo : <MainShell>{conteudo}</MainShell>;
 }

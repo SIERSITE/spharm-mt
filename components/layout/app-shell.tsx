@@ -17,6 +17,7 @@ import {
   Plug,
   ShieldCheck,
   Percent,
+  KeyRound,
 } from "lucide-react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
@@ -37,7 +38,7 @@ type AppShellProps = {
 // detalhe dentro de /stock/artigo/[cnp] (decisão de fecho: nenhuma rota
 // nova). Rotas órfãs /analise-operacional e /relatorios/vendas-mensais
 // foram removidas neste mesmo passo.
-const navigation = [
+const navigation: NavGroup[] = [
   {
     // Dashboard vive como item-raiz, sem rótulo de secção (single-item).
     section: null,
@@ -73,10 +74,30 @@ const navigation = [
   {
     section: "CONFIGURAÇÕES",
     items: [
-      { label: "Utilizadores", href: "/configuracoes/utilizadores", icon: Users },
+      // `soAdministrador` é cosmética: quem esconde a gestão de contas a
+      // sério é `requirePermission("users.view")` na página e
+      // `exigirGestaoUtilizadores()` dentro de cada server action. Isto
+      // evita mostrar a um gestor de grupo um link que só lhe devolve um
+      // redireccionamento.
+      {
+        label: "Utilizadores",
+        href: "/configuracoes/utilizadores",
+        icon: Users,
+        soAdministrador: true,
+      },
       { label: "Email", href: "/configuracoes/email", icon: Mail },
       { label: "Integração", href: "/configuracoes/integracao", icon: Plug },
     ],
+  },
+  {
+    section: "A MINHA CONTA",
+    // Aberta a QUALQUER perfil. É a única coisa que um utilizador sem
+    // `users.manage` pode alterar na sua conta, e antes desta entrada
+    // não havia forma de lá chegar sem o sistema o obrigar: a página
+    // existia, mas só era alcançada por quem tivesse
+    // `mustChangePassword` — quem quisesse trocar a password por
+    // iniciativa própria não tinha por onde.
+    items: [{ label: "Alterar password", href: "/alterar-password", icon: KeyRound }],
   },
 ];
 
@@ -89,6 +110,8 @@ type NavItem = {
   label: string;
   href: string;
   icon: typeof BarChart3;
+  /** Só visível ao perfil ADMINISTRADOR. Ausente = visível a todos. */
+  soAdministrador?: boolean;
 };
 type NavGroup = {
   /** null = item raiz sem rótulo de secção (Dashboard). */
@@ -119,7 +142,14 @@ function rotuloPerfil(perfil: string): string {
 export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const pathname = usePathname();
   const utilizador = useUtilizador();
-  const groups = isPlatformAdmin ? [...navigation, platformGroup] : navigation;
+  const ehAdministrador = utilizador?.perfil === "ADMINISTRADOR";
+  const groups = (isPlatformAdmin ? [...navigation, platformGroup] : navigation)
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => !i.soAdministrador || ehAdministrador),
+    }))
+    // Uma secção que fique sem itens não deve deixar o rótulo órfão.
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#eef4f6] text-[#18323a]">
