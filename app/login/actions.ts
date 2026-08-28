@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPrisma } from "@/lib/prisma";
 import { createSessionToken, LEGACY_TENANT } from "@/lib/auth";
@@ -12,71 +12,44 @@ type LoginState = {
   error: string;
 };
 
+/**
+ * Autenticação de um utilizador do tenant.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * O QUE NÃO SE REGISTA, E PORQUÊ
+ *
+ * Este caminho teve durante mais de dois meses um bloco de diagnóstico
+ * que escrevia, por cada tentativa de login, um JSON com o email, o
+ * comprimento da password, o resultado do `bcrypt.compare`, o prefixo do
+ * hash e a base de dados ligada. Foi acrescentado para investigar um
+ * problema de resolução de tenant num alojamento que já não é o nosso, e
+ * ficou marcado "REMOVER depois do diagnóstico concluído".
+ *
+ * Um log de autenticação que diz QUEM tentou entrar e SE acertou na
+ * password é um registo de quem tem conta e de quando alguém falhou —
+ * material útil a quem não devia tê-lo, guardado onde ninguém o
+ * procura. E o comprimento da password é informação sobre a password.
+ *
+ * O que fica: nada por tentativa. Quem precisa de saber que houve um
+ * login tem a `AuditLog` e o campo `ultimoLogin`, que são registos com
+ * dono, retenção e um sítio próprio.
+ *
+ * Não se regista, nem aqui nem em lado nenhum deste ficheiro: a
+ * password, o `passwordHash`, qualquer parte de um deles, ou a string de
+ * ligação à base de dados.
+ */
 export async function loginAction(
   _prevState: LoginState,
   formData: FormData
 ): Promise<LoginState> {
-  // ─────────────────────────────────────────────────────────────────
-  // DIAGNÓSTICO TEMPORÁRIO — 2026-06-17
-  //
-  // Adicionado para investigar "Credenciais inválidas" em
-  //   https://spharm-mt.vercel.app/login?__tenant=grupo-silveira
-  // quando bcrypt local valida e middleware resolve correctamente
-  // (probe headers confirmados: x-tenant-resolved=grupo-silveira).
-  //
-  // Loga sinais NÃO-SENSÍVEIS num único JSON estruturado por tentativa:
-  //   · diagId, tenantHeader, sourceHeader  (de middleware)
-  //   · connectedDb / connectedUser          (SELECT current_database()
-  //                                            no PrismaClient devolvido
-  //                                            por getPrisma — distingue
-  //                                            tenant vs legacy)
-  //   · email, pwdLength
-  //   · userFound, userId, estado
-  //   · hashPresent (boolean), hashAlgo (prefixo "$2b$10$" — algoritmo,
-  //                                       NÃO o hash)
-  //   · bcryptOk, bcryptError
-  //   · mustChangePassword
-  //
-  // NUNCA loga: password, hash completo, connection string.
-  //
-  // Procurar nos Vercel logs com:  diag-login
-  // REMOVER (este bloco + forward de x-tenant-source no middleware)
-  // depois do diagnóstico concluído.
-  // ─────────────────────────────────────────────────────────────────
-  const diagId = Math.random().toString(36).slice(2, 8);
-  const h = await headers();
-  const tenantHeader = h.get("x-tenant-slug");
-  const sourceHeader = h.get("x-tenant-source");
-  const hostHeader = h.get("host");
-
-  const email = String(formData.get("email") || "")
-    .trim()
-    .toLowerCase();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "").trim();
 
   if (!email || !password) {
-    console.log(
-      `[diag-login ${diagId}] empty email or password (emailLen=${email.length} pwdLen=${password.length})`,
-    );
     return { error: "Preencha o email e a password." };
   }
 
   const prisma = await getPrisma();
-
-  // SELECT current_database() — read-only, distingue legacy vs tenant
-  // sem expor connection string (que tem a password).
-  let connectedDb: string | null = null;
-  let connectedUser: string | null = null;
-  let connectErr: string | null = null;
-  try {
-    const rows = await prisma.$queryRaw<
-      Array<{ db: string; usr: string }>
-    >`SELECT current_database() AS db, current_user AS usr`;
-    connectedDb = rows[0]?.db ?? null;
-    connectedUser = rows[0]?.usr ?? null;
-  } catch (e) {
-    connectErr = e instanceof Error ? e.message.slice(0, 200) : String(e);
-  }
 
   const utilizador = await prisma.utilizador.findUnique({
     where: { email },
@@ -92,58 +65,21 @@ export async function loginAction(
     },
   });
 
-  const userFound = !!utilizador;
-  const hashPresent = !!utilizador?.passwordHash;
-  const hashAlgo =
-    utilizador?.passwordHash?.slice(0, 7) ?? null; // "$2b$10$" — só metadata bcrypt
-
-  let bcryptOk: boolean | null = null;
-  let bcryptError: string | null = null;
-  if (utilizador?.passwordHash) {
-    try {
-      bcryptOk = await bcrypt.compare(password, utilizador.passwordHash);
-    } catch (e) {
-      bcryptError = e instanceof Error ? e.message.slice(0, 200) : String(e);
-    }
-  }
-
-  console.log(
-    `[diag-login ${diagId}] ${JSON.stringify({
-      tenantHeader,
-      sourceHeader,
-      hostHeader,
-      connectedDb,
-      connectedUser,
-      connectErr,
-      email,
-      pwdLength: password.length,
-      userFound,
-      userId: utilizador?.id ?? null,
-      estado: utilizador?.estado ?? null,
-      hashPresent,
-      hashAlgo,
-      bcryptOk,
-      bcryptError,
-      mustChangePassword: utilizador?.mustChangePassword ?? null,
-    })}`,
-  );
-  // ─────────────────── FIM DO DIAG TEMPORÁRIO ────────────────────
-
-  if (
-    !utilizador ||
-    !utilizador.passwordHash ||
-    utilizador.estado !== "ATIVO"
-  ) {
+  // A MESMA mensagem para utilizador inexistente, sem password definida,
+  // conta inactiva e password errada. Distingui-las diria a quem tenta
+  // qual dos quatro é — e isso é meio caminho andado.
+  if (!utilizador || !utilizador.passwordHash || utilizador.estado !== "ATIVO") {
     return { error: "Credenciais inválidas." };
   }
 
-  if (bcryptOk !== true) {
+  const passwordConfere = await bcrypt.compare(password, utilizador.passwordHash);
+  if (!passwordConfere) {
     return { error: "Credenciais inválidas." };
   }
 
   // Vincula a sessão ao tenant em que o login foi efectuado. Em cada
-  // request autenticado, getSession() compara este claim com o tenant
-  // resolvido do request — mismatch devolve null e força novo login.
+  // request autenticado, o portão do middleware compara este claim com o
+  // tenant resolvido do request — se não bater, a sessão não vale.
   const tenant = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
   const token = await createSessionToken({
@@ -153,8 +89,8 @@ export async function loginAction(
     perfil: utilizador.perfil,
     farmaciaId: utilizador.farmaciaId ?? null,
     tenant,
-    // Vai no TOKEN porque quem o verifica e' o middleware, em Edge, sem
-    // acesso a base de dados. E' isto que torna o bloqueio impossivel de
+    // Vai no TOKEN porque quem o verifica é o middleware, em Edge, sem
+    // acesso à base de dados. É isto que torna o bloqueio impossível de
     // contornar escrevendo outra rota no browser.
     mustChangePassword: utilizador.mustChangePassword === true,
   });
@@ -166,8 +102,8 @@ export async function loginAction(
   // O maxAge acompanha a expiração do JWT (8h) definida em lib/auth.ts.
   cookieStore.set("session", token, sessionCookieOptions(60 * 60 * 8));
 
-  // Password reposta por um administrador: o destino e' a troca, nao o
+  // Password reposta por um administrador: o destino é a troca, não o
   // dashboard. O middleware bloqueava na mesma, mas mandar directo poupa
-  // um salto e diz ao utilizador o que se passa a' primeira.
+  // um salto e diz ao utilizador o que se passa à primeira.
   redirect(utilizador.mustChangePassword === true ? "/alterar-password" : "/dashboard");
 }

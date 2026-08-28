@@ -335,11 +335,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   // header).
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-slug", slug);
-  // x-tenant-source também forwarded — permite ao loginAction diagnosticar
-  // se chegou por subdomain/query/cookie sem ter de re-inferir.
-  // Não-sensível (a origem do slug não é segredo). REMOVER se o diag
-  // temporário do loginAction for retirado e não houver outro consumer.
-  requestHeaders.set("x-tenant-source", source);
+  // O `x-tenant-source` encaminhado saiu com o bloco de diagnóstico do
+  // `loginAction`, que era o seu único consumidor — o comentário que
+  // aqui estava pedia-o. Continua a ser exposto na RESPOSTA
+  // (`withDebug`), onde serve para diagnosticar com um `curl -I` sem
+  // acesso à máquina, e onde nenhum código depende dele.
 
   return comTenant(NextResponse.next({ request: { headers: requestHeaders } }));
 }

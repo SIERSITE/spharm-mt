@@ -249,6 +249,54 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log("\n=== o login não regista nada sobre a tentativa ===");
+  {
+    // O bloco de diagnóstico de 2026-06-17 escrevia, por cada tentativa,
+    // um JSON com o email, o comprimento da password, o resultado do
+    // `bcrypt.compare` e o prefixo do hash. Estava marcado para remoção,
+    // e ficou mais de dois meses. Isto guarda a remoção.
+    const login = readFileSync("app/login/actions.ts", "utf8");
+    // Comentários fora: a nota que EXPLICA porque o bloco saiu tem de
+    // poder nomear o que ele fazia.
+    const codigo = login.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+    check(!/console\./.test(codigo), "nenhum console.* no caminho de login");
+    check(!/diag-login|diagId/.test(codigo), "nenhum vestígio do bloco de diagnóstico");
+    check(!/pwdLen|password\.length/.test(codigo), "não regista o comprimento da password");
+    check(!/bcryptOk|bcryptError|hashAlgo|hashPresent/.test(codigo), "não regista o resultado do bcrypt nem metadados do hash");
+    check(!/connectedDb|current_database/.test(codigo), "não sonda a base de dados para diagnóstico");
+    check(!/vercel/i.test(login), "nenhuma referência ao alojamento antigo, nem em comentário");
+    check(!/x-tenant-source/.test(codigo), "já não lê o header que só o diagnóstico usava");
+
+    // E o que TEM de continuar lá: o comportamento não muda com a limpeza.
+    check(/bcrypt\.compare\(password/.test(codigo), "continua a validar a password com bcrypt");
+    check(/estado !== "ATIVO"/.test(codigo), "continua a exigir conta activa");
+    check(
+      (codigo.match(/Credenciais inválidas/g) ?? []).length >= 2,
+      "utilizador inexistente e password errada dão a MESMA mensagem",
+    );
+    check(/createSessionToken\(/.test(codigo), "continua a emitir o token");
+    check(/cookieStore\.set\("session"/.test(codigo), "continua a escrever o cookie de sessão");
+    check(
+      /mustChangePassword: utilizador\.mustChangePassword === true/.test(codigo),
+      "continua a pôr o claim no token",
+    );
+    check(
+      /"\/alterar-password" : "\/dashboard"/.test(codigo),
+      "continua a encaminhar conforme o claim",
+    );
+
+    // O header que só o diagnóstico consumia saiu com ele.
+    const mw = readFileSync("middleware.ts", "utf8");
+    check(
+      !/requestHeaders\.set\("x-tenant-source"/.test(mw),
+      "o x-tenant-source encaminhado saiu — ficou sem consumidor",
+    );
+    check(
+      /x-tenant-source/.test(mw),
+      "…mas continua exposto na RESPOSTA, que é onde serve para diagnosticar",
+    );
+  }
   console.log("\n=== o nome na barra lateral é o do utilizador ===");
   {
     const shell = readFileSync("components/layout/app-shell.tsx", "utf8");
