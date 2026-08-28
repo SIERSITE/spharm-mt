@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Package.wxs — SPharm.MT · Farmácia Silveirense
+
+  ═══════════════════════════════════════════════════════════════════════
+  O QUE ESTE INSTALADOR FAZ, E PORQUE ASSIM
+
+  Instala uma pasta com o ícone, descobre o browser NO PC DO CLIENTE e
+  cria atalhos que abrem a aplicação em modo janela dedicada, com perfil
+  próprio.
+
+  ── NENHUM CAMINHO DA MÁQUINA DE DESENVOLVIMENTO ─────────────────────
+
+  É a garantia que mais importa aqui, e vem de três decisões:
+
+   · o .ico entra no MSI como CONTEÚDO (os bytes), não como referência.
+     O caminho `assets\SPharmMT.ico` só existe no momento da compilação;
+     no MSI ficam os bytes dentro do CAB embutido;
+
+   · o executável do browser NÃO é escrito no ficheiro. É procurado no
+     registo do PC do cliente durante a instalação (`AppSearch`), e a
+     propriedade resultante é que vai para o atalho;
+
+   · o perfil e a pasta de instalação saem de propriedades do Windows
+     Installer — `LocalAppDataFolder` — resolvidas no PC do cliente.
+
+  A única coisa que a máquina de compilação empresta ao MSI são bytes.
+
+  ── PORQUE É perUser E NÃO Program Files ─────────────────────────────
+
+  O pedido dizia "C:\Program Files\SPharmMT\ ou equivalente por
+  utilizador". A segunda hipótese é a certa, e não por preguiça:
+
+   · o perfil do browser vive em %LOCALAPPDATA%, que é POR UTILIZADOR.
+     Num instalador para toda a máquina, o instalador corre elevado e
+     `[LocalAppDataFolder]` resolveria para o perfil de quem instalou —
+     tipicamente o administrador. Um segundo utilizador do mesmo PC
+     abriria o atalho e escreveria no perfil do primeiro;
+
+   · sem elevação não há UAC, e o cliente instala sem pedir a ninguém;
+
+   · a desinstalação aparece na mesma em Definições › Aplicações.
+
+  ═══════════════════════════════════════════════════════════════════════
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package
+      Name="SPharm.MT - Farmácia Silveirense"
+      Manufacturer="SPharm.MT"
+      Version="1.0.0.0"
+      UpgradeCode="8f3d6b21-5c47-4a9e-9b0d-2e7f1a6c84d3"
+      Scope="perUser"
+      Compressed="yes"
+      Codepage="1252"
+      Language="2070">
+
+    <!--
+      `Language` e' um LCID, nao uma codepage: 2070 e' portugues de
+      Portugal. Aqui estava 1252 — que e' a codepage — e o Windows
+      Installer recusava o pacote com "O idioma deste pacote de
+      instalacao nao e' suportado pelo sistema". Instalava-se em lado
+      nenhum, e a mensagem nao dizia porque.
+    -->
+    <SummaryInformation Description="SPharm.MT - Farmácia Silveirense" />
+
+    <!--
+      Instalar por cima substitui a versão anterior em vez de acumular
+      entradas em Definições › Aplicações. Sem isto, cada actualização
+      deixava mais uma linha lá e nenhuma delas desinstalava tudo.
+    -->
+    <MajorUpgrade
+        DowngradeErrorMessage="Já está instalada uma versão mais recente do SPharm.MT."
+        Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         DESCOBERTA DO BROWSER — no PC do cliente, não no meu
+
+         O Windows regista o caminho de cada browser em `App Paths`. É a
+         fonte que o próprio Explorer usa quando alguém escreve "chrome"
+         no Executar, e existe desde o Windows 95.
+
+         Procura-se em três sítios porque o Chrome tanto pode estar
+         instalado para a máquina (HKLM) como só para o utilizador
+         (HKCU), e num Windows de 64 bits o instalador de 32 bits do
+         Chrome escreve na vista redireccionada. Faltar um destes é
+         faltar o Chrome a um cliente que o tem.
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <Property Id="CHROME_HKCU">
+      <RegistrySearch Id="SearchChromeHKCU" Root="HKCU"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+                      Type="raw" />
+    </Property>
+    <Property Id="CHROME_HKLM">
+      <RegistrySearch Id="SearchChromeHKLM" Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+                      Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="CHROME_HKLM32">
+      <RegistrySearch Id="SearchChromeHKLM32" Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+                      Type="raw" Bitness="always32" />
+    </Property>
+
+    <Property Id="EDGE_HKLM">
+      <RegistrySearch Id="SearchEdgeHKLM" Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"
+                      Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="EDGE_HKLM32">
+      <RegistrySearch Id="SearchEdgeHKLM32" Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"
+                      Type="raw" Bitness="always32" />
+    </Property>
+
+    <!--
+      A escolha, por ordem inversa de preferência: cada passo sobrepõe o
+      anterior, e o último a correr é o que ganha. O Chrome é preferido
+      quando existe; o Edge é a rede de segurança, e está sempre presente
+      no Windows 10 e 11.
+
+      A ordem é imposta pelo encadeamento dos `After`, e não pela ordem
+      em que estão escritos: sem isso, o Windows Installer é livre de os
+      executar por qualquer ordem e a escolha do browser passava a
+      depender da sorte.
+    -->
+    <SetProperty Action="SetNavegadorEdge32" Id="NAVEGADOR" Value="[EDGE_HKLM32]"
+                 After="AppSearch" Sequence="first" Condition="EDGE_HKLM32" />
+    <SetProperty Action="SetNavegadorEdge" Id="NAVEGADOR" Value="[EDGE_HKLM]"
+                 After="SetNavegadorEdge32" Sequence="first" Condition="EDGE_HKLM" />
+    <SetProperty Action="SetNavegadorChrome32" Id="NAVEGADOR" Value="[CHROME_HKLM32]"
+                 After="SetNavegadorEdge" Sequence="first" Condition="CHROME_HKLM32" />
+    <SetProperty Action="SetNavegadorChromeHKLM" Id="NAVEGADOR" Value="[CHROME_HKLM]"
+                 After="SetNavegadorChrome32" Sequence="first" Condition="CHROME_HKLM" />
+    <SetProperty Action="SetNavegadorChromeHKCU" Id="NAVEGADOR" Value="[CHROME_HKCU]"
+                 After="SetNavegadorChromeHKLM" Sequence="first" Condition="CHROME_HKCU" />
+
+    <!--
+      Se nada for encontrado, é melhor recusar com uma frase que se
+      percebe do que instalar um atalho que não abre nada. Na prática
+      não dispara: o Edge faz parte do Windows.
+    -->
+    <Launch
+        Condition="NAVEGADOR OR Installed"
+        Message="Não foi encontrado o Google Chrome nem o Microsoft Edge neste computador. Instale um dos dois e volte a executar este instalador." />
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ARGUMENTOS DO ATALHO
+
+         A opção `app=` abre uma janela sem barra de endereço nem separadores:
+         parece uma aplicação, não um browser. NÃO é o modo incógnito —
+         esse não guardaria cookies nem sessão, e obrigava a fazer login
+         de cada vez.
+
+         A opção `user-data-dir` dá-lhe um perfil só seu. É o que mantém a
+         sessão do SPharm.MT separada do Chrome pessoal de quem está ao
+         balcão: fechar o Chrome normal não termina a sessão da farmácia,
+         e vice-versa.
+
+         As opções `no-first-run` e `no-default-browser-check` calam o
+         assistente de boas-vindas que um perfil novo mostraria à
+         primeira abertura.
+
+         O caminho do perfil é montado com `[LocalAppDataFolder]`, que o
+         Windows Installer resolve no PC do cliente. Escrever
+         "%LOCALAPPDATA%" não servia: o Explorer não expande variáveis de
+         ambiente dentro dos argumentos de um atalho — passaria os sete
+         caracteres literais ao Chrome e o perfil ia parar a uma pasta
+         com esse nome.
+         ═══════════════════════════════════════════════════════════════ -->
+    <Property Id="URL_APLICACAO" Value="https://app.spharmmt.com/login?__tenant=silveira" />
+
+    <SetProperty Action="SetArgumentosAtalho" Id="ARGUMENTOS_ATALHO"
+                 After="SetNavegadorChromeHKCU" Sequence="first"
+                 Value="--app=&quot;[URL_APLICACAO]&quot; --user-data-dir=&quot;[LocalAppDataFolder]SPharmMT\ChromeProfile&quot; --start-maximized --no-first-run --no-default-browser-check" />
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ONDE FICA
+         ═══════════════════════════════════════════════════════════════ -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="PastaProgramas" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="SPharmMT" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="PastaMenuIniciar" Name="SPharm.MT" />
+    </StandardDirectory>
+
+    <!-- O ícone, embutido no MSI. -->
+    <Icon Id="SPharmMT.ico" SourceFile="assets\SPharmMT.ico" />
+    <Property Id="ARPPRODUCTICON" Value="SPharmMT.ico" />
+    <Property Id="ARPHELPLINK" Value="https://app.spharmmt.com" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <ComponentGroup Id="Aplicacao">
+
+      <!--
+        O .ico no disco do cliente. O atalho podia usar o ícone embutido
+        no MSI, mas um ficheiro real na pasta de instalação sobrevive a
+        qualquer reconstrução da cache de ícones do Windows e é o que
+        permite ao utilizador recriar o atalho à mão se o apagar.
+      -->
+      <Component Id="cmpIcone" Directory="INSTALLFOLDER" Guid="a1c9e4f7-6d2b-4e83-9f15-3b8c07d2a641">
+        <File Id="fileIcone" Source="assets\SPharmMT.ico" />
+        <!--
+          Num pacote por utilizador, a chave de um componente tem de ser
+          um valor em HKCU e nao o ficheiro (ICE38). O motivo e' pratico:
+          HKEY_CURRENT_USER e' o unico sitio que o Windows Installer sabe
+          contabilizar por utilizador; usar o ficheiro como chave fazia a
+          segunda instalacao, noutra conta do mesmo PC, achar que ja'
+          estava instalado e nao copiar nada.
+        -->
+        <RegistryValue Root="HKCU" Key="Software\SPharmMT\Silveira"
+                       Name="Icone" Type="integer" Value="1" KeyPath="yes" />
+        <!--
+          As pastas dentro do perfil do utilizador tem de ser removidas
+          explicitamente (ICE64). `RemoveFolder` so' apaga pastas vazias,
+          por isso a pasta partilhada `Programs` sobrevive se outra
+          aplicacao la' estiver.
+        -->
+        <RemoveFolder Id="RemoverPastaInstalacao" Directory="INSTALLFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoverPastaProgramas" Directory="PastaProgramas" On="uninstall" />
+      </Component>
+
+      <!-- Atalho no Ambiente de Trabalho. -->
+      <Component Id="cmpAtalhoAmbienteTrabalho" Directory="DesktopFolder"
+                 Guid="5e7b2c18-9a34-4d6f-8c21-7f9e3a5b0d82">
+        <Shortcut Id="AtalhoAmbienteTrabalho"
+                  Name="SPharm.MT"
+                  Description="SPharm.MT - Farmácia Silveirense"
+                  Target="[NAVEGADOR]"
+                  Arguments="[ARGUMENTOS_ATALHO]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="SPharmMT.ico" />
+        <!--
+          Um componente precisa de chave, e um atalho não serve de chave
+          num instalador por utilizador. Este valor de registo é a chave
+          — e é também o que diz ao Windows que o atalho pertence a esta
+          instalação, para desaparecer na desinstalação.
+        -->
+        <RegistryValue Root="HKCU" Key="Software\SPharmMT\Silveira"
+                       Name="AtalhoAmbienteTrabalho" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <!-- Atalho no Menu Iniciar. -->
+      <Component Id="cmpAtalhoMenuIniciar" Directory="PastaMenuIniciar"
+                 Guid="c3f81a06-4b7d-49e2-a5c8-16d0b9e4f732">
+        <Shortcut Id="AtalhoMenuIniciar"
+                  Name="SPharm.MT"
+                  Description="SPharm.MT - Farmácia Silveirense"
+                  Target="[NAVEGADOR]"
+                  Arguments="[ARGUMENTOS_ATALHO]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="SPharmMT.ico" />
+        <!-- A pasta criada no Menu Iniciar tem de ser removida por nós. -->
+        <RemoveFolder Id="RemoverPastaMenuIniciar" Directory="PastaMenuIniciar" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\SPharmMT\Silveira"
+                       Name="AtalhoMenuIniciar" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <Feature Id="Principal" Title="SPharm.MT" Level="1">
+      <ComponentGroupRef Id="Aplicacao" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="Termos.rtf" />
+
+  </Package>
+</Wix>
