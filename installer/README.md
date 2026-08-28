@@ -5,26 +5,33 @@ cliente. Sem scripts, sem passos manuais no PC dele.
 
 ---
 
-## Antes de compilar: o ícone
+## O ícone
 
-O repositório traz um **ícone provisório** — um quadrado verde com «S+» — só
-para o projecto compilar e ser verificável. **A compilação recusa-se a produzir
-o MSI enquanto ele lá estiver.**
+`SPharmMT.Installer/assets/SPharmMT.ico` é o logotipo real, gerado a partir do
+PNG original de 1254×1254 com sete tamanhos: **256, 128, 64, 48, 32, 24 e 16 px**
+— 256 em PNG (o que o Windows Vista+ espera no tamanho grande) e os restantes em
+DIB de 32 bits, que qualquer versão do Windows lê sem dúvidas.
 
-Substitui `SPharmMT.Installer/assets/SPharmMT.ico` pelo ícone real. Tem de ser
-um `.ico` a sério, não um `.png` com outra extensão. A partir do PNG do logótipo:
+Desenho, cores, texto e proporções são os do PNG. **Uma coisa mudou, e é de
+formato e não de desenho:** o PNG é de 24 bits, sem canal alfa, e por isso os
+quatro cantos exteriores ao rectângulo arredondado são **preto opaco**. Num
+`.ico` isso dá um quadrado preto à volta do logotipo no Ambiente de Trabalho. O
+preto ligado aos cantos passou a transparente, por preenchimento a partir das
+quatro esquinas — a moldura dourada bloqueia o preenchimento, por isso nada do
+interior é tocado.
 
-- **ImageMagick:** `magick logo.png -define icon:auto-resize=256,128,64,48,32,16 SPharmMT.ico`
-- ou qualquer conversor online que produza `.ico` multi-resolução.
+Para regenerar a partir de outro PNG, com ImageMagick:
 
-Inclui os tamanhos **16, 32, 48 e 256**. O Windows usa o de 16 na barra de
-tarefas e o de 256 nos ícones grandes; um `.ico` só com 256 fica desfocado em
-tamanho pequeno.
+```
+magick logo.png -define icon:auto-resize=256,128,64,48,32,24,16 SPharmMT.ico
+```
 
-A verificação é pelo conteúdo do ficheiro (SHA-256), por isso **desliga-se
-sozinha** assim que o substituíres. Não há nada para lembrar.
+O `magick` não trata dos cantos pretos; se o PNG de origem os tiver, convém
+remover o fundo antes.
 
----
+A compilação **recusa-se a produzir o MSI** se o ficheiro voltar a ser o ícone
+provisório que aqui esteve durante o desenvolvimento — a comparação é por
+SHA-256, para o caso de um merge ou um revert o repor sem ninguém dar conta.
 
 ## Compilar
 
@@ -133,17 +140,23 @@ mão.
 Contra o MSI compilado, não por leitura do código:
 
 - **Nenhum caminho da máquina de compilação** aparece no ficheiro. Procurados
-  `C:\projetos`, `C:\Users\...`, `spharm-mt`, `BuildTools` e afins, em ASCII e
-  UTF-16, nos 163 840 bytes do MSI incluindo o CAB: zero ocorrências.
+  `C:\projetos`, `C:\Users\...`, `spharm-mt`, `Downloads`, `BuildTools` e
+  `AppData`, em ASCII e UTF-16, nos 536 576 bytes do MSI incluindo o CAB. A
+  única ocorrência é `LocalAppDataFolder`, que é a propriedade do Windows
+  Installer resolvida no PC do cliente — aparece nos argumentos do atalho e na
+  tabela `Directory`, e é suposto lá estar.
 - O alvo do atalho é `[NAVEGADOR]`, uma propriedade preenchida no PC do cliente
   a partir de cinco pesquisas ao registo (`App Paths`, Chrome e Edge, HKCU e
   HKLM, vistas de 32 e 64 bits).
 - O caminho do perfil é `[LocalAppDataFolder]SPharmMT\ChromeProfile`, resolvido
   pelo Windows Installer no PC do cliente.
-- `msiexec /a` extrai `LocalApp\Programs\SPharmMT\SPharmMT.ico` com o mesmo
-  SHA-256 do ficheiro de origem — o ícone viaja dentro do MSI.
-- A guarda do ícone provisório bloqueia a compilação **antes** de qualquer MSI
-  ser escrito no disco.
+- O `MsiFileHash` do `SPharmMT.ico` dentro do MSI bate certo, nas quatro
+  parcelas, com o hash calculado sobre o ficheiro de origem — o ícone viaja
+  dentro do MSI e é o mesmo. Tamanho registado: 216 767 bytes.
+- O `.ico` foi aberto pelo Windows nos sete tamanhos; os cantos saem
+  transparentes (alfa 0) e o centro com a cor do símbolo.
+- A guarda do ícone bloqueia a compilação **antes** de qualquer MSI ser
+  escrito no disco — verificado repondo o provisório e voltando a compilar.
 
 ---
 

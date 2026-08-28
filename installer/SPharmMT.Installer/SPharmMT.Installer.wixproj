@@ -58,24 +58,24 @@
     <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
   </ItemGroup>
 
-  <!-- ═══════════════════════════════════════════════════════════════════
-       O ÍCONE NÃO PODE SER O PROVISÓRIO
+  <!-- ══════════════════════════════════════════════════════════════════
+       O ÍCONE REAL JÁ CÁ ESTÁ
 
-       O repositório traz um `SPharmMT.ico` provisório — um quadrado verde
-       com "S+" — para o projecto compilar e ser verificável antes de o
-       ícone verdadeiro existir. Um instalador entregue ao cliente com
-       esse ficheiro seria um erro calado: instalava bem, abria bem, e
-       tinha o ícone errado no Ambiente de Trabalho da farmácia.
+       `assets\SPharmMT.ico` é agora o logotipo verdadeiro, gerado a partir
+       do PNG original (1254×1254) com sete tamanhos: 256, 128, 64, 48,
+       32, 24 e 16 px.
 
-       Por isso a compilação PÁRA enquanto o ficheiro for o provisório. A
-       verificação é pelo conteúdo (SHA-256) e não pela data ou pelo
-       tamanho: substituir o ficheiro por qualquer outro faz a
-       verificação passar sozinha, sem ninguém ter de se lembrar de
-       desligar nada.
+       A guarda abaixo fica. Compara o SHA-256 do ficheiro com o do
+       ícone PROVISÓRIO que aqui esteve — um quadrado verde com "S+" —
+       para o caso de alguém o repor por engano ao resolver um conflito
+       ou ao reverter um commit. Um instalador entregue com esse ficheiro
+       seria um erro calado: instalava bem, abria bem, e tinha o ícone
+       errado no Ambiente de Trabalho da farmácia.
 
-       Para compilar com o provisório de propósito, em testes:
-           msbuild ... -p:PermitirIconeProvisorio=true
-       ═══════════════════════════════════════════════════════════════════ -->
+       Corre em `InitialTargets`, antes de qualquer MSI ser escrito: com
+       `BeforeTargets="Build"` a compilação falhava mas ficava um ficheiro
+       completo em bin\, à espera de ser enviado.
+       ══════════════════════════════════════════════════════════════════ -->
   <PropertyGroup>
     <IconeProvisorioSha256>37A8ED48A1696145CD9FEA7E33F68C1165391AC07506E212F1C7424B851123C7</IconeProvisorioSha256>
   </PropertyGroup>
@@ -87,7 +87,7 @@
       <Output TaskParameter="Hash" PropertyName="_IconeSha256" />
     </GetFileHash>
     <Error Condition="'$(_IconeSha256)' == '$(IconeProvisorioSha256)' AND '$(PermitirIconeProvisorio)' != 'true'"
-           Text="O ficheiro assets\SPharmMT.ico ainda é o ícone PROVISÓRIO do repositório. Substitua-o pelo ícone real do SPharm.MT antes de gerar o instalador para o cliente. Para compilar com o provisório (apenas testes): -p:PermitirIconeProvisorio=true" />
+           Text="O ficheiro assets\SPharmMT.ico voltou a ser o ícone PROVISÓRIO (quadrado verde com S+). O ícone real perdeu-se — provavelmente num merge ou num revert. Reponha-o antes de gerar o instalador para o cliente." />
     <Message Importance="high" Condition="'$(_IconeSha256)' != '$(IconeProvisorioSha256)'"
              Text="Ícone: assets\SPharmMT.ico (SHA-256 $(_IconeSha256))" />
   </Target>
