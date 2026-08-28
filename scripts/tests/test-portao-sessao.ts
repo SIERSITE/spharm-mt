@@ -179,18 +179,52 @@ async function main(): Promise<void> {
     check(destino(troca) === null, "…e a própria página de troca abre");
   }
 
-  console.log("\n=== quem já trocou não fica preso na página ===");
+  console.log("\n=== quem já trocou não fica preso, mas pode voltar ===");
   {
     const t = await token({ mustChangePassword: false });
+
+    // O middleware EXPULSAVA daqui quem não tivesse troca pendente. Era
+    // bem intencionado — não deixar ninguém preso — e tornava a página
+    // inalcançável a quem lá quisesse ir de livre vontade. Quem sai da
+    // página depois de trocar é o próprio `alterarPassword`, que reemite
+    // o token e redirecciona.
     const res = await middleware(
       pedido("https://app.spharmmt.com/alterar-password?__tenant=silveira", { session: t }),
     );
-    check(destino(res) === "/dashboard", "/alterar-password → /dashboard", String(destino(res)));
+    check(
+      destino(res) === null,
+      "/alterar-password abre a quem NÃO tem troca pendente",
+      String(destino(res)),
+    );
+
+    // E a todos os perfis: é a única coisa que quem não gere
+    // utilizadores pode fazer à sua conta.
+    for (const perfil of ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA", "OPERADOR"]) {
+      const r = await middleware(
+        pedido("https://app.spharmmt.com/alterar-password?__tenant=silveira", {
+          session: await token({ mustChangePassword: false, perfil }),
+        }),
+      );
+      check(destino(r) === null, `…a um ${perfil}`, String(destino(r)));
+    }
+
+    // Sem sessão continua fechada.
+    const anon = await middleware(
+      pedido("https://app.spharmmt.com/alterar-password?__tenant=silveira"),
+    );
+    check(destino(anon) === "/login", "controlo negativo: sem sessão → /login");
 
     const normal = await middleware(
       pedido("https://app.spharmmt.com/dashboard?__tenant=silveira", { session: t }),
     );
     check(destino(normal) === null, "…e o dashboard abre normalmente no login seguinte");
+
+    // A saída da página continua garantida pela acção, não pelo portão.
+    const accao = readFileSync("app/alterar-password/actions.ts", "utf8");
+    check(
+      /mustChangePassword: false/.test(accao) && /redirect\("\/dashboard"\)/.test(accao),
+      "a acção reemite o token sem a flag e sai para o dashboard",
+    );
   }
 
   console.log("\n=== token antigo, sem o claim, não fica preso ===");

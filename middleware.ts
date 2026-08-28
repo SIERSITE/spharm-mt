@@ -359,13 +359,24 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     if (sessao.mustChangePassword === true && pathname !== ROTA_TROCA) {
       return comTenant(paraTroca(req));
     }
-    // E o inverso, senão quem já trocou fica preso na página.
-    if (sessao.mustChangePassword !== true && pathname === ROTA_TROCA) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/dashboard";
-      url.search = "";
-      return comTenant(NextResponse.redirect(url));
-    }
+
+    // ── NÃO HÁ O INVERSO ──────────────────────────────────────────────
+    //
+    // Havia: quem NÃO tivesse `mustChangePassword` e pedisse
+    // /alterar-password era mandado para /dashboard. A intenção era não
+    // deixar ninguém preso na página depois de já ter trocado.
+    //
+    // Só que o preso é resolvido noutro sítio, e melhor: o
+    // `alterarPassword` reemite o token com a flag a false e faz
+    // `redirect("/dashboard")` ele próprio. O que a regra fazia a mais
+    // era tornar a página INALCANÇÁVEL para quem lá quisesse ir de
+    // livre vontade — que é toda a gente, a partir do momento em que
+    // trocar a password deixou de ser só um castigo e passou a ser uma
+    // entrada de menu.
+    //
+    // Medido antes de sair: um GESTOR_GRUPO com a flag a false pedia
+    // /alterar-password e recebia 307 /dashboard. Era a única coisa que
+    // ele podia fazer à sua conta, e não conseguia lá chegar.
   }
 
   if (!slug) {
