@@ -1,4 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+// Edge-safe de proposito: `lib/auth.ts` importa `server-only` e
+// `next/headers`, e nenhum dos dois existe aqui.
+import { LEGACY_TENANT, segredoDaSessao, verificarToken } from "@/lib/session-claims";
 
 /**
  * Middleware de resolução de tenant.
@@ -200,8 +203,129 @@ function withDebug(
   return res;
 }
 
-export function middleware(req: NextRequest): NextResponse {
+// ═════════════════════════════════════════════════════════════════════
+// SESSÃO: O ÚNICO PONTO POR ONDE TUDO PASSA
+// ═════════════════════════════════════════════════════════════════════
+//
+// ── O QUE ISTO REPARA, E FOI MEDIDO ──────────────────────────────────
+//
+// O middleware só resolvia o tenant. A autenticação estava confiada a
+// `requireSession()` no topo dos server components — e só duas áreas o
+// chamavam: /encomendas e /configuracoes. Todas as outras não tinham
+// guarda nenhuma.
+//
+// Verificado contra produção, sem cookie de sessão:
+//
+//   GET https://app.spharmmt.com/dashboard?__tenant=silveira  →  200
+//
+// e a resposta trazia a barra lateral e os dados do dashboard, que vêm
+// de `getDashboardData()` — uma consulta à base do tenant. Não era só
+// uma página bonita sem dados: era o dashboard.
+//
+// ── PORQUE É QUE O BLOQUEIO TEM DE SER AQUI ──────────────────────────
+//
+// O requisito é que um utilizador com `mustChangePassword` não consiga
+// contornar a página de troca escrevendo outra rota no browser. Posto
+// nas páginas, o bloqueio cobria as duas que já chamavam
+// `requireSession()` — exactamente o mesmo buraco. O middleware é o
+// único sítio por onde /stock, /vendas e /dashboard passam de facto.
+//
+// ── O QUE ISTO NÃO FAZ ───────────────────────────────────────────────
+//
+// Não substitui `requirePermission()`. Autenticação e autorização são
+// perguntas diferentes: aqui verifica-se QUEM é, nas páginas continua a
+// verificar-se o que PODE. As duas camadas ficam.
+
+/** Rotas que existem para quem ainda não tem sessão. */
+const ROTAS_PUBLICAS = ["/login"];
+
+/**
+ * A página de troca de password, e a única coisa que um utilizador com
+ * `mustChangePassword` pode ver.
+ */
+const ROTA_TROCA = "/alterar-password";
+
+/**
+ * Prefixos que este portão não julga.
+ *
+ * As rotas de API têm autenticação própria — `CRON_SECRET` nos jobs,
+ * `withIntegrationAuth` no ingest — e mandá-las para um redireccionamento
+ * HTML transformaria um 401 legível num 307 para uma página de login que
+ * o agente on-premise não sabe ler.
+ */
+const SEM_PORTAO = ["/api/", "/_next/", "/favicon.ico"];
+
+function ehPublica(pathname: string): boolean {
+  if (SEM_PORTAO.some((p) => pathname.startsWith(p))) return true;
+  return ROTAS_PUBLICAS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function paraLogin(req: NextRequest): NextResponse {
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
+function paraTroca(req: NextRequest): NextResponse {
+  const url = req.nextUrl.clone();
+  url.pathname = ROTA_TROCA;
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
+export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { slug, source } = resolveSlug(req);
+  const pathname = req.nextUrl.pathname;
+
+  /**
+   * O tenant tem de sobreviver a um redireccionamento.
+   *
+   * Quem escreve `/dashboard?__tenant=silveira` sem sessão é mandado
+   * para `/login` — e se o cookie do tenant não fosse escrito nessa
+   * resposta, aterrava num login que resolve para o tenant legacy e
+   * recusa credenciais correctas. O bloqueio ficava a parecer um erro de
+   * password.
+   */
+  const comTenant = (res: NextResponse): NextResponse => {
+    if (slug && source === "query" && fallbackEnabled()) {
+      res.cookies.set(TENANT_COOKIE, slug, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: cookieSecure(),
+        path: "/",
+        maxAge: TENANT_COOKIE_MAX_AGE,
+      });
+    }
+    return withDebug(res, slug, source);
+  };
+
+  // ── PORTÃO DE SESSÃO ──────────────────────────────────────────────
+  if (!ehPublica(pathname)) {
+    const token = req.cookies.get("session")?.value;
+    const sessao = token ? await verificarToken(token, segredoDaSessao()) : null;
+    if (!sessao) return comTenant(paraLogin(req));
+
+    // O claim `tenant` tem de bater com o tenant do request: uma sessão
+    // de outro tenant é a sessão de outra pessoa. A mesma regra que o
+    // `getSession()` já aplicava do lado do servidor — aqui aplicada
+    // antes de a rota sequer correr.
+    if (sessao.tenant !== (slug ?? LEGACY_TENANT)) return comTenant(paraLogin(req));
+
+    // Password reposta e ainda por trocar: só a página de troca. Escrever
+    // /stock à mão volta para cá.
+    if (sessao.mustChangePassword === true && pathname !== ROTA_TROCA) {
+      return comTenant(paraTroca(req));
+    }
+    // E o inverso, senão quem já trocou fica preso na página.
+    if (sessao.mustChangePassword !== true && pathname === ROTA_TROCA) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return comTenant(NextResponse.redirect(url));
+    }
+  }
+
   if (!slug) {
     return withDebug(NextResponse.next(), null, source);
   }
@@ -217,22 +341,7 @@ export function middleware(req: NextRequest): NextResponse {
   // temporário do loginAction for retirado e não houver outro consumer.
   requestHeaders.set("x-tenant-source", source);
 
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
-
-  // Persistir no cookie quando o tenant veio do query param (bootstrap ou
-  // switch) e o fallback está activo. O subdomínio é canónico e NÃO
-  // escreve cookie. httpOnly + secure (prod): só o servidor lê.
-  if (source === "query" && fallbackEnabled()) {
-    res.cookies.set(TENANT_COOKIE, slug, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: cookieSecure(),
-      path: "/",
-      maxAge: TENANT_COOKIE_MAX_AGE,
-    });
-  }
-
-  return withDebug(res, slug, source);
+  return comTenant(NextResponse.next({ request: { headers: requestHeaders } }));
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   Percent,
 } from "lucide-react";
 import { logoutAction } from "@/app/dashboard/actions";
+import { useUtilizador } from "@/components/layout/session-provider";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -95,8 +96,29 @@ type NavGroup = {
   items: NavItem[];
 };
 
+/** "Ana Maria Sousa" -> "A". Vazio nao produz inicial nenhuma. */
+function inicial(nome: string): string {
+  return nome.trim().charAt(0).toUpperCase();
+}
+
+/**
+ * O perfil e' um enum em maiusculas com underscores. Mostra-lo em bruto
+ * ("GESTOR_FARMACIA") e' ruido; o que se mostra e' a mesma informacao
+ * legivel.
+ */
+const ROTULOS_PERFIL: Record<string, string> = {
+  ADMINISTRADOR: "Administrador",
+  GESTOR_GRUPO: "Gestor de grupo",
+  GESTOR_FARMACIA: "Gestor de farmácia",
+  OPERADOR: "Operador",
+};
+function rotuloPerfil(perfil: string): string {
+  return ROTULOS_PERFIL[perfil] ?? perfil;
+}
+
 export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const pathname = usePathname();
+  const utilizador = useUtilizador();
   const groups = isPlatformAdmin ? [...navigation, platformGroup] : navigation;
 
   return (
@@ -156,21 +178,37 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             </nav>
           </div>
 
-          <div className="border-t border-[rgba(165,190,196,0.25)] px-4 py-4">
-            <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#18323a] text-xs font-medium text-white">
-                N
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-[#18323a]">
-                  Nuno
+          {/*
+            O utilizador REAL, vindo do contexto que o layout raiz
+            preenche a partir da sessao.
+
+            Aqui estavam tres literais — a inicial "N", o nome "Nuno" e o
+            perfil "Administrador" — escritos a mao numa maquete e nunca
+            substituidos. Nao vinham da sessao, do JWT nem da base de
+            dados, e nao existe nenhum Nuno em tenant nenhum. Um
+            administrador de farmacia entrava com as suas credenciais e
+            via o nome de outra pessoa.
+
+            Sem sessao nao se desenha nada. Um nome por omissao seria o
+            mesmo defeito outra vez, so' que mais dificil de encontrar.
+          */}
+          {utilizador ? (
+            <div className="border-t border-[rgba(165,190,196,0.25)] px-4 py-4">
+              <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#18323a] text-xs font-medium text-white">
+                  {inicial(utilizador.nome)}
                 </div>
-                <div className="truncate text-xs text-[#7f99a1]">
-                  Administrador
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-[#18323a]">
+                    {utilizador.nome}
+                  </div>
+                  <div className="truncate text-xs text-[#7f99a1]" title={utilizador.email}>
+                    {rotuloPerfil(utilizador.perfil)}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </aside>
 
         <div className="relative flex min-w-0 flex-1 flex-col">

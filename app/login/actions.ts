@@ -153,6 +153,10 @@ export async function loginAction(
     perfil: utilizador.perfil,
     farmaciaId: utilizador.farmaciaId ?? null,
     tenant,
+    // Vai no TOKEN porque quem o verifica e' o middleware, em Edge, sem
+    // acesso a base de dados. E' isto que torna o bloqueio impossivel de
+    // contornar escrevendo outra rota no browser.
+    mustChangePassword: utilizador.mustChangePassword === true,
   });
 
   const cookieStore = await cookies();
@@ -162,5 +166,8 @@ export async function loginAction(
   // O maxAge acompanha a expiração do JWT (8h) definida em lib/auth.ts.
   cookieStore.set("session", token, sessionCookieOptions(60 * 60 * 8));
 
-  redirect("/dashboard");
+  // Password reposta por um administrador: o destino e' a troca, nao o
+  // dashboard. O middleware bloqueava na mesma, mas mandar directo poupa
+  // um salto e diz ao utilizador o que se passa a' primeira.
+  redirect(utilizador.mustChangePassword === true ? "/alterar-password" : "/dashboard");
 }

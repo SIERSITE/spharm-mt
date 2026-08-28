@@ -1,34 +1,22 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT } from "jose";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
+// O tipo e a verificacao vivem em `session-claims`, que nao importa
+// `server-only` nem `next/headers`: e o unico modulo que o middleware
+// (runtime Edge) tambem consegue importar. Assim ha UMA verificacao,
+// partilhada, em vez de duas que podem divergir.
+import {
+  LEGACY_TENANT,
+  segredoDaSessao,
+  verificarToken,
+  type SessionUser,
+} from "@/lib/session-claims";
 
-const secret = new TextEncoder().encode(
-  process.env.AUTH_SECRET || "dev-secret-change-this"
-);
+export { LEGACY_TENANT };
+export type { SessionUser };
 
-/**
- * Sentinel usado no claim `tenant` da sessão quando o login foi feito
- * no contexto legacy (sem tenant slug no request). Mantém o claim como
- * string obrigatória — facilita a comparação exacta e evita comparar
- * null com null por acidente (uma sessão sem claim é rejeitada).
- */
-export const LEGACY_TENANT = "__legacy__" as const;
-
-export type SessionUser = {
-  sub: string;
-  email: string;
-  nome: string;
-  perfil: string;
-  farmaciaId: string | null;
-  /**
-   * Tenant onde o login foi autenticado. "__legacy__" para logins em
-   * localhost / sem subdomain / sem __tenant query param. Em cada
-   * request autenticado o `getSession()` compara este claim com o
-   * tenant corrente e recusa a sessão se não bater certo.
-   */
-  tenant: string;
-};
+const secret = segredoDaSessao();
 
 export async function createSessionToken(user: SessionUser) {
   return await new SignJWT({ ...user })
@@ -39,16 +27,7 @@ export async function createSessionToken(user: SessionUser) {
 }
 
 export async function verifySessionToken(token: string) {
-  try {
-    const { payload } = await jwtVerify(token, secret);
-    const user = payload as unknown as Partial<SessionUser>;
-    if (!user || typeof user.sub !== "string" || typeof user.tenant !== "string") {
-      return null;
-    }
-    return user as SessionUser;
-  } catch {
-    return null;
-  }
+  return verificarToken(token, secret);
 }
 
 /**

@@ -89,6 +89,13 @@ function setNodeEnv(v: string): void {
 // Cenários
 // ─────────────────────────────────────────────────────────────────────
 
+// NOTA sobre os caminhos: estes cenarios usam `/login` de proposito.
+// A resolucao de tenant e' independente do path — sai do Host, do
+// cookie ou do query param — mas o middleware ganhou um portao de
+// sessao, e numa rota protegida sem cookie a resposta passa a ser um
+// redireccionamento para /login sem os cabecalhos que estes testes
+// leem. Usar uma rota publica mantem o teste a medir o que diz medir.
+// O portao tem suite propria: scripts/tests/test-portao-sessao.ts.
 const SCENARIOS: Record<string, () => Promise<void>> = {
   "subdominio": async () => {
     process.env.PUBLIC_APP_URL = "https://app.spharmmt.com";
@@ -96,7 +103,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
 
-    const sub = middleware(req("https://sier.app.spharmmt.com/dashboard"));
+    const sub = await middleware(req("https://sier.app.spharmmt.com/login"));
     assert(tenantOf(sub) === "sier", "subdomínio de tenant resolve o slug");
     // O mecanismo a sério: é este cabeçalho que a aplicação lê
     // (lib/tenant-context.ts), não o de diagnóstico.
@@ -107,11 +114,11 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     // Sem isto, `app.spharmmt.com` resolveria slug="app" e
     // curto-circuitava o fallback — é o bug que motivou platformLabel().
     assert(
-      tenantOf(middleware(req("https://app.spharmmt.com/dashboard"))) === null,
+      tenantOf(await middleware(req("https://app.spharmmt.com/login"))) === null,
       "o label do host público não é tratado como tenant"
     );
     assert(
-      tenantOf(middleware(req("https://admin.spharmmt.com/x"))) === null,
+      tenantOf(await middleware(req("https://admin.spharmmt.com/login"))) === null,
       "'admin' é label reservada"
     );
   },
@@ -125,11 +132,11 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
     assert(
-      tenantOf(middleware(req("http://164.132.85.211/dashboard"))) === null,
+      tenantOf(await middleware(req("http://164.132.85.211/login"))) === null,
       "acesso por IP não resolve o primeiro octeto como tenant"
     );
     assert(
-      tenantOf(middleware(req("http://127.0.0.1:8080/dashboard"))) === null,
+      tenantOf(await middleware(req("http://127.0.0.1:8080/login"))) === null,
       "acesso pelo túnel (127.0.0.1) não resolve tenant"
     );
   },
@@ -140,11 +147,11 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
     assert(
-      tenantOf(middleware(req("https://status.app.spharmmt.com/"))) === null,
+      tenantOf(await middleware(req("https://status.app.spharmmt.com/"))) === null,
       "label de TENANT_RESERVED_LABELS não é tenant"
     );
     assert(
-      tenantOf(middleware(req("https://sier.app.spharmmt.com/"))) === "sier",
+      tenantOf(await middleware(req("https://sier.app.spharmmt.com/"))) === "sier",
       "um tenant real continua a resolver com a lista extra activa"
     );
   },
@@ -156,7 +163,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
 
-    const res = middleware(req("http://164.132.85.211/dashboard?__tenant=sier"));
+    const res = await middleware(req("http://164.132.85.211/login?__tenant=sier"));
     assert(tenantOf(res) === "sier", "?__tenant resolve quando o fallback está ligado");
 
     const setCookie = res.headers.get("set-cookie") ?? "";
@@ -166,7 +173,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     assert(!/;\s*Secure/i.test(setCookie), "sobre HTTP o cookie __tenant NÃO leva Secure");
 
     assert(
-      tenantOf(middleware(req("http://164.132.85.211/x", { __tenant: "sier" }))) === "sier",
+      tenantOf(await middleware(req("http://164.132.85.211/login", { __tenant: "sier" }))) === "sier",
       "o cookie __tenant resolve em pedidos seguintes"
     );
   },
@@ -177,7 +184,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     process.env.SESSION_COOKIE_SECURE = "1";
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
-    const res = middleware(req("https://app.spharmmt.com/x?__tenant=sier"));
+    const res = await middleware(req("https://app.spharmmt.com/login?__tenant=sier"));
     assert(
       /;\s*Secure/i.test(res.headers.get("set-cookie") ?? ""),
       "com SESSION_COOKIE_SECURE=1 o cookie __tenant leva Secure"
@@ -193,7 +200,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
     assert(
-      tenantOf(middleware(req("https://app.spharmmt.com/x?__tenant=sier"))) === null,
+      tenantOf(await middleware(req("https://app.spharmmt.com/login?__tenant=sier"))) === null,
       "em produção e com o fallback desligado, ?__tenant é ignorado"
     );
   },
@@ -205,7 +212,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const { middleware } = await import("../../middleware");
     const req = await makeReq();
     assert(
-      tenantOf(middleware(req("https://app.spharmmt.com/x?__tenant=sier"))) === "sier",
+      tenantOf(await middleware(req("https://app.spharmmt.com/login?__tenant=sier"))) === "sier",
       "fora de produção o ?__tenant funciona como override de dev"
     );
   },
@@ -217,7 +224,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
     const req = await makeReq();
     for (const bad of ["../etc", "A_MAIUSCULO", "a", "-comeca-com-hifen", "x".repeat(64)]) {
       assert(
-        tenantOf(middleware(req(`https://app.spharmmt.com/x?__tenant=${encodeURIComponent(bad)}`))) === null,
+        tenantOf(await middleware(req(`https://app.spharmmt.com/login?__tenant=${encodeURIComponent(bad)}`))) === null,
         `slug inválido rejeitado: ${JSON.stringify(bad)}`
       );
     }
