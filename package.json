@@ -96,7 +96,8 @@
     "test:tenant-resolution": "tsx scripts/tests/test-tenant-resolution.ts",
     "test:migrator-entrypoints": "node deploy/docker/audit-tools-entrypoints.mjs . --dockerfile deploy/docker/Dockerfile",
     "test:perfis-utilizadores": "tsx scripts/tests/test-perfis-utilizadores.ts",
-    "test:password-coerencia": "tsx scripts/tests/test-password-coerencia.ts"
+    "test:password-coerencia": "tsx scripts/tests/test-password-coerencia.ts",
+    "test:precedencia-tenant": "tsx scripts/tests/test-precedencia-tenant.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

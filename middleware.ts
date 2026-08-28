@@ -13,15 +13,41 @@ import { LEGACY_TENANT, segredoDaSessao, verificarToken } from "@/lib/session-cl
  *
  * Estratégias de resolução (pela ordem):
  *   1. Subdomain do Host             (CANÓNICO — prod + lvh.me + /etc/hosts)
- *   2. Cookie `__tenant`             (fallback piloto — só se TENANT_FALLBACK_ENABLED)
- *   3. Query param ?__tenant=slug    (fallback piloto se TENANT_FALLBACK_ENABLED;
- *                                      senão só em dev, como override prático)
+ *   2. Query param ?__tenant=slug    (ESCOLHA EXPLÍCITA — fallback piloto se
+ *                                      TENANT_FALLBACK_ENABLED; senão só em dev)
+ *   3. Cookie `__tenant`             (memória da escolha anterior)
  *
- * Fallback piloto (sem wildcard DNS): quando `TENANT_FALLBACK_ENABLED=1`,
- * o tenant pode ser escolhido por `?__tenant=<slug>` (bootstrap/switch) e
- * fica PERSISTIDO num cookie httpOnly seguro, para que os requests
- * seguintes (sem query) resolvam o mesmo tenant. O subdomínio mantém-se
- * SEMPRE prioritário e canónico. Migração futura → ver docs/tenant-fallback.md.
+ * ── PORQUE É QUE A QUERY VEM ANTES DO COOKIE ─────────────────────────
+ *
+ * Vinha depois, e isso tornava o `?__tenant=` inoperante para quem já
+ * tivesse visitado outro tenant. Medido em produção:
+ *
+ *   sem cookie,  ?__tenant=silveira  →  resolved=silveira  source=query
+ *   cookie=sier, ?__tenant=silveira  →  resolved=sier      source=cookie
+ *
+ * O link dizia silveira, o servidor servia sier, e nada na página o
+ * dizia. O instalador que vai para o PC do cliente abre exactamente
+ * `https://app.spharmmt.com/login?__tenant=silveira`: um cookie deixado
+ * por uma visita anterior punha lá o login do tenant errado, e as
+ * credenciais certas eram recusadas com "Credenciais inválidas".
+ *
+ * A regra é a natural: o que está escrito no URL é uma escolha
+ * deliberada e vence a memória de uma escolha antiga. O cookie continua
+ * a servir para o que foi feito — manter o tenant nos pedidos seguintes,
+ * que já não trazem a query — e é REESCRITO sempre que a query resolve,
+ * para que a memória passe a ser a nova escolha e não a velha.
+ *
+ * O subdomínio mantém-se SEMPRE prioritário e canónico: é o Host, e o
+ * Host não se escolhe por engano. Migração futura → ver
+ * docs/tenant-fallback.md.
+ *
+ * ── CROSS-TENANT ─────────────────────────────────────────────────────
+ *
+ * Trocar de tenant pela query NÃO transporta a sessão. O claim `tenant`
+ * do token é comparado com o tenant resolvido, aqui e em `getSession()`;
+ * quem chega com sessão de A e pede ?__tenant=B é mandado para o login
+ * de B. Mudar de tenant é, quando muito, uma forma mais lenta de fazer
+ * logout — nunca uma forma de ver os dados do outro.
  *
  * Segurança: o fallback muda apenas COMO se escolhe o tenant, não a auth.
  * O login continua a validar credenciais na BD do tenant e a sessão fica
@@ -159,17 +185,23 @@ function resolveSlug(req: NextRequest): Resolution {
 
   const allowFallback = fallbackEnabled();
 
-  // 2. Cookie (persistência do fallback piloto).
-  if (allowFallback) {
-    const ck = validSlug(req.cookies.get(TENANT_COOKIE)?.value);
-    if (ck) return { slug: ck, source: "cookie" };
-  }
-
-  // 3. Query param ?__tenant — fallback piloto (prod se enabled) OU
-  //    override de dev (comportamento existente preservado).
+  // 2. Query param ?__tenant — a ESCOLHA EXPLÍCITA. Vence o cookie: o
+  //    que está escrito no URL é deliberado, o cookie é memória. Só é
+  //    aceite onde já era: fallback piloto em produção, ou dev.
+  //
+  //    Um slug inválido ou reservado NÃO cai para o cookie por engano —
+  //    cai, e é isso que se quer: `?__tenant=lixo` não deve trocar de
+  //    tenant nem apagar o que estava.
   if (allowFallback || process.env.NODE_ENV !== "production") {
     const qp = validSlug(req.nextUrl.searchParams.get("__tenant"));
     if (qp) return { slug: qp, source: "query" };
+  }
+
+  // 3. Cookie — a memória da escolha anterior, para os pedidos seguintes
+  //    que já não trazem a query.
+  if (allowFallback) {
+    const ck = validSlug(req.cookies.get(TENANT_COOKIE)?.value);
+    if (ck) return { slug: ck, source: "cookie" };
   }
 
   return { slug: null, source: "none" };
@@ -288,7 +320,17 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
    * password.
    */
   const comTenant = (res: NextResponse): NextResponse => {
-    if (slug && source === "query" && fallbackEnabled()) {
+    // Sempre que a QUERY resolveu, o cookie é reescrito — não só quando
+    // não existia. Era esta a outra metade do defeito: mesmo depois de
+    // se dar prioridade à query, um cookie antigo sobreviveria ao pedido
+    // e voltaria a mandar no seguinte, que já não traz a query.
+    //
+    // A condição do `fallbackEnabled()` saiu: a query só chega aqui como
+    // `source === "query"` se `resolveSlug` já a tiver aceite, e isso só
+    // acontece com o fallback ligado ou fora de produção. Repetir a
+    // condição aqui fazia com que, em dev, a query resolvesse o tenant e
+    // o cookie nunca fosse escrito — a navegação seguinte perdia-o.
+    if (slug && source === "query") {
       res.cookies.set(TENANT_COOKIE, slug, {
         httpOnly: true,
         sameSite: "lax",

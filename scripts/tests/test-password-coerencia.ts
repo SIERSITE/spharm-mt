@@ -140,9 +140,10 @@ async function main() {
     ];
     for (const [ficheiro, descricao] of caminhos) {
       const src = codigo(ficheiro);
-      const suspeitas = (src.match(/[Pp]assword[A-Za-z]*\s*(\?\.)?\.?trim\(\)/g) ?? []).concat(
-        src.match(/trim\(\)[^;\n]*[Pp]assword/g) ?? [],
-      );
+      const suspeitas: string[] = [
+        ...(src.match(/[Pp]assword[A-Za-z]*\s*(\?\.)?\.?trim\(\)/g) ?? []),
+        ...(src.match(/trim\(\)[^;\n]*[Pp]assword/g) ?? []),
+      ];
       check(
         suspeitas.length === 0,
         `${descricao}: sem trim de password`,
