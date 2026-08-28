@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import type { UtilizadorListRow } from "@/lib/utilizadores-data";
+import { MIN_CARACTERES } from "@/lib/password-policy";
+import { validarPasswordAdministrativa } from "@/lib/utilizadores-guardas";
 import {
   createUtilizador,
   updateUtilizador,
@@ -221,7 +223,24 @@ function UtilizadorDialog({
       : []
   );
   const [password, setPassword] = useState("");
-  const [mustChange, setMustChange] = useState(true);
+  /**
+   * ── O DEFEITO QUE ISTO FECHA ──────────────────────────────────────
+   *
+   * Estava `useState(true)`, em criação E em edição. Abrir a ficha de
+   * alguém, corrigir o nome e gravar punha `mustChangePassword = true`
+   * sem ninguém o pedir — e essa pessoa era mandada para o ecrã de
+   * troca de password no login seguinte, sem perceber porquê.
+   *
+   * Aconteceu duas vezes em 2026-08-28, à conta de f.silveirense e à de
+   * grp.cc.spharm, e a primeira teve de ser desfeita por SQL directo.
+   *
+   * Em EDIÇÃO o valor inicial é o real do utilizador; em CRIAÇÃO
+   * continua a ser `true`, que é o comportamento certo para uma
+   * password escolhida por outra pessoa.
+   */
+  const [mustChange, setMustChange] = useState(
+    mode === "create" ? true : initial?.mustChangePassword ?? false,
+  );
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -232,6 +251,19 @@ function UtilizadorDialog({
 
   const handleSubmit = () => {
     setErr(null);
+
+    // A mesma função que o servidor usa, chamada aqui só para dar a
+    // mensagem sem ida ao servidor. Quem decide continua a ser o
+    // servidor: isto pode ser contornado, aquilo não.
+    const regra = validarPasswordAdministrativa(
+      password === "" ? undefined : password,
+      mode === "create",
+    );
+    if (!regra.ok) {
+      setErr(regra.erro);
+      return;
+    }
+
     const payload: UpsertUtilizadorInput = {
       id: initial?.id,
       email,
@@ -350,8 +382,8 @@ function UtilizadorDialog({
           <Field
             label={
               mode === "create"
-                ? "Password (mín. 8)"
-                : "Nova password (vazia = manter atual)"
+                ? `Password (mín. ${MIN_CARACTERES})`
+                : `Nova password (vazia = manter atual; mín. ${MIN_CARACTERES})`
             }
           >
             <input

@@ -171,7 +171,10 @@ async function main() {
       console.warn(`  ⚠  ${role} sem --farmacia: utilizador sem contexto primário; tem de ser associado via SQL antes de usar.`);
     }
 
-    const password = args.password?.trim() || generatePassword();
+    // Sem `.trim()` — ver lib/password-policy.ts. O trim aparava o valor
+    // que ia ser cifrado, e o login compara sem aparar.
+    const fornecida = typeof args.password === "string" && args.password.length > 0;
+    const password = fornecida ? (args.password as string) : generatePassword();
     const passwordGenerated = !args.password;
     const passwordHash = await bcrypt.hash(password, 10);
 

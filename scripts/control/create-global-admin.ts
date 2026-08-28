@@ -227,7 +227,10 @@ function validatePassword(input: PasswordInput): string | null {
   if (input.password.length < MIN_PASSWORD_LENGTH) {
     return `password demasiado curta — mínimo ${MIN_PASSWORD_LENGTH} caracteres (mesma política da aplicação).`;
   }
-  if (input.password.trim().length === 0) {
+  // `.length`, não `.trim().length`: uma password só de espaços é curta,
+  // não é vazia — e quem a rejeita é a regra de comprimento mínimo, não
+  // esta. Ver lib/password-policy.ts.
+  if (input.password.length === 0) {
     return "password só com espaços.";
   }
   return null;

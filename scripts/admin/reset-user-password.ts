@@ -97,8 +97,12 @@ async function main() {
     console.log(`Estado      : ${existing.estado}${existing.estado !== "ATIVO" ? "  ⚠ login exige ATIVO" : ""}`);
     console.log("");
 
-    const password = values.password?.trim() || genPassword();
-    const passwordGenerated = !values.password?.trim();
+    // Sem `.trim()` — ver lib/password-policy.ts. O que o trim decidia
+    // era só se a password veio na linha de comandos; isso lê-se do
+    // comprimento, sem alterar o valor que vai ser cifrado.
+    const fornecida = typeof values.password === "string" && values.password.length > 0;
+    const password = fornecida ? (values.password as string) : genPassword();
+    const passwordGenerated = !fornecida;
     const passwordHash = await bcrypt.hash(password, 10);
 
     const willActivate = values.activate && existing.estado !== "ATIVO";

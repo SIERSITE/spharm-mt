@@ -98,8 +98,13 @@ export async function addUser(input: AddUserInput): Promise<AddUserResult> {
     farmaciaId = farmacia.id;
   }
 
-  const password = input.password?.trim() || generatePassword();
-  const passwordGenerated = !input.password?.trim();
+  // Sem `.trim()`: uma password é uma sequência exacta de caracteres, e
+  // apará-la aqui gravava um hash de uma coisa e o login comparava
+  // outra. O `trim` só decidia se a password tinha sido fornecida — e
+  // isso decide-se pelo comprimento, sem mexer no valor.
+  const fornecida = typeof input.password === "string" && input.password.length > 0;
+  const password = fornecida ? (input.password as string) : generatePassword();
+  const passwordGenerated = !fornecida;
   const passwordHash = await bcrypt.hash(password, 10);
 
   const created = await prisma.$transaction(async (tx) => {

@@ -42,8 +42,28 @@ export async function loginAction(
   _prevState: LoginState,
   formData: FormData
 ): Promise<LoginState> {
+  // O EMAIL normaliza-se; a PASSWORD não.
+  //
+  // Um email é um identificador: " F.Silveirense@Gmail.com " e
+  // "f.silveirense@gmail.com" são a mesma pessoa, e a base guarda a
+  // forma normalizada. Uma password é uma sequência exacta de
+  // caracteres — se alguém a definiu com um espaço no fim, o espaço é
+  // parte dela.
+  //
+  // ── O QUE ISTO REPARA, E FOI MEDIDO ────────────────────────────────
+  //
+  // Aqui fazia-se `.trim()`; nas escritas — `createUtilizador`,
+  // `updateUtilizador`, `alterarPassword` — não se fazia. O hash ficava
+  // sobre `"segredo "` e a comparação era sempre contra `"segredo"`.
+  // Quem definisse uma password com um espaço nas pontas ficava de fora
+  // da sua conta para sempre, com a mensagem "Credenciais inválidas" a
+  // apontar para o sítio errado. Nenhum dos dois lados estava errado
+  // sozinho: era a diferença entre eles.
+  //
+  // A regra passa a ser a mesma nos quatro caminhos: NUNCA se apara uma
+  // password. Ver lib/password-policy.ts.
   const email = String(formData.get("email") || "").trim().toLowerCase();
-  const password = String(formData.get("password") || "").trim();
+  const password = String(formData.get("password") || "");
 
   if (!email || !password) {
     return { error: "Preencha o email e a password." };

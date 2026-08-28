@@ -9,6 +9,8 @@ import {
   exigirGestaoUtilizadores,
   validarAlteracaoDePerfil,
   validarAlteracaoDeEstado,
+  validarPasswordAdministrativa,
+  devePersistirPassword,
 } from "@/lib/utilizadores-guardas";
 
 /**
@@ -69,11 +71,14 @@ export async function createUtilizador(input: UpsertUtilizadorInput) {
   if (!input.email || !input.nome) {
     return { ok: false as const, error: "Email e nome são obrigatórios." };
   }
-  if (!input.password || input.password.length < 8) {
-    return { ok: false as const, error: "Password deve ter pelo menos 8 caracteres." };
-  }
+  // O mínimo é o da aplicação (lib/password-policy), não um 8 escrito à
+  // mão aqui. Eram dois números diferentes para a mesma regra: 8 na
+  // criação, 10 na troca pelo próprio.
+  const passwordOk = validarPasswordAdministrativa(input.password, true);
+  if (!passwordOk.ok) return { ok: false as const, error: passwordOk.erro };
 
-  const passwordHash = await bcrypt.hash(input.password, 10);
+  // Sem `.trim()` — ver lib/password-policy.ts.
+  const passwordHash = await bcrypt.hash(input.password as string, 10);
   try {
     const prisma = await getPrisma();
     const created = await prisma.utilizador.create({
@@ -143,6 +148,21 @@ export async function updateUtilizador(input: UpsertUtilizadorInput) {
   });
   if (!estadoOk.ok) return { ok: false as const, error: estadoOk.erro };
 
+  // ── A PASSWORD CURTA DEIXA DE SER IGNORADA EM SILÊNCIO ─────────────
+  //
+  // Aqui estava `...(input.password && input.password.length >= 8 ? {…}
+  // : {})`. Abaixo de 8 caracteres a escrita era simplesmente saltada —
+  // e a acção devolvia `{ ok: true }`. A interface dizia "guardado", a
+  // password ficava a anterior, e ninguém ficava a saber. O
+  // `createUtilizador` recusava com mensagem; o update calava-se.
+  //
+  // A validação é feita AQUI, fora da transacção: se a password não
+  // presta, nada é escrito — nem o nome, nem o perfil, nem as
+  // associações a farmácias. Uma gravação parcial com ar de completa é
+  // o mesmo defeito noutra roupa.
+  const passwordOk = validarPasswordAdministrativa(input.password, false);
+  if (!passwordOk.ok) return { ok: false as const, error: passwordOk.erro };
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.utilizador.update({
@@ -153,9 +173,14 @@ export async function updateUtilizador(input: UpsertUtilizadorInput) {
           perfil: input.perfil,
           farmaciaId: input.farmaciaId,
           estado: input.estado,
-          ...(input.password && input.password.length >= 8
+          // Campo vazio = manter a actual. Qualquer outro valor já
+          // passou `validarPasswordAdministrativa` acima. Sem `.trim()`.
+          ...(devePersistirPassword(input.password)
             ? { passwordHash: await bcrypt.hash(input.password, 10) }
             : {}),
+          // Só se o formulário disser alguma coisa sobre a flag. Guardar
+          // um utilizador sem tocar na opção NÃO a pode alterar — ver o
+          // valor inicial em components/settings/utilizadores-client.tsx.
           ...(input.mustChangePassword !== undefined
             ? { mustChangePassword: input.mustChangePassword }
             : {}),
