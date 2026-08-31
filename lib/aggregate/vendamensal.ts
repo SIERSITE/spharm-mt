@@ -10,13 +10,15 @@
  *   · preflight: counts raw, distribuição por classe, orphans split
  *     (non-stock services vs. operational), unknowns
  *   · runAggregation: SQL group-by com sinal VENDA/DEVOLUCAO_ANULACAO
- *   · writeAggregation: DELETE scoped + INSERT MANY em transaction
+ *   · writeAggregation: DELETE scoped + INSERT MANY em transaction, sob
+ *     advisory lock por mês (ver a nota dentro da função)
  *
  * Função NUNCA chama process.exit nem console.log; devolve estado
  * estruturado. Caller (CLI ou endpoint) decide como reportar.
  */
 
 import { PrismaClient, Prisma } from "@/generated/prisma/client";
+import { withRetry } from "./chunk-util";
 
 export const ORIGEM_AGREGACAO = "agent-bootstrap-staging";
 
@@ -329,43 +331,106 @@ export async function writeAggregation(
 ): Promise<{ deleted: number; inserted: number }> {
   if (rows.length === 0) return { deleted: 0, inserted: 0 };
   const farmaciaIds = Array.from(new Set(rows.map((r) => r.farmaciaId)));
-  return prisma.$transaction(async (tx) => {
-    const del = await tx.vendaMensal.deleteMany({
-      where: {
+
+  /**
+   * ── O DEFEITO QUE ISTO FECHA, MEDIDO EM PRODUÇÃO ──────────────────
+   *
+   * Em 2026-08-31 02:01 a agregação devolveu HTTP 500 ao agent da
+   * Farmácia Segurado:
+   *
+   *   Unique constraint failed on the fields:
+   *     (farmaciaId, produtoId, ano, mes, naturezaVenda)
+   *
+   * Este endpoint agrega o TENANT INTEIRO, e cada agent on-prem
+   * chama-o no fim do seu pipeline. Com duas farmácias há dois PCs,
+   * ambos agendados para as 03:00, e as duas chamadas sobrepuseram-se:
+   *
+   *   02:01:24.125 → 02:01:28.199   OK
+   *   02:01:24.675 → 02:01:31.175   ERROR   (começou 550 ms depois)
+   *
+   * Sob READ COMMITTED as duas transacções apagam as mesmas linhas e a
+   * seguir tentam inserir as mesmas chaves; a segunda bate no índice
+   * único. O agent que recebeu o 500 abortou a execução inteira, e os
+   * dias seguintes — que ainda não tinham sido enviados — ficaram por
+   * carregar. Dois dias de vendas em falta por causa de 550 ms.
+   *
+   * ── PORQUÊ ESTA FORMA, E NÃO OUTRA ────────────────────────────────
+   *
+   * É o mesmo padrão que `aggregate-compras` e `aggregate-devolucoes`
+   * já usavam: `withRetry` por fora, `pg_try_advisory_xact_lock` como
+   * primeira instrução da transacção. Esta era a única das três
+   * agregações sem lock, e era a única que falhava — a correcção é pôr
+   * as três iguais, não inventar uma quarta maneira.
+   *
+   * O lock é `xact`: solta-se sozinho no COMMIT ou no ROLLBACK, sem
+   * `finally` que possa ser saltado. `try_` e não a versão bloqueante:
+   * quem não o consegue atira `acquire_lock`, que o `isRetryable` do
+   * `withRetry` reconhece — espera com backoff e repete, em vez de
+   * ficar pendurado a segurar uma ligação do pool.
+   *
+   * ── O ÂMBITO DA CHAVE ─────────────────────────────────────────────
+   *
+   * Ano e mês, e mais nada. NÃO leva farmácia, ao contrário dos
+   * irmãos: aqui o DELETE abrange todas as farmácias que aparecem em
+   * `rows`, e duas corridas do mesmo mês colidem mesmo quando foram
+   * disparadas por PCs de farmácias diferentes — foi exactamente o que
+   * aconteceu. Uma chave por farmácia não teria evitado nada.
+   *
+   * Não leva tenant porque não precisa: cada tenant tem a sua base de
+   * dados e os advisory locks do Postgres são por base. Meses
+   * diferentes continuam a poder correr em paralelo.
+   */
+  const chaveLock = `aggregate-vendamensal:${range.ano}-${range.mes}`;
+
+  return withRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const lock = await tx.$queryRaw<Array<{ ok: boolean }>>(
+        Prisma.sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${chaveLock}, 0)) AS ok`,
+      );
+      if (!lock[0]?.ok) throw new Error("acquire_lock failed (retry)");
+
+      const del = await tx.vendaMensal.deleteMany({
+        where: {
+          ano: range.ano,
+          mes: range.mes,
+          farmaciaId: { in: farmaciaIds },
+          origemAgregacao: ORIGEM_AGREGACAO,
+        },
+      });
+      const data = rows.map((r) => ({
+        farmaciaId: r.farmaciaId,
+        produtoId: r.produtoId,
         ano: range.ano,
         mes: range.mes,
-        farmaciaId: { in: farmaciaIds },
+        naturezaVenda: r.naturezaVenda,
+        quantidade: r.quantidadeLiquida,
+        valorTotal: r.valorBruto,
+        mesCompleto: true,
+        origemBootstrap: false,
+        quantidadeLiquida: r.quantidadeLiquida,
+        valorBruto: r.valorBruto,
+        valorPagoUtente: r.valorPagoUtente,
+        valorComparticipado: r.valorComparticipado,
+        linhasVenda: r.linhasVenda,
+        atendimentos: r.atendimentos,
         origemAgregacao: ORIGEM_AGREGACAO,
-      },
-    });
-    const data = rows.map((r) => ({
-      farmaciaId: r.farmaciaId,
-      produtoId: r.produtoId,
-      ano: range.ano,
-      mes: range.mes,
-      naturezaVenda: r.naturezaVenda,
-      quantidade: r.quantidadeLiquida,
-      valorTotal: r.valorBruto,
-      mesCompleto: true,
-      origemBootstrap: false,
-      quantidadeLiquida: r.quantidadeLiquida,
-      valorBruto: r.valorBruto,
-      valorPagoUtente: r.valorPagoUtente,
-      valorComparticipado: r.valorComparticipado,
-      linhasVenda: r.linhasVenda,
-      atendimentos: r.atendimentos,
-      origemAgregacao: ORIGEM_AGREGACAO,
-    }));
-    const ins = await tx.vendaMensal.createMany({ data });
-    return { deleted: del.count, inserted: ins.count };
-  }, {
-    // DELETE scoped + createMany de milhares de rows numa transação
-    // interactiva excede o default de 5s sobre Neon (ex: ~4.4k rows/mês
-    // do grupo-silveira → ~9.5s). Elevar o timeout (e o maxWait de
-    // aquisição) evita P2028 sem partir a atomicidade DELETE+INSERT.
-    maxWait: 15_000,
-    timeout: 120_000,
-  });
+      }));
+      // SEM `skipDuplicates`: uma chave repetida aqui é um defeito de
+      // cálculo, não ruído a engolir. O que o lock elimina é a colisão
+      // ENTRE corridas; uma colisão DENTRO de uma corrida significa que
+      // o GROUP BY da `runAggregation` devolveu a mesma chave duas
+      // vezes, e isso tem de rebentar para ser visto.
+      const ins = await tx.vendaMensal.createMany({ data });
+      return { deleted: del.count, inserted: ins.count };
+    }, {
+      // DELETE scoped + createMany de milhares de rows numa transação
+      // interactiva excede o default de 5s sobre Neon (ex: ~4.4k rows/mês
+      // do grupo-silveira → ~9.5s). Elevar o timeout (e o maxWait de
+      // aquisição) evita P2028 sem partir a atomicidade DELETE+INSERT.
+      maxWait: 15_000,
+      timeout: 120_000,
+    }),
+  );
 }
 
 /* ---------- Top-level API ---------- */
