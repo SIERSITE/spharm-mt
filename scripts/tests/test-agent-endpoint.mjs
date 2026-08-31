@@ -62,9 +62,15 @@ v(cfg.saas?.endpoint === MARCADOR, "agent.config.example.json continua JSON vál
 // ── 2. Nenhum domínio literal em código/documentação activa ──────────
 console.log("\n=== 2. nenhum literal do domínio antigo em código activo ===");
 const EXCLUIDOS = /^(dist-agent|generated|notes|logs|node_modules|\.next|\.git)\//;
+// Este ficheiro contém, por necessidade, o próprio padrão que procura —
+// no regex e nas etiquetas. Sem esta excepção o varrimento acusa-se a si
+// mesmo, e a falha diz «há um domínio antigo no código» quando o que há
+// é o detector. Passou despercebido enquanto o ficheiro era untracked:
+// `git ls-files` não o listava.
+const ESTE_FICHEIRO = "scripts/tests/test-agent-endpoint.mjs";
 const alvos = execFileSync("git", ["ls-files"], { cwd: REPO_ROOT, encoding: "utf8" })
   .split("\n")
-  .filter((f) => f && !EXCLUIDOS.test(f));
+  .filter((f) => f && !EXCLUIDOS.test(f) && f !== ESTE_FICHEIRO);
 const infractores = [];
 for (const rel of alvos) {
   const full = path.join(REPO_ROOT, rel);
