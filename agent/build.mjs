@@ -48,12 +48,12 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // que vai para uma farmácia real. Tem de coincidir com o sufixo do ZIP
 // (SPharmMT-Agent-YYYY-MM-DD-rev<N>.zip). Operador vê este valor no
 // banner que o cli.ts imprime no arranque de qualquer comando.
-// Override por env: `AGENT_PACKAGE_REV=63 AGENT_PACKAGE_DIST=spharmmt-agent-base-rev63`.
+// Override por env: `AGENT_PACKAGE_REV=83 AGENT_PACKAGE_DIST=spharmmt-agent-base-rev83`.
 // Existe para se poder construir um pacote lado-a-lado sem destruir o
 // `dist-agent/<DIST_NAME>/` da revisão anterior — `cleanDist()` apaga a
 // pasta de destino, e apagar a rev instalada para inspeccionar um comando
 // novo é exactamente o que não se quer.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "62";
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "82";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
