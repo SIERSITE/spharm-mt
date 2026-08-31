@@ -81,7 +81,7 @@ Na pasta extraída:
 ```json
 {
   "saas": {
-    "endpoint": "https://app.spharmmt.app",
+    "endpoint": "{{SAAS_ENDPOINT}}",
     "tenantSlug": "demo-neon",
     "ingestKey": "abc123...64hex...def789",
     "farmacia": "Farmácia Central"
@@ -135,7 +135,7 @@ Duplo-clique em `run-test-connection.bat`. Abre uma janela preta (cmd) com algo 
 ─────────────────────────────────────────────────────────────────────
 SPharm.MT agent — test-connection
 ─────────────────────────────────────────────────────────────────────
-  saasEndpoint         https://app.spharmmt.app
+  saasEndpoint         {{SAAS_ENDPOINT}}
   tenantSlug           demo-neon
   ingestKey            a*****9
   farmacia             Farmácia Central
@@ -169,7 +169,7 @@ Casos comuns:
 | `SQL Server SELECT 1 ✗ ECONNREFUSED / ETIMEDOUT` | Verifica `host`/`port`, firewall do Windows, e se o serviço "SQL Server (MSSQLSERVER)" está a correr (`services.msc`) |
 | `SaaS heartbeat ✗ HTTP 401` | Ingest key errada ou foi rotacionada. Pede ao dev nova key. |
 | `SaaS heartbeat ✗ HTTP 404` | `tenantSlug` errado no JSON. |
-| `SaaS heartbeat ✗ falha de rede` | Servidor sem acesso à internet ou DNS bloqueado. Testa no browser: `https://app.spharmmt.app` |
+| `SaaS heartbeat ✗ falha de rede` | Servidor sem acesso à internet ou DNS bloqueado. Testa no browser: `{{SAAS_ENDPOINT}}` |
 | `Farmácia "X" não encontrada no tenant` | O erro mostra a lista de farmácias disponíveis — copia exactamente o nome |
 
 **Não avances** para o passo 5 até este passar todo verde. Liga ao dev se ficares preso > 10 min.

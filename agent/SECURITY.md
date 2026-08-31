@@ -47,7 +47,7 @@ WHERE u.name = 'spharm_readonly';
 ✅ **OBRIGATÓRIO:**
 - O SQL Server fica na rede local da farmácia (LAN ou VPN privada).
 - O agent corre no mesmo servidor ou em PC da mesma LAN.
-- Acesso à internet feito **apenas pelo agent**, com saída TLS para o domínio `app.spharmmt.app` (ou equivalente).
+- Acesso à internet feito **apenas pelo agent**, com saída TLS apenas para o endpoint SaaS configurado (`{{SAAS_ENDPOINT}}`).
 
 ❌ **NUNCA:**
 - ❌ Expor a porta 1433 do SQL Server à internet pública.

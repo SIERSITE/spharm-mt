@@ -715,7 +715,7 @@ sudo ./bootstrap-vps.sh --dry-run --ssh-key "..."
 sudo ./bootstrap-vps.sh --skip-upgrade --yes
 
 # Já com domínio: activa o cookie de sessão seguro
-sudo ./install-platform.sh --public-url https://app.spharmmt.app --yes
+sudo ./install-platform.sh --public-url https://app.spharmmt.com --yes
 ```
 
 ---

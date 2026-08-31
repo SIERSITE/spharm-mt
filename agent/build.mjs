@@ -55,6 +55,63 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // novo é exactamente o que não se quer.
 const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "62";
 
+// ── Endpoint SaaS ────────────────────────────────────────────────────
+//
+// As fontes do agent (`agent.config.example.json`, `INSTALL_WINDOWS.md`,
+// `SECURITY.md`) trazem o marcador `{{SAAS_ENDPOINT}}` em vez do domínio.
+// É AQUI que o domínio entra, uma vez, ao selar o pacote base — e não em
+// cada empacotador.
+//
+// Havia dois empacotadores a jusante: `scripts/admin/package-agent.ts`
+// (cópia recursiva) e o wizard em PowerShell, que monta o ZIP na máquina
+// do técnico a partir do base publicado. Nenhum dos dois tocava nos .md,
+// e duplicar a substituição nos dois seria uma divergência à espera de
+// acontecer. Selando no base, ambos herdam.
+//
+// A ordem é a mesma de lib/runtime-config.ts:35 — PUBLIC_APP_URL é a
+// canónica e NEXT_PUBLIC_APP_URL o segundo recurso. Sem nenhuma das
+// duas o build PÁRA: um base publicado a apontar para o domínio errado é
+// pior do que um build que não corre, porque só se descobre na farmácia,
+// depois de o técnico já lá estar.
+const SAAS_ENDPOINT_PLACEHOLDER = "{{SAAS_ENDPOINT}}";
+
+function resolveSaasEndpoint() {
+  const raw = (
+    process.env.PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    ""
+  ).trim();
+  if (!raw) {
+    throw new Error(
+      [
+        "PUBLIC_APP_URL não está definida — o pacote do agent ficaria sem endpoint.",
+        "  É a mesma variável que a plataforma já usa (ver lib/runtime-config.ts).",
+        "  Em produção vem de /opt/spharmmt/docker/env/platform.env.",
+        "  Exemplo:  PUBLIC_APP_URL=https://app.spharmmt.com npm run agent:package",
+      ].join("\n")
+    );
+  }
+  if (!/^https?:\/\//.test(raw)) {
+    throw new Error(
+      `PUBLIC_APP_URL inválida: "${raw}" — tem de começar por http:// ou https://`
+    );
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+/**
+ * Copia um ficheiro trocando o marcador pelo endpoint resolvido.
+ * Devolve o número de ocorrências substituídas — o chamador usa-o para
+ * dizer no log o que foi selado, e para não deixar passar em silêncio um
+ * ficheiro que já não tem marcador nenhum.
+ */
+function copyComEndpoint(src, dest, endpoint) {
+  const original = fs.readFileSync(src, "utf8");
+  const partes = original.split(SAAS_ENDPOINT_PLACEHOLDER);
+  fs.writeFileSync(dest, partes.join(endpoint), "utf8");
+  return partes.length - 1;
+}
+
 function readGitShortCommit() {
   try {
     return execSync("git rev-parse --short HEAD", {
@@ -180,26 +237,51 @@ async function bundle() {
   log(`  ✓ ${(stat.size / 1024 / 1024).toFixed(1)} MB`);
 }
 
-function copyResources() {
+function copyResources(endpoint) {
   log("A copiar recursos estáticos…");
+  log(`  endpoint SaaS: ${endpoint}`);
+
   // Config example
-  fs.copyFileSync(
+  const trocasConfig = copyComEndpoint(
     path.join(AGENT_ROOT, "agent.config.example.json"),
-    path.join(DIST_ROOT, "agent.config.example.json")
+    path.join(DIST_ROOT, "agent.config.example.json"),
+    endpoint
   );
   // Install guide
+  let trocasInstall = 0;
   const installSrc = path.join(AGENT_ROOT, "INSTALL_WINDOWS.md");
   if (fs.existsSync(installSrc)) {
-    fs.copyFileSync(installSrc, path.join(DIST_ROOT, "INSTALL_WINDOWS.md"));
+    trocasInstall = copyComEndpoint(
+      installSrc,
+      path.join(DIST_ROOT, "INSTALL_WINDOWS.md"),
+      endpoint
+    );
   } else {
     log(`  ⚠ INSTALL_WINDOWS.md não existe em agent/ — saltado`);
   }
   // Security checklist (referenciada pelo INSTALL_WINDOWS)
+  let trocasSecurity = 0;
   const securitySrc = path.join(AGENT_ROOT, "SECURITY.md");
   if (fs.existsSync(securitySrc)) {
-    fs.copyFileSync(securitySrc, path.join(DIST_ROOT, "SECURITY.md"));
+    trocasSecurity = copyComEndpoint(
+      securitySrc,
+      path.join(DIST_ROOT, "SECURITY.md"),
+      endpoint
+    );
   }
-  log("  ✓ config example + docs");
+
+  // Um marcador a zero significa que alguém reescreveu a fonte e voltou
+  // a pôr um domínio à mão. É exactamente a regressão que este trabalho
+  // veio fechar, portanto não passa em silêncio.
+  const total = trocasConfig + trocasInstall + trocasSecurity;
+  if (total === 0) {
+    throw new Error(
+      `Nenhuma ocorrência de ${SAAS_ENDPOINT_PLACEHOLDER} nas fontes do agent. ` +
+        "As fontes deixaram de estar parametrizadas — verifica agent/*.md e " +
+        "agent/agent.config.example.json antes de publicar um base."
+    );
+  }
+  log(`  ✓ config example + docs (${total} marcador(es) selado(s))`);
 }
 
 function writeBatchWrappers() {
@@ -2120,11 +2202,16 @@ function zipBase() {
 async function main() {
   const t0 = Date.now();
   try {
+    // ANTES de tudo. `ensureNodeExe()` descarrega ~50 MB e `cleanDist()`
+    // apaga a build anterior — descobrir só depois disso que falta a
+    // variável custaria minutos e o artefacto que lá estava.
+    const saasEndpoint = resolveSaasEndpoint();
+
     const nodeExe = await ensureNodeExe();
     cleanDist();
     await bundle();
     copyNodeExe(nodeExe);
-    copyResources();
+    copyResources(saasEndpoint);
     writeBatchWrappers();
     writeReadme();
     const base = zipBase();

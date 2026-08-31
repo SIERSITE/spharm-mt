@@ -38,6 +38,20 @@ import {
 import type { ProviderKind } from "@/lib/db-providers";
 import { requireControlEnv } from "../tenancy/_shared";
 
+/**
+ * URL público da plataforma, sem barra final. Mesma ordem que
+ * `lib/runtime-config.ts` usa em runtime: `PUBLIC_APP_URL` é a canónica.
+ *
+ * Devolve `null` quando nenhuma está definida — e nesse caso o output
+ * diz-lo em vez de imprimir um domínio inventado. Foi um domínio
+ * inventado, aqui, que mandou um operador configurar agents contra um
+ * host que já não era o de produção.
+ */
+function publicAppUrl(): string | null {
+  const raw = (process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  return raw ? raw.replace(/\/+$/, "") : null;
+}
+
 function buildReporter(quiet: boolean): Reporter {
   if (quiet) {
     return { step: () => {}, info: () => {}, warn: () => {} };
@@ -83,10 +97,15 @@ function printTextResult(r: CreateClientResult): void {
     console.log(`  1. Comunicar ao admin do cliente:`);
     console.log(`       email: ${r.adminEmail}`);
     console.log(`       password: ${r.adminPassword}  (mudança forçada no primeiro login)`);
-    console.log(`       URL: https://${r.slug}.spharmmt.app  (ou o teu domínio)`);
+    const base = publicAppUrl();
+    console.log(
+      base
+        ? `       URL: ${base}/login?__tenant=${r.slug}`
+        : `       URL: (define PUBLIC_APP_URL para o obter) /login?__tenant=${r.slug}`
+    );
     console.log("");
     console.log(`  2. Configurar o local agent na farmácia (futuro PR 3):`);
-    console.log(`       SPHARMMT_ENDPOINT=https://app.spharmmt.app`);
+    console.log(`       SPHARMMT_ENDPOINT=${base ?? "(define PUBLIC_APP_URL)"}`);
     console.log(`       SPHARMMT_TENANT_SLUG=${r.slug}`);
     console.log(`       SPHARMMT_INGEST_KEY=${r.ingestKey}`);
     console.log("");

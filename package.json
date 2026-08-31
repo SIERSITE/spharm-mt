@@ -98,6 +98,7 @@
     "test:perfis-utilizadores": "tsx scripts/tests/test-perfis-utilizadores.ts",
     "test:password-coerencia": "tsx scripts/tests/test-password-coerencia.ts",
     "test:precedencia-tenant": "tsx scripts/tests/test-precedencia-tenant.ts",
+    "test:agent-endpoint": "node scripts/tests/test-agent-endpoint.mjs",
     "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts"
   },
   "dependencies": {

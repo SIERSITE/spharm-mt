@@ -14,7 +14,7 @@
 | **Acesso ao SQL Server** SPharm | Capaz de abrir SQL Server Management Studio e fazer SELECT na BD |
 | **Permissão para criar login SQL read-only** | Tipicamente é o informático/responsável do ERP. Ver [agent/SECURITY.md §1](SECURITY.md) |
 | **Ingest key** comunicada pelo dev | 64 chars hex, geralmente partilhada via vault (1Password/Bitwarden) ou em chamada |
-| **Acesso internet** para `https://app.spharmmt.app` | `curl -I https://app.spharmmt.app` ou abrir no browser |
+| **Acesso internet** para o endpoint SaaS | `curl -I <endpoint>` ou abrir no browser. O endpoint é o `saas.endpoint` do `agent.config.json` |
 
 Se algum falha, **pára aqui** e resolve antes de continuar.
 
@@ -114,7 +114,7 @@ Preenche **7 campos obrigatórios**:
 
 | Campo | Valor para o piloto demo-neon | Notas |
 |---|---|---|
-| `SPHARMMT_ENDPOINT` | `https://app.spharmmt.app` | Confirma com o dev se o domínio for diferente |
+| `SPHARMMT_ENDPOINT` | o endpoint SaaS da plataforma | Já vem preenchido no `agent.config.json` gerado; confirma com o dev se divergir |
 | `SPHARMMT_TENANT_SLUG` | `demo-neon` | Slug exacto do tenant |
 | `SPHARMMT_INGEST_KEY` | (64 hex chars do dev) | Cola **directamente entre aspas** — não escapar `=` ou outros chars |
 | `SPHARMMT_FARMACIA` | `Farmácia Central` | Nome **exacto** como aparece no painel (case-sensitive na resolução) |
@@ -141,7 +141,7 @@ Saída esperada (verde):
 ─────────────────────────────────────────────────────────────────────
 SPharm.MT agent — test-connection
 ─────────────────────────────────────────────────────────────────────
-  saasEndpoint         https://app.spharmmt.app
+  saasEndpoint         <endpoint configurado>
   tenantSlug           demo-neon
   ingestKey            a*****f
   farmacia             Farmácia Central
@@ -172,7 +172,7 @@ Resultados:
 | `SQL Server SELECT 1 ✗ ECONNREFUSED / ETIMEDOUT` | SQL Server não acessível ou porta errada | Confirma serviço SQL Server a correr + porta TCP/IP habilitada + firewall |
 | `SaaS heartbeat ✗ HTTP 401` | Ingest key inválida | Pede ao dev para rodar com `--rotate` e nova key |
 | `SaaS heartbeat ✗ HTTP 404` | tenantSlug errado | Confirma o slug com o dev |
-| `SaaS heartbeat ✗ falha de rede` | DNS / firewall do servidor | `ping app.spharmmt.app` + `curl -I https://app.spharmmt.app` |
+| `SaaS heartbeat ✗ falha de rede` | DNS / firewall do servidor | `ping <host do endpoint>` + `curl -I <endpoint>` |
 | `SaaS list farmácias ✗ "Farmácia Central" não encontrada` | Nome diferente no painel | Lista exibida no erro mostra os nomes reais — copia exactamente |
 
 **Não avances para o passo 5** até `test-connection` ficar todo verde.

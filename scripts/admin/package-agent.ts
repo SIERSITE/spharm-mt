@@ -16,7 +16,7 @@
  *   npm run admin:package-agent -- \
  *     --tenant farm-pilot-1 \
  *     --farmacia "Farmácia Internacional" \
- *     --endpoint https://app.spharmmt.app
+ *     --endpoint https://app.spharmmt.com
  *
  *   # Variante: usar key existente (e.g. já entregue ao operador)
  *   npm run admin:package-agent -- \
@@ -178,10 +178,23 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const endpoint =
+  // Sem default de domínio. O literal que aqui estava sobreviveu à
+  // mudança de domínio de produção e produzia agents apontados ao sítio
+  // errado sem um único aviso — o erro só aparecia na farmácia, no
+  // primeiro heartbeat.
+  // A ordem é a mesma de lib/admin/ops/agent-package.ts, que já falha
+  // em vez de adivinhar.
+  const endpoint = (
     args.endpoint ??
     process.env.SPHARMMT_PUBLIC_ENDPOINT ??
-    "https://app.spharmmt.app";
+    process.env.PUBLIC_APP_URL ??
+    ""
+  ).trim();
+  if (!endpoint) {
+    console.error("✗ endpoint não configurado.");
+    console.error("  Indica --endpoint=https://… ou define SPHARMMT_PUBLIC_ENDPOINT / PUBLIC_APP_URL.");
+    process.exit(1);
+  }
   if (!/^https?:\/\//.test(endpoint)) {
     console.error(`✗ --endpoint inválido: ${endpoint}`);
     process.exit(1);

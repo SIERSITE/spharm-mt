@@ -240,7 +240,14 @@ async function main() {
     console.log("─".repeat(60));
     console.log(`  Admin email    : ${adminEmail}`);
     console.log(`  Admin password : ${adminPassword}   ← MOSTRADO UMA VEZ`);
-    console.log(`  Subdomain      : ${slug}.spharmmt.app (ou o teu host)`);
+    const baseUrl = (
+      process.env.PUBLIC_APP_URL ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      ""
+    ).trim().replace(/\/+$/, "");
+    console.log(
+      `  Acesso         : ${baseUrl ? `${baseUrl}/login?__tenant=${slug}` : `(define PUBLIC_APP_URL) /login?__tenant=${slug}`}`
+    );
     if (farmaciaInicial && farmaciaInicialId) {
       console.log(`  Farmácia       : ${farmaciaInicial}  (id=${farmaciaInicialId})`);
     }

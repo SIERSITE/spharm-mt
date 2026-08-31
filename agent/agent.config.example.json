@@ -1,7 +1,7 @@
 {
   "_doc": "Template de configuração do SPharm.MT agent. Copia para agent.config.json e edita. NUNCA commitar agent.config.json. Mais detalhes em INSTALL_WINDOWS.md.",
   "saas": {
-    "endpoint": "https://app.spharmmt.app",
+    "endpoint": "{{SAAS_ENDPOINT}}",
     "tenantSlug": "demo-neon",
     "ingestKey": "COLAR_KEY_64_HEX_DO_DEV",
     "farmacia": "Farmácia Central",

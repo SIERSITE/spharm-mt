@@ -74,6 +74,18 @@ function Read-Optional {
   return $null
 }
 
+# URL publico da plataforma, mesma ordem que lib/runtime-config.ts usa em
+# runtime. Substituiu um dominio literal que sobreviveu a mudanca de
+# dominio de producao: o wizard oferecia o antigo como default e o
+# operador aceitava-o sem reparar.
+function Get-PublicAppUrl {
+  foreach ($n in @("PUBLIC_APP_URL", "NEXT_PUBLIC_APP_URL")) {
+    $v = [Environment]::GetEnvironmentVariable($n)
+    if ($v -and $v.Trim() -ne "") { return $v.Trim().TrimEnd("/") }
+  }
+  return $null
+}
+
 function Read-IntInRange {
   param([string]$Prompt, [int]$Min, [int]$Max)
   while ($true) {
@@ -234,8 +246,10 @@ function Op-PackageAgent {
   $tenant = Coalesce $ProvidedTenant (Read-NonEmpty "Slug do grupo")
   $farmacia = Coalesce $ProvidedFarmacia (Read-NonEmpty "Nome exacto da farmacia")
   $endpoint = $ProvidedEndpoint
-  if (-not $endpoint) { $endpoint = Read-Optional "Endpoint SaaS (default https://app.spharmmt.app)" }
-  if (-not $endpoint) { $endpoint = "https://app.spharmmt.app" }
+  $endpointDefault = Get-PublicAppUrl
+  if (-not $endpoint) { $endpoint = Read-Optional "Endpoint SaaS$(if ($endpointDefault) { " (default $endpointDefault)" })" }
+  if (-not $endpoint) { $endpoint = $endpointDefault }
+  if (-not $endpoint) { throw "Endpoint SaaS nao indicado e PUBLIC_APP_URL nao esta definida." }
   $healthcheckUrl = Read-Optional "Healthcheck URL (https://hc-ping.com/<uuid>, opcional mas recomendado)"
 
   $key = $ProvidedKey
@@ -343,8 +357,10 @@ function Op-FullFlow {
   $slug = Read-NonEmpty "Slug do grupo (ex: grupo-pilot)"
   $name = Read-NonEmpty "Nome do grupo"
   $email = Read-NonEmpty "Email do admin"
-  $endpoint = Read-Optional "Endpoint SaaS (default https://app.spharmmt.app)"
-  if (-not $endpoint) { $endpoint = "https://app.spharmmt.app" }
+  $endpointDefault = Get-PublicAppUrl
+  $endpoint = Read-Optional "Endpoint SaaS$(if ($endpointDefault) { " (default $endpointDefault)" })"
+  if (-not $endpoint) { $endpoint = $endpointDefault }
+  if (-not $endpoint) { throw "Endpoint SaaS nao indicado e PUBLIC_APP_URL nao esta definida." }
   $nFarmacias = Read-IntInRange "Quantas farmacias (1-20)" 1 20
 
   $farmaciasPlan = @()

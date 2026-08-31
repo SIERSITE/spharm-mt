@@ -144,7 +144,7 @@ model TenantEvent {
 // Nesta Fase 1 não há UI nem login dedicado para estes admins — só
 // são referenciados em `TenantEvent.actorId` quando um script é
 // corrido pelo CLI. Ficam aqui preparados para a Fase 2 (portal
-// admin.spharmmt.app).
+// admin dedicado).
 //////////////////////////////////////////////////////
 
 model GlobalAdmin {

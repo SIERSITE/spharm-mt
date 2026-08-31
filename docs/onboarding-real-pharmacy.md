@@ -128,7 +128,7 @@ Não é obrigatório mas **fortemente recomendado** em produção.
 npm run admin:package-agent -- \
   --tenant grupo-pilot \
   --farmacia "Farmácia Internacional" \
-  --endpoint https://app.spharmmt.app \
+  --endpoint "$PUBLIC_APP_URL" \
   --healthcheck-url https://hc-ping.com/<uuid-internacional> \
   --rotate
 ```
@@ -207,9 +207,12 @@ Esperado após 1ª daily-pipeline correr:
 - staging UNKNOWN = 0, operational orphans = 0
 
 Em paralelo, abrir no navegador:
-- `https://<slug>.spharmmt.app/admin/pipeline` — última run + métricas
-- `https://<slug>.spharmmt.app/relatorios/vendas-mensais` — totais reais
-- `https://<slug>.spharmmt.app/analise-operacional` — accionáveis
+Não há DNS wildcard: o tenant vai na query e fica em cookie (ver
+`docs/tenant-fallback.md`). Com `$PUBLIC_APP_URL` = `https://app.spharmmt.com`:
+
+- `$PUBLIC_APP_URL/admin/pipeline?__tenant=<slug>` — última run + métricas
+- `$PUBLIC_APP_URL/relatorios/vendas-mensais` — totais reais
+- `$PUBLIC_APP_URL/analise-operacional` — accionáveis
 
 ---
 

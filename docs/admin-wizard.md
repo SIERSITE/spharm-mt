@@ -319,7 +319,7 @@ Gera o pacote ZIP do agent para uma farmácia.
 
 Campos:
 - Farmácia (nome exacto, deve coincidir com o de B)
-- Endpoint SaaS (default `https://app.spharmmt.app`)
+- Endpoint SaaS (default: `PUBLIC_APP_URL` do ambiente; em produção `https://app.spharmmt.com`)
 - Healthcheck URL (opcional, https://hc-ping.com/&lt;uuid&gt;)
 - Ingest key:
   - **Usar key existente** (default) — cola a key actual (não invalida
@@ -377,7 +377,7 @@ Exemplo:
 ```
 2026-05-15 14:32:01 [INFO] wizard arrancado (repo=C:\projetos\spharm-mt)
 2026-05-15 14:33:12 [INFO] npm run --silent tenancy:create -- --slug=novo --name=Novo --admin-email=a@b.pt --provider=neon --json --quiet
-2026-05-15 14:33:38 [INFO] npm run --silent admin:package-agent -- --tenant=novo --farmacia=Farmácia X --endpoint=https://app.spharmmt.app --key=[REDACTED]
+2026-05-15 14:33:38 [INFO] npm run --silent admin:package-agent -- --tenant=novo --farmacia=Farmácia X --endpoint=https://app.spharmmt.com --key=[REDACTED]
 ```
 
 ## Limitações conhecidas

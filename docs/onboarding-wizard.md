@@ -56,7 +56,7 @@ disponível no PATH.
    - Slug do grupo (ex: `farmacia-internacional-1`)
    - Nome do grupo (ex: `Farmácia Internacional, Lda`)
    - Email do admin
-   - Endpoint SaaS (default `https://app.spharmmt.app`)
+   - Endpoint SaaS (default: `PUBLIC_APP_URL` do ambiente; em produção `https://app.spharmmt.com`)
    - Quantas farmácias (1-20)
 2. Para cada farmácia pergunta nome, código ANF e healthcheck URL
 3. Mostra **plano completo** + pede `CONFIRMO`
