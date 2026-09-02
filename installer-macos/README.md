@@ -46,6 +46,31 @@ Verificar antes de distribuir:
 bash installer-macos/tests/test-macos-installer.sh
 ```
 
+## Sem Mac à mão
+
+O workflow **Instalador macOS** (`.github/workflows/macos-installer.yml`)
+constrói o `.pkg` num runner `macos-latest` da GitHub e publica-o como
+artefacto. É o mesmo script deste directório — o runner não tem receita
+própria, para não haver duas verdades sobre como se constrói.
+
+Executar: **Actions → Instalador macOS → Run workflow**. Corre também
+sozinho a cada alteração em `installer-macos/**`.
+
+O `.pkg` fica em **Artifacts**, no fundo da página da execução, com o
+nome `Instalador-SPharmMT-Silveira` (a GitHub embrulha os artefactos num
+`.zip`; o `.pkg` está lá dentro). Guardado 30 dias.
+
+O runner não instala nada: `sips`, `iconutil`, `pkgbuild`,
+`productbuild`, `plutil` e `python3` já lá estão, e os testes não têm
+dependências de `npm`.
+
+Assinatura no CI: sem segredos configurados, sai por assinar. Para
+assinar, definir em *Settings → Secrets and variables → Actions* os três
+— `MACOS_CERT_P12` (o `.p12` em base64), `MACOS_CERT_PASSWORD` e
+`MACOS_SIGN_ID`. O workflow só tenta assinar com os três presentes: com
+a identidade mas sem o certificado no porta-chaves, o `productbuild`
+falharia o build inteiro.
+
 ---
 
 ## Intel e Apple Silicon
@@ -234,6 +259,8 @@ installer-macos/
   src/Info.plist                metadados do bundle
   src/SPharmMT                  o lançador
   tests/test-macos-installer.sh verificações (estáticas + artefactos)
+
+.github/workflows/macos-installer.yml   constrói o .pkg sem Mac à mão
 ```
 
 O `dist-macos/` é gerado e está no `.gitignore`.

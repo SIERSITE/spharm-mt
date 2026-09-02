@@ -173,34 +173,61 @@ fi
 
 echo ""
 echo "=== A7. comportamento do lançador (simulação) ==="
-# O lançador procura em "/Applications" e em "$HOME/Applications". Com um
-# HOME temporário, a segunda base fica sob nosso controlo e o
-# comportamento pode ser exercitado sem macOS: browsers falsos que
-# imprimem os argumentos que receberam.
+# O lançador procura em "/Applications" e em "$HOME/Applications".
+# `$HOME` controla-se; `/Applications` não — e num runner macOS da
+# GitHub o Chrome e o Edge REAIS estão instalados lá. Sem isolar a
+# primeira base, o caso "só Edge instalado" escolheria o Chrome
+# verdadeiro da máquina e falharia por razões alheias ao código.
+#
+# Corre-se por isso uma CÓPIA do lançador com a base de sistema apontada
+# para dentro do temporário. É a substituição de uma cadeia; tudo o resto
+# é o ficheiro real. A verificação logo abaixo garante que a substituição
+# aconteceu — sem ela, o teste passaria a medir a máquina em vez do
+# lançador, e a passar por engano.
 SIM="$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/sim-spharmmt-$$")"
-mkdir -p "$SIM"
+mkdir -p "$SIM/Sistema"
 
-falso() {  # falso <nome>
-  local d="$SIM/Applications/$1.app/Contents/MacOS"
+# O `/usr/bin/open` do ramo de recurso tem o mesmo problema, ao
+# contrário: num Mac EXISTE, e o teste abriria mesmo um browser na
+# máquina de CI. Substituído por um duplo que regista o que recebeu — o
+# que também torna a verificação mais forte: deixa de bastar chegar ao
+# ramo, passa a ser preciso passar-lhe a URL certa.
+LANCADOR_SIM="$SIM/SPharmMT.sim"
+sed -e 's|"/Applications"|"$HOME/Sistema"|'     -e 's|/usr/bin/open|"$HOME/open-falso"|' "$LAUNCHER" > "$LANCADOR_SIM"
+printf '#!/bin/bash
+printf "ABERTO=%%s\n" "$1"
+' > "$SIM/open-falso"
+chmod +x "$SIM/open-falso"
+
+grep -q '"\$HOME/Sistema"' "$LANCADOR_SIM"   && ! grep -q '"/Applications"' "$LANCADOR_SIM"   && ! grep -q '/usr/bin/open' "$LANCADOR_SIM"
+v $? "a simulação isola as bases de procura e o browser predefinido"
+
+falso() {  # falso <base> <nome>
+  local d="$SIM/$1/$2.app/Contents/MacOS"
   mkdir -p "$d"
-  printf '#!/bin/bash\nprintf "ESCOLHIDO=%s\n" "$0"\nfor a in "$@"; do printf "ARG=%%s\n" "$a"; done\n' "$1" > "$d/$1"
-  chmod +x "$d/$1"
+  printf '#!/bin/bash\nprintf "ESCOLHIDO=%s\n" "$0"\nfor a in "$@"; do printf "ARG=%%s\n" "$a"; done\n' "$2" > "$d/$2"
+  chmod +x "$d/$2"
 }
 
-correr() {  # correr -> saida do lancador com HOME=$SIM
-  ( HOME="$SIM" bash "$LAUNCHER" 2>&1 )
+correr() {  # correr -> saida do lancador simulado, com HOME=$SIM
+  ( HOME="$SIM" bash "$LANCADOR_SIM" 2>&1 )
+}
+
+limpar_sim() {
+  rm -rf "$SIM/Sistema" "$SIM/Applications" "$SIM/Library"
+  mkdir -p "$SIM/Sistema"
 }
 
 # --- 1. só Edge ---
-rm -rf "$SIM/Applications" "$SIM/Library"
-falso "Microsoft Edge"
+limpar_sim
+falso Sistema "Microsoft Edge"
 OUT="$(correr)"
 printf '%s' "$OUT" | grep -q 'Microsoft Edge'
 v $? "só Edge instalado → escolhe Edge"
 
 # --- 2. Chrome e Edge: Chrome ganha ---
-rm -rf "$SIM/Applications" "$SIM/Library"
-falso "Microsoft Edge"; falso "Google Chrome"
+limpar_sim
+falso Sistema "Microsoft Edge"; falso Sistema "Google Chrome"
 OUT="$(correr)"
 printf '%s' "$OUT" | grep -q 'Google Chrome'
 v $? "Chrome e Edge instalados → escolhe Chrome"
@@ -234,15 +261,110 @@ else
 fi
 
 # --- 5. sem Chrome nem Edge: browser predefinido ---
-rm -rf "$SIM/Applications" "$SIM/Library"
-mkdir -p "$SIM/Applications"
+limpar_sim
 OUT="$(correr)"
-# Neste sistema /usr/bin/open não existe; o exec falha e nomeia-o. Num
-# Mac existe e abre. Em qualquer dos casos, chegar aqui prova o ramo.
-printf '%s' "$OUT" | grep -qi 'open'
-v $? "sem Chrome nem Edge → recorre a /usr/bin/open"
+printf '%s' "$OUT" | grep -qF "ABERTO=$URL"
+v $? "sem Chrome nem Edge → entrega a URL ao browser predefinido" "$OUT"
 
 rm -rf "$SIM"
+
+echo ""
+echo "=== A8. o workflow do GitHub Actions ==="
+WF="$RAIZ/.github/workflows/macos-installer.yml"
+[ -f "$WF" ]; v $? "existe .github/workflows/macos-installer.yml"
+
+if [ -f "$WF" ]; then
+  grep -q 'workflow_dispatch:' "$WF";           v $? "pode ser executado manualmente"
+  grep -q 'runs-on: macos-latest' "$WF";        v $? "corre em macos-latest"
+  grep -q 'bash installer-macos/build-macos-installer.sh' "$WF"
+  v $? "usa o script de build existente"
+  grep -q 'npm run test:macos-installer' "$WF"; v $? "corre os testes"
+  grep -q 'path: dist-macos/Instalador-SPharmMT-Silveira.pkg' "$WF"
+  v $? "o artefacto vem de dist-macos/"
+  grep -q 'if-no-files-found: error' "$WF"
+  v $? "falha em vez de publicar um artefacto vazio"
+
+  # Nenhum segredo pode viver no ficheiro. As referências a
+  # `secrets.` são ponteiros para o cofre da GitHub, não valores.
+  ! grep -qE 'BEGIN (CERTIFICATE|PRIVATE KEY)|-----BEGIN' "$WF"
+  v $? "sem certificados embutidos"
+  ! grep -qiE '(password|token|secret)[[:space:]]*[:=][[:space:]]*["'"'"'][^$"'"'"']' "$WF"
+  v $? "sem passwords nem tokens literais"
+
+  if [ -n "$PY" ]; then
+    "$PY" - "$WF" <<'PYEOF'
+import sys, re
+# Sem pyyaml garantido, valida-se o que interessa por leitura directa:
+# que cada bloco `run:` é shell sintacticamente plausível não se testa
+# aqui (fá-lo o bash -n no passo seguinte); testa-se a indentação, que é
+# onde os workflows partem em silêncio.
+texto = open(sys.argv[1], encoding="utf-8").read()
+erros = []
+if "\t" in texto:
+    erros.append("contém tabulações (YAML não as aceita para indentar)")
+for n, linha in enumerate(texto.split("\n"), 1):
+    if linha.rstrip() != linha.rstrip("\n") and linha.strip():
+        pass
+if not re.search(r"^on:\s*$", texto, re.M):
+    erros.append("falta o bloco `on:`")
+if erros:
+    print("; ".join(erros)); sys.exit(1)
+sys.exit(0)
+PYEOF
+    v $? "indentação e estrutura básicas"
+  else
+    salta "estrutura do workflow" "sem python"
+  fi
+
+  # Os blocos `run:` correm em bash no runner. Extraí-los e passá-los
+  # pelo `bash -n` apanha aqui o erro de sintaxe que de outra forma só
+  # aparecia a meio de um job.
+  if [ -n "$PY" ]; then
+    TMPWF="$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/wf-$$")"
+    mkdir -p "$TMPWF"
+    "$PY" - "$WF" "$TMPWF" >/dev/null <<'PYEOF'
+import sys, re, os
+texto = open(sys.argv[1], encoding="utf-8").read().split("\n")
+destino = sys.argv[2]
+n = 0
+i = 0
+while i < len(texto):
+    m = re.match(r"^(\s*)run: \|\s*$", texto[i])
+    if m:
+        base = len(m.group(1)) + 2
+        corpo = []
+        i += 1
+        while i < len(texto) and (texto[i].strip() == "" or len(texto[i]) - len(texto[i].lstrip()) >= base):
+            corpo.append(texto[i][base:] if texto[i].strip() else "")
+            i += 1
+        n += 1
+        # As expressões ${{ ... }} são resolvidas pelo Actions antes do
+        # shell as ver; substituem-se por um literal para o bash -n não
+        # tropeçar numa sintaxe que não é dele.
+        texto_corpo = re.sub(r"\$\{\{[^}]*\}\}", "SUBSTITUIDO", "\n".join(corpo))
+        open(os.path.join(destino, f"run{n}.sh"), "w", encoding="utf-8").write(texto_corpo + "\n")
+        continue
+    i += 1
+print(n)
+PYEOF
+    N_BLOCOS="$("$PY" - "$WF" "$TMPWF" <<'PYEOF'
+import sys, re
+texto = open(sys.argv[1], encoding="utf-8").read()
+print(len(re.findall(r"^\s*run: \|\s*$", texto, re.M)))
+PYEOF
+)"
+    [ "${N_BLOCOS:-0}" -ge 3 ]; v $? "encontrou os blocos run:" "n=$N_BLOCOS"
+    MAU=0
+    for r in "$TMPWF"/run*.sh; do
+      [ -f "$r" ] || continue
+      bash -n "$r" 2>/dev/null || MAU=$((MAU+1))
+    done
+    [ "$MAU" -eq 0 ]; v $? "todos os blocos run: são shell válido" "com erro=$MAU"
+    rm -rf "$TMPWF"
+  else
+    salta "sintaxe dos blocos run:" "sem python"
+  fi
+fi
 
 # ═════════════════════════════════════════════════════════════════════
 # B. ARTEFACTOS — só num Mac, depois do build
