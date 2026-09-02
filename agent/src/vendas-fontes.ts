@@ -478,6 +478,17 @@ export const SERIE_CIRCUITO_CREDITO: Readonly<Record<string, SourceNamespace>> =
    * físico. `VCG_1` e `VCC_1` não existem nesta base.
    */
   VCPR: NAMESPACES.VENDAS_CREDITO,
+  /**
+   * Nogueira — factura a crédito, confirmada funcionalmente. 203 linhas
+   * recusadas no dry-run por a série não estar declarada.
+   *
+   * A série NÃO é a mesma em todas as farmácias do grupo: `VCPR` na
+   * Principal, `VCF` aqui. É por isso que o mapa é por série e não uma
+   * regra única — e é por isso que continua a ser fail-closed: a
+   * próxima farmácia trará outra sigla, e o desfecho certo é ela
+   * aparecer no log com o nome dela, não ser adivinhada.
+   */
+  VCF: NAMESPACES.VENDAS_CREDITO,
 };
 
 /**

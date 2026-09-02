@@ -1093,10 +1093,18 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
   eq(namespaceDaSerieCredito("VCG"), null, "…e VCG também");
   eq(namespaceDaSerieCredito(null), null, "…nem uma série nula");
   eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
+  // Quatro na rev86: `VCF` da Nogueira juntou-se à `VCPR` da Principal.
+  // A série de crédito não é a mesma em todas as farmácias do grupo, e é
+  // por isso que isto é um mapa por série e não uma regra única.
   eq(
     Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
-    ["VCC_1", "VCG_1", "VCPR"],
-    "TRÊS séries declaradas, e só três",
+    ["VCC_1", "VCF", "VCG_1", "VCPR"],
+    "QUATRO séries declaradas, e só quatro",
+  );
+  eq(
+    namespaceDaSerieCredito("VCF"),
+    NAMESPACES.VENDAS_CREDITO,
+    "VCF entra pelo crédito, como a VCPR",
   );
   // A VCPR é crédito, não transferência. A distinção não é cosmética:
   // decide a `naturezaVenda` e, com ela, de que lado do interruptor do

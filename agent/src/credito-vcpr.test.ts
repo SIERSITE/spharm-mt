@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 import {
   CLASSIFICACAO,
   NAMESPACES,
+  SERIE_CIRCUITO_CREDITO,
   TIPO_FACTURA_CREDITO_BALCAO,
   classificarDocumento,
   naturezaDe,
@@ -32,11 +33,50 @@ test("VCPR encaminha para VENDAS_CREDITO, e não para transferências", () => {
   assert.equal(naturezaDe(NAMESPACES.VENDAS_CREDITO), "CREDITO");
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// VCF — Nogueira
+//
+// A série de facturação de crédito NÃO é a mesma em todas as farmácias
+// do grupo: `VCPR` na Principal, `VCF` na Nogueira. O mapa é por série
+// exactamente por isso. 203 linhas recusadas no dry-run da Nogueira por
+// a série não estar declarada.
+// ─────────────────────────────────────────────────────────────────────
+
+test("VCF encaminha para VENDAS_CREDITO", () => {
+  assert.equal(namespaceDaSerieCredito("VCF"), NAMESPACES.VENDAS_CREDITO);
+  assert.equal(namespaceDaSerieCredito("vcf"), NAMESPACES.VENDAS_CREDITO, "insensível a maiúsculas");
+  assert.equal(namespaceDaSerieCredito(" VCF "), NAMESPACES.VENDAS_CREDITO, "tolera espaços");
+});
+
+test("VCF e VCPR partilham namespace, natureza e regra", () => {
+  // Duas séries, um circuito. Se alguém as separar, a natureza de uma
+  // delas deixa de ser CREDITO sem que nada mais mude — e o total fica
+  // plausível.
+  assert.equal(namespaceDaSerieCredito("VCF"), namespaceDaSerieCredito("VCPR"));
+  assert.equal(naturezaDe(NAMESPACES.VENDAS_CREDITO), "CREDITO");
+});
+
+test("VCF não é confundida com as séries de transferência", () => {
+  assert.notEqual(namespaceDaSerieCredito("VCF"), NAMESPACES.GUIAS_TRANSFERENCIA);
+  // `VCF` e `VCC_1` diferem em duas letras e vão para circuitos
+  // diferentes. Um `startsWith` em vez do mapa exacto juntava-as.
+  assert.equal(namespaceDaSerieCredito("VCC_1"), NAMESPACES.GUIAS_TRANSFERENCIA);
+  assert.equal(namespaceDaSerieCredito("VC"), null, "um prefixo não basta");
+  assert.equal(namespaceDaSerieCredito("VCF_1"), null, "nem uma variante não medida");
+});
+
 test("as séries de transferência ficam onde estavam", () => {
   // Este trabalho não toca em VCG_1/VCC_1. Se alguém os mudar ao mexer
   // no crédito, falha aqui.
   assert.equal(namespaceDaSerieCredito("VCG_1"), NAMESPACES.GUIAS_TRANSFERENCIA);
   assert.equal(namespaceDaSerieCredito("VCC_1"), NAMESPACES.GUIAS_TRANSFERENCIA);
+});
+
+test("quatro séries declaradas, e só quatro", () => {
+  assert.deepEqual(
+    Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
+    ["VCC_1", "VCF", "VCG_1", "VCPR"],
+  );
 });
 
 test("uma série por declarar continua a ser recusada", () => {
