@@ -100,6 +100,20 @@ export type AgentConfig = {
   sqlPassword: string;
   sqlEncrypt: boolean;
   sqlTrustCert: boolean;
+  /**
+   * Tecto de cada pedido SQL, em milissegundos.
+   *
+   * Era 30 000 fixo no código. Serve bem uma base pequena e é curto
+   * demais numa grande: a leitura de produtos do onboarding histórico
+   * varre `StocksMov` da janela inteira, e há instalações onde isso não
+   * cabe em 30 s. Sem forma de o subir, a única saída era encurtar o
+   * histórico — perder produtos antigos para o import caber no relógio,
+   * que é trocar dados por conveniência.
+   *
+   * Continua a existir um tecto, e de propósito: sem nenhum, uma query
+   * má fica pendurada no ERP da farmácia até alguém reparar.
+   */
+  sqlRequestTimeoutMs: number;
   // Output
   outputDir: string;
   // Outbox / orders export
@@ -243,6 +257,7 @@ function applyJsonConfigIfPresent(): { source: "json" | "env"; path?: string } {
     process.env.ERP_SQLSERVER_ENCRYPT = sqlServer.encrypt ? "1" : "0";
   if (typeof sqlServer.trustServerCertificate === "boolean")
     process.env.ERP_SQLSERVER_TRUST_CERT = sqlServer.trustServerCertificate ? "1" : "0";
+  set("ERP_SQLSERVER_REQUEST_TIMEOUT_MS", sqlServer.requestTimeoutMs);
 
   set("SPHARMMT_AGENT_OUTPUT_DIR", options.outputDir);
   set("SPHARMMT_AGENT_VERSION", options.agentVersion);
@@ -335,6 +350,15 @@ export function loadConfig(scope: Scope): AgentConfig {
   const sqlPort = intEnv("ERP_SQLSERVER_PORT", 1433, 1, 65535);
   const sqlEncrypt = boolEnv("ERP_SQLSERVER_ENCRYPT", false);
   const sqlTrustCert = boolEnv("ERP_SQLSERVER_TRUST_CERT", true);
+  // Chão de 5 s: abaixo disso nem a ligação inicial cabe, e o sintoma
+  // seria um timeout que parece do ERP. Tecto de 30 min: acima disso já
+  // não é uma query lenta, é uma que não vai acabar.
+  const sqlRequestTimeoutMs = intEnv(
+    "ERP_SQLSERVER_REQUEST_TIMEOUT_MS",
+    30_000,
+    5_000,
+    1_800_000,
+  );
 
   const outputDir =
     optionalEnv("SPHARMMT_AGENT_OUTPUT_DIR") ?? path.resolve(process.cwd(), "output");
@@ -428,6 +452,7 @@ export function loadConfig(scope: Scope): AgentConfig {
     sqlPassword,
     sqlEncrypt,
     sqlTrustCert,
+    sqlRequestTimeoutMs,
     outputDir,
     ordersWriteMode,
     ordersInsert,
@@ -493,6 +518,7 @@ export function describeConfig(cfg: AgentConfig): Record<string, string> {
     sqlPassword: cfg.sqlPassword ? "***" : "(unset)",
     sqlEncrypt: String(cfg.sqlEncrypt),
     sqlTrustCert: String(cfg.sqlTrustCert),
+    sqlRequestTimeoutMs: String(cfg.sqlRequestTimeoutMs),
     outputDir: cfg.outputDir,
     agentVersion: cfg.agentVersion,
   };

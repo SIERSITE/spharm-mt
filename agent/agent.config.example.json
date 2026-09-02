@@ -15,7 +15,9 @@
     "user": "spharm_readonly",
     "password": "COLAR_PASSWORD_DO_LOGIN_READONLY",
     "encrypt": false,
-    "trustServerCertificate": true
+    "trustServerCertificate": true,
+    "_requestTimeoutMs_doc": "OPCIONAL. Tecto de cada pedido SQL, em ms. Default 30000. Numa base grande a leitura de produtos do onboarding historico (que varre StocksMov da janela inteira) pode nao caber em 30s — subir aqui em vez de encurtar o historico. Minimo 5000, maximo 1800000.",
+    "requestTimeoutMs": 30000
   },
   "options": {
     "outputDir": "output",

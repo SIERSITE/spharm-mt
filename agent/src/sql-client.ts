@@ -3,8 +3,9 @@
  *
  * Wrapper sobre `mssql` para abrir conexões read-only ao SPharm ERP.
  * Centraliza:
- *  · Construção do ConnectionPool com timeout curto (15s connect, 30s
- *    request — não queremos pendurar o ERP da farmácia)
+ *  · Construção do ConnectionPool com timeout curto (15s connect;
+ *    request configurável em `sqlServer.requestTimeoutMs`, 30s por
+ *    omissão — não queremos pendurar o ERP da farmácia)
  *  · Tipo `SqlPool` exportado para os comandos
  *  · Helper `withPool` que abre/fecha em torno de uma função
  *
@@ -29,7 +30,7 @@ export function openPool(cfg: AgentConfig): SqlPool {
       encrypt: cfg.sqlEncrypt,
       trustServerCertificate: cfg.sqlTrustCert,
       enableArithAbort: true,
-      requestTimeout: 30_000,
+      requestTimeout: cfg.sqlRequestTimeoutMs,
     },
     connectionTimeout: 15_000,
     pool: { max: 2, min: 0, idleTimeoutMillis: 30_000 },
