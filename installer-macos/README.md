@@ -49,27 +49,98 @@ bash installer-macos/tests/test-macos-installer.sh
 ## Sem Mac à mão
 
 O workflow **Instalador macOS** (`.github/workflows/macos-installer.yml`)
-constrói o `.pkg` num runner `macos-latest` da GitHub e publica-o como
-artefacto. É o mesmo script deste directório — o runner não tem receita
-própria, para não haver duas verdades sobre como se constrói.
+constrói, assina, notariza e grampeia o `.pkg` num runner
+`macos-latest`, e só o publica se tudo isso passar. Corre o mesmo script
+deste directório — o runner não tem receita própria, para não haver duas
+verdades sobre como se constrói um instalador.
 
 Executar: **Actions → Instalador macOS → Run workflow**. Corre também
 sozinho a cada alteração em `installer-macos/**`.
 
-O `.pkg` fica em **Artifacts**, no fundo da página da execução, com o
-nome `Instalador-SPharmMT-Silveira` (a GitHub embrulha os artefactos num
-`.zip`; o `.pkg` está lá dentro). Guardado 30 dias.
+O `.pkg` fica em **Artifacts**, com o nome `Instalador-SPharmMT-Silveira`
+(a GitHub embrulha em `.zip`; o `.pkg` está lá dentro). 30 dias.
 
-O runner não instala nada: `sips`, `iconutil`, `pkgbuild`,
-`productbuild`, `plutil` e `python3` já lá estão, e os testes não têm
-dependências de `npm`.
+Sem os segredos da Apple configurados, o workflow **constrói e testa mas
+não publica**. É deliberado: um `.pkg` por assinar com o nome de release
+acabaria, mais dia menos dia, na mão de um cliente. Para uma build
+interna por assinar há o input `publicar_sem_assinatura` na execução
+manual, e o artefacto sai com um nome que o desaconselha.
 
-Assinatura no CI: sem segredos configurados, sai por assinar. Para
-assinar, definir em *Settings → Secrets and variables → Actions* os três
-— `MACOS_CERT_P12` (o `.p12` em base64), `MACOS_CERT_PASSWORD` e
-`MACOS_SIGN_ID`. O workflow só tenta assinar com os três presentes: com
-a identidade mas sem o certificado no porta-chaves, o `productbuild`
-falharia o build inteiro.
+---
+
+## O que a Apple exige, e porquê tudo isso
+
+Para o cliente fazer duplo clique e instalar — sem avisos, sem «clique
+direito → Abrir» — não basta assinar. Desde o macOS 10.15 o Gatekeeper
+exige **assinatura e notarização**. E sem `stapler staple` o Mac do
+cliente tem de ir perguntar à Apple, online, se o pacote é bom: numa
+farmácia com a rede fechada, isso falha. Grampeado, o recibo viaja dentro
+do próprio `.pkg` e a validação é local.
+
+São necessárias **duas identidades**, não uma:
+
+| Certificado | Assina | Porquê |
+|---|---|---|
+| **Developer ID Application** | o `.app` dentro do pacote | A notarização abre o payload. Assinar só o instalador deixa o bundle nu lá dentro e a submissão volta rejeitada — depois de esperar pela fila |
+| **Developer ID Installer** | o `.pkg` | É o que o Gatekeeper verifica ao duplo clique |
+
+Mais uma **App Store Connect API key** para autenticar o `notarytool`.
+Chave de API e não Apple ID + password: não tropeça em 2FA, é revogável
+e tem âmbito próprio.
+
+### Obter na Apple
+
+1. **Apple Developer Program** — 99 USD/ano, conta de organização de
+   preferência. Uma conta individual funciona, mas o nome que aparece ao
+   cliente é o da pessoa.
+2. **Os dois certificados** — em *Certificates, Identifiers & Profiles →
+   Certificates*, criar **Developer ID Application** e **Developer ID
+   Installer**. Instalar ambos no Porta-chaves de um Mac, seleccionar os
+   dois e exportar num único `.p12` com password.
+3. **Chave de API** — em *App Store Connect → Users and Access → Keys →
+   Individual Keys*, criar uma chave com papel **Developer**. Descarregar
+   o `AuthKey_XXXXXXXX.p8` (**só se descarrega uma vez**) e anotar o
+   *Key ID* e o *Issuer ID*.
+
+### Os sete segredos
+
+Em *Settings → Secrets and variables → Actions*:
+
+| Segredo | Conteúdo |
+|---|---|
+| `MACOS_CERT_P12` | o `.p12` com as duas identidades, em base64 |
+| `MACOS_CERT_PASSWORD` | password do `.p12` |
+| `MACOS_SIGN_ID_APP` | `Developer ID Application: Nome (TEAMID)` |
+| `MACOS_SIGN_ID_INSTALLER` | `Developer ID Installer: Nome (TEAMID)` |
+| `APPLE_API_KEY_ID` | Key ID da chave |
+| `APPLE_API_ISSUER_ID` | Issuer ID |
+| `APPLE_API_KEY_P8` | o `AuthKey_*.p8`, em base64 |
+
+Para gerar os base64:
+
+```bash
+base64 -i certificados.p12   | pbcopy     # macOS
+base64 -i AuthKey_XXXXXXXX.p8 | pbcopy
+```
+
+O nome exacto das identidades:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+Nenhum destes valores entra no repositório. O workflow exige **os sete**
+antes de tentar assinar: com metade, o build falharia no
+`productbuild --sign` ou já dentro da fila da Apple, longe da causa.
+
+### O que o workflow verifica antes de publicar
+
+`pkgutil --check-signature` → `notarytool submit --wait` →
+`stapler staple` → `stapler validate` → `pkgutil --check-signature` →
+`spctl --assess --type install`. O último é o veredicto do próprio
+Gatekeeper na mesma máquina: responde a «o cliente vai ver um aviso?»
+antes de o pacote sair de lá. Se a notarização for recusada, o log da
+Apple é obtido e impresso — sem ele fica-se com «Invalid» e mais nada.
 
 ---
 
@@ -154,47 +225,27 @@ A aplicação fica em `/Applications/SPharm.MT.app`.
 
 ---
 
-## Gatekeeper — o que falta para distribuir sem avisos
+## Gatekeeper
 
-O `.pkg` sai **por assinar**. Instala-se e funciona; o que muda é o
-atrito na primeira abertura.
+Com os sete segredos configurados, o `.pkg` que sai do workflow está
+assinado, notarizado e grampeado: **duplo clique, instalar, usar.** Sem
+avisos, e sem depender da rede do cliente para validar.
 
-Um `.pkg` não assinado, **descarregado por browser ou recebido por
-email**, ganha o atributo de quarentena e o Gatekeeper recusa-o com
-_«não pode ser aberto porque é de um programador não identificado»_. O
-utilizador contorna com **clique direito → Abrir → Abrir**, uma vez. Um
-`.pkg` copiado por pen ou por rede local não fica em quarentena e
-instala sem aviso nenhum.
+Sem eles, o workflow não publica instalador nenhum — mas uma build local
+feita à mão (`bash installer-macos/build-macos-installer.sh` sem
+variáveis) sai por assinar. Um `.pkg` não assinado **descarregado por
+browser ou recebido por email** ganha o atributo de quarentena e o
+Gatekeeper recusa-o com _«programador não identificado»_; copiado por pen
+ou rede local não fica em quarentena e instala sem aviso. É a diferença
+entre uma build de teste e um instalador de cliente, e é por isso que a
+publicação está presa ao resultado da notarização.
 
-Para eliminar o atrito de vez são precisas três coisas que hoje não
-existem:
-
-1. **Conta Apple Developer** (99 €/ano) e um certificado
-   **Developer ID Installer**, no Porta-chaves da máquina que constrói.
-2. **Assinar**, passando a identidade ao script:
-
-   ```bash
-   SPHARMMT_SIGN_ID="Developer ID Installer: Nome (TEAMID)" \
-     bash installer-macos/build-macos-installer.sh
-   ```
-
-3. **Notarizar** — submeter o `.pkg` à Apple e grampear o recibo:
-
-   ```bash
-   xcrun notarytool submit dist-macos/Instalador-SPharmMT-Silveira.pkg \
-     --apple-id <email> --team-id <TEAMID> --password <app-specific-password> \
-     --wait
-   xcrun stapler staple dist-macos/Instalador-SPharmMT-Silveira.pkg
-   ```
-
-Sem notarização, assinar sozinho **não** chega desde o macOS 10.15: o
-Gatekeeper continua a avisar. Ou se faz o conjunto, ou se distribui por
-um canal que não põe quarentena.
-
-Verificar o estado de um `.pkg`:
+Confirmar o estado de um `.pkg`:
 
 ```bash
-pkgutil --check-signature dist-macos/Instalador-SPharmMT-Silveira.pkg
+pkgutil --check-signature Instalador-SPharmMT-Silveira.pkg
+xcrun stapler validate    Instalador-SPharmMT-Silveira.pkg
+spctl --assess --type install -vv Instalador-SPharmMT-Silveira.pkg
 ```
 
 ---

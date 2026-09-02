@@ -1,18 +1,38 @@
 name: Instalador macOS
 
-# Constrói o `Instalador-SPharmMT-Silveira.pkg` num runner macOS da
-# GitHub, para deixar de ser preciso ter um Mac à mão.
+# Constrói, assina, notariza e grampeia o
+# `Instalador-SPharmMT-Silveira.pkg` num runner macOS da GitHub.
 #
-# O `pkgbuild`/`productbuild` só existem no macOS: isto não é uma
-# preferência de runner, é a única opção.
+# O objectivo é o que o cliente recebe: um ficheiro, duplo clique,
+# instala. Sem instruções de Gatekeeper, sem «clique direito → Abrir»,
+# sem explicar a ninguém o que é um programador não identificado.
+#
+# Para isso não basta assinar. Desde o macOS 10.15 o Gatekeeper exige
+# assinatura **e** notarização, e sem o `stapler staple` o Mac do cliente
+# precisa de ir à internet perguntar à Apple se o pacote é bom — o que
+# falha numa farmácia com a rede fechada. Grampeado, o recibo viaja
+# dentro do próprio .pkg e a validação é local.
+#
+# São precisas DUAS identidades e uma chave de API:
+#   · Developer ID Application  → assina o .app dentro do pacote
+#   · Developer ID Installer    → assina o .pkg
+#   · App Store Connect API key → autentica a notarização
+#
+# Sem os segredos configurados o workflow continua a construir e a
+# testar — é CI útil — mas NÃO publica o instalador. Um .pkg por assinar
+# com o nome de release acabaria, mais dia menos dia, na mão de um
+# cliente.
 
 on:
-  # Execução manual — Actions → «Instalador macOS» → «Run workflow».
   workflow_dispatch:
+    inputs:
+      publicar_sem_assinatura:
+        description: >-
+          Publicar mesmo sem assinar (só para teste interno; o artefacto
+          sai com nome que o desaconselha)
+        type: boolean
+        default: false
 
-  # E automaticamente quando algo do instalador muda. Um instalador que
-  # só se constrói quando alguém se lembra de o construir passa meses
-  # partido sem ninguém saber.
   push:
     paths:
       - "installer-macos/**"
@@ -22,132 +42,231 @@ on:
       - "installer-macos/**"
       - ".github/workflows/macos-installer.yml"
 
-# Só de leitura: este workflow não escreve no repositório, não publica
-# releases e não toca em ambientes. Constrói e larga um artefacto.
 permissions:
   contents: read
 
-# Uma execução por ramo. Um push em cima de outro cancela a anterior em
-# vez de esperar por um runner macOS, que é o recurso escasso.
 concurrency:
   group: macos-installer-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   construir:
-    name: Construir e verificar o .pkg
+    name: Construir, assinar e notarizar
     runs-on: macos-latest
-    timeout-minutes: 20
+    # A notarização é uma fila do lado da Apple. Costuma responder em
+    # poucos minutos, mas já demorou muito mais em dias maus; 45 minutos
+    # é folga suficiente sem deixar um job pendurado uma hora.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Só é preciso a árvore actual. O histórico não entra em nada
-          # do que este workflow faz.
           fetch-depth: 1
 
-      # Nada a instalar, e vale a pena registar porquê em vez de deixar
-      # a ausência de passos parecer um esquecimento:
-      #
-      #   · `sips`, `iconutil`, `pkgbuild`, `productbuild`, `plutil` e
-      #     `python3` já vêm no runner macOS;
-      #   · `npm run test:macos-installer` chama `bash …`, portanto não
-      #     precisa de `npm ci` — não há dependências para instalar;
-      #   · o lançador é um script de shell, logo não há toolchain de
-      #     compilação nem arquitectura para escolher.
       - name: Registar o ambiente
         run: |
           echo "runner   : $(sw_vers -productName) $(sw_vers -productVersion) ($(uname -m))"
           echo "node     : $(node --version 2>/dev/null || echo 'ausente')"
-          echo "npm      : $(npm --version 2>/dev/null || echo 'ausente')"
           echo "python3  : $(python3 --version 2>&1)"
-          for f in sips iconutil pkgbuild productbuild plutil; do
+          for f in sips iconutil pkgbuild productbuild plutil codesign stapler spctl; do
             printf '%-12s : %s\n' "$f" "$(command -v "$f" || echo 'AUSENTE')"
           done
+          printf '%-12s : %s\n' notarytool "$(xcrun --find notarytool 2>/dev/null || echo 'AUSENTE')"
 
-      # ── Assinatura ───────────────────────────────────────────────────
+      # ── Modo ─────────────────────────────────────────────────────────
       #
-      # Sem segredos configurados, o .pkg sai por assinar — que é o
-      # caminho previsto e o único hoje testado. Com os três segredos
-      # presentes, importa-se o certificado para um porta-chaves
-      # temporário e assina-se.
-      #
-      # Guardado pelos TRÊS de uma vez de propósito: com a identidade mas
-      # sem o certificado no porta-chaves, o `productbuild --sign` falha
-      # o build inteiro. Meia configuração é pior do que nenhuma.
-      #
-      # Nada disto vive no repositório. Para activar, definir em
-      # Settings → Secrets and variables → Actions:
-      #   MACOS_CERT_P12       certificado Developer ID Installer, .p12 em base64
-      #   MACOS_CERT_PASSWORD  password do .p12
-      #   MACOS_SIGN_ID        "Developer ID Installer: Nome (TEAMID)"
-      - name: Preparar assinatura (se houver certificado)
-        id: assinatura
+      # Tudo ou nada, de propósito. Com metade dos segredos o build
+      # falharia lá à frente — no `productbuild --sign` ou já dentro da
+      # fila da Apple — e o erro apareceria longe da causa. Aqui decide-se
+      # uma vez, cedo, e diz-se qual falta.
+      - name: Decidir modo
+        id: modo
         env:
           CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
           CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-          SIGN_ID: ${{ secrets.MACOS_SIGN_ID }}
+          SIGN_APP: ${{ secrets.MACOS_SIGN_ID_APP }}
+          SIGN_INSTALLER: ${{ secrets.MACOS_SIGN_ID_INSTALLER }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           set -euo pipefail
-          if [ -z "${CERT_P12:-}" ] || [ -z "${CERT_PASSWORD:-}" ] || [ -z "${SIGN_ID:-}" ]; then
-            echo "sem certificado configurado — o .pkg sai por assinar"
+          FALTAM=""
+          [ -n "${CERT_P12:-}" ]       || FALTAM="$FALTAM MACOS_CERT_P12"
+          [ -n "${CERT_PASSWORD:-}" ]  || FALTAM="$FALTAM MACOS_CERT_PASSWORD"
+          [ -n "${SIGN_APP:-}" ]       || FALTAM="$FALTAM MACOS_SIGN_ID_APP"
+          [ -n "${SIGN_INSTALLER:-}" ] || FALTAM="$FALTAM MACOS_SIGN_ID_INSTALLER"
+          [ -n "${API_KEY_ID:-}" ]     || FALTAM="$FALTAM APPLE_API_KEY_ID"
+          [ -n "${API_ISSUER_ID:-}" ]  || FALTAM="$FALTAM APPLE_API_ISSUER_ID"
+          [ -n "${API_KEY_P8:-}" ]     || FALTAM="$FALTAM APPLE_API_KEY_P8"
+
+          if [ -z "$FALTAM" ]; then
+            echo "assinar=sim" >> "$GITHUB_OUTPUT"
+            echo "Modo: ASSINADO + NOTARIZADO"
+          else
             echo "assinar=nao" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "Modo: SEM ASSINATURA — segredos em falta:$FALTAM"
+            echo "O build e os testes correm na mesma; o instalador NÃO é publicado."
           fi
+
+      # ── Certificados ─────────────────────────────────────────────────
+      #
+      # Porta-chaves temporário no RUNNER_TEMP, que a GitHub destrói com
+      # a máquina. Nunca no porta-chaves de login: mesmo num runner
+      # efémero, é a diferença entre um segredo com âmbito de job e um
+      # segredo com âmbito de máquina.
+      - name: Importar certificados
+        if: steps.modo.outputs.assinar == 'sim'
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
           CHAVEIRO="$RUNNER_TEMP/spharmmt-signing.keychain-db"
           SENHA="$(uuidgen)"
+          echo "CHAVEIRO=$CHAVEIRO" >> "$GITHUB_ENV"
+
           security create-keychain -p "$SENHA" "$CHAVEIRO"
-          security set-keychain-settings -lut 900 "$CHAVEIRO"
+          # `-lut 3600`: sem isto o porta-chaves fecha-se sozinho a meio
+          # da notarização, e a assinatura seguinte falha por «User
+          # interaction is not allowed» — um erro que não diz o que é.
+          security set-keychain-settings -lut 3600 "$CHAVEIRO"
           security unlock-keychain -p "$SENHA" "$CHAVEIRO"
+
           printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -k "$CHAVEIRO" \
-            -P "$CERT_PASSWORD" -T /usr/bin/productbuild
+          security import "$RUNNER_TEMP/cert.p12" -k "$CHAVEIRO" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+          # Sem esta linha o codesign pede autorização por caixa de
+          # diálogo — que num runner sem ecrã significa bloquear até ao
+          # timeout.
           security set-key-partition-list -S apple-tool:,apple: -s -k "$SENHA" "$CHAVEIRO" >/dev/null
           security list-keychains -d user -s "$CHAVEIRO" $(security list-keychains -d user | tr -d '"')
-          rm -f "$RUNNER_TEMP/cert.p12"
-          echo "certificado importado"
-          echo "assinar=sim" >> "$GITHUB_OUTPUT"
+
+          echo "identidades disponíveis:"
+          security find-identity -v -p codesigning "$CHAVEIRO" | sed 's/^/  /'
 
       - name: Construir o instalador
         env:
-          # Vazio quando não há segredo — e o script trata vazio como
-          # «não assinar», que é o comportamento previsto.
-          SPHARMMT_SIGN_ID: ${{ secrets.MACOS_SIGN_ID }}
+          SPHARMMT_APP_SIGN_ID: ${{ secrets.MACOS_SIGN_ID_APP }}
+          SPHARMMT_SIGN_ID: ${{ secrets.MACOS_SIGN_ID_INSTALLER }}
         run: bash installer-macos/build-macos-installer.sh
 
-      # Depois do build, portanto a camada B do teste (bundle,
-      # permissões, conteúdo do .pkg) corre a sério em vez de saltar.
-      # O `set -e` implícito do runner faz o job falhar se o teste
-      # devolver ≠ 0.
-      - name: Verificar
+      - name: Verificar o bundle e o pacote
         run: npm run test:macos-installer
+
+      # ── Notarização ──────────────────────────────────────────────────
+      #
+      # `--wait` bloqueia até a Apple decidir. Quando rejeita, o
+      # `notarytool log` é a única fonte que diz PORQUÊ — sem isso fica-se
+      # com «Invalid» e nada mais. Por isso é obtido sempre que o estado
+      # não é Accepted, e impresso.
+      - name: Notarizar, grampear e validar
+        if: steps.modo.outputs.assinar == 'sim'
+        env:
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          PKG="dist-macos/Instalador-SPharmMT-Silveira.pkg"
+          P8="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$API_KEY_P8" | base64 --decode > "$P8"
+          chmod 600 "$P8"
+
+          echo "── 1/5 · assinatura do .pkg antes de submeter ──"
+          pkgutil --check-signature "$PKG"
+
+          echo "── 2/5 · submeter à notarização (pode demorar) ──"
+          RESP="$RUNNER_TEMP/notariza.json"
+          set +e
+          xcrun notarytool submit "$PKG" \
+            --key "$P8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID" \
+            --wait --timeout 30m --output-format json > "$RESP"
+          RC=$?
+          set -e
+          cat "$RESP"
+
+          ID="$(python3 -c "import json;print(json.load(open('$RESP')).get('id',''))" 2>/dev/null || true)"
+          ESTADO="$(python3 -c "import json;print(json.load(open('$RESP')).get('status',''))" 2>/dev/null || true)"
+          echo "submissão=$ID estado=$ESTADO rc=$RC"
+
+          if [ "$ESTADO" != "Accepted" ]; then
+            echo "── a notarização NÃO foi aceite; log da Apple ──"
+            [ -n "$ID" ] && xcrun notarytool log "$ID" \
+              --key "$P8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID" || true
+            rm -f "$P8"
+            exit 1
+          fi
+
+          echo "── 3/5 · grampear o recibo ao .pkg ──"
+          xcrun stapler staple "$PKG"
+
+          echo "── 4/5 · validar o grampo (é isto que faz o Mac do cliente decidir offline) ──"
+          xcrun stapler validate "$PKG"
+
+          echo "── 5/5 · assinatura final ──"
+          pkgutil --check-signature "$PKG"
+          # Veredicto do próprio Gatekeeper, na mesma máquina, antes de
+          # o pacote sair daqui. É a resposta à pergunta «o cliente vai
+          # ver um aviso?» — e vale mais do que qualquer inspecção.
+          spctl --assess --type install -vv "$PKG"
+
+          rm -f "$P8"
+          echo "NOTARIZACAO_OK=1" >> "$GITHUB_ENV"
 
       - name: Resumo
         if: always()
         run: |
+          PKG="dist-macos/Instalador-SPharmMT-Silveira.pkg"
           {
             echo "### Instalador macOS"
             echo ""
-            if [ -f dist-macos/Instalador-SPharmMT-Silveira.pkg ]; then
+            if [ -f "$PKG" ]; then
               echo "| | |"
               echo "|---|---|"
-              echo "| PKG | \`$(du -h dist-macos/Instalador-SPharmMT-Silveira.pkg | cut -f1)\` |"
+              echo "| Tamanho | $(du -h "$PKG" | cut -f1) |"
               echo "| URL | \`https://app.spharmmt.com/login?__tenant=silveira\` |"
-              echo "| Assinatura | ${{ steps.assinatura.outputs.assinar == 'sim' && 'assinado' || 'por assinar' }} |"
-              echo "| sha256 | \`$(shasum -a 256 dist-macos/Instalador-SPharmMT-Silveira.pkg | cut -d' ' -f1)\` |"
+              echo "| sha256 | \`$(shasum -a 256 "$PKG" | cut -d' ' -f1)\` |"
+              if [ "${NOTARIZACAO_OK:-}" = "1" ]; then
+                echo "| Estado | **assinado + notarizado + grampeado** — duplo clique e instala |"
+              elif [ "${{ steps.modo.outputs.assinar }}" = "sim" ]; then
+                echo "| Estado | a assinatura ou a notarização falharam — não publicado |"
+              else
+                echo "| Estado | por assinar — segredos da Apple não configurados |"
+              fi
             else
               echo "O .pkg não chegou a ser produzido."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publicar o .pkg
+      # ── Publicação ───────────────────────────────────────────────────
+      #
+      # Só sai daqui um instalador que passou assinatura, notarização,
+      # grampo e as três validações. É a diferença entre o cliente fazer
+      # duplo clique e o cliente receber um telefonema a explicar o
+      # Gatekeeper.
+      - name: Publicar o instalador
+        if: env.NOTARIZACAO_OK == '1'
         uses: actions/upload-artifact@v4
         with:
           name: Instalador-SPharmMT-Silveira
           path: dist-macos/Instalador-SPharmMT-Silveira.pkg
-          # Falhar aqui em vez de publicar um artefacto vazio: um
-          # download que devolve um zip sem nada lá dentro é pior do que
-          # um workflow vermelho.
           if-no-files-found: error
           retention-days: 30
+
+      # Escape hatch explícito para teste interno. Nome diferente, e
+      # escolhido para que ninguém o envie a um cliente por distracção.
+      - name: Publicar build por assinar (teste interno)
+        if: >-
+          env.NOTARIZACAO_OK != '1'
+          && github.event_name == 'workflow_dispatch'
+          && inputs.publicar_sem_assinatura
+        uses: actions/upload-artifact@v4
+        with:
+          name: POR-ASSINAR-NAO-DISTRIBUIR-Instalador-SPharmMT-Silveira
+          path: dist-macos/Instalador-SPharmMT-Silveira.pkg
+          if-no-files-found: error
+          retention-days: 7

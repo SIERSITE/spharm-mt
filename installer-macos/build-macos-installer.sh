@@ -121,6 +121,34 @@ EXEC_DECLARADO="$(plutil -extract CFBundleExecutable raw -o - "$APP/Contents/Inf
 grep -q "$URL_ESPERADA" "$APP/Contents/MacOS/SPharmMT" \
   || erro "o lançador não aponta para $URL_ESPERADA"
 
+# ── 3b. Assinar o bundle (opcional) ──────────────────────────────────
+#
+# ADITIVO: sem `SPHARMMT_APP_SIGN_ID` este bloco não faz nada e o
+# resultado é byte-a-byte o de antes. Nada da lógica que já passou os
+# testes muda.
+#
+# Existe porque a notarização não olha só para o .pkg: a Apple abre o
+# payload e espera que o que lá está dentro venha assinado com Developer
+# ID. Assinar só o instalador deixa o bundle nu lá dentro, e a submissão
+# volta rejeitada — depois de esperar pela fila da Apple, que é o pior
+# sítio para descobrir isto.
+#
+# São por isso DUAS identidades, não uma:
+#   · Developer ID Application  → assina o .app        (aqui)
+#   · Developer ID Installer    → assina o .pkg        (passo 5)
+#
+# `--options runtime` liga o hardened runtime. Num bundle sem Mach-O não
+# muda o que corre, mas é o que a notarização verifica, e um bundle sem
+# essa flag é motivo documentado de rejeição.
+if [ -n "${SPHARMMT_APP_SIGN_ID:-}" ]; then
+  log "a assinar o bundle: $SPHARMMT_APP_SIGN_ID"
+  codesign --force --timestamp --options runtime     --sign "$SPHARMMT_APP_SIGN_ID" "$APP"     || erro "codesign do bundle falhou"
+  codesign --verify --strict --verbose=2 "$APP"     || erro "o bundle não passa a verificação depois de assinado"
+  ASSINATURA_APP="$SPHARMMT_APP_SIGN_ID"
+else
+  ASSINATURA_APP="nenhuma (bundle por assinar)"
+fi
+
 # ── 4. Componente ────────────────────────────────────────────────────
 #
 # `--install-location /Applications` com `--component` faz o .pkg
@@ -178,7 +206,8 @@ log "APP        : $APP"
 log "PKG        : $PKG  ($TAM)"
 log "URL        : $URL_ESPERADA"
 log "bundle id  : $BUNDLE_ID"
-log "assinatura : $ASSINATURA"
+log "assina .app : $ASSINATURA_APP"
+log "assina .pkg : $ASSINATURA"
 log "────────────────────────────────────────────────────────────"
 log ""
 log "Verificar antes de distribuir:"

@@ -364,6 +364,64 @@ PYEOF
   else
     salta "sintaxe dos blocos run:" "sem python"
   fi
+
+  echo ""
+  echo "--- A8b. o percurso completo da Apple ---"
+  # Ordem obrigatória: assinar → notarizar → grampear → validar. Trocar
+  # dois destes produz um .pkg que parece bom aqui e avisa no Mac do
+  # cliente, que é exactamente o que este trabalho veio eliminar.
+  for passo in \
+      'xcrun notarytool submit' \
+      '--wait' \
+      'xcrun stapler staple' \
+      'xcrun stapler validate' \
+      'pkgutil --check-signature' \
+      'spctl --assess --type install'; do
+    grep -qF -- "$passo" "$WF"
+    v $? "executa: $passo"
+  done
+
+  L_SUBMIT="$(grep -nF 'xcrun notarytool submit' "$WF" | head -1 | cut -d: -f1)"
+  L_STAPLE="$(grep -nF 'xcrun stapler staple' "$WF" | head -1 | cut -d: -f1)"
+  L_VALID="$(grep -nF 'xcrun stapler validate' "$WF" | head -1 | cut -d: -f1)"
+  [ -n "$L_SUBMIT" ] && [ -n "$L_STAPLE" ] && [ -n "$L_VALID" ] \
+    && [ "$L_SUBMIT" -lt "$L_STAPLE" ] && [ "$L_STAPLE" -lt "$L_VALID" ]
+  v $? "a ordem é submeter → grampear → validar" "$L_SUBMIT/$L_STAPLE/$L_VALID"
+
+  # Rejeição sem log é um beco sem saída: fica-se com «Invalid» e nada
+  # que diga porquê.
+  grep -qF 'xcrun notarytool log' "$WF"
+  v $? "obtém o log da Apple quando a notarização não é aceite"
+
+  # A publicação do artefacto de release TEM de estar presa ao resultado
+  # da notarização, e não ao facto de o .pkg existir.
+  "$PY" - "$WF" <<'PYEOF'
+import sys, re
+texto = open(sys.argv[1], encoding="utf-8").read()
+# passo cujo artefacto se chama exactamente Instalador-SPharmMT-Silveira
+m = re.search(r"- name: Publicar o instalador\n(.*?)\n\s*- name:", texto, re.S)
+if not m:
+    print("passo de publicação não encontrado"); sys.exit(1)
+bloco = m.group(1)
+if "NOTARIZACAO_OK" not in bloco:
+    print("a publicação não está presa à notarização"); sys.exit(1)
+sys.exit(0)
+PYEOF
+  v $? "só publica o instalador se a notarização passou"
+
+  # As duas identidades. Assinar só o .pkg deixa o bundle nu lá dentro e
+  # a Apple rejeita — depois de esperar pela fila.
+  grep -q 'MACOS_SIGN_ID_APP' "$WF";       v $? "usa Developer ID Application (para o .app)"
+  grep -q 'MACOS_SIGN_ID_INSTALLER' "$WF"; v $? "usa Developer ID Installer (para o .pkg)"
+  grep -q 'SPHARMMT_APP_SIGN_ID' "$BUILD"
+  v $? "o build aceita a identidade do .app"
+  grep -q -- '--options runtime' "$BUILD"
+  v $? "o bundle é assinado com hardened runtime"
+
+  # Tudo-ou-nada: meia configuração falha tarde e longe da causa.
+  grep -q 'Modo: SEM ASSINATURA' "$WF"
+  v $? "decide o modo cedo e diz que segredos faltam"
+
 fi
 
 # ═════════════════════════════════════════════════════════════════════
