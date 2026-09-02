@@ -871,15 +871,21 @@ console.log("\n=== naturezaVenda: dimensão, não classe ===");
   // Os readers de crédito/transferência não existem: os tipos estão
   // vazios e tudo é recusado. Inventar um tipo para "já ficar a
   // funcionar" era repetir o 77, declarado meses sem nunca ter sido visto.
-  // O crédito REAL continua sem tipos declarados: as guias VCG_1 saem
-  // pelo namespace das transferências, e nenhuma instalação confirmou
-  // ainda um documento de crédito verdadeiro.
+  // O crédito REAL deixou de estar vazio na rev84: a Principal
+  // (SPharm_Pais_Moreira) confirmou funcionalmente a série VCPR como
+  // factura a crédito e mediu o tipo 18 — 199 documentos, 331 linhas,
+  // 1076 unidades. O que continua vazio são as classes FIXAS: o 18 é
+  // pelo sinal, porque os documentos anulados chegam em pares +121/−121
+  // que só o sinal separa.
   {
     const ns = NAMESPACES.VENDAS_CREDITO;
-    eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhum tipo de venda declarado`);
+    eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhum tipo de venda de classe fixa`);
     eq(CLASSIFICACAO[ns].reversao.size, 0, `${ns}: nenhuma reversão declarada`);
-    eq(CLASSIFICACAO[ns].peloSinal.size, 0, `${ns}: nenhum tipo pelo sinal`);
-    for (const t of [1, 7, 38, 102, 107]) {
+    eq([...CLASSIFICACAO[ns].peloSinal], [18], `${ns}: só o tipo 18, e pelo sinal`);
+    eq(classificarDocumento(18, ns, 1), "VENDA", `${ns}: 18 positivo é venda`);
+    eq(classificarDocumento(18, ns, -1), "DEVOLUCAO_ANULACAO", `${ns}: 18 negativo é anulação`);
+    eq(classificarDocumento(18, ns, 0), null, `${ns}: 18 a zero é recusado`);
+    for (const t of [1, 4, 7, 38, 102, 107]) {
       eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem evidência`);
     }
   }
@@ -1089,8 +1095,21 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
   eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
   eq(
     Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
-    ["VCC_1", "VCG_1"],
-    "DUAS séries declaradas, e só duas",
+    ["VCC_1", "VCG_1", "VCPR"],
+    "TRÊS séries declaradas, e só três",
+  );
+  // A VCPR é crédito, não transferência. A distinção não é cosmética:
+  // decide a `naturezaVenda` e, com ela, de que lado do interruptor do
+  // relatório a linha cai.
+  eq(
+    namespaceDaSerieCredito("VCPR"),
+    NAMESPACES.VENDAS_CREDITO,
+    "VCPR entra pelo crédito",
+  );
+  eq(
+    namespaceDaSerieCredito("VCG_1"),
+    NAMESPACES.GUIAS_TRANSFERENCIA,
+    "…e as guias ficam onde estavam",
   );
   // O tipo 64 do VOG não é declarado em circuito nenhum. Mesmo que a
   // série passasse, a linha era recusada — duas fechaduras, não uma.
@@ -1345,14 +1364,15 @@ console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
     /listPrimaryKey/.test(probe) && /listColumns/.test(probe),
     "a sonda resolve tudo por metadata",
   );
-  // O crédito real continua fail-closed. As guias já não: o tipo 38 foi
-  // confirmado funcionalmente e reproduz o gate mensal com desvio zero.
+  // O crédito deixou de ser fail-closed na rev84, com evidência medida:
+  // UM tipo, o 18, e pelo sinal. O que o teste guarda agora é que não
+  // entrou mais nenhum por arrasto.
   eq(
     CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].venda.size +
       CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].reversao.size +
       CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].peloSinal.size,
-    0,
-    "VENDAS_CREDITO: nenhum tipo declarado — nada entra por engano",
+    1,
+    "VENDAS_CREDITO: exactamente um tipo declarado",
   );
 }
 

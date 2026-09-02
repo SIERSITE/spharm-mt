@@ -279,10 +279,32 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
   // tipo para "já ficar a funcionar" era repetir exactamente o erro do
   // 77, que esteve declarado durante meses sem nunca ter sido visto num
   // ERP.
+  /**
+   * Venda a crédito — `[Atendimento Credito]`, série `VCPR`.
+   *
+   * Tipo 18, PELO SINAL, e a medição diz porquê. Auditoria da Principal,
+   * 2024-01-01 a 2026-09-01:
+   *
+   *     estado C   175 docs   285 linhas   +1076 unidades
+   *     estado A               23 linhas   +121
+   *                            23 linhas   −121   → saldo 0
+   *
+   * Os documentos anulados chegam em pares simétricos. Com `peloSinal`
+   * as duas metades classificam-se sozinhas — a positiva VENDA, a
+   * negativa DEVOLUCAO_ANULACAO — e anulam-se exactamente, sem que seja
+   * preciso olhar para o estado. Declarar 18 como `venda` faria as 23
+   * negativas somarem; declará-lo como `reversao` faria as 285 positivas
+   * subtrair. Qualquer das duas dá um total plausível e errado.
+   *
+   * Não há gate sobre `Fim Venda` nem sobre o estado, e é deliberado: o
+   * `Fim Venda = 'S'` já foi refutado como classificador duas vezes. O
+   * sinal basta, e a quantidade zero é recusada pelo próprio
+   * `classificarDocumento`.
+   */
   [NAMESPACES.VENDAS_CREDITO]: {
     venda: new Set<number>(),
     reversao: new Set<number>(),
-    peloSinal: new Set<number>(),
+    peloSinal: new Set([18]),
   },
   /**
    * Guias de transferência — `[Atendimento Credito]`, série `VCG_1`.
@@ -393,6 +415,19 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
 export const SERIE_CIRCUITO_CREDITO: Readonly<Record<string, SourceNamespace>> = {
   VCG_1: NAMESPACES.GUIAS_TRANSFERENCIA,
   VCC_1: NAMESPACES.GUIAS_TRANSFERENCIA,
+  /**
+   * Principal (SPharm_Pais_Moreira) — factura a crédito, medida pela
+   * auditoria de 2024-01-01 a 2026-09-01:
+   *
+   *     serie VCPR · Tipo Documento ID 18
+   *     199 documentos · 331 linhas · 1076 unidades líquidas
+   *
+   * É venda a crédito e não guia de transferência, apesar de servir
+   * saída de mercadoria para outras farmácias do grupo: o que a define é
+   * o documento — uma factura, com contraparte e valor — e não o destino
+   * físico. `VCG_1` e `VCC_1` não existem nesta base.
+   */
+  VCPR: NAMESPACES.VENDAS_CREDITO,
 };
 
 /**
