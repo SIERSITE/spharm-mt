@@ -69,6 +69,22 @@ export const NAMESPACES = {
   ATENDIMENTO_DETALHE: "ATENDIMENTO_DETALHE",
   /// `dbo.[Atendimento Susp Detalhe]` — venda suspensa. Série VSG/VSC.
   ATENDIMENTO_SUSP_DETALHE: "ATENDIMENTO_SUSP_DETALHE",
+  /**
+   * `dbo.[Atendimento Detalhe]`, tipo documental 4 — factura a crédito
+   * emitida pelo circuito de balcão.
+   *
+   * A MESMA tabela que `ATENDIMENTO_DETALHE`, e um namespace à parte de
+   * propósito. A natureza deriva do namespace, portanto sem ele estas
+   * linhas contariam como venda normal. E reutilizar `VENDAS_CREDITO`
+   * era pior: passaria a haver duas SEQUÊNCIAS de PK independentes
+   * — `[Atendimento Detalhe]` e `[Atendimento Credito Detalhe]` — sob a
+   * mesma chave `(farmaciaId, sourceNamespace, externalLineId)`. Uma
+   * colisão aí não duplica: sobrescreve em silêncio.
+   *
+   * Aqui a sequência é uma só, partida em dois conjuntos disjuntos pelo
+   * tipo documental. Uma linha é lida uma vez e recebe um namespace.
+   */
+  ATENDIMENTO_DETALHE_CREDITO: "ATENDIMENTO_DETALHE_CREDITO",
   /// Venda a crédito. Reader por construir — ver `NATUREZA_POR_NAMESPACE`.
   VENDAS_CREDITO: "VENDAS_CREDITO",
   /// Guia de transferência entre farmácias. Reader por construir.
@@ -76,6 +92,14 @@ export const NAMESPACES = {
 } as const;
 
 export type SourceNamespace = (typeof NAMESPACES)[keyof typeof NAMESPACES];
+
+/**
+ * O tipo documental que, dentro de `[Atendimento Detalhe]`, é factura a
+ * crédito. Nomeado porque aparece em dois sítios — no encaminhamento e
+ * na classificação — e dois literais iguais mantidos por disciplina é
+ * exactamente como o `Fim Venda = 'S'` acabou em seis ficheiros.
+ */
+export const TIPO_FACTURA_CREDITO_BALCAO = 4;
 
 /**
  * A natureza operacional de uma venda.
@@ -104,6 +128,7 @@ export type NaturezaVenda = "NORMAL" | "CREDITO" | "TRANSFERENCIA";
 export const NATUREZA_POR_NAMESPACE: Record<SourceNamespace, NaturezaVenda> = {
   [NAMESPACES.ATENDIMENTO_DETALHE]: "NORMAL",
   [NAMESPACES.ATENDIMENTO_SUSP_DETALHE]: "NORMAL",
+  [NAMESPACES.ATENDIMENTO_DETALHE_CREDITO]: "CREDITO",
   [NAMESPACES.VENDAS_CREDITO]: "CREDITO",
   [NAMESPACES.GUIAS_TRANSFERENCIA]: "TRANSFERENCIA",
 };
@@ -279,6 +304,31 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
   // tipo para "já ficar a funcionar" era repetir exactamente o erro do
   // 77, que esteve declarado durante meses sem nunca ter sido visto num
   // ERP.
+  /**
+   * Factura a crédito do circuito de balcão — `[Atendimento Detalhe]`,
+   * tipo 4.
+   *
+   * Medição da Principal (SPharm_Pais_Moreira), 2024-01-04 a 2026-08-26:
+   *
+   *     negativas   67 docs   120 linhas   −141 unidades
+   *     positivas    1 doc      3 linhas     +3 unidades  (2025-12-08)
+   *     zero                     0 linhas
+   *
+   * PELO SINAL, e não `reversao` apesar de 120 das 123 linhas serem
+   * negativas: as 3 positivas de 2025-12-08 são um documento real, e
+   * declarar 4 como reversão fá-las-ia subtrair. O inverso — declarar
+   * como venda — faria as 120 negativas somarem. É o mesmo raciocínio
+   * do 107 e do 18, e a razão pela qual o predomínio de um sinal não é
+   * argumento para o fixar.
+   *
+   * Sem gate por `Fim Venda`, que já foi refutado como classificador
+   * duas vezes. O zero é recusado pelo próprio `classificarDocumento`.
+   */
+  [NAMESPACES.ATENDIMENTO_DETALHE_CREDITO]: {
+    venda: new Set<number>(),
+    reversao: new Set<number>(),
+    peloSinal: new Set([TIPO_FACTURA_CREDITO_BALCAO]),
+  },
   /**
    * Venda a crédito — `[Atendimento Credito]`, série `VCPR`.
    *
@@ -1281,10 +1331,17 @@ export function fontesDeVenda(
   credito: SchemaFonteCredito,
 ): FonteVenda[] {
   return [
+    // O circuito de balcão tem DUAS naturezas na mesma tabela: a venda
+    // normal e a factura a crédito (tipo 4). O tipo decide, como a série
+    // decide no circuito de crédito — mesmo mecanismo, mesma razão.
     {
       namespace: NAMESPACES.ATENDIMENTO_DETALHE,
       rotulo: "Atendimento Detalhe",
       fonte: { estado: "PRONTA", sql: sqlAtendimentoDetalhe(at) },
+      namespacePorLinha: (row) =>
+        Number(row.tipoDocumento) === TIPO_FACTURA_CREDITO_BALCAO
+          ? NAMESPACES.ATENDIMENTO_DETALHE_CREDITO
+          : NAMESPACES.ATENDIMENTO_DETALHE,
     },
     {
       namespace: NAMESPACES.ATENDIMENTO_SUSP_DETALHE,

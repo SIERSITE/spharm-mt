@@ -87,12 +87,33 @@ type SaleLinePayload = {
  * table — é forçado a "UNKNOWN" (conservador).
  */
 /**
- * Namespaces aceites. Um valor desconhecido cai para
- * `ATENDIMENTO_DETALHE` em vez de ser gravado: um namespace inventado
- * criaria uma ilha de linhas que nenhuma reconciliacao alcanca.
+ * Namespaces aceites.
+ *
+ * ── PORQUE E QUE O DESCONHECIDO PASSOU A SER REJEITADO ───────────────
+ *
+ * Ate aqui um valor desconhecido caia para `ATENDIMENTO_DETALHE`. A
+ * intencao era boa — evitar uma ilha de linhas que nenhuma
+ * reconciliacao alcanca — mas o efeito era pior do que o problema: um
+ * agent novo que enviasse um circuito ainda nao conhecido do servidor
+ * via as suas linhas gravadas como venda de balcao, com
+ * `naturezaVenda = NORMAL`, e o total ficava plausivel e errado. Sem
+ * erro, sem aviso, sem forma de descobrir depois quais eram.
+ *
+ * Passa a ser rejeitado POR LINHA, com o valor recebido em `errors[]`.
+ * Por linha e nao por lote: um lote inteiro recusado por causa de uma
+ * linha pararia um sync diario por um caso isolado.
+ *
+ * O campo AUSENTE continua a valer `ATENDIMENTO_DETALHE` — e o default
+ * da coluna e o que um payload anterior a esta dimensao produz. Ausente
+ * e desconhecido sao casos diferentes e sao tratados como tal.
  */
 const NAMESPACES_VALIDOS = new Set([
   "ATENDIMENTO_DETALHE",
+  // Mesma tabela que o anterior, tipo documental 4: factura a credito
+  // do balcao. Namespace proprio porque a natureza deriva do namespace,
+  // e porque reutilizar VENDAS_CREDITO poria duas sequencias de PK
+  // independentes sob a mesma chave de identidade.
+  "ATENDIMENTO_DETALHE_CREDITO",
   "ATENDIMENTO_SUSP_DETALHE",
   "VENDAS_CREDITO",
   "GUIAS_TRANSFERENCIA",
@@ -111,6 +132,7 @@ const NAMESPACES_VALIDOS = new Set([
  */
 const NATUREZA_POR_NAMESPACE: Record<string, string> = {
   ATENDIMENTO_DETALHE: "NORMAL",
+  ATENDIMENTO_DETALHE_CREDITO: "CREDITO",
   ATENDIMENTO_SUSP_DETALHE: "NORMAL",
   VENDAS_CREDITO: "CREDITO",
   GUIAS_TRANSFERENCIA: "TRANSFERENCIA",
@@ -269,9 +291,20 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       origemClasse.semDecisao++;
     }
 
-    const ns = NAMESPACES_VALIDOS.has(asStringOrNull(raw.sourceNamespace) ?? "")
-      ? (asStringOrNull(raw.sourceNamespace) as string)
-      : "ATENDIMENTO_DETALHE";
+    // Ausente -> default de compatibilidade. Presente e desconhecido ->
+    // a linha e' rejeitada com o valor recebido, para que se saiba o que
+    // chegou em vez de se descobrir um total errado meses depois.
+    const nsRecebido = asStringOrNull(raw.sourceNamespace);
+    if (nsRecebido !== null && !NAMESPACES_VALIDOS.has(nsRecebido)) {
+      errors.push({
+        index: i,
+        reason: "unknown_source_namespace",
+        externalId: externalSaleLineId,
+        message: `sourceNamespace desconhecido: "${nsRecebido}"`,
+      });
+      continue;
+    }
+    const ns = nsRecebido ?? "ATENDIMENTO_DETALHE";
 
     resolved.push({
       index: i,

@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 import {
   CLASSIFICACAO,
   NAMESPACES,
+  TIPO_FACTURA_CREDITO_BALCAO,
   classificarDocumento,
   naturezaDe,
   namespaceDaSerieCredito,
@@ -99,5 +100,57 @@ test("os outros circuitos ficam intactos", () => {
   const g = CLASSIFICACAO[NAMESPACES.ATENDIMENTO_DETALHE];
   assert.deepEqual([...g.venda].sort((a, b) => a - b), [2, 7]);
   assert.deepEqual([...g.reversao].sort((a, b) => a - b), [27, 104]);
-  assert.equal(classificarDocumento(4, NAMESPACES.ATENDIMENTO_DETALHE, 1), null);
+  assert.equal(
+    classificarDocumento(4, NAMESPACES.ATENDIMENTO_DETALHE, 1),
+    null,
+    "o 4 NAO entra no circuito G — vai pelo namespace de crédito do balcão",
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Tipo 4 — factura a crédito do balcão
+//
+// Medição da Principal (SPharm_Pais_Moreira), 2024-01-04 → 2026-08-26:
+//     negativas   67 docs   120 linhas   −141 unidades
+//     positivas    1 doc      3 linhas     +3 unidades  (2025-12-08)
+//     zero                     0 linhas
+// ─────────────────────────────────────────────────────────────────────
+
+test("o crédito do balcão tem namespace próprio e natureza CREDITO", () => {
+  assert.equal(NAMESPACES.ATENDIMENTO_DETALHE_CREDITO, "ATENDIMENTO_DETALHE_CREDITO");
+  assert.equal(naturezaDe(NAMESPACES.ATENDIMENTO_DETALHE_CREDITO), "CREDITO");
+  // Distinto de VENDAS_CREDITO: as duas sequências de PK não podem
+  // partilhar a chave (farmaciaId, sourceNamespace, externalLineId).
+  assert.notEqual(
+    NAMESPACES.ATENDIMENTO_DETALHE_CREDITO,
+    NAMESPACES.VENDAS_CREDITO,
+    "reutilizar VENDAS_CREDITO permitiria colisão silenciosa de identidade",
+  );
+});
+
+test("tipo 4 classifica-se pelo sinal", () => {
+  const NS = NAMESPACES.ATENDIMENTO_DETALHE_CREDITO;
+  assert.equal(TIPO_FACTURA_CREDITO_BALCAO, 4);
+  // As 3 linhas positivas de 2025-12-08.
+  assert.equal(classificarDocumento(4, NS, 3), "VENDA");
+  // As 120 negativas.
+  assert.equal(classificarDocumento(4, NS, -141), "DEVOLUCAO_ANULACAO");
+  assert.equal(classificarDocumento(4, NS, 0), null);
+  assert.equal(classificarDocumento(4, NS, null), null);
+});
+
+test("o predomínio do negativo não fixa a classe", () => {
+  // 120 negativas contra 3 positivas. Declarar 4 como `reversao` faria
+  // as 3 positivas subtrair; como `venda`, faria as 120 negativas somar.
+  const r = CLASSIFICACAO[NAMESPACES.ATENDIMENTO_DETALHE_CREDITO];
+  assert.deepEqual([...r.peloSinal], [4]);
+  assert.equal(r.venda.size, 0);
+  assert.equal(r.reversao.size, 0);
+});
+
+test("nenhum outro tipo entra no crédito do balcão", () => {
+  const NS = NAMESPACES.ATENDIMENTO_DETALHE_CREDITO;
+  for (const tipo of [2, 7, 18, 27, 38, 102, 104, 107]) {
+    assert.equal(classificarDocumento(tipo, NS, 5), null, `tipo ${tipo} tem de ser recusado`);
+  }
 });

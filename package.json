@@ -60,6 +60,7 @@
     "test:ui-catalogo": "tsx scripts/tests/test-ui-catalogo.ts",
     "test:vendas-periodo": "tsx scripts/tests/test-vendas-periodo.ts",
     "test:vendas-fontes": "tsx scripts/tests/test-vendas-fontes.ts",
+    "test:namespaces-acordo": "tsx scripts/tests/test-namespaces-acordo.ts",
     "test:movimentos-ledger": "tsx scripts/tests/test-movimentos-ledger.ts",
     "test:pipeline-diario": "tsx scripts/tests/test-pipeline-diario.ts",
     "catalog:backfill-utilizacoes": "tsx scripts/catalog-master/backfill-utilizacoes.ts",
