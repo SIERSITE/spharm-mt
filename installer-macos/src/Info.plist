@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- O nome que o Finder, o Dock e o Launchpad mostram. -->
+  <key>CFBundleName</key>
+  <string>SPharm.MT</string>
+  <key>CFBundleDisplayName</key>
+  <string>SPharm.MT</string>
+
+  <!-- Tem de bater certo com Contents/MacOS/SPharmMT. Se divergir, o
+       Finder abre o bundle e não acontece nada — sem erro visível. -->
+  <key>CFBundleExecutable</key>
+  <string>SPharmMT</string>
+
+  <!-- Sem extensão, de propósito: o LaunchServices acrescenta `.icns`.
+       Escrever "SPharmMT.icns" também funciona, mas mistura convenções. -->
+  <key>CFBundleIconFile</key>
+  <string>SPharmMT</string>
+
+  <!-- Identificador por tenant. Um bundle id partilhado entre tenants
+       faria o LaunchServices tratar dois lançadores diferentes como a
+       mesma aplicação, e o segundo a instalar ganhava. -->
+  <key>CFBundleIdentifier</key>
+  <string>com.spharmmt.launcher.silveira</string>
+
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>pt</string>
+
+  <!-- 10.13 é o mais antigo que ainda recebe browsers Chromium
+       actualizados; abaixo disso o lançador abriria um browser que já
+       não consegue autenticar-se contra a plataforma. -->
+  <key>LSMinimumSystemVersion</key>
+  <string>10.13</string>
+
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.business</string>
+
+  <key>NSHighResolutionCapable</key>
+  <true/>
+
+  <!-- O executável é um script de shell, portanto o bundle é
+       independente da arquitectura: corre igual em Intel e em Apple
+       Silicon, sem Rosetta e sem binário universal para manter. -->
+  <key>NSHumanReadableCopyright</key>
+  <string>SPharm.MT</string>
+</dict>
+</plist>

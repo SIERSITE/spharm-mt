@@ -1,0 +1,11 @@
+# O lançador chama-se `SPharmMT`, sem extensão — as aplicações macOS não
+# põem extensão no executável do bundle. A regra `*.sh` da raiz não lhe
+# toca, e sem esta linha caía no `* text=auto`: num checkout Windows com
+# core.autocrlf=true sairia com CRLF, e o macOS responderia a isso com
+# `bad interpreter: /bin/bash^M`.
+#
+# É o mesmo problema que o cabeçalho do .gitattributes da raiz descreve
+# para os scripts de deploy. Aqui a extensão não existe para o apanhar.
+SPharmMT   text eol=lf
+*.sh       text eol=lf
+*.plist    text eol=lf

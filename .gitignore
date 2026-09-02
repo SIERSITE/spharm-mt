@@ -56,3 +56,6 @@ notes/*.final-html.html
 
 # Catalog builder artefacts (cache, checkpoint, logs — regenerable)
 /.catalog-builder
+
+# Artefactos do instalador macOS (gerados por installers/macos/build-macos-installer.sh)
+dist-macos/

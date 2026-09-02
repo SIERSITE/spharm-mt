@@ -99,6 +99,7 @@
     "test:password-coerencia": "tsx scripts/tests/test-password-coerencia.ts",
     "test:precedencia-tenant": "tsx scripts/tests/test-precedencia-tenant.ts",
     "test:agent-endpoint": "node scripts/tests/test-agent-endpoint.mjs",
+    "test:macos-installer": "bash installer-macos/tests/test-macos-installer.sh",
     "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts"
   },
   "dependencies": {

@@ -1,0 +1,110 @@
+#!/bin/bash
+#
+# SPharm.MT — lançador macOS (tenant: silveira)
+#
+# Equivalente do atalho que o instalador Windows cria. Não é uma
+# aplicação: abre a aplicação web num browser Chromium em modo
+# aplicação, com um perfil só dela.
+#
+# Ordem de preferência — a mesma do instalador Windows:
+#   1. Google Chrome
+#   2. Microsoft Edge
+#   3. o browser predefinido do sistema (sem modo aplicação: nenhum
+#      outro browser aceita `--app=`, e forçá-lo abriria uma janela
+#      normal na mesma, com uma linha de comando estranha à mistura)
+#
+# Não instala nada, não sincroniza nada, não conhece ingest keys. O
+# único segredo que existe neste fluxo é a password do utilizador, e
+# essa é escrita na página de login, não aqui.
+#
+# É um script de shell de propósito: torna o bundle independente da
+# arquitectura (Intel e Apple Silicon correm o mesmo ficheiro) e
+# dispensa compilar, assinar e manter um binário universal para fazer
+# aquilo que são seis linhas de lógica.
+
+set -u
+
+URL="https://app.spharmmt.com/login?__tenant=silveira"
+
+# Perfil dedicado. O equivalente do
+# %LOCALAPPDATA%\SPharmMT\ChromeProfile que o instalador Windows usa.
+#
+# Não é cosmético: sem `--user-data-dir` próprio, o Chromium reaproveita
+# a instância já aberta do utilizador, o `--app=` é ignorado, e a sessão
+# do SPharm.MT passa a viver nos cookies do perfil pessoal — onde uma
+# limpeza de dados de navegação a apaga sem aviso.
+PERFIL="$HOME/Library/Application Support/SPharm.MT/BrowserProfile"
+
+# ── Localizar o browser ──────────────────────────────────────────────
+# Procura-se em /Applications e em ~/Applications porque as duas
+# instalações são comuns: a primeira quando foi um administrador a
+# instalar, a segunda quando foi o próprio utilizador sem privilégios.
+localizar() {
+  local nome="$1"
+  local caminho
+  for base in "/Applications" "$HOME/Applications"; do
+    caminho="$base/$nome.app/Contents/MacOS/$nome"
+    if [ -x "$caminho" ]; then
+      printf '%s' "$caminho"
+      return 0
+    fi
+  done
+  return 1
+}
+
+BROWSER=""
+if BROWSER="$(localizar "Google Chrome")"; then
+  :
+elif BROWSER="$(localizar "Microsoft Edge")"; then
+  :
+else
+  BROWSER=""
+fi
+
+# ── Sem Chrome nem Edge: browser predefinido ─────────────────────────
+if [ -z "$BROWSER" ]; then
+  exec /usr/bin/open "$URL"
+fi
+
+# ── Primeira execução: semear as preferências do perfil ──────────────
+#
+# As passwords desligam-se aqui, e não por flag da linha de comandos,
+# porque as flags equivalentes mudaram de nome entre versões do Chromium
+# e falham em silêncio quando deixam de existir. Um ficheiro de
+# preferências no perfil é lido por todas as versões e sobrevive a
+# actualizações do browser.
+if [ ! -d "$PERFIL/Default" ]; then
+  mkdir -p "$PERFIL/Default"
+  cat > "$PERFIL/Default/Preferences" <<'PREFS'
+{
+  "credentials_enable_service": false,
+  "credentials_enable_autosignin": false,
+  "profile": {
+    "password_manager_enabled": false,
+    "password_manager_leak_detection": false
+  },
+  "autofill": {
+    "credit_card_enabled": false,
+    "profile_enabled": false
+  }
+}
+PREFS
+fi
+
+# ── Lançar ───────────────────────────────────────────────────────────
+#
+# `--password-store=basic` evita que o Chromium peça acesso ao Porta-
+# chaves para o "Chrome Safe Storage". Como não se guardam passwords,
+# esse pedido só serviria para o utilizador ter de decidir sobre uma
+# caixa de diálogo que não devia sequer aparecer.
+#
+# `exec` em vez de lançar em segundo plano: sem ele ficava um processo
+# de shell pendurado, e o macOS mostrava o lançador como a correr para
+# sempre.
+exec "$BROWSER" \
+  --app="$URL" \
+  --user-data-dir="$PERFIL" \
+  --password-store=basic \
+  --no-first-run \
+  --no-default-browser-check \
+  --start-maximized
