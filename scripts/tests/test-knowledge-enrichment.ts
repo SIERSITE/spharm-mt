@@ -39,6 +39,8 @@ import {
   precisaVerificacao,
   resolverModelo,
   validarResultado,
+  validarResultadoForma,
+  TAMANHO_LOTE_FORMA,
   type KnowledgeResult,
 } from "../../lib/catalog/knowledge-enrichment";
 import {
@@ -50,6 +52,7 @@ import {
   type Estrato,
 } from "../../lib/catalog/knowledge-enrichment-runner";
 import { agruparFamilias } from "../../lib/catalog/preselection";
+import { normalizarForma } from "../../lib/catalog/formas-farmaceuticas";
 import { readFileSync } from "node:fs";
 import { SOURCE_TIER_RANK } from "../../lib/catalog-types";
 
@@ -685,6 +688,320 @@ console.log("\n=== dry-run é read-only: prova pela volta completa ===");
   check(molhado.length > 0, "com --apply a mesma volta TENTA escrever (o dry-run não estava vazio)");
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// ALVO FORMA — o pedido estreito para quem só precisa da forma
+//
+// Contexto medido (auditoria de 2026-09-03): no backlog que cobre 95% das
+// unidades vendidas, 1 169 de 1 776 produtos têm categoria e subcategoria
+// decididas e falta-lhes só a forma. Até aqui esses produtos derivavam
+// alvo UTILIZACOES, e o esquema desse pedido NÃO tem campo `forma`: a
+// resposta certa era impossível de dar. Estes testes seguram o caminho
+// novo — e, sobretudo, seguram o que ele NÃO pode tocar.
+// ══════════════════════════════════════════════════════════════════════
+
+console.log("\n=== alvo FORMA: derivação ===");
+{
+  check(
+    alvoParaProduto({ subcategoria: "Diabetes", forma: null }) === "FORMA",
+    "classificado e sem forma → alvo FORMA",
+  );
+  check(
+    alvoParaProduto({ subcategoria: "Diabetes", forma: "" }) === "FORMA",
+    "…string vazia conta como sem forma",
+  );
+  check(
+    alvoParaProduto({ subcategoria: "Diabetes", forma: "comprimido" }) === "UTILIZACOES",
+    "classificado e COM forma → continua UTILIZACOES",
+  );
+  check(
+    alvoParaProduto({ subcategoria: null, forma: null }) === "CLASSIFICACAO",
+    "sem subcategoria → CLASSIFICACAO, mesmo sem forma",
+  );
+  check(
+    alvoParaProduto({ subcategoria: "Outros Medicamentos", forma: null }) === "CLASSIFICACAO",
+    "fallback 'Outros …' → CLASSIFICACAO, mesmo sem forma",
+  );
+  // O chamador que NÃO sabe da forma tem de continuar a ver o que via.
+  // Sem esta distinção, todo o código antigo passaria a pedir formas.
+  check(
+    alvoParaProduto({ subcategoria: "Diabetes" }) === "UTILIZACOES",
+    "chamador que não passa `forma` continua a derivar UTILIZACOES (compatibilidade)",
+  );
+}
+
+console.log("\n=== alvo FORMA: validação da resposta ===");
+{
+  const LOTE_F = new Set([1234567]);
+  const cru = (r: Record<string, unknown>) => validarResultadoForma(r, LOTE_F);
+
+  const bom = cru({ cnp: 1234567, forma: "comprimido revestido", confidence: 0.97 });
+  check(bom?.forma === "comprimido revestido", "forma do vocabulário é aceite");
+  check(bom?.alvo === "FORMA", "…e o resultado vem marcado com o alvo");
+  check(bom?.evidenceType === "FORMA_DEDUZIDA", "…com evidência própria");
+  check(bom?.confidenceClinica === 0.97, "…e a confiança entra no campo CLÍNICO");
+  check(bom?.confidence === 0, "…enquanto a confiança de CLASSIFICAÇÃO fica a zero");
+  check(
+    bom?.categoria === null && bom?.subcategoria === null && bom?.productType === null,
+    "…e nem categoria, nem subcategoria, nem productType vêm preenchidos",
+  );
+  check(
+    bom?.dci === null && bom?.codigoATC === null && bom?.dosagem === null && bom?.embalagem === null,
+    "…nem DCI, ATC, dosagem ou embalagem — este pedido não os faz",
+  );
+  check(bom?.utilizacoes.length === 0, "…e a lista de utilizações vem vazia");
+
+  check(
+    cru({ cnp: 1234567, forma: "  COMPRIMIDO REVESTIDO  ", confidence: 0.95 })?.forma === "comprimido revestido",
+    "maiúsculas e espaços são normalizados",
+  );
+  check(
+    cru({ cnp: 1234567, forma: "comprimido para mastigar", confidence: 0.95 })?.forma === "comprimido mastigável",
+    "sinónimo medido é resolvido para o canónico",
+  );
+
+  check(
+    cru({ cnp: 1234567, forma: "pastilha elástica", confidence: 0.99 })?.forma === null,
+    "forma fora do vocabulário fechado é DESCARTADA",
+  );
+  check(cru({ cnp: 1234567, forma: "", confidence: 0.99 })?.forma === null, "forma vazia é null");
+  check(
+    cru({ cnp: 1234567, forma: "pastilha elástica", confidence: 0.99 })?.confidenceClinica === 0,
+    "…e sem forma a confiança cai a zero — não fica uma confiança órfã",
+  );
+  check(
+    cru({ cnp: 7777777, forma: "comprimido", confidence: 0.99 }) === null,
+    "cnp que não estava no lote é recusado (linha alucinada)",
+  );
+  check(
+    normalizarForma("solução oral em gotas") === "gotas orais" && normalizarForma("xarope") === "xarope",
+    "o normalizador é o mesmo dos dois lados",
+  );
+}
+
+console.log("\n=== alvo FORMA: o gate ===");
+{
+  const ATUAL = {
+    categoria: "MEDICAMENTOS",
+    subcategoria: "Diabetes",
+    productType: "MEDICAMENTO",
+    forma: null,
+  };
+  const resultado = (forma: string | null, conf: number): KnowledgeResult => ({
+    cnp: 1234567,
+    productType: null,
+    categoria: null,
+    subcategoria: null,
+    forma,
+    dci: null,
+    codigoATC: null,
+    dosagem: null,
+    embalagem: null,
+    confidenceClinica: conf,
+    utilizacoes: [],
+    confidence: 0,
+    evidenceType: "FORMA_DEDUZIDA",
+    rationale: "",
+    alvo: "FORMA",
+  });
+
+  const aceite = avaliarGate(resultado("comprimido", 0.95), ATUAL);
+  check(aceite.decisao === "APPLY", "forma válida e confiança ≥ limiar → APPLY", aceite.motivo);
+  check(aceite.alvo === "FORMA", "…e o gate reconhece o alvo");
+
+  const fraco = avaliarGate(resultado("comprimido", LIMIAR_CLINICO - 0.01), ATUAL);
+  check(fraco.decisao === "REVIEW", "confiança abaixo do limiar clínico → REVIEW, não escreve", fraco.motivo);
+
+  const vazio = avaliarGate(resultado(null, 0.99), ATUAL);
+  check(vazio.decisao === "SKIP", "forma vazia → SKIP, por muito confiante que venha", vazio.motivo);
+
+  // Fora do vocabulário nunca chega aqui (o validador já o anula), mas o
+  // gate tem de segurar na mesma: duas fechaduras, não uma.
+  const inventado = avaliarGate(resultado("pastilha elástica", 0.99), ATUAL);
+  check(inventado.decisao === "SKIP", "forma fora do vocabulário → SKIP também no gate", inventado.motivo);
+
+  const intruso = avaliarGate({ ...resultado("comprimido", 0.99), evidenceType: "MARCA_CONHECIDA" }, ATUAL);
+  check(
+    intruso.decisao === "SKIP",
+    "resultado que não veio do pedido de forma não escreve forma por aqui",
+    intruso.motivo,
+  );
+
+  check(aceite.gravarCategoria === false, "APPLY de forma NUNCA grava categoria");
+  check(aceite.gravarProductType === false, "…nem productType");
+  check(aceite.utilizacoes.length === 0, "…nem utilizações");
+  const forcado = avaliarGate(
+    { ...resultado("comprimido", 0.99), categoria: "DERMOCOSMÉTICA", subcategoria: "Rosto" },
+    ATUAL,
+  );
+  check(forcado.gravarCategoria === false, "…mesmo que o resultado traga categoria, o alvo FORMA não a grava");
+
+  check(precisaVerificacao(resultado("comprimido", 0.99)) === false, "resultado de FORMA não pede verificação");
+  check(
+    precisaVerificacao({ ...resultado("comprimido", 0.99), categoria: "MEDICAMENTOS" }) === false,
+    "…nem quando traz categoria MEDICAMENTOS — o alvo decide primeiro",
+  );
+  check(
+    precisaVerificacao({
+      ...resultado("comprimido", 0.99),
+      alvo: "CLASSIFICACAO",
+      categoria: "MEDICAMENTOS",
+    }) === true,
+    "…e a guarda é mesmo do alvo (sem ele, MEDICAMENTOS continua a exigir verificação)",
+  );
+}
+
+console.log("\n=== alvo FORMA: comportamento antigo intacto ===");
+{
+  const R: KnowledgeResult = {
+    cnp: 1234567,
+    productType: "MEDICAMENTO",
+    categoria: "MEDICAMENTOS",
+    subcategoria: "Diabetes",
+    forma: null,
+    dci: null,
+    codigoATC: null,
+    dosagem: null,
+    embalagem: null,
+    confidenceClinica: 0,
+    utilizacoes: ["diabetes"],
+    confidence: 0.95,
+    evidenceType: "MARCA_CONHECIDA",
+    rationale: "Ozempic é semaglutido",
+  };
+  const classifica = avaliarGate(R, { categoria: null, subcategoria: null, productType: null });
+  check(
+    classifica.decisao === "APPLY" && classifica.gravarCategoria,
+    "classificação continua a escrever como antes",
+  );
+  const utiliza = avaliarGate(R, {
+    categoria: "MEDICAMENTOS",
+    subcategoria: "Diabetes",
+    productType: "MEDICAMENTO",
+    forma: "comprimido",
+  });
+  check(
+    utiliza.alvo === "UTILIZACOES" && utiliza.decisao === "APPLY" && !utiliza.gravarCategoria,
+    "utilizações continuam a escrever como antes, sem tocar na classificação",
+  );
+  check(
+    EVIDENCIA_PERMITIDA.has("MARCA_CONHECIDA") && !EVIDENCIA_PERMITIDA.has("FORMA_DEDUZIDA"),
+    "FORMA_DEDUZIDA não entrou na lista que autoriza escrita de categoria",
+  );
+}
+
+console.log("\n=== alvo FORMA: no runner (lote de 50, sem segunda passagem) ===");
+{
+  // 60 produtos com N2 específica e SEM forma. Chegam todos ao alvo
+  // FORMA, e o que se mede é como são partidos e quantas chamadas custam.
+  const N = 60;
+  const BASE = 6_000_000;
+  const prisma = {
+    $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      if (ehQueryContexto(sql)) return CONTEXTO;
+      if (/from "Classificacao"/i.test(sql)) return [];
+      if (/from "Utilizacao"/i.test(sql)) return [];
+      if (/count\(\*\)/i.test(sql)) return [{ n: N }];
+      const limite = Number(params[3] ?? 0);
+      const cursor = Number(params[4] ?? 0);
+      return Array.from({ length: N }, (_, i) => BASE + i)
+        .filter((cnp) => cnp > cursor)
+        .slice(0, limite)
+        .map((cnp) => ({
+          cnp,
+          designacao: `Zeta${cnp}`,
+          productType: null,
+          categoriaAtual: "MEDICAMENTOS",
+          subcategoriaAtual: "Diabetes",
+          formaAtual: null,
+          estrato: "SEM_UTILIZACOES" as const,
+        }));
+    },
+    $executeRawUnsafe: async () => 0,
+    knowledgeEnrichmentCache: { upsert: async () => ({}) },
+  };
+
+  // Cobertura de "Diabetes" alta, para a pré-selecção não excluir nada
+  // por baixa cobertura — este teste é sobre lotes, não sobre exclusões.
+  CONTEXTO = [
+    ...contextoNeutro(Array.from({ length: N }, (_, i) => BASE + i), "Diabetes").map((c) => ({ ...c, utilizacoes: [] })),
+    ...contextoNeutro(Array.from({ length: N }, (_, i) => 9_500_000 + i), "Diabetes"),
+  ];
+
+  const tamanhos: number[] = [];
+  const chamados = { classificacao: 0, utilizacoes: 0, verificacao: 0 };
+  const respostaForma = async (produtos: { cnp: number }[]) => {
+    tamanhos.push(produtos.length);
+    return {
+      resultados: produtos.map((p) => ({
+        ...base,
+        cnp: p.cnp,
+        alvo: "FORMA" as const,
+        categoria: null,
+        subcategoria: null,
+        productType: null,
+        utilizacoes: [],
+        confidence: 0,
+        confidenceClinica: 0.97,
+        forma: "comprimido",
+        evidenceType: "FORMA_DEDUZIDA" as const,
+        rationale: "",
+      })),
+      usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    };
+  };
+  const naoDevia = (qual: keyof typeof chamados) => async (produtos: { cnp: number }[]) => {
+    chamados[qual] += 1;
+    return {
+      resultados: produtos.map((p) => ({ ...base, cnp: p.cnp })),
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    };
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = await runKnowledgeEnrichment(prisma as any, {
+    dryRun: true,
+    usarGlobal: false,
+    limite: N,
+    classificarForma: respostaForma,
+    classificar: naoDevia("classificacao"),
+    classificarUtilizacoes: naoDevia("utilizacoes"),
+    verificar: naoDevia("verificacao"),
+  });
+
+  check(TAMANHO_LOTE_FORMA === 50, `o lote de FORMA é 50 (${TAMANHO_LOTE_FORMA})`);
+  check(tamanhos.length > 0, "o pedido de FORMA foi mesmo usado", `lotes=${tamanhos.join(",")}`);
+  check(
+    tamanhos.every((t) => t <= TAMANHO_LOTE_FORMA),
+    `nenhum lote passa dos ${TAMANHO_LOTE_FORMA}`,
+    `lotes=${tamanhos.join(",")}`,
+  );
+  check(
+    tamanhos[0] === TAMANHO_LOTE_FORMA,
+    `o primeiro lote leva os ${TAMANHO_LOTE_FORMA} — não fica pelos 25 do outro pedido`,
+    `lotes=${tamanhos.join(",")}`,
+  );
+  check(
+    tamanhos.reduce((a, b) => a + b, 0) === N,
+    `os ${N} produtos foram todos enviados`,
+    `lotes=${tamanhos.join(",")}`,
+  );
+
+  // 7 (ao nível do runner): a segunda passagem NÃO acontece.
+  check(
+    r.chamadasVerificacao === 0,
+    `FORMA não faz segunda passagem (chamadasVerificacao=${r.chamadasVerificacao})`,
+  );
+  check(
+    chamados.verificacao === 0 && chamados.classificacao === 0 && chamados.utilizacoes === 0,
+    "…e nem o pedido de classificação nem o de utilizações foram chamados",
+    JSON.stringify(chamados),
+  );
+  check(
+    r.chamadasProposta === tamanhos.length,
+    `uma chamada por lote e mais nenhuma (propostas=${r.chamadasProposta}, lotes=${tamanhos.length})`,
+  );
+}
+
 console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
 {
   /**
@@ -952,6 +1269,12 @@ console.log("\n=== métricas e projecção por estrato ===");
         // de utilizações.
         subcategoriaAtual: est === "SEM_UTILIZACOES" ? "Diabetes"
           : est === "OUTROS_MEDICAMENTOS" ? "Outros Medicamentos" : null,
+        // COM forma, de proposito. Este teste e' sobre o custo do pedido
+        // de UTILIZACOES, e desde o alvo FORMA um produto especifico SEM
+        // forma deixa de ir por ai' — vai pedir a forma primeiro. Sem
+        // esta linha o fixture media outro caminho e dizia que o de
+        // utilizacoes tinha parado de escrever.
+        formaAtual: est === "SEM_UTILIZACOES" ? "comprimido" : null,
         estrato: est,
       }));
     },

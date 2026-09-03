@@ -33,6 +33,7 @@ import {
   KNOWLEDGE_VERSION,
   LIMIAR_CLINICO,
   TAMANHO_LOTE,
+  TAMANHO_LOTE_FORMA,
   alvoParaProduto,
   avaliarGate,
   chaveCache,
@@ -40,6 +41,7 @@ import {
   classificarUtilizacoesLote,
   compararPassagens,
   precisaVerificacao,
+  classificarFormaLote,
   verificarLote,
   verificarUtilizacoesLote,
   type AlvoPedido,
@@ -217,6 +219,7 @@ function sqlResidual(estrato?: Estrato, apenasFila = false, comCursor = false): 
            p."productType",
            c1.nome as "categoriaAtual",
            c2.nome as "subcategoriaAtual",
+           p."formaFarmaceutica" as "formaAtual",
            case
              when p."classificacaoNivel2Id" is null then 'NAO_CLASSIFICADO'
              when c2.nome ilike 'Outros %'          then 'OUTROS_MEDICAMENTOS'
@@ -448,9 +451,9 @@ export type RunnerResumo = {
 };
 
 /** Preço do claude-opus-5 por milhão de tokens (Junho 2026). */
-const USD_POR_MTOK = { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 };
+export const USD_POR_MTOK = { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 };
 
-function estimarCusto(u: RunnerResumo["usage"]): number {
+export function estimarCusto(u: RunnerResumo["usage"]): number {
   return (
     (u.inputTokens * USD_POR_MTOK.input +
       u.outputTokens * USD_POR_MTOK.output +
@@ -892,6 +895,7 @@ export async function runKnowledgeEnrichment(
      * Em produção ficam por omissão.
      */
     classificar?: typeof classificarLote;
+    classificarForma?: typeof classificarFormaLote;
     verificar?: typeof verificarLote;
     classificarUtilizacoes?: typeof classificarUtilizacoesLote;
     verificarUtilizacoes?: typeof verificarUtilizacoesLote;
@@ -925,6 +929,7 @@ export async function runKnowledgeEnrichment(
 
   const dryRun = opts.dryRun ?? false;
   const classificar = opts.classificar ?? classificarLote;
+  const classificarForma = opts.classificarForma ?? classificarFormaLote;
   const verificar = opts.verificar ?? verificarLote;
   // Quem injecta só `classificar` num teste continua a ter um duplo para
   // o caminho de utilizações — senão o teste tocaria a rede.
@@ -1658,7 +1663,25 @@ export async function runKnowledgeEnrichment(
   }
   const lotes: LinhaResidual[][] = [];
   for (const fila of porEstratoFila.values()) {
-    for (let i = 0; i < fila.length; i += TAMANHO_LOTE) lotes.push(fila.slice(i, i + TAMANHO_LOTE));
+    // Agrupar por ALVO dentro do estrato, e nao so' por estrato.
+    //
+    // Ate' aqui estrato e alvo eram a mesma coisa e o codigo dizia-o:
+    // «num lote homogeneo sao a mesma coisa». Deixaram de ser. Dentro de
+    // SEM_UTILIZACOES ha' agora produtos com forma (alvo UTILIZACOES) e
+    // sem forma (alvo FORMA), e um lote misto mandaria metade deles ao
+    // prompt errado — e, pior, ao prefixo de cache errado, pagando a
+    // escrita de cache a cada alternancia.
+    const porAlvo = new Map<AlvoPedido, LinhaResidual[]>();
+    for (const l of fila) {
+      const alvo = alvoParaProduto({ subcategoria: l.subcategoriaAtual, forma: l.formaAtual ?? null });
+      const g = porAlvo.get(alvo) ?? [];
+      g.push(l);
+      porAlvo.set(alvo, g);
+    }
+    for (const [alvo, grupo] of porAlvo) {
+      const tamanho = alvo === "FORMA" ? TAMANHO_LOTE_FORMA : TAMANHO_LOTE;
+      for (let i = 0; i < grupo.length; i += tamanho) lotes.push(grupo.slice(i, i + tamanho));
+    }
   }
 
   let processados = 0;
@@ -1674,7 +1697,10 @@ export async function runKnowledgeEnrichment(
     const m = metrica(estratoLote);
     // O alvo é do produto, não do estrato — mas num lote homogéneo são a
     // mesma coisa, e é o do produto que o gate vai voltar a derivar.
-    const alvo = alvoParaProduto({ subcategoria: lote[0]!.subcategoriaAtual });
+    const alvo = alvoParaProduto({
+      subcategoria: lote[0]!.subcategoriaAtual,
+      forma: lote[0]!.formaAtual ?? null,
+    });
 
     const somaLocal = (u: RunnerResumo["usage"]) => {
       somaUsage(u);
@@ -1686,7 +1712,12 @@ export async function runKnowledgeEnrichment(
     };
 
     // ── Passagem 1: proposta ────────────────────────────────────────
-    const p1 = alvo === "UTILIZACOES" ? await classificarUtil(lote) : await classificar(lote);
+    const p1 =
+      alvo === "FORMA"
+        ? await classificarForma(lote)
+        : alvo === "UTILIZACOES"
+        ? await classificarUtil(lote)
+        : await classificar(lote);
     resumo.chamadasProposta++;
     m.chamadasProposta++;
     somaLocal(p1.usage);
@@ -1735,7 +1766,12 @@ export async function runKnowledgeEnrichment(
 
       const gate = avaliarGate(
         r,
-        { categoria: p.categoriaAtual, subcategoria: p.subcategoriaAtual, productType: p.productType },
+        {
+          categoria: p.categoriaAtual,
+          subcategoria: p.subcategoriaAtual,
+          productType: p.productType,
+          forma: p.formaAtual ?? null,
+        },
         { concorda: comparacao.concorda, aplicavel: exigeVerificacao },
       );
 

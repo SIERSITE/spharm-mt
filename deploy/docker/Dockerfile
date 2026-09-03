@@ -265,6 +265,7 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/audit-knowledge-preselection.ts \
      scripts/catalog-master/project-global-catalog.ts \
      scripts/catalog-master/bootstrap-global-catalog.ts \
+     scripts/catalog-master/forma-canary.ts \
      scripts/catalog-master/promote-global-knowledge.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts

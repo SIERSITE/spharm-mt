@@ -366,6 +366,7 @@ export const LIMIAR_CLINICO = 0.9;
 // para dentro do control plane.
 export { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
 import { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
+import { construirVocabularioFormas, ehFormaCanonica, normalizarForma } from "./formas-farmaceuticas";
 
 /**
  * Produtos por chamada. 25 mantém o pedido pequeno o suficiente para o
@@ -385,7 +386,30 @@ export type EvidenceType =
   /** Categoria de produto evidente (não é marca nem substância). */
   | "CATEGORIA_PRODUTO"
   /** Sem reconhecimento — não classificar. */
-  | "DESCONHECIDO";
+  | "DESCONHECIDO"
+  /**
+   * Forma farmacêutica lida da designação, no pedido `FORMA`.
+   *
+   * NÃO entra em `EVIDENCIA_PERMITIDA`, e é deliberado: este valor nunca
+   * pode autorizar a escrita de uma categoria. Serve ao gate para saber
+   * que o resultado veio do pedido estreito — e impede que uma proposta
+   * de classificação entre no caminho da forma disfarçada de forma.
+   */
+  | "FORMA_DEDUZIDA";
+
+/**
+ * As evidencias que o pedido de CLASSIFICACAO pode devolver.
+ *
+ * `FORMA_DEDUZIDA` esta' de fora de proposito: nao e' um valor que o
+ * classificador possa emitir, e um resultado que o trouxesse seria uma
+ * resposta do pedido errado. Fica `DESCONHECIDO`, e o gate recusa.
+ */
+const EVIDENCIAS_DO_CLASSIFICADOR: readonly EvidenceType[] = [
+  "MARCA_CONHECIDA",
+  "SUBSTANCIA_CONHECIDA",
+  "CATEGORIA_PRODUTO",
+  "DESCONHECIDO",
+];
 
 export type KnowledgeResult = {
   cnp: number;
@@ -439,6 +463,12 @@ export type ProdutoResidual = {
   productType: string | null;
   categoriaAtual: string | null;
   subcategoriaAtual: string | null;
+  /**
+   * `Produto.formaFarmaceutica`. Opcional para não partir os chamadores
+   * antigos: ausente lê-se como «não sei», e `alvoParaProduto` só escolhe
+   * FORMA quando a ausência é FACTO — o campo presente e nulo.
+   */
+  formaAtual?: string | null;
 };
 
 // ─── Esquema para structured outputs ──────────────────────────────────
@@ -513,7 +543,18 @@ export type AlvoPedido =
   /** Sem classificação ou em "Outros <X>": classificação + utilizações. */
   | "CLASSIFICACAO"
   /** Já tem N2 específica: só utilizações. A classificação não se toca. */
-  | "UTILIZACOES";
+  | "UTILIZACOES"
+  /**
+   * Já tem N2 específica e NÃO tem forma: só a forma farmacêutica.
+   *
+   * O mesmo raciocínio que criou o alvo UTILIZACOES, aplicado ao campo
+   * que sobrou. A auditoria de 2026-09-03 mediu-o: no backlog que cobre
+   * 95% das unidades vendidas, 1 169 de 1 776 produtos têm categoria e
+   * subcategoria decididas e falta-lhes só a forma. A esses pedia-se —
+   * até aqui — utilizações, num esquema que nem sequer tem campo
+   * `forma`: a resposta certa era impossível de dar.
+   */
+  | "FORMA";
 
 /**
  * Deriva o alvo do ESTADO DO PRODUTO, não do estrato da consulta.
@@ -523,9 +564,24 @@ export type AlvoPedido =
  * impede o alvo e o gate de discordarem: se discordassem, voltaríamos a
  * pedir o que não se pode aplicar.
  */
-export function alvoParaProduto(atual: { subcategoria: string | null }): AlvoPedido {
+export function alvoParaProduto(atual: {
+  subcategoria: string | null;
+  /** Ausente = desconhecido, e o alvo não muda. Presente e nulo = falta. */
+  forma?: string | null;
+}): AlvoPedido {
   const especifica = !!atual.subcategoria && !/^outros\b/i.test(atual.subcategoria);
-  return especifica ? "UTILIZACOES" : "CLASSIFICACAO";
+  if (!especifica) return "CLASSIFICACAO";
+  // A forma vem antes das utilizações porque é o campo que fecha a
+  // definição de completo (categoria + subcategoria + forma). Um produto
+  // a que faltem as duas coisas apanha a forma nesta corrida e as
+  // utilizações na seguinte — assim que a forma estiver escrita, este
+  // ramo deixa de disparar. Duas corridas, nenhuma pergunta desperdiçada.
+  //
+  // `"forma" in atual` e não `!atual.forma`: um chamador que não sabe da
+  // forma não pode ser tratado como um produto que não a tem. O primeiro
+  // continua a ir para UTILIZACOES, exactamente como antes.
+  const faltaForma = "forma" in atual && !atual.forma;
+  return faltaForma ? "FORMA" : "UTILIZACOES";
 }
 
 // ─── Prompt ───────────────────────────────────────────────────────────
@@ -691,9 +747,7 @@ export function validarResultadoUtilizacoes(
   if (!Number.isFinite(cnp) || !cnpsEsperados.has(cnp)) return null;
 
   const confidence = typeof r.confidence === "number" ? r.confidence : 0;
-  const evidenceType = (
-    ["MARCA_CONHECIDA", "SUBSTANCIA_CONHECIDA", "CATEGORIA_PRODUTO", "DESCONHECIDO"] as const
-  ).includes(r.evidenceType as EvidenceType)
+  const evidenceType = EVIDENCIAS_DO_CLASSIFICADOR.includes(r.evidenceType as EvidenceType)
     ? (r.evidenceType as EvidenceType)
     : "DESCONHECIDO";
 
@@ -766,9 +820,7 @@ export function validarResultado(
   if (!Number.isFinite(cnp) || !cnpsEsperados.has(cnp)) return null;
 
   const confidence = typeof r.confidence === "number" ? r.confidence : 0;
-  const evidenceType = (
-    ["MARCA_CONHECIDA", "SUBSTANCIA_CONHECIDA", "CATEGORIA_PRODUTO", "DESCONHECIDO"] as const
-  ).includes(r.evidenceType as EvidenceType)
+  const evidenceType = EVIDENCIAS_DO_CLASSIFICADOR.includes(r.evidenceType as EvidenceType)
     ? (r.evidenceType as EvidenceType)
     : "DESCONHECIDO";
 
@@ -1020,6 +1072,181 @@ export async function classificarLote(
   return { resultados, usage: usageDe(resposta) };
 }
 
+// ─── Pedido só de FORMA ───────────────────────────────────────────────
+
+/**
+ * Produtos por chamada no pedido de forma. 50 e não 25: a resposta por
+ * produto são três campos — cnp, forma, confiança — contra os catorze do
+ * pedido completo, e o prefixo é uma lista de 66 linhas em vez da
+ * taxonomia inteira. O lote maior amortiza melhor o que resta.
+ */
+export const TAMANHO_LOTE_FORMA = 50;
+
+/**
+ * O prompt mínimo.
+ *
+ * O que NÃO está aqui é o ponto: sem taxonomia de categorias, sem
+ * vocabulário de utilizações, sem DCI, sem ATC, sem dosagem, sem
+ * embalagem, sem rationale. A pergunta é uma só, e cada bloco que não se
+ * envia é input que não se paga e uma resposta que não se pode inventar.
+ */
+const SISTEMA_FORMA = `És um farmacêutico a normalizar formas farmacêuticas no catálogo de uma farmácia portuguesa.
+
+Para cada produto recebes o cnp e a designação como está no ERP. Devolves a forma farmacêutica, escolhida EXCLUSIVAMENTE da lista fechada que te é dada.
+
+REGRAS
+
+1. Copia o valor exacto da lista, com acentos. Qualquer coisa fora da lista é descartada pelo sistema — não é corrigida, é deitada fora.
+
+2. Se a designação não permitir determinar a forma com segurança, devolve forma vazia e confidence baixa. Um produto sem forma é um resultado aceitável e esperado; uma forma errada fica gravada como facto e ninguém a volta a rever.
+
+3. Lê a designação, não adivinhes pelo produto. "BEN-U-RON 500 MG X 20" diz comprimido? Só se a designação o disser ou se a abreviatura for inequívoca (COMP, CAPS, XPE, SUSP, POM, CR, SOL). "X 20" é a contagem da embalagem, não a forma.
+
+4. Abreviaturas correntes no ERP português: COMP=comprimido, COMP REV=comprimido revestido, CAPS=cápsula, XPE=xarope, SUSP ORAL=suspensão oral, SOL ORAL=solução oral, SOL INJ=solução injetável, PO INAL=pó para inalação, POM=pomada, CR=creme, SUP=supositório, GTS=gotas orais, COL=colírio.
+
+5. Não é medicamento? Um champô, um creme de rosto ou uma chupeta não têm forma farmacêutica. Devolve vazio — a lista não tem entrada para eles e forçar uma é pior do que deixar em branco.
+
+6. confidence é a tua confiança NESTA forma:
+   · 0.95+ — a designação diz a forma, ou a abreviatura é inequívoca.
+   · 0.90–0.94 — deduzes da apresentação com segurança.
+   · <0.90 — palpite. Devolve vazio.
+   Abaixo de 0.90 nada é gravado. Não inflaciones: uma forma por preencher custa menos que uma forma errada.
+
+Devolves um resultado por produto de entrada, com o cnp exacto que recebeste.`;
+
+/**
+ * Três campos. `forma` é string (vazia = não sei), e não nullable, porque
+ * um `null` em structured output é uma decisão a menos que o modelo tem
+ * de tomar — vazio é a mesma resposta com menos maneiras de a dar.
+ */
+const SCHEMA_FORMA = {
+  type: "object",
+  properties: {
+    resultados: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          cnp: { type: "integer", description: "O cnp exacto do produto de entrada." },
+          forma: {
+            type: "string",
+            description: "Valor EXACTO da lista fechada, ou vazio se não for determinável com segurança.",
+          },
+          confidence: { type: "number", description: "0 a 1. Confiança nesta forma." },
+        },
+        required: ["cnp", "forma", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["resultados"],
+  additionalProperties: false,
+} as const;
+
+/** cnp e designação. Mais nada — a classificação actual não é pedida nem enviada. */
+function construirLoteForma(produtos: ProdutoResidual[]): string {
+  const linhas = produtos.map((p) => `- cnp=${p.cnp} designacao=${JSON.stringify(p.designacao)}`);
+  return `Qual e a forma farmaceutica destes ${produtos.length} produtos?\n\n${linhas.join("\n")}`;
+}
+
+/**
+ * Valida um resultado do pedido de forma.
+ *
+ * Devolve um `KnowledgeResult` com TUDO o resto a null e `utilizacoes`
+ * vazio. Não é preguiça de tipos: é o que garante o requisito de escrever
+ * só a forma. O caminho de escrita percorre os campos um a um e salta os
+ * nulos — com nada preenchido, não há nada que ele possa gravar por
+ * engano, mesmo que um dia mude.
+ *
+ * A confiança do modelo entra em `confidenceClinica`, que é o gate da
+ * forma (0,90), e `confidence` fica a zero: é o gate da classificação, e
+ * este pedido não propõe classificação nenhuma.
+ */
+export function validarResultadoForma(
+  cru: unknown,
+  cnpsEsperados: ReadonlySet<number>,
+): KnowledgeResult | null {
+  if (!cru || typeof cru !== "object") return null;
+  const r = cru as Record<string, unknown>;
+
+  const cnp = typeof r.cnp === "number" ? r.cnp : Number(r.cnp);
+  if (!Number.isFinite(cnp) || !cnpsEsperados.has(cnp)) return null;
+
+  // Fora do vocabulário fechado → null, e null não se escreve. É a mesma
+  // política da taxonomia: rejeitar em silêncio em vez de aproximar.
+  const forma = normalizarForma(typeof r.forma === "string" ? r.forma : null);
+  const confidence = typeof r.confidence === "number" ? r.confidence : 0;
+
+  return {
+    cnp,
+    productType: null,
+    categoria: null,
+    subcategoria: null,
+    forma,
+    dci: null,
+    codigoATC: null,
+    dosagem: null,
+    embalagem: null,
+    confidenceClinica: forma ? confidence : 0,
+    utilizacoes: [],
+    confidence: 0,
+    evidenceType: "FORMA_DEDUZIDA",
+    // Vazio e nao uma frase: o pedido de forma nao pede rationale, e
+    // inventar aqui um texto seria descrever um raciocinio que ninguem fez.
+    rationale: "",
+    alvo: "FORMA",
+  };
+}
+
+/**
+ * Pede SÓ a forma farmacêutica.
+ *
+ * Terceiro prefixo cacheado do módulo, e a mesma regra dos outros dois: o
+ * runner tem de agrupar os lotes por alvo. Alternar entre pedidos paga a
+ * escrita de cache de cada vez, e o prefixo daqui é o mais barato dos
+ * três — desperdiçá-lo seria irónico.
+ *
+ * Sem segunda passagem: quem chama isto não verifica. Uma forma errada
+ * não se propaga como um ATC errado — não alimenta mapper nenhum, não
+ * decide categoria, e o vocabulário fechado já rejeita o que não existe.
+ * O que resta é a confiança, e o gate exige 0,90.
+ */
+export async function classificarFormaLote(
+  produtos: ProdutoResidual[],
+  opts: { model?: string; effort?: "low" | "medium" | "high" } = {},
+): Promise<LoteResposta> {
+  if (produtos.length === 0) {
+    return { resultados: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+  }
+  const modelo = opts.model ? resolverModelo(opts.model) : KNOWLEDGE_MODEL;
+
+  const resposta = await comRetentativa(() => cliente().messages.create({
+    model: modelo,
+    // Três campos por produto, 50 produtos. 4000 é folgado.
+    max_tokens: 4000,
+    system: [
+      { type: "text", text: SISTEMA_FORMA },
+      {
+        type: "text",
+        text: `# FORMAS FARMACEUTICAS (lista fechada)\n\n${construirVocabularioFormas()}`,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    output_config: {
+      // `low` e nao `medium`: a pergunta e' de leitura, nao de
+      // raciocinio. Ler "COMP REV" e escolher da lista nao melhora com
+      // mais deliberacao — so' custa mais output.
+      effort: opts.effort ?? "low",
+      format: { type: "json_schema", schema: SCHEMA_FORMA as unknown as Record<string, unknown> },
+    },
+    messages: [{ role: "user", content: construirLoteForma(produtos) }],
+  }));
+
+  const esperados = new Set(produtos.map((p) => p.cnp));
+  const resultados = lerResultados(resposta, esperados, validarResultadoForma);
+  return { resultados, usage: usageDe(resposta) };
+}
+
 // ─── Decisão de escrita ───────────────────────────────────────────────
 
 /**
@@ -1093,6 +1320,11 @@ export type DecisaoEscrita = {
  * território onde uma opinião só não chega.
  */
 export function precisaVerificacao(r: KnowledgeResult): boolean {
+  // O pedido de forma NAO tem segunda passagem, e a guarda e' explicita
+  // em vez de emergente: hoje um resultado de forma nao tem categoria
+  // nem utilizacoes, portanto cairia em `false` por acaso. Um campo novo
+  // amanha e o acaso desfaz-se em silencio, a pagar o dobro.
+  if (r.alvo === "FORMA") return false;
   if (r.categoria === "MEDICAMENTOS") return true;
   return r.utilizacoes.some((slug) => {
     const g = UTILIZACOES_POR_SLUG.get(slug)?.grupo;
@@ -1117,7 +1349,13 @@ export function precisaVerificacao(r: KnowledgeResult): boolean {
  */
 export function avaliarGate(
   r: KnowledgeResult,
-  atual: { categoria: string | null; subcategoria: string | null; productType: string | null },
+  atual: {
+    categoria: string | null;
+    subcategoria: string | null;
+    productType: string | null;
+    /** Ausente = desconhecida; ver `alvoParaProduto`. */
+    forma?: string | null;
+  },
   verificacao: { concorda: boolean; aplicavel: boolean } = { concorda: true, aplicavel: false },
 ): DecisaoEscrita {
   const eraFallback = !atual.subcategoria || /^outros\b/i.test(atual.subcategoria);
@@ -1128,13 +1366,34 @@ export function avaliarGate(
     // Para um pedido de utilizações, o vocabulário fechado que interessa
     // é o das utilizações — não há categoria a validar porque não há
     // categoria proposta.
-    vocabulario: alvo === "UTILIZACOES" ? r.utilizacoes.length > 0 : !!r.categoria && !!r.subcategoria,
-    evidencia: EVIDENCIA_PERMITIDA.has(r.evidenceType),
+    vocabulario:
+      alvo === "FORMA"
+        ? ehFormaCanonica(r.forma)
+        : alvo === "UTILIZACOES"
+        ? r.utilizacoes.length > 0
+        : !!r.categoria && !!r.subcategoria,
+    // No pedido de forma a "evidencia" e' a proveniencia: so' um
+    // resultado marcado FORMA_DEDUZIDA — isto e', vindo do pedido
+    // estreito — pode escrever forma por este caminho. Uma proposta de
+    // classificacao que aqui chegasse traria MARCA_CONHECIDA e falharia,
+    // que e' o que se quer: a forma dela ja' tem o seu proprio caminho.
+    evidencia:
+      alvo === "FORMA"
+        ? r.evidenceType === "FORMA_DEDUZIDA"
+        : EVIDENCIA_PERMITIDA.has(r.evidenceType),
     // Num pedido de utilizações não há conflito possível: a classificação
     // não é tocada. O critério continua a existir e a ser reportado — o
     // que muda é que a pergunta feita ao modelo já não pode colidir.
-    semConflito: alvo === "UTILIZACOES" ? true : eraFallback,
-    confianca: r.confidence >= LIMIAR_PERSISTENCIA,
+    // Nem no pedido de forma: a classificacao nao e' tocada, e a forma
+    // so' se escreve onde nao ha' nenhuma (o `is null` do UPDATE).
+    semConflito: alvo === "UTILIZACOES" || alvo === "FORMA" ? true : eraFallback,
+    // A forma tem o SEU limiar, que e' o clinico (0,90) e nao o da
+    // classificacao (0,85). Sao gates diferentes porque medem coisas
+    // diferentes, e ja' era assim antes deste alvo existir.
+    confianca:
+      alvo === "FORMA"
+        ? r.confidenceClinica >= LIMIAR_CLINICO
+        : r.confidence >= LIMIAR_PERSISTENCIA,
     verificado: verificacao.concorda,
   };
 
@@ -1150,6 +1409,38 @@ export function avaliarGate(
     utilizacoes: [] as string[],
     anomalia: null as string | null,
   };
+
+  // ── Produto já classificado, sem forma: só a forma ──────────────────
+  //
+  // Devolve APPLY porque e' `escrever()` que grava, e essa funcao sai
+  // logo a' porta se a decisao nao for APPLY. Um SKIP aqui — que ate'
+  // descreveria bem "nao ha' classificacao a mexer" — deixava a forma
+  // por escrever e a corrida sem efeito nenhum.
+  //
+  // O que este ramo NAO faz: gravarCategoria e gravarProductType ficam
+  // false e `utilizacoes` fica vazio. A garantia de que so' a forma e'
+  // escrita nao esta' so' aqui — o resultado do pedido de forma tem
+  // todos os outros campos a null (ver `validarResultadoForma`), e o
+  // caminho de escrita salta os nulos. Duas fechaduras.
+  if (alvo === "FORMA") {
+    if (!r.forma) {
+      return { ...base, decisao: "SKIP", motivo: "forma nao determinavel — nada a escrever" };
+    }
+    if (!criterios.vocabulario) {
+      return { ...base, decisao: "SKIP", motivo: `forma "${r.forma}" fora do vocabulario fechado` };
+    }
+    if (!criterios.evidencia) {
+      return { ...base, decisao: "SKIP", motivo: "resultado nao veio do pedido de forma" };
+    }
+    if (!criterios.confianca) {
+      return {
+        ...base,
+        decisao: "REVIEW",
+        motivo: `confianca ${r.confidenceClinica.toFixed(2)} < ${LIMIAR_CLINICO}`,
+      };
+    }
+    return { ...base, decisao: "APPLY", motivo: `forma "${r.forma}"` };
+  }
 
   // ── Produto já classificado: só utilizações, e uma anomalia é revisão ──
   if (alvo === "UTILIZACOES") {

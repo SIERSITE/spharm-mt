@@ -41,6 +41,7 @@
     "catalog:knowledge-enrich": "tsx scripts/catalog-master/knowledge-enrich.ts",
     "catalog:project-global": "tsx scripts/catalog-master/project-global-catalog.ts",
     "catalog:bootstrap-global": "tsx scripts/catalog-master/bootstrap-global-catalog.ts",
+    "catalog:forma-canary": "tsx scripts/catalog-master/forma-canary.ts",
     "catalog:promote-global": "tsx scripts/catalog-master/promote-global-knowledge.ts",
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",

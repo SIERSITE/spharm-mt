@@ -97,6 +97,10 @@ catalog:project-global
 # manuais. Lê o tenant em read-only; o que escreve é o control plane, e
 # só com --apply.
 catalog:bootstrap-global
+# Canary do pedido de FORMA. READ-ONLY sem excepcao: sem --apply, e o
+# default nem sequer chama o modelo (mostra o que seria enviado). Travado
+# em 200 produtos -- correr o backlog e' catalog:knowledge-enrich.
+catalog:forma-canary
 # O caminho explícito para o conhecimento humano. Uma correcção feita ao
 # balcão vale «nesta farmácia»; torná-la verdade nacional é uma decisão,
 # e este comando exige --aprovador e --motivo para a registar. Sem eles
