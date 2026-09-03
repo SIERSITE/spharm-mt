@@ -489,6 +489,22 @@ export const SERIE_CIRCUITO_CREDITO: Readonly<Record<string, SourceNamespace>> =
    * aparecer no log com o nome dela, não ser adivinhada.
    */
   VCF: NAMESPACES.VENDAS_CREDITO,
+  /**
+   * Garantia — factura a crédito, confirmada funcionalmente. 70 linhas
+   * recusadas no dry-run da rev86 por a série não estar declarada.
+   *
+   * Terceira sigla em três farmácias do mesmo grupo, na mesma
+   * instalação do ERP: `VCPR`, `VCF`, `VCGT`. O que a rev86 antecipou
+   * — «a próxima farmácia trará outra sigla» — aconteceu à primeira
+   * farmácia seguinte. É a confirmação de que a série é escolha local
+   * de quem configurou cada balcão, e não um código do produto: não há
+   * padrão a inferir, só um mapa a alimentar por medição.
+   *
+   * O fail-closed é o que torna isto barato: cada nova farmácia
+   * anuncia a sua sigla no log, com a contagem, em vez de a fazer
+   * entrar silenciosamente no balde errado.
+   */
+  VCGT: NAMESPACES.VENDAS_CREDITO,
 };
 
 /**

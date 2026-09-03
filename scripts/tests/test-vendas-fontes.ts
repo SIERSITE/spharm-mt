@@ -1093,19 +1093,36 @@ console.log("\n=== VCG_1 é TRANSFERÊNCIA, não crédito ===");
   eq(namespaceDaSerieCredito("VCG"), null, "…e VCG também");
   eq(namespaceDaSerieCredito(null), null, "…nem uma série nula");
   eq(namespaceDaSerieCredito(""), null, "…nem uma série vazia");
-  // Quatro na rev86: `VCF` da Nogueira juntou-se à `VCPR` da Principal.
-  // A série de crédito não é a mesma em todas as farmácias do grupo, e é
-  // por isso que isto é um mapa por série e não uma regra única.
+  // Cinco na rev87: `VCGT` da Garantia juntou-se à `VCF` da Nogueira e à
+  // `VCPR` da Principal. Três siglas em três farmácias do mesmo grupo, na
+  // mesma instalação do ERP: a série é escolha local de quem configurou o
+  // balcão, e é por isso que isto é um mapa por série e não uma regra
+  // única.
   eq(
     Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
-    ["VCC_1", "VCF", "VCG_1", "VCPR"],
-    "QUATRO séries declaradas, e só quatro",
+    ["VCC_1", "VCF", "VCGT", "VCG_1", "VCPR"],
+    "CINCO séries declaradas, e só cinco",
   );
   eq(
     namespaceDaSerieCredito("VCF"),
     NAMESPACES.VENDAS_CREDITO,
     "VCF entra pelo crédito, como a VCPR",
   );
+  eq(
+    namespaceDaSerieCredito("VCGT"),
+    NAMESPACES.VENDAS_CREDITO,
+    "VCGT entra pelo crédito, como a VCF e a VCPR",
+  );
+  // `VCGT` e `VCG_1` partilham três letras e vão para circuitos opostos:
+  // crédito e transferência. Esta é a armadilha mais próxima que este
+  // mapa já teve, e o que a desarma é ser correspondência exacta.
+  check(
+    namespaceDaSerieCredito("VCGT") !== namespaceDaSerieCredito("VCG_1"),
+    "VCGT e VCG_1 NÃO caem no mesmo circuito",
+    "três letras em comum, circuitos opostos — só a correspondência exacta os separa",
+  );
+  eq(naturezaDe(namespaceDaSerieCredito("VCGT")!), "CREDITO", "VCGT é CREDITO");
+  eq(naturezaDe(namespaceDaSerieCredito("VCG_1")!), "TRANSFERENCIA", "VCG_1 continua TRANSFERENCIA");
   // A VCPR é crédito, não transferência. A distinção não é cosmética:
   // decide a `naturezaVenda` e, com ela, de que lado do interruptor do
   // relatório a linha cai.

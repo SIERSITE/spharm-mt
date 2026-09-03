@@ -72,10 +72,57 @@ test("as séries de transferência ficam onde estavam", () => {
   assert.equal(namespaceDaSerieCredito("VCC_1"), NAMESPACES.GUIAS_TRANSFERENCIA);
 });
 
-test("quatro séries declaradas, e só quatro", () => {
+// ────────────────────────────────────────────────────────────────────
+// VCGT — Garantia
+//
+// Terceira sigla em três farmácias do mesmo grupo: VCPR, VCF, VCGT. 70
+// linhas recusadas no dry-run da rev86 por a série não estar declarada.
+// ────────────────────────────────────────────────────────────────────
+
+test("VCGT encaminha para VENDAS_CREDITO", () => {
+  assert.equal(namespaceDaSerieCredito("VCGT"), NAMESPACES.VENDAS_CREDITO);
+  assert.equal(namespaceDaSerieCredito("vcgt"), NAMESPACES.VENDAS_CREDITO, "insensível a maiúsculas");
+  assert.equal(namespaceDaSerieCredito(" VCGT "), NAMESPACES.VENDAS_CREDITO, "tolera espaços");
+  assert.equal(naturezaDe(NAMESPACES.VENDAS_CREDITO), "CREDITO");
+});
+
+test("VCGT não é confundida com VCG_1", () => {
+  // A armadilha mais próxima que este mapa já teve: `VCGT` e `VCG_1`
+  // partilham TRÊS letras e vão para circuitos opostos — crédito e
+  // transferência. Um `startsWith("VCG")` mandava as 70 linhas da
+  // Garantia para as guias, e o total de crédito ficava plausível e
+  // errado. Só a correspondência exacta os separa.
+  assert.equal(namespaceDaSerieCredito("VCGT"), NAMESPACES.VENDAS_CREDITO);
+  assert.equal(namespaceDaSerieCredito("VCG_1"), NAMESPACES.GUIAS_TRANSFERENCIA);
+  assert.notEqual(
+    namespaceDaSerieCredito("VCGT"),
+    namespaceDaSerieCredito("VCG_1"),
+    "três letras em comum não podem juntar dois circuitos",
+  );
+  assert.equal(naturezaDe(namespaceDaSerieCredito("VCGT")!), "CREDITO");
+  assert.equal(naturezaDe(namespaceDaSerieCredito("VCG_1")!), "TRANSFERENCIA");
+  // Nem o prefixo comum, nem variantes não medidas.
+  assert.equal(namespaceDaSerieCredito("VCG"), null, "um prefixo não basta");
+  assert.equal(namespaceDaSerieCredito("VCGT_1"), null, "nem uma variante não medida");
+});
+
+test("as três séries de crédito partilham namespace e regra", () => {
+  const alvo = NAMESPACES.VENDAS_CREDITO;
+  for (const serie of ["VCPR", "VCF", "VCGT"]) {
+    assert.equal(namespaceDaSerieCredito(serie), alvo, `${serie} → VENDAS_CREDITO`);
+  }
+  // Uma regra, três portas. Se alguém separar uma delas, a natureza
+  // dessa farmácia muda sem que mais nada mude — e o total fica
+  // plausível.
+  assert.equal(naturezaDe(alvo), "CREDITO");
+  const r = CLASSIFICACAO[alvo];
+  assert.deepEqual([...r.peloSinal], [18]);
+});
+
+test("cinco séries declaradas, e só cinco", () => {
   assert.deepEqual(
     Object.keys(SERIE_CIRCUITO_CREDITO).sort(),
-    ["VCC_1", "VCF", "VCG_1", "VCPR"],
+    ["VCC_1", "VCF", "VCGT", "VCG_1", "VCPR"],
   );
 });
 
