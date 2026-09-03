@@ -167,11 +167,65 @@ test("nenhum outro tipo entra no crédito por arrasto", () => {
   }
 });
 
-test("o circuito de crédito declara exactamente um tipo, e é pelo sinal", () => {
+test("o circuito de crédito declara dois tipos: 18 pelo sinal, 19 reversão", () => {
   const r = CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO];
-  assert.deepEqual([...r.peloSinal], [18]);
-  assert.equal(r.venda.size, 0, "18 é pelo sinal, não venda fixa");
-  assert.equal(r.reversao.size, 0);
+  assert.deepEqual([...r.peloSinal], [18], "o 18 continua pelo sinal");
+  assert.equal(r.venda.size, 0, "nenhum tipo é venda de classe fixa");
+  assert.deepEqual([...r.reversao], [19], "e o 19 é reversão fixa");
+});
+
+// ────────────────────────────────────────────────────────────────────
+// Tipo 19 — o documento de reversão do crédito
+//
+// Pereiró (rev87), série VCF, janela 2024-01-01 → 2026-09-02:
+//     318 linhas tipo 18
+//       1 linha  tipo 19 — estado C, quantidade −1
+// Nenhuma série de crédito por declarar nesta base.
+// ────────────────────────────────────────────────────────────────────
+
+test("tipo 19 é DEVOLUCAO_ANULACAO, e não recusado", () => {
+  const NS = NAMESPACES.VENDAS_CREDITO;
+  // A linha medida: quantidade −1.
+  assert.equal(classificarDocumento(19, NS, -1), "DEVOLUCAO_ANULACAO");
+  // O que interessa tanto como a classe: NÃO é null. Antes desta
+  // revisão era recusada, e uma linha recusada não aparece em lado
+  // nenhum a não ser no contador de recusas do dry-run.
+  assert.notEqual(classificarDocumento(19, NS, -1), null, "deixou de ser recusada");
+});
+
+test("o 19 é classe fixa: o sinal não o desvia", () => {
+  const NS = NAMESPACES.VENDAS_CREDITO;
+  // `reversao` decide antes de `peloSinal` e ignora a quantidade. Um 19
+  // positivo — nunca observado — continua a ser anulação. É o que a
+  // declaração assume, e está dito no comentário da regra.
+  assert.equal(classificarDocumento(19, NS, 1), "DEVOLUCAO_ANULACAO");
+  assert.equal(classificarDocumento(19, NS, 0), "DEVOLUCAO_ANULACAO");
+  assert.equal(classificarDocumento(19, NS, null), "DEVOLUCAO_ANULACAO");
+});
+
+test("o 18 não mudou por causa do 19", () => {
+  const NS = NAMESPACES.VENDAS_CREDITO;
+  assert.equal(classificarDocumento(18, NS, 5), "VENDA");
+  assert.equal(classificarDocumento(18, NS, -5), "DEVOLUCAO_ANULACAO");
+  assert.equal(classificarDocumento(18, NS, 0), null, "zero continua recusado");
+  assert.equal(classificarDocumento(18, NS, null), null, "sem sinal continua recusado");
+  // E as 318 linhas de tipo 18 da Pereiró continuam a classificar-se
+  // como antes: o 19 entrou ao lado, não por cima.
+  assert.deepEqual([...CLASSIFICACAO[NS].peloSinal], [18]);
+});
+
+test("o 19 não escorregou para outros circuitos", () => {
+  // A declaração é do circuito de crédito e de mais nenhum. Em G, no
+  // suspenso, nas guias e no crédito de balcão o 19 continua recusado.
+  for (const ns of [
+    NAMESPACES.ATENDIMENTO_DETALHE,
+    NAMESPACES.ATENDIMENTO_DETALHE_CREDITO,
+    NAMESPACES.ATENDIMENTO_SUSP_DETALHE,
+    NAMESPACES.GUIAS_TRANSFERENCIA,
+  ] as const) {
+    assert.equal(classificarDocumento(19, ns, -1), null, `19 recusado em ${ns}`);
+    assert.equal(CLASSIFICACAO[ns].reversao.has(19), false, `19 não declarado em ${ns}`);
+  }
 });
 
 test("os outros circuitos ficam intactos", () => {

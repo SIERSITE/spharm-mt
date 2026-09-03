@@ -880,11 +880,18 @@ console.log("\n=== naturezaVenda: dimensão, não classe ===");
   {
     const ns = NAMESPACES.VENDAS_CREDITO;
     eq(CLASSIFICACAO[ns].venda.size, 0, `${ns}: nenhum tipo de venda de classe fixa`);
-    eq(CLASSIFICACAO[ns].reversao.size, 0, `${ns}: nenhuma reversão declarada`);
+    // A rev88 declarou o 19 como reversão: Pereiró, série VCF, uma linha
+    // em 319, estado C, quantidade −1. O 18 não se mexeu.
+    eq([...CLASSIFICACAO[ns].reversao], [19], `${ns}: o 19 é reversão fixa`);
     eq([...CLASSIFICACAO[ns].peloSinal], [18], `${ns}: só o tipo 18, e pelo sinal`);
     eq(classificarDocumento(18, ns, 1), "VENDA", `${ns}: 18 positivo é venda`);
     eq(classificarDocumento(18, ns, -1), "DEVOLUCAO_ANULACAO", `${ns}: 18 negativo é anulação`);
     eq(classificarDocumento(18, ns, 0), null, `${ns}: 18 a zero é recusado`);
+    eq(
+      classificarDocumento(19, ns, -1),
+      "DEVOLUCAO_ANULACAO",
+      `${ns}: 19 negativo é anulação — e deixou de ser recusado`,
+    );
     for (const t of [1, 4, 7, 38, 102, 107]) {
       eq(classificarDocumento(t, ns, 1), null, `${ns}: tipo ${t} recusado — sem evidência`);
     }
@@ -1390,14 +1397,15 @@ console.log("\n=== a regra da transferência está POR DECLARAR, e recusa ===");
     "a sonda resolve tudo por metadata",
   );
   // O crédito deixou de ser fail-closed na rev84, com evidência medida:
-  // UM tipo, o 18, e pelo sinal. O que o teste guarda agora é que não
-  // entrou mais nenhum por arrasto.
+  // o 18, pelo sinal. A rev88 juntou-lhe o 19, reversão fixa, medido na
+  // Pereiró. DOIS tipos, e o que o teste guarda é que não entrou mais
+  // nenhum por arrasto — cada um custou uma medição.
   eq(
     CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].venda.size +
       CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].reversao.size +
       CLASSIFICACAO[NAMESPACES.VENDAS_CREDITO].peloSinal.size,
-    1,
-    "VENDAS_CREDITO: exactamente um tipo declarado",
+    2,
+    "VENDAS_CREDITO: exactamente dois tipos declarados",
   );
 }
 

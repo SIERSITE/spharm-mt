@@ -353,7 +353,24 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
    */
   [NAMESPACES.VENDAS_CREDITO]: {
     venda: new Set<number>(),
-    reversao: new Set<number>(),
+    /**
+     * O 19 é o documento de reversão deste circuito. Pereiró (rev87),
+     * série `VCF`, janela 2024-01-01 a 2026-09-02:
+     *
+     *     318 linhas tipo 18
+     *       1 linha  tipo 19 — estado C, quantidade −1
+     *
+     * `reversao` e não `peloSinal`, e a diferença é real: a classe fixa
+     * ignora o sinal, portanto um 19 que chegasse POSITIVO continuaria a
+     * ser DEVOLUCAO_ANULACAO. Nunca se viu nenhum — a única linha medida
+     * é negativa — e é isso que esta declaração assume: que o 19
+     * identifica o DOCUMENTO de devolução/anulação, e não o sinal dele.
+     * Se um dia aparecer um 19 positivo a somar do lado errado, é aqui
+     * que se corrige, passando-o a `peloSinal`.
+     *
+     * O 18 fica exactamente como estava.
+     */
+    reversao: new Set([19]),
     peloSinal: new Set([18]),
   },
   /**
