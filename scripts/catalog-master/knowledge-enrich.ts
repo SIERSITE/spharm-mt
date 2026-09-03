@@ -20,12 +20,21 @@
  *   · `--tecto-usd` corta por custo estimado, que é a unidade em que a
  *     fatura vem.
  *
- * Uso:
- *   # canary estratificado de 100, sem escrever
- *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=silveira --canary
+ * ── O CANARY MEDE, E NUNCA ESCREVE ───────────────────────────────────
  *
- *   # o mesmo, a escrever
- *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=silveira --canary --apply
+ * `--canary` é incompatível com `--apply`: pedir os dois é recusado, não
+ * ignorado. E atravessa as exclusões por poupança da pré-selecção
+ * (designação opaca, subcategoria de baixa cobertura), porque um canary
+ * que as respeita pode não medir nada — foi o que aconteceu na Silveira,
+ * com 1 193 produtos no estrato SEM_UTILIZACOES e ZERO enviados ao
+ * modelo. Uma amostra de zero não é uma amostra barata.
+ *
+ * A corrida NORMAL (sem `--canary`) não muda: continua a poupar esses
+ * produtos, que é a razão de a pré-selecção existir.
+ *
+ * Uso:
+ *   # canary estratificado de 100, dry-run obrigatório
+ *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=silveira --canary
  *
  *   # bootstrap por lotes, com tecto de custo
  *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=silveira --limite=2000 --tecto-usd=15 --apply
@@ -50,6 +59,7 @@ import {
   QUOTAS_CANARY,
   runKnowledgeEnrichment,
   type LinhaRelatorio,
+  type QuotaEstrato,
 } from "../../lib/catalog/knowledge-enrichment-runner";
 
 function corta(s: string, n: number): string {
@@ -89,6 +99,21 @@ async function main() {
   const argv = process.argv.slice(2);
   const apply = argv.includes("--apply");
   const canary = argv.includes("--canary");
+
+  // O CANARY NUNCA ESCREVE.
+  //
+  // Recusar em vez de ignorar em silêncio: quem escreveu `--canary
+  // --apply` queria escrever, e uma corrida que ignora metade da linha
+  // de comando e diz "ok" é pior do que uma que se recusa a correr.
+  // Para escrever, corre-se o backlog com --limite, que é outra decisão.
+  if (canary && apply) {
+    console.error(
+      "\n--canary e --apply são incompatíveis: o canary é uma MEDIÇÃO e nunca escreve.\n" +
+        "\n  · medir uma amostra estratificada:  --canary" +
+        "\n  · escrever a sério:                 --limite=<n> --apply\n",
+    );
+    process.exit(2);
+  }
   const semRelatorio = argv.includes("--sem-relatorio");
   const limite = Number(argv.find((a) => a.startsWith("--limite="))?.split("=")[1] ?? 100);
   const tectoUsd = Number(argv.find((a) => a.startsWith("--tecto-usd="))?.split("=")[1] ?? 5);
@@ -129,7 +154,8 @@ async function main() {
   console.log(`nunca escreve: ${CAMPOS_PROIBIDOS.join(", ")}`);
   console.log(
     canary
-      ? `amostra: canary estratificado ${Object.entries(QUOTAS_CANARY).map(([k, v]) => `${v} ${k}`).join(" + ")}`
+      ? `amostra: canary estratificado ${Object.entries(QUOTAS_CANARY).map(([k, v]) => `${v} ${k}`).join(" + ")}` +
+        "\n         (dry-run obrigatório; atravessa as exclusões por poupança para a amostra ser efectiva)"
       : `amostra: ${limite} produtos (ordem de cnp)`,
   );
   console.log(`tecto: $${tectoUsd}\n`);
@@ -139,6 +165,10 @@ async function main() {
     dryRun: !apply,
     tectoUsd,
     canary: canary ? QUOTAS_CANARY : undefined,
+    // SÓ com --canary. Atravessa as exclusões por poupança da
+    // pré-selecção para a amostra medir mesmo o estrato — ver
+    // `forcarExcluidos` no runner. A corrida normal não passa por aqui.
+    forcarExcluidos: canary,
     // SEM ISTO O BACKLOG NAO PROMOVIA NADA. O runner exige `tenantSlug`
     // para registar a origem do conhecimento; sem ele limita-se a avisar
     // "N candidatos nao promovidos: falta tenantSlug" e a promocao nao
@@ -171,24 +201,51 @@ async function main() {
   for (const [k, v] of Object.entries(r.porEstrato)) console.log(`  ${pad(v)}  ${k}`);
 
   if (r.quotasCanary) {
+    // QUATRO COLUNAS, E CADA UMA RESPONDE A UMA PERGUNTA.
+    //
+    // A versão antiga tinha uma coluna "elegíveis" a significar duas
+    // coisas e um TOTAL que punha `residualAnalisado` debaixo dela: na
+    // Silveira lia-se «TOTAL 1200» ao lado de `obtido=0`, que qualquer
+    // pessoa lê como «havia 1200 e mandámos 0 por opção». O que se
+    // passava era outra coisa — havia 1200 no residual, a pré-selecção
+    // recusava-os todos, e o canary não mediu nada.
     console.log("\n── quotas por estrato ─────────────────────────────");
-    console.log("  estrato                 pedido  elegíveis  obtido  défice");
+    console.log("  estrato                 pedido  universo  elegíveis  selec.  enviados  forçados  défice");
     for (const q of r.quotasCanary) {
       const marca = q.defice > 0 ? "  ⚠" : "";
       console.log(
         `  ${q.estrato.padEnd(22)}${String(q.pedido).padStart(6)}` +
-          `${String(q.elegiveis).padStart(11)}${String(q.obtido).padStart(8)}` +
-          `${String(q.defice).padStart(8)}${marca}`,
+          `${String(q.universo).padStart(10)}${String(q.elegiveis).padStart(11)}` +
+          `${String(q.seleccionados).padStart(8)}${String(q.enviados).padStart(10)}` +
+          `${String(q.forcados).padStart(10)}${String(q.defice).padStart(8)}${marca}`,
       );
     }
-    const totalPedido = r.quotasCanary.reduce((s, q) => s + q.pedido, 0);
-    const totalDefice = r.quotasCanary.reduce((s, q) => s + q.defice, 0);
-    console.log(`  ${"TOTAL".padEnd(22)}${String(totalPedido).padStart(6)}${String(r.residualAnalisado).padStart(19)}${String(totalDefice).padStart(8)}`);
+    const somaQ = (f: (q: QuotaEstrato) => number) =>
+      (r.quotasCanary ?? []).reduce((acc, q) => acc + f(q), 0);
+    console.log(
+      `  ${"TOTAL".padEnd(22)}${String(somaQ((q) => q.pedido)).padStart(6)}` +
+        `${String(somaQ((q) => q.universo)).padStart(10)}${String(somaQ((q) => q.elegiveis)).padStart(11)}` +
+        `${String(somaQ((q) => q.seleccionados)).padStart(8)}${String(somaQ((q) => q.enviados)).padStart(10)}` +
+        `${String(somaQ((q) => q.forcados)).padStart(10)}${String(somaQ((q) => q.defice)).padStart(8)}`,
+    );
+    console.log(
+      "\n  universo  = existem no estrato        elegíveis = passariam a pré-selecção" +
+        "\n  selec.    = entraram na janela        enviados  = foram MESMO ao modelo",
+    );
+    const totalForcados = somaQ((q) => q.forcados);
+    if (totalForcados > 0) {
+      console.log(
+        `\n  ⓘ ${totalForcados} produto(s) foram enviados por FORÇA do canary — a pré-selecção` +
+          "\n    tê-los-ia adiado (designação opaca ou subcategoria de baixa cobertura)." +
+          "\n    É deliberado: um canary que respeita as poupanças pode não medir nada." +
+          "\n    Numa corrida normal (sem --canary) estes produtos continuam a ser poupados.",
+      );
+    }
 
     // Um estrato a zero não é um detalhe do relatório: significa que o
     // canary não testou aquela fatia do residual, e as taxas que sairem
     // daqui não se podem extrapolar para ela.
-    const vazios = r.quotasCanary.filter((q) => q.elegiveis === 0);
+    const vazios = r.quotasCanary.filter((q) => q.universo === 0);
     if (vazios.length > 0) {
       console.log(
         `\n  ⚠ SEM ELEGÍVEIS: ${vazios.map((q) => q.estrato).join(", ")}.` +
@@ -197,11 +254,11 @@ async function main() {
           "\n    (classify-backfill → fill-rules) já correu nesta base.",
       );
     }
-    const curtos = r.quotasCanary.filter((q) => q.defice > 0 && q.elegiveis > 0);
+    const curtos = r.quotasCanary.filter((q) => q.defice > 0 && q.universo > 0);
     if (curtos.length > 0) {
       console.log(
         `\n  ⚠ QUOTA INCOMPLETA: ${curtos
-          .map((q) => `${q.estrato} ${q.obtido}/${q.pedido} (elegíveis ${q.elegiveis})`)
+          .map((q) => `${q.estrato} ${q.enviados}/${q.pedido} (universo ${q.universo})`)
           .join(", ")}`,
       );
     }

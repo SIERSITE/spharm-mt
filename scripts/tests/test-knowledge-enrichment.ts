@@ -1163,7 +1163,7 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     check(q.SEM_UTILIZACOES.defice === 30, "…e o de SEM_UTILIZACOES também (30)");
     check(q.NAO_CLASSIFICADO.defice === 0, "…e o estrato servido não reporta défice");
     check(
-      q.OUTROS_MEDICAMENTOS.elegiveis === 0 && q.SEM_UTILIZACOES.elegiveis === 0,
+      q.OUTROS_MEDICAMENTOS.universo === 0 && q.SEM_UTILIZACOES.universo === 0,
       "…e distingue-se 'zero elegíveis' de 'não consultado'",
     );
     check(
@@ -1185,8 +1185,8 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
       SEM_UTILIZACOES: 500,
     });
     const q = Object.fromEntries(a.quotas.map((x) => [x.estrato, x]));
-    check(q.OUTROS_MEDICAMENTOS.obtido === 12 && q.OUTROS_MEDICAMENTOS.defice === 28,
-      "estrato com 12 elegíveis dá 12 e reporta défice de 28");
+    check(q.OUTROS_MEDICAMENTOS.enviados === 12 && q.OUTROS_MEDICAMENTOS.defice === 28,
+      "estrato com 12 no universo dá 12 e reporta défice de 28");
     check(a.linhas.length === 72, "o total encolhe para 72 — e não se enche com produtos de outro estrato");
   }
 
@@ -1357,6 +1357,286 @@ console.log("\n=== métricas e projecção por estrato ===");
     Math.abs(projTotal - mediaGlobal) > 1,
     `a projecção por estrato difere da média global ($${projTotal.toFixed(0)} vs $${mediaGlobal.toFixed(0)}) — ` +
       "é por isso que a média global não servia",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CANARY QUE NÃO MEDIU NADA — a corrida real da Silveira
+//
+// 1 193 SEM_UTILIZACOES, 7 NAO_CLASSIFICADO, 0 OUTROS_MEDICAMENTOS,
+// quotas 40/30/30, e ZERO produtos enviados ao modelo. O relatório dizia
+// «TOTAL … 1200» ao lado de `obtido=0`, que se lê como «havia 1200 e
+// mandámos 0 por opção». Não era isso: a pré-selecção recusava-os todos
+// — a subcategoria do estrato grande tinha cobertura abaixo de 2%, e as
+// sete designações do outro estrato eram opacas — e o canary passou por
+// lá sem medir nada, a parecer eficiente.
+//
+// Uma amostra de zero não é uma amostra barata. É a ausência de medição.
+// ══════════════════════════════════════════════════════════════════════
+
+console.log("\n=== canary forçado: a reprodução da Silveira ===");
+{
+  const POP_SILVEIRA: Record<Estrato, number> = {
+    SEM_UTILIZACOES: 1193,
+    NAO_CLASSIFICADO: 7,
+    OUTROS_MEDICAMENTOS: 0,
+  };
+  const BASE_CNP_S: Record<Estrato, number> = {
+    NAO_CLASSIFICADO: 3_000_000,
+    OUTROS_MEDICAMENTOS: 4_000_000,
+    SEM_UTILIZACOES: 5_000_000,
+  };
+
+  /** Nome único e LEGÍVEL — não é opaco, e não colide em família. */
+  const nomeLegivel = (n: number) => {
+    let s = "";
+    let x = n;
+    do {
+      s = String.fromCharCode(97 + (x % 26)) + s;
+      x = Math.floor(x / 26);
+    } while (x > 0);
+    return `Zeta${s}`;
+  };
+  /** Só dígitos: `nomeOpaco` recusa-o, e é o caso dos 7 da Silveira. */
+  const nomeOpacoDe = (n: number) => `${n} 12 20`;
+
+  const designacaoDe = (est: Estrato, cnp: number) =>
+    est === "NAO_CLASSIFICADO" ? nomeOpacoDe(cnp) : nomeLegivel(cnp);
+
+  function prismaSilveira() {
+    const estratoDe = (sql: string): Estrato => {
+      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      if (/classificacaoNivel2Id" is null/.test(where)) return "NAO_CLASSIFICADO";
+      if (/c2\.nome ilike 'Outros %'/.test(where)) return "OUTROS_MEDICAMENTOS";
+      return "SEM_UTILIZACOES";
+    };
+    return {
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        if (ehQueryContexto(sql)) return CONTEXTO;
+        if (/from "Classificacao"/i.test(sql)) return [];
+        if (/from "Utilizacao"/i.test(sql)) return [];
+        const est = estratoDe(sql);
+        const disponivel = POP_SILVEIRA[est];
+        if (/count\(\*\)/i.test(sql)) return [{ n: disponivel }];
+        const limite = Number(params[3] ?? 0);
+        const cursor = Number(params[4] ?? 0);
+        return Array.from({ length: disponivel }, (_, i) => BASE_CNP_S[est] + i)
+          .filter((cnp) => cnp > cursor)
+          .slice(0, limite)
+          .map((cnp) => ({
+            cnp,
+            designacao: designacaoDe(est, cnp),
+            productType: null,
+            categoriaAtual: est === "NAO_CLASSIFICADO" ? null : "MEDICAMENTOS",
+            subcategoriaAtual: est === "SEM_UTILIZACOES" ? "Diabetes" : null,
+            // COM forma: este teste é sobre o canary, não sobre o alvo FORMA.
+            formaAtual: est === "SEM_UTILIZACOES" ? "comprimido" : null,
+            estrato: est,
+          }));
+      },
+      $executeRawUnsafe: async () => 0,
+      knowledgeEnrichmentCache: { upsert: async () => ({}) },
+    };
+  }
+
+  // Contexto: "MEDICAMENTOS > Diabetes" com 1 193 produtos e NENHUM com
+  // utilização → cobertura 0% < 2% → subcategoria excluída. É a causa
+  // real da exclusão do estrato grande na Silveira.
+  CONTEXTO = [
+    ...Array.from({ length: POP_SILVEIRA.SEM_UTILIZACOES }, (_, i) => {
+      const cnp = BASE_CNP_S.SEM_UTILIZACOES + i;
+      return { cnp, designacao: nomeLegivel(cnp), nivel1: "MEDICAMENTOS", nivel2: "Diabetes", utilizacoes: [] };
+    }),
+    ...Array.from({ length: POP_SILVEIRA.NAO_CLASSIFICADO }, (_, i) => {
+      const cnp = BASE_CNP_S.NAO_CLASSIFICADO + i;
+      return { cnp, designacao: nomeOpacoDe(cnp), nivel1: null, nivel2: null, utilizacoes: [] };
+    }),
+  ];
+
+  // ── 1. A DOENÇA: sem forçar, o canary não mede nada ─────────────────
+  const semForcar = await lerJanelaCanary(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prismaSilveira() as any,
+    QUOTAS_CANARY,
+    { contexto: CONTEXTO, familias: agruparFamilias(CONTEXTO), subExcluidas: new Set(["MEDICAMENTOS > Diabetes"]) },
+  );
+  const qs = Object.fromEntries(semForcar.quotas.map((x) => [x.estrato, x]));
+  check(
+    qs.SEM_UTILIZACOES.enviados === 0 && qs.NAO_CLASSIFICADO.enviados === 0,
+    "sem forçar, o canary da Silveira envia ZERO — a doença, reproduzida",
+    `sem_util=${qs.SEM_UTILIZACOES.enviados} nao_class=${qs.NAO_CLASSIFICADO.enviados}`,
+  );
+  check(
+    qs.SEM_UTILIZACOES.universo === 1193 && qs.NAO_CLASSIFICADO.universo === 7,
+    "…e o universo é o real (1193 / 7), não zero — o estrato existe",
+  );
+
+  // ── 2. A CURA: com forçar, a amostra é efectiva ─────────────────────
+  const forcado = await lerJanelaCanary(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prismaSilveira() as any,
+    QUOTAS_CANARY,
+    {
+      contexto: CONTEXTO,
+      familias: agruparFamilias(CONTEXTO),
+      subExcluidas: new Set(["MEDICAMENTOS > Diabetes"]),
+      forcarExcluidos: true,
+    },
+  );
+  const qf = Object.fromEntries(forcado.quotas.map((x) => [x.estrato, x]));
+
+  check(qf.SEM_UTILIZACOES.enviados === 30, `SEM_UTILIZACOES envia 30 (quota) — deu ${qf.SEM_UTILIZACOES.enviados}`);
+  check(qf.NAO_CLASSIFICADO.enviados === 7, `NAO_CLASSIFICADO envia os 7 que existem — deu ${qf.NAO_CLASSIFICADO.enviados}`);
+  check(qf.OUTROS_MEDICAMENTOS.enviados === 0, "OUTROS_MEDICAMENTOS envia 0 — o estrato está vazio");
+
+  // Défice SÓ onde faltaram candidatos. O estrato grande serviu a quota
+  // inteira e não pode aparecer em défice nenhum.
+  check(qf.SEM_UTILIZACOES.defice === 0, `SEM_UTILIZACOES sem défice — deu ${qf.SEM_UTILIZACOES.defice}`);
+  check(qf.NAO_CLASSIFICADO.defice === 23, `NAO_CLASSIFICADO com défice 23 (30 pedidos, 7 existem) — deu ${qf.NAO_CLASSIFICADO.defice}`);
+  check(qf.OUTROS_MEDICAMENTOS.defice === 40, `OUTROS_MEDICAMENTOS com défice 40 (estrato vazio) — deu ${qf.OUTROS_MEDICAMENTOS.defice}`);
+
+  // ── 3. As quatro colunas dizem coisas diferentes ────────────────────
+  check(
+    qf.SEM_UTILIZACOES.universo === 1193,
+    `universo do estrato grande = 1193 (deu ${qf.SEM_UTILIZACOES.universo})`,
+  );
+  check(
+    qf.SEM_UTILIZACOES.elegiveis === 0,
+    `…elegíveis = 0: nenhum passaria a pré-selecção (deu ${qf.SEM_UTILIZACOES.elegiveis})`,
+  );
+  check(
+    qf.SEM_UTILIZACOES.forcados === 30,
+    `…e os 30 enviados são TODOS forçados (deu ${qf.SEM_UTILIZACOES.forcados})`,
+  );
+  check(
+    qf.SEM_UTILIZACOES.seleccionados >= qf.SEM_UTILIZACOES.enviados,
+    "…seleccionados nunca é menor que enviados",
+  );
+  check(
+    qf.NAO_CLASSIFICADO.universo === 7 && qf.NAO_CLASSIFICADO.forcados === 7,
+    "os 7 opacos também entram por força, e o universo continua a ser 7",
+  );
+  // O TOTAL do relatório deixa de poder dizer 1200 ao lado de zero.
+  const totalUniverso = forcado.quotas.reduce((s, q) => s + q.universo, 0);
+  const totalEnviados = forcado.quotas.reduce((s, q) => s + q.enviados, 0);
+  check(
+    totalUniverso === 1200 && totalEnviados === 37,
+    `TOTAL: universo 1200 e enviados 37 em colunas distintas (deu ${totalUniverso}/${totalEnviados})`,
+  );
+
+  // ── 4. Ponta a ponta pelo runner: 37 ao modelo, nada escrito ────────
+  const enviados: number[] = [];
+  const respostaCanary = async (produtos: { cnp: number }[]) => {
+    enviados.push(...produtos.map((p) => p.cnp));
+    return {
+      resultados: produtos.map((p) => ({ ...base, cnp: p.cnp })),
+      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    };
+  };
+  const escritas: string[] = [];
+  const prismaComEscrita = {
+    ...prismaSilveira(),
+    $executeRawUnsafe: async (sql: string) => {
+      // A sessão read-only é a outra tranca; esta apanha a tentativa.
+      if (!/set session/i.test(sql)) escritas.push(sql.slice(0, 40));
+      return 0;
+    },
+    knowledgeEnrichmentCache: {
+      upsert: async () => {
+        escritas.push("KnowledgeEnrichmentCache.upsert");
+        return {};
+      },
+    },
+  };
+
+  const r = await runKnowledgeEnrichment(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prismaComEscrita as any,
+    {
+      dryRun: true,
+      usarGlobal: false,
+      canary: QUOTAS_CANARY,
+      forcarExcluidos: true,
+      classificar: respostaCanary,
+      verificar: respostaCanary,
+      classificarUtilizacoes: respostaCanary,
+    },
+  );
+
+  check(r.enviadosAoModelo === 37, `o runner envia 37 ao modelo (30 + 7) — enviou ${r.enviadosAoModelo}`);
+  check(enviados.length >= 37, `…e o modelo recebeu mesmo os produtos (${enviados.length} linhas)`);
+  check(
+    r.forcadosNoCanary === 37,
+    `…todos por força do canary (forcadosNoCanary=${r.forcadosNoCanary})`,
+  );
+  check(
+    r.excluidosBaixaCobertura + r.excluidosOpacos === 0,
+    "…e nenhum foi contado como excluído: um produto que foi ao modelo não é um produto poupado",
+    `baixa=${r.excluidosBaixaCobertura} opacos=${r.excluidosOpacos}`,
+  );
+  check(escritas.length === 0, "o canary NÃO escreveu nada", escritas.slice(0, 3).join(" | "));
+
+  // A reconciliação tem de continuar a fechar com os forçados dentro.
+  const contabilizados =
+    r.jaConhecidosGlobal + r.excluidosBaixaCobertura + r.excluidosOpacos +
+    r.enviadosAoModelo + r.propagados + r.dependentesOrfaos + r.semContexto + r.foraDaJanela;
+  check(
+    r.residualLido - contabilizados === 0,
+    `a reconciliação fecha com os forçados dentro (lidos=${r.residualLido}, contabilizados=${contabilizados})`,
+  );
+
+  // ── 5. Sem --canary NADA disto muda ─────────────────────────────────
+  const enviadosNormais: number[] = [];
+  const respostaNormal = async (produtos: { cnp: number }[]) => {
+    enviadosNormais.push(...produtos.map((p) => p.cnp));
+    return {
+      resultados: produtos.map((p) => ({ ...base, cnp: p.cnp })),
+      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    };
+  };
+  const normal = await runKnowledgeEnrichment(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prismaSilveira() as any,
+    {
+      dryRun: true,
+      usarGlobal: false,
+      limite: 100,
+      classificar: respostaNormal,
+      verificar: respostaNormal,
+      classificarUtilizacoes: respostaNormal,
+    },
+  );
+  check(
+    normal.enviadosAoModelo === 0 && enviadosNormais.length === 0,
+    "a corrida NORMAL continua a poupar tudo — a forçagem não vazou para fora do canary",
+    `enviados=${normal.enviadosAoModelo}`,
+  );
+  check(
+    normal.forcadosNoCanary === 0,
+    "…e não conta forçados nenhuns",
+  );
+  check(
+    normal.excluidosBaixaCobertura + normal.excluidosOpacos > 0,
+    "…e continua a contá-los como excluídos, que é o que eles são sem canary",
+    `baixa=${normal.excluidosBaixaCobertura} opacos=${normal.excluidosOpacos}`,
+  );
+
+  // ── 6. O canary sem a flag continua a poder correr (compatibilidade) ─
+  const canarySemFlag = await runKnowledgeEnrichment(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prismaSilveira() as any,
+    {
+      dryRun: true,
+      usarGlobal: false,
+      canary: QUOTAS_CANARY,
+      classificar: respostaNormal,
+      verificar: respostaNormal,
+      classificarUtilizacoes: respostaNormal,
+    },
+  );
+  check(
+    canarySemFlag.enviadosAoModelo === 0,
+    "canary SEM a flag mantém o comportamento antigo — a mudança é opt-in",
   );
 }
 

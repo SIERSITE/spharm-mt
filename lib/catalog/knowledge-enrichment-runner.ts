@@ -281,6 +281,8 @@ export type MetricasEstrato = {
   universoInicial: number;
   excluidosBaixaCobertura: number;
   excluidosOpacos: number;
+  /** Adiados pela pré-selecção que o canary mandou ao modelo à mesma. */
+  forcados: number;
   representantesEnviados: number;
   enviadosAoModelo: number;
   propagados: number;
@@ -311,6 +313,13 @@ export type LinhaPreselecao = {
   chaveFamilia: string | null;
   representanteCnp: number | null;
   motivo: string;
+  /**
+   * O canary atravessou esta exclusão e mandou o produto ao modelo.
+   * A linha continua aqui, com o motivo original, porque o que a
+   * pré-selecção PENSAVA continua a ser informação — e é a única forma
+   * de o relatório distinguir «foi excluído» de «teria sido excluído».
+   */
+  forcado?: boolean;
 };
 
 export type RunnerResumo = {
@@ -402,6 +411,14 @@ export type RunnerResumo = {
   representantesEnviados: number;
   /** Produtos efectivamente enviados ao modelo. */
   enviadosAoModelo: number;
+  /**
+   * Dos enviados, quantos só lá chegaram porque o canary atravessou uma
+   * exclusão por poupança. Zero em qualquer corrida normal.
+   *
+   * NÃO entra na reconciliação: estes produtos já estão contados em
+   * `enviadosAoModelo`. É um recorte, não um destino.
+   */
+  forcadosNoCanary: number;
   /** Produtos escritos a partir da decisão de um representante. */
   propagados: number;
   /** Famílias que não propagam por os irmãos não concordarem. */
@@ -472,20 +489,32 @@ export const QUOTAS_CANARY: Readonly<Record<Estrato, number>> = {
   SEM_UTILIZACOES: 30,
 };
 
-/** O que cada estrato deu, e o que ficou por dar. */
+/**
+ * O que cada estrato deu, e o que ficou por dar.
+ *
+ * QUATRO NÚMEROS E NÃO UM. A versão antiga tinha `elegiveis` a significar
+ * duas coisas ao mesmo tempo — quantos existem e quantos servem — e o
+ * relatório da corrida real da Silveira mostrava «TOTAL 1200» ao lado de
+ * `obtido=0`, o que se lê como «havia 1200 e mandámos 0 por opção». Não
+ * era isso: havia 1200 no residual, nenhum sobrevivia à pré-selecção, e
+ * o canary não mediu nada. Cada uma destas perguntas tem agora a sua
+ * coluna.
+ */
 export type QuotaEstrato = {
   estrato: Estrato;
   /** Quota pedida. */
   pedido: number;
-  /** Quantos existem no estrato, sem limite. */
+  /** UNIVERSO: quantos existem no estrato, sem limite nem pré-selecção. */
+  universo: number;
+  /** ELEGÍVEIS: dos lidos, quantos iriam ao modelo SEM forçar nada. */
   elegiveis: number;
-  /**
-   * Quantos PROCESSÁVEIS a quota deu — os que vão ao modelo, não as
-   * linhas lidas. Um estrato onde a pré-selecção exclua tudo reporta
-   * zero e o défice inteiro, em vez de parecer servido.
-   */
-  obtido: number;
-  /** `pedido - obtido`. Zero quando a quota foi servida por inteiro. */
+  /** SELECCIONADOS: linhas que entraram na janela (inclui dependentes). */
+  seleccionados: number;
+  /** ENVIADOS: os que vão MESMO ao modelo nesta corrida. */
+  enviados: number;
+  /** Dos enviados, quantos só entraram porque o canary forçou. */
+  forcados: number;
+  /** `pedido - enviados`. Zero quando a quota foi servida por inteiro. */
   defice: number;
 };
 
@@ -610,6 +639,31 @@ function ehProcessavel(d: Destino | undefined): boolean {
 }
 
 /**
+ * Os destinos que a pré-selecção recusa POR POUPANÇA, e que o canary
+ * pode atravessar.
+ *
+ * `PROPAGAR` NÃO está aqui, e a omissão é deliberada: um dependente não
+ * custa chamada nenhuma porque herda a decisão do representante, que já
+ * está na janela. Forçá-lo seria pagar duas vezes a mesma resposta — o
+ * contrário do que o canary quer medir.
+ */
+function ehAdiadoPorPoupanca(d: Destino | undefined): boolean {
+  return d === "EXCLUIR_OPACO" || d === "EXCLUIR_BAIXA_COBERTURA";
+}
+
+/**
+ * Vai ao modelo?
+ *
+ * Com `forcar`, os adiados por poupança contam — é o que faz um canary
+ * medir mesmo o estrato, em vez de devolver zero chamadas e a aparência
+ * de eficiência. A corrida normal chama isto sem `forcar` e não muda de
+ * comportamento em nada.
+ */
+function vaiAoModelo(d: Destino | undefined, forcar = false): boolean {
+  return ehProcessavel(d) || (forcar && ehAdiadoPorPoupanca(d));
+}
+
+/**
  * Lê o residual até ter `alvoProcessaveis` destinos que vão ao modelo.
  *
  * O corte é feito no acumulado e não na leitura: guardam-se as linhas até
@@ -626,6 +680,12 @@ export async function lerJanelaProcessavel(
     contexto: readonly ProdutoPreselecao[];
     familias: Map<string, Familia>;
     subExcluidas: ReadonlySet<string>;
+    /**
+     * Conta (e deixa entrar) os adiados por poupança. SÓ o canary passa
+     * isto: a corrida normal continua a parar neles, que é a razão de
+     * eles existirem.
+     */
+    forcarExcluidos?: boolean;
     /** Aplica o catálogo global a uma página. Omitido = sem filtro. */
     resolverGlobal?: (
       linhas: LinhaResidual[],
@@ -690,7 +750,7 @@ export async function lerJanelaProcessavel(
       subcategoriasExcluidas: opts.subExcluidas,
     });
     processaveis = acumulado.reduce(
-      (n, l) => n + (ehProcessavel(preselecao.get(l.cnp)?.destino) ? 1 : 0),
+      (n, l) => n + (vaiAoModelo(preselecao.get(l.cnp)?.destino, opts.forcarExcluidos) ? 1 : 0),
       0,
     );
 
@@ -714,11 +774,11 @@ export async function lerJanelaProcessavel(
       cnpsSemContexto.push(acumulado[i].cnp);
       continue;
     }
-    if (ehProcessavel(pre.destino) && contados >= opts.alvoProcessaveis) {
+    if (vaiAoModelo(pre.destino, opts.forcarExcluidos) && contados >= opts.alvoProcessaveis) {
       corte = i;
       break;
     }
-    if (ehProcessavel(pre.destino)) contados++;
+    if (vaiAoModelo(pre.destino, opts.forcarExcluidos)) contados++;
     linhas.push(acumulado[i]);
     dentro.add(acumulado[i].cnp);
   }
@@ -773,6 +833,14 @@ export async function lerJanelaCanary(
     contexto: readonly ProdutoPreselecao[];
     familias: Map<string, Familia>;
     subExcluidas: ReadonlySet<string>;
+    /**
+     * Atravessa as exclusões por poupança. É o que torna o canary um
+     * canary: sem isto, um estrato inteiramente opaco ou de baixa
+     * cobertura devolve zero chamadas e a corrida não mede nada — foi
+     * exactamente o que aconteceu na Silveira, com 1 193 produtos no
+     * estrato e nenhum enviado.
+     */
+    forcarExcluidos?: boolean;
     resolverGlobal?: (
       linhas: LinhaResidual[],
     ) => Promise<{ restantes: LinhaResidual[]; resolvidos: number; insuficientes: number }>;
@@ -795,13 +863,14 @@ export async function lerJanelaCanary(
     // A contagem SEM limite é o que distingue "este estrato está vazio"
     // de "a consulta partiu-se": sem ela, as duas hipóteses produzem o
     // mesmo output — zero linhas — e a amostra encolhe em silêncio.
-    const [{ n: elegiveis }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
+    const [{ n: universo }] = await prisma.$queryRawUnsafe<{ n: number }[]>(
       sqlContagem(estrato, base.apenasFila === true),
       MIN_CNP,
       KNOWLEDGE_VERSION,
       KNOWLEDGE_MODEL,
     );
     const j = await lerJanelaProcessavel(prisma, { ...base, alvoProcessaveis: pedido, estrato });
+
     linhas.push(...j.linhas);
     for (const [k, v] of j.preselecao) preselecao.set(k, v);
     cnpsLidos += j.cnpsLidos;
@@ -812,14 +881,21 @@ export async function lerJanelaCanary(
     cnpsSemContexto.push(...j.cnpsSemContexto);
     esgotado = esgotado || j.esgotado;
 
-    // `obtido` conta PROCESSÁVEIS, não linhas: é a quota que interessa.
-    const obtido = j.linhas.filter((l) => ehProcessavel(j.preselecao.get(l.cnp)?.destino)).length;
+    // Quatro contagens sobre a MESMA janela, e cada uma responde a uma
+    // pergunta diferente. `enviados` é a que serve a quota.
+    const destinoDe = (l: LinhaResidual) => j.preselecao.get(l.cnp)?.destino;
+    const elegiveis = j.linhas.filter((l) => ehProcessavel(destinoDe(l))).length;
+    const enviados = j.linhas.filter((l) => vaiAoModelo(destinoDe(l), base.forcarExcluidos)).length;
+    const forcados = enviados - elegiveis;
     relatorio.push({
       estrato,
       pedido,
-      elegiveis: Number(elegiveis) || 0,
-      obtido,
-      defice: Math.max(0, pedido - obtido),
+      universo: Number(universo) || 0,
+      elegiveis,
+      seleccionados: j.linhas.length,
+      enviados,
+      forcados,
+      defice: Math.max(0, pedido - enviados),
     });
   }
 
@@ -883,6 +959,23 @@ export async function runKnowledgeEnrichment(
     promover?: typeof promoverAoGlobal;
     /** Amostra estratificada em vez dos primeiros N. */
     canary?: Partial<Record<Estrato, number>>;
+    /**
+     * SÓ COM `canary`. Atravessa as exclusões por poupança da
+     * pré-selecção (designação opaca, subcategoria de baixa cobertura) e
+     * manda esses produtos ao modelo à mesma.
+     *
+     * Existe porque um canary que respeita as heurísticas de poupança
+     * pode não medir nada: na Silveira, 1 193 produtos no estrato
+     * SEM_UTILIZACOES e ZERO enviados, com o relatório a dizer «TOTAL
+     * 1200» ao lado de `obtido=0`. Uma amostra de zero não é uma amostra
+     * barata — é a ausência de medição a passar por eficiência.
+     *
+     * O que isto NÃO faz: não desliga gate nenhum, não escreve nada que
+     * o `dryRun` não deixasse escrever, e não toca em `PROPAGAR` — um
+     * dependente continua a herdar do representante em vez de pagar
+     * chamada própria.
+     */
+    forcarExcluidos?: boolean;
     /** Slug do tenant — registado como origem do conhecimento promovido. */
     tenantSlug?: string;
     /** Desligar o catálogo global (para medir uma corrida sem ele). */
@@ -963,6 +1056,7 @@ export async function runKnowledgeEnrichment(
     falhaInfraestrutura: null,
     excluidosBaixaCobertura: 0,
     excluidosOpacos: 0,
+    forcadosNoCanary: 0,
     familiasPropagaveis: 0,
     representantesEnviados: 0,
     enviadosAoModelo: 0,
@@ -1132,6 +1226,7 @@ export async function runKnowledgeEnrichment(
         universoInicial: 0,
         excluidosBaixaCobertura: 0,
         excluidosOpacos: 0,
+        forcados: 0,
         representantesEnviados: 0,
         enviadosAoModelo: 0,
         propagados: 0,
@@ -1261,7 +1356,10 @@ export async function runKnowledgeEnrichment(
   let preselecao: Map<number, Preselecao>;
 
   if (opts.canary) {
-    const j = await lerJanelaCanary(prisma, opts.canary, baseJanela);
+    const j = await lerJanelaCanary(prisma, opts.canary, {
+      ...baseJanela,
+      forcarExcluidos: opts.forcarExcluidos === true,
+    });
     residual = j.linhas;
     preselecao = j.preselecao;
     quotasCanary = j.quotas;
@@ -1275,7 +1373,9 @@ export async function runKnowledgeEnrichment(
     resumo.semContexto = j.semContexto;
     resumo.cnpsSemContexto = [...j.cnpsSemContexto];
     resumo.janela.alvoProcessaveis = j.quotas.reduce((n, q) => n + q.pedido, 0);
-    for (const q of j.quotas) elegiveisPorEstrato.set(q.estrato, q.elegiveis);
+    // A projecção de custo multiplica pela POPULAÇÃO do estrato, não
+    // pelos que sobreviveram à pré-selecção.
+    for (const q of j.quotas) elegiveisPorEstrato.set(q.estrato, q.universo);
   } else {
     const j = await lerJanelaProcessavel(prisma, {
       ...baseJanela,
@@ -1301,6 +1401,8 @@ export async function runKnowledgeEnrichment(
   }
 
   // Dependentes por representante: quem espera pela decisão de quem.
+  // Só com canary: sem ele a corrida normal não muda em nada.
+  const forcarExcluidos = opts.canary !== undefined && opts.forcarExcluidos === true;
   const dependentes = new Map<number, LinhaResidual[]>();
   const enviar: LinhaResidual[] = [];
   for (const l of residual) {
@@ -1321,6 +1423,26 @@ export async function runKnowledgeEnrichment(
     }
     const m = metrica(l.estrato);
     m.universoInicial++;
+    // Adiado por poupança, mas o canary manda seguir: entra na fila de
+    // envio e é contado como FORÇADO, nunca como excluído. Contá-lo nos
+    // dois sítios partiria a reconciliação — e um produto que foi ao
+    // modelo não é um produto poupado.
+    if (forcarExcluidos && ehAdiadoPorPoupanca(pre.destino)) {
+      resumo.forcadosNoCanary++;
+      m.forcados++;
+      enviar.push(l);
+      resumo.preselecao.push({
+        cnp: l.cnp,
+        designacao: contextoPorCnp.get(l.cnp)?.designacao ?? "",
+        estrato: l.estrato,
+        destino: pre.destino,
+        chaveFamilia: pre.chaveFamilia,
+        representanteCnp: pre.representanteCnp,
+        motivo: pre.motivo,
+        forcado: true,
+      });
+      continue;
+    }
     switch (pre.destino) {
       case "EXCLUIR_OPACO":
         resumo.excluidosOpacos++; m.excluidosOpacos++;
