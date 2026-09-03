@@ -15,6 +15,12 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
 import {
+  ROTULO_TOTAL_ARTIGO,
+  agruparPorArtigo,
+  contarReferenciasUnicas,
+  grupoPrecisaDeTotal,
+} from "@/lib/reporting/vendas-agrupamento";
+import {
   formatFarmaciaHeader,
   type FarmaciaInfo,
 } from "@/lib/farmacias-header";
@@ -178,7 +184,10 @@ export function VendasClient({
   );
 
   // Buckets de meses para render — só existe depois de gerar.
-  const buckets = periodHeader?.buckets ?? [];
+  //
+  // Em `useMemo` porque o `?? []` criava um array novo em cada render, e
+  // as dependências dos memos que agrupam por artigo mudavam sempre.
+  const buckets = useMemo(() => periodHeader?.buckets ?? [], [periodHeader]);
 
   // Os quatro sítios que filtram linhas chamam `passaFiltroCatalogo`
   // directamente. Cada um tinha a sua cópia da mesma comparação — e foi
@@ -382,6 +391,45 @@ export function VendasClient({
     });
   }, [currentRows, ordenarPor]);
 
+  /**
+   * As linhas como a TABELA as mostra: detalhe por farmácia e, quando o
+   * agrupamento é por Artigo, uma linha `TOTAL ARTIGO` por CNP.
+   *
+   * O defeito que isto fecha: com várias farmácias e "Agrupar por =
+   * Artigo", o mesmo CNP aparecia em linhas soltas, uma por farmácia,
+   * como se fossem produtos diferentes. O agrupamento existia
+   * (`groupRows`) mas só era usado quando `ambito === "grupo"`.
+   *
+   * A linha de total é APRESENTAÇÃO: `subtotal: true` mantém-na fora de
+   * qualquer soma — os totais gerais continuam a somar `orderedRows`,
+   * que são só as linhas reais.
+   */
+  const linhasTabela = useMemo(() => {
+    const detalhe = (row: AggregatedRow, i: number) => ({
+      row,
+      subtotal: false,
+      key: `d-${row.codigo}-${row.farmacia}-${i}`,
+    });
+    if (agruparPor !== "artigo") return orderedRows.map(detalhe);
+
+    return agruparPorArtigo(orderedRows, buckets).flatMap((g) => {
+      const linhas = g.detalhes.map(detalhe);
+      // Um artigo numa farmácia só não leva total: era uma cópia da
+      // linha de cima.
+      if (!grupoPrecisaDeTotal(g)) return linhas;
+      const total: AggregatedRow = {
+        ...g.detalhes[0],
+        farmacia: ROTULO_TOTAL_ARTIGO,
+        meses: g.total.meses,
+        totalVendas: g.total.totalVendas,
+        unidadesVendidas: g.total.unidadesVendidas,
+        valorBruto: g.total.valorBruto,
+        existencia: g.total.existencia,
+      };
+      return [...linhas, { row: total, subtotal: true, key: `t-${g.codigo}` }];
+    });
+  }, [orderedRows, agruparPor, buckets]);
+
   const resumo = useMemo(() => {
     // Valor gravado no ledger, não `totalVendas × pvp`. O `pvp` vem de
     // ProdutoFarmacia — é o preço de HOJE na prateleira — e usá-lo aqui
@@ -392,7 +440,10 @@ export function VendasClient({
       (sum, row) => sum + row.unidadesVendidas,
       0
     );
-    const referencias = orderedRows.length;
+    // REFERÊNCIAS ≠ LINHAS. O mesmo CNP em duas farmácias são duas
+    // linhas de detalhe e UMA referência — era isto que o cartão dizia
+    // errado quando se seleccionavam várias farmácias.
+    const referencias = contarReferenciasUnicas(orderedRows);
     // Média diária baseada na janela real seleccionada — devolvida pelo
     // loader em `periodHeader` (clamp ao período efectivamente aplicado,
     // que pode diferir do que o utilizador escreveu se as datas forem
@@ -1031,39 +1082,49 @@ export function VendasClient({
                   </thead>
 
                   <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-                    {orderedRows.map((row, index) => (
+                    {linhasTabela.map(({ row, subtotal, key }) => (
                       <tr
-                        key={`${row.codigo}-${row.descricao}-${index}`}
-                        className="transition hover:bg-slate-50/70"
+                        key={key}
+                        className={
+                          subtotal
+                            ? "bg-slate-100/80 font-semibold text-slate-900"
+                            : "transition hover:bg-slate-50/70"
+                        }
                       >
                         <td className="px-4 py-2.5 align-top">
                           <span className="font-medium text-slate-800">
-                            {row.codigo}
+                            {subtotal ? "" : row.codigo}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 align-top">
-                          <div className="space-y-0.5">
-                            <Link
-                              href={`/stock/artigo/${row.codigo}`}
-                              className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
-                            >
-                              {row.descricao}
-                            </Link>
-                            <div className="text-[12px] text-slate-500">
-                              {ambito === "farmacia"
-                                ? row.farmacia
-                                : row.grupo && row.grupo !== row.categoria
-                                  ? `${row.categoria} · ${row.grupo}`
-                                  : row.categoria}
+                          {subtotal ? (
+                            <span className="text-[12px] uppercase tracking-wide text-slate-600">
+                              {ROTULO_TOTAL_ARTIGO}
+                            </span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <Link
+                                href={`/stock/artigo/${row.codigo}`}
+                                className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
+                              >
+                                {row.descricao}
+                              </Link>
+                              <div className="text-[12px] text-slate-500">
+                                {agruparPor === "artigo" || ambito === "farmacia"
+                                  ? row.farmacia
+                                  : row.grupo && row.grupo !== row.categoria
+                                    ? `${row.categoria} · ${row.grupo}`
+                                    : row.categoria}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </td>
                         <td className="px-2 py-2.5 text-center">
-                          {formatMoney(row.pvp)} €
+                          {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
                         </td>
                         {row.meses.map((m, i) => (
                           <td
-                            key={`td-${row.codigo}-${index}-${i}`}
+                            key={`${key}-m-${i}`}
                             className="px-2 py-2.5 text-center"
                           >
                             {m.quantidade}
@@ -1268,18 +1329,27 @@ export function VendasClient({
                         </thead>
 
                         <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
-                          {orderedRows.map((row, index) => (
-                            <tr key={`report-main-${row.codigo}-${row.farmacia}-${index}`}>
-                              <td className="whitespace-nowrap px-3 py-1.5">{row.codigo}</td>
-                              <td className="px-3 py-1.5">{row.descricao}</td>
+                          {linhasTabela.map(({ row, subtotal, key }) => (
+                            <tr
+                              key={`report-${key}`}
+                              className={
+                                subtotal ? "bg-slate-100 font-semibold text-slate-900" : undefined
+                              }
+                            >
+                              <td className="whitespace-nowrap px-3 py-1.5">
+                                {subtotal ? "" : row.codigo}
+                              </td>
+                              <td className="px-3 py-1.5">
+                                {subtotal ? ROTULO_TOTAL_ARTIGO : row.descricao}
+                              </td>
 
                               {showFarmaciaColumnInReport && (
-                                <td className="px-3 py-1.5">{row.farmacia}</td>
+                                <td className="px-3 py-1.5">{subtotal ? "" : row.farmacia}</td>
                               )}
 
                               {row.meses.map((m, i) => (
                                 <td
-                                  key={`rep-td-${row.codigo}-${index}-${i}`}
+                                  key={`rep-${key}-m-${i}`}
                                   className="px-3 py-1.5 text-center"
                                 >
                                   {m.quantidade}

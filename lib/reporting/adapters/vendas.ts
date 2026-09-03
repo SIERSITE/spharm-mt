@@ -30,6 +30,12 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { ROW_KIND_KEY } from "../report-types";
+import {
+  agruparPorArtigo,
+  contarReferenciasUnicas,
+  grupoPrecisaDeTotal,
+} from "../vendas-agrupamento";
 
 const MONTH_LABELS_PT = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -191,6 +197,17 @@ function buildFilters(
   return out;
 }
 
+/**
+ * O resumo conta SEMPRE sobre o detalhe.
+ *
+ * `rows` aqui são as linhas de dados — as de subtotal são construídas
+ * depois, em `buildVendasReport`, e nunca chegam a esta função. É o que
+ * garante que uma linha "TOTAL ARTIGO" não soma unidades duas vezes.
+ *
+ * "Linhas" e "Referências únicas" respondem a perguntas diferentes, e é
+ * por isso que são dois cartões: o mesmo CNP em duas farmácias são duas
+ * linhas de detalhe e UMA referência.
+ */
 function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   let totalUnidades = 0;
   let valorEstimadoPvp = 0;
@@ -198,7 +215,7 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
     totalUnidades += r.totalVendas ?? 0;
     valorEstimadoPvp += (r.totalVendas ?? 0) * (r.pvp ?? 0);
   }
-  const referencias = new Set(rows.map((r) => r.codigo)).size;
+  const referencias = contarReferenciasUnicas(rows);
   return [
     { label: "Linhas",             value: rows.length,       format: "integer" },
     { label: "Referências únicas", value: referencias,       format: "integer" },
@@ -229,16 +246,30 @@ export function buildVendasReport(input: {
    */
   organization: string;
 }): Report {
-  // Mapeia cada row para o formato dinâmico de ReportRow (chaves m_YYYYMM
-  // alinhadas com as colunas geradas em `buildColumns`).
-  const rowsForReport: ReportRow[] = input.rows.map((r) => {
+  // Mapeia uma linha (detalhe ou subtotal) para o formato dinâmico de
+  // ReportRow (chaves m_YYYYMM alinhadas com `buildColumns`).
+  const paraReportRow = (
+    r: {
+      codigo: string;
+      descricao: string;
+      pvp?: number;
+      totalVendas: number;
+      existencia: number;
+      farmacia: string;
+      meses: { ano: number; mes: number; quantidade: number }[];
+    },
+    kind: "detalhe" | "subtotal",
+  ): ReportRow => {
     const base: ReportRow = {
       codigo: r.codigo,
       descricao: r.descricao,
-      pvp: r.pvp,
+      // O PVP é da prateleira de UMA farmácia; somá-lo entre farmácias
+      // não significa nada. Na linha de total fica vazio.
+      pvp: kind === "subtotal" ? null : (r.pvp ?? 0),
       totalVendas: r.totalVendas,
       existencia: r.existencia,
       farmacia: r.farmacia,
+      [ROW_KIND_KEY]: kind,
     };
     // Indexação por posição (segura porque o loader devolve `meses` na
     // mesma ordem de `buckets`); fallback por (ano,mes) match se faltar.
@@ -251,7 +282,23 @@ export function buildVendasReport(input: {
       base[bucketColumnKey(b)] = matched?.quantidade ?? 0;
     });
     return base;
-  });
+  };
+
+  // ── AGRUPAR POR ARTIGO: detalhe por farmácia + TOTAL ARTIGO ────────
+  //
+  // Só quando o utilizador pediu "Artigo". Nos outros agrupamentos o
+  // relatório fica exactamente como estava — incluindo "Farmácia", onde
+  // não se introduzem subtotais por artigo.
+  const hierarquico = input.filters.agruparPor === "artigo";
+  const rowsForReport: ReportRow[] = hierarquico
+    ? agruparPorArtigo(input.rows, input.buckets).flatMap((g) => {
+        const detalhes = g.detalhes.map((d) => paraReportRow(d, "detalhe"));
+        // Um artigo numa farmácia só não leva linha de total: seria uma
+        // cópia da linha acima.
+        if (!grupoPrecisaDeTotal(g)) return detalhes;
+        return [...detalhes, paraReportRow(g.total, "subtotal")];
+      })
+    : input.rows.map((r) => paraReportRow(r, "detalhe"));
 
   const subtitle =
     input.filters.dataInicio && input.filters.dataFim

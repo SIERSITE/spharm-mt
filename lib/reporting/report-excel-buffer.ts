@@ -15,6 +15,7 @@
 
 import * as XLSX from "xlsx";
 import type { Report, ReportCell, ReportColumn } from "./report-types";
+import { linhasDeDetalhe } from "./report-types";
 import { excelNumberFormat, formatCell, formatDateTime } from "./report-formatters";
 import { makeReportFilename } from "./report-filename";
 
@@ -139,7 +140,9 @@ export function buildReportWorkbook(report: Report): XLSX.WorkBook {
     for (let c = 0; c < cols.length; c++) {
       const col = cols[c];
       if (!col.showTotal) continue;
-      const total = computeTotal(col, report.rows);
+      // Detalhe apenas: uma linha "TOTAL ARTIGO" no meio da folha não
+      // pode entrar no total do rodapé.
+      const total = computeTotal(col, linhasDeDetalhe(report.rows));
       setCell(r, c, toCellObject(col, total));
     }
     r++;

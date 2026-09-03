@@ -36,6 +36,38 @@ export type ReportColumn = {
 export type ReportCell = string | number | null | undefined | Date | boolean;
 export type ReportRow = Record<string, ReportCell>;
 
+/**
+ * Chave RESERVADA numa linha: distingue detalhe de APRESENTAÇÃO.
+ *
+ * Existe por causa dos subtotais por artigo do relatório de Vendas. Uma
+ * linha "TOTAL ARTIGO" tem de aparecer na tabela, no PDF e no Excel —
+ * mas não pode entrar no total geral, ou cada artigo passaria a contar
+ * duas vezes e o relatório dobrava as unidades vendidas.
+ *
+ * Não é uma coluna: nenhum renderer a desenha como célula, porque os
+ * renderers percorrem `columns` e esta chave não está lá.
+ */
+export const ROW_KIND_KEY = "__rowKind" as const;
+
+/** `detalhe` = dado real. `subtotal` = linha de apresentação. */
+export type RowKind = "detalhe" | "subtotal";
+
+/** `true` quando a linha é de apresentação e não deve somar em lado nenhum. */
+export function ehLinhaSubtotal(row: ReportRow): boolean {
+  return row[ROW_KIND_KEY] === "subtotal";
+}
+
+/**
+ * Só as linhas de dados reais.
+ *
+ * É isto que os totais de coluna e os cartões de resumo têm de usar.
+ * Um relatório sem subtotais devolve a mesma lista, portanto chamar isto
+ * é sempre seguro.
+ */
+export function linhasDeDetalhe(rows: readonly ReportRow[]): ReportRow[] {
+  return rows.filter((r) => !ehLinhaSubtotal(r));
+}
+
 export type ReportSummaryItem = {
   label: string;
   value: ReportCell;

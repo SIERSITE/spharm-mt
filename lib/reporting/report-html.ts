@@ -10,6 +10,7 @@
  */
 
 import type { Report, ReportAlign, ReportColumn, ReportRow } from "./report-types";
+import { ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
 import { formatCell, formatDateTime } from "./report-formatters";
 
 function escapeHtml(s: string): string {
@@ -155,17 +156,27 @@ function renderTable(report: Report): string {
 
   const bodyRows = report.rows
     .map((row) => {
+      // Linha de subtotal (ex.: "TOTAL ARTIGO") — destacada, e fora dos
+      // totais gerais. Ver ROW_KIND_KEY em report-types.
+      const subtotal = ehLinhaSubtotal(row);
       const tds = cols
         .map((c) => {
           const style = alignStyle(defaultAlignFor(c));
-          return `<td style="${style}">${escapeHtml(formatCell(row[c.key], c.format))}</td>`;
+          const conteudo = escapeHtml(formatCell(row[c.key], c.format));
+          return subtotal
+            ? `<td style="${style}"><strong>${conteudo}</strong></td>`
+            : `<td style="${style}">${conteudo}</td>`;
         })
         .join("");
-      return `<tr>${tds}</tr>`;
+      return subtotal
+        ? `<tr style="background:#f1f5f9;border-top:1px solid #cbd5e1">${tds}</tr>`
+        : `<tr>${tds}</tr>`;
     })
     .join("");
 
-  const totals = computeTotals(cols, report.rows);
+  // TOTAIS SOBRE O DETALHE, e não sobre `report.rows`: com os subtotais
+  // dentro, cada artigo contava duas vezes.
+  const totals = computeTotals(cols, linhasDeDetalhe(report.rows));
   const hasTotals = Object.keys(totals).length > 0;
   const totalsRow = hasTotals
     ? `<tfoot><tr>${cols

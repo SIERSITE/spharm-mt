@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { runExcessosReport } from "@/app/excessos/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
+import { janelaExcessosPorOmissao } from "@/lib/operational/janela-meses";
 import {
   Download,
   Eye,
@@ -112,11 +113,16 @@ export function ExcessosClient({
     setGenerationError(null);
     startTransition(async () => {
       try {
-        const result = await runExcessosReport(
-          initialThresholdDays !== undefined
+        // As datas do ecrã são as datas do cálculo. Antes ficavam-se
+        // pelo snapshot de apresentação e o servidor usava sempre os
+        // últimos 3 meses — a UI dizia uma coisa e a API calculava outra.
+        const result = await runExcessosReport({
+          ...(initialThresholdDays !== undefined
             ? { thresholdDays: initialThresholdDays }
-            : undefined,
-        );
+            : {}),
+          dataInicio,
+          dataFim,
+        });
         setRows(result);
         setHasGenerated(true);
       } catch (err) {
@@ -153,8 +159,13 @@ export function ExcessosClient({
   ).map((s) => s.nome);
   const [prioridadesSelecionadas, setPrioridadesSelecionadas] = useState<string[]>([]);
   const [artigo, setArtigo] = useState("");
-  const [dataInicio, setDataInicio] = useState("2026-04-01");
-  const [dataFim, setDataFim] = useState("2026-04-13");
+  // Últimos 12 meses civis COMPLETOS, no fuso da aplicação. Antes eram
+  // duas datas escritas à mão no dia em que este ecrã foi feito
+  // ("2026-04-01" / "2026-04-13") — uma janela arbitrária que envelhecia
+  // sozinha. Continuam editáveis; só o default mudou.
+  const janelaInicial = useMemo(() => janelaExcessosPorOmissao(), []);
+  const [dataInicio, setDataInicio] = useState(janelaInicial.inicio);
+  const [dataFim, setDataFim] = useState(janelaInicial.fim);
   const [ordenarPor, setOrdenarPor] = useState<Ordenacao>("prioridade");
   const [apenasComNecessidade, setApenasComNecessidade] = useState(false);
   const [apenasComExcesso, setApenasComExcesso] = useState(true);
