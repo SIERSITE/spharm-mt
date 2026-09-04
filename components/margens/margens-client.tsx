@@ -16,7 +16,7 @@
  *   · Aviso permanente sobre snapshot de custo
  */
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import { ReportActions } from "@/components/reporting/report-actions";
@@ -121,6 +121,47 @@ export function MargensClient({
       }
     });
   };
+
+  /**
+   * Os filtros passam a APLICAR-SE.
+   *
+   * Antes, alterar a pesquisa (ou qualquer outro filtro) mudava o estado
+   * do formulário e mais nada: só um clique em "Gerar" reenviava os
+   * filtros ao servidor. Quem escrevia um CNP via a mesma lista de
+   * sempre e concluía, com razão, que a pesquisa era ignorada — quando
+   * o que estava no ecrã era simplesmente o resultado anterior.
+   *
+   * A geração continua a ser explícita da PRIMEIRA vez: a página não
+   * pré-carrega Margens. Depois disso, cada alteração de filtro relança
+   * o relatório, com 400 ms de espera para não disparar uma query por
+   * cada tecla.
+   *
+   * O `JSON.stringify` é a chave de dependência de propósito: `filters`
+   * é recriado a cada `patch` do formulário e comparar por identidade
+   * relançava a query em renders que não mudaram nada.
+   */
+  const filtrosSerial = JSON.stringify(filters);
+  const primeiroEfeito = useRef(true);
+  useEffect(() => {
+    if (!hasGenerated) return;
+    if (primeiroEfeito.current) {
+      primeiroEfeito.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      startTransition(async () => {
+        try {
+          setError(null);
+          setResult(await runMargensReport(JSON.parse(filtrosSerial)));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    }, 400);
+    return () => clearTimeout(t);
+    // `filtrosSerial` é a única dependência que representa uma mudança
+    // real de critérios; as restantes são estáveis.
+  }, [filtrosSerial, hasGenerated]);
 
   const rowsByEstadoProduto = useMemo(() => {
     if (!result) return [];
@@ -394,9 +435,13 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
               <th className="py-2 pr-3">Categoria</th>
               <th className="py-2 pr-3">Farmácia</th>
               <th className="py-2 pr-3 text-right">Qtd</th>
+              {/* Ordem de leitura: preço unitário → custo unitário →
+                  margem resultante. */}
+              <th className="py-2 pr-3 text-right">PVP unit.</th>
               <th className="py-2 pr-3 text-right">Vendas c/IVA</th>
               <th className="py-2 pr-3 text-right">IVA %</th>
               <th className="py-2 pr-3 text-right">Vendas s/IVA</th>
+              <th className="py-2 pr-3 text-right">Custo unit.</th>
               <th className="py-2 pr-3 text-right">Custo est.</th>
               <th className="py-2 pr-3 text-right">Margem €</th>
               <th className="py-2 pr-3 text-right">Margem %</th>
@@ -421,12 +466,18 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
                 </td>
                 <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtInt(r.qtdVendida)}</td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.pvpUnitario)}
+                </td>
                 <td className="py-2 pr-3 text-right tabular-nums">{fmtCurrency(r.valorVendido)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
                   {r.taxaIva === null ? "—" : `${r.taxaIva}%`}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                   {fmtCurrency(r.valorVendidoSemIva)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
+                  {fmtCurrency(r.custoUnitario)}
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums text-slate-600">
                   {fmtCurrency(r.custoEstimado)}

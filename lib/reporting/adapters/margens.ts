@@ -33,23 +33,30 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
   IVA_POR_APURAR: "IVA por apurar",
 };
 
-// Por produto: CNP 5 · Descrição 18 · Categoria 9 · Farmácia 9 ·
-//              Qtd 5 · Vend c/IVA 8 · IVA% 4 · Vend s/IVA 8 ·
-//              Custo 8 · Margem € 8 · Margem % 6 · Estado 6 · Cobert. 6
-//              = 100
+// Por produto, na ordem de leitura pedida:
+//   preço unitário → custo unitário → margem resultante
+//
+// CNP 5 · Descrição 16 · Categoria 8 · Farmácia 8 · Qtd 4 ·
+// PVP un. 7 · Vend c/IVA 8 · IVA% 4 · Vend s/IVA 8 · Custo un. 7 ·
+// Custo 8 · Margem € 8 · Margem % 6 · Cobert. 5 · Estado 6 = 108
+//
+// PVP un. e Custo un. NÃO levam `showTotal`: somar preços unitários de
+// artigos diferentes dá um número sem significado nenhum.
 const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
   { key: "cnp",                label: "CNP",          format: "text",     width: 5 },
-  { key: "designacao",         label: "Descrição",    format: "text",     width: 18 },
-  { key: "categoria",          label: "Categoria",    format: "text",     width: 9 },
-  { key: "farmacia",           label: "Farmácia",     format: "text",     width: 9 },
-  { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 5,  showTotal: true },
+  { key: "designacao",         label: "Descrição",    format: "text",     width: 16 },
+  { key: "categoria",          label: "Categoria",    format: "text",     width: 8 },
+  { key: "farmacia",           label: "Farmácia",     format: "text",     width: 8 },
+  { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 4,  showTotal: true },
+  { key: "pvpUnitario",        label: "PVP unit.",    format: "currency", width: 7 },
   { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 8,  showTotal: true },
   { key: "taxaIva",            label: "IVA %",        format: "text",     width: 4 },
   { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 8,  showTotal: true },
+  { key: "custoUnitario",      label: "Custo unit.",  format: "currency", width: 7 },
   { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 8,  showTotal: true },
   { key: "margemEur",          label: "Margem €",     format: "currency", width: 8,  showTotal: true },
   { key: "margemPct",          label: "Margem %",     format: "text",     width: 6 },
-  { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 6 },
+  { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 5 },
   { key: "estado",             label: "Estado",       format: "text",     width: 6 },
 ];
 
@@ -127,9 +134,13 @@ export function buildMargensProdutoReport(input: {
     categoria: r.categoria ?? "—",
     farmacia: r.farmacia,
     qtdVendida: r.qtdVendida,
+    // `null` e não 0: com quantidade 0 não há preço unitário nenhum, e
+    // "0,00 €" leria-se como grátis. O renderer pinta null como "—".
+    pvpUnitario: r.pvpUnitario,
     valorVendido: r.valorVendido,
     taxaIva: r.taxaIva === null ? "—" : `${r.taxaIva}%`,
     valorVendidoSemIva: r.valorVendidoSemIva ?? 0,
+    custoUnitario: r.custoUnitario,
     custoEstimado: r.custoEstimado ?? 0,
     margemEur: r.margemEur ?? 0,
     margemPct: pct(r.margemPct),

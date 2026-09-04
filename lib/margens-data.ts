@@ -69,6 +69,24 @@ export type MargemRow = {
   qtdVendida: number;
   /** PVP × qty, com IVA (como vem do ERP). */
   valorVendido: number;
+  /**
+   * PVP unitário COM IVA: `valorVendido / qtdVendida`.
+   *
+   * Derivado, nunca uma fonte nova: é o preço médio efectivamente
+   * praticado na janela, e não o `pvp` de tabela do ProdutoFarmacia
+   * (que é o de hoje e reprecificaria o histórico). `null` com
+   * quantidade 0 — dividir por zero devolveria Infinity, que a UI
+   * pintaria como um número.
+   */
+  pvpUnitario: number | null;
+  /**
+   * Custo unitário: `custoEstimado / qtdVendida`.
+   *
+   * Coincide com `custoUnitarioBase` (o PMC/PUC de que o custo estimado
+   * é derivado) e é calculado à mesma pela divisão, para a coluna do
+   * ecrã ser sempre coerente com as duas que estão ao lado dela.
+   */
+  custoUnitario: number | null;
   /** PVP × qty / (1 + taxa/100). null quando taxa IVA desconhecida. */
   valorVendidoSemIva: number | null;
   /** Taxa IVA canónica de farmácia: 6 | 13 | 23 | null. */
@@ -177,6 +195,63 @@ function ymToIndex(iso: string | undefined, fallback: { y: number; m: number }):
   return fallback.y * 12 + fallback.m;
 }
 
+/**
+ * A condição SQL da pesquisa por artigo. Exportada para ser testável.
+ *
+ * Três formas, e as três no MESMO campo:
+ *   · CNP exacto         "5880034"
+ *   · parte do CNP       "58800"
+ *   · designação parcial "depuralina", sem distinguir maiúsculas
+ *
+ * O CNP compara-se em TEXTO (`cnp::text LIKE`) e não por igualdade
+ * numérica. A igualdade exacta continua coberta — é o caso particular em
+ * que o padrão é o código inteiro — mas `= 58800` não encontrava nada
+ * quando se escrevia metade do código.
+ *
+ * Devolve `Prisma.empty` para termo vazio: sem pesquisa, sem condição.
+ */
+export function construirCondicaoPesquisa(pesquisa: string | undefined | null): Prisma.Sql {
+  const q = (pesquisa ?? "").trim();
+  if (!q) return Prisma.empty;
+  const padrao = `%${q}%`;
+  // Só faz sentido procurar no CNP quando o termo são mesmo dígitos.
+  // "depuralina" contra `cnp::text` nunca casa e só custa tempo.
+  if (/^\d+$/.test(q)) {
+    return Prisma.sql`AND (p."cnp"::text LIKE ${padrao} OR p."designacao" ILIKE ${padrao})`;
+  }
+  return Prisma.sql`AND p."designacao" ILIKE ${padrao}`;
+}
+
+/**
+ * Os dois valores unitários da tabela de Margens.
+ *
+ * Derivação pura dos valores já calculados — não entram em nenhuma
+ * fórmula de margem, que continua a ser `valorSemIva − custoEstimado`.
+ *
+ * `null` com quantidade 0 nos dois casos: dividir por zero devolveria
+ * Infinity, que a UI pintaria como um número. E `null` com custo
+ * desconhecido — "0,00 €" leria-se como grátis.
+ */
+export function derivarUnitarios(
+  qtdVendida: number,
+  valorVendidoComIva: number,
+  custoEstimado: number | null,
+): { pvpUnitario: number | null; custoUnitario: number | null } {
+  const qty = Number(qtdVendida);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return { pvpUnitario: null, custoUnitario: null };
+  }
+  return {
+    pvpUnitario: Number.isFinite(valorVendidoComIva)
+      ? rounded2(valorVendidoComIva / qty)
+      : null,
+    custoUnitario:
+      custoEstimado !== null && Number.isFinite(custoEstimado)
+        ? rounded2(custoEstimado / qty)
+        : null,
+  };
+}
+
 export async function getMargensData(
   filters: SharedReportFilters = {},
 ): Promise<MargensResult> {
@@ -255,17 +330,23 @@ export async function getMargensData(
   const prodIdCond = produtoIdFilter
     ? Prisma.sql`AND p.id = ANY(${produtoIdFilter})`
     : Prisma.empty;
-  const pesquisaCond =
-    filters.pesquisa && filters.pesquisa.trim()
-      ? (() => {
-          const q = filters.pesquisa!.trim();
-          const asNumber = Number(q);
-          if (Number.isFinite(asNumber) && Number.isInteger(asNumber)) {
-            return Prisma.sql`AND (p."cnp" = ${asNumber} OR p."designacao" ILIKE ${"%" + q + "%"})`;
-          }
-          return Prisma.sql`AND p."designacao" ILIKE ${"%" + q + "%"}`;
-        })()
-      : Prisma.empty;
+  // ── Pesquisa por artigo ─────────────────────────────────────────
+  //
+  // Três formas, e as três no MESMO campo:
+  //   · CNP exacto        "5880034"
+  //   · parte do CNP      "58800"
+  //   · designação parcial "depuralina", sem distinguir maiúsculas
+  //
+  // O CNP compara-se em texto (`cnp::text LIKE`) e não por igualdade
+  // numérica: `= 58800` não encontrava nada quando o utilizador escrevia
+  // metade do código, e era esse o comportamento que parecia "a pesquisa
+  // não faz nada". A igualdade exacta continua coberta — é o caso
+  // particular em que o padrão é o código inteiro.
+  //
+  // Aplica-se na QUERY, não sobre o resultado: os KPIs e as três
+  // agregações derivam de `porProduto`, portanto filtrar aqui é o que
+  // faz os cartões de topo acompanharem a pesquisa.
+  const pesquisaCond = construirCondicaoPesquisa(filters.pesquisa);
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -395,6 +476,8 @@ export async function getMargensData(
       subcategoriaOrigem: r.subcategoriaOrigem,
     });
 
+    const { pvpUnitario, custoUnitario } = derivarUnitarios(qty, valorVendido, custoEstimado);
+
     return {
       cnp: r.cnp,
       designacao: r.designacao,
@@ -404,6 +487,8 @@ export async function getMargensData(
       farmacia: nomeById.get(r.farmaciaId) ?? "—",
       qtdVendida: qty,
       valorVendido,
+      pvpUnitario,
+      custoUnitario,
       valorVendidoSemIva,
       taxaIva,
       custoUnitarioBase,
