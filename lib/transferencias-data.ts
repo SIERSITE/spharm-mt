@@ -11,7 +11,12 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
-import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
+import {
+  EXCESSO_COVERAGE_DAYS,
+  EXCESSO_MINIMO_UNIDADES,
+  EXCESSO_TARGET_DAYS,
+  RESERVA_ORIGEM_DIAS,
+} from "@/lib/operational/metrics-shared";
 import {
   avaliarLinha,
   ehAccionavel,
@@ -231,11 +236,11 @@ export async function loadPfAndSales(
 export type OpcoesOperacionais = {
   /**
    * Coverage threshold in days; products with coverage > thresholdDays are
-   * excess. Default = `EXCESSO_COVERAGE_DAYS` (180), partilhado com
+   * excess. Default = `EXCESSO_COVERAGE_DAYS` (120), partilhado com
    * Inventário e Dashboard via `lib/operational/metrics-shared.ts`.
    */
   thresholdDays?: number;
-  /** Target coverage in days for the "excess quantity" calculation. Default 30. */
+  /** Cobertura-alvo. Default = `EXCESSO_TARGET_DAYS` (45). */
   targetDays?: number;
   /**
    * Janela de consumo, `YYYY-MM-DD`. A MESMA que a UI mostra e que o
@@ -308,15 +313,19 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
   grupos: Map<string, EstadoStock<LinhaPf>[]>;
 }> {
   const thresholdDays = options?.thresholdDays ?? EXCESSO_COVERAGE_DAYS;
-  const targetDays = options?.targetDays ?? 30;
+  const targetDays = options?.targetDays ?? EXCESSO_TARGET_DAYS;
   const janela = normalizarJanela(options?.dataInicio, options?.dataFim);
   const params: ParametrosMotor = {
     diasJanela: diasDaJanela(janela),
     thresholdDays,
     targetDays,
-    // O corte comercial que já existia nos Excessos: abaixo de 5
-    // unidades a "sobra" é ruído de arredondamento.
-    excessoMinimo: 5,
+    // O corte comercial que já existia nos Excessos: abaixo deste número
+    // de unidades a "sobra" é ruído de arredondamento.
+    excessoMinimo: EXCESSO_MINIMO_UNIDADES,
+    // A reserva da origem. Sem ela, o `Math.round` do excesso podia
+    // entregar o stock inteiro de um artigo de baixa rotação — ver
+    // RESERVA_ORIGEM_DIAS.
+    reservaDias: RESERVA_ORIGEM_DIAS,
   };
 
   const grupos = new Map<string, EstadoStock<LinhaPf>[]>();
@@ -505,7 +514,7 @@ export async function getExcessosData(
       const cobertura = origem.coberturaDias ?? 0;
 
       // Prioridade relativa ao threshold base — mantém a ordenação útil
-      // qualquer que seja `thresholdDays` (default 180 ⇒ alta>360, media>270).
+      // qualquer que seja `thresholdDays` (default 120 ⇒ alta>240, media>180).
       const prioridade: Priority =
         cobertura > params.thresholdDays * 2
           ? "alta"

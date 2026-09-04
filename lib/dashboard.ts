@@ -18,7 +18,7 @@
  *     conjunto.
  *   · getTransferenciasData / getExcessosData (lib/transferencias-data)
  *     — alimentam Optimization. /transferencias e /excessos são os
- *     destinos. O default de cobertura (`EXCESSO_COVERAGE_DAYS=180`)
+ *     destinos. O default de cobertura (`EXCESSO_COVERAGE_DAYS=120`)
  *     é partilhado por Dashboard / Excessos / Inventário — single source
  *     of truth em `lib/operational/metrics-shared.ts`.
  *
@@ -31,6 +31,14 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import {
+  EXCESSO_COVERAGE_DAYS,
+  EXCESSO_MINIMO_UNIDADES,
+  EXCESSO_TARGET_DAYS,
+  RESERVA_ORIGEM_DIAS,
+  WINDOW_90D,
+} from "@/lib/operational/metrics-shared";
+import { avaliarLinha, type ParametrosMotor } from "@/lib/operational/motor-stock";
 import {
   loadStockEnriched,
   matchStockFilter,
@@ -130,7 +138,19 @@ export type DashboardData = {
 
   // Alertas críticos
   criticalAlerts: {
+    /**
+     * A regra ANTIGA: sem stock com alguma procura nos 3 meses.
+     * Mantida porque continua a ser o universo total — os três níveis
+     * abaixo são a sua partição, e um número que desaparece do ecrã sem
+     * explicação gera mais desconfiança do que um número mau.
+     */
     outOfStockCount: number;
+    /** Sem stock, procura recente E provada. É o alerta a sério. */
+    roturaCriticaCount: number;
+    /** Sem stock, procura recente mas isolada. */
+    semStockOcasionalCount: number;
+    /** Sem stock, procura que já não é actual. */
+    semStockSemProcuraCount: number;
     outOfStockSample: ActionableProduct[];
     atRiskCount: number;
     atRiskSample: ActionableProduct[];
@@ -160,11 +180,23 @@ export type DashboardData = {
   };
 
   // Excessos / stock parado — o destino operacional é /excessos (default
-  // EXCESSO_COVERAGE_DAYS=180; ver lib/operational/metrics-shared.ts).
+  // EXCESSO_COVERAGE_DAYS=120; ver lib/operational/metrics-shared.ts).
   excess: {
-    /** Σ stockAtual × custo para produtos com cobertura > EXCESSO_COVERAGE_DAYS. */
+    /**
+     * Σ EXCEDENTE × custo — o mesmo motor e o mesmo universo da página
+     * /excessos.
+     *
+     * Era `Σ stockAtual × custo` sobre TODAS as linhas com cobertura
+     * acima do threshold. Duas divergências numa só linha de código:
+     * universo diferente (sem o corte de excesso mínimo) e grandeza
+     * diferente (o stock inteiro em vez da parte a mais). Na Silveirense
+     * dava 113 672 € contra os 56 766 € de /excessos.
+     *
+     * Um cartão e uma página com o mesmo nome e números diferentes
+     * ensinam a não acreditar em nenhum dos dois.
+     */
     excessStockValueEur: number;
-    /** Número de produtos com cobertura > EXCESSO_COVERAGE_DAYS. */
+    /** Linhas com excedente >= EXCESSO_MINIMO_UNIDADES. O mesmo que /excessos conta. */
     excessStockCount: number;
     /** Número de produtos com stockAtual > 0 e sem vendas em 90 dias. */
     noMovementCount: number;
@@ -531,12 +563,48 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   // ── Alertas críticos ──────────────────────────────────────────────────
   const outOfStockRows = stockRows.filter((r) => matchStockFilter(r, "out-of-stock"));
+  // "Agora" fixado UMA vez para os três: sem isto, três chamadas a
+  // Date.now() podiam cair em lados diferentes da fronteira dos 30 dias
+  // e os números deixavam de somar.
+  const agora = Date.now();
+  const roturaCriticaRows = stockRows.filter((r) => matchStockFilter(r, "rotura-critica", agora));
+  const semStockOcasionalRows = stockRows.filter((r) =>
+    matchStockFilter(r, "sem-stock-ocasional", agora),
+  );
+  const semStockSemProcuraRows = stockRows.filter((r) =>
+    matchStockFilter(r, "sem-stock-sem-procura", agora),
+  );
   const atRiskRows = stockRows.filter((r) => matchStockFilter(r, "at-risk"));
 
   // ── Excessos / stock parado ───────────────────────────────────────────
-  const excessRows = stockRows.filter((r) => matchStockFilter(r, "excess-stock-canonical"));
-  const excessStockValueEur = excessRows.reduce(
-    (sum, r) => sum + r.stockAtual * unitCost(r),
+  //
+  // O MESMO motor de /excessos, com os mesmos parâmetros canónicos.
+  // `avaliarLinha` devolve o excedente já com o corte mínimo aplicado —
+  // é a única fonte, e a única grandeza que se valoriza.
+  const paramsExcesso: ParametrosMotor = {
+    diasJanela: WINDOW_90D,
+    thresholdDays: EXCESSO_COVERAGE_DAYS,
+    targetDays: EXCESSO_TARGET_DAYS,
+    excessoMinimo: EXCESSO_MINIMO_UNIDADES,
+    reservaDias: RESERVA_ORIGEM_DIAS,
+  };
+  const excessAvaliado = stockRows
+    .map((r) => ({
+      row: r,
+      estado: avaliarLinha(
+        {
+          farmaciaId: r.farmaciaId,
+          farmaciaNome: r.farmaciaNome,
+          stockAtual: r.stockAtual,
+          vendasJanela: r.salesQty90d,
+        },
+        paramsExcesso,
+      ),
+    }))
+    .filter((x) => x.estado.excesso > 0);
+  const excessRows = excessAvaliado.map((x) => x.row);
+  const excessStockValueEur = excessAvaliado.reduce(
+    (sum, x) => sum + x.estado.excesso * unitCost(x.row),
     0,
   );
   const noMovementRows = stockRows.filter((r) => matchStockFilter(r, "no-movement-3m"));
@@ -592,7 +660,12 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     criticalAlerts: {
       outOfStockCount: outOfStockRows.length,
-      outOfStockSample: outOfStockRows
+      roturaCriticaCount: roturaCriticaRows.length,
+      semStockOcasionalCount: semStockOcasionalRows.length,
+      semStockSemProcuraCount: semStockSemProcuraRows.length,
+      // A amostra passa a ser das CRÍTICAS: era o detalhe de um cartão
+      // que agora é o cartão secundário.
+      outOfStockSample: roturaCriticaRows
         .slice()
         .sort(sortBySalesQty90dDesc)
         .slice(0, SAMPLE_SIZE)

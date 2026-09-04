@@ -43,6 +43,48 @@ export type {
   StockRowEnriched,
 } from "@/lib/stock-shared";
 
+// ─── Recorrencia: meses distintos com venda ──────────────────────────────────
+//
+// Janela de DOZE meses, e nao os tres da procura activa. Sao medidas
+// diferentes: a recorrencia precisa de horizonte para distinguir o
+// artigo que vende todos os meses do que vendeu num acaso; a procura
+// activa precisa de recencia. Usar a mesma janela para as duas era
+// perguntar duas vezes a mesma coisa.
+//
+// `VendaMensal` e' mensal — "dias distintos com venda" nao e' calculavel
+// sem ir as linhas de venda. O mais fino aqui e' o numero de MESES com
+// quantidade > 0, e dize-lo e' melhor do que fingir precisao.
+const MESES_RECORRENCIA = 12;
+
+/** Índices [inicio, fimExclusivo) da janela de 12 meses completos. */
+function janelaRecorrencia(agora: Date = new Date()): { inicio: number; fim: number } {
+  // O mês corrente está incompleto e não conta — o mesmo critério das
+  // janelas operacionais (ver lib/operational/janela-meses.ts).
+  const fim = agora.getFullYear() * 12 + agora.getMonth() + 1;
+  return { inicio: fim - MESES_RECORRENCIA, fim };
+}
+
+async function loadMesesComVenda(
+  farmaciaIds: string[],
+): Promise<Map<string, number>> {
+  const prisma = await getPrisma();
+  const { inicio, fim } = janelaRecorrencia();
+  const linhas = await prisma.$queryRaw<
+    Array<{ produtoId: string; farmaciaId: string; meses: bigint }>
+  >(Prisma.sql`
+    SELECT vm."produtoId", vm."farmaciaId", COUNT(*)::bigint AS meses
+    FROM "VendaMensal" vm
+    WHERE vm."farmaciaId" = ANY(${farmaciaIds})
+      AND vm.quantidade > 0
+      AND (vm.ano * 12 + vm.mes) >= ${inicio}
+      AND (vm.ano * 12 + vm.mes) <  ${fim}
+    GROUP BY 1, 2
+  `);
+  const mapa = new Map<string, number>();
+  for (const l of linhas) mapa.set(`${l.produtoId}:${l.farmaciaId}`, Number(l.meses));
+  return mapa;
+}
+
 // ─── Loader (full dataset) ───────────────────────────────────────────────────
 
 async function getActiveFarmaciaIds(): Promise<string[]> {
@@ -64,13 +106,16 @@ export async function loadStockEnriched(
   // par (produto, farmacia), o avgDaily90d vem do indicador pré-
   // calculado. Caso contrário, computa-se live a partir de salesMap.
   // Output numérico idêntico (drift 0.0000 confirmado em dry-run).
-  const [{ pfRows, salesMap }, ipfMap] = await Promise.all([
+  const [{ pfRows, salesMap }, ipfMap, mesesMap] = await Promise.all([
     loadPfAndSales(farmaciaIds, {
       // Default: include stock=0 rows so the "out-of-stock" filter works.
       // /transferencias still passes the default (excludes stock=0).
       includeOutOfStock: options?.includeOutOfStock ?? true,
     }),
     loadIpfBatch(farmaciaIds),
+    // Terceira query, em paralelo com as outras duas: nao acrescenta
+    // round-trip nenhum ao tempo de resposta.
+    loadMesesComVenda(farmaciaIds),
   ]);
 
   return pfRows.map((p) => {
@@ -92,6 +137,7 @@ export async function loadStockEnriched(
       pmc: p.pmc,
       dataUltimaVenda: p.dataUltimaVenda,
       salesQty90d,
+      mesesComVenda12M: mesesMap.get(key) ?? 0,
       avgDaily90d,
       coverage,
       dci: p.dci,
@@ -317,6 +363,7 @@ type StockSqlLean = {
   stockAtual: number;
   stockMinimo: number | null;
   salesQty90d: number;
+  mesesComVenda12M: number;
   ipfAvg90d: number | null;
   hasIpf: boolean;
 };
@@ -368,6 +415,7 @@ function stockFromWhere(
       OR COALESCE(p."codigoATC", '') ILIKE ${like}
     )`);
   }
+  const recorrencia = janelaRecorrencia();
   return Prisma.sql`
     FROM "ProdutoFarmacia" pf
     JOIN "Produto"  p ON p.id = pf."produtoId"
@@ -380,6 +428,15 @@ function stockFromWhere(
         AND "farmaciaId" = ANY(${effFarmaciaIds})
       GROUP BY "produtoId", "farmaciaId"
     ) vm ON vm."produtoId" = pf."produtoId" AND vm."farmaciaId" = pf."farmaciaId"
+    LEFT JOIN (
+      SELECT "produtoId", "farmaciaId", COUNT(*)::int AS "mesesComVenda12M"
+      FROM "VendaMensal"
+      WHERE "quantidade" > 0
+        AND ("ano" * 12 + "mes") >= ${recorrencia.inicio}
+        AND ("ano" * 12 + "mes") <  ${recorrencia.fim}
+        AND "farmaciaId" = ANY(${effFarmaciaIds})
+      GROUP BY "produtoId", "farmaciaId"
+    ) rec ON rec."produtoId" = pf."produtoId" AND rec."farmaciaId" = pf."farmaciaId"
     LEFT JOIN "IndicadoresProdutoFarmacia" i
       ON i."produtoId" = pf."produtoId" AND i."farmaciaId" = pf."farmaciaId"
     LEFT JOIN "Classificacao" c1 ON c1.id = p."classificacaoNivel1Id"
@@ -394,6 +451,7 @@ const STOCK_LEAN_SELECT = Prisma.sql`
     pf."stockAtual"::float  AS "stockAtual",
     pf."stockMinimo"::float AS "stockMinimo",
     COALESCE(vm."salesQty90d", 0)::float AS "salesQty90d",
+    COALESCE(rec."mesesComVenda12M", 0)::int AS "mesesComVenda12M",
     i."mediaVendasDiarias90d"::float AS "ipfAvg90d",
     (i."produtoId" IS NOT NULL) AS "hasIpf"
 `;
@@ -416,6 +474,7 @@ const STOCK_FULL_SELECT = Prisma.sql`
     c1.nome AS "canonN1",
     c2.nome AS "canonN2",
     COALESCE(vm."salesQty90d", 0)::float AS "salesQty90d",
+    COALESCE(rec."mesesComVenda12M", 0)::int AS "mesesComVenda12M",
     i."mediaVendasDiarias90d"::float AS "ipfAvg90d",
     (i."produtoId" IS NOT NULL) AS "hasIpf"
 `;
@@ -429,6 +488,7 @@ function resolveAvg(salesQty90d: number, hasIpf: boolean, ipfAvg90d: number | nu
 function enrichFull(b: StockSqlFull): StockRowEnriched {
   const avgDaily90d = resolveAvg(b.salesQty90d, b.hasIpf, b.ipfAvg90d);
   return {
+    mesesComVenda12M: b.mesesComVenda12M,
     produtoId: b.produtoId,
     farmaciaId: b.farmaciaId,
     farmaciaNome: b.farmaciaNome,

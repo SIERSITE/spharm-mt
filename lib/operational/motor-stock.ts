@@ -62,9 +62,9 @@ export function mediaDiaria(quantidadeJanela: number, diasJanela: number): numbe
 export type ParametrosMotor = {
   /** Denominador da média diária. Vem de `diasDaJanela`. */
   diasJanela: number;
-  /** Acima desta cobertura há excesso. Default do chamador (180). */
+  /** Acima desta cobertura há excesso. Default do chamador (120). */
   thresholdDays: number;
-  /** Cobertura-alvo: o que sobra acima disto é o excesso. Default 30. */
+  /** Cobertura-alvo: o que sobra acima disto é o excesso. Default 45. */
   targetDays: number;
   /**
    * Excessos abaixo disto são ruído e contam como 0.
@@ -74,6 +74,15 @@ export type ParametrosMotor = {
    * a matemática sem o corte comercial pelo meio.
    */
   excessoMinimo?: number;
+  /**
+   * Dias de cobertura que a ORIGEM tem de conservar. A quantidade
+   * transferível passa a ser limitada também por
+   * `floor(stock − reservaDias × média)`.
+   *
+   * Omitir é o mesmo que 0 — mas nenhum relatório oficial o omite; ver
+   * RESERVA_ORIGEM_DIAS em metrics-shared.
+   */
+  reservaDias?: number;
 };
 
 /** Uma linha (produto × farmácia) antes de ser avaliada. */
@@ -92,6 +101,15 @@ export type EstadoStock<T extends LinhaStock = LinhaStock> = T & {
   excesso: number;
   /** Unidades em falta para chegar ao objectivo. 0 quando não faltam. */
   necessidade: number;
+  /**
+   * Tecto do que esta linha pode ceder sem violar a reserva:
+   * `floor(stock − reservaDias × média)`.
+   *
+   * Vive aqui, e não é recalculado no emparelhamento, porque depende
+   * apenas da linha. Sem reserva é o stock inteiro, que era o
+   * comportamento anterior.
+   */
+  transferivel: number;
 };
 
 /**
@@ -117,6 +135,15 @@ export function avaliarLinha<T extends LinhaStock>(
     excesso = bruto >= minimo && bruto > 0 ? bruto : 0;
   }
 
+  // `floor`, nunca `round`: arredondar para cima aqui devolveria à
+  // origem exactamente a meia unidade que a reserva existe para
+  // proteger. Sem reserva o tecto é o stock, como sempre foi.
+  const reserva = params.reservaDias ?? 0;
+  const transferivel =
+    reserva > 0
+      ? Math.max(0, Math.floor(linha.stockAtual - reserva * avgDaily))
+      : linha.stockAtual;
+
   return {
     ...linha,
     avgDaily,
@@ -124,6 +151,7 @@ export function avaliarLinha<T extends LinhaStock>(
     excesso,
     // A mesma função que a escolha de destino usa. Um sítio só.
     necessidade: necessidadeAte({ avgDaily, coberturaDias }, params.targetDays),
+    transferivel,
   };
 }
 
@@ -204,10 +232,13 @@ export function emparelhar<T extends LinhaStock>(
   const destino = candidatos[0] ?? null;
   if (!destino) return semDestino;
 
+  // A terceira fronteira era `origem.stockAtual`. Passa a ser o tecto
+  // que já desconta a reserva — a mudança está toda em `avaliarLinha`,
+  // e esta função continua a não saber o que é uma reserva.
   const quantidadeSugerida = quantidadeSegura(
     origem.excesso,
     destino.necessidade,
-    origem.stockAtual,
+    origem.transferivel,
   );
 
   // ── Sugestao 0 ⇒ destino null ────────────────────────────────────

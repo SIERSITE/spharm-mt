@@ -49,6 +49,14 @@ import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
 import { EXCESSO_COVERAGE_DAYS } from "../../lib/operational/metrics-shared";
 import {
+  ROTURA_MESES_MINIMOS,
+  ROTURA_RECENCIA_DIAS,
+  ROTURA_UNIDADES_MINIMAS,
+  classificarRotura,
+  temRecorrencia,
+  temVolume,
+} from "../../lib/operational/rotura";
+import {
   avaliarLinha,
   ehAccionavel,
   ehDestinoElegivel,
@@ -340,6 +348,79 @@ async function main() {
       [critico, pontual, semProcura],
       emRotura.length,
     );
+
+    // ══════════════════════════════════════════════════════════════════
+    // REGRA FINAL DE ROTURA · os dois ramos, medidos em separado
+    //
+    // Usa `classificarRotura` — o MESMO classificador que a aplicação
+    // passou a usar, não uma reprodução. Se a regra mudar lá, muda aqui.
+    // ══════════════════════════════════════════════════════════════════
+    linha("");
+    linha("  ─── REGRA FINAL (a que está implementada) ───");
+    confirmarRegra(
+      "lib/operational/rotura.ts",
+      "if (dias <= ROTURA_RECENCIA_DIAS && (temRecorrencia(linha) || temVolume(linha)))",
+      "crítica = recência E (recorrência OU volume)",
+    );
+    linha(
+      `  parâmetros: <= ${ROTURA_RECENCIA_DIAS}d · >= ${ROTURA_MESES_MINIMOS} meses em 12M · >= ${ROTURA_UNIDADES_MINIMAS} un em 3M`,
+    );
+
+    const agoraMs = Date.now();
+    let nCritica = 0;
+    let nOcasional = 0;
+    let nSemProcura = 0;
+    // Os dois ramos, contados independentemente DENTRO das críticas.
+    let soRecorrencia = 0;
+    let soVolume = 0;
+    let ambos = 0;
+
+    for (const r of emRotura) {
+      const alvoRotura = {
+        stockAtual: r.stockAtual,
+        dataUltimaVenda: r.dataUltimaVenda,
+        salesQty90d: r.salesQty90d,
+        mesesComVenda12M: mesesPorChave.get(`${r.produtoId}:${r.farmaciaId}`) ?? 0,
+      };
+      const nivel = classificarRotura(alvoRotura, agoraMs);
+      if (nivel === "CRITICA") {
+        nCritica++;
+        const rec = temRecorrencia(alvoRotura);
+        const vol = temVolume(alvoRotura);
+        if (rec && vol) ambos++;
+        else if (rec) soRecorrencia++;
+        else soVolume++;
+      } else if (nivel === "OCASIONAL") nOcasional++;
+      else nSemProcura++;
+    }
+
+    linha("");
+    tabela(
+      [
+        "Roturas críticas               ",
+        "Sem stock · procura ocasional  ",
+        "Sem stock · sem procura recente",
+      ],
+      [nCritica, nOcasional, nSemProcura],
+      emRotura.length,
+    );
+    linha("");
+    linha("  Dentro das críticas, de onde vêm:");
+    tabela(
+      [
+        "só pelo ramo da recorrência (>=2 meses)",
+        "só pelo ramo do volume (>=4 unidades)  ",
+        "pelos dois ao mesmo tempo              ",
+      ],
+      [soRecorrencia, soVolume, ambos],
+      nCritica || 1,
+    );
+    linha("");
+    linha(`  O ramo do volume acrescenta ${nf(soVolume)} linhas que a recorrência sozinha`);
+    linha("  perderia — são os artigos novos, com procura a arrancar e sem histórico.");
+    linha("");
+    linha(`  Antes (regra única): ${nf(emRotura.length)} linhas num só cartão.`);
+    linha(`  Depois: ${nf(nCritica)} no cartão de alerta, ${nf(nOcasional + nSemProcura)} nos secundários.`);
 
     // ══════════════════════════════════════════════════════════════════
     // PARTE 2 · FUNIL DAS TRANSFERÊNCIAS

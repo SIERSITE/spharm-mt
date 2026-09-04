@@ -35,7 +35,11 @@ export const WINDOW_30D = 30 as const;
  * Threshold canónico de EXCESSO de cobertura (em dias).
  *
  * Um produto é classificado como excesso quando `coverageDays > EXCESSO_COVERAGE_DAYS`.
- * Valor decidido no fecho funcional (2026-06): **180 dias** (semestre conservador).
+ *
+ * 2026-06: 180 dias (semestre conservador).
+ * 2026-09: **120 dias**, com o alvo a subir de 30 para 45 e o mínimo a
+ * descer de 5 para 3 — ver EXCESSO_TARGET_DAYS abaixo. A medição que
+ * motivou a mudança está em scripts/diagnostics/matriz-transferencias.ts.
  *
  * Substitui os 3 thresholds divergentes que existiam:
  *   - Dashboard / `stock-shared.ts` filtro "excess-stock-60d" → 60 dias
@@ -47,7 +51,53 @@ export const WINDOW_30D = 30 as const;
  * threshold diferente passa-o explicitamente como argumento — mas o default
  * em todos os relatórios oficiais é esta constante.
  */
-export const EXCESSO_COVERAGE_DAYS = 180 as const;
+export const EXCESSO_COVERAGE_DAYS = 120 as const;
+
+/**
+ * Cobertura-ALVO, em dias. Faz duas coisas ao mesmo tempo, e é preciso
+ * ter as duas em mente ao mexer-lhe:
+ *
+ *   · define quanto da origem é excedente — `(cobertura − alvo) × média`;
+ *   · define até onde se enche o destino — `(alvo − cobertura) × média`.
+ *
+ * Subir o alvo aumenta a necessidade do destino E reduz o excesso da
+ * origem. Não são separáveis sem mudar a assinatura do motor.
+ */
+export const EXCESSO_TARGET_DAYS = 45 as const;
+
+/**
+ * Excessos abaixo disto contam como zero.
+ *
+ * Nasceu como `if (excessQty < 5) continue` dentro dos Excessos. Desceu
+ * para 3 em 2026-09.
+ *
+ * ATENÇÃO: este corte estava a mascarar um defeito — ver
+ * RESERVA_ORIGEM_DIAS. Descê-lo sem a reserva alargaria o problema.
+ */
+export const EXCESSO_MINIMO_UNIDADES = 3 as const;
+
+/**
+ * Dias de cobertura que a ORIGEM tem de conservar depois de uma
+ * transferência.
+ *
+ * Parece redundante com o alvo, e na aritmética exacta é:
+ *
+ *     stock − excesso = cobertura×média − (cobertura−alvo)×média
+ *                     = alvo × média
+ *
+ * Na implementação NÃO é. `excesso = Math.round(...)` e, quando
+ * `alvo × média <= 0,5`, o arredondamento engole a reserva inteira: o
+ * excesso passa a ser o stock todo e a origem fica a ZERO. Acontece em
+ * artigos de baixa rotação — stock 5 que venda 6 unidades por ano cede
+ * as 5 — e o antigo corte de 5 unidades não o impedia.
+ *
+ * A reserva é aplicada com `Math.floor`, nunca com `round`: arredondar
+ * para cima aqui seria voltar a consumir a reserva que ela existe para
+ * proteger.
+ *
+ * Reproduzido em scripts/tests/test-seguranca-origem.ts, secção C.
+ */
+export const RESERVA_ORIGEM_DIAS = 30 as const;
 
 /**
  * Sanitiza um valor numérico: NaN/Infinity/negativos → 0.

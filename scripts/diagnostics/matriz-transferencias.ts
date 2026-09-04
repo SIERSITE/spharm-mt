@@ -382,6 +382,69 @@ async function principal() {
     linha(`  sem PVP: ${nf(semPvp)} · sem PUC: ${nf(semPuc)}  (valores abaixo são SUBESTIMADOS)`);
 
     // ══════════════════════════════════════════════════════════════════
+    // O CONFRONTO. As duas configurações lado a lado, linha a linha, sem
+    // a matriz pelo meio — é a única comparação que decide alguma coisa.
+    // ══════════════════════════════════════════════════════════════════
+    titulo("CONFRONTO · 180/30/5 sem reserva   vs   120/45/3 com reserva 30d");
+
+    const ANTES: ParametrosMotor = {
+      diasJanela: dias,
+      thresholdDays: 180,
+      targetDays: 30,
+      excessoMinimo: 5,
+    };
+    const DEPOIS: ParametrosMotor = {
+      diasJanela: dias,
+      thresholdDays: 120,
+      targetDays: 45,
+      excessoMinimo: 3,
+      reservaDias: 30,
+    };
+    const antes = medir(base, ANTES);
+    const depois = medir(base, DEPOIS);
+    // O mesmo cenário 120/45/3 SEM reserva, para isolar quanto é que a
+    // reserva custa — de outra forma o efeito dos thresholds e o da
+    // reserva ficavam somados e indistinguíveis.
+    const depoisSemReserva = medir(base, { ...DEPOIS, reservaDias: 0 });
+
+    const delta = (a: number, b: number) => {
+      const d = b - a;
+      const pct = a > 0 ? ` (${d >= 0 ? "+" : ""}${Math.round((d / a) * 100)}%)` : "";
+      return `${d >= 0 ? "+" : ""}${nf(d)}${pct}`;
+    };
+    const linhaConfronto = (rotulo: string, a: number, b: number, moeda = false) => {
+      const fmt = moeda ? eur : nf;
+      linha(
+        `  ${rotulo.padEnd(34)}${fmt(a).padStart(12)}${fmt(b).padStart(12)}   ${delta(a, b)}`,
+      );
+    };
+
+    linha("");
+    linha(`  ${"".padEnd(34)}${"180/30/5".padStart(12)}${"120/45/3+r30".padStart(12)}   diferença`);
+    linha("  " + "─".repeat(74));
+    linhaConfronto("linhas com excesso", antes.linhasExcesso, depois.linhasExcesso);
+    linhaConfronto("CNP com excesso", antes.cnpExcesso, depois.cnpExcesso);
+    linhaConfronto("linhas com necessidade", antes.linhasNecessidade, depois.linhasNecessidade);
+    linhaConfronto("pares origem→destino", antes.paresElegiveis, depois.paresElegiveis);
+    linhaConfronto("SUGESTÕES FINAIS", antes.sugestoes, depois.sugestoes);
+    linhaConfronto("unidades sugeridas", antes.unidades, depois.unidades);
+    linhaConfronto("valor a PVP (€)", antes.valorPvp, depois.valorPvp, true);
+    linhaConfronto("valor a custo (€)", antes.valorCusto, depois.valorCusto, true);
+    linha("  " + "─".repeat(74));
+    linhaConfronto("origens que ficam < 30d", antes.abaixo30, depois.abaixo30);
+    linhaConfronto("origens que ficam < 45d", antes.abaixo45, depois.abaixo45);
+    linhaConfronto("origens que ficam < 60d", antes.abaixo60, depois.abaixo60);
+    linhaConfronto("origens que ficam A ZERO", antes.zeradas, depois.zeradas);
+    linha("  " + "─".repeat(74));
+    linha("");
+    linha("  Quanto custa a RESERVA, isolada dos thresholds:");
+    linha(`    120/45/3 sem reserva ...... ${nf(depoisSemReserva.sugestoes)} sugestões, ${nf(depoisSemReserva.unidades)} unidades`);
+    linha(`    120/45/3 com reserva 30d .. ${nf(depois.sugestoes)} sugestões, ${nf(depois.unidades)} unidades`);
+    linha(`    sugestões anuladas ........ ${nf(depoisSemReserva.sugestoes - depois.sugestoes)}`);
+    linha(`    unidades cortadas ......... ${nf(depoisSemReserva.unidades - depois.unidades)}`);
+    linha(`    origens salvas do zero .... ${nf(depoisSemReserva.zeradas - depois.zeradas)}`);
+
+    // ══════════════════════════════════════════════════════════════════
     titulo("MATRIZ · cobertura de origem × excesso mínimo   (alvo = 30 dias)");
     linha("");
     linha("  orig  min │  linhas    CNP    pares   sugest   unid.     € PVP    € custo │ <30d <45d <60d  =0");

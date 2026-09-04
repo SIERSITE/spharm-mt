@@ -152,7 +152,7 @@ export type InventarioResult = {
 };
 
 const SEM_MOV_DAYS = 180;
-// Excesso: usa a constante canónica partilhada (180 dias). Single source of
+// Excesso: usa a constante canónica partilhada (120 dias). Single source of
 // truth — ver lib/operational/metrics-shared.ts:EXCESSO_COVERAGE_DAYS.
 const EXCESSO_DAYS = EXCESSO_COVERAGE_DAYS;
 const VENDAS_WINDOW_DAYS = 90;
