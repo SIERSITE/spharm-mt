@@ -166,8 +166,15 @@ export function ReportFiltersBar({
       </div>
 
       {/* Toggle "apenas sem classificação" — só aparece se houver
-          produtos sem classif. canónica no tenant. Evita poluir UI
-          quando não é relevante. */}
+          produtos de CATÁLOGO sem classificação no tenant. Evita poluir
+          a UI quando não é relevante.
+
+          O rótulo dizia "sem classificação canónica" e implementava
+          "sem classificação nenhuma". Antes das classificações
+          provisórias as duas frases eram sinónimas; deixaram de ser no
+          dia em que passou a existir um terceiro estado. Quem ligasse o
+          filtro à procura de provisórias não encontrava nenhuma — elas
+          TÊM nível 1 — e concluía que a grelha as escondia. */}
       {options.semClassificacao && (
         <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
           <input
@@ -176,7 +183,7 @@ export function ReportFiltersBar({
             onChange={(e) => patch({ apenasSemClassif: e.target.checked || undefined })}
             className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
           />
-          <span>Apenas produtos sem classificação canónica</span>
+          <span>Apenas produtos sem classificação</span>
         </label>
       )}
 

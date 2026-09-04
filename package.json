@@ -54,6 +54,7 @@
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:classificacao-provisoria": "tsx scripts/tests/test-classificacao-provisoria.ts",
+    "test:filtro-sem-classificacao": "tsx scripts/tests/test-filtro-sem-classificacao.ts",
     "test:preselection": "tsx scripts/tests/test-preselection.ts",
     "test:janela-residual": "tsx scripts/tests/test-janela-residual.ts",
     "test:codigos-saida": "tsx scripts/tests/test-codigos-saida.ts",

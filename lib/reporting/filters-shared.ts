@@ -68,6 +68,16 @@ export type SharedReportFilters = {
    */
   incluirTransferencias?: boolean;
   /** Se true, restringe a produtos sem classificação canónica. */
+  /**
+   * Só produtos de CATÁLOGO sem nível 1.
+   *
+   * Exclui os códigos internos do ERP: um artigo que nunca poderia ter
+   * classificação não é um problema de classificação. Ver
+   * `restringirSemClassificacao` em lib/reporting/catalog-prefilter.ts.
+   *
+   * NÃO exclui as classificações provisórias: essas têm nível 1 e nível 2
+   * utilizáveis, portanto não estão por classificar.
+   */
   apenasSemClassif?: boolean;
 };
 

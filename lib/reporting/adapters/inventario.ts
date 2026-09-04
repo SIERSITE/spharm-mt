@@ -101,7 +101,13 @@ function buildFiltersLabel(
     out.push({ label: "Pesquisa", value: f.pesquisa.trim() });
   }
   if (f.apenasSemClassif) {
-    out.push({ label: "Apenas sem classificação", value: "Sim" });
+    // O relatório exportado diz exactamente o que o filtro fez —
+    // incluindo o que EXCLUIU. Sem a segunda metade, quem receber o PDF
+    // não consegue reconciliar o total com o do ecrã do catálogo.
+    out.push({
+      label: "Apenas sem classificação",
+      value: "Sim (produtos de catálogo; exclui códigos internos)",
+    });
   }
   return out;
 }

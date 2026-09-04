@@ -39,7 +39,11 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
-import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
+import {
+  restringirPorCatalogo,
+  restringirSemClassificacao,
+  temFiltroCatalogo,
+} from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
 import {
@@ -199,15 +203,10 @@ export async function getVendasData(
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }
   if (filters.apenasSemClassif) {
-    const produtos = await prisma.produto.findMany({
-      where: {
-        classificacaoNivel1Id: null,
-        estado: { not: "INATIVO" },
-        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
-      },
-      select: { id: true },
-    });
-    produtoIdFilter = produtos.map((p) => p.id);
+    // Helper central: o mesmo `where` estava escrito em tres loaders, e
+    // faltava-lhe a mesma condicao nos tres — os codigos internos do ERP.
+    // Ver lib/reporting/catalog-prefilter.ts.
+    produtoIdFilter = await restringirSemClassificacao(prisma, produtoIdFilter);
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }
   if (filters.fabricantes && filters.fabricantes.length > 0) {
