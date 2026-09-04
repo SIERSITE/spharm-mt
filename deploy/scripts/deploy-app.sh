@@ -126,10 +126,30 @@ dcapp() {
 # ═════════════════════════════════════════════════════════════════════════
 # 1. Pré-condições
 # ═════════════════════════════════════════════════════════════════════════
+# Descobre de que clone construir.
+#
+# A PRIMEIRA resposta e' o clone que contem ESTE script. Quem corre
+# `<clone>/deploy/scripts/deploy-app.sh` quer publicar a revisao desse
+# clone, e nao a de outro qualquer que exista na maquina. E' tambem como
+# o `install-stack.sh` resolve o `REPO_ROOT` (SCRIPT_DIR/../..), portanto
+# os dois concordam sobre o que e' "o repositorio".
+#
+# A lista de fallback so' interessa quando o script corre INSTALADO, a
+# partir de ${SPHARMMT_ROOT}/scripts — que nao e' um repositorio git.
 localizar_clone() {
   [ -n "$CLONE" ] && return 0
+
+  local aqui
+  aqui=$(cd "${SCRIPT_DIR}/../.." 2>/dev/null && pwd) || aqui=""
+  if [ -n "$aqui" ] && [ -d "${aqui}/.git" ]; then
+    CLONE=$aqui
+    dbg "clone deduzido da localizacao do script: ${CLONE}"
+    return 0
+  fi
+
   local c
-  for c in "${SPHARMMT_ROOT}/src" /home/*/spharm-mt /home/*/spharmmt-mt /srv/spharm-mt /opt/spharm-mt; do
+  for c in "${SPHARMMT_ROOT}/src" /tmp/spharmmt /tmp/spharm-mt \
+           /home/*/spharm-mt /home/*/spharmmt-mt /srv/spharm-mt /opt/spharm-mt; do
     [ -d "${c}/.git" ] && { CLONE=$c; return 0; }
   done
   return 1

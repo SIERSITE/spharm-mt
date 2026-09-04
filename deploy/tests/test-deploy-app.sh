@@ -110,6 +110,32 @@ check "sintaxe bash valida" "$(bash -n "$ALVO" 2>&1; echo $?)" "0"
 nao_contem "install-stack nao chama o deploy rapido" \
   "$(cat "${REPO}/deploy/scripts/install-stack.sh")" 'deploy-app'
 
+# ── O bit de execucao, no INDICE do git ─────────────────────────────
+#
+# `chmod +x` numa maquina com `core.filemode=false` (Windows) nao chega
+# ao indice: o ficheiro segue como 100644 e, no clone da VPS, um
+# `sudo .../deploy-app.sh` responde "command not found" — que nao parece
+# um problema de permissoes e faz perder tempo a procurar noutro sitio.
+# O modo tem de ser gravado, e e' o git que o guarda.
+MODO=$(git -C "$REPO" ls-files -s deploy/scripts/deploy-app.sh 2>/dev/null | awk '{print $1}')
+check "deploy-app.sh esta' 100755 no indice do git" "$MODO" "100755"
+
+# Os restantes scripts operacionais ja' estavam executaveis; este tem de
+# acompanhar, senao a lista tem uma excepcao silenciosa.
+for s_ in install-stack.sh update-platform.sh verify-platform.sh; do
+  m=$(git -C "$REPO" ls-files -s "deploy/scripts/${s_}" 2>/dev/null | awk '{print $1}')
+  check "referencia: ${s_} tambem 100755" "$m" "100755"
+done
+
+# ── Deteccao do clone a partir da localizacao do script ─────────────
+#
+# Correr `<clone>/deploy/scripts/deploy-app.sh` tem de descobrir esse
+# clone sozinho. A lista de caminhos conhecidos nao chega: um checkout em
+# /tmp/spharmmt nao estava la', e o script abortava com "clone nao
+# encontrado" logo na primeira utilizacao real.
+contem "deduz o clone de SCRIPT_DIR/../.." "$CORPO" 'aqui=$(cd "${SCRIPT_DIR}/../.."'
+contem "so' aceita se for mesmo um repositorio" "$CORPO" '\[ -d "${aqui}/.git" \]'
+
 # ═════════════════════════════════════════════════════════════════════
 # D · Comportamento, com docker/git/curl falsos
 # ═════════════════════════════════════════════════════════════════════
