@@ -47,6 +47,7 @@
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
     "test:diagnostico-tools": "tsx scripts/tests/test-diagnostico-tools.ts",
+    "test:seguranca-origem": "tsx scripts/tests/test-seguranca-origem.ts",
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:preselection": "tsx scripts/tests/test-preselection.ts",

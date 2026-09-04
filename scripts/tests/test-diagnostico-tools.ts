@@ -17,8 +17,8 @@
  *
  *   A · percorre o grafo de imports de cada diagnóstico e falha se
  *       algum módulo — a qualquer profundidade — trouxer `server-only`;
- *   B · corre mesmo `npx tsx <diagnóstico>` e confirma que o processo
- *       passa da fase de carregamento de módulos.
+ *   B · corre mesmo `npx tsx <diagnóstico>` — TODOS eles — e confirma
+ *       que o processo passa da fase de carregamento de módulos.
  *
  * Corre com:  npm run test:diagnostico-tools
  */
@@ -180,23 +180,25 @@ for (const d of diagnosticos) {
 // ══════════════════════════════════════════════════════════════════════
 console.log("\nB · execução com tsx (sem Next)");
 
-const ALVO = "scripts/diagnostics/funil-rotura-transferencias.ts";
-const BANNER = "SPharm.MT · funil rotura/transferências · diagnóstico read-only";
-
-check(readFileSync(ALVO, "utf8").includes(BANNER), "o diagnóstico imprime a linha de arranque");
-
-{
-  // Sem `--tenant`: o script recusa-se e sai com 2, SEM tocar na base.
-  // É o caminho que prova o carregamento de módulos sem precisar de
-  // PostgreSQL nenhum.
+// Cada diagnostico imprime uma linha de identificacao ANTES de tocar na
+// base de dados, e recusa-se a correr sem `--tenant`. Se essa linha sair
+// e o codigo de saida for 2, o grafo de imports carregou inteiro — que e'
+// exactamente o que falhava em producao.
+//
+// Corre-se TODOS e nao um: um diagnostico novo com um import proibido
+// so' era apanhado pela analise estatica, e a analise estatica nao ve'
+// um `require` dinamico nem um pacote que falta no package.json.
+for (const alvo of diagnosticos) {
   let stdout = "";
   let stderr = "";
   let status = 0;
   try {
-    stdout = execFileSync("npx", ["tsx", ALVO], {
+    stdout = execFileSync("npx", ["tsx", alvo], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 120_000,
+      // Destino inexistente de proposito: nenhum diagnostico deve
+      // chegar a abrir ligacao sem `--tenant`.
       env: { ...process.env, DATABASE_URL: "postgresql://x:x@127.0.0.1:1/x" },
       shell: process.platform === "win32",
     });
@@ -208,23 +210,20 @@ check(readFileSync(ALVO, "utf8").includes(BANNER), "o diagnóstico imprime a lin
   }
 
   const saida = `${stdout}\n${stderr}`;
+  const nome = alvo.replace(/\\/g, "/");
 
   check(
-    !/Cannot find module ['"]server-only['"]/.test(saida),
-    "não falha em `Cannot find module 'server-only'`",
-    saida.slice(0, 400),
-  );
-  check(
     !/Cannot find module/.test(saida),
-    "não falha em nenhum módulo em falta",
+    `${nome}: nenhum módulo em falta`,
     saida.slice(0, 400),
   );
-  check(saida.includes(BANNER), "chegou a correr: a linha de arranque saiu", saida.slice(0, 400));
-  eq(status, 2, "e saiu com 2 — falta `--tenant`, não um erro de carregamento");
   check(
-    /--tenant/.test(saida),
-    "…dizendo que o destino tem de ser identificado pelo tenant",
+    /SPharm\.MT/.test(saida),
+    `${nome}: chegou a correr — a linha de arranque saiu`,
+    saida.slice(0, 400),
   );
+  eq(status, 2, `${nome}: saiu com 2 — falta \`--tenant\`, não um erro de carregamento`);
+  check(/--tenant/.test(saida), `${nome}: diz que o destino tem de ser identificado`);
 }
 
 // ══════════════════════════════════════════════════════════════════════
