@@ -31,14 +31,14 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import {
-  EXCESSO_COVERAGE_DAYS,
-  EXCESSO_MINIMO_UNIDADES,
-  EXCESSO_TARGET_DAYS,
-  RESERVA_ORIGEM_DIAS,
-  WINDOW_90D,
-} from "@/lib/operational/metrics-shared";
+import { WINDOW_90D } from "@/lib/operational/metrics-shared";
 import { avaliarLinha, type ParametrosMotor } from "@/lib/operational/motor-stock";
+import {
+  getOperationalPolicy,
+  reservaOrigemDias,
+  type ModoRotura,
+} from "@/lib/operational/policy";
+import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import {
   loadStockEnriched,
   matchStockFilter,
@@ -151,6 +151,15 @@ export type DashboardData = {
     semStockOcasionalCount: number;
     /** Sem stock, procura que já não é actual. */
     semStockSemProcuraCount: number;
+    /**
+     * Como esta farmácia quer o cartão. `classica` = o número único de
+     * sempre; `tres-niveis` = a decomposição.
+     *
+     * A decomposição é calculada SEMPRE — é barata e não muda o total —
+     * mas só é promovida a cartão principal onde já foi medida. Ver
+     * `lib/operational/policy.ts`.
+     */
+    modoRotura: ModoRotura;
     outOfStockSample: ActionableProduct[];
     atRiskCount: number;
     atRiskSample: ActionableProduct[];
@@ -562,17 +571,24 @@ export async function getDashboardData(): Promise<DashboardData> {
   const monthlyTrend = trendData.monthlyTrend;
 
   // ── Alertas críticos ──────────────────────────────────────────────────
+  // A MESMA policy que /excessos e /transferencias resolvem. Uma só
+  // chamada para os dois blocos — roturas e excesso.
+  const policy = getOperationalPolicy(await resolveCurrentTenantSlug());
+
   const outOfStockRows = stockRows.filter((r) => matchStockFilter(r, "out-of-stock"));
   // "Agora" fixado UMA vez para os três: sem isto, três chamadas a
   // Date.now() podiam cair em lados diferentes da fronteira dos 30 dias
   // e os números deixavam de somar.
   const agora = Date.now();
-  const roturaCriticaRows = stockRows.filter((r) => matchStockFilter(r, "rotura-critica", agora));
+  const ctxRotura = { agora, rotura: policy.rotura };
+  const roturaCriticaRows = stockRows.filter((r) =>
+    matchStockFilter(r, "rotura-critica", ctxRotura),
+  );
   const semStockOcasionalRows = stockRows.filter((r) =>
-    matchStockFilter(r, "sem-stock-ocasional", agora),
+    matchStockFilter(r, "sem-stock-ocasional", ctxRotura),
   );
   const semStockSemProcuraRows = stockRows.filter((r) =>
-    matchStockFilter(r, "sem-stock-sem-procura", agora),
+    matchStockFilter(r, "sem-stock-sem-procura", ctxRotura),
   );
   const atRiskRows = stockRows.filter((r) => matchStockFilter(r, "at-risk"));
 
@@ -581,12 +597,16 @@ export async function getDashboardData(): Promise<DashboardData> {
   // O MESMO motor de /excessos, com os mesmos parâmetros canónicos.
   // `avaliarLinha` devolve o excedente já com o corte mínimo aplicado —
   // é a única fonte, e a única grandeza que se valoriza.
+  // A MESMA policy que /excessos resolve — a mesma função, o mesmo
+  // tenant, os mesmos números. É esta linha que impede a divergência de
+  // voltar: se um dia forem duas, voltam a dar valores diferentes com o
+  // mesmo nome.
   const paramsExcesso: ParametrosMotor = {
     diasJanela: WINDOW_90D,
-    thresholdDays: EXCESSO_COVERAGE_DAYS,
-    targetDays: EXCESSO_TARGET_DAYS,
-    excessoMinimo: EXCESSO_MINIMO_UNIDADES,
-    reservaDias: RESERVA_ORIGEM_DIAS,
+    thresholdDays: policy.excesso.thresholdDias,
+    targetDays: policy.excesso.targetDias,
+    excessoMinimo: policy.excesso.minimoUnidades,
+    reservaDias: reservaOrigemDias(policy),
   };
   const excessAvaliado = stockRows
     .map((r) => ({
@@ -660,12 +680,16 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     criticalAlerts: {
       outOfStockCount: outOfStockRows.length,
+      modoRotura: policy.rotura.modo,
       roturaCriticaCount: roturaCriticaRows.length,
       semStockOcasionalCount: semStockOcasionalRows.length,
       semStockSemProcuraCount: semStockSemProcuraRows.length,
-      // A amostra passa a ser das CRÍTICAS: era o detalhe de um cartão
-      // que agora é o cartão secundário.
-      outOfStockSample: roturaCriticaRows
+      // A amostra segue o cartão: com `classica`, é do universo antigo;
+      // com `tres-niveis`, das críticas. De outra forma o cartão dizia
+      // um número e a lista por baixo mostrava outro conjunto.
+      outOfStockSample: (policy.rotura.modo === "tres-niveis"
+        ? roturaCriticaRows
+        : outOfStockRows)
         .slice()
         .sort(sortBySalesQty90dDesc)
         .slice(0, SAMPLE_SIZE)

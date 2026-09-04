@@ -65,6 +65,11 @@ import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
 import { EXCESSO_COVERAGE_DAYS } from "../../lib/operational/metrics-shared";
 import {
+  descreverPolicy,
+  getOperationalPolicy,
+  reservaOrigemDias,
+} from "../../lib/operational/policy";
+import {
   avaliarLinha,
   ehAccionavel,
   ehDestinoElegivel,
@@ -322,6 +327,15 @@ async function principal() {
   }
   linha(`base: ${descreverAlvo(alvo)}`);
 
+
+  // A POLICY do tenant, impressa antes de qualquer numero. Sem isto
+  // nao se sabe o que esta a ser medido: os mesmos dados dao
+  // resultados diferentes consoante a calibracao, e um relatorio sem
+  // cabecalho e um relatorio que se atribui a farmacia errada.
+  const policy = getOperationalPolicy(alvo.tenant ?? null);
+  linha("");
+  for (const l of descreverPolicy(policy)) linha(l);
+
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: alvo.url }) });
 
   try {
@@ -385,20 +399,26 @@ async function principal() {
     // O CONFRONTO. As duas configurações lado a lado, linha a linha, sem
     // a matriz pelo meio — é a única comparação que decide alguma coisa.
     // ══════════════════════════════════════════════════════════════════
-    titulo("CONFRONTO · 180/30/5 sem reserva   vs   120/45/3 com reserva 30d");
+    titulo("CONFRONTO · defaults globais   vs   policy desta farmácia");
 
+    // ANTES = o default global, sem reserva. É o que esta farmácia
+    // corre hoje se não tiver calibração própria.
     const ANTES: ParametrosMotor = {
       diasJanela: dias,
       thresholdDays: 180,
       targetDays: 30,
       excessoMinimo: 5,
     };
+    // DEPOIS = a policy REAL desta farmácia, seja ela qual for. Quando
+    // não há calibração as duas colunas são quase iguais — e a única
+    // diferença é a reserva, que é uma correcção técnica e não uma
+    // escolha comercial. Ver isso escrito é o objectivo.
     const DEPOIS: ParametrosMotor = {
       diasJanela: dias,
-      thresholdDays: 120,
-      targetDays: 45,
-      excessoMinimo: 3,
-      reservaDias: 30,
+      thresholdDays: policy.excesso.thresholdDias,
+      targetDays: policy.excesso.targetDias,
+      excessoMinimo: policy.excesso.minimoUnidades,
+      reservaDias: reservaOrigemDias(policy),
     };
     const antes = medir(base, ANTES);
     const depois = medir(base, DEPOIS);
@@ -415,12 +435,13 @@ async function principal() {
     const linhaConfronto = (rotulo: string, a: number, b: number, moeda = false) => {
       const fmt = moeda ? eur : nf;
       linha(
-        `  ${rotulo.padEnd(34)}${fmt(a).padStart(12)}${fmt(b).padStart(12)}   ${delta(a, b)}`,
+        `  ${rotulo.padEnd(34)}${fmt(a).padStart(12)}${fmt(b).padStart(14)}   ${delta(a, b)}`,
       );
     };
 
     linha("");
-    linha(`  ${"".padEnd(34)}${"180/30/5".padStart(12)}${"120/45/3+r30".padStart(12)}   diferença`);
+    const rotuloDepois = `${policy.excesso.thresholdDias}/${policy.excesso.targetDias}/${policy.excesso.minimoUnidades}+r${reservaOrigemDias(policy)}`;
+    linha(`  ${"".padEnd(34)}${"180/30/5".padStart(12)}${rotuloDepois.padStart(14)}   diferença`);
     linha("  " + "─".repeat(74));
     linhaConfronto("linhas com excesso", antes.linhasExcesso, depois.linhasExcesso);
     linhaConfronto("CNP com excesso", antes.cnpExcesso, depois.cnpExcesso);
@@ -438,8 +459,8 @@ async function principal() {
     linha("  " + "─".repeat(74));
     linha("");
     linha("  Quanto custa a RESERVA, isolada dos thresholds:");
-    linha(`    120/45/3 sem reserva ...... ${nf(depoisSemReserva.sugestoes)} sugestões, ${nf(depoisSemReserva.unidades)} unidades`);
-    linha(`    120/45/3 com reserva 30d .. ${nf(depois.sugestoes)} sugestões, ${nf(depois.unidades)} unidades`);
+    linha(`    policy sem reserva ........ ${nf(depoisSemReserva.sugestoes)} sugestões, ${nf(depoisSemReserva.unidades)} unidades`);
+    linha(`    policy com reserva ........ ${nf(depois.sugestoes)} sugestões, ${nf(depois.unidades)} unidades`);
     linha(`    sugestões anuladas ........ ${nf(depoisSemReserva.sugestoes - depois.sugestoes)}`);
     linha(`    unidades cortadas ......... ${nf(depoisSemReserva.unidades - depois.unidades)}`);
     linha(`    origens salvas do zero .... ${nf(depoisSemReserva.zeradas - depois.zeradas)}`);

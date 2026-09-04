@@ -18,6 +18,7 @@ import {
   classificarRotura,
   semStockComProcura,
 } from "@/lib/operational/rotura";
+import { POLICY_DEFAULT, type PoliticaRotura } from "@/lib/operational/policy";
 import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 
 // ─── Filtros canónicos (partilhados com /stock?filter=… e dashboard) ─────────
@@ -100,16 +101,34 @@ export type StockRowEnriched = {
 
 // ─── Predicado pura — sem I/O, sem Prisma. Re-utilizável em qualquer lado. ───
 
-export function matchStockFilter(
-  row: StockRowEnriched,
-  filter: StockFilter,
+/**
+ * Contexto dos filtros que dependem de calibração ou do relógio.
+ *
+ * Um objecto e não mais dois parâmetros posicionais: são opcionais, e
+ * uma chamada `matchStockFilter(row, f, undefined, pol)` seria ilegível
+ * no sítio onde mais importa perceber o que está a ser medido.
+ */
+export type ContextoFiltro = {
   /**
    * "Agora", para os filtros que dependem da recência da última venda.
    * Injectável para que um teste possa fixar o relógio — um predicado
    * cujo resultado muda ao meio-dia não é testável.
    */
-  agora: number = Date.now(),
+  agora?: number;
+  /**
+   * A calibração de rotura da FARMÁCIA. Por omissão, o default global —
+   * que é também o comportamento de quem nunca foi medido.
+   */
+  rotura?: PoliticaRotura;
+};
+
+export function matchStockFilter(
+  row: StockRowEnriched,
+  filter: StockFilter,
+  ctx: ContextoFiltro = {},
 ): boolean {
+  const agora = ctx.agora ?? Date.now();
+  const polRotura = ctx.rotura ?? POLICY_DEFAULT.rotura;
   switch (filter) {
     case "out-of-stock":
       // A regra ANTIGA, preservada. Continua a ser o universo total de
@@ -117,14 +136,14 @@ export function matchStockFilter(
       // sua partição.
       return semStockComProcura(row);
     case "rotura-critica":
-      return classificarRotura(row, agora) === "CRITICA";
+      return classificarRotura(row, polRotura, agora) === "CRITICA";
     case "sem-stock-ocasional":
-      return classificarRotura(row, agora) === "OCASIONAL";
+      return classificarRotura(row, polRotura, agora) === "OCASIONAL";
     case "sem-stock-sem-procura":
       // Só as que TÊM alguma procura histórica entram aqui; um artigo
       // que nunca vendeu não é "sem procura recente", é catálogo morto,
       // e tem o seu próprio filtro (`no-movement-3m`).
-      return semStockComProcura(row) && classificarRotura(row, agora) === "SEM_PROCURA";
+      return semStockComProcura(row) && classificarRotura(row, polRotura, agora) === "SEM_PROCURA";
     case "at-risk":
       return row.stockAtual > 0 && row.coverage != null && row.coverage < 7;
     case "excess-stock-canonical":

@@ -22,7 +22,7 @@
  *
  *   · lib/operational/motor-stock      — a aritmética partilhada
  *   · lib/operational/janela-meses     — as janelas
- *   · lib/operational/metrics-shared   — EXCESSO_COVERAGE_DAYS
+ *   · lib/operational/policy           — a calibração da farmácia
  *   · lib/catalog/target-db            — o resolvedor `--tenant`
  *   · lib/control-plane                — credenciais do control plane
  *
@@ -47,15 +47,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../../generated/prisma/client";
 import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
-import { EXCESSO_COVERAGE_DAYS } from "../../lib/operational/metrics-shared";
+import { classificarRotura, temRecorrencia, temVolume } from "../../lib/operational/rotura";
 import {
-  ROTURA_MESES_MINIMOS,
-  ROTURA_RECENCIA_DIAS,
-  ROTURA_UNIDADES_MINIMAS,
-  classificarRotura,
-  temRecorrencia,
-  temVolume,
-} from "../../lib/operational/rotura";
+  descreverPolicy,
+  getOperationalPolicy,
+  reservaOrigemDias,
+} from "../../lib/operational/policy";
 import {
   avaliarLinha,
   ehAccionavel,
@@ -199,6 +196,14 @@ async function main() {
     throw e;
   }
   linha(`Alvo: ${descreverAlvo(alvo)}`);
+
+  // A POLICY do tenant, impressa antes de qualquer numero. Sem isto
+  // nao se sabe o que esta a ser medido: os mesmos dados dao
+  // resultados diferentes consoante a calibracao, e um relatorio sem
+  // cabecalho e um relatorio que se atribui a farmacia errada.
+  const policy = getOperationalPolicy(alvo.tenant ?? null);
+  linha("");
+  for (const l of descreverPolicy(policy)) linha(l);
 
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: alvo.url }),
@@ -363,7 +368,13 @@ async function main() {
       "crítica = recência E (recorrência OU volume)",
     );
     linha(
-      `  parâmetros: <= ${ROTURA_RECENCIA_DIAS}d · >= ${ROTURA_MESES_MINIMOS} meses em 12M · >= ${ROTURA_UNIDADES_MINIMAS} un em 3M`,
+      `  parâmetros (policy de ${policy.slug ?? "default"}): <= ${policy.rotura.recenciaDias}d · >= ${policy.rotura.mesesMinimos} meses em 12M · >= ${policy.rotura.unidadesMinimas} un em 3M`,
+    );
+    linha(
+      `  modo no Dashboard: ${policy.rotura.modo}` +
+        (policy.rotura.modo === "classica"
+          ? "  — os números abaixo são exploratórios, o cartão ainda é o único"
+          : ""),
     );
 
     const agoraMs = Date.now();
@@ -382,11 +393,11 @@ async function main() {
         salesQty90d: r.salesQty90d,
         mesesComVenda12M: mesesPorChave.get(`${r.produtoId}:${r.farmaciaId}`) ?? 0,
       };
-      const nivel = classificarRotura(alvoRotura, agoraMs);
+      const nivel = classificarRotura(alvoRotura, policy.rotura, agoraMs);
       if (nivel === "CRITICA") {
         nCritica++;
-        const rec = temRecorrencia(alvoRotura);
-        const vol = temVolume(alvoRotura);
+        const rec = temRecorrencia(alvoRotura, policy.rotura);
+        const vol = temVolume(alvoRotura, policy.rotura);
         if (rec && vol) ambos++;
         else if (rec) soRecorrencia++;
         else soVolume++;
@@ -433,8 +444,13 @@ async function main() {
 
     confirmarRegra(
       "lib/transferencias-data.ts",
-      "excessoMinimo: 5,",
-      "corte herdado: excessos abaixo de 5 unidades contam como 0",
+      "excessoMinimo: policy.excesso.minimoUnidades,",
+      "o corte mínimo vem da policy da farmácia",
+    );
+    confirmarRegra(
+      "lib/transferencias-data.ts",
+      "reservaDias: reservaOrigemDias(",
+      "a reserva da origem é derivada do alvo efectivo",
     );
     confirmarRegra(
       "lib/transferencias-data.ts",
@@ -450,15 +466,17 @@ async function main() {
     const janela = janelaOperacionalPorOmissao();
     const params: ParametrosMotor = {
       diasJanela: diasDaJanela(janela),
-      thresholdDays: EXCESSO_COVERAGE_DAYS,
-      targetDays: 30,
-      excessoMinimo: 5,
+      thresholdDays: policy.excesso.thresholdDias,
+      targetDays: policy.excesso.targetDias,
+      excessoMinimo: policy.excesso.minimoUnidades,
+      reservaDias: reservaOrigemDias(policy),
     };
     linha("");
     linha(`  janela ................ ${janela.inicio} a ${janela.fim} (${params.diasJanela} dias)`);
     linha(`  threshold de excesso .. cobertura > ${params.thresholdDays} dias`);
     linha(`  cobertura-alvo ........ ${params.targetDays} dias`);
     linha(`  excesso mínimo ........ ${params.excessoMinimo} unidades`);
+    linha(`  reserva na origem ..... ${params.reservaDias} dias (derivada do alvo)`);
 
     const idxJanela = janelaParaIndicesMensais(janela);
     const vendasJanelaMap = await somarVendas(

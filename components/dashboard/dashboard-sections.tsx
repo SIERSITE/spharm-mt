@@ -10,10 +10,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard";
-// A constante e nao um numero escrito a mao: havia tres valores
-// diferentes nesta pagina — "180d" num sitio, "60 dias" noutro e
-// `?days=60` num link — a descrever o mesmo threshold.
-import { EXCESSO_TARGET_DAYS } from "@/lib/operational/metrics-shared";
+// Nota: esta pagina tinha tres valores escritos a mao a descrever o
+// mesmo threshold — "180d" num cartao, "60 dias" noutro e `?days=60`
+// num link. Nenhum deles pode ser escrito aqui: o threshold e' da
+// FARMACIA (lib/operational/policy.ts), e a UI nao o conhece.
 
 // ─── Formatadores ────────────────────────────────────────────────────────────
 
@@ -179,6 +179,8 @@ function SeeAllLink({ href, label }: { href: string; label: string }) {
 // ─── Top: Executive summary (left) ───────────────────────────────────────────
 
 export function ExecutiveSummary({
+  modoRotura,
+  outOfStockCount,
   roturaCriticaCount,
   transferSuggestionsTotal,
   atRiskCount,
@@ -196,6 +198,10 @@ export function ExecutiveSummary({
    * de Alertas críticos e em /stock.
    */
   roturaCriticaCount: number;
+  /** A regra antiga. Continua a ser o cartao onde a farmacia nao foi medida. */
+  outOfStockCount: number;
+  /** `classica` ou `tres-niveis` — ver lib/operational/policy.ts. */
+  modoRotura: "classica" | "tres-niveis";
   transferSuggestionsTotal: number;
   atRiskCount: number;
   excessStockValueEur: number;
@@ -221,13 +227,23 @@ export function ExecutiveSummary({
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiTile
-          label="Roturas críticas"
-          value={fmtNumber(roturaCriticaCount)}
-          sublabel="procura recente e recorrente"
-          href={roturaCriticaCount > 0 ? "/stock?filter=rotura-critica" : undefined}
-          tone={roturaCriticaCount > 0 ? "warn" : "ok"}
-        />
+        {modoRotura === "tres-niveis" ? (
+          <KpiTile
+            label="Roturas críticas"
+            value={fmtNumber(roturaCriticaCount)}
+            sublabel="procura recente e recorrente"
+            href={roturaCriticaCount > 0 ? "/stock?filter=rotura-critica" : undefined}
+            tone={roturaCriticaCount > 0 ? "warn" : "ok"}
+          />
+        ) : (
+          <KpiTile
+            label="Sem stock"
+            value={fmtNumber(outOfStockCount)}
+            sublabel="com vendas recentes"
+            href={outOfStockCount > 0 ? "/stock?filter=out-of-stock" : undefined}
+            tone={outOfStockCount > 0 ? "warn" : "ok"}
+          />
+        )}
         <KpiTile
           label="Transferências"
           value={fmtNumber(transferSuggestionsTotal)}
@@ -245,7 +261,7 @@ export function ExecutiveSummary({
         <KpiTile
           label="Valor em excesso"
           value={fmtEur(excessStockValueEur)}
-          sublabel={`excedente acima de ${EXCESSO_TARGET_DAYS}d`}
+          sublabel="excedente acima da cobertura-alvo"
           href={excessStockValueEur > 0 ? "/excessos" : undefined}
           tone={excessStockValueEur > 0 ? "warn" : "ok"}
         />
@@ -273,15 +289,27 @@ export function CriticalAlertsCard({
     >
       <div className="space-y-3">
         <Link
-          href="/stock?filter=rotura-critica"
+          href={
+            data.modoRotura === "tres-niveis"
+              ? "/stock?filter=rotura-critica"
+              : "/stock?filter=out-of-stock"
+          }
           className="block rounded-xl bg-red-50 p-3 transition hover:bg-red-100"
         >
-          <div className="text-[12px] font-medium text-rose-700/80">Roturas críticas</div>
+          <div className="text-[12px] font-medium text-rose-700/80">
+            {data.modoRotura === "tres-niveis" ? "Roturas críticas" : "Sem stock"}
+          </div>
           <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-rose-700">
-            {fmtNumber(data.roturaCriticaCount)}
+            {fmtNumber(
+              data.modoRotura === "tres-niveis"
+                ? data.roturaCriticaCount
+                : data.outOfStockCount,
+            )}
           </div>
           <div className="mt-1 text-[12px] text-rose-600/70">
-            sem stock, procura recente e recorrente
+            {data.modoRotura === "tres-niveis"
+              ? "sem stock, procura recente e recorrente"
+              : "sem stock, vendia em 90d"}
           </div>
         </Link>
 
@@ -290,6 +318,7 @@ export function CriticalAlertsCard({
           corpo mais pequeno: existem para o total continuar a somar e
           para se poder ir lá, não para competirem pela atenção.
         */}
+        {data.modoRotura === "tres-niveis" && (
         <div className="rounded-xl bg-slate-50 p-3">
           <Link
             href="/stock?filter=sem-stock-ocasional"
@@ -319,6 +348,7 @@ export function CriticalAlertsCard({
             </span>
           </Link>
         </div>
+        )}
 
         <Link
           href="/stock?filter=at-risk"
@@ -344,10 +374,16 @@ export function CriticalAlertsCard({
               items={data.outOfStockSample}
               emptyMessage="Sem produtos em rotura."
             />
-            {data.roturaCriticaCount > data.outOfStockSample.length && (
+            {(data.modoRotura === "tres-niveis"
+              ? data.roturaCriticaCount
+              : data.outOfStockCount) > data.outOfStockSample.length && (
               <SeeAllLink
                 href="/stock?filter=out-of-stock"
-                label={`Ver as ${fmtNumber(data.roturaCriticaCount)} roturas críticas`}
+                label={
+                  data.modoRotura === "tres-niveis"
+                    ? `Ver as ${fmtNumber(data.roturaCriticaCount)} roturas críticas`
+                    : `Ver os ${fmtNumber(data.outOfStockCount)} produtos sem stock`
+                }
               />
             )}
           </div>
@@ -533,7 +569,7 @@ export function ExcessosCard({
               {fmtEur(data.excessStockValueEur)}
             </div>
             <div className="mt-1 text-[12px] text-slate-400">
-              excedente acima de {EXCESSO_TARGET_DAYS} dias
+              excedente acima da cobertura-alvo
             </div>
           </Link>
         ) : (
@@ -547,7 +583,7 @@ export function ExcessosCard({
               {fmtEur(data.excessStockValueEur)}
             </div>
             <div className="mt-1 text-[12px] text-slate-400">
-              excedente acima de {EXCESSO_TARGET_DAYS} dias
+              excedente acima da cobertura-alvo
             </div>
           </div>
         )}

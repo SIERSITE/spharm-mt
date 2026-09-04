@@ -40,6 +40,8 @@ export default async function DashboardPage() {
         <section className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
           <ExecutiveSummary
             roturaCriticaCount={data.criticalAlerts.roturaCriticaCount}
+            outOfStockCount={data.criticalAlerts.outOfStockCount}
+            modoRotura={data.criticalAlerts.modoRotura}
             transferSuggestionsTotal={data.optimization.transferSuggestionsTotal}
             atRiskCount={data.criticalAlerts.atRiskCount}
             excessStockValueEur={data.excess.excessStockValueEur}

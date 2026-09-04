@@ -11,12 +11,8 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
-import {
-  EXCESSO_COVERAGE_DAYS,
-  EXCESSO_MINIMO_UNIDADES,
-  EXCESSO_TARGET_DAYS,
-  RESERVA_ORIGEM_DIAS,
-} from "@/lib/operational/metrics-shared";
+import { getOperationalPolicy, reservaOrigemDias } from "@/lib/operational/policy";
+import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import {
   avaliarLinha,
   ehAccionavel,
@@ -236,11 +232,12 @@ export async function loadPfAndSales(
 export type OpcoesOperacionais = {
   /**
    * Coverage threshold in days; products with coverage > thresholdDays are
-   * excess. Default = `EXCESSO_COVERAGE_DAYS` (120), partilhado com
-   * Inventário e Dashboard via `lib/operational/metrics-shared.ts`.
+   * excess. Por omissão vem da POLICY DA FARMÁCIA — ver
+   * `lib/operational/policy.ts`. Passá-lo explicitamente serve para
+   * diagnósticos e testes; a UI nunca o passa.
    */
   thresholdDays?: number;
-  /** Cobertura-alvo. Default = `EXCESSO_TARGET_DAYS` (45). */
+  /** Cobertura-alvo. Por omissão vem da policy da farmácia. */
   targetDays?: number;
   /**
    * Janela de consumo, `YYYY-MM-DD`. A MESMA que a UI mostra e que o
@@ -312,8 +309,13 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
   params: ParametrosMotor;
   grupos: Map<string, EstadoStock<LinhaPf>[]>;
 }> {
-  const thresholdDays = options?.thresholdDays ?? EXCESSO_COVERAGE_DAYS;
-  const targetDays = options?.targetDays ?? EXCESSO_TARGET_DAYS;
+  // A calibração da FARMÁCIA, não uma constante global. Fora de um
+  // request o slug é null e cai nos defaults — que é o comportamento
+  // certo para um script que não disse com quem está a falar.
+  const policy = getOperationalPolicy(await resolveCurrentTenantSlug());
+
+  const thresholdDays = options?.thresholdDays ?? policy.excesso.thresholdDias;
+  const targetDays = options?.targetDays ?? policy.excesso.targetDias;
   const janela = normalizarJanela(options?.dataInicio, options?.dataFim);
   const params: ParametrosMotor = {
     diasJanela: diasDaJanela(janela),
@@ -321,11 +323,13 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
     targetDays,
     // O corte comercial que já existia nos Excessos: abaixo deste número
     // de unidades a "sobra" é ruído de arredondamento.
-    excessoMinimo: EXCESSO_MINIMO_UNIDADES,
-    // A reserva da origem. Sem ela, o `Math.round` do excesso podia
-    // entregar o stock inteiro de um artigo de baixa rotação — ver
-    // RESERVA_ORIGEM_DIAS.
-    reservaDias: RESERVA_ORIGEM_DIAS,
+    excessoMinimo: policy.excesso.minimoUnidades,
+    // A reserva da origem. Derivada do alvo EFECTIVO — se o chamador
+    // passou um `targetDays` próprio (diagnósticos), a reserva
+    // acompanha-o, senão a regra que o excesso já promete deixava de
+    // ser cumprida. Sem ela, o `Math.round` do excesso podia entregar o
+    // stock inteiro de um artigo de baixa rotação.
+    reservaDias: reservaOrigemDias({ ...policy, excesso: { ...policy.excesso, targetDias: targetDays } }),
   };
 
   const grupos = new Map<string, EstadoStock<LinhaPf>[]>();

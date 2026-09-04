@@ -24,8 +24,12 @@
  *
  * ── OS DOIS RAMOS DA CRÍTICA ────────────────────────────────────────
  *
- * CRÍTICA = sem stock E vendeu há <= 30 dias E (>= 2 meses com venda em
- * 12M  OU  >= 4 unidades em 3M)
+ * CRÍTICA = sem stock E vendeu há pouco E (recorrência OU volume)
+ *
+ * Os três limiares — quantos dias, quantos meses, quantas unidades — são
+ * da POLICY DA FARMÁCIA. Os valores que motivaram esta classificação
+ * (30 / 2 / 4) saíram do funil da Silveirense e são o default global,
+ * mas não são uma lei da natureza.
  *
  * O primeiro ramo é a recorrência: vendeu em mais do que um mês, logo
  * não foi um acaso.
@@ -39,20 +43,16 @@
  * Os dois ramos são OU, não E: são duas formas independentes de provar
  * que a procura é real.
  */
+import type { PoliticaRotura } from "./policy";
 
 // ─────────────────────────────────────────────────────────────────────
-// Parâmetros. Aqui e em mais lado nenhum.
-// ─────────────────────────────────────────────────────────────────────
-
-/** Última venda até há tantos dias conta como procura activa. */
-export const ROTURA_RECENCIA_DIAS = 30 as const;
-
-/** Meses distintos com venda (janela de 12) que provam recorrência. */
-export const ROTURA_MESES_MINIMOS = 2 as const;
-
-/** Unidades em 3 meses que provam procura sem precisar de histórico. */
-export const ROTURA_UNIDADES_MINIMAS = 4 as const;
-
+// Os limiares NÃO vivem aqui.
+//
+// Foram calibrados com o funil da Silveirense e não há razão para que
+// sirvam uma farmácia com outra rotação. Vêm de
+// `lib/operational/policy.ts:PoliticaRotura`, e o default global é o
+// mesmo que sempre foi. Este ficheiro sabe COMO se classifica, não
+// COM QUE NÚMEROS.
 // ─────────────────────────────────────────────────────────────────────
 
 export type NivelRotura = "CRITICA" | "OCASIONAL" | "SEM_PROCURA";
@@ -88,19 +88,23 @@ export function diasDesdeUltimaVenda(
 }
 
 /** O ramo da recorrência: vendeu em meses diferentes. */
-export function temRecorrencia(linha: LinhaRotura): boolean {
-  return linha.mesesComVenda12M >= ROTURA_MESES_MINIMOS;
+export function temRecorrencia(linha: LinhaRotura, pol: PoliticaRotura): boolean {
+  return linha.mesesComVenda12M >= pol.mesesMinimos;
 }
 
 /** O ramo do volume: vendeu o suficiente para não ser acaso. */
-export function temVolume(linha: LinhaRotura): boolean {
-  return linha.salesQty90d >= ROTURA_UNIDADES_MINIMAS;
+export function temVolume(linha: LinhaRotura, pol: PoliticaRotura): boolean {
+  return linha.salesQty90d >= pol.unidadesMinimas;
 }
 
 /** Vendeu há pouco tempo. Sem data ⇒ não. */
-export function temRecencia(linha: LinhaRotura, agora: number = Date.now()): boolean {
+export function temRecencia(
+  linha: LinhaRotura,
+  pol: PoliticaRotura,
+  agora: number = Date.now(),
+): boolean {
   const d = diasDesdeUltimaVenda(linha.dataUltimaVenda, agora);
-  return d !== null && d <= ROTURA_RECENCIA_DIAS;
+  return d !== null && d <= pol.recenciaDias;
 }
 
 /**
@@ -115,6 +119,7 @@ export function temRecencia(linha: LinhaRotura, agora: number = Date.now()): boo
  */
 export function classificarRotura(
   linha: LinhaRotura,
+  pol: PoliticaRotura,
   agora: number = Date.now(),
 ): NivelRotura | null {
   if (linha.stockAtual > 0) return null;
@@ -127,7 +132,7 @@ export function classificarRotura(
   // Sem data, ou venda antiga: procura que já não é actual.
   if (dias === null || dias > 90) return "SEM_PROCURA";
 
-  if (dias <= ROTURA_RECENCIA_DIAS && (temRecorrencia(linha) || temVolume(linha))) {
+  if (dias <= pol.recenciaDias && (temRecorrencia(linha, pol) || temVolume(linha, pol))) {
     return "CRITICA";
   }
   return "OCASIONAL";
