@@ -1,44 +1,54 @@
 /**
  * scripts/diagnostics/funil-enrichment.ts
  *
- * Diagnóstico READ-ONLY. Não escreve, não reclassifica, não corre
- * enrichment, não altera taxonomia.
+ * Diagnóstico READ-ONLY da CLASSIFICAÇÃO do catálogo. Não escreve, não
+ * reclassifica, não corre enrichment, não altera taxonomia nem limiares.
+ *
+ * O eixo é a classificação — família, categoria, segmentos. O ATC
+ * aparece como coluna auxiliar quando existe e nunca como conclusão.
  *
  * ══════════════════════════════════════════════════════════════════════
- * A PERGUNTA
+ * O SÍTIO ONDE A CADEIA QUEBRA EM SILÊNCIO
  * ══════════════════════════════════════════════════════════════════════
  *
- * Na Silveirense, 24 % do catálogo não tem classificação analítica útil:
- * 3 348 em "Outros <X>" e 3 515 "Por Classificar". Investiu-se em
- * enriquecimento. Onde é que a informação se perde?
+ * `lib/catalog/knowledge-enrichment.ts:837`:
  *
- * Há cinco sítios possíveis, e são mutuamente exclusivos por produto:
+ *     if (cat && sub && isValidNivel2(cat, sub)) { categoria = cat; ... }
  *
- *   A  nunca foi enriquecido        — não há linha em cache
- *   B  enrichment sem resposta útil — respondeu DESCONHECIDO / sem campos
- *   C  soube mas não persistiu      — `persistido=false` + `motivo`
- *   D  a taxonomia não tem casa     — sugeriu "Outros <X>"
- *   E  o mapper não soube usar      — havia ATC/DCI e mesmo assim caiu
+ * Um par (categoria, subcategoria) que não valide contra a taxonomia é
+ * posto a `null`. Sem motivo, sem registo do que o modelo disse. Na cache
+ * fica INDISTINGUÍVEL de "o modelo não soube".
  *
- * Distinguir C de B é o ponto todo deste ficheiro: um é dinheiro gasto
- * cujo resultado foi recusado por nós, o outro é dinheiro gasto que não
- * produziu nada. O schema foi feito para os separar — o comentário de
- * `KnowledgeEnrichmentCache.persistido` diz-o por palavras suas:
- * "distingue 'o modelo não soube' de 'o modelo soube e nós recusámos'".
+ * E o prompt avisa que isso acontece (linha 612):
+ *
+ *     "Qualquer valor fora das listas é descartado pelo sistema — não é
+ *      corrigido, é deitado fora, e o produto fica por classificar."
+ *
+ * Ora a taxonomia obriga a escolher UM nível 1 entre eixos diferentes:
+ * "Um medicamento veterinário é VETERINARIA, não MEDICAMENTO" (regra 6
+ * do prompt). Uma fralda de adulto é PUERICULTURA ou é DISPOSITIVOS? Um
+ * solar infantil é PROTEÇÃO SOLAR ou PUERICULTURA? Se o modelo escolher
+ * a família certa e a subcategoria da outra, o par não valida e o
+ * produto fica Por Classificar — sem que fique escrito porquê.
  *
  * ══════════════════════════════════════════════════════════════════════
- * O QUE ESTE DIAGNÓSTICO NÃO PODE RESPONDER
+ * NÃO SE PODE MEDIR DIRECTAMENTE. MEDE-SE A SOMBRA.
  * ══════════════════════════════════════════════════════════════════════
  *
- * **Custo em euros.** Não existe no schema: nem tokens, nem preço, nem
- * contador de chamadas por corrida. `EnrichmentSourceLog` guarda
- * `durationMs` mas não consumo. O que se consegue medir é o NÚMERO de
- * decisões do modelo (linhas de cache com `origem='CLAUDE'`), que é o
- * numerador certo para um custo — mas o preço tem de vir de fora, da
- * consola de faturação.
+ * Como o descarte não deixa rasto, ninguém consegue contar os pares
+ * perdidos. O que se consegue contar é a sua impressão digital:
  *
- * Dizê-lo é melhor do que multiplicar por uma estimativa e apresentar o
- * resultado como se fosse medido.
+ *     cache existe
+ *     E evidenceType != DESCONHECIDO      (o modelo AFIRMOU conhecer)
+ *     E confidence >= LIMIAR_PERSISTENCIA (com confiança bastante)
+ *     E categoria IS NULL E subcategoria IS NULL
+ *
+ * Um modelo que diz "reconheço este produto, confiança 0,93" e não deixa
+ * classificação nenhuma ou respondeu vazio de propósito, ou respondeu um
+ * par que a taxonomia recusou. `rationale` — que sobrevive — costuma
+ * dizer qual dos dois.
+ *
+ * Este número é o mais importante deste ficheiro.
  *
  *   npx tsx scripts/diagnostics/funil-enrichment.ts --tenant=silveira
  */
@@ -47,12 +57,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../../generated/prisma/client";
 import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
-import {
-  LIMIAR_CLINICO,
-  LIMIAR_PERSISTENCIA,
-} from "../../lib/catalog/knowledge-enrichment";
-import { mapToCanonical } from "../../lib/catalog-taxonomy-map";
-import type { ProductType } from "../../lib/catalog-types";
+import { LIMIAR_PERSISTENCIA } from "../../lib/catalog/knowledge-enrichment";
+import { CANONICAL_TAXONOMY, isValidNivel2 } from "../../lib/catalog-taxonomy";
 
 const linha = (t = "") => console.log(t);
 const nf = (n: number) => n.toLocaleString("pt-PT");
@@ -73,6 +79,27 @@ const corta = (s: string | null, n: number) => {
   return v.length > n ? `${v.slice(0, n - 1)}…` : v.padEnd(n);
 };
 
+/**
+ * Os níveis 1 que são SEGMENTO e não família — "para quem / para quê".
+ *
+ * Não é opinião solta: é a leitura de `lib/catalog-taxonomy.ts` contra a
+ * pergunta "isto responde a O QUE O PRODUTO É?". Uma fralda é um produto;
+ * "bebé" é para quem ele serve. Estar aqui significa que, num modelo de
+ * três eixos, este nível 1 deixaria de competir com MEDICAMENTOS e
+ * passava a poder coexistir com ele.
+ */
+const NIVEL1_SEGMENTO = new Set([
+  "PUERICULTURA E BEBÉ",
+  "MÃE E GRAVIDEZ",
+  "SAÚDE SEXUAL",
+  "PRIMEIROS SOCORROS",
+  "CONTROLO DE PESO",
+  "BEM-ESTAR",
+  "SAÚDE NATURAL",
+  "VETERINÁRIA",
+  "MOBILIDADE E APOIO DIÁRIO",
+]);
+
 // ─────────────────────────────────────────────────────────────────────
 type LinhaAudit = {
   produtoId: string;
@@ -81,30 +108,28 @@ type LinhaAudit = {
   nivel1: string | null;
   nivel2: string | null;
   codigoATC: string | null;
-  dci: string | null;
   productType: string | null;
   productTypeConfidence: number | null;
-  fabricanteId: string | null;
+  utilizacoes: string | null;
   nUtilizacoes: number;
-  // ── cache de enriquecimento (a melhor linha por CNP) ──────────────
   cacheExiste: boolean;
   cCategoria: string | null;
   cSubcategoria: string | null;
-  cAtc: string | null;
-  cDci: string | null;
+  cProductType: string | null;
   cConfidence: number | null;
-  cConfidenceClinica: number | null;
   cEvidence: string | null;
   cPersistido: boolean | null;
   cMotivo: string | null;
+  cRationale: string | null;
   cOrigem: string | null;
-  cUtilizacoes: number;
+  cUtilizacoes: string[] | null;
+  cAtc: string | null;
 };
 
 async function carregar(prisma: PrismaClient): Promise<LinhaAudit[]> {
-  // A "melhor" linha de cache por CNP: a mais recente. Uma segunda
-  // corrida sobre o mesmo produto deixa duas linhas, e contá-las ambas
-  // faria o funil somar mais do que o catálogo.
+  // A linha de cache MAIS RECENTE por CNP. Uma segunda corrida deixa
+  // duas linhas, e contá-las ambas faria o funil somar mais do que o
+  // catálogo tem.
   return prisma.$queryRaw<LinhaAudit[]>(Prisma.sql`
     SELECT
       p.id                      AS "produtoId",
@@ -113,71 +138,93 @@ async function carregar(prisma: PrismaClient): Promise<LinhaAudit[]> {
       c1.nome                   AS nivel1,
       c2.nome                   AS nivel2,
       p."codigoATC"             AS "codigoATC",
-      p.dci                     AS dci,
       p."productType"           AS "productType",
       p."productTypeConfidence" AS "productTypeConfidence",
-      p."fabricanteId"          AS "fabricanteId",
+      u.slugs                   AS utilizacoes,
       COALESCE(u.n, 0)::int     AS "nUtilizacoes",
       (k.chave IS NOT NULL)     AS "cacheExiste",
       k.categoria               AS "cCategoria",
       k.subcategoria            AS "cSubcategoria",
-      k."codigoATC"             AS "cAtc",
-      k.dci                     AS "cDci",
+      k."productType"           AS "cProductType",
       k.confidence              AS "cConfidence",
-      k."confidenceClinica"     AS "cConfidenceClinica",
       k."evidenceType"          AS "cEvidence",
       k.persistido              AS "cPersistido",
       k.motivo                  AS "cMotivo",
+      k.rationale               AS "cRationale",
       k.origem                  AS "cOrigem",
-      COALESCE(array_length(k.utilizacoes, 1), 0)::int AS "cUtilizacoes"
+      k.utilizacoes             AS "cUtilizacoes",
+      k."codigoATC"             AS "cAtc"
     FROM "Produto" p
     LEFT JOIN "Classificacao" c1 ON c1.id = p."classificacaoNivel1Id"
     LEFT JOIN "Classificacao" c2 ON c2.id = p."classificacaoNivel2Id"
     LEFT JOIN LATERAL (
-      SELECT COUNT(*)::int AS n FROM "ProdutoUtilizacao" pu WHERE pu."produtoId" = p.id
+      SELECT COUNT(*)::int AS n, string_agg(uu.slug, ',' ORDER BY uu.slug) AS slugs
+      FROM "ProdutoUtilizacao" pu
+      JOIN "Utilizacao" uu ON uu.id = pu."utilizacaoId"
+      WHERE pu."produtoId" = p.id
     ) u ON true
     LEFT JOIN LATERAL (
-      SELECT *
-      FROM "KnowledgeEnrichmentCache" kk
-      WHERE kk.cnp = p.cnp
-      ORDER BY kk."criadoEm" DESC
-      LIMIT 1
+      SELECT * FROM "KnowledgeEnrichmentCache" kk
+      WHERE kk.cnp = p.cnp ORDER BY kk."criadoEm" DESC LIMIT 1
     ) k ON true
   `);
 }
 
 const ehBalde = (n2: string | null) => !!n2 && /^outros\b/i.test(n2);
-const semClassificacao = (r: LinhaAudit) => !r.nivel1 && !r.nivel2;
+const porClassificar = (r: LinhaAudit) => !r.nivel1 && !r.nivel2;
 
-/** Onde é que ESTE produto perdeu a informação. Exclusivo e ordenado. */
-type Causa = "A_NUNCA" | "B_SEM_RESPOSTA" | "C_NAO_PERSISTIU" | "D_TAXONOMIA" | "E_MAPPER";
+/**
+ * A impressão digital do par descartado: o modelo afirmou conhecer, com
+ * confiança suficiente, e não sobrou classificação nenhuma.
+ */
+function parDescartado(r: LinhaAudit): boolean {
+  return (
+    r.cacheExiste &&
+    r.cEvidence !== "DESCONHECIDO" &&
+    (r.cConfidence ?? 0) >= LIMIAR_PERSISTENCIA &&
+    !r.cCategoria &&
+    !r.cSubcategoria
+  );
+}
+
+/** Onde é que ESTE produto perdeu a classificação. Exclusivo e ordenado. */
+type Causa =
+  | "A_NUNCA"
+  | "B_DESCONHECIDO"
+  | "C_PAR_DESCARTADO"
+  | "D_ABAIXO_LIMIAR"
+  | "E_RECUSADO"
+  | "F_SO_FAMILIA"
+  | "G_PERSISTIU_NAO_CHEGOU"
+  | "H_OUTRO";
+
+const ROTULO: Record<Causa, string> = {
+  A_NUNCA: "A · nunca passou por enrichment",
+  B_DESCONHECIDO: "B · modelo respondeu DESCONHECIDO",
+  C_PAR_DESCARTADO: "C · afirmou saber, par não sobreviveu à validação",
+  D_ABAIXO_LIMIAR: "D · respondeu, confiança abaixo do limiar",
+  E_RECUSADO: "E · classificação aceite pelo modelo, recusada por nós",
+  F_SO_FAMILIA: "F · só conseguiu a família (sugeriu Outros)",
+  G_PERSISTIU_NAO_CHEGOU: "G · persistiu mas não chegou ao produto",
+  H_OUTRO: "H · outros motivos",
+};
 
 function causaDe(r: LinhaAudit): Causa {
   if (!r.cacheExiste) return "A_NUNCA";
-  // O modelo respondeu mas declarou não conhecer o produto.
-  if (r.cEvidence === "DESCONHECIDO") return "B_SEM_RESPOSTA";
-  // Trouxe alguma coisa e não foi escrita.
-  const trouxe =
-    !!r.cAtc || !!r.cDci || !!r.cSubcategoria || !!r.cCategoria || r.cUtilizacoes > 0;
-  if (trouxe && r.cPersistido === false) return "C_NAO_PERSISTIU";
-  // Sugeriu explicitamente o balde: a taxonomia não tem casa melhor.
-  if (r.cSubcategoria && /^outros\b/i.test(r.cSubcategoria)) return "D_TAXONOMIA";
-  // Persistiu ATC ou DCI e mesmo assim o produto está sem nível 2 útil.
-  if ((r.codigoATC || r.dci) && (semClassificacao(r) || ehBalde(r.nivel2))) return "E_MAPPER";
-  return "B_SEM_RESPOSTA";
+  if (r.cEvidence === "DESCONHECIDO") return "B_DESCONHECIDO";
+  if (parDescartado(r)) return "C_PAR_DESCARTADO";
+  if (!r.cCategoria && !r.cSubcategoria) {
+    return (r.cConfidence ?? 0) < LIMIAR_PERSISTENCIA ? "D_ABAIXO_LIMIAR" : "H_OUTRO";
+  }
+  if (r.cSubcategoria && /^outros\b/i.test(r.cSubcategoria)) return "F_SO_FAMILIA";
+  if (r.cPersistido === false) return "E_RECUSADO";
+  if (r.cPersistido === true) return "G_PERSISTIU_NAO_CHEGOU";
+  return "H_OUTRO";
 }
-
-const ROTULO_CAUSA: Record<Causa, string> = {
-  A_NUNCA: "A · nunca enriquecido",
-  B_SEM_RESPOSTA: "B · enrichment sem resposta útil",
-  C_NAO_PERSISTIU: "C · trouxe informação, não persistiu",
-  D_TAXONOMIA: "D · taxonomia sem categoria adequada",
-  E_MAPPER: "E · mapper não usou a informação",
-};
 
 // ═════════════════════════════════════════════════════════════════════
 async function principal() {
-  linha("SPharm.MT · funil do enriquecimento · diagnóstico read-only");
+  linha("SPharm.MT · funil da CLASSIFICAÇÃO · diagnóstico read-only");
   linha("");
 
   let alvo;
@@ -196,8 +243,7 @@ async function principal() {
     throw e;
   }
   linha(`Alvo: ${descreverAlvo(alvo)}`);
-  linha("");
-  linha(`Limiares em vigor: persistência ${LIMIAR_PERSISTENCIA} · clínico ${LIMIAR_CLINICO}`);
+  linha(`Limiar de persistência da classificação: ${LIMIAR_PERSISTENCIA}`);
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: alvo.url }) });
 
@@ -205,246 +251,253 @@ async function principal() {
     const rows = await carregar(prisma);
     const total = rows.length;
 
-    // ══════════════════════════════════════════════════════════════════
-    titulo("PARTE 1 · O funil, do catálogo ao que ficou escrito");
-
+    const especificos = rows.filter((r) => r.nivel2 && !ehBalde(r.nivel2));
+    const emBalde = rows.filter((r) => ehBalde(r.nivel2));
+    const semClass = rows.filter(porClassificar);
     const comCache = rows.filter((r) => r.cacheExiste);
-    const desconhecido = comCache.filter((r) => r.cEvidence === "DESCONHECIDO");
-    const comResposta = comCache.filter((r) => r.cEvidence !== "DESCONHECIDO");
-    const persistidos = comCache.filter((r) => r.cPersistido === true);
-    const recusados = comCache.filter((r) => r.cPersistido === false);
 
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 1 · Onde está o catálogo");
     linha("");
-    linha(`  produtos no catálogo ..................... ${col(total, total)}`);
-    linha(`  · com linha em cache de enriquecimento ... ${col(comCache.length, total)}`);
-    linha(`  · SEM linha nenhuma (nunca processados) .. ${col(total - comCache.length, total)}`);
-    linha("");
-    linha("  Dentro dos que passaram por lá:");
-    linha(`  · o modelo declarou DESCONHECIDO ......... ${col(desconhecido.length, comCache.length)}`);
-    linha(`  · deu resposta ........................... ${col(comResposta.length, comCache.length)}`);
-    linha(`  · …e foi PERSISTIDA ...................... ${col(persistidos.length, comCache.length)}`);
-    linha(`  · …e foi RECUSADA ........................ ${col(recusados.length, comCache.length)}`);
+    linha(`  produtos ................................. ${col(total, total)}`);
+    linha(`  · nível 2 específico ..................... ${col(especificos.length, total)}`);
+    linha(`  · em "Outros <X>" ........................ ${col(emBalde.length, total)}`);
+    linha(`  · Por Classificar ........................ ${col(semClass.length, total)}`);
 
-    // O que a cache TROUXE, campo a campo, e o que ficou escrito.
-    const trouxe = {
-      atc: comCache.filter((r) => !!r.cAtc).length,
-      dci: comCache.filter((r) => !!r.cDci).length,
-      categoria: comCache.filter((r) => !!r.cCategoria).length,
-      subcategoria: comCache.filter((r) => !!r.cSubcategoria).length,
-      subEspecifica: comCache.filter(
-        (r) => !!r.cSubcategoria && !/^outros\b/i.test(r.cSubcategoria),
-      ).length,
-      utilizacoes: comCache.filter((r) => r.cUtilizacoes > 0).length,
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 2 · O par descartado — o silêncio da cadeia");
+    linha("");
+    linha("  Um par (categoria, subcategoria) que não valida contra a taxonomia");
+    linha("  é posto a null em knowledge-enrichment.ts:837, sem motivo e sem");
+    linha("  registo. Não se conta directamente; conta-se a impressão digital:");
+    linha(`  modelo AFIRMOU conhecer, confiança >= ${LIMIAR_PERSISTENCIA}, e não sobrou nada.`);
+    linha("");
+    const descartados = rows.filter(parDescartado);
+    const descPorClass = descartados.filter(porClassificar);
+    const descBalde = descartados.filter((r) => ehBalde(r.nivel2));
+    linha(`  produtos com esta impressão digital ...... ${col(descartados.length, total)}`);
+    linha(`  · dos quais Por Classificar .............. ${col(descPorClass.length, Math.max(1, semClass.length))}  (dos Por Classificar)`);
+    linha(`  · dos quais em "Outros <X>" .............. ${col(descBalde.length, Math.max(1, emBalde.length))}  (dos baldes)`);
+    linha("");
+    linha("  Amostra de `rationale` destes casos — é o único vestígio do que o");
+    linha("  modelo tinha dito antes de a validação o deitar fora:");
+    for (const r of descartados.slice(0, 15)) {
+      linha(`    ${String(r.cnp).padEnd(9)} ${corta(r.designacao, 32)} ${corta(r.cRationale, 30)}`);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 3 · Funil dos Por Classificar");
+    linha("");
+    const contar = (grupo: LinhaAudit[]) => {
+      const m = new Map<Causa, number>();
+      for (const r of grupo) {
+        const c = causaDe(r);
+        m.set(c, (m.get(c) ?? 0) + 1);
+      }
+      return m;
     };
-    const escrito = {
-      atc: rows.filter((r) => !!r.codigoATC).length,
-      dci: rows.filter((r) => !!r.dci).length,
-      fabricante: rows.filter((r) => !!r.fabricanteId).length,
-      utilizacoes: rows.filter((r) => r.nUtilizacoes > 0).length,
-    };
-    linha("");
-    linha("  CAMPO             TROUXE DA IA        ESTÁ NO CATÁLOGO");
-    linha("  " + "─".repeat(60));
-    linha(`  ATC          ${col(trouxe.atc, comCache.length)}      ${col(escrito.atc, total)}`);
-    linha(`  DCI          ${col(trouxe.dci, comCache.length)}      ${col(escrito.dci, total)}`);
-    linha(`  utilizações  ${col(trouxe.utilizacoes, comCache.length)}      ${col(escrito.utilizacoes, total)}`);
-    linha(`  categoria    ${col(trouxe.categoria, comCache.length)}      ${"(ver abaixo)".padStart(16)}`);
-    linha(`  subcategoria ${col(trouxe.subcategoria, comCache.length)}`);
-    linha(`   · específica${col(trouxe.subEspecifica, comCache.length)}`);
-    linha(`  fabricante   ${"(não vem da IA)".padStart(16)}      ${col(escrito.fabricante, total)}`);
+    const cPorClass = contar(semClass);
+    for (const k of Object.keys(ROTULO) as Causa[]) {
+      linha(`  ${ROTULO[k].padEnd(46)} ${col(cPorClass.get(k) ?? 0, semClass.length)}`);
+    }
 
-    // ── Porque é que foi recusada ────────────────────────────────────
+    // Quantos, dentro dos Por Classificar, JÁ TÊM utilizações — ou seja,
+    // o enrichment conseguiu dizer PARA QUE SERVE e não conseguiu dizer
+    // O QUE É. É o sintoma directo dos eixos misturados.
+    const semClassComUtil = semClass.filter((r) => r.nUtilizacoes > 0);
     linha("");
-    linha("  Motivos de recusa (os 12 mais frequentes):");
+    linha(`  Por Classificar que JÁ TÊM segmentos/utilizações: ${col(semClassComUtil.length, semClass.length)}`);
+    linha("  (o sistema sabe PARA QUE SERVE mas não sabe O QUE É — é o");
+    linha("   sintoma directo de os dois eixos estarem no mesmo campo)");
+
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 4 · Funil dos Outros <X>");
+    linha("");
+    const cBalde = contar(emBalde);
+    for (const k of Object.keys(ROTULO) as Causa[]) {
+      linha(`  ${ROTULO[k].padEnd(46)} ${col(cBalde.get(k) ?? 0, emBalde.length)}`);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 5 · O que o enrichment devolve, em classificação");
+    linha("");
+    const respondeu = comCache.filter((r) => r.cEvidence !== "DESCONHECIDO");
+    const comCat = comCache.filter((r) => !!r.cCategoria);
+    const comSub = comCache.filter((r) => !!r.cSubcategoria);
+    const comSubEsp = comCache.filter(
+      (r) => !!r.cSubcategoria && !/^outros\b/i.test(r.cSubcategoria),
+    );
+    const comSubBalde = comSub.length - comSubEsp.length;
+    const comUtil = comCache.filter((r) => (r.cUtilizacoes?.length ?? 0) > 0);
+    const comTipo = comCache.filter((r) => !!r.cProductType);
+
+    linha(`  linhas de cache (1 por produto, a mais recente)  ${col(comCache.length, total)}`);
+    linha(`  · respondeu (não DESCONHECIDO) .................. ${col(respondeu.length, comCache.length)}`);
+    linha(`  · devolveu família/productType ................. ${col(comTipo.length, comCache.length)}`);
+    linha(`  · devolveu categoria (nível 1) ................. ${col(comCat.length, comCache.length)}`);
+    linha(`  · devolveu subcategoria ....................... ${col(comSub.length, comCache.length)}`);
+    linha(`    · específica ................................ ${col(comSubEsp.length, comCache.length)}`);
+    linha(`    · "Outros <X>" .............................. ${col(comSubBalde, comCache.length)}`);
+    linha(`  · devolveu segmentos/utilizações .............. ${col(comUtil.length, comCache.length)}`);
+    linha(`  · (auxiliar) devolveu ATC ..................... ${col(comCache.filter((r) => !!r.cAtc).length, comCache.length)}`);
+
+    linha("");
+    linha("  Distribuição de confiança de quem RESPONDEU:");
+    const baldesConf = [
+      ["< 0,60", 0, 0.6],
+      ["0,60–0,74", 0.6, 0.75],
+      ["0,75–0,84", 0.75, LIMIAR_PERSISTENCIA],
+      [`>= ${LIMIAR_PERSISTENCIA}`, LIMIAR_PERSISTENCIA, 1.01],
+    ] as const;
+    for (const [rot, lo, hi] of baldesConf) {
+      const n = respondeu.filter((r) => (r.cConfidence ?? 0) >= lo && (r.cConfidence ?? 0) < hi).length;
+      linha(`    ${rot.padEnd(12)} ${col(n, respondeu.length)}`);
+    }
+
+    linha("");
+    linha("  Motivos de não-persistência (os 12 mais frequentes):");
     const motivos = new Map<string, number>();
-    for (const r of recusados) {
-      // Normaliza o número dentro do motivo — "confiança 0.72 < 0.85" e
-      // "confiança 0.61 < 0.85" são o MESMO motivo.
+    for (const r of comCache.filter((x) => x.cPersistido === false)) {
       const m = (r.cMotivo ?? "(sem motivo)").replace(/\d+[.,]\d+/g, "N");
       motivos.set(m, (motivos.get(m) ?? 0) + 1);
     }
     for (const [m, n] of Array.from(motivos.entries()).sort((a, b) => b[1] - a[1]).slice(0, 12)) {
-      linha(`    ${String(nf(n)).padStart(7)}  ${pct(n, recusados.length).padStart(6)}  ${corta(m, 52)}`);
+      linha(`    ${String(nf(n)).padStart(7)}  ${corta(m, 56)}`);
     }
 
     // ══════════════════════════════════════════════════════════════════
-    titulo("PARTE 2 · Onde estão os produtos hoje");
-
-    const especificos = rows.filter((r) => r.nivel2 && !ehBalde(r.nivel2));
-    const emBalde = rows.filter((r) => ehBalde(r.nivel2));
-    const porClassificar = rows.filter(semClassificacao);
-    const semN2 = rows.filter((r) => r.nivel1 && !r.nivel2);
-
+    titulo("PARTE 6 · Eficácia: quantos ficaram MELHOR classificados");
     linha("");
-    linha(`  com nível 2 específico ................... ${col(especificos.length, total)}`);
-    linha(`  em "Outros <X>" .......................... ${col(emBalde.length, total)}`);
-    linha(`  com nível 1 mas sem nível 2 .............. ${col(semN2.length, total)}`);
-    linha(`  Por Classificar (sem nível nenhum) ....... ${col(porClassificar.length, total)}`);
+    const persistidos = comCache.filter((r) => r.cPersistido === true);
+    const saiuPorClass = persistidos.filter((r) => !porClassificar(r));
+    const ganhouEspecifica = persistidos.filter((r) => r.nivel2 && !ehBalde(r.nivel2));
+    const ganhouSegmentos = persistidos.filter((r) => r.nUtilizacoes > 0);
+    const ficouBalde = persistidos.filter((r) => ehBalde(r.nivel2));
+    const ficouPorClass = persistidos.filter(porClassificar);
 
-    // Causa por grupo — é a tabela que responde "de quem é a culpa".
-    const tabelaCausas = (nome: string, grupo: LinhaAudit[]) => {
-      linha("");
-      linha(`  ─── ${nome} (${nf(grupo.length)}) ───`);
-      const c = new Map<Causa, number>();
-      for (const r of grupo) c.set(causaDe(r), (c.get(causaDe(r)) ?? 0) + 1);
-      for (const k of [
-        "A_NUNCA",
-        "B_SEM_RESPOSTA",
-        "C_NAO_PERSISTIU",
-        "D_TAXONOMIA",
-        "E_MAPPER",
-      ] as Causa[]) {
-        linha(`    ${ROTULO_CAUSA[k].padEnd(40)} ${col(c.get(k) ?? 0, grupo.length)}`);
-      }
-    };
-    tabelaCausas("Por Classificar", porClassificar);
-    tabelaCausas('Em "Outros <X>"', emBalde);
-
-    // ══════════════════════════════════════════════════════════════════
-    titulo("PARTE 3 · Chamadas ao modelo (o custo, na parte que é medível)");
+    linha(`  processados (têm linha de cache) ......... ${col(comCache.length, comCache.length)}`);
+    linha(`  → resposta útil (não DESCONHECIDO) ....... ${col(respondeu.length, comCache.length)}`);
+    linha(`  → classificação aceite e persistida ...... ${col(persistidos.length, comCache.length)}`);
+    linha(`  → deixaram de estar Por Classificar ...... ${col(saiuPorClass.length, comCache.length)}`);
+    linha(`  → ganharam categoria ESPECÍFICA .......... ${col(ganhouEspecifica.length, comCache.length)}`);
+    linha(`  → ganharam segmentos/utilizações ......... ${col(ganhouSegmentos.length, comCache.length)}`);
+    linha(`  → ficaram na mesma em "Outros <X>" ....... ${col(ficouBalde.length, comCache.length)}`);
+    linha(`  → ficaram na mesma Por Classificar ....... ${col(ficouPorClass.length, comCache.length)}`);
 
     const porOrigem = new Map<string, number>();
-    for (const r of comCache) porOrigem.set(r.cOrigem ?? "(sem origem)", (porOrigem.get(r.cOrigem ?? "(sem origem)") ?? 0) + 1);
-    const totalCache = await prisma.$queryRaw<Array<{ n: bigint }>>(
-      Prisma.sql`SELECT COUNT(*)::bigint AS n FROM "KnowledgeEnrichmentCache"`,
-    );
-    const cnpsDistintos = await prisma.$queryRaw<Array<{ n: bigint }>>(
-      Prisma.sql`SELECT COUNT(DISTINCT cnp)::bigint AS n FROM "KnowledgeEnrichmentCache"`,
-    );
-    const porVersao = await prisma.$queryRaw<Array<{ versao: string; modelo: string; n: bigint }>>(
-      Prisma.sql`SELECT versao, modelo, COUNT(*)::bigint AS n
-                 FROM "KnowledgeEnrichmentCache" GROUP BY 1,2 ORDER BY 3 DESC`,
-    );
-
+    for (const r of comCache) {
+      const o = r.cOrigem ?? "(sem origem)";
+      porOrigem.set(o, (porOrigem.get(o) ?? 0) + 1);
+    }
     linha("");
-    linha(`  linhas de cache (todas as corridas) ...... ${nf(Number(totalCache[0]?.n ?? 0))}`);
-    linha(`  CNP distintos processados ................ ${nf(Number(cnpsDistintos[0]?.n ?? 0))}`);
-    linha("");
-    linha("  Por origem da decisão:");
     for (const [o, n] of Array.from(porOrigem.entries()).sort((a, b) => b[1] - a[1])) {
-      linha(`    ${o.padEnd(14)} ${col(n, comCache.length)}`);
+      linha(`  origem ${o.padEnd(12)} ${col(n, comCache.length)}`);
     }
-    linha("");
-    linha("  Por versão do prompt e modelo:");
-    for (const v of porVersao.slice(0, 10)) {
-      linha(`    ${corta(v.versao, 12)} ${corta(v.modelo, 30)} ${String(nf(Number(v.n))).padStart(8)}`);
-    }
-    linha("");
-    linha("  ATENÇÃO: não há tokens nem custo no schema. `origem='CLAUDE'` é o");
-    linha("  número de decisões PAGAS; `PROPAGADO` foi reaproveitamento gratuito.");
-    linha("  O preço por chamada tem de vir da consola de faturação — multiplicar");
-    linha("  por uma estimativa aqui seria apresentar um palpite como medição.");
-
     const claude = porOrigem.get("CLAUDE") ?? 0;
-    const melhorados = persistidos.length;
     linha("");
-    linha(`  decisões pagas (CLAUDE) .................. ${nf(claude)}`);
-    linha(`  produtos efectivamente melhorados ........ ${nf(melhorados)}`);
     linha(
-      `  ⇒ ${claude > 0 ? (melhorados / claude).toFixed(2) : "—"} produtos melhorados por decisão paga`,
+      `  ⇒ ${claude > 0 ? ((ganhouEspecifica.length / claude) * 100).toFixed(1) : "—"}% das decisões pagas resultaram em categoria específica.`,
     );
+    linha("");
+    linha("  CUSTO: não há tokens nem preço no schema — `EnrichmentSourceLog`");
+    linha("  guarda durationMs e não consumo. O número de decisões pagas está");
+    linha("  acima (origem=CLAUDE); o preço unitário tem de vir da faturação.");
+    linha("  Multiplicar por uma estimativa seria dar um palpite como medição.");
 
     // ══════════════════════════════════════════════════════════════════
-    titulo("PARTE 4 · Amostra dos Por Classificar (100)");
+    titulo("PARTE 7 · Os eixos misturados, medidos");
+    linha("");
+    linha("  Produtos classificados sob um nível 1 que é SEGMENTO e não");
+    linha("  família. No modelo de três eixos, estes passariam a ter tipo +");
+    linha("  categoria próprios E o segmento — deixavam de competir.");
+    linha("");
+    let totalSeg = 0;
+    let totalSegBalde = 0;
+    for (const n1 of Array.from(NIVEL1_SEGMENTO).sort()) {
+      const g = rows.filter((r) => r.nivel1 === n1);
+      const b = g.filter((r) => ehBalde(r.nivel2));
+      totalSeg += g.length;
+      totalSegBalde += b.length;
+      if (g.length === 0) continue;
+      linha(
+        `  ${corta(n1, 28)} ${String(nf(g.length)).padStart(7)}   em balde: ${String(nf(b.length)).padStart(6)}  ${pct(b.length, g.length)}`,
+      );
+    }
+    linha("  " + "─".repeat(70));
+    linha(`  ${"TOTAL sob segmento".padEnd(28)} ${String(nf(totalSeg)).padStart(7)}   em balde: ${String(nf(totalSegBalde)).padStart(6)}  ${pct(totalSegBalde, Math.max(1, totalSeg))}`);
+    linha("");
+    linha(`  ⇒ ${nf(totalSegBalde)} produtos estão em "Outros <segmento>": o sistema sabe`);
+    linha("    PARA QUEM servem e não sabe O QUE SÃO. É a colisão de eixos a");
+    linha("    produzir baldes, e nenhuma regra nova a resolve — só a separação.");
 
-    // Amostra determinística e distribuída: uma em cada N, ordenada por
-    // CNP. Os primeiros 100 por CNP seriam todos do mesmo laboratório.
-    const passo = Math.max(1, Math.floor(porClassificar.length / 100));
-    const amostra = porClassificar
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 8 · Amostra de 100 Por Classificar");
+
+    const passo = Math.max(1, Math.floor(semClass.length / 100));
+    const amostra = semClass
       .slice()
       .sort((a, b) => a.cnp - b.cnp)
       .filter((_, i) => i % passo === 0)
       .slice(0, 100);
 
     for (const r of amostra) {
-      const causa = causaDe(r);
       linha("");
       linha(`  CNP ${r.cnp}  ${corta(r.designacao, 50)}`);
       linha(
-        `      tipo=${corta(r.productType, 16)}(${(r.productTypeConfidence ?? 0).toFixed(2)}) ` +
-          `ATC=${corta(r.codigoATC, 8)} DCI=${corta(r.dci, 20)} util=${r.nUtilizacoes}`,
+        `      actual: tipo=${corta(r.productType, 16)}(${(r.productTypeConfidence ?? 0).toFixed(2)})` +
+          `  classificação=(nenhuma)  segmentos=${corta(r.utilizacoes, 24)}`,
       );
-      if (r.cacheExiste) {
-        linha(
-          `      IA: ${corta(r.cEvidence, 14)} conf=${(r.cConfidence ?? 0).toFixed(2)}` +
-            ` clin=${r.cConfidenceClinica === null ? "—" : r.cConfidenceClinica.toFixed(2)}` +
-            ` → ${corta(r.cCategoria, 20)} / ${corta(r.cSubcategoria, 24)}`,
-        );
-        linha(
-          `      persistido=${r.cPersistido ? "SIM" : "NÃO"}  motivo: ${corta(r.cMotivo, 46)}`,
-        );
+      if (!r.cacheExiste) {
+        linha("      enrichment: (nunca processado)");
       } else {
-        linha("      IA: (nunca processado)");
+        linha(
+          `      enrichment: ${corta(r.cEvidence, 14)} conf=${(r.cConfidence ?? 0).toFixed(2)}` +
+            `  família=${corta(r.cProductType ?? r.cCategoria, 20)}`,
+        );
+        linha(
+          `        categoria=${corta(r.cCategoria, 22)} subcategoria=${corta(r.cSubcategoria, 26)}`,
+        );
+        linha(
+          `        segmentos=${corta((r.cUtilizacoes ?? []).join(","), 26)}` +
+            `  persistido=${r.cPersistido ? "SIM" : "NÃO"}` +
+            (r.cAtc ? `  [aux ATC=${r.cAtc}]` : ""),
+        );
+        linha(`        motivo: ${corta(r.cMotivo, 56)}`);
+        if (parDescartado(r)) {
+          linha(`        ⚠ PAR DESCARTADO — rationale: ${corta(r.cRationale, 44)}`);
+        }
       }
-      linha(`      ⇒ ${ROTULO_CAUSA[causa]}`);
+      linha(`      ⇒ ${ROTULO[causaDe(r)]}`);
     }
 
     // ══════════════════════════════════════════════════════════════════
-    titulo("PARTE 5 · Outros Medicamentos");
-
-    const om = rows.filter((r) => r.nivel2 === "Outros Medicamentos");
-    const omSemAtc = om.filter((r) => !r.codigoATC);
-    const omNuncaEnriq = om.filter((r) => !r.cacheExiste);
-    const omEnriqSemAtc = om.filter((r) => r.cacheExiste && !r.codigoATC);
-    const omIaTinhaAtc = om.filter((r) => !r.codigoATC && !!r.cAtc);
-    const omComDci = om.filter((r) => !r.codigoATC && !!r.dci);
-    const omIaTinhaDci = om.filter((r) => !r.dci && !!r.cDci);
-
-    // Quantos sairiam do balde HOJE, só com o que já lá está.
-    let omRemapEspecifico = 0;
-    for (const r of om) {
-      if (!r.productType) continue;
-      try {
-        const novo = mapToCanonical({
-          productType: r.productType as ProductType,
-          productTypeConfidence: r.productTypeConfidence ?? 0.5,
-          externalCategory: null,
-          externalSubcategory: null,
-          designacao: r.designacao,
-          atc: r.codigoATC,
-          dci: r.dci,
-        });
-        if (novo && !ehBalde(novo.nivel2)) omRemapEspecifico++;
-      } catch {
-        /* ignora */
-      }
+    titulo("PARTE 9 · A taxonomia consegue exprimir o que o modelo diz?");
+    linha("");
+    linha("  Para cada categoria (nível 1) sugerida pelo enrichment, quantas");
+    linha("  subcategorias específicas existem para escolher. Um nível 1 com");
+    linha("  poucas filhas força o balde por construção.");
+    linha("");
+    const sugeridas = new Map<string, number>();
+    for (const r of comCache) {
+      if (!r.cCategoria) continue;
+      sugeridas.set(r.cCategoria, (sugeridas.get(r.cCategoria) ?? 0) + 1);
     }
-    // E quantos sairiam se o ATC que a IA trouxe (e não foi escrito)
-    // fosse usado. É a medida do que se perdeu na recusa.
-    let omComAtcDaIa = 0;
-    for (const r of omIaTinhaAtc) {
-      if (!r.productType) continue;
-      try {
-        const novo = mapToCanonical({
-          productType: r.productType as ProductType,
-          productTypeConfidence: r.productTypeConfidence ?? 0.5,
-          externalCategory: null,
-          externalSubcategory: null,
-          designacao: r.designacao,
-          atc: r.cAtc,
-          dci: r.cDci ?? r.dci,
-        });
-        if (novo && !ehBalde(novo.nivel2)) omComAtcDaIa++;
-      } catch {
-        /* ignora */
-      }
+    linha("  NÍVEL 1 SUGERIDO                 SUGESTÕES   FILHAS   ESPECÍFICAS");
+    linha("  " + "─".repeat(70));
+    for (const [n1, n] of Array.from(sugeridas.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20)) {
+      const fam = CANONICAL_TAXONOMY.find((c) => c.nivel1 === n1);
+      const filhas = fam?.nivel2.length ?? 0;
+      const esp = fam?.nivel2.filter((x) => !/^outros\b/i.test(x)).length ?? 0;
+      linha(`  ${corta(n1, 30)} ${String(nf(n)).padStart(9)} ${String(filhas).padStart(8)} ${String(esp).padStart(13)}`);
     }
 
+    // Sanidade: o par que o modelo devolveu valida mesmo?
+    const paresInvalidos = comCache.filter(
+      (r) => r.cCategoria && r.cSubcategoria && !isValidNivel2(r.cCategoria, r.cSubcategoria),
+    ).length;
     linha("");
-    linha(`  total em "Outros Medicamentos" ........... ${col(om.length, om.length)}`);
-    linha(`  · sem ATC no catálogo .................... ${col(omSemAtc.length, om.length)}`);
-    linha(`  · nunca enriquecidos ..................... ${col(omNuncaEnriq.length, om.length)}`);
-    linha(`  · enriquecidos e continuam sem ATC ....... ${col(omEnriqSemAtc.length, om.length)}`);
-    linha(`  · a IA TROUXE ATC que não foi escrito .... ${col(omIaTinhaAtc.length, om.length)}`);
-    linha(`  · a IA trouxe DCI que não foi escrito .... ${col(omIaTinhaDci.length, om.length)}`);
-    linha(`  · têm DCI mas não ATC .................... ${col(omComDci.length, om.length)}`);
-    linha("");
-    linha(`  sairiam do balde com o mapper de hoje .... ${col(omRemapEspecifico, om.length)}`);
-    linha(`  sairiam se o ATC da IA fosse aceite ...... ${col(omComAtcDaIa, om.length)}`);
-    linha("");
-    linha("  A última linha é a que decide: se for alta, o problema é o limiar");
-    linha(`  clínico (${LIMIAR_CLINICO}); se for baixa, o ATC não existe em lado nenhum e`);
-    linha("  é preciso uma fonte externa (INFARMED) e não mais chamadas ao modelo.");
+    linha(`  pares gravados que HOJE já não validam: ${nf(paresInvalidos)}`);
+    linha("  (> 0 significa que a taxonomia mudou depois de eles serem gravados)");
   } finally {
     await prisma.$disconnect();
   }
