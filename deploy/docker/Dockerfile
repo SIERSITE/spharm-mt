@@ -302,6 +302,21 @@ RUN node deploy/docker/audit-tools-entrypoints.mjs /app
 COPY deploy/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
+# A revisão, para que a imagem se identifique:
+#
+#     docker image inspect spharmmt-app:local-migrator \
+#       --format '{{range .Config.Env}}{{println .}}{{end}}' | grep APP_REVISION
+#
+# O `runner` já carimbava a sua (serve-a em /api/health); esta faltava, e
+# a falta custou caro. Como o `deploy-app.sh` constrói apenas `web`, a
+# imagem do migrator fica para trás a cada deploy rápido — e não havia
+# forma de saber ONDE ficou. O sintoma foi um `Cannot find module
+# '../../lib/operational/motor-stock'` a meio de um diagnóstico: código
+# de uma revisão sobre bibliotecas de outra, sem nada que o dissesse.
+# Uma imagem que não sabe dizer o que traz obriga a adivinhar.
+ARG APP_REVISION=unknown
+ENV APP_REVISION=${APP_REVISION}
+
 # Corre como root de propósito: é um container efémero, sem porto
 # aberto, que só existe durante a migration e cujo único interlocutor é
 # o PostgreSQL na rede interna.
