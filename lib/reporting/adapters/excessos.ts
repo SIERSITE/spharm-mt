@@ -29,6 +29,10 @@ export type ExcessosAdapterRow = {
   quantidadeSugerida: number;
   excessoOrigem: number;
   necessidadeDestino: number;
+  /** Unidades vendidas nesta farmácia nos 6 meses completos até à data-fim. */
+  vendas6M: number;
+  /** `vendas6M / 6`, uma casa decimal. */
+  mediaMensal6M: number;
   fabricante: string;
   categoria: string;
   fornecedor: string;
@@ -53,23 +57,32 @@ export type ExcessosAdapterFilters = {
   quantidadeMinima?: string;
 };
 
-// Foco "excesso" — mantém excessoOrigem perto do início, esconde
-// necessidadeDestino que aqui é contexto secundário.
+// Ordem de leitura: o que a ORIGEM tem e vende, depois o que sobra,
+// depois para onde poderia ir. "Vendas 6M" e "Méd./mês" entram logo a
+// seguir ao stock porque a pergunta que respondem — isto está parado ou
+// só tem stock a mais? — vem antes de qualquer decisão de escoamento.
+//
+// `Méd./mês` NÃO leva `showTotal`: somar médias mensais de artigos
+// diferentes dá um número sem significado. `Vendas 6M` leva, porque a
+// soma de unidades vendidas é uma quantidade real.
 const EXCESSOS_COLUMNS: ReportColumn[] = [
-  { key: "cnp",                label: "CNP",            format: "text",    width: 12 },
-  { key: "produto",            label: "Produto",        format: "text",    width: 36 },
-  { key: "farmaciaOrigem",     label: "Farmácia",       format: "text",    width: 20 },
-  { key: "stockOrigem",        label: "Stock",          format: "integer", width: 10 },
-  { key: "coberturaOrigem",    label: "Cobertura (d)",  format: "integer", width: 12 },
-  { key: "excessoOrigem",      label: "Excesso",        format: "integer", width: 10, showTotal: true },
-  { key: "quantidadeSugerida", label: "Qtd. a escoar",  format: "integer", width: 12, showTotal: true },
-  { key: "farmaciaDestino",    label: "Sugere p/",      format: "text",    width: 20 },
-  { key: "necessidadeDestino", label: "Necessidade",    format: "integer", width: 12 },
-  { key: "prioridade",         label: "Prioridade",     format: "text",    width: 12 },
-  { key: "fornecedor",         label: "Fornecedor",     format: "text",    width: 18 },
-  { key: "fabricante",         label: "Fabricante",     format: "text",    width: 18 },
-  { key: "categoria",          label: "Categoria",      format: "text",    width: 18 },
-  { key: "observacao",         label: "Observação",     format: "text",    width: 28 },
+  { key: "cnp",                label: "CNP",           format: "text",    width: 11 },
+  { key: "produto",            label: "Produto",       format: "text",    width: 30 },
+  { key: "farmaciaOrigem",     label: "Farmácia",      format: "text",    width: 16 },
+  { key: "stockOrigem",        label: "St. O.",        format: "integer", width: 8 },
+  { key: "vendas6M",           label: "Vendas 6M",     format: "integer", width: 10, showTotal: true },
+  { key: "mediaMensal6M",      label: "Méd./mês",      format: "decimal1", width: 9 },
+  { key: "coberturaOrigem",    label: "Cob. O. (d)",   format: "integer", width: 11 },
+  { key: "excessoOrigem",      label: "Excesso",       format: "integer", width: 9,  showTotal: true },
+  { key: "farmaciaDestino",    label: "Destino poss.", format: "text",    width: 16 },
+  { key: "stockDestino",       label: "St. D.",        format: "integer", width: 8 },
+  { key: "coberturaDestino",   label: "Cob. D. (d)",   format: "integer", width: 11 },
+  { key: "necessidadeDestino", label: "Necess.",       format: "integer", width: 9 },
+  { key: "quantidadeSugerida", label: "Sug.",          format: "integer", width: 8,  showTotal: true },
+  { key: "prioridade",         label: "Prioridade",    format: "text",    width: 11 },
+  { key: "fornecedor",         label: "Fornecedor",    format: "text",    width: 15 },
+  { key: "fabricante",         label: "Fabricante",    format: "text",    width: 15 },
+  { key: "categoria",          label: "Categoria",     format: "text",    width: 15 },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas = "Todas"): string {

@@ -39,7 +39,37 @@ import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header"
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { AlertTriangle } from "lucide-react";
 
-type Nivel = "produto" | "categoria" | "farmacia" | "grupo";
+/**
+ * As vistas de Margens.
+ *
+ * "produto" e' a UNICA que mostra detalhe linha-a-linha. Todas as outras
+ * sao ja' o modo "so' totalizadores": uma linha por valor da dimensao,
+ * sem os produtos por baixo. Nao ha' um interruptor separado de propósito
+ * — seriam dois controlos para um so' estado, e a pergunta "estou a ver
+ * detalhe ou totais?" passaria a ter duas respostas possiveis.
+ *
+ * Os rotulos dizem-no: "Detalhe por produto" vs "Totais por ...".
+ */
+type Nivel = "produto" | "categoria" | "farmacia" | "grupo" | "fabricante";
+
+const NIVEIS: Nivel[] = ["produto", "categoria", "farmacia", "grupo", "fabricante"];
+
+const NIVEL_LABEL: Record<Nivel, string> = {
+  produto: "Detalhe por produto",
+  categoria: "Totais por categoria",
+  farmacia: "Totais por farmácia",
+  grupo: "Totais por grupo",
+  fabricante: "Totais por fabricante",
+};
+
+/** Cabeçalho da primeira coluna em cada vista agregada. */
+const NIVEL_HEADER: Record<Nivel, string> = {
+  produto: "Produto",
+  categoria: "Categoria",
+  farmacia: "Farmácia",
+  grupo: "Grupo",
+  fabricante: "Fabricante",
+};
 
 const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
@@ -183,6 +213,23 @@ export function MargensClient({
 
   const organization = formatFarmaciaHeader(filters.farmaciaNomes ?? [], farmaciasInfo);
 
+  /**
+   * As linhas da vista agregada actual.
+   *
+   * Partilhado pela tabela e pela exportacao: e' esta funcao que garante
+   * que o PDF/Excel exporta EXACTAMENTE a vista que esta' no ecra, e nao
+   * volta ao detalhe por produto.
+   */
+  const linhasAgregadas = (r: MargensResult | null, n: Nivel): MargensAgg[] => {
+    switch (n) {
+      case "categoria": return r?.porCategoria ?? [];
+      case "farmacia": return r?.porFarmacia ?? [];
+      case "grupo": return r?.porGrupo ?? [];
+      case "fabricante": return r?.porFabricante ?? [];
+      case "produto": return [];
+    }
+  };
+
   const buildReport = () => {
     if (nivel === "produto") {
       return buildMargensProdutoReport({
@@ -197,12 +244,9 @@ export function MargensClient({
         organization,
       });
     }
-    const aggRows =
-      nivel === "categoria"
-        ? result?.porCategoria ?? []
-        : nivel === "farmacia"
-          ? result?.porFarmacia ?? []
-          : result?.porGrupo ?? [];
+    // Exportacao e ecra leem a MESMA lista. Se divergissem, o PDF de
+    // "Totais por fabricante" podia trazer as categorias.
+    const aggRows = linhasAgregadas(result, nivel);
     return buildMargensAggReport({
       rows: aggRows,
       filters,
@@ -286,16 +330,9 @@ export function MargensClient({
 
             {/* Tabs de nível */}
             <div className="flex flex-wrap gap-1.5">
-              {(["produto", "categoria", "farmacia", "grupo"] as Nivel[]).map((n) => {
+              {NIVEIS.map((n) => {
                 const on = nivel === n;
-                const label =
-                  n === "produto"
-                    ? "Por produto"
-                    : n === "categoria"
-                      ? "Por categoria"
-                      : n === "farmacia"
-                        ? "Por farmácia"
-                        : "Por grupo";
+                const label = NIVEL_LABEL[n];
                 return (
                   <button
                     key={n}
@@ -340,10 +377,11 @@ export function MargensClient({
               </div>
             )}
 
-            {nivel === "produto" && <TabelaProduto rows={rowsByEstadoProduto} />}
-            {nivel === "categoria" && <TabelaAgg rows={result?.porCategoria ?? []} header="Categoria" />}
-            {nivel === "farmacia" && <TabelaAgg rows={result?.porFarmacia ?? []} header="Farmácia" />}
-            {nivel === "grupo" && <TabelaAgg rows={result?.porGrupo ?? []} header="Grupo" />}
+            {nivel === "produto" ? (
+              <TabelaProduto rows={rowsByEstadoProduto} />
+            ) : (
+              <TabelaAgg rows={linhasAgregadas(result, nivel)} header={NIVEL_HEADER[nivel]} />
+            )}
           </>
         )}
       </div>

@@ -40,6 +40,10 @@ type TransferSuggestionRow = {
   quantidadeSugerida: number;
   excessoOrigem: number;
   necessidadeDestino: number;
+  /** Unidades vendidas NESTA farmacia nos 6 meses completos ate' a data-fim. */
+  vendas6M: number;
+  /** `vendas6M / 6`, uma casa decimal. */
+  mediaMensal6M: number;
   fabricante: string;
   categoria: string;
   /** Nivel 2 canonico, ou "" — o loader garante o campo. */
@@ -538,32 +542,49 @@ export function ExcessosClient({
 
             <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-y-auto">
               <table className="min-w-full table-fixed text-left">
+                {/* 13 colunas. A ordem segue a leitura operacional:
+                    o que a ORIGEM tem e vende, o que sobra, e so' depois
+                    para onde poderia ir. */}
                 <colgroup>
-                  <col className="w-[8%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[6%]" />
                   <col className="w-[7%]" />
                   <col className="w-[7%]" />
+                  <col className="w-[6%]" />
                   <col className="w-[7%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[5%]" />
                 </colgroup>
                 <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                   <tr>
                     <th className="px-4 py-2.5 font-semibold">CNP</th>
                     <th className="px-3 py-2.5 font-semibold">Produto</th>
                     <th className="px-3 py-2.5 font-semibold">Farmácia</th>
-                    <th className="px-3 py-2.5 font-semibold">Destino poss.</th>
                     <th className="px-2 py-2.5 text-center font-semibold">St. O.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">St. D.</th>
+                    <th
+                      className="px-2 py-2.5 text-center font-semibold"
+                      title="Unidades vendidas nesta farmácia nos últimos 6 meses completos até à data fim."
+                    >
+                      Vendas 6M
+                    </th>
+                    <th
+                      className="px-2 py-2.5 text-center font-semibold"
+                      title="Média mensal de unidades vendidas nesse período."
+                    >
+                      Méd./mês
+                    </th>
                     <th className="px-2 py-2.5 text-center font-semibold">Cob. O.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Cob. D.</th>
                     <th className="px-2 py-2.5 text-center font-semibold">Excesso</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Sug.</th>
+                    <th className="px-3 py-2.5 font-semibold">Destino poss.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">St. D.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Cob. D.</th>
                     <th className="px-2 py-2.5 text-center font-semibold">Necess.</th>
+                    <th className="px-2 py-2.5 text-center font-semibold">Sug.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
@@ -582,22 +603,34 @@ export function ExcessosClient({
                         </div>
                       </td>
                       <td className="px-3 py-2.5">{row.farmaciaOrigem}</td>
-                      <td className="px-3 py-2.5">{row.farmaciaDestino}</td>
                       <td className="px-2 py-2.5 text-center">{row.stockOrigem}</td>
-                      <td className="px-2 py-2.5 text-center">{row.stockDestino}</td>
+                      <td className="px-2 py-2.5 text-center">{row.vendas6M}</td>
+                      <td className="px-2 py-2.5 text-center tabular-nums text-slate-600">
+                        {fmtMedia(row.mediaMensal6M)}
+                      </td>
                       <td className="px-2 py-2.5 text-center">{row.coberturaOrigem}</td>
-                      <td className="px-2 py-2.5 text-center">{row.coberturaDestino}</td>
                       <td className="px-2 py-2.5 text-center font-semibold text-slate-900">{row.excessoOrigem}</td>
-                      <td className="px-2 py-2.5 text-center">{row.quantidadeSugerida}</td>
+                      <td className="px-3 py-2.5">{row.farmaciaDestino}</td>
+                      <td className="px-2 py-2.5 text-center">{row.stockDestino}</td>
+                      <td className="px-2 py-2.5 text-center">{row.coberturaDestino}</td>
                       <td className="px-2 py-2.5 text-center">{row.necessidadeDestino}</td>
+                      <td className="px-2 py-2.5 text-center">{row.quantidadeSugerida}</td>
                     </tr>
                   ))}
                   {snapshot.incluirTotais && orderedRows.length > 0 && (
                     <tr className="bg-slate-50/70 font-semibold text-slate-900">
-                      <td className="px-4 py-2.5" colSpan={8}>Totais</td>
+                      <td className="px-4 py-2.5" colSpan={4}>Totais</td>
+                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.vendas6M))}</td>
+                      {/* Méd./mês não é totalizada: somar médias mensais de
+                          artigos diferentes não significa nada. */}
+                      <td className="px-2 py-2.5 text-center text-slate-400">—</td>
+                      <td className="px-2 py-2.5" />
                       <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.excessoOrigem))}</td>
-                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
+                      <td className="px-3 py-2.5" />
+                      <td className="px-2 py-2.5" />
+                      <td className="px-2 py-2.5" />
                       <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.necessidadeDestino))}</td>
+                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
                     </tr>
                   )}
                 </tbody>
@@ -644,10 +677,12 @@ export function ExcessosClient({
                           <th className="px-3 py-2 font-semibold">CNP</th>
                           <th className="px-3 py-2 font-semibold">Produto</th>
                           <th className="px-3 py-2 font-semibold">Farmácia</th>
-                          <th className="px-3 py-2 font-semibold">Destino poss.</th>
+                          <th className="px-3 py-2 text-center font-semibold">Vendas 6M</th>
+                          <th className="px-3 py-2 text-center font-semibold">Méd./mês</th>
                           <th className="px-3 py-2 text-center font-semibold">Excesso</th>
-                          <th className="px-3 py-2 text-center font-semibold">Sug.</th>
+                          <th className="px-3 py-2 font-semibold">Destino poss.</th>
                           <th className="px-3 py-2 text-center font-semibold">Necess.</th>
+                          <th className="px-3 py-2 text-center font-semibold">Sug.</th>
                           <th className="px-3 py-2 font-semibold">Prioridade</th>
                         </tr>
                       </thead>
@@ -657,19 +692,25 @@ export function ExcessosClient({
                             <td className="whitespace-nowrap px-3 py-1.5">{row.cnp}</td>
                             <td className="px-3 py-1.5">{row.produto}</td>
                             <td className="px-3 py-1.5">{row.farmaciaOrigem}</td>
-                            <td className="px-3 py-1.5">{row.farmaciaDestino}</td>
+                            <td className="px-3 py-1.5 text-center">{row.vendas6M}</td>
+                            <td className="px-3 py-1.5 text-center tabular-nums">{fmtMedia(row.mediaMensal6M)}</td>
                             <td className="px-3 py-1.5 text-center">{row.excessoOrigem}</td>
-                            <td className="px-3 py-1.5 text-center">{row.quantidadeSugerida}</td>
+                            <td className="px-3 py-1.5">{row.farmaciaDestino}</td>
                             <td className="px-3 py-1.5 text-center">{row.necessidadeDestino}</td>
+                            <td className="px-3 py-1.5 text-center">{row.quantidadeSugerida}</td>
                             <td className="px-3 py-1.5"><PriorityBadge prioridade={row.prioridade} /></td>
                           </tr>
                         ))}
                         {snapshot.incluirTotais && orderedRows.length > 0 && (
                           <tr className="bg-slate-50 font-semibold text-slate-900">
-                            <td className="px-3 py-2" colSpan={4}>Totais</td>
+                            <td className="px-3 py-2" colSpan={3}>Totais</td>
+                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.vendas6M))}</td>
+                            {/* Méd./mês não se soma. */}
+                            <td className="px-3 py-2 text-center text-slate-400">—</td>
                             <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.excessoOrigem))}</td>
-                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
+                            <td className="px-3 py-2" />
                             <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.necessidadeDestino))}</td>
+                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
                             <td className="px-3 py-2" />
                           </tr>
                         )}
@@ -873,6 +914,13 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
     </div>
   );
+}
+
+/** Uma casa decimal, sempre: "4,0" e não "4". */
+function fmtMedia(n: number): string {
+  return Number.isFinite(n)
+    ? n.toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : "—";
 }
 
 function sum(values: number[]) { return values.reduce((acc, value) => acc + value, 0); }

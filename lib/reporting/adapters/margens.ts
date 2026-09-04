@@ -26,6 +26,23 @@ import type {
 } from "@/lib/margens-data";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
+/**
+ * As dimensoes em que Margens agrega — o modo "so' totalizadores".
+ *
+ * NAO inclui `distribuidor`: `ProdutoFarmacia.fornecedorOrigem` e' o
+ * grossista HABITUAL da ficha, nao o da compra que gerou o custo do
+ * periodo. Agregar margem por ele responderia a uma pergunta diferente
+ * da que o rotulo prometia. Ver a nota no relatorio da tarefa.
+ */
+export type DimensaoAgregada = "categoria" | "farmacia" | "grupo" | "fabricante";
+
+const HEADER_POR_DIMENSAO: Record<DimensaoAgregada, string> = {
+  categoria: "Categoria",
+  farmacia: "Farmácia",
+  grupo: "Grupo",
+  fabricante: "Fabricante",
+};
+
 const MARGEM_LABEL: Record<EstadoMargem, string> = {
   FIAVEL: "Fiável",
   PARCIAL: "Parcial",
@@ -216,14 +233,9 @@ export function buildMargensAggReport(input: {
     distribuidores: string[];
   };
   organization: string;
-  groupBy: "categoria" | "farmacia" | "grupo";
+  groupBy: DimensaoAgregada;
 }): Report {
-  const headerLabel =
-    input.groupBy === "categoria"
-      ? "Categoria"
-      : input.groupBy === "farmacia"
-        ? "Farmácia"
-        : "Grupo";
+  const headerLabel = HEADER_POR_DIMENSAO[input.groupBy];
   const columns: ReportColumn[] = [
     { key: "label",              label: headerLabel,    format: "text",     width: 19 },
     { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 7,  showTotal: true },
@@ -263,15 +275,17 @@ export function buildMargensAggReport(input: {
     { label: "Margem € (s/ IVA)", value: Math.round(totalMargem * 100) / 100, format: "currency" },
   ];
 
-  const titleByGroup: Record<"categoria" | "farmacia" | "grupo", string> = {
+  const titleByGroup: Record<DimensaoAgregada, string> = {
     categoria: "Relatório de Margens — Por Categoria",
     farmacia: "Relatório de Margens — Por Farmácia",
     grupo: "Relatório de Margens — Por Grupo",
+    fabricante: "Relatório de Margens — Por Fabricante",
   };
-  const slugByGroup: Record<"categoria" | "farmacia" | "grupo", string> = {
+  const slugByGroup: Record<DimensaoAgregada, string> = {
     categoria: "margens-categoria",
     farmacia: "margens-farmacia",
     grupo: "margens-grupo",
+    fabricante: "margens-fabricante",
   };
 
   return {

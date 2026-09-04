@@ -20,6 +20,7 @@
  *   J  Transferências só conta sugestões realizáveis
  *   K  elegibilidade de destino: consumo E necessidade
  *   L  impressão: um caminho só, e em A4 landscape
+ *   M  Vendas 6M e Média/mês — janela, cálculo e não-interferência
  *
  * Corre com:  npm run test:excessos-transferencias
  */
@@ -39,6 +40,9 @@ import {
 } from "../../lib/operational/motor-stock";
 import { buildTransferenciasReport } from "../../lib/reporting/adapters/transferencias";
 import {
+  janelaMesesAte,
+  mesesDaJanela,
+  ultimoMesCompletoAte,
   janelaExcessosPorOmissao,
   janelaOperacionalPorOmissao,
   ultimosMesesCompletos,
@@ -770,6 +774,156 @@ console.log("\nL · impressão");
   check(
     /2025-09-01/.test(relatorio.subtitle ?? ""),
     "…e também no subtítulo do relatório",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// M · VENDAS 6M / MÉDIA POR MÊS
+//
+// Contexto de rotação para distinguir "stock parado" de "stock alto de
+// um artigo que vende". É INFORMAÇÃO: não entra em nenhuma fórmula.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nM · Vendas 6M e Média/mês");
+
+// ── A · a janela acompanha a data-fim ────────────────────────────────
+{
+  eq(
+    janelaMesesAte("2026-08-31", 6),
+    { inicio: "2026-03-01", fim: "2026-08-31" },
+    "A: fim 31/08/2026 ⇒ 01/03/2026 a 31/08/2026",
+  );
+  eq(mesesDaJanela(janelaMesesAte("2026-08-31", 6)), 6, "A: são 6 meses");
+
+  // Um fim a meio do mês não pode incluir esse mês: seria um mês
+  // parcial a puxar a média para baixo.
+  eq(
+    janelaMesesAte("2026-08-15", 6),
+    { inicio: "2026-02-01", fim: "2026-07-31" },
+    "A: fim 15/08 ⇒ Agosto fica de fora (mês incompleto)",
+  );
+  eq(ultimoMesCompletoAte("2026-08-31"), { ano: 2026, mes: 8 }, "A: 31/08 fecha Agosto");
+  eq(ultimoMesCompletoAte("2026-08-30"), { ano: 2026, mes: 7 }, "A: 30/08 não fecha Agosto");
+  eq(ultimoMesCompletoAte("2026-02-28"), { ano: 2026, mes: 2 }, "A: Fevereiro não bissexto");
+  eq(ultimoMesCompletoAte("2026-01-31"), { ano: 2026, mes: 1 }, "A: Janeiro fecha em 31");
+  eq(ultimoMesCompletoAte("2026-01-15"), { ano: 2025, mes: 12 }, "A: 15/01 recua para Dezembro");
+}
+
+// ── E · mudar a data-fim desloca a janela ────────────────────────────
+{
+  eq(
+    janelaMesesAte("2026-05-31", 6),
+    { inicio: "2025-12-01", fim: "2026-05-31" },
+    "E: fim em Maio ⇒ janela recua e atravessa o ano",
+  );
+  eq(
+    janelaMesesAte("2026-03-31", 6),
+    { inicio: "2025-10-01", fim: "2026-03-31" },
+    "E: fim em Março ⇒ Out/2025 a Mar/2026",
+  );
+}
+
+// ── B/D · a média ────────────────────────────────────────────────────
+{
+  // O exemplo do enunciado: 2+3+0+4+5+6 = 20 em 6 meses.
+  const media = (total: number, meses: number) => Math.round((total / meses) * 10) / 10;
+  eq(media(20, 6), 3.3, "B: 20 unidades em 6 meses ⇒ 3,3");
+  eq(media(24, 6), 4, "B: 24 ⇒ 4,0 (o valor é 4; o ecrã formata a casa)");
+  eq(media(1, 6), 0.2, "B: 1 ⇒ 0,2");
+  eq(media(0, 6), 0, "D: sem vendas ⇒ 0,0");
+  eq(media(2, 6), 0.3, "o caso real do CNP 7607978: 2 em 6 meses ⇒ 0,3");
+}
+
+// ── C/F/G/I · estrutura do loader ────────────────────────────────────
+{
+  const dados = readFileSync("lib/transferencias-data.ts", "utf8");
+
+  // C · por (produto, farmácia) — a chave do mapa tem as duas partes.
+  check(
+    dados.includes('mapa.set(`${l.produtoId}:${l.farmaciaId}`'),
+    "C: as vendas 6M são indexadas por produto E farmácia",
+  );
+  check(
+    dados.includes('GROUP BY vm."produtoId", vm."farmaciaId"'),
+    "C: e a query agrega pelos dois — nunca consolidado pelo grupo",
+  );
+  check(
+    dados.includes("vendas6M: origem.vendas6M"),
+    "C: a linha mostra as vendas da ORIGEM, que é a farmácia da linha",
+  );
+
+  // I · uma query para o relatório inteiro, não uma por linha.
+  eq(
+    (dados.match(/somarVendasNaJanela\(/g) ?? []).length,
+    2,
+    "I: a função é definida uma vez e chamada uma vez",
+  );
+  const corpoCarregar = dados.slice(
+    dados.indexOf("async function carregarEstadosOperacionais"),
+    dados.indexOf("function montarLinha"),
+  );
+  const dentroDoLoop = corpoCarregar.slice(corpoCarregar.indexOf("for (const row of pfRows)"));
+  check(
+    !dentroDoLoop.includes("await "),
+    "I: nenhum await dentro do ciclo das linhas (sem N+1)",
+  );
+  check(
+    corpoCarregar.includes("Promise.all(["),
+    "I: as duas agregações correm em paralelo",
+  );
+
+  // F/G · as colunas novas não entram em nenhuma fórmula.
+  const motor = readFileSync("lib/operational/motor-stock.ts", "utf8");
+  check(
+    !motor.includes("vendas6M") && !motor.includes("mediaMensal6M"),
+    "F/G: o motor não conhece sequer estes campos",
+  );
+  const corpoMontar = dados.slice(
+    dados.indexOf("function montarLinha"),
+    dados.indexOf("* TRANSFERÊNCIAS"),
+  );
+  check(
+    /excessoOrigem: origem\.excesso/.test(corpoMontar),
+    "F: o excesso continua a vir do motor, intocado",
+  );
+  check(
+    /quantidadeSugerida: par\.quantidadeSugerida/.test(corpoMontar) &&
+      /necessidadeDestino: par\.necessidadeDestino/.test(corpoMontar),
+    "G: necessidade e sugestão continuam a vir do emparelhamento",
+  );
+}
+
+// ── H · as colunas no relatório/PDF/Excel ────────────────────────────
+{
+  const adaptador = readFileSync("lib/reporting/adapters/excessos.ts", "utf8");
+  check(adaptador.includes('key: "vendas6M"'), "H: coluna Vendas 6M no adaptador");
+  check(adaptador.includes('key: "mediaMensal6M"'), "H: coluna Méd./mês no adaptador");
+  check(
+    adaptador.includes('{ key: "mediaMensal6M",      label: "Méd./mês",      format: "decimal1", width: 9 },'),
+    "H: Méd./mês com uma casa decimal e SEM total",
+  );
+  check(
+    /key: "vendas6M",[^\n]*showTotal: true/.test(adaptador),
+    "H: Vendas 6M é totalizada (são unidades reais)",
+  );
+
+  // A ordem pedida: stock → rotação → cobertura → excesso → destino.
+  const ordem = (adaptador.match(/key: "([a-zA-Z0-9]+)"/g) ?? []).map((m) =>
+    m.replace(/key: "|"/g, ""),
+  );
+  const i = (k: string) => ordem.indexOf(k);
+  check(i("stockOrigem") < i("vendas6M"), "H: St. O. antes de Vendas 6M");
+  check(i("vendas6M") < i("mediaMensal6M"), "H: Vendas 6M antes de Méd./mês");
+  check(i("mediaMensal6M") < i("coberturaOrigem"), "H: Méd./mês antes de Cob. O.");
+  check(i("coberturaOrigem") < i("excessoOrigem"), "H: Cob. O. antes de Excesso");
+  check(i("excessoOrigem") < i("farmaciaDestino"), "H: Excesso antes de Destino poss.");
+  check(i("necessidadeDestino") < i("quantidadeSugerida"), "H: Necess. antes de Sug.");
+
+  const cliente = readFileSync("components/excessos/excessos-client.tsx", "utf8");
+  check(cliente.includes("{row.vendas6M}"), "H: e no ecrã");
+  check(cliente.includes("fmtMedia(row.mediaMensal6M)"), "H: com a média formatada");
+  check(
+    cliente.includes("minimumFractionDigits: 1"),
+    "H: uma casa decimal sempre — 4,0 e não 4",
   );
 }
 

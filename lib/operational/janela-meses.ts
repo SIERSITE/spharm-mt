@@ -113,6 +113,54 @@ export function janelaExcessosPorOmissao(agora: Date = new Date()): JanelaMeses 
 }
 
 /**
+ * O último mês CIVIL COMPLETO até uma data-fim.
+ *
+ * "Completo" significa que a data-fim cobre o mês inteiro:
+ *
+ *   fim = 2026-08-31  →  Agosto conta (é o último dia do mês)
+ *   fim = 2026-08-15  →  Agosto NÃO conta; o último completo é Julho
+ *
+ * É esta a diferença entre uma janela de meses civis e um "fim − 180
+ * dias", que corta meses ao meio e faz a média mensal mentir.
+ */
+export function ultimoMesCompletoAte(fim: string): { ano: number; mes: number } {
+  const [ano, mes, dia] = fim.split("-").map(Number);
+  if (dia >= ultimoDiaDoMes(ano, mes)) return { ano, mes };
+  return mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+}
+
+/**
+ * Os últimos `meses` meses civis completos que terminam em `fim`.
+ *
+ *   janelaMesesAte("2026-08-31", 6)  →  2026-03-01 … 2026-08-31
+ *   janelaMesesAte("2026-08-15", 6)  →  2026-02-01 … 2026-07-31
+ *
+ * Existe para a coluna "Vendas 6M" dos Excessos acompanhar a data-fim
+ * escolhida pelo utilizador em vez de estar presa ao dia de hoje.
+ */
+export function janelaMesesAte(fim: string, meses = 6): JanelaMeses {
+  const alvo = ehDataValida(fim) ? fim : janelaOperacionalPorOmissao().fim;
+  const { ano, mes } = ultimoMesCompletoAte(alvo);
+
+  const fimIso = `${ano}-${pad(mes)}-${pad(ultimoDiaDoMes(ano, mes))}`;
+
+  // Índice absoluto para não haver aritmética de rollover à mão.
+  const abs = ano * 12 + (mes - 1) - (meses - 1);
+  const anoInicio = Math.floor(abs / 12);
+  const mesInicio = (abs % 12) + 1;
+
+  return { inicio: `${anoInicio}-${pad(mesInicio)}-01`, fim: fimIso };
+}
+
+/** Nº de meses civis de uma janela. Denominador da média mensal. */
+export function mesesDaJanela(j: JanelaMeses): number {
+  const [aI, mI] = j.inicio.split("-").map(Number);
+  const [aF, mF] = j.fim.split("-").map(Number);
+  const n = aF * 12 + mF - (aI * 12 + mI) + 1;
+  return n > 0 ? n : 1;
+}
+
+/**
  * Converte a janela em índices absolutos de mês (`ano*12 + mes`), que é
  * como `VendaMensal` é consultada.
  *

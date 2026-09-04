@@ -27,7 +27,9 @@ import {
 } from "@/lib/transfers/internal-substitution";
 import {
   diasDaJanela,
+  janelaMesesAte,
   janelaParaIndicesMensais,
+  mesesDaJanela,
   normalizarJanela,
   type JanelaMeses,
 } from "@/lib/operational/janela-meses";
@@ -46,6 +48,14 @@ export type TransferSuggestionRow = {
   quantidadeSugerida: number;
   excessoOrigem: number;
   necessidadeDestino: number;
+  /**
+   * Unidades vendidas NESTA farmácia nos 6 meses civis completos até à
+   * data-fim do relatório. Contexto de rotação, nada mais: não entra em
+   * nenhuma fórmula de excesso, necessidade, sugestão ou prioridade.
+   */
+  vendas6M: number;
+  /** `vendas6M / 6`, uma casa decimal. Também só informativo. */
+  mediaMensal6M: number;
   fabricante: string;
   /** Nível 1 canónico. Ver `resolverPar` — era o nível 2 até 2026-08. */
   categoria: string;
@@ -243,8 +253,45 @@ export type OpcoesOperacionais = {
 /** Nome antigo. Mantido para não partir chamadores. */
 export type ExcessosOptions = OpcoesOperacionais;
 
-/** Uma linha do loader, já com as vendas da janela coladas. */
-type LinhaPf = PfBase & { vendasJanela: number };
+/** Uma linha do loader, já com as vendas das duas janelas coladas. */
+type LinhaPf = PfBase & { vendasJanela: number; vendas6M: number };
+
+/**
+ * Soma de `VendaMensal` por (produto, farmácia) numa janela.
+ *
+ * UMA query agregada para o relatório inteiro — não uma por linha. É a
+ * mesma forma da agregação que `loadPfAndSales` já faz para a janela
+ * principal; vive à parte porque a janela dos 6 meses é outra e não se
+ * quis mexer num loader partilhado por /stock, /transferencias, o
+ * dashboard e a substituição interna.
+ *
+ * O custo acrescentado ao relatório é um round-trip, independentemente
+ * de haver 500 ou 50 000 produtos.
+ */
+async function somarVendasNaJanela(
+  farmaciaIds: string[],
+  janela: JanelaMeses,
+): Promise<Map<string, number>> {
+  const prisma = await getPrisma();
+  const { inicioIndice, fimExclusivo } = janelaParaIndicesMensais(janela);
+  const linhas = await prisma.$queryRaw<
+    Array<{ produtoId: string; farmaciaId: string; totalQty: number }>
+  >(Prisma.sql`
+    SELECT
+      vm."produtoId",
+      vm."farmaciaId",
+      SUM(vm.quantidade)::float AS "totalQty"
+    FROM "VendaMensal" vm
+    WHERE
+      (vm.ano * 12 + vm.mes) >= ${inicioIndice}
+      AND (vm.ano * 12 + vm.mes) < ${fimExclusivo}
+      AND vm."farmaciaId" = ANY(${farmaciaIds})
+    GROUP BY vm."produtoId", vm."farmaciaId"
+  `);
+  const mapa = new Map<string, number>();
+  for (const l of linhas) mapa.set(`${l.produtoId}:${l.farmaciaId}`, toF(l.totalQty));
+  return mapa;
+}
 
 /**
  * O carregamento comum aos dois relatórios.
@@ -255,6 +302,8 @@ type LinhaPf = PfBase & { vendasJanela: number };
  */
 async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promise<{
   janela: JanelaMeses;
+  /** Janela de contexto da coluna "Vendas 6M". */
+  janela6M: JanelaMeses;
   params: ParametrosMotor;
   grupos: Map<string, EstadoStock<LinhaPf>[]>;
 }> {
@@ -279,19 +328,31 @@ async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promis
     orderBy: { nome: "asc" },
   });
   const farmaciaIds = farmacias.map((f) => f.id);
-  if (farmaciaIds.length === 0) return { janela, params, grupos };
+  const janelaVazia = janelaMesesAte(janela.fim, 6);
+  if (farmaciaIds.length === 0) {
+    return { janela, janela6M: janelaVazia, params, grupos };
+  }
 
-  const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds, { janela });
+  // A janela dos 6 meses acompanha a data-fim ESCOLHIDA, e não o dia de
+  // hoje: mudar o fim do relatório desloca as duas janelas em conjunto.
+  const janela6M = janelaMesesAte(janela.fim, 6);
+
+  const [{ pfRows, salesMap }, vendas6MMap] = await Promise.all([
+    loadPfAndSales(farmaciaIds, { janela }),
+    somarVendasNaJanela(farmaciaIds, janela6M),
+  ]);
 
   for (const row of pfRows) {
-    const vendasJanela = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
-    const estado = avaliarLinha<LinhaPf>({ ...row, vendasJanela }, params);
+    const chave = `${row.produtoId}:${row.farmaciaId}`;
+    const vendasJanela = salesMap.get(chave) ?? 0;
+    const vendas6M = vendas6MMap.get(chave) ?? 0;
+    const estado = avaliarLinha<LinhaPf>({ ...row, vendasJanela, vendas6M }, params);
     const lista = grupos.get(row.produtoId);
     if (lista) lista.push(estado);
     else grupos.set(row.produtoId, [estado]);
   }
 
-  return { janela, params, grupos };
+  return { janela, janela6M, params, grupos };
 }
 
 /**
@@ -305,6 +366,7 @@ function montarLinha(
   par: Emparelhamento<LinhaPf>,
   prioridade: Priority,
   observacao: string,
+  mesesContexto: number,
 ): TransferSuggestionRow {
   const origem = par.origem;
   const destino = par.destino;
@@ -323,6 +385,10 @@ function montarLinha(
     quantidadeSugerida: par.quantidadeSugerida,
     excessoOrigem: origem.excesso,
     necessidadeDestino: par.necessidadeDestino,
+    // Contexto de rotação da ORIGEM — é dela que o stock sai.
+    vendas6M: origem.vendas6M,
+    mediaMensal6M:
+      mesesContexto > 0 ? Math.round((origem.vendas6M / mesesContexto) * 10) / 10 : 0,
     // Fabricante CANÓNICO via Produto.fabricante; fornecedor é o
     // grossista habitual (ProdutoFarmacia.fornecedorOrigem).
     fabricante: origem.fabricanteCanonico ?? "",
@@ -371,7 +437,8 @@ function montarLinha(
 export async function getTransferenciasData(
   options?: OpcoesOperacionais,
 ): Promise<TransferSuggestionRow[]> {
-  const { grupos } = await carregarEstadosOperacionais(options);
+  const { grupos, janela6M } = await carregarEstadosOperacionais(options);
+  const mesesContexto = mesesDaJanela(janela6M);
 
   const result: TransferSuggestionRow[] = [];
   for (const [, grupo] of grupos) {
@@ -397,6 +464,7 @@ export async function getTransferenciasData(
             : prioridade === "media"
               ? "Transferência recomendada antes de reposição externa."
               : "Afinação opcional de cobertura.",
+          mesesContexto,
         ),
       );
     }
@@ -425,7 +493,8 @@ export async function getTransferenciasData(
 export async function getExcessosData(
   options?: OpcoesOperacionais,
 ): Promise<TransferSuggestionRow[]> {
-  const { params, grupos } = await carregarEstadosOperacionais(options);
+  const { params, grupos, janela6M } = await carregarEstadosOperacionais(options);
+  const mesesContexto = mesesDaJanela(janela6M);
 
   const result: TransferSuggestionRow[] = [];
   for (const [, grupo] of grupos) {
@@ -451,6 +520,7 @@ export async function getExcessosData(
           par.destino
             ? `Excesso de ${Math.round(cobertura)} dias de cobertura.`
             : `Excesso de ${Math.round(cobertura)} dias — nenhuma farmácia do grupo tem necessidade.`,
+          mesesContexto,
         ),
       );
     }

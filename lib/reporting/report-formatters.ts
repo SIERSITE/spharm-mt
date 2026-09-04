@@ -22,6 +22,11 @@ const numberFmt = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 2,
 });
 
+const decimal1Fmt = new Intl.NumberFormat(LOCALE, {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 const integerFmt = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 0,
 });
@@ -71,6 +76,12 @@ export function formatNumber(v: unknown): string {
   return n === null ? "—" : numberFmt.format(n);
 }
 
+/** Uma casa decimal, sempre. Ver `ReportFormat.decimal1`. */
+export function formatDecimal1(v: unknown): string {
+  const n = toNumber(v);
+  return n === null ? "—" : decimal1Fmt.format(n);
+}
+
 export function formatInteger(v: unknown): string {
   const n = toNumber(v);
   return n === null ? "—" : integerFmt.format(n);
@@ -103,6 +114,7 @@ export function formatCell(value: ReportCell, format?: ReportFormat): string {
   switch (format) {
     case "currency": return formatCurrency(value);
     case "number":   return formatNumber(value);
+    case "decimal1": return formatDecimal1(value);
     case "integer":  return formatInteger(value);
     case "percent":  return formatPercent(value);
     case "date":     return formatDate(value);

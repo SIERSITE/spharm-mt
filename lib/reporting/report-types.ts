@@ -13,7 +13,15 @@ export type ReportFormat =
   | "date"
   | "datetime"
   | "percent"
-  | "integer";
+  | "integer"
+  /**
+   * Uma casa decimal, SEMPRE — inclusive `.0`.
+   *
+   * `number` da' 0 a 2 casas, e mostraria "4" onde a coluna precisa de
+   * "4,0": numa coluna de medias, um valor sem casa decimal le-se como
+   * um inteiro e perde-se a escala.
+   */
+  | "decimal1";
 
 export type ReportAlign = "left" | "right" | "center";
 

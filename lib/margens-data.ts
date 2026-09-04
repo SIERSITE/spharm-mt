@@ -66,6 +66,13 @@ export type MargemRow = {
   grupo: string | null;
   farmaciaId: string;
   farmacia: string;
+  /**
+   * Fabricante CANONICO (`Produto.fabricante.nomeNormalizado`), nao o
+   * distribuidor. "(sem fabricante)" quando o produto nao tem um
+   * associado — e' uma dimensao de agrupamento, e uma dimensao nao pode
+   * ter buracos.
+   */
+  fabricante: string;
   qtdVendida: number;
   /** PVP × qty, com IVA (como vem do ERP). */
   valorVendido: number;
@@ -121,6 +128,8 @@ export type MargensResult = {
   porFarmacia: MargensAgg[];
   /** Agregado por Grupo Homogéneo (Produto.grupoHomogeneo / categoriaResolver). */
   porGrupo: MargensAgg[];
+  /** Agregado por fabricante canónico. */
+  porFabricante: MargensAgg[];
   /** KPIs globais sobre todas as linhas com custo + IVA conhecidos. */
   totals: {
     qtdVendida: number;
@@ -352,6 +361,7 @@ export async function getMargensData(
     Array<{
       cnp: number;
       designacao: string;
+      fabricante: string | null;
       classificacaoNivel1Id: string | null;
       classificacaoNivel2Id: string | null;
       farmaciaId: string;
@@ -378,6 +388,7 @@ export async function getMargensData(
     SELECT
       p."cnp"                       AS cnp,
       p."designacao"                AS designacao,
+      fab."nomeNormalizado"         AS fabricante,
       p."classificacaoNivel1Id",
       p."classificacaoNivel2Id",
       agg."farmaciaId"              AS "farmaciaId",
@@ -390,6 +401,7 @@ export async function getMargensData(
       pf."taxaIvaPercent"           AS "taxaIvaPercent"
     FROM agg
     JOIN "Produto" p ON p.id = agg."produtoId"
+    LEFT JOIN "Fabricante" fab ON fab.id = p."fabricanteId"
     LEFT JOIN "ProdutoFarmacia" pf
       ON pf."produtoId" = agg."produtoId" AND pf."farmaciaId" = agg."farmaciaId"
     WHERE 1 = 1
@@ -485,6 +497,9 @@ export async function getMargensData(
       grupo: cat.grupo,
       farmaciaId: r.farmaciaId,
       farmacia: nomeById.get(r.farmaciaId) ?? "—",
+      // `?? ""` e depois o rotulo: um `null` e um `""` sao a mesma coisa
+      // para quem le' o relatorio, e duas chaves diferentes num Map.
+      fabricante: (r.fabricante ?? "").trim() || "(sem fabricante)",
       qtdVendida: qty,
       valorVendido,
       pvpUnitario,
@@ -504,6 +519,7 @@ export async function getMargensData(
   const porCategoria = aggregate(porProduto, (r) => r.categoria ?? "(sem categoria)");
   const porFarmacia = aggregate(porProduto, (r) => r.farmacia);
   const porGrupo = aggregate(porProduto, (r) => r.grupo ?? "(sem grupo)");
+  const porFabricante = aggregate(porProduto, (r) => r.fabricante);
   const totals = aggregate(porProduto, () => "TOTAL");
   const totalRow = totals[0] ?? {
     key: "TOTAL",
@@ -523,6 +539,7 @@ export async function getMargensData(
     porCategoria,
     porFarmacia,
     porGrupo,
+    porFabricante,
     totals: {
       qtdVendida: totalRow.qtdVendida,
       valorVendido: totalRow.valorVendido,
@@ -542,6 +559,7 @@ function emptyResult(): MargensResult {
     porCategoria: [],
     porFarmacia: [],
     porGrupo: [],
+    porFabricante: [],
     totals: {
       qtdVendida: 0,
       valorVendido: 0,

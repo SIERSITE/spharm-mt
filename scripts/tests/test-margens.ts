@@ -19,6 +19,8 @@
  *   I  categoria igual sem a utilização NÃO aparece
  *   J  Categoria + Utilização combinam por AND
  *   K  relatório/PDF/Excel incluem as duas colunas
+ *   L  pesquisa local nos filtros multi-select
+ *   M  modo "só totalizadores" e a dimensão Fabricante
  *
  * Corre com:  npm run test:margens
  */
@@ -26,7 +28,12 @@ import { readFileSync } from "node:fs";
 import { Prisma } from "../../generated/prisma/client";
 import { construirCondicaoPesquisa, derivarUnitarios } from "../../lib/margens-data";
 import { restringirPorCatalogo, temFiltroCatalogo } from "../../lib/reporting/catalog-prefilter";
-import { buildMargensProdutoReport } from "../../lib/reporting/adapters/margens";
+import {
+  buildMargensAggReport,
+  buildMargensProdutoReport,
+} from "../../lib/reporting/adapters/margens";
+import { normalizarOpcao, opcoesVisiveis } from "../../components/reporting/filter-select";
+import type { MargensAgg } from "../../lib/margens-data";
 import type { MargemRow } from "../../lib/margens-data";
 
 let ok = 0;
@@ -179,6 +186,212 @@ console.log("\nF · quantidade 0");
 
   const nan = derivarUnitarios(Number.NaN, 100, 100);
   eq(nan.pvpUnitario, null, "quantidade não finita ⇒ null");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// L · PESQUISA LOCAL NOS FILTROS
+//
+// Filtra as OPÇÕES VISÍVEIS, e nada mais. Não vai à base de dados, não
+// altera o relatório e — sobretudo — não desselecciona nada.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nL · pesquisa local nos filtros");
+{
+  const FABRICANTES = [
+    "BAYER",
+    "MENARINI",
+    "A. MENARINI PORTUGAL",
+    "PFIZER",
+    "LABORATÓRIOS VITÓRIA",
+    "GENERIS",
+  ];
+
+  // A · pesquisa parcial, sem distinguir maiúsculas
+  eq(
+    opcoesVisiveis(FABRICANTES, "menarini"),
+    ["MENARINI", "A. MENARINI PORTUGAL"],
+    "A: 'menarini' encontra os dois, em minúsculas",
+  );
+  eq(opcoesVisiveis(FABRICANTES, "BAY"), ["BAYER"], "A: prefixo parcial");
+  eq(opcoesVisiveis(FABRICANTES, "zer"), ["PFIZER"], "A: no meio da palavra");
+
+  // Acentos: quem escreve sem acento tem de encontrar na mesma.
+  eq(
+    opcoesVisiveis(FABRICANTES, "vitoria"),
+    ["LABORATÓRIOS VITÓRIA"],
+    "A: 'vitoria' encontra 'VITÓRIA'",
+  );
+  eq(normalizarOpcao("LABORATÓRIOS VITÓRIA"), "laboratorios vitoria", "A: normalização");
+
+  // C · limpar repõe a lista completa
+  eq(opcoesVisiveis(FABRICANTES, ""), FABRICANTES, "C: termo vazio ⇒ lista completa");
+  eq(opcoesVisiveis(FABRICANTES, "   "), FABRICANTES, "C: só espaços ⇒ lista completa");
+
+  // Sem correspondências: lista vazia, e não a lista toda.
+  eq(opcoesVisiveis(FABRICANTES, "xpto"), [], "sem correspondências ⇒ vazio");
+
+  // B · a selecção não é tocada
+  const cliente = readFileSync("components/reporting/filter-select.tsx", "utf8");
+  check(
+    !/setProcura[\s\S]{0,200}onChange\(/.test(cliente),
+    "B: escrever na caixa nunca chama o onChange da selecção",
+  );
+  check(
+    cliente.includes("const escondidasSeleccionadas = selected.filter"),
+    "B: e a UI diz quantas seleccionadas a pesquisa escondeu",
+  );
+  check(
+    cliente.includes("checked={selected.includes(opt)}"),
+    "B: o estado do checkbox vem sempre de `selected`, não do que está visível",
+  );
+  check(
+    cliente.includes("const MINIMO_PARA_PESQUISA = 8"),
+    "a caixa só aparece em listas longas",
+  );
+  check(
+    !cliente.includes("fetch(") && !cliente.includes("useEffect"),
+    "sem pedidos à base de dados: o universo já veio do servidor",
+  );
+
+  // Todos os filtros da barra usam este componente — logo, todos ganham
+  // a pesquisa de uma vez.
+  const barra = readFileSync("components/reporting/report-filters-bar.tsx", "utf8");
+  for (const f of ["Farmácia", "Categoria", "Subcategoria", "Utilização", "Fabricante", "Distribuidor"]) {
+    check(
+      new RegExp(`label="${f}"[\\s\\S]{0,200}<`).test(barra) || barra.includes(`label="${f}"`),
+      `o filtro ${f} está na barra partilhada`,
+    );
+  }
+  // `<FilterSelect` aparece tambem no comentario do cabecalho do
+  // ficheiro; conta-se a forma JSX real (etiqueta + quebra de linha).
+  eq(
+    (barra.match(/<FilterSelect\n/g) ?? []).length,
+    6,
+    "os 6 filtros passam pelo mesmo FilterSelect",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// M · SÓ TOTALIZADORES · DIMENSÃO FABRICANTE
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nM · totalizadores e fabricante");
+{
+  const dados = readFileSync("lib/margens-data.ts", "utf8");
+  const clienteM = readFileSync("components/margens/margens-client.tsx", "utf8");
+  const adaptadorM = readFileSync("lib/reporting/adapters/margens.ts", "utf8");
+
+  // D/E · as dimensões existentes
+  for (const dim of ["porCategoria", "porFarmacia", "porGrupo", "porFabricante"]) {
+    check(dados.includes(`const ${dim} = aggregate(porProduto,`), `dimensão ${dim} existe`);
+  }
+  check(
+    dados.includes("const porFabricante = aggregate(porProduto, (r) => r.fabricante);"),
+    "E: Por fabricante agrega pelo fabricante canónico",
+  );
+  check(
+    clienteM.includes('fabricante: "Totais por fabricante"'),
+    "E: e aparece na UI como vista de totais",
+  );
+  check(
+    clienteM.includes('produto: "Detalhe por produto"'),
+    "D: a única vista com detalhe diz que é a única",
+  );
+
+  // D · a vista agregada não renderiza produtos
+  check(
+    clienteM.includes("<TabelaAgg rows={linhasAgregadas(result, nivel)}"),
+    "D: fora de 'produto', a tabela é sempre a agregada",
+  );
+  check(
+    clienteM.includes("const aggRows = linhasAgregadas(result, nivel);"),
+    "I: ecrã e exportação leem a MESMA lista",
+  );
+
+  // K · fabricante em falta não parte nada
+  check(
+    dados.includes('fabricante: (r.fabricante ?? "").trim() || "(sem fabricante)"'),
+    "K: null e vazio caem no mesmo rótulo, e não em duas chaves",
+  );
+
+  // F · a margem % agregada é ponderada, não uma média de percentagens
+  check(
+    dados.includes("(acc.margemEurTotal / acc.valorVendidoSemIvaTotal) * 10000"),
+    "F: margem % = margem total / vendas s/IVA totais",
+  );
+  check(
+    !/margemPct[\s\S]{0,200}\/ *(rows|linhas)\.length/.test(dados),
+    "F: nunca uma média aritmética das percentagens",
+  );
+
+  // Prova numérica: duas linhas de pesos muito diferentes.
+  //   A: 1000 s/IVA, 100 margem  → 10%
+  //   B:   10 s/IVA,   9 margem  → 90%
+  // média simples = 50% · ponderada = 109/1010 = 10,79%
+  const ponderada = ((100 + 9) / (1000 + 10)) * 100;
+  const mediaSimples = (10 + 90) / 2;
+  eq(Math.round(ponderada * 100) / 100, 10.79, "F: a ponderada dá 10,79%");
+  check(Math.abs(ponderada - mediaSimples) > 30, "F: …e a média simples daria 50%, muito longe");
+
+  // G/H · unitários nas vistas agregadas.
+  //
+  // Prova-se construindo o relatório e olhando para as colunas que ele
+  // devolve — não por `grep` ao adaptador, que também contém as colunas
+  // da vista POR PRODUTO e daria um falso positivo.
+  const agg: MargensAgg = {
+    key: "MENARINI",
+    label: "MENARINI",
+    qtdVendida: 100,
+    valorVendido: 1230,
+    valorVendidoSemIva: 1000,
+    custoEstimado: 700,
+    margemEur: 300,
+    margemPct: 30,
+    coberturaCusto: 1,
+    estado: "FIAVEL",
+  };
+  const relAgg = buildMargensAggReport({
+    rows: [agg],
+    filters: {},
+    universe: { farmacias: [], categorias: [], fabricantes: [], distribuidores: [] },
+    organization: "Grupo",
+    groupBy: "fabricante",
+  });
+  const chavesAgg = relAgg.columns.map((c) => c.key);
+  check(!chavesAgg.includes("pvpUnitario"), "G: sem PVP unit. na vista agregada");
+  check(!chavesAgg.includes("custoUnitario"), "H: sem Custo unit. na vista agregada");
+  check(!chavesAgg.includes("cnp"), "D: e sem CNP — não há detalhe de produto");
+  check(/Fabricante/.test(relAgg.title), "E: o título diz Por Fabricante");
+  eq(relAgg.rows.length, 1, "E: uma linha por fabricante");
+  eq(relAgg.rows[0].label, "MENARINI", "E: com o rótulo do fabricante");
+
+  // I · o PDF/Excel exporta a vista agregada, não o detalhe
+  check(
+    clienteM.includes("groupBy: nivel"),
+    "I: a exportação recebe a dimensão que está no ecrã",
+  );
+  check(
+    adaptadorM.includes('fabricante: "margens-fabricante"'),
+    "I: com slug próprio para o ficheiro exportado",
+  );
+
+  // J · os filtros correm ANTES da agregação
+  check(
+    dados.indexOf("restringirPorCatalogo") < dados.indexOf("const porFabricante"),
+    "J: o pré-filtro de catálogo corre antes de agregar",
+  );
+  check(
+    dados.indexOf("${pesquisaCond}") < dados.indexOf("const porFabricante"),
+    "J: e a pesquisa também — a agregação parte de porProduto já filtrado",
+  );
+
+  // L · Distribuidor NÃO é dimensão de agrupamento, e é deliberado
+  check(
+    !dados.includes("porDistribuidor"),
+    "L: não existe agregação por distribuidor",
+  );
+  check(
+    adaptadorM.includes("nao o da compra que gerou o custo do"),
+    "L: e a razão está escrita no código, não só no relatório",
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -337,6 +550,7 @@ console.log("\nK · as duas colunas no relatório");
     grupo: null,
     farmaciaId: "f1",
     farmacia: "Silveirense",
+    fabricante: "MENARINI",
     qtdVendida: 22,
     valorVendido: 307.08,
     pvpUnitario: 13.96,
