@@ -268,6 +268,11 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/forma-canary.ts \
      scripts/catalog-master/promote-global-knowledge.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
+# Diagnosticos read-only. Nao estao em tools-scripts.txt de proposito:
+# nao sao comandos oficiais, sao instrumentos de medicao pontual,
+# corridos com `run --rm migrate npx tsx scripts/diagnostics/<x>.ts`.
+# Vao na imagem para nao ser preciso monta-los de fora a cada vez.
+COPY scripts/diagnostics ./scripts/diagnostics
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na
 # raiz de scripts/, não em catalog-master/. Sem ele, o `fill-rules`
