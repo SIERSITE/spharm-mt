@@ -6,12 +6,8 @@ import { runExcessosReport } from "@/app/excessos/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import { janelaExcessosPorOmissao } from "@/lib/operational/janela-meses";
 import {
-  Download,
   Eye,
   Filter,
-  Mail,
-  Printer,
-  FileText,
   ChevronDown,
   Search,
   X,
@@ -435,10 +431,17 @@ export function ExcessosClient({
                 disabled={isPending}
                 onClick={handleGerar}
               />
-              <ActionButton icon={<Printer className="h-3.5 w-3.5" />} label="Imprimir" onClick={() => window.print()} />
-              <ActionButton icon={<FileText className="h-3.5 w-3.5" />} label="PDF" />
-              <ActionButton icon={<Download className="h-3.5 w-3.5" />} label="Excel" />
-              <ActionButton icon={<Mail className="h-3.5 w-3.5" />} label="Email" />
+              {/* Imprimir / PDF / Excel / Email vivem no `ReportActions`
+                  do cabeçalho, que os constrói a partir do `Report` — com
+                  `@page { size: A4 landscape }`, cabeçalho repetido por
+                  página e `page-break-inside: avoid` nas linhas.
+
+                  Havia aqui um "Imprimir" que chamava `window.print()`: isso
+                  imprime a PÁGINA — barra lateral, filtros, chips, separadores
+                  e a tabela do ecrã — em retrato e sem nenhuma regra
+                  `@media print`, porque a aplicação não tem nenhuma. Era o
+                  relatório comprimido e ilegível. E os outros três não tinham
+                  sequer `onClick`. */}
             </div>
           </div>
 

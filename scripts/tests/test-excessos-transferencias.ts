@@ -19,6 +19,7 @@
  *   I  a linha sem destino conta para os totais
  *   J  Transferências só conta sugestões realizáveis
  *   K  elegibilidade de destino: consumo E necessidade
+ *   L  impressão: um caminho só, e em A4 landscape
  *
  * Corre com:  npm run test:excessos-transferencias
  */
@@ -36,6 +37,7 @@ import {
   type LinhaStock,
   type ParametrosMotor,
 } from "../../lib/operational/motor-stock";
+import { buildTransferenciasReport } from "../../lib/reporting/adapters/transferencias";
 import {
   janelaExcessosPorOmissao,
   janelaOperacionalPorOmissao,
@@ -662,6 +664,112 @@ console.log("\nK · elegibilidade de destino");
   check(
     !/others\[0\]/.test(dadosT),
     "não resta nenhum fallback others[0] no loader",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// L · IMPRESSÃO
+//
+// Havia DOIS caminhos de impressão nestes ecrãs:
+//
+//   ReportActions → printReport(report) → HTML do relatório, que tem
+//                   `@page { size: A4 landscape }` e as regras de quebra
+//                   de página. É o correcto.
+//
+//   ActionButton  → window.print() → imprime a PÁGINA: barra lateral,
+//                   filtros, chips, separadores e a tabela do ecrã. Em
+//                   retrato, porque a aplicação não tem uma única regra
+//                   `@media print`. Era este que produzia o relatório
+//                   comprimido.
+//
+// Os outros três botões da mesma barra (PDF, Excel, Email) nem sequer
+// tinham `onClick`.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nL · impressão");
+{
+  const html = readFileSync("lib/reporting/report-html.ts", "utf8");
+  const adaptadorT = readFileSync("lib/reporting/adapters/transferencias.ts", "utf8");
+  const adaptadorE = readFileSync("lib/reporting/adapters/excessos.ts", "utf8");
+
+  // ── Um caminho só ────────────────────────────────────────────────
+  check(
+    !semComentarios(excessos).includes("window.print()"),
+    "Excessos: já não imprime a página crua",
+  );
+  check(
+    !semComentarios(transferencias).includes("window.print()"),
+    "Transferências: já não imprime a página crua",
+  );
+  check(
+    excessos.includes("<ReportActions") && transferencias.includes("<ReportActions"),
+    "os dois ecrãs mantêm o ReportActions (Imprimir/PDF/Excel/Email)",
+  );
+
+  // Nenhum botão decorativo: um ActionButton sem `onClick` é um botão
+  // que não faz nada e que o utilizador carrega na mesma.
+  for (const [nome, corpo] of [
+    ["Excessos", excessos],
+    ["Transferências", transferencias],
+  ] as const) {
+    // Nao se pode cortar no primeiro `/>`: o primeiro que aparece e' o
+    // do `<Eye ... />` aninhado nos props do proprio ActionButton.
+    // Cada bloco vai daqui ate' ao ActionButton seguinte.
+    const blocos = corpo.split("<ActionButton").slice(1);
+    const semAccao = blocos.filter((b) => !b.slice(0, 400).includes("onClick"));
+    eq(semAccao.length, 0, `${nome}: nenhum ActionButton sem onClick`);
+  }
+
+  // ── O relatório é landscape, e é o adaptador que o diz ────────────
+  check(
+    adaptadorT.includes('orientation: "landscape"'),
+    "Transferências: o Report pede A4 landscape",
+  );
+  check(
+    adaptadorE.includes('orientation: "landscape"'),
+    "Excessos: o Report pede A4 landscape",
+  );
+  check(
+    html.includes("@page { size: __ORIENTATION__; margin: 10mm 8mm; }"),
+    "a orientação chega ao @page",
+  );
+  check(
+    html.includes('report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait"'),
+    "…e é resolvida a partir do meta do relatório",
+  );
+
+  // O `@page` TEM de estar fora do `@media print` — aninhá-lo é CSS
+  // inválido e os browsers voltam silenciosamente a retrato.
+  const posPage = html.indexOf("@page {");
+  const posMedia = html.indexOf("@media print {");
+  check(posPage >= 0 && posMedia >= 0 && posPage < posMedia, "@page fora do @media print");
+
+  // ── Legibilidade em papel ────────────────────────────────────────
+  check(html.includes("thead { display: table-header-group; }"), "cabeçalho repete-se em cada página");
+  check(html.includes("tfoot { display: table-footer-group; }"), "totais repetem-se no rodapé");
+  check(html.includes("tr { page-break-inside: avoid; }"), "nenhuma linha é cortada a meio");
+  check(html.includes("table-layout: fixed"), "larguras fixas por coluna (sem scroll interno)");
+  check(html.includes("html, body { width: 100%; }"), "largura integral da folha");
+  check(
+    html.includes("-webkit-print-color-adjust: exact"),
+    "fundos impressos (senão o cabeçalho fica branco sobre branco)",
+  );
+
+  // ── Título, período e filtros sobrevivem ─────────────────────────
+  const relatorio = buildTransferenciasReport({
+    rows: [],
+    filters: { dataInicio: "2025-09-01", dataFim: "2026-08-31" },
+    universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [], prioridades: [] },
+    organization: "Grupo",
+  });
+  check(!!relatorio.title, "o relatório tem título");
+  eq(relatorio.meta?.orientation, "landscape", "e vai em landscape");
+  check(
+    (relatorio.filtersApplied ?? []).some((f) => /per[ií]odo/i.test(f.label)),
+    "o período aparece nos filtros do cabeçalho",
+  );
+  check(
+    /2025-09-01/.test(relatorio.subtitle ?? ""),
+    "…e também no subtítulo do relatório",
   );
 }
 
