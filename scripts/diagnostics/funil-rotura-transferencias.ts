@@ -68,7 +68,9 @@ import {
   janelaParaIndicesMensais,
 } from "../../lib/operational/janela-meses";
 
-const nf = (n: number) => n.toLocaleString("pt-PT");
+const nf = (n: number) => n.toLocaleString("pt-PT");
+const eur = (n: number) =>
+  n.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const linha = (r: string) => console.log(r);
 const titulo = (t: string) => {
   console.log("");
@@ -121,6 +123,8 @@ type LinhaPf = {
   farmaciaNome: string;
   stockAtual: number;
   dataUltimaVenda: Date | null;
+  pvp: number | null;
+  puc: number | null;
 };
 
 /**
@@ -144,7 +148,9 @@ async function carregarProdutoFarmacia(
       pf."farmaciaId",
       f.nome                  AS "farmaciaNome",
       pf."stockAtual"::float  AS "stockAtual",
-      pf."dataUltimaVenda"    AS "dataUltimaVenda"
+      pf."dataUltimaVenda"    AS "dataUltimaVenda",
+      pf.pvp::float           AS "pvp",
+      pf.puc::float           AS "puc"
     FROM "ProdutoFarmacia" pf
     JOIN "Farmacia" f ON f.id = pf."farmaciaId"
     WHERE ${stockClause}
@@ -204,6 +210,71 @@ async function main() {
   const policy = getOperationalPolicy(alvo.tenant ?? null);
   linha("");
   for (const l of descreverPolicy(policy)) linha(l);
+
+  // ── VERIFICAÇÃO DA POLICY ──────────────────────────────────────────
+  //
+  // Imprimir a policy não chega: quem lê o relatório tem de poder ver,
+  // sem ir ao código, se ela é a que se esperava. Estes valores são os
+  // que estão em lib/operational/policy.ts — se divergirem, o relatório
+  // grita em vez de deixar alguém tirar conclusões sobre a calibração
+  // errada.
+  const ESPERADO: Record<
+    string,
+    { threshold: number; target: number; minimo: number; reserva: number; modo: string }
+  > = {
+    silveira: { threshold: 120, target: 45, minimo: 3, reserva: 45, modo: "classica" },
+    garantia: { threshold: 180, target: 30, minimo: 5, reserva: 30, modo: "classica" },
+  };
+  const esp = ESPERADO[policy.slug ?? ""];
+  linha("");
+  if (!esp) {
+    linha(`  (sem valores esperados registados para '${policy.slug ?? "sem tenant"}')`);
+  } else {
+    const conf = (rotulo: string, obtido: number | string, quer: number | string) =>
+      linha(
+        `  ${obtido === quer ? "✓" : "!!"} ${rotulo.padEnd(22)} ${String(obtido).padStart(8)}` +
+          (obtido === quer ? "" : `   ESPERADO ${quer}`),
+      );
+    linha("  verificação da policy:");
+    conf("excesso threshold", policy.excesso.thresholdDias, esp.threshold);
+    conf("target", policy.excesso.targetDias, esp.target);
+    conf("mínimo", policy.excesso.minimoUnidades, esp.minimo);
+    conf("reserva derivada", reservaOrigemDias(policy), esp.reserva);
+    conf("rotura modo", policy.rotura.modo, esp.modo);
+  }
+
+  // ── ISOLAMENTO, em tempo de execução ───────────────────────────────
+  //
+  // Um teste unitário já prova que resolver uma policy não contamina
+  // outra. Isto prova-o AQUI, no processo que está mesmo a medir esta
+  // farmácia — porque é este processo que a pessoa vai olhar.
+  {
+    const outros = ["silveira", "garantia"].filter((x) => x !== policy.slug);
+    linha("");
+    linha("  isolamento (as outras farmácias, resolvidas neste mesmo processo):");
+    for (const o of outros) {
+      const po = getOperationalPolicy(o);
+      linha(
+        `    ${o.padEnd(10)} ${po.excesso.thresholdDias}/${po.excesso.targetDias}/${po.excesso.minimoUnidades}` +
+          `  reserva ${reservaOrigemDias(po)}  rotura ${po.rotura.modo}` +
+          (ESPERADO[o] &&
+          po.excesso.thresholdDias === ESPERADO[o].threshold &&
+          po.excesso.targetDias === ESPERADO[o].target &&
+          po.excesso.minimoUnidades === ESPERADO[o].minimo
+            ? "   ✓ intacta"
+            : "   !! DIVERGE do esperado"),
+      );
+    }
+    const dflt = getOperationalPolicy(null);
+    linha(
+      `    ${"(default)".padEnd(10)} ${dflt.excesso.thresholdDias}/${dflt.excesso.targetDias}/${dflt.excesso.minimoUnidades}` +
+        (dflt.excesso.thresholdDias === 180 &&
+        dflt.excesso.targetDias === 30 &&
+        dflt.excesso.minimoUnidades === 5
+          ? "                       ✓ intacto"
+          : "   !! DEFAULT GLOBAL CORROMPIDO"),
+    );
+  }
 
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: alvo.url }),
@@ -488,7 +559,11 @@ async function main() {
     // Os Excessos usam o default de `loadPfAndSales`: só stock > 0.
     const pfComStock = await carregarProdutoFarmacia(prisma, farmaciaIds, false);
 
-    type LinhaMotor = LinhaStock & { produtoId: string };
+    type LinhaMotor = LinhaStock & {
+      produtoId: string;
+      pvp: number | null;
+      puc: number | null;
+    };
     const grupos = new Map<string, EstadoStock<LinhaMotor>[]>();
     for (const row of pfComStock) {
       const estado = avaliarLinha<LinhaMotor>(
@@ -498,6 +573,8 @@ async function main() {
           farmaciaNome: row.farmaciaNome,
           stockAtual: Number(row.stockAtual),
           vendasJanela: vendasJanelaMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0,
+          pvp: row.pvp,
+          puc: row.puc,
         },
         params,
       );
@@ -534,6 +611,14 @@ async function main() {
     let semDestino = 0;
     let cortadosPorStockOrigem = 0;
     let accionaveis = 0;
+    // Segurança da origem e valor movimentado, acumulados no MESMO
+    // ciclo — não numa segunda passagem que pudesse divergir dele.
+    let unidades = 0;
+    let valorPvp = 0;
+    let valorCusto = 0;
+    let abaixoReserva = 0;
+    let origensAZero = 0;
+    let coberturaResidualMin = Infinity;
 
     for (const grupo of grupos.values()) {
       const origens = grupo.filter((e) => e.excesso > 0);
@@ -555,7 +640,21 @@ async function main() {
           else cortadosPorStockOrigem++;
           continue;
         }
-        if (ehAccionavel(par)) accionaveis++;
+        if (!ehAccionavel(par)) continue;
+        accionaveis++;
+
+        const q = par.quantidadeSugerida;
+        unidades += q;
+        if (origem.pvp && origem.pvp > 0) valorPvp += q * origem.pvp;
+        if (origem.puc && origem.puc > 0) valorCusto += q * origem.puc;
+
+        const resto = origem.stockAtual - q;
+        if (resto <= 0) origensAZero++;
+        const coberturaResidual = origem.avgDaily > 0 ? resto / origem.avgDaily : Infinity;
+        if (coberturaResidual < coberturaResidualMin) coberturaResidualMin = coberturaResidual;
+        // `- 1e-9` porque a comparação é entre floats: uma origem que
+        // fique exactamente na reserva não pode contar como violação.
+        if (coberturaResidual < reservaOrigemDias(policy) - 1e-9) abaixoReserva++;
       }
     }
 
@@ -571,6 +670,83 @@ async function main() {
     linha(
       `  O relatório aplica ainda .slice(0, 200): neste tenant ${accionaveis > 200 ? "CORTA" : "não corta"} nada.`,
     );
+
+    // ── O que se move, e a que custo ──────────────────────────────────
+    linha("");
+    linha("  ─── VOLUME E VALOR ───");
+    linha(`  unidades sugeridas .......... ${nf(unidades)}`);
+    linha(`  valor a PVP ................. ${eur(valorPvp)} €`);
+    linha(`  valor a custo (PUC) ......... ${eur(valorCusto)} €`);
+    const semPvp = pfComStock.filter((r) => !r.pvp || r.pvp <= 0).length;
+    const semPuc = pfComStock.filter((r) => !r.puc || r.puc <= 0).length;
+    linha(`  (linhas sem PVP: ${nf(semPvp)} · sem PUC: ${nf(semPuc)} — os valores são SUBESTIMADOS)`);
+
+    // ── A segurança da origem, medida e não assumida ─────────────────
+    linha("");
+    linha("  ─── SEGURANÇA DA ORIGEM ───");
+    linha(`  reserva desta farmácia ...... ${reservaOrigemDias(policy)} dias (= target)`);
+    linha(
+      `  cobertura residual mínima ... ${
+        Number.isFinite(coberturaResidualMin) ? `${coberturaResidualMin.toFixed(1)} dias` : "(sem sugestões)"
+      }`,
+    );
+    linha(`  origens abaixo da reserva ... ${nf(abaixoReserva)}   ${abaixoReserva === 0 ? "✓" : "!! INVARIANTE VIOLADO"}`);
+    linha(`  origens que ficam a zero .... ${nf(origensAZero)}   ${origensAZero === 0 ? "✓" : "!! INVARIANTE VIOLADO"}`);
+
+    // ══════════════════════════════════════════════════════════════════
+    // PARTE 3 · EXCESSOS vs DASHBOARD
+    //
+    // O mesmo motor, as mesmas linhas, a mesma policy — e por isso os
+    // dois números TÊM de bater certo nesta revisão. O bloco fica aqui
+    // para o provar em produção, e não só num teste.
+    // ══════════════════════════════════════════════════════════════════
+    titulo("PARTE 3 · Excessos e o cartão do Dashboard");
+
+    confirmarRegra(
+      "lib/dashboard.ts",
+      "sum + x.estado.excesso * unitCost(x.row)",
+      "o Dashboard valoriza o EXCEDENTE",
+    );
+    confirmarRegra(
+      "lib/dashboard.ts",
+      "getOperationalPolicy(await resolveCurrentTenantSlug())",
+      "…e resolve a policy da mesma farmácia",
+    );
+
+    // O universo e o valor do motor de Excessos.
+    let excLinhas = 0;
+    let excValor = 0;
+    let excStockTodo = 0;
+    // O que o cartão dava ANTES: todas as linhas acima do threshold,
+    // valorizadas pelo stock inteiro.
+    let antigoLinhas = 0;
+    let antigoValor = 0;
+    for (const e of todos) {
+      const custo = e.puc && e.puc > 0 ? e.puc : 0;
+      if (e.coberturaDias !== null && e.coberturaDias > params.thresholdDays) {
+        antigoLinhas++;
+        antigoValor += e.stockAtual * custo;
+      }
+      if (e.excesso > 0) {
+        excLinhas++;
+        excValor += e.excesso * custo;
+        excStockTodo += e.stockAtual * custo;
+      }
+    }
+
+    linha("");
+    linha(`  motor de Excessos · linhas (excedente >= ${params.excessoMinimo}) .. ${String(nf(excLinhas)).padStart(8)}`);
+    linha(`                    · Σ excedente × custo ......... ${eur(excValor).padStart(12)} €`);
+    linha(`                    · (Σ stock todo dessas linhas)  ${eur(excStockTodo).padStart(12)} €`);
+    linha("");
+    linha(`  regra ANTIGA do cartão · linhas > ${params.thresholdDays}d ......... ${String(nf(antigoLinhas)).padStart(8)}`);
+    linha(`                         · Σ stock × custo ........ ${eur(antigoValor).padStart(12)} €`);
+    linha("");
+    linha(`  diferença de universo ......................... ${nf(antigoLinhas - excLinhas)} linhas`);
+    linha(`  diferença de valor ............................ ${eur(antigoValor - excValor)} €`);
+    linha("");
+    linha("  Nesta revisão o Dashboard usa o motor de Excessos, portanto o");
+    linha(`  cartão deve mostrar ${eur(excValor)} € — não ${eur(antigoValor)} €.`);
   } finally {
     await prisma.$disconnect();
   }

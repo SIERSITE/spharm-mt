@@ -227,5 +227,67 @@ for (const alvo of diagnosticos) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// C · O funil produz TUDO o que a validacao por tenant precisa
+//
+// Uma corrida por farmacia tem de chegar. Se faltar um campo, so' se
+// descobre depois de ter corrido o diagnostico em producao — e corre-se
+// outra vez, que e' o custo que este bloco existe para evitar.
+//
+// E' uma verificacao de PRESENCA no codigo, nao de valores: os valores
+// so' existem contra uma base real.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nC · o funil cobre os campos da validacao por tenant");
+{
+  const funil = readFileSync("scripts/diagnostics/funil-rotura-transferencias.ts", "utf8");
+
+  const CAMPOS: Array<[string, string]> = [
+    // cabecalho e policy
+    ["imprime a policy resolvida", "descreverPolicy(policy)"],
+    ["verifica a policy contra o esperado", "verificação da policy:"],
+    ["prova o isolamento entre farmacias", "isolamento (as outras farmácias"],
+    ["deteta um default global corrompido", "DEFAULT GLOBAL CORROMPIDO"],
+    // transferencias
+    ["linhas com excesso", "COM EXCESSO"],
+    ["CNP com excesso", "CNP com pelo menos uma origem em excesso"],
+    ["pares origem/destino", "pares origem"],
+    ["sugestoes finais", "LINHAS NO RELAT"],
+    ["unidades sugeridas", "unidades sugeridas"],
+    ["valor a PVP", "valor a PVP"],
+    ["valor a custo", "valor a custo (PUC)"],
+    ["cobertura residual minima", "cobertura residual m"],
+    ["origens abaixo da reserva", "origens abaixo da reserva"],
+    ["origens a zero", "origens que ficam a zero"],
+    // roturas
+    ["total pela regra classica", "EM ROTURA"],
+    ["distribuicao de recencia", "ProdutoFarmacia.dataUltimaVenda"],
+    ["unidades vendidas 3M", "Unidades vendidas na janela de 3 meses"],
+    ["meses com venda 12M", "Meses distintos com venda"],
+    ["classificacao pela regra candidata", "Roturas cr"],
+    ["decomposicao por recorrencia", "ramo da recorr"],
+    ["decomposicao por volume", "ramo do volume"],
+    ["overlap dos dois ramos", "pelos dois ao mesmo tempo"],
+    // excessos / dashboard
+    ["linhas do motor de Excessos", "motor de Excessos"],
+    ["valor de excesso", "excedente"],
+    ["comparacao com a regra antiga do cartao", "regra ANTIGA do cart"],
+  ];
+
+  for (const [rotulo, trecho] of CAMPOS) {
+    check(funil.includes(trecho), `funil imprime: ${rotulo}`, `nao encontrei "${trecho}"`);
+  }
+
+  // A verificacao da policy tem de conhecer as duas farmacias, com os
+  // valores que o utilizador espera ver confirmados.
+  check(
+    funil.includes("threshold: 120, target: 45, minimo: 3, reserva: 45"),
+    "os valores esperados da Silveira estao no diagnostico",
+  );
+  check(
+    funil.includes("threshold: 180, target: 30, minimo: 5, reserva: 30"),
+    "…e os da Garantia",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
 console.log(`\n${ok} ok, ${ko} falhas`);
 process.exit(ko === 0 ? 0 : 1);
