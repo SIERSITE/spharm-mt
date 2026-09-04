@@ -18,6 +18,7 @@
  *   H  as datas da UI chegam ao backend
  *   I  a linha sem destino conta para os totais
  *   J  Transferências só conta sugestões realizáveis
+ *   K  elegibilidade de destino: consumo E necessidade
  *
  * Corre com:  npm run test:excessos-transferencias
  */
@@ -28,8 +29,10 @@ import {
   avaliarLinha,
   coberturaDe,
   ehAccionavel,
+  ehDestinoElegivel,
   emparelhar,
   mediaDiaria,
+  type EstadoStock,
   type LinhaStock,
   type ParametrosMotor,
 } from "../../lib/operational/motor-stock";
@@ -493,6 +496,172 @@ console.log("\nJ · Transferências é um subconjunto dos Excessos");
   check(
     !/getExcessosData[\s\S]{0,3000}ehAccionavel/.test(dados),
     "getExcessosData NÃO filtra por accionabilidade",
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// K · ELEGIBILIDADE DE DESTINO
+//
+// Uma farmácia só é destino possível se CONSOME o artigo e precisa de
+// mais do que tem. Stock 0 não é necessidade: uma prateleira vazia de um
+// artigo que nunca vendeu continua a não precisar dele.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nK · elegibilidade de destino");
+
+// ── A · stock 0, consumo 0 ⇒ NÃO é destino ────────────────────────────
+{
+  const origem: LinhaStock = {
+    farmaciaId: "f1",
+    farmaciaNome: "Silveirense",
+    stockAtual: 400,
+    vendasJanela: 365,
+  };
+  // Nunca vendeu, e tem a prateleira vazia. As duas coisas ao mesmo
+  // tempo — que é precisamente o caso que aparecia como destino.
+  const vazia: LinhaStock = {
+    farmaciaId: "f2",
+    farmaciaNome: "Segurado",
+    stockAtual: 0,
+    vendasJanela: 0,
+  };
+  const grupo = avaliarGrupo([origem, vazia], P);
+  const [o, d] = grupo;
+
+  eq(d.avgDaily, 0, "A: destino sem consumo ⇒ avgDaily 0");
+  eq(d.coberturaDias, null, "A: cobertura indefinida, não 0");
+  eq(d.necessidade, 0, "A: necessidade 0");
+  eq(ehDestinoElegivel(d), false, "A: NÃO é destino elegível");
+
+  const par = emparelhar(o, grupo);
+  eq(par.destino, null, "A: destino null");
+  eq(par.necessidadeDestino, 0, "A: necessidade do destino 0");
+  eq(par.quantidadeSugerida, 0, "A: sugestão 0");
+  eq(ehAccionavel(par), false, "A: TRANSFERÊNCIAS não mostra a linha");
+  eq(apenasComExcesso(grupo).length, 1, "A: EXCESSOS mantém a linha da origem");
+}
+
+// ── B · stock 0 MAS com consumo ⇒ é destino ──────────────────────────
+{
+  const origem: LinhaStock = {
+    farmaciaId: "f1",
+    farmaciaNome: "Silveirense",
+    stockAtual: 400,
+    vendasJanela: 365,
+  };
+  // Vende 1/dia e está a zero: é exactamente quem precisa.
+  const rutura: LinhaStock = {
+    farmaciaId: "f2",
+    farmaciaNome: "Segurado",
+    stockAtual: 0,
+    vendasJanela: 365,
+  };
+  const grupo = avaliarGrupo([origem, rutura], P);
+  const [o, d] = grupo;
+
+  check(d.avgDaily > 0, "B: destino consome o artigo", `avgDaily=${d.avgDaily}`);
+  eq(d.coberturaDias, 0, "B: cobertura 0 (stock 0 com consumo)");
+  eq(d.necessidade, 30, "B: necessidade = 30 dias × 1/dia");
+  eq(ehDestinoElegivel(d), true, "B: É destino elegível");
+
+  const par = emparelhar(o, grupo);
+  check(par.destino?.farmaciaNome === "Segurado", "B: destino = Segurado");
+  eq(par.quantidadeSugerida, 30, "B: sugestão = 30");
+  eq(ehAccionavel(par), true, "B: TRANSFERÊNCIAS mostra a linha");
+}
+
+// ── C · vários candidatos: só entram os que precisam ─────────────────
+{
+  const origem: LinhaStock = { farmaciaId: "f1", farmaciaNome: "Origem", stockAtual: 400, vendasJanela: 365 };
+  const semConsumo: LinhaStock = { farmaciaId: "f2", farmaciaNome: "A-SemConsumo", stockAtual: 0, vendasJanela: 0 };
+  const servida: LinhaStock = { farmaciaId: "f3", farmaciaNome: "B-Servida", stockAtual: 100, vendasJanela: 365 };
+  const precisaPouco: LinhaStock = { farmaciaId: "f4", farmaciaNome: "C-PrecisaPouco", stockAtual: 20, vendasJanela: 365 };
+  const precisaMuito: LinhaStock = { farmaciaId: "f5", farmaciaNome: "D-PrecisaMuito", stockAtual: 5, vendasJanela: 365 };
+
+  const grupo = avaliarGrupo([origem, semConsumo, servida, precisaPouco, precisaMuito], P);
+  const elegiveis = grupo.filter((c) => c.farmaciaId !== "f1").filter(ehDestinoElegivel);
+
+  eq(
+    elegiveis.map((e) => e.farmaciaNome),
+    ["C-PrecisaPouco", "D-PrecisaMuito"],
+    "C: só os dois que consomem E precisam",
+  );
+  check(
+    !elegiveis.some((e) => e.farmaciaNome === "A-SemConsumo"),
+    "C: a farmácia sem consumo fica de fora, apesar do stock 0",
+  );
+  check(
+    !elegiveis.some((e) => e.farmaciaNome === "B-Servida"),
+    "C: a farmácia já servida (cobertura 100 > alvo 30) fica de fora",
+  );
+
+  const par = emparelhar(grupo[0], grupo);
+  check(par.destino?.farmaciaNome === "D-PrecisaMuito", "C: ganha a MAIOR necessidade");
+  eq(par.necessidadeDestino, 25, "C: necessidade = (30 − 5) × 1/dia");
+}
+
+// ── D · ninguém precisa ⇒ Excessos mantém, Transferências não ────────
+{
+  const origem: LinhaStock = { farmaciaId: "f1", farmaciaNome: "Origem", stockAtual: 400, vendasJanela: 365 };
+  const vazia: LinhaStock = { farmaciaId: "f2", farmaciaNome: "Vazia", stockAtual: 0, vendasJanela: 0 };
+  const servida: LinhaStock = { farmaciaId: "f3", farmaciaNome: "Servida", stockAtual: 100, vendasJanela: 365 };
+
+  const grupo = avaliarGrupo([origem, vazia, servida], P);
+  const par = emparelhar(grupo[0], grupo);
+
+  eq(par.destino, null, "D: destino null");
+  eq(par.quantidadeSugerida, 0, "D: sugestão 0");
+
+  // EXCESSOS: a linha da origem fica.
+  const linhas = apenasComExcesso(grupo);
+  check(
+    linhas.some((l) => l.farmaciaNome === "Origem"),
+    "D: EXCESSOS mantém a linha da origem",
+  );
+  // TRANSFERÊNCIAS: nenhuma linha accionável.
+  const accionaveis = linhas.map((o) => emparelhar(o, grupo)).filter(ehAccionavel);
+  eq(accionaveis.length, 0, "D: TRANSFERÊNCIAS não mostra nenhuma linha");
+}
+
+// ── Sugestão 0 ⇒ destino null, mesmo com necessidade real ───────────
+{
+  // Há necessidade a sério no destino, mas a origem não tem stock
+  // inteiro para dar. Mostrar uma farmácia ao lado de "0 unidades" era
+  // anunciar uma transferência que não existe.
+  const origem: EstadoStock<LinhaStock> = {
+    ...avaliarLinha({ farmaciaId: "f1", farmaciaNome: "Origem", stockAtual: 0, vendasJanela: 1 }, P),
+    excesso: 10, // forçado: o que se está a medir é o corte pelo stock
+  };
+  const destino = avaliarLinha(
+    { farmaciaId: "f2", farmaciaNome: "Destino", stockAtual: 0, vendasJanela: 365 },
+    P,
+  );
+  const par = emparelhar(origem, [origem, destino]);
+
+  check(destino.necessidade > 0, "necessidade real no destino", `${destino.necessidade}`);
+  eq(par.quantidadeSugerida, 0, "sugestão 0 (a origem não tem stock)");
+  eq(par.destino, null, "…e por isso o destino é null");
+  eq(par.necessidadeDestino, 0, "…e a necessidade apresentada também");
+}
+
+// ── Nenhum caminho preenche o destino antes de validar ──────────────
+{
+  const motor = readFileSync("lib/operational/motor-stock.ts", "utf8");
+  check(
+    motor.includes(".filter(ehDestinoElegivel)"),
+    "emparelhar filtra ANTES de escolher",
+  );
+  check(
+    motor.includes("if (quantidadeSugerida <= 0) return semDestino;"),
+    "e volta a anular o destino se a sugestão for 0",
+  );
+  const dadosT = readFileSync("lib/transferencias-data.ts", "utf8");
+  check(
+    dadosT.includes('farmaciaDestino: destino?.farmaciaNome ?? ""'),
+    "a linha só recebe nome quando ha' destino",
+  );
+  check(
+    !/others\[0\]/.test(dadosT),
+    "não resta nenhum fallback others[0] no loader",
   );
 }
 

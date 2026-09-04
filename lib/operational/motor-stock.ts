@@ -165,33 +165,65 @@ export type Emparelhamento<T extends LinhaStock> = {
  *
  * É esta a única diferença entre os dois relatórios.
  */
+export function ehDestinoElegivel<T extends LinhaStock>(c: EstadoStock<T>): boolean {
+  return c.avgDaily > 0 && c.necessidade > 0;
+}
+
 export function emparelhar<T extends LinhaStock>(
   origem: EstadoStock<T>,
   grupo: readonly EstadoStock<T>[],
 ): Emparelhamento<T> {
+  // ── Elegibilidade de destino ─────────────────────────────────────
+  //
+  // As duas condicoes, e as duas explicitas:
+  //
+  //   avgDaily > 0     a farmacia CONSOME o artigo
+  //   necessidade > 0  e consome mais do que aquilo que tem
+  //
+  // A segunda ja' implica a primeira hoje (`necessidadeAte` devolve 0
+  // sem consumo mensuravel), mas escrever so' uma delas fazia a regra
+  // depender de um detalhe de outra funcao. Stock 0 NAO e' necessidade:
+  // uma farmacia que nunca vendeu o artigo continua a nao precisar dele,
+  // por muito vazia que a prateleira esteja.
   const candidatos = grupo
     .filter((c) => c.farmaciaId !== origem.farmaciaId)
-    .filter((c) => c.necessidade > 0)
+    .filter(ehDestinoElegivel)
     .sort(
       (a, b) =>
         b.necessidade - a.necessidade ||
         a.farmaciaNome.localeCompare(b.farmaciaNome, "pt-PT"),
     );
 
+  const semDestino: Emparelhamento<T> = {
+    origem,
+    destino: null,
+    necessidadeDestino: 0,
+    quantidadeSugerida: 0,
+  };
+
   const destino = candidatos[0] ?? null;
-  if (!destino) {
-    return { origem, destino: null, necessidadeDestino: 0, quantidadeSugerida: 0 };
-  }
+  if (!destino) return semDestino;
+
+  const quantidadeSugerida = quantidadeSegura(
+    origem.excesso,
+    destino.necessidade,
+    origem.stockAtual,
+  );
+
+  // ── Sugestao 0 ⇒ destino null ────────────────────────────────────
+  //
+  // Chega-se aqui quando ha' necessidade real mas a regra de seguranca
+  // corta a quantidade a zero — na pratica, quando o stock da origem
+  // arredonda para 0. Mostrar uma farmacia na coluna "Destino poss."
+  // ao lado de uma sugestao de 0 unidades e' anunciar uma transferencia
+  // que nao existe.
+  if (quantidadeSugerida <= 0) return semDestino;
 
   return {
     origem,
     destino,
     necessidadeDestino: destino.necessidade,
-    quantidadeSugerida: quantidadeSegura(
-      origem.excesso,
-      destino.necessidade,
-      origem.stockAtual,
-    ),
+    quantidadeSugerida,
   };
 }
 
