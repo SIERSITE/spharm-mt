@@ -46,6 +46,14 @@ export DOCKER_BUILDKIT=1
 REV_VELHA=${REV_VELHA:-0e523dc}
 REV_NOVA=${REV_NOVA:-$(git rev-parse --short HEAD)}
 
+# Dois builds completos custam quinze minutos. Quando o que se esta' a
+# afinar sao as asseroes de execucao e nao as de build, MANTER=1 deixa
+# as imagens no sitio e REUTILIZAR=1 salta o build das que ja' existem.
+# Nenhuma das duas e' o modo por omissao: o teste completo constroi
+# sempre de raiz.
+MANTER=${MANTER:-0}
+REUTILIZAR=${REUTILIZAR:-0}
+
 RAIZ=$(git rev-parse --show-toplevel)
 BASE=$(mktemp -d)
 
@@ -64,8 +72,10 @@ ok=0; ko=0
 check() { if [ "$1" = "0" ]; then ok=$((ok+1)); echo "  [OK]    $2"; else ko=$((ko+1)); echo "  [FALHA] $2"; [ -n "${3:-}" ] && echo "            ${3}"; fi; }
 
 limpar() {
-  docker rmi -f spharmmt-diag:teste-migrator >/dev/null 2>&1
-  docker rmi -f spharmmt-app:teste-migrator  >/dev/null 2>&1
+  if [ "$MANTER" != "1" ]; then
+    docker rmi -f spharmmt-diag:teste-migrator >/dev/null 2>&1
+    docker rmi -f spharmmt-app:teste-migrator  >/dev/null 2>&1
+  fi
   docker network rm "$REDE" >/dev/null 2>&1
   rm -rf "$BASE"
 }
@@ -77,9 +87,29 @@ trap limpar EXIT
 # base de dados nenhuma.
 # ══════════════════════════════════════════════════════════════════════
 mkdir -p "$BASE/secrets" "$BASE/env"
-: > "$BASE/secrets/app.secrets.env"
-: > "$BASE/secrets/tools.secrets.env"
-: > "$BASE/secrets/model.secrets.env"
+# TODOS os que o compose refere, e não só os do `migrate`: o compose lê o
+# modelo inteiro antes de correr um serviço, e um env_file em falta em
+# QUALQUER serviço rebenta o `run` — mesmo com `--no-deps`, mesmo sendo
+# do postgres, que este teste nunca arranca.
+for f in $(grep -o 'secrets/[a-z-]*\.secrets\.env' "$RAIZ/deploy/docker/docker-compose.yml" | sort -u); do
+  : > "$BASE/$f"
+done
+# O entrypoint recusa-se a correr seja o que for sem DATABASE_URL, e sai
+# com 2 — o MESMO código com que o diagnóstico assinala `--tenant` em
+# falta. Sem esta linha, a secção D passava por coincidência: media o
+# entrypoint a desistir e chamava-lhe "o diagnóstico correu".
+#
+# O destino é deliberadamente inexistente (porto 1). O diagnóstico sem
+# `--tenant` desiste antes de abrir ligação nenhuma; se algum dia a
+# abrisse, esta linha fá-lo-ia falhar em vez de o deixar tocar numa base
+# a sério.
+#
+# São precisos os DOIS: `ensure_db_urls` exige tanto DATABASE_URL como
+# CONTROL_DATABASE_URL antes de deixar passar qualquer comando.
+cat > "$BASE/secrets/app.secrets.env" <<'EOF'
+DATABASE_URL=postgresql://naoexiste:naoexiste@127.0.0.1:1/naoexiste
+CONTROL_DATABASE_URL=postgresql://naoexiste:naoexiste@127.0.0.1:1/naoexiste
+EOF
 cat > "$BASE/env/platform.env" <<'EOF'
 SERVER_ACTIONS_ALLOWED_ORIGINS=teste.local
 PUBLIC_APP_URL=https://teste.local
@@ -122,10 +152,18 @@ CTX_VELHO=$(ctx_de "$REV_VELHA")
 check "$([ -f "$CTX_VELHO/lib/operational/motor-stock.ts" ] && echo 1 || echo 0)" \
   "a revisão antiga NÃO tem lib/operational/motor-stock.ts (é este o desfasamento)"
 
-APP_IMAGE=spharmmt-app APP_TAG=teste \
-APP_BUILD_CONTEXT="$(win "$CTX_VELHO")" APP_REVISION="$REV_VELHA" \
-  dc --profile tools build migrate > "$BASE/build-velho.log" 2>&1
-check "$?" "build da imagem obsoleta" "$(tail -5 "$BASE/build-velho.log")"
+construir() {   # <imagem> <contexto> <revisao> <log>
+  if [ "$REUTILIZAR" = "1" ] && docker image inspect "$1:teste-migrator" >/dev/null 2>&1; then
+    echo "  [~~]    $1:teste-migrator reutilizada (REUTILIZAR=1)"
+    return 0
+  fi
+  APP_IMAGE="$1" APP_TAG=teste \
+  APP_BUILD_CONTEXT="$(win "$2")" APP_REVISION="$3" \
+    dc --profile tools build migrate > "$4" 2>&1
+}
+
+construir spharmmt-app "$CTX_VELHO" "$REV_VELHA" "$BASE/build-velho.log"
+check "$?" "build da imagem obsoleta" "$(tail -5 "$BASE/build-velho.log" 2>/dev/null)"
 
 ID_PRODUCAO_ANTES=$(docker image inspect spharmmt-app:teste-migrator --format '{{.Id}}' 2>/dev/null)
 check "$([ -n "$ID_PRODUCAO_ANTES" ] && echo 0 || echo 1)" "a tag de produção existe e tem id"
@@ -155,10 +193,8 @@ check "$?" "reproduz o erro de produção: Cannot find module … motor-stock" \
 echo
 echo "C · imagem de diagnóstico (${REV_NOVA})"
 
-APP_IMAGE=spharmmt-diag APP_TAG=teste \
-APP_BUILD_CONTEXT="$(win "$CTX_NOVO")" APP_REVISION="$REV_NOVA" \
-  dc --profile tools build migrate > "$BASE/build-novo.log" 2>&1
-check "$?" "build da imagem de diagnóstico" "$(tail -5 "$BASE/build-novo.log")"
+construir spharmmt-diag "$CTX_NOVO" "$REV_NOVA" "$BASE/build-novo.log"
+check "$?" "build da imagem de diagnóstico" "$(tail -5 "$BASE/build-novo.log" 2>/dev/null)"
 
 check "$(docker image inspect spharmmt-diag:teste-migrator >/dev/null 2>&1 && echo 0 || echo 1)" \
   "a imagem saiu na tag própria spharmmt-diag:teste-migrator"

@@ -55,6 +55,7 @@
     "test:portao-sessao": "tsx scripts/tests/test-portao-sessao.ts",
     "test:backlog-knowledge": "bash deploy/tests/test-backlog-knowledge.sh",
     "test:deploy-app": "bash deploy/tests/test-deploy-app.sh",
+    "test:diagnostico-imagem": "bash deploy/tests/test-diagnostico-imagem.sh",
     "test:dependentes-terminais": "tsx scripts/tests/test-dependentes-terminais.ts",
     "test:global-catalog-clinica": "tsx scripts/tests/test-global-catalog-clinica.ts",
     "test:falha-infraestrutura": "tsx scripts/tests/test-falha-infraestrutura.ts",
