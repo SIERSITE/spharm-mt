@@ -44,6 +44,7 @@
     "catalog:forma-canary": "tsx scripts/catalog-master/forma-canary.ts",
     "catalog:promote-global": "tsx scripts/catalog-master/promote-global-knowledge.ts",
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
+    "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:preselection": "tsx scripts/tests/test-preselection.ts",

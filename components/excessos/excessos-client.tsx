@@ -102,13 +102,23 @@ export function ExcessosClient({
   // já vem pré-carregado do server e o mesmo threshold é reutilizado em
   // re-execuções (botão "Gerar").
   const [rows, setRows] = useState<TransferSuggestionRow[]>(preloadedRows ?? []);
-  const [hasGenerated, setHasGenerated] = useState(
-    (preloadedRows?.length ?? 0) > 0,
-  );
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
   const initialRows = rows;
 
+  /**
+   * A ÚNICA acção de geração do ecrã.
+   *
+   * Antes havia duas, com nomes quase iguais e efeitos diferentes:
+   * "Gerar" (no topo) ia ao servidor buscar as linhas, e "Gerar
+   * relatório" (nos filtros) só fixava o snapshot dos filtros. Quem
+   * carregasse no segundo via os filtros mudarem de sítio e mais nada
+   * acontecer — e quem carregasse só no primeiro nunca via a tabela,
+   * porque a tabela depende do snapshot.
+   *
+   * Passa a ser uma só: vai ao servidor com as datas do ecrã e, no fim,
+   * fixa o snapshot com os mesmos filtros que produziram esses dados.
+   */
   const handleGerar = () => {
     setGenerationError(null);
     startTransition(async () => {
@@ -124,7 +134,10 @@ export function ExcessosClient({
           dataFim,
         });
         setRows(result);
-        setHasGenerated(true);
+        // O snapshot é fixado DEPOIS de os dados chegarem: é ele que
+        // destranca a tabela, e destrancá-la antes mostrava a análise
+        // anterior como se fosse a nova.
+        fixarSnapshot();
       } catch (err) {
         setGenerationError(err instanceof Error ? err.message : String(err));
         setRows([]);
@@ -177,7 +190,13 @@ export function ExcessosClient({
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
 
-  function handleGerarRelatorio() {
+  /**
+   * Fixa os filtros que produziram o resultado actual.
+   *
+   * Não é uma acção do utilizador — é o segundo tempo de `handleGerar`.
+   * Ter isto atrás de um botão próprio era o que criava os dois passos.
+   */
+  function fixarSnapshot() {
     setSnapshot({
       farmaciasOrigemSelecionadas: [...farmaciasOrigemSelecionadas],
       farmaciasDestinoSelecionadas: [...farmaciasDestinoSelecionadas],
@@ -213,7 +232,19 @@ export function ExcessosClient({
     const quantidadeMin = Number(snapshot.quantidadeMinima || 0);
     return initialRows.filter((row) => {
       if (snapshot.farmaciasOrigemSelecionadas.length > 0 && !snapshot.farmaciasOrigemSelecionadas.includes(row.farmaciaOrigem)) return false;
-      if (snapshot.farmaciasDestinoSelecionadas.length > 0 && !snapshot.farmaciasDestinoSelecionadas.includes(row.farmaciaDestino)) return false;
+      // `row.farmaciaDestino === ""` significa "nenhuma farmácia do
+      // grupo precisa deste artigo" — e isso NÃO é um destino que o
+      // utilizador tenha excluído. Sem esta ressalva, o filtro (que
+      // arranca com TODAS as farmácias seleccionadas) apagava do
+      // relatório exactamente os excessos sem escoamento, que são os
+      // mais caros. Foi o que deixou /excessos a devolver 0 linhas
+      // assim que os destinos passaram a ser escolhidos por necessidade.
+      if (
+        row.farmaciaDestino !== "" &&
+        snapshot.farmaciasDestinoSelecionadas.length > 0 &&
+        !snapshot.farmaciasDestinoSelecionadas.includes(row.farmaciaDestino)
+      )
+        return false;
       if (snapshot.fornecedoresSelecionados.length > 0 && !snapshot.fornecedoresSelecionados.includes(row.fornecedor)) return false;
       if (snapshot.fabricantesSelecionados.length > 0 && !snapshot.fabricantesSelecionados.includes(row.fabricante)) return false;
       if (!passaFiltroCatalogo(row, {
@@ -226,7 +257,11 @@ export function ExcessosClient({
       if (snapshot.apenasComNecessidade && row.necessidadeDestino <= 0) return false;
       if (snapshot.apenasComExcesso && row.excessoOrigem <= 0) return false;
       if (snapshot.apenasAltaPrioridade && row.prioridade !== "alta") return false;
-      if (quantidadeMin > 0 && row.quantidadeSugerida < quantidadeMin) return false;
+      // Filtro sobre a SUGESTÃO, e por isso só se aplica a linhas que
+      // tenham sugestão. Aplicá-lo a uma linha sem destino escondia um
+      // excesso real por causa de um número que não é do excesso.
+      if (quantidadeMin > 0 && row.quantidadeSugerida > 0 && row.quantidadeSugerida < quantidadeMin)
+        return false;
       return true;
     });
   }, [snapshot, initialRows]);
@@ -248,7 +283,11 @@ export function ExcessosClient({
 
   const resumo = useMemo(() => ({
     totalSugestoes: orderedRows.length,
-    totalUnidades: sum(orderedRows.map((row) => row.quantidadeSugerida)),
+    // UNIDADES EM EXCESSO, não unidades sugeridas. Este relatório conta
+    // o que sobra; o que se consegue mover é a pergunta do /transferencias.
+    // Com a sugestão aqui, uma farmácia com 400 unidades a mais e nenhum
+    // destino aparecia com "0 unidades".
+    totalUnidades: sum(orderedRows.map((row) => row.excessoOrigem)),
     referencias: new Set(orderedRows.map((row) => row.cnp)).size,
     farmaciasOrigem: new Set(orderedRows.map((row) => row.farmaciaOrigem)).size,
     farmaciasDestino: new Set(orderedRows.map((row) => row.farmaciaDestino)).size,
@@ -259,9 +298,9 @@ export function ExcessosClient({
     for (const row of orderedRows) {
       const current = grouped.get(row.farmaciaOrigem);
       if (!current) {
-        grouped.set(row.farmaciaOrigem, { farmacia: row.farmaciaOrigem, referencias: 1, unidades: row.quantidadeSugerida, linhas: 1 });
+        grouped.set(row.farmaciaOrigem, { farmacia: row.farmaciaOrigem, referencias: 1, unidades: row.excessoOrigem, linhas: 1 });
       } else {
-        current.unidades += row.quantidadeSugerida;
+        current.unidades += row.excessoOrigem;
         current.linhas += 1;
       }
     }
@@ -273,7 +312,9 @@ export function ExcessosClient({
 
   const resumoDestino = useMemo(() => {
     const grouped = new Map<string, { farmacia: string; referencias: number; unidades: number; linhas: number }>();
-    for (const row of orderedRows) {
+    // Só as linhas COM destino: uma linha sem destino não pertence a
+    // nenhuma farmácia receptora e criava um grupo de nome vazio.
+    for (const row of orderedRows.filter((r) => r.farmaciaDestino !== "")) {
       const current = grouped.get(row.farmaciaDestino);
       if (!current) {
         grouped.set(row.farmaciaDestino, { farmacia: row.farmaciaDestino, referencias: 1, unidades: row.quantidadeSugerida, linhas: 1 });
@@ -300,20 +341,13 @@ export function ExcessosClient({
               Relatório de Excessos
             </h1>
             <p className="text-[13px] text-slate-600">
-              Análise consolidada de stock excessivo por farmácia do grupo.
+              Identifica stock acima da necessidade estimada de cada farmácia,
+              mesmo quando não existe outra farmácia com necessidade.
             </p>
           </div>
           <div className="mt-1 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleGerar}
-            disabled={isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
-          </button>
           <ReportActions
-            hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
+            hide={!relatorioGerado ? { print: true, pdf: true, excel: true, email: true } : undefined}
             report={() =>
               buildExcessosReport({
                 rows: rowsForReport,
@@ -355,19 +389,10 @@ export function ExcessosClient({
           </section>
         )}
 
-        {!hasGenerated && (
-          <section className="rounded-[20px] border border-white/70 bg-white/84 px-6 py-16 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-            <h2 className="text-[16px] font-semibold text-slate-900">
-              Nenhum relatório gerado ainda
-            </h2>
-            <p className="mx-auto mt-2 max-w-[460px] text-[13px] leading-5 text-slate-500">
-              Carregue em <span className="font-semibold text-emerald-700">Gerar</span> para
-              identificar excessos de stock. A página não pré-carrega dados.
-            </p>
-          </section>
-        )}
-
-        {hasGenerated && (<>
+        {/* Filtros SEMPRE visíveis. Estavam atrás de `hasGenerated`, o
+            que obrigava a carregar num botão só para ver as datas que se
+            queria escolher ANTES de gerar. */}
+        <>
         <section className="rounded-[20px] border border-white/70 bg-white/84 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="grid gap-2.5 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_auto]">
             <CompactInput label="Artigo" value={artigo} onChange={setArtigo} placeholder="Código ou descrição" />
@@ -403,8 +428,13 @@ export function ExcessosClient({
           <div className="mt-2.5 grid gap-2.5 xl:grid-cols-[0.9fr_auto]">
             <CompactInput label="Qtd. mínima sugerida" value={quantidadeMinima} onChange={setQuantidadeMinima} placeholder="Ex.: 5" />
             <div className="flex items-end gap-2">
-              <ActionButton icon={<Eye className="h-3.5 w-3.5" />} label="Gerar relatório" primary onClick={handleGerarRelatorio} />
-              <ActionButton icon={<Eye className="h-3.5 w-3.5" />} label="Ver em ecrã" />
+              <ActionButton
+                icon={<Eye className="h-3.5 w-3.5" />}
+                label={isPending ? "A gerar…" : relatorioGerado ? "Atualizar" : "Gerar relatório"}
+                primary
+                disabled={isPending}
+                onClick={handleGerar}
+              />
               <ActionButton icon={<Printer className="h-3.5 w-3.5" />} label="Imprimir" onClick={() => window.print()} />
               <ActionButton icon={<FileText className="h-3.5 w-3.5" />} label="PDF" />
               <ActionButton icon={<Download className="h-3.5 w-3.5" />} label="Excel" />
@@ -487,7 +517,7 @@ export function ExcessosClient({
             <div className="mx-auto max-w-2xl">
               <h2 className="text-base font-semibold text-slate-900">O relatório de excessos é gerado sob pedido</h2>
               <p className="mt-2 text-[13px] leading-6 text-slate-600">
-                Defina os critérios pretendidos e carregue em <span className="font-semibold text-slate-900">Gerar relatório</span> para construir a análise consolidada.
+                Defina o período e os critérios pretendidos e carregue em <span className="font-semibold text-slate-900">Gerar relatório</span>. A página não pré-carrega dados.
               </p>
             </div>
           </section>
@@ -729,7 +759,7 @@ export function ExcessosClient({
             </div>
           </section>
         )}
-        </>)}
+        </>
       </div>
     </AppShell>
   );
@@ -812,9 +842,9 @@ function ToggleRow({ label, checked, onChange, compact = false }: { label: strin
   );
 }
 
-function ActionButton({ icon, label, primary = false, onClick }: { icon: React.ReactNode; label: string; primary?: boolean; onClick?: () => void }) {
+function ActionButton({ icon, label, primary = false, onClick, disabled = false }: { icon: React.ReactNode; label: string; primary?: boolean; onClick?: () => void; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={["inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition", primary ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700" : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800"].join(" ")}>
+    <button type="button" onClick={onClick} disabled={disabled} className={["inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60", primary ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700" : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800"].join(" ")}>
       {icon}{label}
     </button>
   );

@@ -95,9 +95,21 @@ export function ultimosMesesCompletos(meses = 12, agora: Date = new Date()): Jan
   return { inicio, fim };
 }
 
-/** A janela por omissão dos Excessos. Um sítio só. */
-export function janelaExcessosPorOmissao(agora: Date = new Date()): JanelaMeses {
+/**
+ * A janela por omissão dos relatórios operacionais. Um sítio só.
+ *
+ * Excessos E Transferências. Os dois respondem a perguntas diferentes
+ * sobre o MESMO stock, e uma janela diferente em cada um tornava os
+ * números incomparáveis — que era o estado anterior: 12 meses num,
+ * `useState("2026-04-01")` no outro.
+ */
+export function janelaOperacionalPorOmissao(agora: Date = new Date()): JanelaMeses {
   return ultimosMesesCompletos(12, agora);
+}
+
+/** Nome antigo, mantido para não partir chamadores. */
+export function janelaExcessosPorOmissao(agora: Date = new Date()): JanelaMeses {
+  return janelaOperacionalPorOmissao(agora);
 }
 
 /**
@@ -152,7 +164,7 @@ export function normalizarJanela(
   fim: string | undefined | null,
   agora: Date = new Date(),
 ): JanelaMeses {
-  if (!ehDataValida(inicio) || !ehDataValida(fim)) return janelaExcessosPorOmissao(agora);
-  if (inicio > fim) return janelaExcessosPorOmissao(agora);
+  if (!ehDataValida(inicio) || !ehDataValida(fim)) return janelaOperacionalPorOmissao(agora);
+  if (inicio > fim) return janelaOperacionalPorOmissao(agora);
   return { inicio, fim };
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { janelaOperacionalPorOmissao } from "@/lib/operational/janela-meses";
 import { runTransferenciasReport } from "@/app/transferencias/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
@@ -102,18 +103,23 @@ export function TransferenciasClient({
 }) {
   // Lazy: nada de Transferências é carregado até clicar em "Gerar".
   const [rows, setRows] = useState<TransferSuggestionRow[]>([]);
-  const [hasGenerated, setHasGenerated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
   const initialRows = rows;
 
+  /**
+   * A ÚNICA acção de geração do ecrã. Ver a mesma nota em
+   * `components/excessos/excessos-client.tsx`: havia dois botões com
+   * nomes quase iguais, e só o de cima ia mesmo à base de dados.
+   */
   const handleGerar = () => {
     setGenerationError(null);
     startTransition(async () => {
       try {
-        const result = await runTransferenciasReport();
+        // As datas do ecrã são as datas do cálculo.
+        const result = await runTransferenciasReport({ dataInicio, dataFim });
         setRows(result);
-        setHasGenerated(true);
+        fixarSnapshot();
       } catch (err) {
         setGenerationError(err instanceof Error ? err.message : String(err));
         setRows([]);
@@ -160,8 +166,15 @@ export function TransferenciasClient({
     string[]
   >([]);
   const [artigo, setArtigo] = useState("");
-  const [dataInicio, setDataInicio] = useState("2026-04-01");
-  const [dataFim, setDataFim] = useState("2026-04-10");
+  // Os últimos 12 meses civis completos — a MESMA janela dos Excessos,
+  // pela mesma função. Estava `useState("2026-04-01")` /
+  // `useState("2026-04-10")`: dez dias de Abril escritos à mão que
+  // envelheciam sozinhos e que, além do mais, nunca chegavam ao
+  // servidor. Os dois relatórios têm de responder sobre o mesmo período
+  // para os seus números serem comparáveis.
+  const [janelaInicial] = useState(() => janelaOperacionalPorOmissao());
+  const [dataInicio, setDataInicio] = useState(janelaInicial.inicio);
+  const [dataFim, setDataFim] = useState(janelaInicial.fim);
   const [ordenarPor, setOrdenarPor] =
     useState<Ordenacao>("prioridade");
   const [apenasComNecessidade, setApenasComNecessidade] = useState(true);
@@ -176,7 +189,8 @@ export function TransferenciasClient({
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
 
-  function handleGerarRelatorio() {
+  /** O segundo tempo de `handleGerar`, não uma acção do utilizador. */
+  function fixarSnapshot() {
     setSnapshot({
       farmaciasOrigemSelecionadas: [...farmaciasOrigemSelecionadas],
       farmaciasDestinoSelecionadas: [...farmaciasDestinoSelecionadas],
@@ -418,20 +432,13 @@ export function TransferenciasClient({
               Relatório de Transferências
             </h1>
             <p className="text-[13px] text-slate-600">
-              Análise consolidada de sugestões de transferência entre farmácias do grupo.
+              Sugere redistribuições entre farmácias quando existe simultaneamente
+              excesso na origem e necessidade no destino.
             </p>
           </div>
           <div className="mt-1 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleGerar}
-            disabled={isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-[13px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isPending ? "A gerar…" : hasGenerated ? "Atualizar" : "Gerar"}
-          </button>
           <ReportActions
-            hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
+            hide={!relatorioGerado ? { print: true, pdf: true, excel: true, email: true } : undefined}
             report={() =>
               buildTransferenciasReport({
                 rows: rowsForReport,
@@ -470,19 +477,6 @@ export function TransferenciasClient({
         {generationError && (
           <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
             Falha a gerar o relatório: {generationError}
-          </section>
-        )}
-
-        {!hasGenerated && (
-          <section className="rounded-[20px] border border-white/70 bg-white/84 px-6 py-16 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-            <h2 className="text-[16px] font-semibold text-slate-900">
-              Nenhum relatório gerado ainda
-            </h2>
-            <p className="mx-auto mt-2 max-w-[460px] text-[13px] leading-5 text-slate-500">
-              Carregue em <span className="font-semibold text-emerald-700">Gerar</span> para
-              correr o motor de sugestões de transferência. A página não pré-carrega
-              dados — só lê da BD após o trigger explícito.
-            </p>
           </section>
         )}
 
@@ -557,13 +551,10 @@ export function TransferenciasClient({
             <div className="flex items-end gap-2">
               <ActionButton
                 icon={<Eye className="h-3.5 w-3.5" />}
-                label="Gerar relatório"
+                label={isPending ? "A gerar…" : relatorioGerado ? "Atualizar" : "Gerar relatório"}
                 primary
-                onClick={handleGerarRelatorio}
-              />
-              <ActionButton
-                icon={<Eye className="h-3.5 w-3.5" />}
-                label="Ver em ecrã"
+                disabled={isPending}
+                onClick={handleGerar}
               />
               <ActionButton
                 icon={<Printer className="h-3.5 w-3.5" />}
@@ -835,7 +826,7 @@ export function TransferenciasClient({
           </div>
         </section>
 
-        {hasGenerated && (<>
+        <>
         <section className="rounded-[20px] border border-white/70 bg-white/92 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <TabButton
@@ -858,11 +849,10 @@ export function TransferenciasClient({
                 O relatório de transferências é gerado sob pedido
               </h2>
               <p className="mt-2 text-[13px] leading-6 text-slate-600">
-                Defina os critérios pretendidos e carregue em{" "}
+                Defina o período e os critérios pretendidos e carregue em{" "}
                 <span className="font-semibold text-slate-900">
                   Gerar relatório
-                </span>{" "}
-                para construir a análise consolidada.
+                </span>. A página não pré-carrega dados.
               </p>
             </div>
           </section>
@@ -1244,7 +1234,7 @@ export function TransferenciasClient({
             </div>
           </section>
         )}
-        </>)}
+        </>
       </div>
     </AppShell>
   );
@@ -1465,18 +1455,21 @@ function ActionButton({
   label,
   primary = false,
   onClick,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   label: string;
   primary?: boolean;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={[
-        "inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition",
+        "inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
         primary
           ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
           : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800",

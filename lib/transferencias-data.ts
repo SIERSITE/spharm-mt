@@ -11,13 +11,15 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
+import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 import {
-  avgDaily,
-  coverageDays,
-  EXCESSO_COVERAGE_DAYS,
-  WINDOW_90D,
-} from "@/lib/operational/metrics-shared";
-import { loadIpfBatch, resolveAvgDaily90d } from "@/lib/operational/ipf-reader";
+  avaliarLinha,
+  ehAccionavel,
+  emparelhar,
+  type Emparelhamento,
+  type EstadoStock,
+  type ParametrosMotor,
+} from "@/lib/operational/motor-stock";
 import {
   findInternalSubstitutions,
   type InternalSubstitution,
@@ -29,11 +31,6 @@ import {
   normalizarJanela,
   type JanelaMeses,
 } from "@/lib/operational/janela-meses";
-import {
-  escolherDestino,
-  quantidadeSegura,
-  type CandidatoDestino,
-} from "@/lib/operational/sugestao-transferencia";
 
 export type Priority = "alta" | "media" | "baixa";
 
@@ -214,132 +211,14 @@ export async function loadPfAndSales(
 }
 
 /** Transfer suggestions: products with coverage imbalance between the two pharmacies. */
-export async function getTransferenciasData(): Promise<TransferSuggestionRow[]> {
-  const prisma = await getPrisma();
-  const farmacias = await prisma.farmacia.findMany({
-    where: { estado: "ATIVO", nome: { not: "Farmácia Teste" } },
-    select: { id: true, nome: true },
-    orderBy: { nome: "asc" },
-  });
-  const farmaciaIds = farmacias.map((f) => f.id);
-  if (farmaciaIds.length < 2) return [];
-
-  // Dual-read: IPF + sales em paralelo. Quando IPF tem linha, usa
-  // mediaVendasDiarias90d (pré-calculado, drift 0 vs live); cai para
-  // VendaMensal × 90d quando IPF ausente.
-  const [{ pfRows, salesMap }, ipfMap] = await Promise.all([
-    loadPfAndSales(farmaciaIds),
-    loadIpfBatch(farmaciaIds),
-  ]);
-
-  // Group by produtoId
-  type Entry = PfBase & { avgDaily: number; coverage: number };
-  const byProduto = new Map<string, Entry[]>();
-  for (const row of pfRows) {
-    const key = `${row.produtoId}:${row.farmaciaId}`;
-    const qty3m = salesMap.get(key) ?? 0;
-    const liveAd = avgDaily(qty3m, WINDOW_90D);
-    const { value: ad } = resolveAvgDaily90d(ipfMap.get(key), liveAd);
-    const cov = coverageDays(toF(row.stockAtual), ad);
-    const coverage = cov === null ? Infinity : cov;
-    if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);
-    byProduto.get(row.produtoId)!.push({ ...row, avgDaily: ad, coverage });
-  }
-
-  const result: TransferSuggestionRow[] = [];
-
-  for (const [, entries] of byProduto) {
-    if (entries.length < 2) continue; // must exist in both pharmacies
-
-    // Find pairs with coverage imbalance
-    for (let i = 0; i < entries.length; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        const a = entries[i];
-        const b = entries[j];
-        if (a.coverage === Infinity || b.coverage === Infinity) continue;
-
-        // Determine origin (excess) and destination (deficit)
-        let origem = a;
-        let destino = b;
-        if (b.coverage > a.coverage) { origem = b; destino = a; }
-
-        // Only suggest if ratio >= 2.5:1 and destination has < 20 days
-        if (origem.coverage < 20 || destino.coverage > 20) continue;
-        if (origem.coverage / Math.max(destino.coverage, 1) < 2.5) continue;
-
-        // Equalize to ~20 days each
-        const targetDays = 20;
-        const qtyToTransfer = Math.max(1, Math.round((origem.coverage - targetDays) * origem.avgDaily * 0.5));
-        if (qtyToTransfer < 1) continue;
-
-        const excessoOrigem = Math.round((origem.coverage - targetDays) * origem.avgDaily);
-        const necessidadeDestino = Math.round((targetDays - destino.coverage) * destino.avgDaily);
-
-        const prioridade: Priority =
-          destino.coverage < 7 ? "alta" : destino.coverage < 14 ? "media" : "baixa";
-
-        // A MESMA regra de segurança dos Excessos, aplicada aqui: a
-        // sugestão nunca pode passar a necessidade do destino. Neste
-        // caminho o destino já é escolhido por défice de cobertura
-        // (`destino.coverage <= 20`), portanto a necessidade é quase
-        // sempre positiva — mas "quase sempre" não é uma garantia, e a
-        // regra vale para os dois relatórios pelas mesmas razões.
-        const finalQty = quantidadeSegura(
-          qtyToTransfer,
-          Math.max(0, necessidadeDestino),
-          Math.round(toF(origem.stockAtual)),
-        );
-        if (finalQty < 1) continue;
-        const valorUnlocked =
-          origem.pvp != null && origem.pvp > 0 ? finalQty * origem.pvp : 0;
-
-        result.push({
-          cnp: origem.cnp,
-          produto: origem.designacao,
-          farmaciaOrigem: origem.farmaciaNome,
-          farmaciaDestino: destino.farmaciaNome,
-          stockOrigem: Math.round(toF(origem.stockAtual)),
-          stockDestino: Math.round(toF(destino.stockAtual)),
-          coberturaOrigem: Math.round(origem.coverage),
-          coberturaDestino: Math.round(destino.coverage),
-          quantidadeSugerida: finalQty,
-          excessoOrigem: Math.max(0, excessoOrigem),
-          necessidadeDestino: Math.max(0, necessidadeDestino),
-          // Fabricante CANÓNICO via Produto.fabricante; fornecedor é o
-          // grossista habitual (ProdutoFarmacia.fornecedorOrigem).
-          fabricante: origem.fabricanteCanonico ?? "",
-          ...resolverPar({
-            classificacaoNivel1: origem.canonN1 ? { nome: origem.canonN1 } : null,
-            classificacaoNivel2: origem.canonN2 ? { nome: origem.canonN2 } : null,
-          }),
-          utilizacoes: origem.utilizacoes ?? [],
-          fornecedor: origem.fornecedorOrigem ?? "",
-          prioridade,
-          observacao:
-            prioridade === "alta"
-              ? "Rutura previsível no destino, excesso confortável na origem."
-              : prioridade === "media"
-                ? "Transferência recomendada antes de reposição externa."
-                : "Afinação opcional de cobertura.",
-          valorUnlocked,
-          dci: origem.dci,
-          codigoATC: origem.codigoATC,
-          produtoId: origem.produtoId,
-          farmaciaOrigemId: origem.farmaciaId,
-          farmaciaDestinoId: destino.farmaciaId,
-        });
-      }
-    }
-  }
-
-  // Sort by priority then by deficit severity
-  const rank: Record<Priority, number> = { alta: 3, media: 2, baixa: 1 };
-  result.sort((a, b) => rank[b.prioridade] - rank[a.prioridade] || a.coberturaDestino - b.coberturaDestino);
-
-  return result.slice(0, 200);
-}
-
-export type ExcessosOptions = {
+/**
+ * Opções partilhadas por /excessos e /transferencias.
+ *
+ * O nome antigo (`ExcessosOptions`) fica exportado mais abaixo: os dois
+ * relatórios passaram a aceitar exactamente as mesmas opções, porque
+ * passaram a correr sobre o mesmo motor.
+ */
+export type OpcoesOperacionais = {
   /**
    * Coverage threshold in days; products with coverage > thresholdDays are
    * excess. Default = `EXCESSO_COVERAGE_DAYS` (180), partilhado com
@@ -361,27 +240,37 @@ export type ExcessosOptions = {
   dataFim?: string;
 };
 
+/** Nome antigo. Mantido para não partir chamadores. */
+export type ExcessosOptions = OpcoesOperacionais;
+
+/** Uma linha do loader, já com as vendas da janela coladas. */
+type LinhaPf = PfBase & { vendasJanela: number };
+
 /**
- * Excess stock identification: products where coverage > thresholdDays.
+ * O carregamento comum aos dois relatórios.
  *
- * Default `thresholdDays = EXCESSO_COVERAGE_DAYS` (180) — mesma regra usada
- * por Inventário (`classifyEstado→EXCESSO`) e pelo Dashboard (filtro
- * `excess-stock-canonical`). Single source of truth em
- * `lib/operational/metrics-shared.ts`.
- *
- * `farmaciaDestino` mostra a outra farmácia se puder absorver parte do
- * excesso. As prioridades alta/média/baixa são relativas ao threshold base.
+ * Uma janela, uma query de vendas, um motor. Antes disto, /excessos lia
+ * `VendaMensal` na janela escolhida e /transferencias lia o IPF de 90
+ * dias — dois consumos diferentes para o mesmo artigo no mesmo dia.
  */
-export async function getExcessosData(
-  options?: ExcessosOptions,
-): Promise<TransferSuggestionRow[]> {
+async function carregarEstadosOperacionais(options?: OpcoesOperacionais): Promise<{
+  janela: JanelaMeses;
+  params: ParametrosMotor;
+  grupos: Map<string, EstadoStock<LinhaPf>[]>;
+}> {
   const thresholdDays = options?.thresholdDays ?? EXCESSO_COVERAGE_DAYS;
   const targetDays = options?.targetDays ?? 30;
-  // Uma janela só, daqui até à query, à média diária e ao cabeçalho do
-  // relatório. `normalizarJanela` cai para os 12 meses completos quando
-  // as datas não vêm ou não fazem sentido.
   const janela = normalizarJanela(options?.dataInicio, options?.dataFim);
-  const diasJanela = diasDaJanela(janela);
+  const params: ParametrosMotor = {
+    diasJanela: diasDaJanela(janela),
+    thresholdDays,
+    targetDays,
+    // O corte comercial que já existia nos Excessos: abaixo de 5
+    // unidades a "sobra" é ruído de arredondamento.
+    excessoMinimo: 5,
+  };
+
+  const grupos = new Map<string, EstadoStock<LinhaPf>[]>();
 
   const prisma = await getPrisma();
   const farmacias = await prisma.farmacia.findMany({
@@ -390,121 +279,180 @@ export async function getExcessosData(
     orderBy: { nome: "asc" },
   });
   const farmaciaIds = farmacias.map((f) => f.id);
-  if (farmaciaIds.length === 0) return [];
+  if (farmaciaIds.length === 0) return { janela, params, grupos };
 
-  // Dual-read também em /excessos (mesma política de stock-data /
-  // transferencias).
   const { pfRows, salesMap } = await loadPfAndSales(farmaciaIds, { janela });
 
-  // ── Consumo: a janela escolhida, e SÓ ela ─────────────────────────
-  //
-  // O IPF (`resolveAvgDaily90d`) fica de fora aqui de propósito: é uma
-  // média de 90 dias pré-calculada, e misturá-la com uma janela de 12
-  // meses dava um consumo que não corresponde a período nenhum. Os
-  // outros relatórios continuam a usá-lo — só os Excessos é que têm
-  // janela escolhida pelo utilizador.
-  //
-  // `coberturaDias` é `null` quando não há consumo mensurável, e NÃO
-  // Infinity: um artigo sem vendas não tem cobertura infinita, tem
-  // cobertura indefinida. É a distinção que impede a necessidade de ser
-  // inventada no destino.
-  type Entry = PfBase & { avgDaily: number; coberturaDias: number | null };
-  const byProduto = new Map<string, Entry[]>();
   for (const row of pfRows) {
-    const key = `${row.produtoId}:${row.farmaciaId}`;
-    const qtyJanela = salesMap.get(key) ?? 0;
-    const ad = avgDaily(qtyJanela, diasJanela);
-    const coberturaDias = coverageDays(toF(row.stockAtual), ad);
-    if (!byProduto.has(row.produtoId)) byProduto.set(row.produtoId, []);
-    byProduto.get(row.produtoId)!.push({ ...row, avgDaily: ad, coberturaDias });
+    const vendasJanela = salesMap.get(`${row.produtoId}:${row.farmaciaId}`) ?? 0;
+    const estado = avaliarLinha<LinhaPf>({ ...row, vendasJanela }, params);
+    const lista = grupos.get(row.produtoId);
+    if (lista) lista.push(estado);
+    else grupos.set(row.produtoId, [estado]);
   }
 
+  return { janela, params, grupos };
+}
+
+/**
+ * Monta a linha do relatório a partir de uma origem e do seu par.
+ *
+ * Partilhada pelos dois ecrãs: as colunas são as mesmas, a diferença
+ * está em QUE linhas cada relatório deixa passar — não em como as
+ * apresenta.
+ */
+function montarLinha(
+  par: Emparelhamento<LinhaPf>,
+  prioridade: Priority,
+  observacao: string,
+): TransferSuggestionRow {
+  const origem = par.origem;
+  const destino = par.destino;
+  return {
+    cnp: origem.cnp,
+    produto: origem.designacao,
+    farmaciaOrigem: origem.farmaciaNome,
+    // Vazio, e não "—" nem uma farmácia arbitrária: quando ninguém
+    // precisa, não há destino possível. A UI mostra o travessão.
+    farmaciaDestino: destino?.farmaciaNome ?? "",
+    stockOrigem: Math.round(toF(origem.stockAtual)),
+    stockDestino: destino ? Math.round(toF(destino.stockAtual)) : 0,
+    coberturaOrigem: origem.coberturaDias === null ? 0 : Math.round(origem.coberturaDias),
+    coberturaDestino:
+      destino && destino.coberturaDias !== null ? Math.round(destino.coberturaDias) : 0,
+    quantidadeSugerida: par.quantidadeSugerida,
+    excessoOrigem: origem.excesso,
+    necessidadeDestino: par.necessidadeDestino,
+    // Fabricante CANÓNICO via Produto.fabricante; fornecedor é o
+    // grossista habitual (ProdutoFarmacia.fornecedorOrigem).
+    fabricante: origem.fabricanteCanonico ?? "",
+    ...resolverPar({
+      classificacaoNivel1: origem.canonN1 ? { nome: origem.canonN1 } : null,
+      classificacaoNivel2: origem.canonN2 ? { nome: origem.canonN2 } : null,
+    }),
+    utilizacoes: origem.utilizacoes ?? [],
+    fornecedor: origem.fornecedorOrigem ?? "",
+    prioridade,
+    observacao,
+    // O valor libertado é o da quantidade que SE VAI MESMO transferir.
+    // Com sugestão 0 não se liberta nada.
+    valorUnlocked:
+      origem.pvp != null && origem.pvp > 0 ? par.quantidadeSugerida * origem.pvp : 0,
+    dci: origem.dci,
+    codigoATC: origem.codigoATC,
+    produtoId: origem.produtoId,
+    farmaciaOrigemId: origem.farmaciaId,
+    farmaciaDestinoId: destino?.farmaciaId ?? "",
+  };
+}
+
+/**
+ * TRANSFERÊNCIAS — o relatório OPERACIONAL.
+ *
+ * Subconjunto estrito dos Excessos: só entram as linhas onde existe
+ * simultaneamente excesso na origem, necessidade no destino e uma
+ * quantidade realizável depois da regra de segurança.
+ *
+ *   excessoOrigem > 0  E  necessidadeDestino > 0  E  sugestao > 0
+ *
+ * Responde a "que parte do stock a mais consigo aproveitar noutra
+ * farmácia?". Quem responde a "que stock tenho a mais?" é /excessos, e
+ * a resposta lá inclui os artigos que ninguém quer.
+ *
+ * ── O que mudou, e porquê ────────────────────────────────────────────
+ *
+ * A heurística anterior (rácio de cobertura 2.5:1, destino < 20 dias,
+ * equalizar a 20 dias, IPF de 90 dias) era um segundo motor matemático,
+ * com uma janela própria. Dava um número diferente do de /excessos para
+ * o mesmo artigo no mesmo dia, e nenhum dos dois ecrãs dizia porquê.
+ * Passa a ser o mesmo motor, a mesma janela e o mesmo objectivo de
+ * cobertura dos Excessos.
+ */
+export async function getTransferenciasData(
+  options?: OpcoesOperacionais,
+): Promise<TransferSuggestionRow[]> {
+  const { grupos } = await carregarEstadosOperacionais(options);
+
   const result: TransferSuggestionRow[] = [];
+  for (const [, grupo] of grupos) {
+    // Sem duas farmácias não há transferência possível. Nos Excessos não
+    // é assim: uma farmácia sozinha continua a poder ter stock a mais.
+    if (grupo.length < 2) continue;
 
-  for (const [, entries] of byProduto) {
-    for (const entry of entries) {
-      // Sem cobertura definida não há excesso a declarar: um artigo sem
-      // consumo não tem "1000 dias de stock", tem stock parado. Fica de
-      // fora do relatório de excessos como sempre ficou.
-      if (entry.coberturaDias === null) continue;
-      if (entry.coberturaDias <= thresholdDays) continue;
-      if (entry.avgDaily <= 0) continue;
+    for (const origem of grupo) {
+      if (origem.excesso <= 0) continue;
+      const par = emparelhar(origem, grupo);
+      if (!ehAccionavel(par)) continue;
 
-      const excessQty = Math.round((entry.coberturaDias - targetDays) * entry.avgDaily);
-      if (excessQty < 5) continue; // Only meaningful excesses
+      const cobDestino = par.destino?.coberturaDias ?? 0;
+      const prioridade: Priority =
+        cobDestino < 7 ? "alta" : cobDestino < 14 ? "media" : "baixa";
 
-      // ── O DESTINO ─────────────────────────────────────────────────
-      //
-      // Antes: `others[0]` — a primeira farmácia da lista, tivesse ela
-      // necessidade ou não. Agora: a que MAIS precisa, e nenhuma se
-      // ninguém precisar. Ver lib/operational/sugestao-transferencia.ts.
-      const candidatos: CandidatoDestino[] = entries
-        .filter((e) => e.farmaciaId !== entry.farmaciaId)
-        .map((e) => ({
-          farmaciaId: e.farmaciaId,
-          farmaciaNome: e.farmaciaNome,
-          stockAtual: Math.round(toF(e.stockAtual)),
-          avgDaily: e.avgDaily,
-          coberturaDias: e.coberturaDias,
-        }));
+      result.push(
+        montarLinha(
+          par,
+          prioridade,
+          prioridade === "alta"
+            ? "Rutura previsível no destino, excesso confortável na origem."
+            : prioridade === "media"
+              ? "Transferência recomendada antes de reposição externa."
+              : "Afinação opcional de cobertura.",
+        ),
+      );
+    }
+  }
 
-      const escolha = escolherDestino(candidatos, {
-        excessoOrigem: excessQty,
-        stockOrigem: Math.round(toF(entry.stockAtual)),
-        coberturaAlvoDias: targetDays,
-        origemFarmaciaId: entry.farmaciaId,
-      });
+  const rank: Record<Priority, number> = { alta: 3, media: 2, baixa: 1 };
+  result.sort(
+    (a, b) => rank[b.prioridade] - rank[a.prioridade] || a.coberturaDestino - b.coberturaDestino,
+  );
+  return result.slice(0, 200);
+}
+
+/**
+ * EXCESSOS — o relatório de DIAGNÓSTICO.
+ *
+ * Um critério, e só um:
+ *
+ *     excessoOrigem > 0
+ *
+ * O destino é informação ADICIONAL, nunca uma condição. Uma linha com
+ * stock a mais e nenhuma farmácia interessada continua a ser um excesso
+ * — é, aliás, o excesso mais caro, porque não há para onde o escoar. Sai
+ * com `farmaciaDestino: ""`, `necessidadeDestino: 0` e
+ * `quantidadeSugerida: 0`, e conta para os totais na mesma.
+ */
+export async function getExcessosData(
+  options?: OpcoesOperacionais,
+): Promise<TransferSuggestionRow[]> {
+  const { params, grupos } = await carregarEstadosOperacionais(options);
+
+  const result: TransferSuggestionRow[] = [];
+  for (const [, grupo] of grupos) {
+    for (const origem of grupo) {
+      if (origem.excesso <= 0) continue;
+
+      const par = emparelhar(origem, grupo);
+      const cobertura = origem.coberturaDias ?? 0;
 
       // Prioridade relativa ao threshold base — mantém a ordenação útil
       // qualquer que seja `thresholdDays` (default 180 ⇒ alta>360, media>270).
       const prioridade: Priority =
-        entry.coberturaDias > thresholdDays * 2
+        cobertura > params.thresholdDays * 2
           ? "alta"
-          : entry.coberturaDias > thresholdDays * 1.5
+          : cobertura > params.thresholdDays * 1.5
             ? "media"
             : "baixa";
 
-      // O valor libertado é o da quantidade que SE VAI MESMO transferir.
-      // Com sugestão 0 não se liberta nada — antes somava-se o excesso
-      // inteiro a um valor que nunca ia acontecer.
-      const valorUnlocked =
-        entry.pvp != null && entry.pvp > 0 ? escolha.quantidadeSugerida * entry.pvp : 0;
-
-      result.push({
-        cnp: entry.cnp,
-        produto: entry.designacao,
-        farmaciaOrigem: entry.farmaciaNome,
-        // Vazio, e não "—" nem uma farmácia arbitrária: quando ninguém
-        // precisa, não há destino possível. A UI mostra o travessão.
-        farmaciaDestino: escolha.destino?.farmaciaNome ?? "",
-        stockOrigem: Math.round(toF(entry.stockAtual)),
-        stockDestino: escolha.destino ? escolha.destino.stockAtual : 0,
-        coberturaOrigem: Math.round(entry.coberturaDias),
-        coberturaDestino:
-          escolha.destino && escolha.destino.coberturaDias !== null
-            ? Math.round(escolha.destino.coberturaDias)
-            : 0,
-        quantidadeSugerida: escolha.quantidadeSugerida,
-        excessoOrigem: excessQty,
-        necessidadeDestino: escolha.necessidadeDestino,
-        fabricante: entry.fabricanteCanonico ?? "",
-        ...resolverPar({
-          classificacaoNivel1: entry.canonN1 ? { nome: entry.canonN1 } : null,
-          classificacaoNivel2: entry.canonN2 ? { nome: entry.canonN2 } : null,
-        }),
-        utilizacoes: entry.utilizacoes ?? [],
-        fornecedor: entry.fornecedorOrigem ?? "",
-        prioridade,
-        observacao: escolha.destino
-          ? `Excesso de ${Math.round(entry.coberturaDias)} dias de cobertura.`
-          : `Excesso de ${Math.round(entry.coberturaDias)} dias — nenhuma farmácia do grupo tem necessidade.`,
-        valorUnlocked,
-        dci: entry.dci,
-        codigoATC: entry.codigoATC,
-        produtoId: entry.produtoId,
-        farmaciaOrigemId: entry.farmaciaId,
-        farmaciaDestinoId: escolha.destino?.farmaciaId ?? "",
-      });
+      result.push(
+        montarLinha(
+          par,
+          prioridade,
+          par.destino
+            ? `Excesso de ${Math.round(cobertura)} dias de cobertura.`
+            : `Excesso de ${Math.round(cobertura)} dias — nenhuma farmácia do grupo tem necessidade.`,
+        ),
+      );
     }
   }
 

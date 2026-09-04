@@ -2,7 +2,7 @@
 
 import {
   getExcessosData,
-  type ExcessosOptions,
+  type OpcoesOperacionais,
 } from "@/lib/transferencias-data";
 
 /**
@@ -12,6 +12,6 @@ import {
  * UI mostrava um período e o cálculo usava sempre os últimos 3 meses.
  * O período do cabeçalho do PDF era decorativo.
  */
-export async function runExcessosReport(options?: ExcessosOptions) {
+export async function runExcessosReport(options?: OpcoesOperacionais) {
   return getExcessosData(options);
 }
