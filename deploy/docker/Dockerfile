@@ -272,6 +272,12 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
 # nao sao comandos oficiais, sao instrumentos de medicao pontual,
 # corridos com `run --rm migrate npx tsx scripts/diagnostics/<x>.ts`.
 # Vao na imagem para nao ser preciso monta-los de fora a cada vez.
+# Reavaliacao da cache e o seu rollback. Entram inteiros porque
+# `scripts/catalog/` tem exactamente estes dois ficheiros e ambos sao
+# operacionais — correm na VPS, contra a base do tenant, e um deles e' a
+# unica forma de desfazer o outro. Deixar o rollback fora da imagem seria
+# ter escrita sem volta.
+COPY scripts/catalog ./scripts/catalog
 COPY scripts/diagnostics ./scripts/diagnostics
 COPY scripts/env-doctor.ts ./scripts/env-doctor.ts
 # `seed-taxonomy` é o PRIMEIRO passo do bootstrap do catálogo e vive na

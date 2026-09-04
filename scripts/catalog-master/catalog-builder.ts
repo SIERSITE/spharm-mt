@@ -36,7 +36,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import pg from "pg";
 
-const MIN_CNP = 2_000_000;
+// Regra única — ver lib/catalog/cnp-catalogavel.ts.
+import { MIN_CNP_CATALOGAVEL as MIN_CNP } from "../../lib/catalog/cnp-catalogavel";
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const OUT_DIR = path.join(process.cwd(), ".catalog-builder");

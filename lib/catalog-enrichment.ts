@@ -152,11 +152,13 @@ export async function fetchOrigemSignals(produtoId: string): Promise<OrigemSigna
  * existe a vários níveis para garantir que mesmo chamadas ad-hoc
  * (`enrichProductByCnp`, worker contínuo) ficam protegidas.
  */
-export const MIN_CATALOGUABLE_CNP = 2_000_000;
-
-export function isCataloguableCnp(cnp: number | null | undefined): boolean {
-  return typeof cnp === "number" && cnp > MIN_CATALOGUABLE_CNP;
-}
+// A definição vive em `lib/catalog/cnp-catalogavel.ts` — módulo puro,
+// importável por scripts e diagnósticos sem arrastar Prisma. Aqui ficam
+// os nomes históricos, que dezenas de ficheiros já importam.
+export { MIN_CNP_CATALOGAVEL as MIN_CATALOGUABLE_CNP } from "./catalog/cnp-catalogavel";
+export { ehCnpCatalogavel as isCataloguableCnp } from "./catalog/cnp-catalogavel";
+import { MIN_CNP_CATALOGAVEL as MIN_CATALOGUABLE_CNP } from "./catalog/cnp-catalogavel";
+import { ehCnpCatalogavel as isCataloguableCnp } from "./catalog/cnp-catalogavel";
 
 // ─── Tipos de selecção ────────────────────────────────────────────────────────
 

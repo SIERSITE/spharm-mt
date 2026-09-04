@@ -10,7 +10,9 @@ import type {
   CatalogoListData,
   CatalogoListFilters,
   CatalogoRow,
+  ResumoClassificacao,
 } from "@/lib/catalogo-data";
+import type { OrigemClassificacao } from "@/lib/categoria-resolver";
 
 type Props = {
   data: CatalogoListData;
@@ -52,6 +54,30 @@ const ESTADO_OPTIONS = [
 ];
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
+
+const ORIGEM_OPTIONS = [
+  { value: "", label: "Origem (todas)" },
+  { value: "MANUAL", label: "Validada por pessoa" },
+  { value: "CANONICA", label: "Canónica" },
+  { value: "PROVISORIA", label: "Provisória" },
+  { value: "AUSENTE", label: "Por classificar" },
+];
+
+/**
+ * A provisória é âmbar e não verde de propósito: é uma classificação em
+ * que se pode confiar para agrupar e contar, e sobre a qual não se deve
+ * tomar uma decisão regulamentar sem olhar. A cor diz isso antes de
+ * alguém ler a legenda.
+ *
+ * A canónica NÃO tem badge — seria ruído em 22 mil linhas. O que precisa
+ * de sinal é a excepção, não a norma.
+ */
+const ORIGEM_TONES: Record<OrigemClassificacao, string> = {
+  MANUAL: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  CANONICA: "border-slate-200 bg-slate-50 text-slate-600",
+  PROVISORIA: "border-amber-200 bg-amber-50 text-amber-700",
+  AUSENTE: "border-slate-200 bg-slate-50 text-slate-500",
+};
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   PRODUCT_TYPE_OPTIONS.map((o) => [o.value, o.label]),
@@ -128,7 +154,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
     !!filters.productType ||
     !!filters.classificacaoN1Id ||
     !!filters.verificationStatus ||
-    !!filters.estado;
+    !!filters.estado ||
+    !!filters.origem;
 
   const startIdx = (data.page - 1) * data.pageSize + 1;
   const endIdx = Math.min(data.page * data.pageSize, data.total);
@@ -142,6 +169,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
           Visão mestre do produto, sem lógica operacional por farmácia.
         </p>
       </header>
+
+      <ResumoCartoes resumo={data.resumo} />
 
       {/* Filtros */}
       <section className="rounded-[20px] border border-white/70 bg-white/90 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
@@ -203,7 +232,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
           />
         </div>
 
-        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[1fr_1fr_1fr_auto]">
           <SelectFilter
             label="Verificação"
             value={filters.verificationStatus ?? ""}
@@ -215,6 +244,12 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             value={filters.estado ?? ""}
             onChange={(v) => navigate({ estado: v || undefined })}
             options={ESTADO_OPTIONS}
+          />
+          <SelectFilter
+            label="Origem da classificação"
+            value={filters.origem ?? ""}
+            onChange={(v) => navigate({ origem: v || undefined })}
+            options={ORIGEM_OPTIONS}
           />
           {hasActiveFilters && (
             <div className="flex items-end">
@@ -349,6 +384,28 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
                   Retirado parcial
                 </span>
               ) : null}
+              {/* A canónica não leva badge: seria ruído em 22 mil linhas.
+                  O que precisa de sinal é a excepção. */}
+              {row.origemClassificacao === "PROVISORIA" && (
+                <span
+                  title={
+                    row.classificacaoConfianca !== null
+                      ? `Classificação deduzida, confiança ${row.classificacaoConfianca.toFixed(2)}`
+                      : "Classificação deduzida pelo modelo"
+                  }
+                  className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${ORIGEM_TONES.PROVISORIA}`}
+                >
+                  Provisória
+                </span>
+              )}
+              {row.interno && (
+                <span
+                  title="Código interno do ERP — taxa, serviço ou ato clínico. Não é produto de catálogo."
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                >
+                  Interno
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-slate-500">
               {[row.formaFarmaceutica, row.dosagem, row.embalagem]
@@ -464,5 +521,81 @@ function Pagination({
         Seguinte →
       </Link>
     </nav>
+  );
+}
+
+/**
+ * O KPI de classificação, com os códigos internos ao lado e não dentro.
+ *
+ * O número que estava a ser mostrado juntava duas populações diferentes:
+ * produtos de catálogo por classificar (um problema) e códigos internos
+ * do ERP (taxas, serviços, atos clínicos — que o pipeline exclui de
+ * propósito e para os quais não existe classificação nenhuma a dar).
+ *
+ * Na Silveira eram 2 392 + 1 123, mostrados como 3 515. Metade do
+ * problema aparente era o sistema a funcionar como projectado.
+ *
+ * Os internos continuam visíveis. Escondê-los seria trocar um número
+ * enganador por outro — existem, contam para o total do catálogo, e a
+ * linha por baixo é o que impede alguém de os procurar em vão.
+ */
+function ResumoCartoes({ resumo }: { resumo: ResumoClassificacao }) {
+  const n = (v: number) => v.toLocaleString("pt-PT");
+  const pct = (v: number) =>
+    resumo.catalogaveis > 0 ? `${((v / resumo.catalogaveis) * 100).toFixed(1)}%` : "—";
+
+  return (
+    <section className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+      <Cartao
+        titulo="Por classificar"
+        valor={n(resumo.porClassificar)}
+        detalhe={`+ ${n(resumo.internosPorClassificar)} códigos internos fora do âmbito`}
+        tom="text-amber-700"
+      />
+      <Cartao
+        titulo="Classificação específica"
+        valor={n(resumo.especificos)}
+        detalhe={`${pct(resumo.especificos)} dos ${n(resumo.catalogaveis)} catalogáveis`}
+        tom="text-emerald-700"
+      />
+      <Cartao
+        titulo="Só à família"
+        valor={n(resumo.emBalde)}
+        detalhe={'em "Outros …" — tem nível 1, falta o nível 2'}
+        tom="text-slate-700"
+      />
+      <Cartao
+        titulo="Provisórias"
+        valor={n(resumo.provisorios)}
+        detalhe={
+          resumo.provisorios > 0
+            ? "deduzidas pelo modelo — revisíveis e reversíveis"
+            : "nenhuma escrita por dedução"
+        }
+        tom="text-amber-700"
+      />
+    </section>
+  );
+}
+
+function Cartao({
+  titulo,
+  valor,
+  detalhe,
+  tom,
+}: {
+  titulo: string;
+  valor: string;
+  detalhe: string;
+  tom: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/70 bg-white/90 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
+        {titulo}
+      </div>
+      <div className={`mt-0.5 text-[26px] font-semibold tracking-tight ${tom}`}>{valor}</div>
+      <div className="text-[11px] leading-4 text-slate-500">{detalhe}</div>
+    </div>
   );
 }

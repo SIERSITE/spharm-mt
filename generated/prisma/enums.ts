@@ -39,6 +39,15 @@ export const ProdutoEstado = {
 export type ProdutoEstado = (typeof ProdutoEstado)[keyof typeof ProdutoEstado]
 
 
+export const ClassificacaoEstado = {
+  AUSENTE: 'AUSENTE',
+  PROVISORIA: 'PROVISORIA',
+  CANONICA: 'CANONICA'
+} as const
+
+export type ClassificacaoEstado = (typeof ClassificacaoEstado)[keyof typeof ClassificacaoEstado]
+
+
 export const ProdutoOrigemDados = {
   EXCEL: 'EXCEL',
   FARMACIA: 'FARMACIA',

@@ -53,6 +53,7 @@ import {
   FalhaInfraestrutura,
   classificarFalhaInfra,
   credencialConfigurada,
+  VERSAO_PROVISORIA,
 } from "./knowledge-enrichment";
 import {
   FATOR_CONFIANCA_PROPAGADA,
@@ -67,6 +68,11 @@ import {
   type Preselecao,
   type ProdutoPreselecao,
 } from "./preselection";
+import { escreverClassificacao } from "./escrita-classificacao";
+import {
+  enfileirarRevisaoClassificacao,
+  propostaAccionavel,
+} from "./fila-revisao-classificacao";
 import { lerConhecimentoGlobal, promoverAoGlobal } from "./global-catalog-store";
 import { globalResolveResidual, validarValorClinico } from "./global-catalog";
 import type {
@@ -76,8 +82,23 @@ import type {
   OrigemGlobal,
 } from "./global-catalog";
 
-/** Códigos internos da farmácia não entram no catálogo regulamentar. */
-export const MIN_CNP = 2_000_000;
+/**
+ * Códigos internos da farmácia não entram no catálogo regulamentar.
+ *
+ * RE-EXPORTAÇÃO, não uma segunda definição. Havia aqui uma constante
+ * própria com o mesmo valor e o operador trocado — este ficheiro filtrava
+ * `cnp >= MIN_CNP` e `lib/catalog-enrichment.ts` filtrava
+ * `cnp > MIN_CATALOGUABLE_CNP`. O produto de CNP exactamente 2 000 000
+ * era elegível para enriquecimento por um caminho e não-cataloguável pelo
+ * outro; a divergência nunca deu erro — deu duas contagens diferentes da
+ * mesma população, que é pior, porque não se anuncia.
+ *
+ * A regra única está em `cnp-catalogavel.ts`, com a justificação de qual
+ * das duas fronteiras é a certa (a documentada: 2 000 000 é INTERNO). O
+ * nome fica por compatibilidade com quem já o importa.
+ */
+export { MIN_CNP_CATALOGAVEL as MIN_CNP } from "./cnp-catalogavel";
+import { MIN_CNP_CATALOGAVEL as MIN_CNP } from "./cnp-catalogavel";
 
 /**
  * Lotes tratados em paralelo.
@@ -173,7 +194,7 @@ export function corpoResidual(estrato?: Estrato, apenasFila = false, comCursor =
       from "Produto" p
       left join "Classificacao" c1 on c1.id = p."classificacaoNivel1Id"
       left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
-     where p.cnp >= $1
+     where p.cnp > $1
        ${comCursor ? "and p.cnp > $5" : ""}
        and p."validadoManualmente" = false
        ${filtro}
@@ -447,6 +468,23 @@ export type RunnerResumo = {
   /** Uma entrada por estrato que correu. */
   metricasPorEstrato: MetricasEstrato[];
   categoriasEscritas: number;
+  /**
+   * Subconjunto de `categoriasEscritas`: as que foram escritas por
+   * deducao e ficaram marcadas PROVISORIA.
+   *
+   * Separado e nao somado: uma corrida que so' produza provisorias e uma
+   * que so' produza canonicas nao valem o mesmo, e um numero unico
+   * apagava a diferenca exactamente onde ela interessa.
+   */
+  categoriasProvisorias: number;
+  /** Entradas criadas em `FilaRevisao` — REVIEW com proposta accionavel. */
+  revisoesCriadas: number;
+  /**
+   * REVIEW que NAO gerou entrada humana por nao haver nada que uma pessoa
+   * possa decidir (DESCONHECIDO, par invalido). Contado para que a fila
+   * pequena nao se confunda com a fila esquecida.
+   */
+  revisoesSemProposta: number;
   productTypesEscritos: number;
   utilizacoesEscritas: number;
   /** ke-2.0 — campos clínicos gravados, um contador por campo. */
@@ -544,7 +582,7 @@ async function carregarContexto(prisma: PrismaClient): Promise<ProdutoPreselecao
        left join "Classificacao" c2 on c2.id = p."classificacaoNivel2Id"
        left join "ProdutoUtilizacao" pu on pu."produtoId" = p.id
        left join "Utilizacao" u on u.id = pu."utilizacaoId"
-      where p.cnp >= $1
+      where p.cnp > $1
       group by p.cnp, p.designacao, c1.nome, c2.nome`,
     MIN_CNP,
   );
@@ -699,7 +737,11 @@ export async function lerJanelaProcessavel(
   // garantia fica aqui e não na confiança de que assim seja: um cnp
   // repetido custaria uma classificação paga duas vezes.
   const vistos = new Set<number>();
-  let cursor = MIN_CNP - 1;
+  // Arranca NO limite e não abaixo dele: a fronteira passou a ser
+  // exclusiva (`cnp > $1`), portanto a primeira página já não pode
+  // conter o próprio valor. O `-1` funcionava por o filtro de base
+  // dominar, mas escrevia uma fronteira que não é a que vigora.
+  let cursor = MIN_CNP;
   let cnpsLidos = 0;
   let paginasLidas = 0;
   let jaConhecidosGlobal = 0;
@@ -1076,6 +1118,9 @@ export async function runKnowledgeEnrichment(
     anomalias: 0,
     metricasPorEstrato: [],
     categoriasEscritas: 0,
+    categoriasProvisorias: 0,
+    revisoesCriadas: 0,
+    revisoesSemProposta: 0,
     productTypesEscritos: 0,
     utilizacoesEscritas: 0,
     dciEscritas: 0,
@@ -1560,25 +1605,32 @@ export async function runKnowledgeEnrichment(
       const n1Id = n1PorNome.get(r.categoria.toUpperCase());
       const n2Id = n1Id ? n2PorChave.get(`${n1Id}::${r.subcategoria.toUpperCase()}`) : undefined;
       if (n1Id && n2Id) {
-        // A não-degradação está escrita outra vez aqui, no WHERE: mesmo
-        // que o estado tenha mudado entre o SELECT e agora, uma
-        // subcategoria específica não é sobreposta.
-        const n = await prisma.$executeRawUnsafe(
-          `update "Produto" p
-              set "classificacaoNivel1Id" = $1,
-                  "classificacaoNivel2Id" = $2,
-                  "dataAtualizacao"       = now()
-            where p.cnp = $3
-              and p."validadoManualmente" = false
-              and (p."classificacaoNivel2Id" is null
-                   or exists (select 1 from "Classificacao" c
-                               where c.id = p."classificacaoNivel2Id"
-                                 and c.nome ilike 'Outros %'))`,
+        // A não-degradação, a soberania do MANUAL e a regra de que só uma
+        // CANONICA corrige uma PROVISORIA vivem todas dentro de
+        // `escreverClassificacao` — um WHERE só, partilhado com o
+        // reprocessamento da cache. Estavam aqui em SQL solto, e uma
+        // segunda cópia dessa hierarquia divergiria em silêncio.
+        const j = await escreverClassificacao(prisma, {
+          cnp: p.cnp,
           n1Id,
           n2Id,
-          p.cnp,
-        );
-        if (Number(n) > 0) resumo.categoriasEscritas++;
+          n1Nome: r.categoria,
+          n2Nome: r.subcategoria,
+          estado: gate.provisorio ? "PROVISORIA" : "CANONICA",
+          // A propagação tem proveniência própria: o valor não é uma
+          // observação DESTE produto, é a conclusão sobre um irmão.
+          origem: gate.provisorio
+            ? "MODELO_PROVISORIO"
+            : fonte === FONTE_PROPAGADA
+            ? "MODELO_PROPAGADO"
+            : "MODELO",
+          confianca,
+          versao: gate.provisorio ? VERSAO_PROVISORIA : KNOWLEDGE_VERSION,
+        });
+        if (j) {
+          resumo.categoriasEscritas++;
+          if (gate.provisorio) resumo.categoriasProvisorias++;
+        }
       }
     }
 
@@ -1911,9 +1963,15 @@ export async function runKnowledgeEnrichment(
         m.anomalias++;
       }
 
-      const motivo = gate.decisao === "REVIEW" && exigeVerificacao && !comparacao.concorda
+      const motivoBase = gate.decisao === "REVIEW" && exigeVerificacao && !comparacao.concorda
         ? comparacao.motivo
         : gate.motivo;
+      // "fora do vocabulário" nao diz nada a quem le' a cache seis meses
+      // depois. `motivoPar` diz exactamente o par que o modelo propos e
+      // porque e' que a taxonomia nao o aceitou — e e' esse texto que
+      // distingue "o modelo falhou" de "a nossa taxonomia nao tem onde
+      // por isto", que e' a pergunta que interessa a seguir.
+      const motivo = r.motivoPar ? `${motivoBase} (${r.motivoPar})` : motivoBase;
 
       resumo.relatorio.push({
         cnp: r.cnp,
@@ -1958,6 +2016,36 @@ export async function runKnowledgeEnrichment(
       await escrever(r, p, gate, utilizacoesFinais, r.confidence, FONTE, "MODEL_INFERRED");
       juntarCandidato(r, p, gate, utilizacoesFinais, r.confidence, "MODELO");
       await gravarCache(prisma, r, p, gate.decisao === "APPLY", motivo, "CLAUDE", null);
+
+      // ── O REVIEW chega agora a uma pessoa ──────────────────────────
+      //
+      // Ate' aqui morria na linha acima: a cache guardava-o com
+      // `persistido=false` — um registo de supressao, cujo proposito
+      // escrito e' impedir que se volte a perguntar — e mais nada. O
+      // produto ficava por classificar E deixava de ser perguntado.
+      //
+      // So' entra o que uma pessoa possa decidir. Um DESCONHECIDO nao e'
+      // uma pergunta, e uma fila cheia deles e' uma fila que ninguem abre
+      // duas vezes.
+      if (gate.decisao === "REVIEW") {
+        if (propostaAccionavel(r)) {
+          const res = await enfileirarRevisaoClassificacao(prisma, {
+            cnp: r.cnp,
+            categoria: r.categoria as string,
+            subcategoria: r.subcategoria as string,
+            productType: r.productType,
+            confidence: r.confidence,
+            evidenceType: r.evidenceType,
+            rationale: r.rationale || null,
+            motivo,
+            chaveCache: chaveCache(r.cnp, p.designacao),
+            fonte: "knowledge-enrichment",
+          });
+          if (res === "criada") resumo.revisoesCriadas++;
+        } else {
+          resumo.revisoesSemProposta++;
+        }
+      }
 
       // ── DEPENDENTES SEM DECISÃO APROVEITÁVEL ─────────────────────
       //
@@ -2310,6 +2398,15 @@ async function gravarCache(
       productType: r.productType,
       categoria: r.categoria,
       subcategoria: r.subcategoria,
+      // O par TAL COMO VEIO, valido ou nao. Ate' aqui um par fora da
+      // taxonomia era anulado antes de chegar cá e a cache guardava
+      // `null` — indistinguivel de "o modelo nao respondeu". Era
+      // informacao ja' paga a desaparecer sem rasto.
+      //
+      // Nunca sao escritos em `Produto`: existem para auditoria e para o
+      // reprocessamento saber o que ha' para reavaliar.
+      categoriaBruta: r.categoriaBruta,
+      subcategoriaBruta: r.subcategoriaBruta,
       // Guardado como evidência de que o modelo entendeu o produto.
       // NUNCA escrito em Produto.formaFarmaceutica — ver CAMPOS_PROIBIDOS.
       forma: r.forma,
@@ -2333,6 +2430,16 @@ async function gravarCache(
       origem,
       propagadoDeCnp,
     },
-    update: { persistido, motivo: persistido ? null : motivo, origem, propagadoDeCnp },
+    update: {
+      persistido,
+      motivo: persistido ? null : motivo,
+      origem,
+      propagadoDeCnp,
+      // Actualizados tambem no update: uma linha gravada antes destes
+      // campos existirem tem-nos a `null`, e a passagem seguinte sobre o
+      // mesmo produto e' a oportunidade de os preencher.
+      categoriaBruta: r.categoriaBruta,
+      subcategoriaBruta: r.subcategoriaBruta,
+    },
   });
 }

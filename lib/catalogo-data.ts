@@ -1,5 +1,7 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
+import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
+import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
 import {
   Prisma,
   type ProdutoEstado,
@@ -58,6 +60,46 @@ export type CatalogoRow = {
   farmaciasCount: number;
   /** Estado canónico de retirado, agregado às farmácias do produto. */
   retiradoStatus: CatalogoRetiradoStatus;
+  /** MANUAL | CANONICA | PROVISORIA | AUSENTE — ver `origemClassificacao`. */
+  origemClassificacao: OrigemClassificacao;
+  /** Confiança da classificação, quando é conhecida. */
+  classificacaoConfianca: number | null;
+  /** Código interno do ERP (taxa, serviço, ato clínico) — não é catálogo. */
+  interno: boolean;
+};
+
+/**
+ * O KPI de classificação do catálogo, com os códigos internos SEPARADOS.
+ *
+ * Porque é que isto não é um número só: 1 123 dos 3 515 "Por Classificar"
+ * da Silveira eram códigos internos do ERP — taxas, serviços, atos
+ * clínicos. Não têm CNP nacional, não existem em fonte externa nenhuma, e
+ * não há classificação para lhes dar. Estavam a ser contados como falha de
+ * um pipeline que os exclui de propósito, e o KPI acusava um problema de
+ * 3 515 onde havia um de 2 392.
+ *
+ * Os dois números são sempre devolvidos juntos. Mostrar só o filtrado
+ * seria trocar um número enganador por outro: os códigos internos existem,
+ * contam para o total do catálogo, e simplesmente não são um problema de
+ * classificação.
+ */
+export type ResumoClassificacao = {
+  /** Todos os produtos não-inativos, internos incluídos. */
+  total: number;
+  /** Produtos de catálogo (CNP acima do limite). */
+  catalogaveis: number;
+  /** Códigos internos do ERP. Fora do âmbito da classificação. */
+  internos: number;
+  /** Catalogáveis sem nível 1 — o número que o KPI deve mostrar. */
+  porClassificar: number;
+  /** Catalogáveis num nível 2 "Outros X" — classificados só à família. */
+  emBalde: number;
+  /** Catalogáveis com nível 2 específico. */
+  especificos: number;
+  /** Dos específicos, quantos são provisórios (escritos por dedução). */
+  provisorios: number;
+  /** Internos que também não têm nível 1 — a fatia que saiu do KPI. */
+  internosPorClassificar: number;
 };
 
 export type CatalogoListFilters = {
@@ -67,9 +109,31 @@ export type CatalogoListFilters = {
   classificacaoN1Id?: string;
   verificationStatus?: VerificationStatus;
   estado?: ProdutoEstado;
+  /**
+   * Origem da classificação — MANUAL | CANONICA | PROVISORIA | AUSENTE.
+   *
+   * MANUAL não é um valor de `classificacaoEstado` na base (é
+   * `validadoManualmente`), portanto este filtro não se traduz num
+   * `where` de um campo só. A tradução está em `whereOrigem` abaixo, num
+   * sítio, para o filtro da UI e o KPI não poderem divergir.
+   */
+  origem?: OrigemClassificacao;
   page: number;
   pageSize: number;
 };
+
+/**
+ * O filtro de origem em `Prisma.ProdutoWhereInput`.
+ *
+ * MANUAL ganha a tudo — é a mesma precedência de `origemClassificacao()`
+ * e a mesma que o SQL de escrita aplica. Por isso os outros três excluem
+ * explicitamente `validadoManualmente`: sem isso, um produto validado por
+ * uma pessoa aparecia em "Provisória" só porque o campo antigo ficou lá.
+ */
+export function whereOrigem(o: OrigemClassificacao): Prisma.ProdutoWhereInput {
+  if (o === "MANUAL") return { validadoManualmente: true };
+  return { validadoManualmente: false, classificacaoEstado: o };
+}
 
 export type CatalogoListData = {
   rows: CatalogoRow[];
@@ -77,6 +141,8 @@ export type CatalogoListData = {
   page: number;
   pageSize: number;
   totalPages: number;
+  /** Sempre sobre o catálogo INTEIRO — não sobre a página nem o filtro. */
+  resumo: ResumoClassificacao;
 };
 
 export type CatalogoFilterOptions = {
@@ -131,6 +197,7 @@ export async function loadCatalogoListData(
   if (filters.productType) where.productType = filters.productType;
   if (filters.classificacaoN1Id) where.classificacaoNivel1Id = filters.classificacaoN1Id;
   if (filters.verificationStatus) where.verificationStatus = filters.verificationStatus;
+  if (filters.origem) Object.assign(where, whereOrigem(filters.origem));
 
   if (filters.search && filters.search.trim().length > 0) {
     const q = filters.search.trim();
@@ -146,7 +213,7 @@ export async function loadCatalogoListData(
     where.OR = ors;
   }
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, resumo] = await Promise.all([
     prisma.produto.count({ where }),
     prisma.produto.findMany({
       where,
@@ -163,6 +230,9 @@ export async function loadCatalogoListData(
         dosagem: true,
         embalagem: true,
         estado: true,
+        classificacaoEstado: true,
+        classificacaoConfianca: true,
+        validadoManualmente: true,
         fabricante: { select: { nomeNormalizado: true } },
         classificacaoNivel1: { select: { nome: true } },
         classificacaoNivel2: { select: { nome: true } },
@@ -174,6 +244,10 @@ export async function loadCatalogoListData(
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
+    // Em paralelo com a página: é uma agregação sobre a tabela inteira e
+    // não depende dos filtros, portanto não há razão para a serializar
+    // atrás da listagem.
+    loadResumoClassificacao(),
   ]);
 
   const list: CatalogoRow[] = rows.map((p) => {
@@ -214,6 +288,9 @@ export async function loadCatalogoListData(
       pvpMin,
       farmaciasCount,
       retiradoStatus,
+      origemClassificacao: origemClassificacao(p),
+      classificacaoConfianca: p.classificacaoConfianca,
+      interno: p.cnp <= MIN_CNP_CATALOGAVEL,
     };
   });
 
@@ -223,6 +300,55 @@ export async function loadCatalogoListData(
     page,
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    resumo,
+  };
+}
+
+/**
+ * O resumo de classificação do catálogo inteiro.
+ *
+ * DELIBERADAMENTE indiferente aos filtros da listagem: é um indicador do
+ * estado do catálogo, não da página que está aberta. Um KPI que mudasse
+ * com o filtro deixaria de ser comparável de uma visita para a outra.
+ *
+ * Uma query só, com agregação condicional. Sete `count()` separados
+ * dariam o mesmo — e sete varrimentos da tabela para responder a uma
+ * pergunta que cabe num.
+ */
+export async function loadResumoClassificacao(): Promise<ResumoClassificacao> {
+  const prisma = await getPrisma();
+  const [r] = await prisma.$queryRaw<Array<Record<string, bigint>>>(Prisma.sql`
+    SELECT
+      count(*)                                                      AS total,
+      count(*) FILTER (WHERE p.cnp >  ${MIN_CNP_CATALOGAVEL})       AS catalogaveis,
+      count(*) FILTER (WHERE p.cnp <= ${MIN_CNP_CATALOGAVEL})       AS internos,
+      count(*) FILTER (WHERE p.cnp >  ${MIN_CNP_CATALOGAVEL}
+                         AND p."classificacaoNivel1Id" IS NULL)     AS "porClassificar",
+      count(*) FILTER (WHERE p.cnp >  ${MIN_CNP_CATALOGAVEL}
+                         AND p."classificacaoNivel1Id" IS NOT NULL
+                         AND c2.nome ILIKE 'Outros %')              AS "emBalde",
+      count(*) FILTER (WHERE p.cnp >  ${MIN_CNP_CATALOGAVEL}
+                         AND p."classificacaoNivel1Id" IS NOT NULL
+                         AND (c2.nome IS NULL OR c2.nome NOT ILIKE 'Outros %'))
+                                                                    AS especificos,
+      count(*) FILTER (WHERE p.cnp >  ${MIN_CNP_CATALOGAVEL}
+                         AND p."classificacaoEstado" = 'PROVISORIA') AS provisorios,
+      count(*) FILTER (WHERE p.cnp <= ${MIN_CNP_CATALOGAVEL}
+                         AND p."classificacaoNivel1Id" IS NULL)     AS "internosPorClassificar"
+      FROM "Produto" p
+      LEFT JOIN "Classificacao" c2 ON c2.id = p."classificacaoNivel2Id"
+     WHERE p.estado <> 'INATIVO'
+  `);
+  const n = (k: string): number => Number(r?.[k] ?? 0);
+  return {
+    total: n("total"),
+    catalogaveis: n("catalogaveis"),
+    internos: n("internos"),
+    porClassificar: n("porClassificar"),
+    emBalde: n("emBalde"),
+    especificos: n("especificos"),
+    provisorios: n("provisorios"),
+    internosPorClassificar: n("internosPorClassificar"),
   };
 }
 
@@ -260,6 +386,24 @@ export type CatalogoArticle = {
   manualReviewReason: string | null;
   classificationSource: string | null;
   classificationVersion: string | null;
+  /**
+   * Proveniência da CLASSIFICAÇÃO (N1/N2), que não é a mesma coisa que
+   * `classificationSource` — esse descreve o `productType`. Eram dois
+   * eixos a partilhar um campo, e por isso nenhum dos dois era legível.
+   */
+  origemClassificacao: OrigemClassificacao;
+  classificacaoOrigem: string | null;
+  classificacaoConfianca: number | null;
+  classificacaoVersao: string | null;
+  /**
+   * O raciocínio do modelo, quando existe linha de cache para este CNP.
+   *
+   * É o que torna uma classificação provisória auditável por quem a vê:
+   * sem o rationale, "provisória, 0,87" não diz a ninguém se aceitar ou
+   * corrigir. Vem da cache e nunca de `Produto` — não é um facto sobre o
+   * produto, é o que o modelo disse a certa altura.
+   */
+  rationaleModelo: string | null;
   externallyVerified: boolean;
   origemDados: string;
   estado: ProdutoEstado;
@@ -280,6 +424,8 @@ export type CatalogoArticle = {
   presencas: CatalogoArticlePresenca[];
   /** Agregação canónica de retirado sobre as presenças. */
   retiradoStatus: CatalogoRetiradoStatus;
+  /** Código interno do ERP — fora do âmbito da classificação. */
+  interno: boolean;
 };
 
 export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle | null> {
@@ -315,6 +461,19 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
   });
   if (!p) return null;
 
+  // O raciocínio do modelo vive na cache, não no produto. Uma query
+  // separada e não um `include`: `KnowledgeEnrichmentCache` não tem
+  // relação declarada com `Produto` (a chave é o CNP, de propósito —
+  // sobrevive a um produto ser recriado), e uma linha por CNP é barata.
+  //
+  // `ORDER BY criadoEm DESC LIMIT 1`: podem existir várias versões da
+  // mesma pergunta. A que interessa a quem vê a ficha é a última.
+  const cache = await prisma.knowledgeEnrichmentCache.findFirst({
+    where: { cnp },
+    orderBy: { criadoEm: "desc" },
+    select: { rationale: true },
+  });
+
   return {
     id: p.id,
     cnp: p.cnp,
@@ -336,6 +495,11 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     manualReviewReason: p.manualReviewReason,
     classificationSource: p.classificationSource,
     classificationVersion: p.classificationVersion,
+    origemClassificacao: origemClassificacao(p),
+    classificacaoOrigem: p.classificacaoOrigem,
+    classificacaoConfianca: p.classificacaoConfianca,
+    classificacaoVersao: p.classificacaoVersao,
+    rationaleModelo: cache?.rationale ?? null,
     externallyVerified: p.externallyVerified,
     origemDados: p.origemDados,
     estado: p.estado,
@@ -362,6 +526,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
       flagRetirado: pf.flagRetirado,
     })),
     retiradoStatus: aggregateRetiradoStatus(p.produtosFarmacia),
+    interno: p.cnp <= MIN_CNP_CATALOGAVEL,
   };
 }
 

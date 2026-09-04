@@ -12,6 +12,7 @@ import type {
   ProdutoEstado,
   VerificationStatus,
 } from "@/generated/prisma/client";
+import type { OrigemClassificacao } from "@/lib/categoria-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ const VALID_VERIFICATION: VerificationStatus[] = [
   "FAILED",
   "NEEDS_REVIEW",
 ];
+
+const VALID_ORIGENS = new Set(["MANUAL", "CANONICA", "PROVISORIA", "AUSENTE"]);
 
 const VALID_PRODUCT_TYPES = new Set([
   "MEDICAMENTO",
@@ -65,6 +68,12 @@ function parseFilters(
       ? (verifStr as VerificationStatus)
       : undefined;
 
+  const origemStr = asString(sp.origem);
+  const origem =
+    origemStr && VALID_ORIGENS.has(origemStr)
+      ? (origemStr as OrigemClassificacao)
+      : undefined;
+
   const tipoStr = asString(sp.tipo);
   const productType =
     tipoStr && VALID_PRODUCT_TYPES.has(tipoStr) ? tipoStr : undefined;
@@ -76,6 +85,7 @@ function parseFilters(
     productType,
     verificationStatus,
     estado,
+    origem,
     page: clampPage(Number(asString(sp.page) ?? 1)),
     pageSize: clampPageSize(Number(asString(sp.pageSize) ?? DEFAULT_PAGE_SIZE)),
   };

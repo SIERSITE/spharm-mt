@@ -367,6 +367,7 @@ export const LIMIAR_CLINICO = 0.9;
 export { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
 import { ATC_COMPLETO, DCI_PLAUSIVEL } from "./clinica-validacao";
 import { construirVocabularioFormas, ehFormaCanonica, normalizarForma } from "./formas-farmaceuticas";
+import { contradicaoForte, ehBalde } from "./classificacao-coerencia";
 
 /**
  * Produtos por chamada. 25 mantém o pedido pequeno o suficiente para o
@@ -440,6 +441,19 @@ export type KnowledgeResult = {
   confidenceClinica: number;
   evidenceType: EvidenceType;
   rationale: string;
+  /**
+   * O par que o modelo REALMENTE devolveu, antes da validacao.
+   *
+   * `categoria`/`subcategoria` acima so' sobrevivem em par valido; um par
+   * fora da taxonomia era anulado e nao deixava rasto, o que tornava
+   * indistinguivel "o modelo nao respondeu" de "o modelo respondeu e a
+   * nossa taxonomia nao tem onde por". Estes dois campos guardam a
+   * resposta tal como veio — e NUNCA sao escritos em `Produto`.
+   */
+  categoriaBruta: string | null;
+  subcategoriaBruta: string | null;
+  /** Porque e' que o par nao sobreviveu, quando nao sobreviveu. */
+  motivoPar: string | null;
   /** Que pergunta deu origem a este resultado. */
   alvo?: AlvoPedido;
   /**
@@ -569,7 +583,7 @@ export function alvoParaProduto(atual: {
   /** Ausente = desconhecido, e o alvo não muda. Presente e nulo = falta. */
   forma?: string | null;
 }): AlvoPedido {
-  const especifica = !!atual.subcategoria && !/^outros\b/i.test(atual.subcategoria);
+  const especifica = !!atual.subcategoria && !ehBalde(atual.subcategoria);
   if (!especifica) return "CLASSIFICACAO";
   // A forma vem antes das utilizações porque é o campo que fecha a
   // definição de completo (categoria + subcategoria + forma). Um produto
@@ -781,6 +795,12 @@ export function validarResultadoUtilizacoes(
     confidenceClinica: 0,
     evidenceType,
     rationale: typeof r.rationale === "string" ? r.rationale.trim().slice(0, 400) : "",
+    // O pedido de utilizacoes nao propoe par nenhum. `sugestaoCategoria`
+    // e' outra coisa: um nivel 1 para detectar discordancia, nunca um
+    // candidato a escrita.
+    categoriaBruta: null,
+    subcategoriaBruta: null,
+    motivoPar: null,
     alvo: "UTILIZACOES",
     sugestaoCategoria,
   };
@@ -830,13 +850,28 @@ export function validarResultado(
 
   // Categoria e subcategoria só sobrevivem em par válido. Uma categoria
   // sem subcategoria filha não serve para nada a jusante.
+  //
+  // O que MUDOU: o par cru sobrevive sempre, em `categoriaBruta`/
+  // `subcategoriaBruta`, e a razão da recusa fica escrita. Continua a não
+  // ser corrigido nem aproximado — a disciplina de rejeitar em vez de
+  // inventar mantém-se intacta. O que deixa de acontecer é a resposta
+  // desaparecer: era informação já paga a virar `null` sem rasto, e sem
+  // ela não se consegue distinguir um modelo que falhou de uma taxonomia
+  // que não tem onde pôr o produto.
   let categoria: string | null = null;
   let subcategoria: string | null = null;
+  let motivoPar: string | null = null;
   const cat = typeof r.categoria === "string" ? r.categoria.trim() : "";
   const sub = typeof r.subcategoria === "string" ? r.subcategoria.trim() : "";
   if (cat && sub && isValidNivel2(cat, sub)) {
     categoria = cat;
     subcategoria = sub;
+  } else if (cat || sub) {
+    motivoPar = !cat
+      ? `par incompleto: subcategoria "${sub}" sem categoria`
+      : !sub
+      ? `par incompleto: categoria "${cat}" sem subcategoria`
+      : `par fora da taxonomia: "${cat}" > "${sub}"`;
   }
 
   const utilizacoes = Array.isArray(r.utilizacoes)
@@ -897,6 +932,9 @@ export function validarResultado(
     confidenceClinica: Math.max(0, Math.min(1, confClinicaBruta)),
     evidenceType,
     rationale,
+    categoriaBruta: cat || null,
+    subcategoriaBruta: sub || null,
+    motivoPar,
   };
 }
 
@@ -1194,6 +1232,9 @@ export function validarResultadoForma(
     // Vazio e nao uma frase: o pedido de forma nao pede rationale, e
     // inventar aqui um texto seria descrever um raciocinio que ninguem fez.
     rationale: "",
+    categoriaBruta: null,
+    subcategoriaBruta: null,
+    motivoPar: null,
     alvo: "FORMA",
   };
 }
@@ -1265,6 +1306,48 @@ export const EVIDENCIA_PERMITIDA: ReadonlySet<EvidenceType> = new Set<EvidenceTy
 ]);
 
 /**
+ * A SEGUNDA porta — mais estreita em tudo menos na evidência.
+ *
+ * O argumento acima continua de pé e `EVIDENCIA_PERMITIDA` não se toca. O
+ * que a medição mostrou é que ele assenta em duas premissas que não valem
+ * para esta população:
+ *
+ *   «as regras determinísticas já fazem melhor» — para os 1 577 produtos
+ *   em causa as regras não fizeram melhor: não fizeram NADA. São produtos
+ *   por classificar. A alternativa à dedução não é a resposta das regras,
+ *   é a ausência de resposta.
+ *
+ *   «vai para revisão» — não ia. O REVIEW era gravado em
+ *   `KnowledgeEnrichmentCache` com `persistido=false` e mais nada, e o
+ *   propósito escrito desse registo é impedir que se volte a perguntar.
+ *   Era um registo de supressão, não uma fila. (Nesta revisão passa a
+ *   alimentar `FilaRevisao` — ver o runner.)
+ *
+ * A conclusão não é que o gate estava errado: é que faltava um terceiro
+ * estado entre "escrever como facto" e "não escrever". Uma dedução com
+ * par válido, subcategoria específica e sem contradição regulamentar vale
+ * mais que a ausência — desde que se saiba que é uma dedução, se possa
+ * filtrar por isso, e se possa desfazer.
+ *
+ * É isso que `PROVISORIA` é. A marca é o que torna 0,85 aceitável aqui:
+ * não se está a baixar a barra da verdade, está a criar-se um sítio para
+ * o que não é verdade nem é nada.
+ */
+export const EVIDENCIA_PROVISORIA: ReadonlySet<EvidenceType> = new Set<EvidenceType>([
+  "CATEGORIA_PRODUTO",
+]);
+
+/**
+ * Carimbo de `Produto.classificacaoVersao` nas escritas provisórias.
+ *
+ * Distinto de `KNOWLEDGE_VERSION` ("ke-2.0") de propósito: o rollback
+ * primário é o journal, mas esta marca dá um segundo caminho — saber
+ * exactamente que linhas nasceram desta política, sem depender de um
+ * ficheiro.
+ */
+export const VERSAO_PROVISORIA = "ke-2.1";
+
+/**
  * Grupos do vocabulário em que uma associação errada manda alguém à
  * prateleira errada com um problema de saúde. Só "Bem-estar e prevenção"
  * fica de fora — vitaminas, sono e energia falham mais barato.
@@ -1293,10 +1376,37 @@ export type Criterios = {
   confianca: boolean;
   /** Passou a segunda passagem (ou não precisava dela). */
   verificado: boolean;
+  /**
+   * A subcategoria proposta é específica — não é um "Outros X".
+   *
+   * SÓ pesa no ramo provisório. Aplicá-lo ao canónico mudaria
+   * comportamento existente: hoje um produto SEM subcategoria com uma
+   * proposta "Outros X" recebe APPLY (o SKIP de "proposta também é
+   * fallback" só dispara quando já existe subcategoria). Esse caminho
+   * fica exactamente como está.
+   */
+  especifica: boolean;
+  /**
+   * O nível 1 proposto não troca o estatuto regulamentar do produto.
+   * Também só pesa no ramo provisório, pela mesma razão.
+   */
+  tipoCoerente: boolean;
 };
 
 export type DecisaoEscrita = {
   decisao: Decisao;
+  /**
+   * APPLY por DEDUÇÃO: escreve-se, marcada `PROVISORIA`.
+   *
+   * Porque não um quarto valor `APPLY_PROVISORIO` em `Decisao`: há
+   * dezenas de sítios a comparar `decisao !== "APPLY"` — a guarda à porta
+   * de `escrever()`, o `persistido` de `gravarCache`, o fecho da
+   * `EnriquecimentoFila`, a propagação. Um valor novo obriga a auditar
+   * todos, e cada um que escape falha em silêncio a favor de não
+   * escrever. Um campo à parte deixa todo esse código correcto sem lhe
+   * tocar, e só quem precisa de saber é que pergunta.
+   */
+  provisorio: boolean;
   /** O que foi pedido — e portanto o que pode ser escrito. */
   alvo: AlvoPedido;
   criterios: Criterios;
@@ -1358,8 +1468,12 @@ export function avaliarGate(
   },
   verificacao: { concorda: boolean; aplicavel: boolean } = { concorda: true, aplicavel: false },
 ): DecisaoEscrita {
-  const eraFallback = !atual.subcategoria || /^outros\b/i.test(atual.subcategoria);
-  const novoEspecifico = !!r.subcategoria && !/^outros\b/i.test(r.subcategoria);
+  // `ehBalde` e a definicao unica de "Outros X" — a mesma que o
+  // diagnostico usa para simular esta politica. Estava aqui duas vezes
+  // como regex solta, e uma simulacao com uma copia diferente produz um
+  // numero que a escrita depois nao reproduz.
+  const eraFallback = !atual.subcategoria || ehBalde(atual.subcategoria);
+  const novoEspecifico = !!r.subcategoria && !ehBalde(r.subcategoria);
   const alvo: AlvoPedido = alvoParaProduto(atual);
 
   const criterios: Criterios = {
@@ -1395,6 +1509,12 @@ export function avaliarGate(
         ? r.confidenceClinica >= LIMIAR_CLINICO
         : r.confidence >= LIMIAR_PERSISTENCIA,
     verificado: verificacao.concorda,
+    // Medidos SEMPRE — são reportados no relatório e nos diagnósticos —
+    // mas só CONSULTADOS pelo ramo provisório. Medir sem usar é o que
+    // permite ver, no dry-run, quanto é que cada um corta antes de
+    // qualquer escrita depender deles.
+    especifica: novoEspecifico,
+    tipoCoerente: !contradicaoForte(atual.productType ?? r.productType, r.categoria),
   };
 
   const utilizacoes = criterios.evidencia && criterios.confianca && criterios.verificado
@@ -1404,6 +1524,7 @@ export function avaliarGate(
   const base = {
     alvo,
     criterios,
+    provisorio: false,
     gravarCategoria: false,
     gravarProductType: false,
     utilizacoes: [] as string[],
@@ -1496,6 +1617,45 @@ export function avaliarGate(
   if (!criterios.evidencia) falhas.push(`evidência ${r.evidenceType} não autoriza escrita`);
   if (!criterios.confianca) falhas.push(`confiança ${r.confidence.toFixed(2)} < ${LIMIAR_PERSISTENCIA}`);
   if (!criterios.verificado) falhas.push("verificador discordou da proposta");
+
+  // ── A segunda porta: escrita PROVISÓRIA ─────────────────────────────
+  //
+  // Chega aqui quem falhou o gate canónico. A única falha que se admite é
+  // a da evidência, e só quando é exactamente `CATEGORIA_PRODUTO`: tudo o
+  // resto — vocabulário, conflito, confiança, verificação — tem de ter
+  // passado, e ainda se exigem os dois critérios extra.
+  //
+  // É por construção um ramo ADITIVO: só corre depois de `falhas` estar
+  // preenchida, e só sobre casos que hoje devolvem REVIEW. Nenhum APPLY
+  // canónico muda, nenhum SKIP muda. É esse o invariante que os testes
+  // fecham, e é o que torna esta alteração segura de aplicar de uma vez.
+  const soFalhaEvidencia = falhas.length === 1 && !criterios.evidencia;
+  if (
+    soFalhaEvidencia &&
+    EVIDENCIA_PROVISORIA.has(r.evidenceType) &&
+    criterios.especifica &&
+    criterios.tipoCoerente
+  ) {
+    return {
+      ...base,
+      decisao: "APPLY",
+      provisorio: true,
+      gravarCategoria: true,
+      // O productType NÃO é escrito por dedução.
+      //
+      // A classificação provisória é reversível e está marcada; o
+      // productType não tem estado provisório nenhum, e uma vez escrito
+      // passa a alimentar o classificador, o mapper e a própria
+      // `contradicaoForte`. Uma dedução a decidir o critério que valida
+      // deduções seguintes é um circuito que se fecha sobre si próprio.
+      gravarProductType: false,
+      // Vazio, e nao por acidente: `utilizacoes` acima exige
+      // `criterios.evidencia`, que e precisamente o que falhou. Uma
+      // deducao nao carimba utilizacoes clinicas.
+      utilizacoes,
+      motivo: `provisória (${r.evidenceType}, ${r.confidence.toFixed(2)})`,
+    };
+  }
 
   if (falhas.length > 0) {
     return { ...base, decisao: "REVIEW", motivo: falhas.join("; ") };

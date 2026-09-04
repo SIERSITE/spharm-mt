@@ -39,7 +39,9 @@ import {
   REGRAS_TEXTO,
 } from "../../lib/catalog/utilizacoes-regras";
 
-const MIN_CNP = 2_000_000;
+// Regra única — ver lib/catalog/cnp-catalogavel.ts. Era aqui uma
+// cópia local com o mesmo valor; uma cópia é uma divergência à espera.
+import { MIN_CNP_CATALOGAVEL as MIN_CNP } from "../../lib/catalog/cnp-catalogavel";
 const FONTE = "REGRA";
 
 type ProdutoRow = {

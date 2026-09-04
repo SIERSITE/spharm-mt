@@ -113,3 +113,61 @@ export function resolveCategoria(src: CategoriaSources): ResolvedCategoria {
     needsClassification: false,
   };
 }
+
+// ─── Proveniência da classificação ────────────────────────────────────
+
+/**
+ * De onde veio a classificação, e com que autoridade.
+ *
+ * Composto de propósito a partir de DOIS campos:
+ *
+ *   · `validadoManualmente` — que já era a verdade do MANUAL antes de
+ *     isto existir e continua a sê-lo;
+ *   · `classificacaoEstado`  — AUSENTE | PROVISORIA | CANONICA.
+ *
+ * MANUAL não é um valor do enum na base. A tentação era pô-lo lá e ter um
+ * campo só, mas isso criava a mesma verdade em dois sítios — e duas
+ * cópias de uma verdade é a garantia de que um dia discordam, com um
+ * produto validado por uma pessoa a aparecer como automático porque
+ * alguém actualizou um campo e não o outro.
+ *
+ * Aqui a precedência está escrita uma vez, e é a mesma que o SQL de
+ * escrita aplica:
+ *
+ *      MANUAL > CANONICA > PROVISORIA > AUSENTE
+ */
+export type OrigemClassificacao = "MANUAL" | "CANONICA" | "PROVISORIA" | "AUSENTE";
+
+export type ProvenienciaSources = {
+  validadoManualmente?: boolean | null;
+  classificacaoEstado?: OrigemClassificacao | string | null;
+};
+
+export function origemClassificacao(p: ProvenienciaSources): OrigemClassificacao {
+  if (p.validadoManualmente) return "MANUAL";
+  const e = p.classificacaoEstado;
+  if (e === "CANONICA" || e === "PROVISORIA") return e;
+  // Inclui `null`/`undefined`: uma linha lida sem o campo não é
+  // classificada como canónica por omissão. O optimismo por omissão
+  // aqui daria um badge "canónica" a um produto sobre o qual não se
+  // perguntou nada.
+  return "AUSENTE";
+}
+
+/** Rótulo curto para a UI. */
+export const ROTULO_ORIGEM: Readonly<Record<OrigemClassificacao, string>> = Object.freeze({
+  MANUAL: "Validada",
+  CANONICA: "Canónica",
+  PROVISORIA: "Provisória",
+  AUSENTE: "Por classificar",
+});
+
+/**
+ * A classificação conta como CLASSIFICADA nos relatórios?
+ *
+ * Uma provisória conta — é esse o ponto de a escrever. O que ela não é é
+ * definitiva, e é isso que o badge diz.
+ */
+export function contaComoClassificado(o: OrigemClassificacao): boolean {
+  return o !== "AUSENTE";
+}

@@ -4069,6 +4069,10 @@ export const ProdutoScalarFieldEnum = {
   productTypeConfidence: 'productTypeConfidence',
   classificationSource: 'classificationSource',
   classificationVersion: 'classificationVersion',
+  classificacaoEstado: 'classificacaoEstado',
+  classificacaoOrigem: 'classificacaoOrigem',
+  classificacaoConfianca: 'classificacaoConfianca',
+  classificacaoVersao: 'classificacaoVersao',
   verificationStatus: 'verificationStatus',
   lastVerifiedAt: 'lastVerifiedAt',
   lastVerificationAttemptAt: 'lastVerificationAttemptAt',
@@ -4966,6 +4970,10 @@ export const KnowledgeEnrichmentCacheScalarFieldEnum = {
   dosagem: 'dosagem',
   embalagem: 'embalagem',
   confidenceClinica: 'confidenceClinica',
+  categoriaBruta: 'categoriaBruta',
+  subcategoriaBruta: 'subcategoriaBruta',
+  reavaliadoEm: 'reavaliadoEm',
+  reavaliadoVersao: 'reavaliadoVersao',
   persistido: 'persistido',
   motivo: 'motivo',
   origem: 'origem',
@@ -5104,6 +5112,20 @@ export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, '
  * Reference to a field of type 'Float[]'
  */
 export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
+    
+
+
+/**
+ * Reference to a field of type 'ClassificacaoEstado'
+ */
+export type EnumClassificacaoEstadoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ClassificacaoEstado'>
+    
+
+
+/**
+ * Reference to a field of type 'ClassificacaoEstado[]'
+ */
+export type ListEnumClassificacaoEstadoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ClassificacaoEstado[]'>
     
 
 

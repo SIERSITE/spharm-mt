@@ -32,6 +32,27 @@ enum ProdutoEstado {
   INATIVO
 }
 
+/// De onde veio a classificação N1/N2 de um produto, e com que autoridade.
+///
+/// Distinto de `classificationSource`, que descreve o `productType` e não
+/// a classificação — ATC_CODE, FLAG_MSRM, TEXT_PATTERN. Eram dois eixos
+/// a partilhar um campo, e por isso nenhum dos dois era legível.
+///
+/// MANUAL não está aqui de propósito: `validadoManualmente` já é essa
+/// verdade, e a mesma verdade em dois campos é a garantia de que um dia
+/// discordam. O estado apresentado é composto — ver `origemClassificacao()`
+/// em lib/categoria-resolver.ts.
+enum ClassificacaoEstado {
+  /// Sem nível 1 nem nível 2.
+  AUSENTE
+  /// Escrita por dedução do modelo (evidenceType = CATEGORIA_PRODUTO).
+  /// Marcada, reversível pelo journal, e substituível por CANONICA.
+  PROVISORIA
+  /// Regra determinística, marca/substância reconhecida, ERP, catálogo
+  /// global — ou tudo o que já lá estava antes desta distinção existir.
+  CANONICA
+}
+
 enum ProdutoOrigemDados {
   EXCEL
   FARMACIA
@@ -309,6 +330,17 @@ model Produto {
   productTypeConfidence     Float?
   classificationSource      String?
   classificationVersion     String?
+  /// Autoridade da classificação N1/N2. Ver `ClassificacaoEstado`.
+  classificacaoEstado       ClassificacaoEstado @default(AUSENTE)
+  /// Proveniência legível: REGRA | MODELO | MODELO_PROVISORIO |
+  /// MODELO_PROPAGADO | ERP | GLOBAL | MANUAL | PRE_PROVENIENCIA.
+  ///
+  /// Texto e não enum: é campo de auditoria, e um valor novo não deve
+  /// custar uma migração. O que a aplicação DECIDE está no enum acima.
+  classificacaoOrigem       String?
+  classificacaoConfianca    Float?
+  /// Versão do processo que escreveu — "ke-2.1" para as provisórias.
+  classificacaoVersao       String?
   verificationStatus        VerificationStatus @default(PENDING)
   lastVerifiedAt            DateTime?
   lastVerificationAttemptAt DateTime?
@@ -345,6 +377,7 @@ model Produto {
   @@index([classificacaoNivel2Id])
   @@index([estado])
   @@index([verificationStatus])
+  @@index([classificacaoEstado])
   @@index([productType])
   @@index([lastVerifiedAt])
   @@index([externalProductId])
@@ -2310,6 +2343,24 @@ model KnowledgeEnrichmentCache {
   /// Confiança nos campos clínicos, distinta de `confidence`.
   confidenceClinica Float?
 
+  /// O que o modelo REALMENTE respondeu, antes de `isValidNivel2`.
+  ///
+  /// `categoria`/`subcategoria` acima só sobrevivem em par válido: um par
+  /// que a taxonomia não tem era anulado em silêncio e a cache guardava
+  /// `null`, indistinguível de "o modelo não respondeu". Perdia-se
+  /// exactamente o sinal que diz se o problema é do modelo ou da nossa
+  /// taxonomia — e como a resposta já estava paga, perdia-se pago.
+  ///
+  /// Guardados SEMPRE, válidos ou não. Nunca são escritos em `Produto`.
+  categoriaBruta    String?
+  subcategoriaBruta String?
+
+  /// Quando esta linha foi reavaliada por uma política posterior, e por
+  /// que versão. É o que torna o reprocessamento idempotente e retomável:
+  /// uma corrida interrompida a meio sabe onde ficou.
+  reavaliadoEm      DateTime?
+  reavaliadoVersao  String?
+
   /// Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
   /// não soube" de "o modelo soube e nós recusámos" na hora de explicar
   /// uma cobertura que não subiu.
@@ -2330,4 +2381,5 @@ model KnowledgeEnrichmentCache {
   @@index([cnp])
   @@index([versao, evidenceType])
   @@index([persistido])
+  @@index([reavaliadoVersao])
 }

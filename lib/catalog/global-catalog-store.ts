@@ -466,7 +466,9 @@ export async function lerCandidatosDoTenant(
   opts: OpcoesLeituraCandidatos,
 ): Promise<LeituraCandidatos> {
   const params: unknown[] = [opts.minCnp];
-  const filtros = [`p.cnp >= $1`];
+  // `>` e nao `>=`: a mesma fronteira do resto do pipeline. Ver
+  // lib/catalog/cnp-catalogavel.ts.
+  const filtros = [`p.cnp > $1`];
 
   if (opts.cnps && opts.cnps.length > 0) {
     params.push([...opts.cnps]);

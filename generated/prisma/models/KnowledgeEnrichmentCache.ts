@@ -74,6 +74,10 @@ export type KnowledgeEnrichmentCacheMinAggregateOutputType = {
   dosagem: string | null
   embalagem: string | null
   confidenceClinica: number | null
+  categoriaBruta: string | null
+  subcategoriaBruta: string | null
+  reavaliadoEm: Date | null
+  reavaliadoVersao: string | null
   persistido: boolean | null
   motivo: string | null
   origem: string | null
@@ -99,6 +103,10 @@ export type KnowledgeEnrichmentCacheMaxAggregateOutputType = {
   dosagem: string | null
   embalagem: string | null
   confidenceClinica: number | null
+  categoriaBruta: string | null
+  subcategoriaBruta: string | null
+  reavaliadoEm: Date | null
+  reavaliadoVersao: string | null
   persistido: boolean | null
   motivo: string | null
   origem: string | null
@@ -125,6 +133,10 @@ export type KnowledgeEnrichmentCacheCountAggregateOutputType = {
   dosagem: number
   embalagem: number
   confidenceClinica: number
+  categoriaBruta: number
+  subcategoriaBruta: number
+  reavaliadoEm: number
+  reavaliadoVersao: number
   persistido: number
   motivo: number
   origem: number
@@ -166,6 +178,10 @@ export type KnowledgeEnrichmentCacheMinAggregateInputType = {
   dosagem?: true
   embalagem?: true
   confidenceClinica?: true
+  categoriaBruta?: true
+  subcategoriaBruta?: true
+  reavaliadoEm?: true
+  reavaliadoVersao?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -191,6 +207,10 @@ export type KnowledgeEnrichmentCacheMaxAggregateInputType = {
   dosagem?: true
   embalagem?: true
   confidenceClinica?: true
+  categoriaBruta?: true
+  subcategoriaBruta?: true
+  reavaliadoEm?: true
+  reavaliadoVersao?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -217,6 +237,10 @@ export type KnowledgeEnrichmentCacheCountAggregateInputType = {
   dosagem?: true
   embalagem?: true
   confidenceClinica?: true
+  categoriaBruta?: true
+  subcategoriaBruta?: true
+  reavaliadoEm?: true
+  reavaliadoVersao?: true
   persistido?: true
   motivo?: true
   origem?: true
@@ -330,6 +354,10 @@ export type KnowledgeEnrichmentCacheGroupByOutputType = {
   dosagem: string | null
   embalagem: string | null
   confidenceClinica: number | null
+  categoriaBruta: string | null
+  subcategoriaBruta: string | null
+  reavaliadoEm: Date | null
+  reavaliadoVersao: string | null
   persistido: boolean
   motivo: string | null
   origem: string | null
@@ -379,6 +407,10 @@ export type KnowledgeEnrichmentCacheWhereInput = {
   dosagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   embalagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   confidenceClinica?: Prisma.FloatNullableFilter<"KnowledgeEnrichmentCache"> | number | null
+  categoriaBruta?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  subcategoriaBruta?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  reavaliadoEm?: Prisma.DateTimeNullableFilter<"KnowledgeEnrichmentCache"> | Date | string | null
+  reavaliadoVersao?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -405,6 +437,10 @@ export type KnowledgeEnrichmentCacheOrderByWithRelationInput = {
   dosagem?: Prisma.SortOrderInput | Prisma.SortOrder
   embalagem?: Prisma.SortOrderInput | Prisma.SortOrder
   confidenceClinica?: Prisma.SortOrderInput | Prisma.SortOrder
+  categoriaBruta?: Prisma.SortOrderInput | Prisma.SortOrder
+  subcategoriaBruta?: Prisma.SortOrderInput | Prisma.SortOrder
+  reavaliadoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  reavaliadoVersao?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -434,6 +470,10 @@ export type KnowledgeEnrichmentCacheWhereUniqueInput = Prisma.AtLeast<{
   dosagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   embalagem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   confidenceClinica?: Prisma.FloatNullableFilter<"KnowledgeEnrichmentCache"> | number | null
+  categoriaBruta?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  subcategoriaBruta?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
+  reavaliadoEm?: Prisma.DateTimeNullableFilter<"KnowledgeEnrichmentCache"> | Date | string | null
+  reavaliadoVersao?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -460,6 +500,10 @@ export type KnowledgeEnrichmentCacheOrderByWithAggregationInput = {
   dosagem?: Prisma.SortOrderInput | Prisma.SortOrder
   embalagem?: Prisma.SortOrderInput | Prisma.SortOrder
   confidenceClinica?: Prisma.SortOrderInput | Prisma.SortOrder
+  categoriaBruta?: Prisma.SortOrderInput | Prisma.SortOrder
+  subcategoriaBruta?: Prisma.SortOrderInput | Prisma.SortOrder
+  reavaliadoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  reavaliadoVersao?: Prisma.SortOrderInput | Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrderInput | Prisma.SortOrder
   origem?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -494,6 +538,10 @@ export type KnowledgeEnrichmentCacheScalarWhereWithAggregatesInput = {
   dosagem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   embalagem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   confidenceClinica?: Prisma.FloatNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | number | null
+  categoriaBruta?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  subcategoriaBruta?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
+  reavaliadoEm?: Prisma.DateTimeNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | Date | string | null
+  reavaliadoVersao?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   persistido?: Prisma.BoolWithAggregatesFilter<"KnowledgeEnrichmentCache"> | boolean
   motivo?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
   origem?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeEnrichmentCache"> | string | null
@@ -520,6 +568,10 @@ export type KnowledgeEnrichmentCacheCreateInput = {
   dosagem?: string | null
   embalagem?: string | null
   confidenceClinica?: number | null
+  categoriaBruta?: string | null
+  subcategoriaBruta?: string | null
+  reavaliadoEm?: Date | string | null
+  reavaliadoVersao?: string | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -546,6 +598,10 @@ export type KnowledgeEnrichmentCacheUncheckedCreateInput = {
   dosagem?: string | null
   embalagem?: string | null
   confidenceClinica?: number | null
+  categoriaBruta?: string | null
+  subcategoriaBruta?: string | null
+  reavaliadoEm?: Date | string | null
+  reavaliadoVersao?: string | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -572,6 +628,10 @@ export type KnowledgeEnrichmentCacheUpdateInput = {
   dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  categoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reavaliadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reavaliadoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -598,6 +658,10 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateInput = {
   dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  categoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reavaliadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reavaliadoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -624,6 +688,10 @@ export type KnowledgeEnrichmentCacheCreateManyInput = {
   dosagem?: string | null
   embalagem?: string | null
   confidenceClinica?: number | null
+  categoriaBruta?: string | null
+  subcategoriaBruta?: string | null
+  reavaliadoEm?: Date | string | null
+  reavaliadoVersao?: string | null
   persistido?: boolean
   motivo?: string | null
   origem?: string | null
@@ -650,6 +718,10 @@ export type KnowledgeEnrichmentCacheUpdateManyMutationInput = {
   dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  categoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reavaliadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reavaliadoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -676,6 +748,10 @@ export type KnowledgeEnrichmentCacheUncheckedUpdateManyInput = {
   dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confidenceClinica?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  categoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subcategoriaBruta?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reavaliadoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reavaliadoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   persistido?: Prisma.BoolFieldUpdateOperationsInput | boolean
   motivo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   origem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -702,6 +778,10 @@ export type KnowledgeEnrichmentCacheCountOrderByAggregateInput = {
   dosagem?: Prisma.SortOrder
   embalagem?: Prisma.SortOrder
   confidenceClinica?: Prisma.SortOrder
+  categoriaBruta?: Prisma.SortOrder
+  subcategoriaBruta?: Prisma.SortOrder
+  reavaliadoEm?: Prisma.SortOrder
+  reavaliadoVersao?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -734,6 +814,10 @@ export type KnowledgeEnrichmentCacheMaxOrderByAggregateInput = {
   dosagem?: Prisma.SortOrder
   embalagem?: Prisma.SortOrder
   confidenceClinica?: Prisma.SortOrder
+  categoriaBruta?: Prisma.SortOrder
+  subcategoriaBruta?: Prisma.SortOrder
+  reavaliadoEm?: Prisma.SortOrder
+  reavaliadoVersao?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -759,6 +843,10 @@ export type KnowledgeEnrichmentCacheMinOrderByAggregateInput = {
   dosagem?: Prisma.SortOrder
   embalagem?: Prisma.SortOrder
   confidenceClinica?: Prisma.SortOrder
+  categoriaBruta?: Prisma.SortOrder
+  subcategoriaBruta?: Prisma.SortOrder
+  reavaliadoEm?: Prisma.SortOrder
+  reavaliadoVersao?: Prisma.SortOrder
   persistido?: Prisma.SortOrder
   motivo?: Prisma.SortOrder
   origem?: Prisma.SortOrder
@@ -803,6 +891,10 @@ export type KnowledgeEnrichmentCacheSelect<ExtArgs extends runtime.Types.Extensi
   dosagem?: boolean
   embalagem?: boolean
   confidenceClinica?: boolean
+  categoriaBruta?: boolean
+  subcategoriaBruta?: boolean
+  reavaliadoEm?: boolean
+  reavaliadoVersao?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -829,6 +921,10 @@ export type KnowledgeEnrichmentCacheSelectCreateManyAndReturn<ExtArgs extends ru
   dosagem?: boolean
   embalagem?: boolean
   confidenceClinica?: boolean
+  categoriaBruta?: boolean
+  subcategoriaBruta?: boolean
+  reavaliadoEm?: boolean
+  reavaliadoVersao?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -855,6 +951,10 @@ export type KnowledgeEnrichmentCacheSelectUpdateManyAndReturn<ExtArgs extends ru
   dosagem?: boolean
   embalagem?: boolean
   confidenceClinica?: boolean
+  categoriaBruta?: boolean
+  subcategoriaBruta?: boolean
+  reavaliadoEm?: boolean
+  reavaliadoVersao?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -881,6 +981,10 @@ export type KnowledgeEnrichmentCacheSelectScalar = {
   dosagem?: boolean
   embalagem?: boolean
   confidenceClinica?: boolean
+  categoriaBruta?: boolean
+  subcategoriaBruta?: boolean
+  reavaliadoEm?: boolean
+  reavaliadoVersao?: boolean
   persistido?: boolean
   motivo?: boolean
   origem?: boolean
@@ -888,7 +992,7 @@ export type KnowledgeEnrichmentCacheSelectScalar = {
   criadoEm?: boolean
 }
 
-export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "dci" | "codigoATC" | "dosagem" | "embalagem" | "confidenceClinica" | "persistido" | "motivo" | "origem" | "propagadoDeCnp" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
+export type KnowledgeEnrichmentCacheOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"chave" | "cnp" | "designacao" | "versao" | "modelo" | "productType" | "categoria" | "subcategoria" | "forma" | "utilizacoes" | "confidence" | "evidenceType" | "rationale" | "dci" | "codigoATC" | "dosagem" | "embalagem" | "confidenceClinica" | "categoriaBruta" | "subcategoriaBruta" | "reavaliadoEm" | "reavaliadoVersao" | "persistido" | "motivo" | "origem" | "propagadoDeCnp" | "criadoEm", ExtArgs["result"]["knowledgeEnrichmentCache"]>
 
 export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "KnowledgeEnrichmentCache"
@@ -926,6 +1030,26 @@ export type $KnowledgeEnrichmentCachePayload<ExtArgs extends runtime.Types.Exten
      * Confiança nos campos clínicos, distinta de `confidence`.
      */
     confidenceClinica: number | null
+    /**
+     * O que o modelo REALMENTE respondeu, antes de `isValidNivel2`.
+     * 
+     * `categoria`/`subcategoria` acima só sobrevivem em par válido: um par
+     * que a taxonomia não tem era anulado em silêncio e a cache guardava
+     * `null`, indistinguível de "o modelo não respondeu". Perdia-se
+     * exactamente o sinal que diz se o problema é do modelo ou da nossa
+     * taxonomia — e como a resposta já estava paga, perdia-se pago.
+     * 
+     * Guardados SEMPRE, válidos ou não. Nunca são escritos em `Produto`.
+     */
+    categoriaBruta: string | null
+    subcategoriaBruta: string | null
+    /**
+     * Quando esta linha foi reavaliada por uma política posterior, e por
+     * que versão. É o que torna o reprocessamento idempotente e retomável:
+     * uma corrida interrompida a meio sabe onde ficou.
+     */
+    reavaliadoEm: Date | null
+    reavaliadoVersao: string | null
     /**
      * Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
      * não soube" de "o modelo soube e nós recusámos" na hora de explicar
@@ -1389,6 +1513,10 @@ export interface KnowledgeEnrichmentCacheFieldRefs {
   readonly dosagem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly embalagem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly confidenceClinica: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Float'>
+  readonly categoriaBruta: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly subcategoriaBruta: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
+  readonly reavaliadoEm: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'DateTime'>
+  readonly reavaliadoVersao: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly persistido: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'Boolean'>
   readonly motivo: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>
   readonly origem: Prisma.FieldRef<"KnowledgeEnrichmentCache", 'String'>

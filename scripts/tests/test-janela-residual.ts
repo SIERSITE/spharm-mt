@@ -109,7 +109,9 @@ function prismaPaginado(produtos: Produto[]) {
         const limite = Number(params[3] ?? 0);
         const cursor = Number(params[4] ?? 0);
         const linhas = produtos
-          .filter((p) => p.cnp >= MIN_CNP && p.cnp > cursor)
+          // `>` e nao `>=`: a fronteira do CNP catalogavel e EXCLUSIVA
+          // (2 000 000 e codigo interno). Ver lib/catalog/cnp-catalogavel.ts.
+          .filter((p) => p.cnp > MIN_CNP && p.cnp > cursor)
           .sort((a, b) => a.cnp - b.cnp)
           .slice(0, limite);
         paginas.push({ cursor, limite, devolvidos: linhas.map((l) => l.cnp) });
@@ -153,7 +155,7 @@ async function main(): Promise<void> {
     const sem = corpoResidual(undefined, false, false);
     check(com.includes("and p.cnp > $5"), "com cursor, o WHERE tem `p.cnp > $5`");
     check(!sem.includes("$5"), "sem cursor, o SQL fica exactamente como era");
-    check(com.includes('where p.cnp >= $1'), "o piso do cnp continua a ser o $1");
+    check(com.includes('where p.cnp > $1'), "o piso do cnp e o $1, exclusivo");
   }
 
   console.log("\n=== 80 condicionais à frente de 20 processáveis ===");
@@ -161,7 +163,7 @@ async function main(): Promise<void> {
     // A forma exacta do problema, em pequeno: se a leitura parasse na
     // primeira página, a corrida não faria trabalho nenhum.
     const produtos = [
-      ...Array.from({ length: 80 }, (_, i) => condicional(2_000_000 + i)),
+      ...Array.from({ length: 80 }, (_, i) => condicional(MIN_CNP + 1 + i)),
       ...Array.from({ length: 20 }, (_, i) => processavel(2_100_000 + i)),
     ];
     const j = await janela(produtos, 25, 10);
@@ -205,7 +207,7 @@ async function main(): Promise<void> {
   console.log("\n=== a janela pára quando tem os N que lhe pediram ===");
   {
     const produtos = [
-      ...Array.from({ length: 80 }, (_, i) => condicional(2_000_000 + i)),
+      ...Array.from({ length: 80 }, (_, i) => condicional(MIN_CNP + 1 + i)),
       ...Array.from({ length: 120 }, (_, i) => processavel(2_100_000 + i)),
     ];
     const j = await janela(produtos, 25, 10);
@@ -228,7 +230,7 @@ async function main(): Promise<void> {
     // 2 000 residuais com a mesma proporção medida no silveira, e os
     // condicionais à cabeça, que é onde eles se acumulam.
     const produtos = [
-      ...Array.from({ length: 236 }, (_, i) => condicional(2_000_000 + i)),
+      ...Array.from({ length: 236 }, (_, i) => condicional(MIN_CNP + 1 + i)),
       ...Array.from({ length: 1764 }, (_, i) => processavel(2_100_000 + i)),
     ];
     const j = await janela(produtos, 25, 250);
@@ -244,7 +246,7 @@ async function main(): Promise<void> {
 
   console.log("\n=== paginação: sem duplicar e sem saltar ===");
   {
-    const produtos = Array.from({ length: 97 }, (_, i) => processavel(2_000_000 + i * 7));
+    const produtos = Array.from({ length: 97 }, (_, i) => processavel(MIN_CNP + 1 + i * 7));
     const j = await janela(produtos, 90, 10);
     const lidos = j.paginas.flatMap((p) => p.devolvidos);
     check(new Set(lidos).size === lidos.length, "nenhum cnp lido duas vezes");
@@ -254,7 +256,7 @@ async function main(): Promise<void> {
       "e a sequência lida é o prefixo exacto por ordem de cnp — sem buracos",
     );
     check(
-      j.paginas.every((p, i) => (i === 0 ? p.cursor === MIN_CNP - 1 : p.cursor === j.paginas[i - 1].devolvidos.at(-1))),
+      j.paginas.every((p, i) => (i === 0 ? p.cursor === MIN_CNP : p.cursor === j.paginas[i - 1].devolvidos.at(-1))),
       "cada página arranca no último cnp da anterior",
     );
   }
@@ -264,29 +266,29 @@ async function main(): Promise<void> {
     // Se cada página fosse pré-seleccionada isoladamente, o irmão da
     // página 2 não seria reconhecido como irmão do da página 1 — e em vez
     // de um representante e um dependente havia dois envios pagos.
-    const irmaos = [2_000_000, 2_000_050].map((cnp) => ({
+    const irmaos = [MIN_CNP + 1, MIN_CNP + 51].map((cnp) => ({
       cnp,
       designacao: "Movalis Comprimidos",
       nivel1: null,
       nivel2: null,
     }));
-    const enchimento = Array.from({ length: 48 }, (_, i) => processavel(2_000_001 + i));
+    const enchimento = Array.from({ length: 48 }, (_, i) => processavel(MIN_CNP + 2 + i));
     const produtos = [irmaos[0], ...enchimento, irmaos[1]].sort((a, b) => a.cnp - b.cnp);
     const j = await janela(produtos, 50, 10);
 
     check(j.paginas.length >= 2, `a família ficou mesmo partida por páginas (${j.paginas.length})`);
     check(
-      j.preselecao.get(2_000_000)?.destino === "REPRESENTANTE",
+      j.preselecao.get(MIN_CNP + 1)?.destino === "REPRESENTANTE",
       "o irmão da página 1 é REPRESENTANTE",
-      String(j.preselecao.get(2_000_000)?.destino),
+      String(j.preselecao.get(MIN_CNP + 1)?.destino),
     );
     check(
-      j.preselecao.get(2_000_050)?.destino === "PROPAGAR",
+      j.preselecao.get(MIN_CNP + 51)?.destino === "PROPAGAR",
       "o irmão da última página é PROPAGAR, não um segundo envio pago",
-      String(j.preselecao.get(2_000_050)?.destino),
+      String(j.preselecao.get(MIN_CNP + 51)?.destino),
     );
     check(
-      j.preselecao.get(2_000_050)?.representanteCnp === 2_000_000,
+      j.preselecao.get(MIN_CNP + 51)?.representanteCnp === MIN_CNP + 1,
       "…e aponta ao representante certo",
     );
   }
@@ -297,20 +299,20 @@ async function main(): Promise<void> {
     // custa chamada nenhuma: deixá-lo de fora obrigava a família a ser
     // paga outra vez na corrida seguinte.
     const produtos = [
-      processavel(2_000_000),
-      { cnp: 2_000_001, designacao: "Movalis Comprimidos", nivel1: null, nivel2: null },
-      { cnp: 2_000_002, designacao: "Movalis Comprimidos", nivel1: null, nivel2: null },
-      processavel(2_000_003),
+      processavel(MIN_CNP + 1),
+      { cnp: MIN_CNP + 2, designacao: "Movalis Comprimidos", nivel1: null, nivel2: null },
+      { cnp: MIN_CNP + 3, designacao: "Movalis Comprimidos", nivel1: null, nivel2: null },
+      processavel(MIN_CNP + 4),
     ];
     const j = await janela(produtos, 2, 10);
     check(j.processaveis === 2, `dois processáveis, como pedido (${j.processaveis})`);
     check(
-      j.linhas.some((l) => l.cnp === 2_000_002),
+      j.linhas.some((l) => l.cnp === MIN_CNP + 3),
       "e o dependente entrou na janela apesar de estar depois do corte",
       j.linhas.map((l) => l.cnp).join(","),
     );
     check(
-      !j.linhas.some((l) => l.cnp === 2_000_003),
+      !j.linhas.some((l) => l.cnp === MIN_CNP + 4),
       "…mas o processável seguinte ficou de fora — o tecto é o tecto",
     );
   }
@@ -321,7 +323,7 @@ async function main(): Promise<void> {
     check(vazio.linhas.length === 0 && vazio.esgotado, "residual vazio devolve nada e declara esgotado");
     check(vazio.paginas.length === 1, "…tendo tentado uma página, não zero nem mil");
 
-    const zero = await janela([processavel(2_000_000)], 0, 10);
+    const zero = await janela([processavel(MIN_CNP + 1)], 0, 10);
     check(zero.paginas.length === 0, "alvo zero não lê nada");
     check(zero.linhas.length === 0, "…e não devolve nada");
   }

@@ -24,6 +24,7 @@
  *   · getReportingFilterOptions   → opções dos dropdowns (leve, eager)
  */
 
+import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -156,8 +157,16 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
   // Sinaliza, de forma BOOLEANA, se há produtos sem classificação canónica.
   // A UI passa a oferecer um filtro dedicado em vez de uma "categoria"
   // fictícia. Query barata: existência via take=1.
+  // `cnp` acima do limite: um código interno do ERP não está "por
+  // classificar" — está fora do âmbito. Sem esta condição o toggle
+  // aparecia para sempre, porque há sempre taxas e serviços sem nível 1,
+  // e um filtro que nunca desliga deixa de ser informação.
   const naoClassificado = await prisma.produto.findFirst({
-    where: { classificacaoNivel1Id: null, estado: { not: "INATIVO" } },
+    where: {
+      classificacaoNivel1Id: null,
+      estado: { not: "INATIVO" },
+      cnp: whereCnpCatalogavel(),
+    },
     select: { id: true },
   });
 

@@ -30,12 +30,14 @@ export type ProdutoAvgAggregateOutputType = {
   cnp: number | null
   externalProductId: number | null
   productTypeConfidence: number | null
+  classificacaoConfianca: number | null
 }
 
 export type ProdutoSumAggregateOutputType = {
   cnp: number | null
   externalProductId: number | null
   productTypeConfidence: number | null
+  classificacaoConfianca: number | null
 }
 
 export type ProdutoMinAggregateOutputType = {
@@ -65,6 +67,10 @@ export type ProdutoMinAggregateOutputType = {
   productTypeConfidence: number | null
   classificationSource: string | null
   classificationVersion: string | null
+  classificacaoEstado: $Enums.ClassificacaoEstado | null
+  classificacaoOrigem: string | null
+  classificacaoConfianca: number | null
+  classificacaoVersao: string | null
   verificationStatus: $Enums.VerificationStatus | null
   lastVerifiedAt: Date | null
   lastVerificationAttemptAt: Date | null
@@ -102,6 +108,10 @@ export type ProdutoMaxAggregateOutputType = {
   productTypeConfidence: number | null
   classificationSource: string | null
   classificationVersion: string | null
+  classificacaoEstado: $Enums.ClassificacaoEstado | null
+  classificacaoOrigem: string | null
+  classificacaoConfianca: number | null
+  classificacaoVersao: string | null
   verificationStatus: $Enums.VerificationStatus | null
   lastVerifiedAt: Date | null
   lastVerificationAttemptAt: Date | null
@@ -139,6 +149,10 @@ export type ProdutoCountAggregateOutputType = {
   productTypeConfidence: number
   classificationSource: number
   classificationVersion: number
+  classificacaoEstado: number
+  classificacaoOrigem: number
+  classificacaoConfianca: number
+  classificacaoVersao: number
   verificationStatus: number
   lastVerifiedAt: number
   lastVerificationAttemptAt: number
@@ -155,12 +169,14 @@ export type ProdutoAvgAggregateInputType = {
   cnp?: true
   externalProductId?: true
   productTypeConfidence?: true
+  classificacaoConfianca?: true
 }
 
 export type ProdutoSumAggregateInputType = {
   cnp?: true
   externalProductId?: true
   productTypeConfidence?: true
+  classificacaoConfianca?: true
 }
 
 export type ProdutoMinAggregateInputType = {
@@ -190,6 +206,10 @@ export type ProdutoMinAggregateInputType = {
   productTypeConfidence?: true
   classificationSource?: true
   classificationVersion?: true
+  classificacaoEstado?: true
+  classificacaoOrigem?: true
+  classificacaoConfianca?: true
+  classificacaoVersao?: true
   verificationStatus?: true
   lastVerifiedAt?: true
   lastVerificationAttemptAt?: true
@@ -227,6 +247,10 @@ export type ProdutoMaxAggregateInputType = {
   productTypeConfidence?: true
   classificationSource?: true
   classificationVersion?: true
+  classificacaoEstado?: true
+  classificacaoOrigem?: true
+  classificacaoConfianca?: true
+  classificacaoVersao?: true
   verificationStatus?: true
   lastVerifiedAt?: true
   lastVerificationAttemptAt?: true
@@ -264,6 +288,10 @@ export type ProdutoCountAggregateInputType = {
   productTypeConfidence?: true
   classificationSource?: true
   classificationVersion?: true
+  classificacaoEstado?: true
+  classificacaoOrigem?: true
+  classificacaoConfianca?: true
+  classificacaoVersao?: true
   verificationStatus?: true
   lastVerifiedAt?: true
   lastVerificationAttemptAt?: true
@@ -388,6 +416,10 @@ export type ProdutoGroupByOutputType = {
   productTypeConfidence: number | null
   classificationSource: string | null
   classificationVersion: string | null
+  classificacaoEstado: $Enums.ClassificacaoEstado
+  classificacaoOrigem: string | null
+  classificacaoConfianca: number | null
+  classificacaoVersao: string | null
   verificationStatus: $Enums.VerificationStatus
   lastVerifiedAt: Date | null
   lastVerificationAttemptAt: Date | null
@@ -448,6 +480,10 @@ export type ProdutoWhereInput = {
   productTypeConfidence?: Prisma.FloatNullableFilter<"Produto"> | number | null
   classificationSource?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificationVersion?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFilter<"Produto"> | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoConfianca?: Prisma.FloatNullableFilter<"Produto"> | number | null
+  classificacaoVersao?: Prisma.StringNullableFilter<"Produto"> | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFilter<"Produto"> | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
   lastVerificationAttemptAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
@@ -505,6 +541,10 @@ export type ProdutoOrderByWithRelationInput = {
   productTypeConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
   classificationSource?: Prisma.SortOrderInput | Prisma.SortOrder
   classificationVersion?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoEstado?: Prisma.SortOrder
+  classificacaoOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoVersao?: Prisma.SortOrderInput | Prisma.SortOrder
   verificationStatus?: Prisma.SortOrder
   lastVerifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   lastVerificationAttemptAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -565,6 +605,10 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   productTypeConfidence?: Prisma.FloatNullableFilter<"Produto"> | number | null
   classificationSource?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificationVersion?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFilter<"Produto"> | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoConfianca?: Prisma.FloatNullableFilter<"Produto"> | number | null
+  classificacaoVersao?: Prisma.StringNullableFilter<"Produto"> | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFilter<"Produto"> | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
   lastVerificationAttemptAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
@@ -622,6 +666,10 @@ export type ProdutoOrderByWithAggregationInput = {
   productTypeConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
   classificationSource?: Prisma.SortOrderInput | Prisma.SortOrder
   classificationVersion?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoEstado?: Prisma.SortOrder
+  classificacaoOrigem?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrderInput | Prisma.SortOrder
+  classificacaoVersao?: Prisma.SortOrderInput | Prisma.SortOrder
   verificationStatus?: Prisma.SortOrder
   lastVerifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   lastVerificationAttemptAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -667,6 +715,10 @@ export type ProdutoScalarWhereWithAggregatesInput = {
   productTypeConfidence?: Prisma.FloatNullableWithAggregatesFilter<"Produto"> | number | null
   classificationSource?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   classificationVersion?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoWithAggregatesFilter<"Produto"> | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
+  classificacaoConfianca?: Prisma.FloatNullableWithAggregatesFilter<"Produto"> | number | null
+  classificacaoVersao?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   verificationStatus?: Prisma.EnumVerificationStatusWithAggregatesFilter<"Produto"> | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Produto"> | Date | string | null
   lastVerificationAttemptAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Produto"> | Date | string | null
@@ -701,6 +753,10 @@ export type ProdutoCreateInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -758,6 +814,10 @@ export type ProdutoUncheckedCreateInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -809,6 +869,10 @@ export type ProdutoUpdateInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -866,6 +930,10 @@ export type ProdutoUncheckedUpdateInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -920,6 +988,10 @@ export type ProdutoCreateManyInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -954,6 +1026,10 @@ export type ProdutoUpdateManyMutationInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -991,6 +1067,10 @@ export type ProdutoUncheckedUpdateManyInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1028,6 +1108,10 @@ export type ProdutoCountOrderByAggregateInput = {
   productTypeConfidence?: Prisma.SortOrder
   classificationSource?: Prisma.SortOrder
   classificationVersion?: Prisma.SortOrder
+  classificacaoEstado?: Prisma.SortOrder
+  classificacaoOrigem?: Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrder
+  classificacaoVersao?: Prisma.SortOrder
   verificationStatus?: Prisma.SortOrder
   lastVerifiedAt?: Prisma.SortOrder
   lastVerificationAttemptAt?: Prisma.SortOrder
@@ -1042,6 +1126,7 @@ export type ProdutoAvgOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   productTypeConfidence?: Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrder
 }
 
 export type ProdutoMaxOrderByAggregateInput = {
@@ -1071,6 +1156,10 @@ export type ProdutoMaxOrderByAggregateInput = {
   productTypeConfidence?: Prisma.SortOrder
   classificationSource?: Prisma.SortOrder
   classificationVersion?: Prisma.SortOrder
+  classificacaoEstado?: Prisma.SortOrder
+  classificacaoOrigem?: Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrder
+  classificacaoVersao?: Prisma.SortOrder
   verificationStatus?: Prisma.SortOrder
   lastVerifiedAt?: Prisma.SortOrder
   lastVerificationAttemptAt?: Prisma.SortOrder
@@ -1108,6 +1197,10 @@ export type ProdutoMinOrderByAggregateInput = {
   productTypeConfidence?: Prisma.SortOrder
   classificationSource?: Prisma.SortOrder
   classificationVersion?: Prisma.SortOrder
+  classificacaoEstado?: Prisma.SortOrder
+  classificacaoOrigem?: Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrder
+  classificacaoVersao?: Prisma.SortOrder
   verificationStatus?: Prisma.SortOrder
   lastVerifiedAt?: Prisma.SortOrder
   lastVerificationAttemptAt?: Prisma.SortOrder
@@ -1122,6 +1215,7 @@ export type ProdutoSumOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
   externalProductId?: Prisma.SortOrder
   productTypeConfidence?: Prisma.SortOrder
+  classificacaoConfianca?: Prisma.SortOrder
 }
 
 export type ProdutoListRelationFilter = {
@@ -1186,6 +1280,10 @@ export type NullableFloatFieldUpdateOperationsInput = {
   decrement?: number
   multiply?: number
   divide?: number
+}
+
+export type EnumClassificacaoEstadoFieldUpdateOperationsInput = {
+  set?: $Enums.ClassificacaoEstado
 }
 
 export type EnumVerificationStatusFieldUpdateOperationsInput = {
@@ -1596,6 +1694,10 @@ export type ProdutoCreateWithoutFabricanteInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -1651,6 +1753,10 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -1734,6 +1840,10 @@ export type ProdutoScalarWhereInput = {
   productTypeConfidence?: Prisma.FloatNullableFilter<"Produto"> | number | null
   classificationSource?: Prisma.StringNullableFilter<"Produto"> | string | null
   classificationVersion?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFilter<"Produto"> | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.StringNullableFilter<"Produto"> | string | null
+  classificacaoConfianca?: Prisma.FloatNullableFilter<"Produto"> | number | null
+  classificacaoVersao?: Prisma.StringNullableFilter<"Produto"> | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFilter<"Produto"> | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
   lastVerificationAttemptAt?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
@@ -1768,6 +1878,10 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -1823,6 +1937,10 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -1884,6 +2002,10 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -1939,6 +2061,10 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2032,6 +2158,10 @@ export type ProdutoCreateWithoutUtilizacoesInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2088,6 +2218,10 @@ export type ProdutoUncheckedCreateWithoutUtilizacoesInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2154,6 +2288,10 @@ export type ProdutoUpdateWithoutUtilizacoesInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2210,6 +2348,10 @@ export type ProdutoUncheckedUpdateWithoutUtilizacoesInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2260,6 +2402,10 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2316,6 +2462,10 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2382,6 +2532,10 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2438,6 +2592,10 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2488,6 +2646,10 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2544,6 +2706,10 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2610,6 +2776,10 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2666,6 +2836,10 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2716,6 +2890,10 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2772,6 +2950,10 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -2838,6 +3020,10 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2894,6 +3080,10 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2944,6 +3134,10 @@ export type ProdutoCreateWithoutVendasInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3000,6 +3194,10 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3066,6 +3264,10 @@ export type ProdutoUpdateWithoutVendasInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3122,6 +3324,10 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3172,6 +3378,10 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3228,6 +3438,10 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3294,6 +3508,10 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3350,6 +3568,10 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3400,6 +3622,10 @@ export type ProdutoCreateWithoutComprasInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3456,6 +3682,10 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3522,6 +3752,10 @@ export type ProdutoUpdateWithoutComprasInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3578,6 +3812,10 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3628,6 +3866,10 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3684,6 +3926,10 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3750,6 +3996,10 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3806,6 +4056,10 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -3856,6 +4110,10 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3912,6 +4170,10 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -3978,6 +4240,10 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4034,6 +4300,10 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4084,6 +4354,10 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4140,6 +4414,10 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4206,6 +4484,10 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4262,6 +4544,10 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4312,6 +4598,10 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4368,6 +4658,10 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4434,6 +4728,10 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4490,6 +4788,10 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4540,6 +4842,10 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4596,6 +4902,10 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4662,6 +4972,10 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4718,6 +5032,10 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4768,6 +5086,10 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4824,6 +5146,10 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -4890,6 +5216,10 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4946,6 +5276,10 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -4996,6 +5330,10 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5052,6 +5390,10 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5118,6 +5460,10 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5174,6 +5520,10 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5224,6 +5574,10 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5280,6 +5634,10 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5346,6 +5704,10 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5402,6 +5764,10 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5452,6 +5818,10 @@ export type ProdutoCreateWithoutIngestVendasLinhasRawInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5508,6 +5878,10 @@ export type ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5574,6 +5948,10 @@ export type ProdutoUpdateWithoutIngestVendasLinhasRawInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5630,6 +6008,10 @@ export type ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5680,6 +6062,10 @@ export type ProdutoCreateWithoutMovimentosInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5736,6 +6122,10 @@ export type ProdutoUncheckedCreateWithoutMovimentosInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5802,6 +6192,10 @@ export type ProdutoUpdateWithoutMovimentosInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5858,6 +6252,10 @@ export type ProdutoUncheckedUpdateWithoutMovimentosInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5910,6 +6308,10 @@ export type ProdutoCreateManyFabricanteInput = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -5944,6 +6346,10 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -5999,6 +6405,10 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6052,6 +6462,10 @@ export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6088,6 +6502,10 @@ export type ProdutoCreateManyClassificacaoNivel1Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -6124,6 +6542,10 @@ export type ProdutoCreateManyClassificacaoNivel2Input = {
   productTypeConfidence?: number | null
   classificationSource?: string | null
   classificationVersion?: string | null
+  classificacaoEstado?: $Enums.ClassificacaoEstado
+  classificacaoOrigem?: string | null
+  classificacaoConfianca?: number | null
+  classificacaoVersao?: string | null
   verificationStatus?: $Enums.VerificationStatus
   lastVerifiedAt?: Date | string | null
   lastVerificationAttemptAt?: Date | string | null
@@ -6158,6 +6580,10 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6213,6 +6639,10 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6266,6 +6696,10 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6300,6 +6734,10 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6355,6 +6793,10 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6408,6 +6850,10 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
   productTypeConfidence?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   classificationSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   classificationVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoEstado?: Prisma.EnumClassificacaoEstadoFieldUpdateOperationsInput | $Enums.ClassificacaoEstado
+  classificacaoOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  classificacaoConfianca?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
+  classificacaoVersao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   verificationStatus?: Prisma.EnumVerificationStatusFieldUpdateOperationsInput | $Enums.VerificationStatus
   lastVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastVerificationAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -6620,6 +7066,10 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   productTypeConfidence?: boolean
   classificationSource?: boolean
   classificationVersion?: boolean
+  classificacaoEstado?: boolean
+  classificacaoOrigem?: boolean
+  classificacaoConfianca?: boolean
+  classificacaoVersao?: boolean
   verificationStatus?: boolean
   lastVerifiedAt?: boolean
   lastVerificationAttemptAt?: boolean
@@ -6678,6 +7128,10 @@ export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   productTypeConfidence?: boolean
   classificationSource?: boolean
   classificationVersion?: boolean
+  classificacaoEstado?: boolean
+  classificacaoOrigem?: boolean
+  classificacaoConfianca?: boolean
+  classificacaoVersao?: boolean
   verificationStatus?: boolean
   lastVerifiedAt?: boolean
   lastVerificationAttemptAt?: boolean
@@ -6718,6 +7172,10 @@ export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   productTypeConfidence?: boolean
   classificationSource?: boolean
   classificationVersion?: boolean
+  classificacaoEstado?: boolean
+  classificacaoOrigem?: boolean
+  classificacaoConfianca?: boolean
+  classificacaoVersao?: boolean
   verificationStatus?: boolean
   lastVerifiedAt?: boolean
   lastVerificationAttemptAt?: boolean
@@ -6758,6 +7216,10 @@ export type ProdutoSelectScalar = {
   productTypeConfidence?: boolean
   classificationSource?: boolean
   classificationVersion?: boolean
+  classificacaoEstado?: boolean
+  classificacaoOrigem?: boolean
+  classificacaoConfianca?: boolean
+  classificacaoVersao?: boolean
   verificationStatus?: boolean
   lastVerifiedAt?: boolean
   lastVerificationAttemptAt?: boolean
@@ -6768,7 +7230,7 @@ export type ProdutoSelectScalar = {
   dataAtualizacao?: boolean
 }
 
-export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produto"]>
+export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "classificacaoEstado" | "classificacaoOrigem" | "classificacaoConfianca" | "classificacaoVersao" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produto"]>
 export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
@@ -6867,6 +7329,23 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     productTypeConfidence: number | null
     classificationSource: string | null
     classificationVersion: string | null
+    /**
+     * Autoridade da classificação N1/N2. Ver `ClassificacaoEstado`.
+     */
+    classificacaoEstado: $Enums.ClassificacaoEstado
+    /**
+     * Proveniência legível: REGRA | MODELO | MODELO_PROVISORIO |
+     * MODELO_PROPAGADO | ERP | GLOBAL | MANUAL | PRE_PROVENIENCIA.
+     * 
+     * Texto e não enum: é campo de auditoria, e um valor novo não deve
+     * custar uma migração. O que a aplicação DECIDE está no enum acima.
+     */
+    classificacaoOrigem: string | null
+    classificacaoConfianca: number | null
+    /**
+     * Versão do processo que escreveu — "ke-2.1" para as provisórias.
+     */
+    classificacaoVersao: string | null
     verificationStatus: $Enums.VerificationStatus
     lastVerifiedAt: Date | null
     lastVerificationAttemptAt: Date | null
@@ -7344,6 +7823,10 @@ export interface ProdutoFieldRefs {
   readonly productTypeConfidence: Prisma.FieldRef<"Produto", 'Float'>
   readonly classificationSource: Prisma.FieldRef<"Produto", 'String'>
   readonly classificationVersion: Prisma.FieldRef<"Produto", 'String'>
+  readonly classificacaoEstado: Prisma.FieldRef<"Produto", 'ClassificacaoEstado'>
+  readonly classificacaoOrigem: Prisma.FieldRef<"Produto", 'String'>
+  readonly classificacaoConfianca: Prisma.FieldRef<"Produto", 'Float'>
+  readonly classificacaoVersao: Prisma.FieldRef<"Produto", 'String'>
   readonly verificationStatus: Prisma.FieldRef<"Produto", 'VerificationStatus'>
   readonly lastVerifiedAt: Prisma.FieldRef<"Produto", 'DateTime'>
   readonly lastVerificationAttemptAt: Prisma.FieldRef<"Produto", 'DateTime'>

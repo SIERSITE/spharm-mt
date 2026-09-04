@@ -8,6 +8,7 @@ import {
 } from "@/lib/catalogo-data";
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
+import { ROTULO_ORIGEM } from "@/lib/categoria-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -238,6 +239,21 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               label: "Subcategoria",
               value: article.classificacaoNivel2?.nome ?? "—",
             },
+            // A proveniência da CLASSIFICAÇÃO fica aqui, ao lado da
+            // classificação, e não no cartão de verificação — que fala do
+            // `productType`. Eram dois eixos a partilhar vocabulário, e
+            // ler "fonte" naquele cartão levava toda a gente a concluir
+            // coisas erradas sobre este.
+            {
+              label: "Origem da classificação",
+              value:
+                ROTULO_ORIGEM[article.origemClassificacao] +
+                (article.classificacaoOrigem ? ` · ${article.classificacaoOrigem}` : ""),
+            },
+            {
+              label: "Confiança da classificação",
+              value: fmtPct(article.classificacaoConfianca),
+            },
             { label: "Tipo de produto", value: tipo },
             {
               label: "Utilizações",
@@ -284,6 +300,10 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               label: "Versão da classificação",
               value: or(article.classificationVersion),
             },
+            {
+              label: "Versão que escreveu N1/N2",
+              value: or(article.classificacaoVersao),
+            },
             { label: "Verificado externamente", value: article.externallyVerified ? "Sim" : "Não" },
             {
               label: "Validado manualmente",
@@ -296,6 +316,43 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
           ]}
         />
       </section>
+
+      {/* Uma classificação deduzida diz que o é, e mostra em que se
+          baseou. Sem o raciocínio, "provisória · 0,87" não permite a
+          ninguém decidir se aceita ou corrige — que é exactamente o que
+          se pede a quem abre esta ficha. */}
+      {article.origemClassificacao === "PROVISORIA" && (
+        <section className="rounded-[20px] border border-amber-200 bg-amber-50/70 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+            Classificação provisória
+          </div>
+          <p className="mt-1 text-[13px] leading-5 text-amber-900">
+            Foi deduzida pelo modelo a partir da designação — não de uma marca nem
+            de uma substância reconhecida. Serve para agrupar e contar; não deve
+            fundamentar uma decisão regulamentar sem confirmação.
+          </p>
+          {article.rationaleModelo && (
+            <p className="mt-1.5 text-[12px] italic leading-5 text-amber-800">
+              “{article.rationaleModelo}”
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Um código interno não está por classificar — está fora do âmbito.
+          Sem esta nota, alguém procura-lhe uma categoria que não existe. */}
+      {article.interno && (
+        <section className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Código interno do ERP
+          </div>
+          <p className="mt-1 text-[13px] leading-5 text-slate-700">
+            CNP abaixo do limite de catálogo — é uma taxa, serviço, ato clínico ou
+            artigo de stock interno. Não tem classificação regulamentar a atribuir e
+            não entra no indicador “Por classificar”.
+          </p>
+        </section>
+      )}
 
       {/* Motivo da revisão manual, se aplicável */}
       {article.needsManualReview && article.manualReviewReason && (

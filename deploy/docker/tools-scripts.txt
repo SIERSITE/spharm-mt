@@ -101,6 +101,15 @@ catalog:bootstrap-global
 # default nem sequer chama o modelo (mostra o que seria enviado). Travado
 # em 200 produtos -- correr o backlog e' catalog:knowledge-enrich.
 catalog:forma-canary
+# Reaproveita respostas do modelo JA' pagas e recusadas pelo gate
+# antigo: reavalia `KnowledgeEnrichmentCache` e escreve como PROVISORIA o
+# que passar. ZERO chamadas ao modelo. Dry-run por omissao; `--apply`
+# exige `--journal=<ficheiro>`, que e' o que permite desfazer.
+catalog:reavaliar-cache
+# O par do anterior. Desfaz linha a linha pelo journal, repondo o estado
+# exacto — incluindo os "Outros X" substituidos, que um rollback por SQL
+# apagaria. Dry-run por omissao.
+catalog:rollback-classificacao
 # O caminho explícito para o conhecimento humano. Uma correcção feita ao
 # balcão vale «nesta farmácia»; torná-la verdade nacional é uma decisão,
 # e este comando exige --aprovador e --motivo para a registar. Sem eles

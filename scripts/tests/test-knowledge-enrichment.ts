@@ -109,6 +109,9 @@ function cru(over: Record<string, unknown> = {}) {
     utilizacoes: ["diabetes"],
     confidence: 0.95,
     evidenceType: "MARCA_CONHECIDA",
+    categoriaBruta: "MEDICAMENTOS",
+    subcategoriaBruta: "Diabetes",
+    motivoPar: null,
     rationale: "Ozempic é semaglutido, antidiabético injetável.",
     ...over,
   };
@@ -377,13 +380,39 @@ console.log("\n=== ke-2.0: as escritas clinicas sao preenchimento, nunca correcc
 
 console.log("\n=== gate: a confiança do modelo não é prova suficiente ===");
 {
-  // Confiança máxima, tudo o resto a falhar → não escreve.
+  // MUDANÇA DELIBERADA (2026-09, classificação provisória).
+  //
+  // Esta asserção dizia "confiança 1.0 sozinha não abre a porta" e o caso
+  // era `CATEGORIA_PRODUTO` com par válido e subcategoria específica —
+  // que hoje entra pela porta PROVISÓRIA. A frase continua verdadeira e o
+  // exemplo deixou de a ilustrar: não é a confiança que abre a porta, são
+  // os cinco critérios juntos (par válido, subcategoria específica, sem
+  // contradição de estatuto, sem conflito, e confiança >= 0,85), e o que
+  // sai é uma escrita MARCADA e reversível, não uma verdade.
+  //
+  // O que se afirma agora, e é o que interessa: a evidência continua a
+  // falhar — logo a escrita NUNCA é canónica.
   const d = avaliarGate({ ...base, evidenceType: "CATEGORIA_PRODUTO", confidence: 1 }, SEM_CLASSIF);
-  check(d.decisao === "REVIEW", "confiança 1.0 sozinha não abre a porta");
-  check(!d.criterios.evidencia && d.criterios.confianca, "…o critério que falhou é a evidência, não a confiança");
+  check(!d.criterios.evidencia && d.criterios.confianca, "o critério que falha é a evidência, não a confiança");
+  check(d.provisorio, "…e por isso a escrita é PROVISÓRIA");
+  check(!d.gravarProductType, "…e uma dedução nunca decide o productType");
+
+  // A confiança sozinha continua a não chegar: baixa-a e a porta fecha.
+  const baixa = avaliarGate({ ...base, evidenceType: "CATEGORIA_PRODUTO", confidence: 0.8 }, SEM_CLASSIF);
+  check(baixa.decisao === "REVIEW" && !baixa.provisorio, "confiança abaixo do limiar fecha as duas portas");
+
+  // E sem subcategoria específica também não: o critério novo é mesmo
+  // exigido, e não decorativo.
+  const balde = avaliarGate(
+    { ...base, evidenceType: "CATEGORIA_PRODUTO", confidence: 1, subcategoria: "Outros Medicamentos" },
+    SEM_CLASSIF,
+  );
+  check(balde.decisao === "REVIEW" && !balde.provisorio, "proposta 'Outros X' não abre a porta provisória");
 }
 {
-  check(!EVIDENCIA_PERMITIDA.has("CATEGORIA_PRODUTO"), "CATEGORIA_PRODUTO não autoriza escrita automática");
+  // `EVIDENCIA_PERMITIDA` é a porta CANÓNICA e não se toca — é ela que
+  // garante que uma dedução nunca passa por facto.
+  check(!EVIDENCIA_PERMITIDA.has("CATEGORIA_PRODUTO"), "CATEGORIA_PRODUTO não autoriza escrita CANÓNICA");
   check(!EVIDENCIA_PERMITIDA.has("DESCONHECIDO"), "DESCONHECIDO não autoriza escrita automática");
   check(EVIDENCIA_PERMITIDA.has("MARCA_CONHECIDA") && EVIDENCIA_PERMITIDA.has("SUBSTANCIA_CONHECIDA"),
     "marca e substância autorizam");
@@ -797,6 +826,9 @@ console.log("\n=== alvo FORMA: o gate ===");
     dosagem: null,
     embalagem: null,
     confidenceClinica: conf,
+    categoriaBruta: null,
+    subcategoriaBruta: null,
+    motivoPar: null,
     utilizacoes: [],
     confidence: 0,
     evidenceType: "FORMA_DEDUZIDA",
@@ -867,6 +899,9 @@ console.log("\n=== alvo FORMA: comportamento antigo intacto ===");
     confidence: 0.95,
     evidenceType: "MARCA_CONHECIDA",
     rationale: "Ozempic é semaglutido",
+    categoriaBruta: "MEDICAMENTOS",
+    subcategoriaBruta: "Diabetes",
+    motivoPar: null,
   };
   const classifica = avaliarGate(R, { categoria: null, subcategoria: null, productType: null });
   check(
@@ -1018,7 +1053,7 @@ console.log("\n=== canary estratificado: quotas, unicidade e défice ===");
     // estratos, e o fixture mentia antes de o código ter oportunidade de
     // errar.
     const estratoDe = (sql: string): Estrato => {
-      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      const where = sql.slice(sql.indexOf("where p.cnp > $1"));
       if (/classificacaoNivel2Id" is null/.test(where)) return "NAO_CLASSIFICADO";
       if (/c2\.nome ilike 'Outros %'/.test(where)) return "OUTROS_MEDICAMENTOS";
       return "SEM_UTILIZACOES";
@@ -1251,7 +1286,7 @@ console.log("\n=== métricas e projecção por estrato ===");
           if (ehQueryContexto(sql)) return CONTEXTO;
       if (/from "Classificacao"/i.test(sql)) return [];
       if (/from "Utilizacao"/i.test(sql)) return [];
-      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      const where = sql.slice(sql.indexOf("where p.cnp > $1"));
       const est: Estrato = /classificacaoNivel2Id" is null/.test(where)
         ? "NAO_CLASSIFICADO"
         : /c2\.nome ilike 'Outros %'/.test(where)
@@ -1405,7 +1440,7 @@ console.log("\n=== canary forçado: a reprodução da Silveira ===");
 
   function prismaSilveira() {
     const estratoDe = (sql: string): Estrato => {
-      const where = sql.slice(sql.indexOf("where p.cnp >= $1"));
+      const where = sql.slice(sql.indexOf("where p.cnp > $1"));
       if (/classificacaoNivel2Id" is null/.test(where)) return "NAO_CLASSIFICADO";
       if (/c2\.nome ilike 'Outros %'/.test(where)) return "OUTROS_MEDICAMENTOS";
       return "SEM_UTILIZACOES";
