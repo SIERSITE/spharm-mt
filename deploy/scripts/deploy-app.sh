@@ -97,9 +97,52 @@ REV_ALVO=""        # sha curto do commit a publicar
 REV_ANTERIOR=""    # APP_REVISION do container em produção
 IMAGEM_ANTERIOR="" # id da imagem que serve web/worker agora
 TAG_RESGATE=""     # tag dada à imagem anterior para o prune não a levar
-REF_ORIGINAL=""    # ref do clone antes do checkout, para o repor
+CTX=""             # árvore temporária de onde se constrói (NUNCA o clone)
 PG_ID_ANTES=""
 PG_ARRANQUE_ANTES=""
+
+# ═════════════════════════════════════════════════════════════════════════
+# Git SEMPRE de leitura.
+#
+# Este script corre com sudo. Qualquer comando git que ESCREVA no clone
+# deixa ficheiros de root la' dentro — e o clone e' do utilizador
+# `deploy`, que a partir daí nao consegue sequer correr `git status`:
+#
+#     fatal: .git/index: index file open failed: Permission denied
+#
+# `--no-optional-locks` existe exactamente para isto: impede o git de
+# refrescar o indice em comandos de leitura (`status` fa-lo por omissao,
+# e um `status` corrido por root reescrevia `.git/index` como root).
+#
+# Nao ha' `git checkout` nenhum: a arvore a construir sai por
+# `git archive` para um directorio temporario. Ver `construir`.
+# ═════════════════════════════════════════════════════════════════════════
+gitro() {
+  git --no-optional-locks -C "$CLONE" "$@"
+}
+
+# Ficheiros de root dentro do clone — de uma execucao anterior, antes de
+# este script deixar de escrever la'. Torna o problema visivel e da' o
+# comando exacto para o reparar, em vez de um `chown -R` as cegas.
+diagnosticar_dono() {
+  local encontrado dono
+  encontrado=$(find "$CLONE" -user 0 -print -quit 2>/dev/null || true)
+  [ -n "$encontrado" ] || return 1
+  dono=$(stat -c '%U:%G' "$CLONE" 2>/dev/null || echo "")
+  err "existem ficheiros de ROOT dentro de ${CLONE}"
+  err "(primeiro encontrado: ${encontrado})"
+  if [ -n "$dono" ]; then
+    err "repara SO' esses ficheiros — sem chown -R indiscriminado — com:"
+    err "    sudo find ${CLONE} -user root -exec chown ${dono} {} +"
+  fi
+  return 0
+}
+
+limpar_contexto() {
+  [ -n "$CTX" ] && [ -d "$CTX" ] && rm -rf "$CTX"
+  CTX=""
+}
+trap limpar_contexto EXIT
 
 # ═════════════════════════════════════════════════════════════════════════
 # Wrapper do compose.
@@ -203,22 +246,32 @@ preflight() {
   [ -d "${CLONE}/.git" ] || die_precond "${CLONE} não é um repositório git"
   ok "clone: ${CLONE}"
 
-  # Árvore limpa. O build lê o directório de trabalho (não o `git
-  # archive`), portanto um ficheiro por commitar entrava na imagem sem
-  # deixar rasto em lado nenhum.
-  local sujo
-  sujo=$(git -C "$CLONE" status --porcelain 2>/dev/null | head -5)
+  # Nenhum ficheiro de root pode estar la' dentro: se estiver, o
+  # utilizador `deploy` ja' nao consegue usar o clone e a causa e'
+  # sempre a mesma (um git de escrita corrido com sudo).
+  if diagnosticar_dono; then
+    die_precond "clone com ficheiros de root — repara-o antes de publicar"
+  fi
+
+  # Árvore limpa. O que se constroi e' o COMMIT (via `git archive`), nao
+  # o directorio de trabalho — mas uma arvore suja significa que o que
+  # se ve' no disco nao e' o que vai ser publicado, e isso merece parar.
+  local sujo rc_status
+  sujo=$(gitro status --porcelain 2>&1); rc_status=$?
+  if [ "$rc_status" -ne 0 ]; then
+    err "não consegui ler o estado de ${CLONE}:"
+    printf '%s\n' "$sujo" | sed 's/^/      /'
+    diagnosticar_dono || true
+    die_precond "clone ilegível"
+  fi
   [ -z "$sujo" ] || die_precond "árvore de trabalho suja em ${CLONE}:
-${sujo}"
+$(printf '%s' "$sujo" | head -5)"
   ok "árvore de trabalho limpa"
 
-  REF_ORIGINAL=$(git -C "$CLONE" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-  [ "$REF_ORIGINAL" = "HEAD" ] && REF_ORIGINAL=$(git -C "$CLONE" rev-parse HEAD)
-
-  [ -z "$ALVO" ] && ALVO=$(git -C "$CLONE" rev-parse HEAD)
-  git -C "$CLONE" rev-parse --verify --quiet "${ALVO}^{commit}" >/dev/null \
+  [ -z "$ALVO" ] && ALVO=$(gitro rev-parse HEAD)
+  gitro rev-parse --verify --quiet "${ALVO}^{commit}" >/dev/null \
     || die_precond "revisão '${ALVO}' não existe em ${CLONE} (falta um git fetch?)"
-  REV_ALVO=$(git -C "$CLONE" rev-parse --short "${ALVO}^{commit}")
+  REV_ALVO=$(gitro rev-parse --short "${ALVO}^{commit}")
   ok "revisão alvo: ${REV_ALVO}"
 }
 
@@ -238,7 +291,7 @@ portao_migrations() {
   [ "$REV_ANTERIOR" = "unknown" ] \
     && die_precond "a imagem em produção não sabe que revisão é ('unknown') — sem isso não posso provar que não há migrations. Usa install-stack.sh."
 
-  git -C "$CLONE" rev-parse --verify --quiet "${REV_ANTERIOR}^{commit}" >/dev/null \
+  gitro rev-parse --verify --quiet "${REV_ANTERIOR}^{commit}" >/dev/null \
     || die_precond "a revisão em produção (${REV_ANTERIOR}) não existe neste clone — sem ela não posso comparar migrations. Usa install-stack.sh."
 
   if [ "$REV_ANTERIOR" = "$REV_ALVO" ]; then
@@ -246,7 +299,7 @@ portao_migrations() {
   fi
 
   local mudou
-  mudou=$(git -C "$CLONE" diff --name-only "${REV_ANTERIOR}" "${REV_ALVO}" \
+  mudou=$(gitro diff --name-only "${REV_ANTERIOR}" "${REV_ALVO}" \
             -- prisma/migrations prisma-control/migrations 2>/dev/null || true)
   if [ -n "$mudou" ]; then
     err "existem migrations entre ${REV_ANTERIOR} e ${REV_ALVO}:"
@@ -308,13 +361,28 @@ guardar_rollback() {
 construir() {
   step "4. Imagem da aplicação"
 
-  info "a colocar o clone em ${REV_ALVO}..."
-  run git -C "$CLONE" checkout --quiet --detach "${REV_ALVO}"
+  # ── A ARVORE SAI DO COMMIT, NAO DO CLONE ─────────────────────────
+  #
+  # `git archive` le' os objectos e escreve para stdout: nao mexe no
+  # indice, nao mexe no HEAD, nao mexe em nada dentro de .git. A versao
+  # anterior fazia `git checkout --detach` — corrido com sudo, isso
+  # recriava `.git/index` e `.git/HEAD` como root e deixava o clone
+  # inutilizavel para o utilizador `deploy`.
+  #
+  # Efeito lateral bem-vindo: o contexto passa a conter SO' o que esta'
+  # commitado, exactamente como o install-stack.sh sempre fez.
+  CTX=$(mktemp -d)
+  info "a extrair ${REV_ALVO} para ${CTX}..."
+  if [ "$DRY_RUN" != "1" ]; then
+    gitro archive --format=tar "$REV_ALVO" | tar -x -C "$CTX" \
+      || die "não consegui extrair ${REV_ALVO} do clone"
+  fi
+  export APP_BUILD_CONTEXT="$CTX"
 
   local extra=()
   [ "$NO_CACHE" = "1" ] && extra+=(--no-cache)
 
-  info "a construir spharmmt-app (contexto: ${CLONE})..."
+  info "a construir spharmmt-app (contexto: ${CTX})..."
   run dcapp build "${extra[@]+"${extra[@]}"}" web
   ok "imagem construída (rev ${REV_ALVO})"
 }
@@ -456,8 +524,7 @@ rollback() {
     err "estado guardado em ${STATE_FILE}"
   fi
 
-  # Repõe o clone onde estava, para o próximo build não herdar o detached.
-  [ -n "$REF_ORIGINAL" ] && git -C "$CLONE" checkout --quiet "$REF_ORIGINAL" 2>/dev/null || true
+  # Não há nada a repor no clone: este script nunca lhe escreve.
   return 0
 }
 
@@ -476,22 +543,30 @@ main() {
   APP_TAG_ACTUAL=$(awk -F= '/^APP_TAG=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
   APP_TAG_ACTUAL=${APP_TAG_ACTUAL:-local}
 
-  # ── A sobreposicao dos dois valores que mudam a cada deploy ────────
+  # ── A sobreposicao dos valores que mudam a cada deploy ────────────
   #
-  # EXPORTADAS, e nao passadas como prefixo de comando: a interpolacao do
+  # EXPORTADA, e nao passada como prefixo de comando: a interpolacao do
   # compose da' precedencia ao ambiente do shell sobre os `--env-file`, e
-  # e' assim que o contexto de build passa a ser o clone e a revisao a
-  # que se esta' a publicar — sem escrever uma linha no stack.env.
+  # e' assim que a revisao chega ao build sem escrever no stack.env.
+  # (`APP_BUILD_CONTEXT` e' exportado dentro de `construir`, quando a
+  # arvore temporaria ja' existe.)
   #
   # O stack.env fica com o APP_REVISION antigo. Nao e' esquecimento: quem
   # manda e' a variavel ENV gravada DENTRO da imagem, e e' essa que a
   # validacao le' do container. O stack.env volta a acertar no proximo
   # install-stack.
-  export APP_BUILD_CONTEXT="$CLONE"
   export APP_REVISION="$REV_ALVO"
 
   construir
   subir
+
+  # O clone tem de sair exactamente como entrou. Esta verificacao nao
+  # corrige nada — grita, que e' o que faltava da primeira vez.
+  if diagnosticar_dono; then
+    err "este deploy deixou ficheiros de root no clone — isto é um bug deste script"
+    rollback
+    finish "$EX_FAIL"
+  fi
 
   if validar; then
     local t1; t1=$(date +%s)

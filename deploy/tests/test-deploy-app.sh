@@ -89,6 +89,34 @@ contem "exige /data/postgres/data"   "$CORPO" 'PGDATA_ESPERADO="/data/postgres/d
 contem "guarda a imagem anterior"    "$CORPO" 'docker tag "\$IMAGEM_ANTERIOR"'
 contem "compara migrations entre revisoes" "$CORPO" 'prisma/migrations prisma-control/migrations'
 
+# ── O clone e' SO' DE LEITURA ────────────────────────────────────────
+#
+# O script corre com sudo. Um unico comando git de escrita deixa
+# `.git/index` e `.git/HEAD` como root e o utilizador `deploy` perde o
+# clone:  "fatal: .git/index: index file open failed: Permission denied".
+# As mensagens ao operador CITAM comandos ("falta um git fetch?", "repara
+# com chown"), e uma procura ingenua encontrava a citacao. O que nao pode
+# existir e' uma INVOCACAO: o comando fora de qualquer string.
+ESCRITAS=$(printf '%s\n' "$CORPO" \
+  | grep -E '^[^"#]*git( --[a-z-]+)*( -C [^ ]+)? +(checkout|fetch|reset|restore|clean|switch|pull|merge|rebase|stash|gc|worktree)' \
+  || true)
+check "nenhum comando git que escreva no clone" "$ESCRITAS" ""
+contem "le' o git com --no-optional-locks" "$CORPO" 'git --no-optional-locks -C "\$CLONE"'
+contem "extrai a arvore com git archive"   "$CORPO" 'gitro archive --format=tar'
+contem "constroi de um temporario"         "$CORPO" 'CTX=$(mktemp -d)'
+contem "e apaga-o no fim"                  "$CORPO" 'rm -rf "$CTX"'
+
+# Todos os comandos git passam pelo wrapper de leitura: nenhum `git -C`
+# solto, que seria um caminho a escapar ao --no-optional-locks.
+GIT_SOLTO=$(printf '%s\n' "$CODIGO" | grep -c 'git -C "\$CLONE"')
+check "nenhum 'git -C \$CLONE' fora do wrapper" "$GIT_SOLTO" "0"
+
+# Deteccao e reparacao de ficheiros de root deixados por versoes antigas.
+contem "detecta ficheiros de root no clone" "$CORPO" 'find "$CLONE" -user 0'
+contem "sugere reparacao dirigida, sem chown -R" "$CORPO" 'find ${CLONE} -user root -exec chown'
+CHOWN_R=$(printf '%s\n' "$CORPO" | grep -E '^[^"#]*chown +-R' || true)
+check "nunca executa chown -R" "$CHOWN_R" ""
+
 # `up` nomeia exactamente web e worker — nunca postgres nem proxy.
 UPS=$(printf '%s\n' "$CODIGO" | grep -c 'dcapp up ')
 check "so ha 2 invocacoes de 'up' (deploy + rollback)" "$UPS" "2"
@@ -211,6 +239,7 @@ case "\$args" in
   *"rev-parse --short"*) echo bbbbbbb; exit 0 ;;
   *"rev-parse HEAD"*)    echo bbbbbbb; exit 0 ;;
   *"diff --name-only"*)  [ -n "${MIGRATIONS:-}" ] && echo "prisma/migrations/20260904_x/migration.sql"; exit 0 ;;
+  *archive*) tar -cf - -T /dev/null; exit 0 ;;
   *) exit 0 ;;
 esac
 SH
@@ -294,6 +323,23 @@ contem "sobe web e worker com --no-deps" "$REG" 'up -d --no-deps web worker'
 contem "guarda a imagem anterior por tag" "$REG" 'tag sha256:imagem-antiga spharmmt-app:rollback'
 contem "verifica a saude por HTTP"     "$REG" 'api/health'
 
+# ── O clone sai como entrou ─────────────────────────────────────────
+#
+# Nao e' o codigo que se le' aqui: e' a lista dos comandos que o `git`
+# falso recebeu durante uma execucao completa. Um `checkout` corrido por
+# root recria `.git/index` e `.git/HEAD` como root, e o utilizador
+# `deploy` perde o clone.
+GIT_ESCRITAS=$(printf '%s\n' "$REG" \
+  | grep -E '^git .*(checkout|fetch|reset|restore|clean|switch|pull|merge|rebase|stash|gc|worktree)' \
+  || true)
+check "o git nunca recebeu um comando de escrita" "$GIT_ESCRITAS" ""
+contem "extraiu a arvore com git archive" "$REG" 'git .*archive --format=tar'
+contem "leu sempre com --no-optional-locks" "$REG" 'git --no-optional-locks'
+
+# E nenhuma leitura escapou ao wrapper.
+GIT_SEM_FLAG=$(printf '%s\n' "$REG" | grep '^git ' | grep -vc -- '--no-optional-locks' || true)
+check "nenhuma invocacao de git sem o flag de leitura" "$GIT_SEM_FLAG" "0"
+
 # Todas as invocacoes do compose levam os DOIS env-files.
 COMPOSES=$(printf '%s\n' "$REG" | grep -c 'docker compose ')
 COM_ENV=$(printf '%s\n' "$REG" | grep 'docker compose ' \
@@ -311,6 +357,9 @@ contem "anuncia a reversao" "$OUT" 'a reverter'
 contem "repoe a tag da imagem antiga" "$REG" 'tag sha256:imagem-antiga spharmmt-app:local'
 contem "recria com --force-recreate"  "$REG" 'up -d --no-deps --force-recreate web worker'
 nao_contem "o rollback tambem nao toca no postgres" "$REG" 'up .*postgres'
+GIT_ESCRITAS_RB=$(printf '%s\n' "$REG" \
+  | grep -E '^git .*(checkout|fetch|reset|restore|clean|switch)' || true)
+check "o rollback tambem nao escreve no clone" "$GIT_ESCRITAS_RB" ""
 
 echo
 echo "${pass} ok, ${fail} falhas"
