@@ -23,7 +23,25 @@
 # ── O que NÃO faz, e é deliberado ────────────────────────────────────
 #
 #   · não corre migrations, e RECUSA-SE a correr se existirem;
-#   · não constrói `migrate`, `postgres` nem `proxy`;
+#   · não constrói `postgres` nem `proxy`;
+#   · não SOBE o `migrate` nem corre nada dentro dele.
+#
+# ── A imagem de ferramentas ──────────────────────────────────────────
+#
+# `web` e `worker` partilham uma imagem; o perfil `tools` (`migrate`) tem
+# outra, a `-migrator`. Durante algum tempo este script construía só a
+# primeira, e o resultado era silencioso e mau: depois de dois ou três
+# deploys rápidos, `tenant:create`, `catalog:*`, `tenancy:*` e os
+# diagnósticos corriam com o `lib/` de uma revisão antiga contra uma base
+# de dados gerida por código novo. Ninguém dava por isso até um
+# `Cannot find module` — e esse é o desfecho BOM. O mau é a função que
+# ainda existe com a assinatura antiga e devolve outro número.
+#
+# Agora o script compara a revisão da imagem de tools com a revisão alvo
+# e olha SÓ para os caminhos que entram nessa imagem (ver
+# CAMINHOS_TOOLS). Se nada relevante mudou, não constrói nada — o deploy
+# rápido continua rápido. Se mudou, constrói TAMBÉM a `-migrator`, e mais
+# nada: sem migrations, sem `up`, sem tocar em serviço nenhum.
 #   · não usa `down`, `down -v`, `prune`, `install-stack.sh` nem
 #     `update-platform.sh`;
 #   · não escreve em /data/postgres, nos backups, nos segredos, no
@@ -38,7 +56,8 @@
 #   sudo ./deploy-app.sh 2a95208         # uma revisão concreta
 #   sudo ./deploy-app.sh --clone /srv/spharmmt 2a95208
 #
-# Saída: 0 ok · 1 falha (com rollback aplicado) · 2 pré-condição · 5 lock
+# Saída: 0 ok · 1 falha (com rollback aplicado) · 2 pré-condição
+#        3 aplicação publicada mas imagem de tools incoerente · 5 lock
 set -Eeuo pipefail
 # shellcheck source=lib/common.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
@@ -52,9 +71,15 @@ ALVO=""
 CLONE="${SPHARMMT_CLONE:-}"
 HEALTH_TIMEOUT=150
 NO_CACHE=0
+SKIP_MIGRATOR=0
+FORCE_MIGRATOR=0
 PUBLIC_URL_HEALTH="${SPHARMMT_PUBLIC_HEALTH_URL:-https://app.spharmmt.com/api/health}"
 STATE_DIR="${SPHARMMT_ROOT}/monitoring/state"
 STATE_FILE="${STATE_DIR}/last-app-image.txt"
+# Ficheiro SEPARADO, e nao mais duas linhas no de cima: o rollback da
+# aplicacao e o da imagem de tools sao decisoes independentes, e
+# guarda-los juntos convida a repor os dois quando so' um esta' mal.
+STATE_FILE_MIGRATOR="${STATE_DIR}/last-migrator-image.txt"
 
 # O PGDATA que este servidor TEM de estar a usar. Não é configurável de
 # propósito: o incidente de 2026-09-03 foi um container arrancado sem os
@@ -71,10 +96,15 @@ Uso: sudo $0 [revisão] [opções]
   --clone <dir>        Clone git de onde construir. Default: detectado.
   --health-timeout <s> Espera máxima pelo healthcheck. Default: ${HEALTH_TIMEOUT}
   --no-cache           Constrói sem cache de camadas (lento; diagnóstico).
+  --skip-migrator      Não constrói a imagem de tools, mesmo que precise.
+                       Sai com 3 se isso deixar as revisões incoerentes.
+  --force-migrator     Constrói a imagem de tools mesmo sem alterações.
 $(common_flags_help)
 
-Só publica web/worker. Recusa-se a correr se houver migrations entre a
-revisão em produção e a revisão alvo — nesse caso usa install-stack.sh.
+Publica web/worker e, quando as alterações lhe tocam, reconstrói a
+imagem do perfil tools (`-migrator`) — sem a subir e sem migrations.
+Recusa-se a correr se houver migrations entre a revisão em produção e a
+revisão alvo — nesse caso usa install-stack.sh.
 EOF
 }
 
@@ -84,6 +114,8 @@ while [ $# -gt 0 ]; do
     --clone) CLONE=${2:?}; shift 2 ;;
     --health-timeout) HEALTH_TIMEOUT=${2:?}; shift 2 ;;
     --no-cache) NO_CACHE=1; shift ;;
+    --skip-migrator) SKIP_MIGRATOR=1; shift ;;
+    --force-migrator) FORCE_MIGRATOR=1; shift ;;
     --help|-h) usage; exit 0 ;;
     -*) usage >&2; die_usage "opção desconhecida: $1" ;;
     *)
@@ -100,6 +132,67 @@ TAG_RESGATE=""     # tag dada à imagem anterior para o prune não a levar
 CTX=""             # árvore temporária de onde se constrói (NUNCA o clone)
 PG_ID_ANTES=""
 PG_ARRANQUE_ANTES=""
+APP_IMAGE_ACTUAL=""      # nome da imagem (stack.env, default spharmmt-app)
+APP_TAG_ACTUAL=""        # tag da imagem (stack.env, default local)
+IMAGEM_MIGRATOR=""       # <imagem>:<tag>-migrator
+REV_MIGRATOR=""          # APP_REVISION carimbado nessa imagem
+IMAGEM_MIGRATOR_ANTERIOR="" # id, para o rollback proprio
+TAG_RESGATE_MIGRATOR=""
+CONSTRUIR_MIGRATOR=0     # decidido em `portao_migrator`
+MOTIVO_MIGRATOR=""
+
+# ═════════════════════════════════════════════════════════════════════════
+# O que entra na imagem do perfil `tools`.
+#
+# Nao e' uma lista de "coisas importantes" — e' a lista dos COPY do estagio
+# `migrator` do deploy/docker/Dockerfile, mais o que os influencia. Se
+# nenhum destes caminhos mudou entre a revisao da imagem e a revisao alvo,
+# reconstrui-la produziria bit por bit a mesma coisa.
+#
+# `deploy/docker/Dockerfile` esta' ca' porque um COPY novo muda o conteudo
+# sem que nenhum ficheiro de codigo tenha mudado — foi assim que os
+# diagnosticos entraram na imagem.
+#
+# `generated/` NAO esta': o estagio faz `COPY --from=builder /app/generated`
+# e o builder regenera-o com `prisma generate`. O que manda e' `prisma/`,
+# que ja' esta' na lista; incluir `generated/` so' provocaria builds por
+# causa de ficheiros que o proprio build reescreve.
+# ═════════════════════════════════════════════════════════════════════════
+CAMINHOS_TOOLS=(
+  lib
+  scripts
+  prisma
+  prisma-control
+  prisma.config.ts
+  prisma-control.config.ts
+  package.json
+  package-lock.json
+  tsconfig.json
+  deploy/docker/Dockerfile
+  deploy/docker/entrypoint.sh
+  deploy/docker/tools-scripts.txt
+  deploy/docker/audit-tools-entrypoints.mjs
+)
+
+# A revisao carimbada DENTRO de uma imagem. Vazio se a imagem nao existe
+# ou se nao tem carimbo — e essas duas respostas sao diferentes de "esta'
+# actualizada", o que e' precisamente o ponto.
+revisao_da_imagem() {
+  # A saida e' capturada ANTES do pipe, e nao encadeada nele. Com
+  # `pipefail`, `docker image inspect | sed | head` propaga o insucesso
+  # do docker quando a imagem NAO EXISTE, e o `set -e` matava o script
+  # a meio do portao — sem rollback, sem mensagem, com exit 1. Uma
+  # imagem ausente e' uma resposta valida a esta pergunta, nao um erro.
+  local saida
+  saida=$(docker image inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null) \
+    || return 0
+  printf '%s\n' "$saida" | sed -n 's/^APP_REVISION=//p' | head -1
+}
+
+# Ficheiros que entram na imagem de tools e mudaram entre duas revisoes.
+tools_afectados() {
+  gitro diff --name-only "$1" "$2" -- "${CAMINHOS_TOOLS[@]}" 2>/dev/null || true
+}
 
 # ═════════════════════════════════════════════════════════════════════════
 # Git SEMPRE de leitura.
@@ -209,6 +302,15 @@ preflight() {
   [ -f "$SPHARMMT_STACK_ENV_FILE" ] || die_precond "falta ${SPHARMMT_STACK_ENV_FILE}"
   ok "compose e os dois env-files no sítio"
 
+  # Nome e tag das imagens. Lidos AQUI e nao a meio do deploy: tanto o
+  # rollback como o portao da imagem de tools precisam deles antes de
+  # qualquer build.
+  APP_IMAGE_ACTUAL=$(awk -F= '/^APP_IMAGE=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
+  APP_IMAGE_ACTUAL=${APP_IMAGE_ACTUAL:-spharmmt-app}
+  APP_TAG_ACTUAL=$(awk -F= '/^APP_TAG=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
+  APP_TAG_ACTUAL=${APP_TAG_ACTUAL:-local}
+  IMAGEM_MIGRATOR="${APP_IMAGE_ACTUAL}:${APP_TAG_ACTUAL}-migrator"
+
   # ── O PGDATA configurado ───────────────────────────────────────────
   # Lido dos env-files (o stack.env ganha, como no compose) e confirmado
   # contra o que o container está MESMO a montar. As duas verificações
@@ -312,6 +414,80 @@ portao_migrations() {
 }
 
 # ═════════════════════════════════════════════════════════════════════════
+# 2b. Portão da imagem de ferramentas
+#
+# A pergunta é a mesma do portão das migrations, aplicada a outra imagem:
+# "entre o que a imagem de tools TEM e o que vai passar a haver, mudou
+# alguma coisa que entre nessa imagem?"
+#
+# Só três respostas levam a NÃO construir, e todas são demonstráveis:
+# a imagem já está na revisão alvo; nada em CAMINHOS_TOOLS mudou; ou o
+# operador pediu explicitamente para saltar. Tudo o resto — imagem
+# inexistente, sem carimbo, ou carimbada com uma revisão que este clone
+# não conhece — constrói, porque não se pode PROVAR que não é preciso.
+# Uma imagem que não sabe dizer o que traz não recebe o benefício da
+# dúvida.
+# ═════════════════════════════════════════════════════════════════════════
+portao_migrator() {
+  step "2b. Imagem de ferramentas"
+
+  REV_MIGRATOR=$(revisao_da_imagem "$IMAGEM_MIGRATOR")
+
+  if [ "$SKIP_MIGRATOR" = "1" ]; then
+    CONSTRUIR_MIGRATOR=0
+    MOTIVO_MIGRATOR="--skip-migrator"
+    warn "imagem de tools NÃO será construída (--skip-migrator)"
+    warn "se as alterações lhe tocarem, este deploy termina com código 3"
+    return 0
+  fi
+
+  if [ "$FORCE_MIGRATOR" = "1" ]; then
+    CONSTRUIR_MIGRATOR=1
+    MOTIVO_MIGRATOR="--force-migrator"
+    info "imagem de tools será construída (--force-migrator)"
+    return 0
+  fi
+
+  if [ -z "$REV_MIGRATOR" ] || [ "$REV_MIGRATOR" = "unknown" ]; then
+    CONSTRUIR_MIGRATOR=1
+    MOTIVO_MIGRATOR="a imagem ${IMAGEM_MIGRATOR} não existe ou não diz que revisão é"
+    warn "${MOTIVO_MIGRATOR} — vai ser construída"
+    return 0
+  fi
+
+  if ! gitro rev-parse --verify --quiet "${REV_MIGRATOR}^{commit}" >/dev/null; then
+    CONSTRUIR_MIGRATOR=1
+    MOTIVO_MIGRATOR="a revisão da imagem de tools (${REV_MIGRATOR}) não existe neste clone"
+    warn "${MOTIVO_MIGRATOR} — vai ser construída"
+    return 0
+  fi
+
+  if [ "$REV_MIGRATOR" = "$REV_ALVO" ]; then
+    CONSTRUIR_MIGRATOR=0
+    MOTIVO_MIGRATOR="já está em ${REV_ALVO}"
+    ok "imagem de tools já está em ${REV_ALVO} — nada a construir"
+    return 0
+  fi
+
+  local mudou
+  mudou=$(tools_afectados "$REV_MIGRATOR" "$REV_ALVO")
+  if [ -z "$mudou" ]; then
+    CONSTRUIR_MIGRATOR=0
+    MOTIVO_MIGRATOR="nada que entre na imagem mudou entre ${REV_MIGRATOR} e ${REV_ALVO}"
+    ok "imagem de tools em ${REV_MIGRATOR}: nada relevante mudou — não se constrói"
+    return 0
+  fi
+
+  CONSTRUIR_MIGRATOR=1
+  MOTIVO_MIGRATOR="alterações relevantes entre ${REV_MIGRATOR} e ${REV_ALVO}"
+  info "a imagem de tools está em ${REV_MIGRATOR}; mudou o que ela leva:"
+  printf '%s\n' "$mudou" | head -12 | sed 's/^/      /'
+  local n; n=$(printf '%s\n' "$mudou" | grep -c . || true)
+  [ "$n" -gt 12 ] && info "      (+ $((n - 12)) ficheiros)"
+  ok "imagem de tools será reconstruída"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
 # 3. Rollback guardado ANTES de construir
 #
 # A ordem é crítica: o build reescreve a tag `spharmmt-app:local` e a
@@ -324,7 +500,7 @@ guardar_rollback() {
   IMAGEM_ANTERIOR=$(docker inspect -f '{{.Image}}' "$SPHARMMT_APP_CONTAINER" 2>/dev/null || true)
   [ -n "$IMAGEM_ANTERIOR" ] || die_precond "não consegui ler a imagem actual de ${SPHARMMT_APP_CONTAINER}"
 
-  TAG_RESGATE="spharmmt-app:rollback-${REV_ANTERIOR}"
+  TAG_RESGATE="${APP_IMAGE_ACTUAL}:rollback-${REV_ANTERIOR}"
   if [ "$DRY_RUN" != "1" ]; then
     docker tag "$IMAGEM_ANTERIOR" "$TAG_RESGATE" \
       || die_precond "não consegui etiquetar a imagem anterior — sem rollback não avanço"
@@ -385,6 +561,51 @@ construir() {
   info "a construir spharmmt-app (contexto: ${CTX})..."
   run dcapp build "${extra[@]+"${extra[@]}"}" web
   ok "imagem construída (rev ${REV_ALVO})"
+}
+
+# ═════════════════════════════════════════════════════════════════════════
+# 4b. Imagem de ferramentas
+#
+# ANTES do `subir`, e nao depois, por uma razao so': se este build falhar,
+# ainda nao se recriou container nenhum. O deploy aborta com a versao
+# antiga a servir e nao ha' rollback a fazer — nada foi mudado.
+#
+# Constroi-se do MESMO contexto (`CTX`) que a imagem da aplicacao, o que
+# garante que as duas saem da mesma revisao e faz o build reaproveitar os
+# estagios `deps` e `builder` que o build anterior acabou de encher. O
+# custo marginal e' o estagio `migrator` e a exportacao da imagem.
+#
+# `--profile tools` e' obrigatorio: sem ele o compose finge que o servico
+# `migrate` nao existe e o build falharia a dizer que nao ha' tal servico.
+# E' `build`, nunca `run` nem `up`: nada arranca, nada migra.
+# ═════════════════════════════════════════════════════════════════════════
+construir_migrator() {
+  [ "$CONSTRUIR_MIGRATOR" = "1" ] || return 0
+  step "4b. Imagem de ferramentas (${IMAGEM_MIGRATOR})"
+  info "motivo: ${MOTIVO_MIGRATOR}"
+
+  # Rollback PROPRIO, guardado antes de a tag ser reescrita. Nao entra no
+  # STATE_FILE da aplicacao de proposito: sao duas decisoes separadas.
+  IMAGEM_MIGRATOR_ANTERIOR=$(docker image inspect "$IMAGEM_MIGRATOR" --format '{{.Id}}' 2>/dev/null || true)
+  if [ -n "$IMAGEM_MIGRATOR_ANTERIOR" ] && [ "$DRY_RUN" != "1" ]; then
+    TAG_RESGATE_MIGRATOR="${APP_IMAGE_ACTUAL}:rollback-${REV_MIGRATOR:-sem-revisao}-migrator"
+    if docker tag "$IMAGEM_MIGRATOR_ANTERIOR" "$TAG_RESGATE_MIGRATOR" 2>/dev/null; then
+      mkdir -p "$STATE_DIR" 2>/dev/null || true
+      printf 'rev=%s\nimage=%s\ntag=%s\n' \
+        "${REV_MIGRATOR:-desconhecida}" "$IMAGEM_MIGRATOR_ANTERIOR" "$TAG_RESGATE_MIGRATOR" \
+        > "$STATE_FILE_MIGRATOR" 2>/dev/null || true
+      ok "imagem de tools anterior guardada como ${TAG_RESGATE_MIGRATOR}"
+    else
+      warn "não consegui etiquetar a imagem de tools anterior — sem rollback dela"
+    fi
+  fi
+
+  local extra=()
+  [ "$NO_CACHE" = "1" ] && extra+=(--no-cache)
+
+  info "a construir ${IMAGEM_MIGRATOR} (contexto: ${CTX})..."
+  run dcapp --profile tools build "${extra[@]+"${extra[@]}"}" migrate
+  ok "imagem de tools construída (rev ${REV_ALVO})"
 }
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -498,7 +719,63 @@ validar() {
 }
 
 # ═════════════════════════════════════════════════════════════════════════
+# 6b. Coerência entre a aplicação e as ferramentas
+#
+# SEPARADA da `validar` de propósito, e sem poder de rollback. Se a
+# aplicação está saudável a servir a revisão alvo, reverter tudo porque
+# uma imagem de comandos manuais ficou para trás seria uma resposta
+# desproporcionada: tirava do ar o que funciona para corrigir o que só é
+# usado quando alguém corre um comando à mão.
+#
+# Estar ATRASADA não é, por si, um erro — é o caso normal quando o deploy
+# só mexeu em UI. O erro é estar atrasada EM RELAÇÃO A ALGO QUE LHE TOCA,
+# e é isso que se mede.
+# ═════════════════════════════════════════════════════════════════════════
+validar_coerencia_tools() {
+  step "6b. Coerência das ferramentas"
+
+  local rev; rev=$(revisao_da_imagem "$IMAGEM_MIGRATOR")
+
+  if [ "$rev" = "$REV_ALVO" ]; then
+    ok "imagem de tools em ${REV_ALVO} — igual a web/worker"
+    return 0
+  fi
+
+  if [ -z "$rev" ] || [ "$rev" = "unknown" ]; then
+    err "a imagem ${IMAGEM_MIGRATOR} não existe ou não diz que revisão é"
+    err "sem isso não posso afirmar que os comandos de tools correm código actual"
+    err "corrige com:  sudo $0 ${REV_ALVO} --force-migrator"
+    return 1
+  fi
+
+  if ! gitro rev-parse --verify --quiet "${rev}^{commit}" >/dev/null; then
+    err "a imagem de tools diz-se ${rev}, revisão que este clone não conhece"
+    err "corrige com:  sudo $0 ${REV_ALVO} --force-migrator"
+    return 1
+  fi
+
+  local mudou; mudou=$(tools_afectados "$rev" "$REV_ALVO")
+  if [ -z "$mudou" ]; then
+    ok "imagem de tools em ${rev} (atrás de ${REV_ALVO}), mas nada que ela leve mudou"
+    return 0
+  fi
+
+  err "web/worker em ${REV_ALVO} e a imagem de tools em ${rev}, com alterações que lhe tocam:"
+  printf '%s\n' "$mudou" | head -12 | sed 's/^/      /'
+  err "os comandos do perfil tools (tenant:*, catalog:*, tenancy:*, diagnósticos)"
+  err "correriam código antigo. A aplicação está publicada e saudável; isto NÃO é rollback."
+  err "corrige com:  sudo $0 ${REV_ALVO} --force-migrator"
+  return 1
+}
+
+# ═════════════════════════════════════════════════════════════════════════
 # 7. Rollback
+#
+# SÓ da aplicação. A imagem de tools tem rollback próprio, deliberadamente
+# separado: são duas imagens com ciclos de vida diferentes, e repor as
+# duas por causa de uma é como reinstalar o sistema para corrigir um
+# atalho. Se for mesmo preciso repor a de tools, o comando está no fim
+# desta função e o estado em ${STATE_FILE_MIGRATOR}.
 # ═════════════════════════════════════════════════════════════════════════
 rollback() {
   step "Rollback"
@@ -506,7 +783,7 @@ rollback() {
 
   warn "a repor ${REV_ANTERIOR} (${IMAGEM_ANTERIOR:0:19})..."
   # A tag que o compose espera volta a apontar para a imagem antiga.
-  run docker tag "$IMAGEM_ANTERIOR" "spharmmt-app:${APP_TAG_ACTUAL}"
+  run docker tag "$IMAGEM_ANTERIOR" "${APP_IMAGE_ACTUAL}:${APP_TAG_ACTUAL}"
   run dcapp up -d --no-deps --force-recreate web worker
 
   if esperar_healthy "$SPHARMMT_APP_CONTAINER" "$HEALTH_TIMEOUT"; then
@@ -524,6 +801,13 @@ rollback() {
     err "estado guardado em ${STATE_FILE}"
   fi
 
+  # A imagem de tools NAO e' revertida aqui. Se este deploy chegou a
+  # construi-la e for preciso repo-la, e' um comando separado e explicito.
+  if [ -n "$TAG_RESGATE_MIGRATOR" ]; then
+    info "a imagem de tools NÃO foi revertida (é uma decisão separada). Para a repor:"
+    info "    docker tag ${TAG_RESGATE_MIGRATOR} ${IMAGEM_MIGRATOR}"
+  fi
+
   # Não há nada a repor no clone: este script nunca lhe escreve.
   return 0
 }
@@ -537,11 +821,8 @@ main() {
 
   preflight
   portao_migrations
+  portao_migrator
   guardar_rollback
-
-  # A tag que web/worker usam, lida do stack.env (default `local`).
-  APP_TAG_ACTUAL=$(awk -F= '/^APP_TAG=/ {print $2; exit}' "$SPHARMMT_STACK_ENV_FILE" 2>/dev/null || true)
-  APP_TAG_ACTUAL=${APP_TAG_ACTUAL:-local}
 
   # ── A sobreposicao dos valores que mudam a cada deploy ────────────
   #
@@ -558,6 +839,7 @@ main() {
   export APP_REVISION="$REV_ALVO"
 
   construir
+  construir_migrator
   subir
 
   # O clone tem de sair exactamente como entrou. Esta verificacao nao
@@ -572,8 +854,17 @@ main() {
     local t1; t1=$(date +%s)
     printf '\n'
     ok "deploy concluído em $((t1 - t0))s · ${REV_ANTERIOR} → ${REV_ALVO}"
-    info "rollback disponível: docker tag ${TAG_RESGATE} spharmmt-app:${APP_TAG_ACTUAL}"
-    finish 0
+    info "rollback disponível: docker tag ${TAG_RESGATE} ${APP_IMAGE_ACTUAL}:${APP_TAG_ACTUAL}"
+    [ -n "$TAG_RESGATE_MIGRATOR" ] \
+      && info "rollback da imagem de tools (separado): docker tag ${TAG_RESGATE_MIGRATOR} ${IMAGEM_MIGRATOR}"
+
+    # A aplicacao esta' publicada e saudavel. Se a imagem de tools ficou
+    # incoerente, isso muda o CODIGO DE SAIDA e nao o estado da stack.
+    if validar_coerencia_tools; then
+      finish 0
+    fi
+    warn "a aplicação ficou publicada e saudável; o que falhou foi a imagem de tools"
+    finish "$EX_POSTCOND"
   fi
 
   err "validação falhou — a reverter"
