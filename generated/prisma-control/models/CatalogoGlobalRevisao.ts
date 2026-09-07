@@ -47,6 +47,7 @@ export type CatalogoGlobalRevisaoMinAggregateOutputType = {
   detectadoEm: Date | null
   resolvidoEm: Date | null
   resolucao: string | null
+  resolvidoPor: string | null
 }
 
 export type CatalogoGlobalRevisaoMaxAggregateOutputType = {
@@ -60,6 +61,7 @@ export type CatalogoGlobalRevisaoMaxAggregateOutputType = {
   detectadoEm: Date | null
   resolvidoEm: Date | null
   resolucao: string | null
+  resolvidoPor: string | null
 }
 
 export type CatalogoGlobalRevisaoCountAggregateOutputType = {
@@ -73,6 +75,7 @@ export type CatalogoGlobalRevisaoCountAggregateOutputType = {
   detectadoEm: number
   resolvidoEm: number
   resolucao: number
+  resolvidoPor: number
   _all: number
 }
 
@@ -96,6 +99,7 @@ export type CatalogoGlobalRevisaoMinAggregateInputType = {
   detectadoEm?: true
   resolvidoEm?: true
   resolucao?: true
+  resolvidoPor?: true
 }
 
 export type CatalogoGlobalRevisaoMaxAggregateInputType = {
@@ -109,6 +113,7 @@ export type CatalogoGlobalRevisaoMaxAggregateInputType = {
   detectadoEm?: true
   resolvidoEm?: true
   resolucao?: true
+  resolvidoPor?: true
 }
 
 export type CatalogoGlobalRevisaoCountAggregateInputType = {
@@ -122,6 +127,7 @@ export type CatalogoGlobalRevisaoCountAggregateInputType = {
   detectadoEm?: true
   resolvidoEm?: true
   resolucao?: true
+  resolvidoPor?: true
   _all?: true
 }
 
@@ -222,6 +228,7 @@ export type CatalogoGlobalRevisaoGroupByOutputType = {
   detectadoEm: Date
   resolvidoEm: Date | null
   resolucao: string | null
+  resolvidoPor: string | null
   _count: CatalogoGlobalRevisaoCountAggregateOutputType | null
   _avg: CatalogoGlobalRevisaoAvgAggregateOutputType | null
   _sum: CatalogoGlobalRevisaoSumAggregateOutputType | null
@@ -258,6 +265,7 @@ export type CatalogoGlobalRevisaoWhereInput = {
   detectadoEm?: Prisma.DateTimeFilter<"CatalogoGlobalRevisao"> | Date | string
   resolvidoEm?: Prisma.DateTimeNullableFilter<"CatalogoGlobalRevisao"> | Date | string | null
   resolucao?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
+  resolvidoPor?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
   produto?: Prisma.XOR<Prisma.CatalogoGlobalScalarRelationFilter, Prisma.CatalogoGlobalWhereInput>
 }
 
@@ -272,6 +280,7 @@ export type CatalogoGlobalRevisaoOrderByWithRelationInput = {
   detectadoEm?: Prisma.SortOrder
   resolvidoEm?: Prisma.SortOrderInput | Prisma.SortOrder
   resolucao?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolvidoPor?: Prisma.SortOrderInput | Prisma.SortOrder
   produto?: Prisma.CatalogoGlobalOrderByWithRelationInput
 }
 
@@ -289,6 +298,7 @@ export type CatalogoGlobalRevisaoWhereUniqueInput = Prisma.AtLeast<{
   detectadoEm?: Prisma.DateTimeFilter<"CatalogoGlobalRevisao"> | Date | string
   resolvidoEm?: Prisma.DateTimeNullableFilter<"CatalogoGlobalRevisao"> | Date | string | null
   resolucao?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
+  resolvidoPor?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
   produto?: Prisma.XOR<Prisma.CatalogoGlobalScalarRelationFilter, Prisma.CatalogoGlobalWhereInput>
 }, "id">
 
@@ -303,6 +313,7 @@ export type CatalogoGlobalRevisaoOrderByWithAggregationInput = {
   detectadoEm?: Prisma.SortOrder
   resolvidoEm?: Prisma.SortOrderInput | Prisma.SortOrder
   resolucao?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolvidoPor?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.CatalogoGlobalRevisaoCountOrderByAggregateInput
   _avg?: Prisma.CatalogoGlobalRevisaoAvgOrderByAggregateInput
   _max?: Prisma.CatalogoGlobalRevisaoMaxOrderByAggregateInput
@@ -324,6 +335,7 @@ export type CatalogoGlobalRevisaoScalarWhereWithAggregatesInput = {
   detectadoEm?: Prisma.DateTimeWithAggregatesFilter<"CatalogoGlobalRevisao"> | Date | string
   resolvidoEm?: Prisma.DateTimeNullableWithAggregatesFilter<"CatalogoGlobalRevisao"> | Date | string | null
   resolucao?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobalRevisao"> | string | null
+  resolvidoPor?: Prisma.StringNullableWithAggregatesFilter<"CatalogoGlobalRevisao"> | string | null
 }
 
 export type CatalogoGlobalRevisaoCreateInput = {
@@ -336,6 +348,7 @@ export type CatalogoGlobalRevisaoCreateInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
   produto: Prisma.CatalogoGlobalCreateNestedOneWithoutRevisoesInput
 }
 
@@ -350,6 +363,7 @@ export type CatalogoGlobalRevisaoUncheckedCreateInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
 }
 
 export type CatalogoGlobalRevisaoUpdateInput = {
@@ -362,6 +376,7 @@ export type CatalogoGlobalRevisaoUpdateInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   produto?: Prisma.CatalogoGlobalUpdateOneRequiredWithoutRevisoesNestedInput
 }
 
@@ -376,6 +391,7 @@ export type CatalogoGlobalRevisaoUncheckedUpdateInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type CatalogoGlobalRevisaoCreateManyInput = {
@@ -389,6 +405,7 @@ export type CatalogoGlobalRevisaoCreateManyInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
 }
 
 export type CatalogoGlobalRevisaoUpdateManyMutationInput = {
@@ -401,6 +418,7 @@ export type CatalogoGlobalRevisaoUpdateManyMutationInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type CatalogoGlobalRevisaoUncheckedUpdateManyInput = {
@@ -414,6 +432,7 @@ export type CatalogoGlobalRevisaoUncheckedUpdateManyInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type CatalogoGlobalRevisaoListRelationFilter = {
@@ -437,6 +456,7 @@ export type CatalogoGlobalRevisaoCountOrderByAggregateInput = {
   detectadoEm?: Prisma.SortOrder
   resolvidoEm?: Prisma.SortOrder
   resolucao?: Prisma.SortOrder
+  resolvidoPor?: Prisma.SortOrder
 }
 
 export type CatalogoGlobalRevisaoAvgOrderByAggregateInput = {
@@ -454,6 +474,7 @@ export type CatalogoGlobalRevisaoMaxOrderByAggregateInput = {
   detectadoEm?: Prisma.SortOrder
   resolvidoEm?: Prisma.SortOrder
   resolucao?: Prisma.SortOrder
+  resolvidoPor?: Prisma.SortOrder
 }
 
 export type CatalogoGlobalRevisaoMinOrderByAggregateInput = {
@@ -467,6 +488,7 @@ export type CatalogoGlobalRevisaoMinOrderByAggregateInput = {
   detectadoEm?: Prisma.SortOrder
   resolvidoEm?: Prisma.SortOrder
   resolucao?: Prisma.SortOrder
+  resolvidoPor?: Prisma.SortOrder
 }
 
 export type CatalogoGlobalRevisaoSumOrderByAggregateInput = {
@@ -525,6 +547,7 @@ export type CatalogoGlobalRevisaoCreateWithoutProdutoInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
 }
 
 export type CatalogoGlobalRevisaoUncheckedCreateWithoutProdutoInput = {
@@ -537,6 +560,7 @@ export type CatalogoGlobalRevisaoUncheckedCreateWithoutProdutoInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
 }
 
 export type CatalogoGlobalRevisaoCreateOrConnectWithoutProdutoInput = {
@@ -579,6 +603,7 @@ export type CatalogoGlobalRevisaoScalarWhereInput = {
   detectadoEm?: Prisma.DateTimeFilter<"CatalogoGlobalRevisao"> | Date | string
   resolvidoEm?: Prisma.DateTimeNullableFilter<"CatalogoGlobalRevisao"> | Date | string | null
   resolucao?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
+  resolvidoPor?: Prisma.StringNullableFilter<"CatalogoGlobalRevisao"> | string | null
 }
 
 export type CatalogoGlobalRevisaoCreateManyProdutoInput = {
@@ -591,6 +616,7 @@ export type CatalogoGlobalRevisaoCreateManyProdutoInput = {
   detectadoEm?: Date | string
   resolvidoEm?: Date | string | null
   resolucao?: string | null
+  resolvidoPor?: string | null
 }
 
 export type CatalogoGlobalRevisaoUpdateWithoutProdutoInput = {
@@ -603,6 +629,7 @@ export type CatalogoGlobalRevisaoUpdateWithoutProdutoInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type CatalogoGlobalRevisaoUncheckedUpdateWithoutProdutoInput = {
@@ -615,6 +642,7 @@ export type CatalogoGlobalRevisaoUncheckedUpdateWithoutProdutoInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoInput = {
@@ -627,6 +655,7 @@ export type CatalogoGlobalRevisaoUncheckedUpdateManyWithoutProdutoInput = {
   detectadoEm?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   resolvidoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolucao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvidoPor?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -642,6 +671,7 @@ export type CatalogoGlobalRevisaoSelect<ExtArgs extends runtime.Types.Extensions
   detectadoEm?: boolean
   resolvidoEm?: boolean
   resolucao?: boolean
+  resolvidoPor?: boolean
   produto?: boolean | Prisma.CatalogoGlobalDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["catalogoGlobalRevisao"]>
 
@@ -656,6 +686,7 @@ export type CatalogoGlobalRevisaoSelectCreateManyAndReturn<ExtArgs extends runti
   detectadoEm?: boolean
   resolvidoEm?: boolean
   resolucao?: boolean
+  resolvidoPor?: boolean
   produto?: boolean | Prisma.CatalogoGlobalDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["catalogoGlobalRevisao"]>
 
@@ -670,6 +701,7 @@ export type CatalogoGlobalRevisaoSelectUpdateManyAndReturn<ExtArgs extends runti
   detectadoEm?: boolean
   resolvidoEm?: boolean
   resolucao?: boolean
+  resolvidoPor?: boolean
   produto?: boolean | Prisma.CatalogoGlobalDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["catalogoGlobalRevisao"]>
 
@@ -684,9 +716,10 @@ export type CatalogoGlobalRevisaoSelectScalar = {
   detectadoEm?: boolean
   resolvidoEm?: boolean
   resolucao?: boolean
+  resolvidoPor?: boolean
 }
 
-export type CatalogoGlobalRevisaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "tenantSlug" | "tipo" | "valorGlobal" | "valorLocal" | "detalhe" | "detectadoEm" | "resolvidoEm" | "resolucao", ExtArgs["result"]["catalogoGlobalRevisao"]>
+export type CatalogoGlobalRevisaoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "tenantSlug" | "tipo" | "valorGlobal" | "valorLocal" | "detalhe" | "detectadoEm" | "resolvidoEm" | "resolucao" | "resolvidoPor", ExtArgs["result"]["catalogoGlobalRevisao"]>
 export type CatalogoGlobalRevisaoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.CatalogoGlobalDefaultArgs<ExtArgs>
 }
@@ -719,6 +752,17 @@ export type $CatalogoGlobalRevisaoPayload<ExtArgs extends runtime.Types.Extensio
      * Como foi resolvida, quando foi. Texto livre — quem resolve escreve.
      */
     resolucao: string | null
+    /**
+     * QUEM assinou a resolucao. Coluna propria e nao um prefixo dentro de
+     * `resolucao`, pela mesma razao que `CatalogoGlobalPromocao.aprovador`
+     * e coluna: o que se vai querer perguntar meses depois e "o que e que
+     * esta pessoa decidiu", e isso nao se pergunta a texto livre.
+     * 
+     * Opcional no schema porque as linhas por resolver nao a tem. Quem
+     * resolve NAO pode omiti-la — a guarda esta em
+     * `validarPedidoResolucao`, que e a unica porta de entrada.
+     */
+    resolvidoPor: string | null
   }, ExtArgs["result"]["catalogoGlobalRevisao"]>
   composites: {}
 }
@@ -1153,6 +1197,7 @@ export interface CatalogoGlobalRevisaoFieldRefs {
   readonly detectadoEm: Prisma.FieldRef<"CatalogoGlobalRevisao", 'DateTime'>
   readonly resolvidoEm: Prisma.FieldRef<"CatalogoGlobalRevisao", 'DateTime'>
   readonly resolucao: Prisma.FieldRef<"CatalogoGlobalRevisao", 'String'>
+  readonly resolvidoPor: Prisma.FieldRef<"CatalogoGlobalRevisao", 'String'>
 }
     
 

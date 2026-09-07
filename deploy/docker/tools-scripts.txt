@@ -122,6 +122,12 @@ catalog:sincronizar-estado
 # recusa-se a correr.
 catalog:promote-global
 
+# As divergencias entre o catalogo global e cada tenant: listar (read-only)
+# e marcar como resolvida com aprovador e motivo. Sao operacionais porque
+# a tabela enche-se sozinha a cada project-global e a cada importacao.
+diag:revisoes-globais
+catalog:resolver-revisao
+
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
 env:doctor

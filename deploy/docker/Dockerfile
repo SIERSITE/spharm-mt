@@ -267,6 +267,7 @@ COPY scripts/catalog-master/seed-utilizacoes.ts \
      scripts/catalog-master/bootstrap-global-catalog.ts \
      scripts/catalog-master/forma-canary.ts \
      scripts/catalog-master/promote-global-knowledge.ts \
+     scripts/catalog-master/resolver-revisao-global.ts \
      scripts/catalog-master/knowledge-enrich.ts ./scripts/catalog-master/
 # Diagnosticos read-only. Nao estao em tools-scripts.txt de proposito:
 # nao sao comandos oficiais, sao instrumentos de medicao pontual,

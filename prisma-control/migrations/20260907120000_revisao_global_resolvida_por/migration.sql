@@ -1,0 +1,33 @@
+-- Quem assinou a resolução de uma divergência global.
+--
+-- ADITIVA E REVERSÍVEL. Uma coluna nova, opcional, sem default. Não toca
+-- em nenhuma linha existente, não altera nenhuma coluna, não apaga nada.
+-- Código anterior a esta migração continua a ler e a escrever a tabela
+-- sem se aperceber dela.
+--
+-- Reversão:
+--     ALTER TABLE "CatalogoGlobalRevisao" DROP COLUMN "resolvidoPor";
+--
+-- ── Porque é uma coluna e não um prefixo no texto ────────────────────
+--
+-- `resolucao` é texto livre e descreve O QUE se decidiu. Quem decidiu é
+-- outra pergunta, e é a que se faz meses depois: «o que é que esta
+-- pessoa marcou como resolvido?». A texto livre isso não se pergunta.
+--
+-- É o mesmo desenho que `CatalogoGlobalPromocao.aprovador` já usa, e pela
+-- mesma razão — ali é `where aprovador is not null` que mostra tudo o que
+-- alguém decidiu tornar verdade nacional.
+--
+-- ── Porque fica opcional ─────────────────────────────────────────────
+--
+-- As linhas por resolver não têm resolutor, e não há valor honesto para
+-- lhes pôr. NOT NULL obrigaria a inventar um. A obrigatoriedade vive onde
+-- pode ser verdadeira: em `validarPedidoResolucao`, a única porta por
+-- onde uma resolução entra — CLI e UI passam os dois por lá.
+--
+-- `IF NOT EXISTS`: esta migração pode encontrar uma base onde alguém já
+-- correu o SQL à mão, e falhar aí deixaria o control plane a meio de uma
+-- migração — o pior sítio para estar.
+
+ALTER TABLE "CatalogoGlobalRevisao"
+    ADD COLUMN IF NOT EXISTS "resolvidoPor" TEXT;

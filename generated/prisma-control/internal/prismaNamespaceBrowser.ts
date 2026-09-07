@@ -251,7 +251,8 @@ export const CatalogoGlobalRevisaoScalarFieldEnum = {
   detalhe: 'detalhe',
   detectadoEm: 'detectadoEm',
   resolvidoEm: 'resolvidoEm',
-  resolucao: 'resolucao'
+  resolucao: 'resolucao',
+  resolvidoPor: 'resolvidoPor'
 } as const
 
 export type CatalogoGlobalRevisaoScalarFieldEnum = (typeof CatalogoGlobalRevisaoScalarFieldEnum)[keyof typeof CatalogoGlobalRevisaoScalarFieldEnum]

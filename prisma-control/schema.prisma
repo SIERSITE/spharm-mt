@@ -524,6 +524,15 @@ model CatalogoGlobalRevisao {
   resolvidoEm DateTime?
   /// Como foi resolvida, quando foi. Texto livre — quem resolve escreve.
   resolucao   String?
+  /// QUEM assinou a resolucao. Coluna propria e nao um prefixo dentro de
+  /// `resolucao`, pela mesma razao que `CatalogoGlobalPromocao.aprovador`
+  /// e coluna: o que se vai querer perguntar meses depois e "o que e que
+  /// esta pessoa decidiu", e isso nao se pergunta a texto livre.
+  ///
+  /// Opcional no schema porque as linhas por resolver nao a tem. Quem
+  /// resolve NAO pode omiti-la — a guarda esta em
+  /// `validarPedidoResolucao`, que e a unica porta de entrada.
+  resolvidoPor String?
 
   produto CatalogoGlobal @relation(fields: [cnp], references: [cnp], onDelete: Cascade)
 
