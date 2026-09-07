@@ -19,9 +19,11 @@
 import "dotenv/config";
 import { controlPrisma } from "../../lib/control-plane";
 import {
+  contarPorSnapshot,
   duplicadosRevisoesGlobais,
   listarRevisoesGlobais,
   resumoRevisoesGlobais,
+  SNAPSHOT_SEM_CLASSIFICACAO,
   type EstadoRevisao,
 } from "../../lib/catalog/revisao-global";
 
@@ -102,6 +104,40 @@ async function main(): Promise<void> {
     if (dups.length > 15) linha(`        (mais ${nf(dups.length - 15)})`);
   }
 
+  // ── PARTE 2b · o snapshot NAO e' o estado de hoje ─────────────────
+  //
+  // Esta separacao existe porque a confusao entre as duas colunas ja'
+  // aconteceu, e levou a ler a origem do GLOBAL como se fosse a do
+  // tenant. Sao coisas diferentes e passam a estar rotuladas como tal:
+  //
+  //   snapshot  — o que estava gravado na revisao quando foi detectada
+  //   hoje      — o que `CatalogoGlobal` diz neste momento
+  //
+  // A diferenca nao e' cosmetica: uma revisao que nasceu de um global
+  // vazio e cujo cnp entretanto ganhou classificacao parece um conflito
+  // real se so' se olhar para hoje. Nao e'. O criterio de encerramento
+  // e' o snapshot, e e' por isso que ele aparece primeiro.
+  const snap = await contarPorSnapshot();
+
+  linha("");
+  linha("  2b · SNAPSHOT (na detecção)  ×  GLOBAL (hoje)");
+  linha(
+    `      snapshot vazio, hoje sem classificação .... ` +
+      `${pad(snap.falsosSnapshot - snap.falsosMasGlobalMudou)}  falso conflito`,
+  );
+  linha(
+    `      snapshot vazio, hoje JÁ classifica ........ ${pad(snap.falsosMasGlobalMudou)}` +
+      "  falso conflito (o global mudou depois)",
+  );
+  linha(
+    `      snapshot específico ....................... ${pad(snap.conflitosReais)}` +
+      "  conflito real — fica para uma pessoa",
+  );
+  linha("");
+  linha(`      O critério de encerramento é o snapshot ("${SNAPSHOT_SEM_CLASSIFICACAO}"),`);
+  linha("      não o estado de hoje: uma revisão julga-se pelo que era verdade");
+  linha("      quando foi criada.");
+
   // ── PARTE 3 · a lista ─────────────────────────────────────────────
   const { linhas, total } = await listarRevisoesGlobais({
     estado, tenantSlug, cnp, tipo, pageSize: limite,
@@ -114,18 +150,28 @@ async function main(): Promise<void> {
   } else {
     linha("");
     linha(
-      `      ${"cnp".padEnd(10)}${"tenant".padEnd(14)}${"global".padEnd(30)}` +
-        `${"local".padEnd(30)}${"orig/conf".padEnd(18)}detectada`,
+      `      ${"cnp".padEnd(10)}${"tenant".padEnd(14)}` +
+        `${"snapshot global (na detecção)".padEnd(32)}${"local (no tenant)".padEnd(32)}detectada`,
     );
-    linha(`      ${"─".repeat(108)}`);
+    linha(`      ${"─".repeat(110)}`);
     for (const r of linhas) {
-      const oc = r.globalOrigem
-        ? `${r.globalOrigem}/${(r.globalConfidence ?? 0).toFixed(2)}`
-        : "—";
       linha(
         `      ${String(r.cnp).padEnd(10)}${corta(r.tenantSlug, 14)}` +
-          `${corta(r.valorGlobal, 30)}${corta(r.valorLocal, 30)}` +
-          `${corta(oc, 18)}${dia(r.detectadoEm)}`,
+          `${corta(r.valorGlobal, 32)}${corta(r.valorLocal, 32)}${dia(r.detectadoEm)}`,
+      );
+      // Linha própria, e rotulada: a origem e a confiança são do CATÁLOGO
+      // GLOBAL, não do tenant. Estarem na mesma linha que a coluna
+      // "local" já foi lido como sendo a origem local.
+      const hoje = r.globalCategoria
+        ? `${r.globalCategoria} > ${r.globalSubcategoria ?? "—"}`
+        : "(sem classificação)";
+      linha(
+        `        global hoje: ${hoje}` +
+          (r.globalOrigem
+            ? `  ·  origem global ${r.globalOrigem}` +
+              ` conf ${(r.globalConfidence ?? 0).toFixed(2)}` +
+              ` (${r.globalVersaoRegras ?? "?"})`
+            : ""),
       );
       linha(`        id=${r.id}${r.detalhe ? `  ·  ${r.detalhe}` : ""}`);
       if (r.resolvidoEm) {
@@ -150,6 +196,14 @@ async function main(): Promise<void> {
   linha("");
   linha("      Mudar a classificação é outro acto: catalog:promote-global");
   linha("      (global) ou a validação manual no tenant (local).");
+  linha("");
+  linha("      Falsos conflitos do global-sem-classificação, em bloco:");
+  linha("");
+  linha("        npm run catalog:encerrar-revisoes-falsas -- \\");
+  linha('          --aprovador="Nome" [--apply]');
+  linha("");
+  linha("      Só depois do fix estar em produção — com o código antigo a");
+  linha("      correr, cada project-global cria mais.");
 
   await controlPrisma.$disconnect();
 }

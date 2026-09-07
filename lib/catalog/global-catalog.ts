@@ -441,8 +441,36 @@ function decidirClassificacao(
   if (!ehEspecifica(c.subcategoria) || !c.categoria) {
     return recusa("sem classificação específica — um fallback não é conhecimento");
   }
-  if (!global) {
-    return { promover: true, motivo: "cnp ainda não conhecido globalmente", aguardaAprovacao: false };
+  // ── O ESPELHO DO MESMO PONTO CEGO ───────────────────────────────────
+  //
+  // `!global` não chegava. Uma linha de `CatalogoGlobal` pode existir sem
+  // classificação nenhuma — é o que acontece quando só sobem utilizações
+  // ou clínica — e nesse caso a comparação de ranks abaixo corria contra
+  // a `origem` de uma linha que não classifica nada.
+  //
+  // O resultado era uma recusa com «o global já tem conhecimento igual ou
+  // melhor» sobre um global que não tinha conhecimento algum. Em empate
+  // de origem — DETERMINISTICA local contra uma linha DETERMINISTICA
+  // criada por uma promoção de utilizações — exigia-se confiança
+  // estritamente superior para preencher um vazio.
+  //
+  // Não há aqui nada a perder para: se o global não classifica, a
+  // classificação promovível entra. Nenhuma outra guarda cede — origem
+  // por mapear, aprovação humana e par específico já foram exigidos
+  // acima, e continuam a sê-lo.
+  //
+  // As utilizações e a clínica dessa linha NÃO são tocadas: vivem em
+  // tabelas próprias, com upsert próprio e sem delete. Promover uma
+  // classificação acrescenta-lhe classificação e mais nada.
+  const globalClassifica = !!global && !!global.categoria && ehEspecifica(global.subcategoria);
+  if (!globalClassifica) {
+    return {
+      promover: true,
+      motivo: global
+        ? "o global tem linha mas não tem classificação — não há nada a perder para"
+        : "cnp ainda não conhecido globalmente",
+      aguardaAprovacao: false,
+    };
   }
 
   const rankNovo = ORIGEM_RANK[c.origem];
@@ -803,6 +831,36 @@ export function avaliarProjeccao(
 
   const escreverProductType = !local.productType && !!global.productType;
 
+  // ── O GLOBAL TEM ALGUMA COISA A DIZER? ──────────────────────────────
+  //
+  // Esta guarda TEM de correr antes da comparação, e a ordem foi o
+  // defeito: estava a seguir ao ramo do local específico, portanto
+  // inalcançável para exactamente os produtos que interessavam.
+  //
+  // O efeito mediu-se em produção: 1 246 revisões pendentes, 1 212 delas
+  // gravadas com `valorGlobal = "null > null"`. Um lado vazio comparado
+  // com uma classificação específica dá sempre "diferente", e cada
+  // `project-global` e cada importação geravam mais.
+  //
+  // Não é divergência: é ausência. `CatalogoGlobal` tem linhas sem
+  // classificação por desenho — quando só sobem utilizações ou clínica, a
+  // linha do produto tem de existir para a chave estrangeira e nasce com
+  // categoria e subcategoria a null (ver `promoverAoGlobal`). Duas peças
+  // correctas em separado que, juntas, produziam ruído.
+  //
+  // O que se devolve é o que este ramo sempre devolveu — utilizações e
+  // productType seguem, a classificação local fica intocada. Só passou a
+  // ser alcançável.
+  if (!ehEspecifica(global.subcategoria) || !global.categoria) {
+    return {
+      ...nada,
+      utilizacoes,
+      escreverProductType,
+      accao: utilizacoes.length > 0 || escreverProductType ? "ESCREVER_CLASSIFICACAO" : "NO_OP",
+      motivo: "o global também não tem classificação específica",
+    };
+  }
+
   if (ehEspecifica(local.subcategoria)) {
     const igual =
       local.categoria === global.categoria && local.subcategoria === global.subcategoria;
@@ -827,10 +885,8 @@ export function avaliarProjeccao(
     };
   }
 
-  if (!ehEspecifica(global.subcategoria) || !global.categoria) {
-    return { ...nada, utilizacoes, escreverProductType, accao: utilizacoes.length > 0 || escreverProductType ? "ESCREVER_CLASSIFICACAO" : "NO_OP", motivo: "o global também não tem classificação específica" };
-  }
-
+  // Chega aqui quem tem global específico e local NÃO específico —
+  // vazio ou "Outros X". É o caso que a projecção existe para servir.
   return {
     ...nada,
     utilizacoes,

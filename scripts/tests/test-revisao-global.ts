@@ -21,10 +21,13 @@
  * Corre com:  npm run test:revisao-global
  */
 import {
+  contarPorSnapshot,
   duplicadosRevisoesGlobais,
+  encerrarFalsosConflitos,
   listarRevisoesGlobais,
   resolverRevisaoGlobal,
   resumoRevisoesGlobais,
+  SNAPSHOT_SEM_CLASSIFICACAO,
   validarPedidoResolucao,
   type ClienteControl,
 } from "../../lib/catalog/revisao-global";
@@ -87,6 +90,18 @@ type Falso = { cliente: ClienteControl; linhas: Linha[]; updates: number };
 /** Avalia os `where` que este módulo constrói, e só esses. */
 function bate(l: Linha, w: Record<string, unknown>): boolean {
   for (const [k, v] of Object.entries(w)) {
+    // Filtro sobre a relacao: `produto: { categoria: { not: null } }`.
+    // Suporta-se o unico predicado que o modulo usa — `{ not: null }` —
+    // e nada mais: um duplo que aceitasse predicados que o codigo nao
+    // escreve dava confianca sobre consultas que ninguem faz.
+    if (k === "produto") {
+      const campos = v as Record<string, { not: null }>;
+      for (const campo of Object.keys(campos)) {
+        const actual = (l.produto as unknown as Record<string, unknown> | null)?.[campo] ?? null;
+        if (actual === null) return false;
+      }
+      continue;
+    }
     if (k === "resolvidoEm") {
       if (v === null && l.resolvidoEm !== null) return false;
       if (v !== null && typeof v === "object" && "not" in (v as object)) {
@@ -367,9 +382,126 @@ async function main(): Promise<void> {
       !/escreverClassificacao|projectarParaTenant|promoverAoGlobal/.test(src),
       "não importa nenhum dos caminhos de escrita de classificação",
     );
-    // A única escrita do módulo, e nos três campos que lhe competem.
+    // As escritas do módulo: DUAS, e as duas na tabela de revisões.
+    //
+    // Eram uma só até o encerramento em bloco existir. O número em si não
+    // é a garantia — a garantia é que toda a escrita deste módulo passa
+    // por `catalogoGlobalRevisao.updateMany` e escreve os três campos da
+    // resolução. Uma escrita nova noutra tabela, ou por outro verbo, faz
+    // uma destas asserções cair.
     const updates = src.match(/\.updateMany\(/g) ?? [];
-    check(updates.length === 1, `uma única escrita no módulo (${updates.length})`);
+    check(updates.length === 2, `duas escritas: resolver uma, encerrar em bloco (${updates.length})`);
+    check(
+      (src.match(/catalogoGlobalRevisao\.updateMany\(/g) ?? []).length === 2,
+      "…as duas em catalogoGlobalRevisao",
+    );
+    check(
+      !/\.(create|createMany|upsert|delete|deleteMany|update)\(/.test(codigo),
+      "nenhum outro verbo de escrita no módulo",
+    );
+    // Os três campos, e só esses, nas duas escritas.
+    const campos = src.match(/resolvidoEm: new Date\(\), resolucao: motivo, resolvidoPor: aprovador/g) ?? [];
+    check(campos.length === 2, `ambas escrevem os mesmos três campos (${campos.length})`);
+  }
+
+  // ── 9. Encerramento em bloco dos falsos conflitos ──────────────────
+  //
+  // O criterio e' o SNAPSHOT gravado na revisao, nao o estado de hoje do
+  // `CatalogoGlobal`. Em producao a diferenca eram 27 linhas: nasceram
+  // falsas e o cnp entretanto ganhou classificacao global. Pelo estado de
+  // hoje pareceriam conflitos e ocupavam uma pessoa com uma divergencia
+  // que nunca existiu.
+  console.log("\n=== encerramento em bloco: o critério é o snapshot ===");
+  {
+    const cenario = () =>
+      controlFalso([
+        // falsos: snapshot vazio, global hoje continua vazio
+        linha({ id: "f1", cnp: 2_000_101, valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO,
+                produto: null }),
+        linha({ id: "f2", cnp: 2_000_102, tenantSlug: "silveira",
+                valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO, produto: null }),
+        // falso TAMBEM: nasceu vazio, o global ganhou classificacao depois
+        linha({ id: "f3", cnp: 2_000_103, valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO }),
+        // conflito REAL: nasceu com um global especifico
+        linha({ id: "real", cnp: 2_000_104, valorGlobal: "MEDICAMENTOS > Diabetes" }),
+        // ja' resolvida, com snapshot vazio: nao volta a ser tocada
+        linha({ id: "ja", cnp: 2_000_105, valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO,
+                resolvidoEm: new Date("2026-09-06T09:00:00Z"),
+                resolucao: "decisão anterior", resolvidoPor: "Alguém" }),
+      ]);
+
+    const contagem = await contarPorSnapshot(cenario().cliente);
+    check(contagem.pendentes === 4, `pendentes (${contagem.pendentes})`);
+    check(contagem.falsosSnapshot === 3, `falsos pelo snapshot (${contagem.falsosSnapshot})`);
+    check(
+      contagem.falsosMasGlobalMudou === 1,
+      `…dos quais o global já classifica (${contagem.falsosMasGlobalMudou})`,
+    );
+    check(contagem.conflitosReais === 1, `conflitos reais (${contagem.conflitosReais})`);
+
+    // dry-run: conta e nao escreve
+    const seco = cenario();
+    const rSeco = await encerrarFalsosConflitos(
+      { aprovador: "Bruno", motivo: "falso conflito" },
+      seco.cliente,
+    );
+    check(rSeco.ok && rSeco.resumo.candidatas === 3, "dry-run conta 3 candidatas");
+    check(rSeco.ok && rSeco.resumo.preservadas === 1, "…e preserva 1 conflito real");
+    check(rSeco.ok && rSeco.resumo.encerradas === 0, "…e não encerra nada");
+    check(seco.updates === 0, `nenhuma escrita em dry-run (${seco.updates})`);
+
+    // apply
+    const f = cenario();
+    const r = await encerrarFalsosConflitos(
+      { aprovador: "Bruno", motivo: "falso conflito (bug corrigido)", dryRun: false },
+      f.cliente,
+    );
+    check(r.ok && r.resumo.encerradas === 3, `apply encerra 3 (${r.ok ? r.resumo.encerradas : "?"})`);
+
+    const porId = new Map(f.linhas.map((l) => [l.id, l]));
+    check(porId.get("f1")!.resolvidoEm !== null, "f1 encerrada");
+    check(porId.get("f3")!.resolvidoEm !== null, "f3 encerrada (o global mudou, o snapshot não)");
+    check(porId.get("f1")!.resolvidoPor === "Bruno", "…com autor");
+    check(
+      porId.get("f1")!.resolucao === "falso conflito (bug corrigido)",
+      "…e com a resolução escrita",
+    );
+
+    // O que NAO pode ser tocado.
+    check(porId.get("real")!.resolvidoEm === null, "o conflito real continua PENDENTE");
+    check(
+      porId.get("ja")!.resolvidoPor === "Alguém",
+      `a resolução anterior não foi sobreposta (${porId.get("ja")!.resolvidoPor})`,
+    );
+
+    // Idempotencia: a segunda corrida nao encontra candidatas.
+    const r2 = await encerrarFalsosConflitos(
+      { aprovador: "Bruno", motivo: "outra vez", dryRun: false },
+      f.cliente,
+    );
+    check(r2.ok && r2.resumo.candidatas === 0, "a segunda corrida não tem candidatas");
+    check(r2.ok && r2.resumo.encerradas === 0, "…e não encerra nada");
+    check(porId.get("f1")!.resolucao === "falso conflito (bug corrigido)", "…nem reescreve");
+  }
+
+  // ── 10. Também aqui não há encerramento sem autor ──────────────────
+  console.log("\n=== encerramento em bloco exige aprovador e motivo ===");
+  {
+    const f = controlFalso([
+      linha({ id: "f1", valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO, produto: null }),
+    ]);
+    const semAprov = await encerrarFalsosConflitos(
+      { aprovador: "  ", motivo: "x", dryRun: false },
+      f.cliente,
+    );
+    const semMot = await encerrarFalsosConflitos(
+      { aprovador: "Bruno", motivo: "", dryRun: false },
+      f.cliente,
+    );
+    check(!semAprov.ok, "sem aprovador falha");
+    check(!semMot.ok, "sem motivo falha");
+    check(f.updates === 0, `e nada foi escrito (${f.updates})`);
+    check(f.linhas[0].resolvidoEm === null, "a linha continua pendente");
   }
 
   console.log(`\n${ok} ok, ${ko} falhas`);

@@ -311,3 +311,138 @@ export async function resolverRevisaoGlobal(
   }
   return { ok: true, revisao: actual };
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// ENCERRAMENTO EM BLOCO DOS FALSOS CONFLITOS
+// ═════════════════════════════════════════════════════════════════════
+
+/**
+ * O snapshot que uma revisão gravou quando o global não classificava nada.
+ *
+ * `avaliarProjeccao` construía `valorGlobal` por template literal —
+ * `${global.categoria} > ${global.subcategoria}` — e com os dois a null
+ * isso dá esta string, literalmente. É feia, e é exactamente por ser
+ * literal que serve de critério: identifica sem ambiguidade as linhas
+ * nascidas do defeito.
+ */
+export const SNAPSHOT_SEM_CLASSIFICACAO = "null > null";
+
+/**
+ * Porque é o SNAPSHOT e não o estado actual do `CatalogoGlobal`.
+ *
+ * Em produção mediram-se 1 246 pendentes: 1 185 com o global HOJE sem
+ * classificação, mas 1 212 gravadas com `"null > null"`. A diferença são
+ * 27 revisões que nasceram falsas e cujo CNP entretanto ganhou
+ * classificação global.
+ *
+ * Pelo estado actual, essas 27 pareceriam conflitos reais e ficariam para
+ * uma pessoa decidir uma divergência que nunca existiu. Pelo snapshot,
+ * são o que foram: ruído do defeito.
+ *
+ * A regra é a mesma que vale para qualquer rasto de auditoria — julga-se
+ * o acto pelo que era verdade quando aconteceu, não pelo que é verdade
+ * agora.
+ */
+export type ResumoEncerramento = {
+  candidatas: number;
+  encerradas: number;
+  /** Pendentes que NÃO batem no critério — conflitos a sério. */
+  preservadas: number;
+  porTenant: Array<{ tenantSlug: string; n: number }>;
+};
+
+/**
+ * As pendentes, separadas pelo SNAPSHOT e cruzadas com o estado de hoje.
+ *
+ * Contagens exactas, não amostra: com mais de mil pendentes uma página
+ * de 200 dava um número que parecia exacto e não era — e este é
+ * precisamente o número que decide o que se encerra em bloco.
+ *
+ * `falsosMasGlobalMudou` é o subconjunto dos falsos cujo CNP já ganhou
+ * classificação global desde a detecção. Estão contados DENTRO de
+ * `falsosSnapshot`, e existem como linha própria porque são os únicos que
+ * o critério do snapshot e o critério do estado-de-hoje classificariam de
+ * maneira diferente. Em produção eram 27.
+ */
+export async function contarPorSnapshot(cliente: ClienteControl = controlPrisma): Promise<{
+  pendentes: number;
+  falsosSnapshot: number;
+  falsosMasGlobalMudou: number;
+  conflitosReais: number;
+}> {
+  const [pendentes, falsosSnapshot, falsosMasGlobalMudou] = await Promise.all([
+    cliente.catalogoGlobalRevisao.count({ where: { resolvidoEm: null } }),
+    cliente.catalogoGlobalRevisao.count({
+      where: { resolvidoEm: null, valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO },
+    }),
+    cliente.catalogoGlobalRevisao.count({
+      where: {
+        resolvidoEm: null,
+        valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO,
+        produto: { categoria: { not: null }, subcategoria: { not: null } },
+      },
+    }),
+  ]);
+  return {
+    pendentes,
+    falsosSnapshot,
+    falsosMasGlobalMudou,
+    conflitosReais: pendentes - falsosSnapshot,
+  };
+}
+
+/**
+ * Fecha as revisões que o defeito criou. Nada mais.
+ *
+ * Critério estrito e não parametrizável: `resolvidoEm is null` E
+ * `valorGlobal = "null > null"`. Não recebe lista de ids nem filtro de
+ * tenant — um encerramento em bloco com critério configurável é uma
+ * maneira de fechar por engano o que se queria ler.
+ *
+ * Idempotente: a segunda corrida não encontra candidatas, porque a
+ * primeira lhes pôs `resolvidoEm`.
+ *
+ * NÃO toca em `Produto` nem em `CatalogoGlobal`. Uma única escrita, na
+ * própria tabela de revisões.
+ */
+export async function encerrarFalsosConflitos(
+  p: { aprovador: string; motivo: string; dryRun?: boolean },
+  cliente: ClienteControl = controlPrisma,
+): Promise<{ ok: true; resumo: ResumoEncerramento } | { ok: false; erro: string }> {
+  const aprovador = (p.aprovador ?? "").trim();
+  const motivo = (p.motivo ?? "").trim();
+  if (!aprovador) {
+    return { ok: false, erro: "falta o aprovador — um encerramento em bloco sem autor não é auditável" };
+  }
+  if (!motivo) return { ok: false, erro: "falta o motivo" };
+
+  const alvo = { resolvidoEm: null, valorGlobal: SNAPSHOT_SEM_CLASSIFICACAO };
+
+  const [candidatas, pendentes, porTenant] = await Promise.all([
+    cliente.catalogoGlobalRevisao.count({ where: alvo }),
+    cliente.catalogoGlobalRevisao.count({ where: { resolvidoEm: null } }),
+    cliente.catalogoGlobalRevisao.groupBy({
+      by: ["tenantSlug"],
+      where: alvo,
+      _count: { _all: true },
+    }),
+  ]);
+
+  const resumo: ResumoEncerramento = {
+    candidatas,
+    encerradas: 0,
+    preservadas: pendentes - candidatas,
+    porTenant: porTenant
+      .map((t) => ({ tenantSlug: t.tenantSlug, n: t._count._all }))
+      .sort((a, b) => b.n - a.n),
+  };
+
+  if (p.dryRun !== false) return { ok: true, resumo };
+
+  const n = await cliente.catalogoGlobalRevisao.updateMany({
+    where: alvo,
+    data: { resolvidoEm: new Date(), resolucao: motivo, resolvidoPor: aprovador },
+  });
+  resumo.encerradas = n.count;
+  return { ok: true, resumo };
+}

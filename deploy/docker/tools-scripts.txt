@@ -127,6 +127,7 @@ catalog:promote-global
 # a tabela enche-se sozinha a cada project-global e a cada importacao.
 diag:revisoes-globais
 catalog:resolver-revisao
+catalog:encerrar-revisoes-falsas
 
 # ── Operação ─────────────────────────────────────────────────────────
 admin:reset-user-password
