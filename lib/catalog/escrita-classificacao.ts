@@ -55,7 +55,19 @@ export type OrigemClassificacao =
   | "GLOBAL"
   | "MANUAL"
   /** Escrito antes de a proveniência existir — ver a migração do backfill. */
-  | "PRE_PROVENIENCIA";
+  | "PRE_PROVENIENCIA"
+  /**
+   * Escrito DEPOIS da migração, por um caminho que não regista
+   * proveniência.
+   *
+   * Distinto de `PRE_PROVENIENCIA` de propósito, e a diferença não é
+   * cosmética: aquele diz «isto é anterior ao conceito», este diz «isto é
+   * posterior e mesmo assim não ficou registado». O segundo é um sintoma
+   * activo — há seis escritores de `classificacaoNivel1Id` e só
+   * `escreverClassificacao` mantém o enum em dia —, e confundi-lo com o
+   * primeiro esconderia que o problema continua a produzir casos novos.
+   */
+  | "ORIGEM_NAO_REGISTADA";
 
 /**
  * Uma linha do journal: tudo o que é preciso para desfazer esta escrita

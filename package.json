@@ -44,6 +44,7 @@
     "catalog:forma-canary": "tsx scripts/catalog-master/forma-canary.ts",
     "catalog:reavaliar-cache": "tsx scripts/catalog/reavaliar-cache-classificacao.ts",
     "catalog:rollback-classificacao": "tsx scripts/catalog/rollback-classificacao.ts",
+    "catalog:sincronizar-estado": "tsx scripts/catalog/sincronizar-estado-classificacao.ts",
     "catalog:promote-global": "tsx scripts/catalog-master/promote-global-knowledge.ts",
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
