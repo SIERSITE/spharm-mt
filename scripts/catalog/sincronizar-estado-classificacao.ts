@@ -32,12 +32,35 @@
  *
  * ── A proveniência não é inventada ───────────────────────────────────
  *
- * Não há na base nada que diga qual dos seis caminhos escreveu. Onde a
- * origem já está preenchida, é respeitada; onde não está, fica
+ * Onde a origem já está preenchida, é respeitada; onde não está, fica
  * `ORIGEM_NAO_REGISTADA`, que é um facto e não um palpite.
  *
- * `classificacaoConfianca` e `classificacaoVersao` NÃO são preenchidas:
- * não se conhecem, e NULL é como se escreve "não se conhece".
+ * COM UMA EXCEPÇÃO, e é a única que existe: a projecção do catálogo
+ * global deixa marca. `marcarComoProjectada` escreve, para cada produto
+ * que projectou, uma linha em `KnowledgeEnrichmentCache` com
+ * `modelo = 'CATALOGO_GLOBAL'` — e escreve-a exactamente quando a
+ * classificação foi escrita, no mesmo ramo. Para essas linhas a origem é
+ * CONHECIDA, e carimbá-las de `ORIGEM_NAO_REGISTADA` seria deitar fora
+ * informação que existe.
+ *
+ * Por isso o passo 1 corre antes do resto: onde há marca, a origem é
+ * `GLOBAL` — o mesmo valor que `carimboProjeccao` escreve agora no acto
+ * da projecção — e a confiança e a versão vêm da própria marca. O passo 2
+ * encontra-as já preenchidas e o `coalesce` respeita-as.
+ *
+ * Fora dessa marca, `classificacaoConfianca` e `classificacaoVersao`
+ * continuam a NÃO ser preenchidas: não se conhecem, e NULL é como se
+ * escreve "não se conhece".
+ *
+ * ── O que isto NÃO recupera ──────────────────────────────────────────
+ *
+ * O estado das projecções antigas fica `CANONICA`, mesmo para as que no
+ * global eram provisórias. A marca não o sabe: `marcarComoProjectada`
+ * grava `evidenceType = 'CATALOGO_GLOBAL'`, substituindo a evidência que
+ * distinguiria uma coisa da outra. Recuperá-lo exigiria reler o control
+ * plane produto a produto, e essa é outra conversa — não uma que este
+ * comando deva ter sozinho. As projecções NOVAS já nascem com o estado
+ * certo (ver `carimboProjeccao`).
  *
  * Uso:
  *   npm run catalog:sincronizar-estado -- --tenant=garantia
@@ -48,9 +71,21 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import { buildTenantConnectionString, getTenantBySlug } from "../../lib/control-plane";
 import { AlvoRecusado, descreverAlvo, resolverAlvo } from "../../lib/catalog/target-db";
+import { FONTE_GLOBAL } from "../../lib/catalog/global-catalog-store";
+import type { OrigemClassificacao } from "../../lib/catalog/escrita-classificacao";
 
 /** Ver `OrigemClassificacao` em lib/catalog/escrita-classificacao.ts. */
-const ORIGEM_NEUTRA = "ORIGEM_NAO_REGISTADA";
+const ORIGEM_NEUTRA: OrigemClassificacao = "ORIGEM_NAO_REGISTADA";
+
+/**
+ * A origem de uma classificação recebida do catálogo global.
+ *
+ * Não é um valor novo: já existia em `OrigemClassificacao` e é o mesmo
+ * que `carimboProjeccao` escreve. Tipado de propósito — um erro de
+ * escrita numa coluna de auditoria passa despercebido até alguém tentar
+ * agrupar por ela.
+ */
+const ORIGEM_PROJECTADA: OrigemClassificacao = "GLOBAL";
 
 const nf = (n: number) => n.toLocaleString("pt-PT");
 const pad = (n: number | string, w = 7) => String(nf(Number(n) || 0)).padStart(w);
@@ -131,13 +166,29 @@ async function main(): Promise<void> {
      order by p.cnp
   `);
 
+  // Projecções do catálogo global cuja proveniência se perdeu — ou
+  // porque nunca foi escrita, ou porque uma passagem anterior deste
+  // comando lhes pôs o valor neutro quando ainda não sabia ler a marca.
+  const [{ n: projeccoes }] = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
+    `select count(*)::int as n
+       from "Produto" p
+      where p."classificacaoNivel1Id" is not null
+        and p."validadoManualmente" = false
+        and (p."classificacaoOrigem" is null or p."classificacaoOrigem" = $1)
+        and exists (select 1 from "KnowledgeEnrichmentCache" k
+                     where k.cnp = p.cnp and k.modelo = $2)`,
+    ORIGEM_NEUTRA,
+    FONTE_GLOBAL,
+  );
+
   linha("");
   linha(`  tem N1, enum diz AUSENTE ......... ${pad(paraCanonica.length)}  → CANONICA`);
   linha(`  sem N1, enum diz classificado .... ${pad(paraAusente.length)}  → AUSENTE`);
   const semOrigem = paraCanonica.filter((r) => !r.origem).length;
   linha(`  …dos primeiros, sem origem ....... ${pad(semOrigem)}  → ${ORIGEM_NEUTRA}`);
+  linha(`  com marca de projecção global .... ${pad(projeccoes)}  → ${ORIGEM_PROJECTADA}`);
 
-  if (paraCanonica.length === 0 && paraAusente.length === 0) {
+  if (paraCanonica.length === 0 && paraAusente.length === 0 && projeccoes === 0) {
     linha("");
     linha("  Nada a fazer: o enum e as colunas já contam a mesma história.");
     await prisma.$disconnect();
@@ -169,6 +220,45 @@ async function main(): Promise<void> {
 
   // ── A escrita ─────────────────────────────────────────────────────
   //
+  // PASSO 1: a proveniência que se conhece, ANTES do enum.
+  //
+  // A ordem é o mecanismo: depois disto as projecções já têm origem
+  // `GLOBAL`, e o `coalesce` do passo 2 encontra-a preenchida e
+  // respeita-a. Trocar os dois passos punha o valor neutro primeiro e o
+  // passo 1 deixava de ter o que reparar.
+  //
+  // `validadoManualmente = false`: um produto projectado e depois
+  // validado à mão tem origem MANUAL, e essa é mais forte. A marca da
+  // projecção continua lá, mas descreve o que aconteceu ANTES da pessoa.
+  //
+  // `distinct on (cnp)`: pode haver mais do que uma linha de cache por
+  // produto — versões de regras diferentes, designações diferentes. Sem
+  // isto o Postgres escolhia uma qualquer, e a confiança gravada passava
+  // a depender do plano de execução. Fica a mais recente.
+  //
+  // Os dois `coalesce` nunca sobrepõem: confiança e versão já
+  // preenchidas ficam como estão.
+  const n0 = await prisma.$executeRawUnsafe(
+    `update "Produto" p
+        set "classificacaoOrigem"    = $3,
+            "classificacaoConfianca" = coalesce(p."classificacaoConfianca", k.confidence),
+            "classificacaoVersao"    = coalesce(p."classificacaoVersao", k.versao),
+            "dataAtualizacao"        = now()
+       from (select distinct on (cnp) cnp, confidence, versao
+               from "KnowledgeEnrichmentCache"
+              where modelo = $2
+              order by cnp, "criadoEm" desc) k
+      where k.cnp = p.cnp
+        and p."classificacaoNivel1Id" is not null
+        and p."validadoManualmente" = false
+        and (p."classificacaoOrigem" is null or p."classificacaoOrigem" = $1)`,
+    ORIGEM_NEUTRA,
+    FONTE_GLOBAL,
+    ORIGEM_PROJECTADA,
+  );
+
+  // PASSO 2: o enum.
+  //
   // `coalesce` na origem: onde já há proveniência, é respeitada. O valor
   // neutro só preenche o vazio — reescrevê-la seria apagar informação
   // verdadeira e substituí-la por "não sei".
@@ -191,6 +281,7 @@ async function main(): Promise<void> {
   );
 
   linha("");
+  linha(`  ${pad(Number(n0))}  proveniência recuperada → ${ORIGEM_PROJECTADA}`);
   linha(`  ${pad(Number(n1))}  corrigidos para CANONICA`);
   linha(`  ${pad(Number(n2))}  corrigidos para AUSENTE`);
   linha("");

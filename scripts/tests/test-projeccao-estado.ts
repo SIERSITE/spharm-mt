@@ -393,6 +393,51 @@ async function main(): Promise<void> {
     );
   }
 
+  // ── 8. A reparação das projecções antigas ──────────────────────────
+  //
+  // As linhas escritas ANTES desta correcção ficaram sem estado, e uma
+  // passagem do `catalog:sincronizar-estado` carimbou-lhes
+  // `ORIGEM_NAO_REGISTADA` — que era honesto quando o comando não sabia
+  // ler a marca da projecção, e deixou de ser assim que passou a saber.
+  console.log("\n=== a reparação da proveniência ===");
+  {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("scripts/catalog/sincronizar-estado-classificacao.ts", "utf8");
+
+    const iProv = src.indexOf("const n0 = await prisma.$executeRawUnsafe");
+    const iEnum = src.indexOf("const n1 = await prisma.$executeRawUnsafe");
+    const stmt = src.slice(iProv, iEnum);
+
+    check(iProv > 0 && iEnum > 0, "os dois passos existem");
+    // A ordem É o mecanismo: ao contrário, o valor neutro entrava
+    // primeiro e a reparação ficava sem nada que reparar.
+    check(iProv < iEnum, "a proveniência corre ANTES do enum", `${iProv} < ${iEnum}`);
+
+    check(
+      /ORIGEM_PROJECTADA/.test(stmt) && /"GLOBAL"/.test(src),
+      "escreve GLOBAL, um valor que já existia em OrigemClassificacao",
+    );
+    // Nunca reescreve uma proveniência verdadeira por outra.
+    check(
+      /"classificacaoOrigem" is null or p\."classificacaoOrigem" = \$1/.test(stmt),
+      "só toca em origem vazia ou no valor neutro",
+    );
+    check(
+      /p\."validadoManualmente" = false/.test(stmt),
+      "não toca no que foi validado à mão — aí a origem é MANUAL",
+    );
+    // Sem isto a confiança gravada dependia do plano de execução.
+    check(
+      /distinct on \(cnp\)/.test(stmt),
+      "escolhe uma linha de cache de forma determinística",
+    );
+    check(
+      /coalesce\(p\."classificacaoConfianca"/.test(stmt) &&
+        /coalesce\(p\."classificacaoVersao"/.test(stmt),
+      "confiança e versão só preenchem o vazio",
+    );
+  }
+
   console.log(`\n${ok} ok, ${ko} falhas`);
   process.exit(ko === 0 ? 0 : 1);
 }
