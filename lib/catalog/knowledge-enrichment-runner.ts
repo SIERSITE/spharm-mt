@@ -992,6 +992,27 @@ export async function runKnowledgeEnrichment(
      */
     apenasFila?: boolean;
     /**
+     * Restringe a corrida a UM estrato do residual.
+     *
+     * O filtro é aplicado em SQL, dentro de `corpoResidual` — ou seja,
+     * ANTES de a janela ser enchida. É a diferença que interessa:
+     * `limite: 2000` com `estrato: "NAO_CLASSIFICADO"` significa até
+     * 2 000 produtos DESSE estrato, e não 2 000 lidos de onde calhar dos
+     * quais uns quantos são do estrato.
+     *
+     * Porque é preciso: o residual não está equilibrado. Na Garantia, uma
+     * corrida de 2 000 gastou 1 919 chamadas em SEM_UTILIZACOES e 76 em
+     * NAO_CLASSIFICADO — o estrato onde estão os 14 mil produtos por
+     * classificar. A ordem do residual é por cnp e não por prioridade, e
+     * sem esta opção não há forma de dizer ao comando o que interessa
+     * agora.
+     *
+     * Não muda gate, política, propagação nem contabilidade: muda apenas
+     * QUE produtos entram na janela. `--canary` tem o seu próprio
+     * mecanismo (quotas por estrato) e não se combina com este.
+     */
+    estrato?: Estrato;
+    /**
      * Substitui a promoção ao catálogo global. Existe pela mesma razão
      * que `classificar` e `verificar`: sem isto, provar que os candidatos
      * levam a clínica exigia base de dados e control plane de pé — e o
@@ -1425,6 +1446,7 @@ export async function runKnowledgeEnrichment(
     const j = await lerJanelaProcessavel(prisma, {
       ...baseJanela,
       alvoProcessaveis: opts.limite ?? 500,
+      estrato: opts.estrato,
     });
     residual = j.linhas;
     preselecao = j.preselecao;

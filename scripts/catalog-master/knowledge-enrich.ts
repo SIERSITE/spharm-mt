@@ -38,6 +38,24 @@
  *
  *   # bootstrap por lotes, com tecto de custo
  *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=silveira --limite=2000 --tecto-usd=15 --apply
+ *
+ *   # SO' os que nao tem classificacao nenhuma
+ *   npx tsx scripts/catalog-master/knowledge-enrich.ts --tenant=garantia \
+ *     --estrato=NAO_CLASSIFICADO --limite=2000 --tecto-usd=35 --apply
+ *
+ * ── PORQUE EXISTE O --estrato ────────────────────────────────────────
+ *
+ * O residual tem tres estratos e nao esta' equilibrado. Na Garantia, uma
+ * corrida de 2 000 gastou 1 919 chamadas em SEM_UTILIZACOES — produtos
+ * JA' classificados, a quem so' faltavam etiquetas — e 76 em
+ * NAO_CLASSIFICADO, que e' onde estao os 14 mil por classificar.
+ *
+ * Nao e' um defeito da seleccao: a ordem do residual e' por cnp, nao por
+ * prioridade, e as tres perguntas sao todas legitimas. O que faltava era
+ * poder dizer ao comando qual delas interessa AGORA.
+ *
+ * O filtro e' aplicado em SQL, antes de a janela ser enchida: `--limite`
+ * passa a contar produtos DESSE estrato.
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -58,6 +76,7 @@ import {
 import {
   QUOTAS_CANARY,
   runKnowledgeEnrichment,
+  type Estrato,
   type LinhaRelatorio,
   type QuotaEstrato,
 } from "../../lib/catalog/knowledge-enrichment-runner";
@@ -114,6 +133,38 @@ async function main() {
     );
     process.exit(2);
   }
+  // `--estrato` restringe a corrida a um dos tres estratos do residual.
+  // Validado contra a lista fechada: um nome mal escrito nao pode cair
+  // em "sem filtro" e mandar a corrida a todo o residual — seria a
+  // diferenca entre 2 000 produtos por classificar e 2 000 ao acaso, com
+  // a factura a nao dar por isso.
+  const ESTRATOS: readonly Estrato[] = [
+    "NAO_CLASSIFICADO",
+    "OUTROS_MEDICAMENTOS",
+    "SEM_UTILIZACOES",
+  ];
+  const estratoBruto = argv.find((a) => a.startsWith("--estrato="))?.split("=")[1]?.trim();
+  if (estratoBruto !== undefined && !ESTRATOS.includes(estratoBruto as Estrato)) {
+    console.error(
+      `\n--estrato="${estratoBruto}" não é um estrato válido.\n` +
+        `\n  Válidos: ${ESTRATOS.join(", ")}\n`,
+    );
+    process.exit(4);
+  }
+  const estrato = estratoBruto as Estrato | undefined;
+
+  // O canary tem o seu proprio mecanismo — quotas por estrato — e
+  // combinar os dois seria ambiguo. Recusar, como se recusa
+  // `--canary --apply`, em vez de ignorar metade da linha.
+  if (canary && estrato) {
+    console.error(
+      "\n--canary e --estrato são incompatíveis.\n" +
+        "\n  · o canary já é estratificado, com quota própria por estrato" +
+        "\n  · para medir um estrato só, corre o canary e lê a linha dele\n",
+    );
+    process.exit(4);
+  }
+
   const semRelatorio = argv.includes("--sem-relatorio");
   const limite = Number(argv.find((a) => a.startsWith("--limite="))?.split("=")[1] ?? 100);
   const tectoUsd = Number(argv.find((a) => a.startsWith("--tecto-usd="))?.split("=")[1] ?? 5);
@@ -156,12 +207,15 @@ async function main() {
     canary
       ? `amostra: canary estratificado ${Object.entries(QUOTAS_CANARY).map(([k, v]) => `${v} ${k}`).join(" + ")}` +
         "\n         (dry-run obrigatório; atravessa as exclusões por poupança para a amostra ser efectiva)"
-      : `amostra: ${limite} produtos (ordem de cnp)`,
+      : estrato
+      ? `amostra: ${limite} produtos do estrato ${estrato} (filtrado em SQL, antes da janela)`
+      : `amostra: ${limite} produtos (ordem de cnp, TODOS os estratos)`,
   );
   console.log(`tecto: $${tectoUsd}\n`);
 
   const r = await runKnowledgeEnrichment(prisma, {
     limite,
+    estrato,
     dryRun: !apply,
     tectoUsd,
     canary: canary ? QUOTAS_CANARY : undefined,
