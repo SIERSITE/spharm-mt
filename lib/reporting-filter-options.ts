@@ -135,8 +135,21 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
 
   // Subcategorias: NIVEL_2, com o nome do pai — dois níveis diferentes
   // podem ter filhos homónimos, e a UI precisa de os distinguir.
+  //
+  // SEM os "Outros X". Não é censura: é coerência com o que a grelha
+  // mostra. Depois de `resolveCategoria` deixar de devolver um balde como
+  // grupo, um produto em "Outros Dermocosmética" aparece nos relatórios
+  // com subcategoria vazia — e uma opção de filtro que devolve linhas sem
+  // o valor escolhido é uma opção que confunde.
+  //
+  // O catálogo admin continua a listá-los, e é lá que devem ser vistos:
+  // é qualidade de detalhe, não uma dimensão de análise.
   const subcategoriaRows = await prisma.classificacao.findMany({
-    where: { tipo: "NIVEL_2", estado: "ATIVO" },
+    where: {
+      tipo: "NIVEL_2",
+      estado: "ATIVO",
+      NOT: { nome: { startsWith: "Outros ", mode: "insensitive" } },
+    },
     select: { nome: true, classificacaoPai: { select: { nome: true } } },
     orderBy: { nome: "asc" },
   });

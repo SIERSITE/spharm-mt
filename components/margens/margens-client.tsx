@@ -16,6 +16,7 @@
  *   · Aviso permanente sobre snapshot de custo
  */
 
+import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
@@ -499,6 +500,11 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
                     {/* um nível, evita repetição visual.                     */}
                     {r.grupo && r.grupo !== r.categoria ? (
                       <span className="text-[10px] text-slate-400">{r.grupo}</span>
+                    ) : r.categoria && r.categoria !== SEM_CLASSIFICACAO_LABEL ? (
+                      // Classificado ao nível da família e nada mais. NÃO é
+                      // "por classificar" — tem categoria, falta-lhe
+                      // granularidade dentro dela.
+                      <span className="text-[10px] italic text-slate-300">sem detalhe</span>
                     ) : null}
                   </div>
                 </td>

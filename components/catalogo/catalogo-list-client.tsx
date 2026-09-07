@@ -546,23 +546,28 @@ function ResumoCartoes({ resumo }: { resumo: ResumoClassificacao }) {
 
   return (
     <section className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* A ordem é a do detalhe decrescente, e os três primeiros somam os
+          catalogáveis. É a separação que faltava: "Outros X" estava a ser
+          lido como ausência de classificação e a inflacionar o indicador
+          mais visível do catálogo. Um produto em "Outros Medicamentos" é
+          um medicamento — só não se sabe qual. */}
       <Cartao
-        titulo="Por classificar"
-        valor={n(resumo.porClassificar)}
-        detalhe={`+ ${n(resumo.internosPorClassificar)} códigos internos fora do âmbito`}
-        tom="text-amber-700"
-      />
-      <Cartao
-        titulo="Classificação específica"
+        titulo="Classificados específicos"
         valor={n(resumo.especificos)}
         detalhe={`${pct(resumo.especificos)} dos ${n(resumo.catalogaveis)} catalogáveis`}
         tom="text-emerald-700"
       />
       <Cartao
-        titulo="Só à família"
+        titulo="Classificados na família"
         valor={n(resumo.emBalde)}
-        detalhe={'em "Outros …" — tem nível 1, falta o nível 2'}
-        tom="text-slate-700"
+        detalhe={'em "Outros …" — têm categoria, falta o detalhe'}
+        tom="text-sky-700"
+      />
+      <Cartao
+        titulo="Por classificar"
+        valor={n(resumo.porClassificar)}
+        detalhe={`+ ${n(resumo.internosPorClassificar)} códigos internos fora do âmbito`}
+        tom="text-amber-700"
       />
       <Cartao
         titulo="Provisórias"

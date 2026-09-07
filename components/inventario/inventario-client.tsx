@@ -19,6 +19,7 @@
  *   · buildInventarioPorFarmaciaReport  adapter Por Farmácia
  */
 
+import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useMemo, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
@@ -500,7 +501,15 @@ function TabelaLinhaProduto({ rows }: { rows: InventarioRow[] }) {
             <tr key={`${r.cnp}:${r.farmaciaId}`}>
               <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
               <td className="py-2 pr-3 text-slate-800">{r.designacao}</td>
-              <td className="py-2 pr-3 text-slate-600">{r.categoria ?? "—"}</td>
+              <td className="py-2 pr-3 text-slate-600">
+                {r.categoria ?? "—"}
+                {/* "Outros X" deixou de ser devolvido como grupo: quando o
+                    grupo é igual à categoria, o produto está classificado
+                    só ao nível da família. Dizê-lo em vez de o esconder. */}
+                {r.categoria && r.grupo === r.categoria && r.categoria !== SEM_CLASSIFICACAO_LABEL ? (
+                  <span className="ml-1.5 text-[10px] italic text-slate-300">sem detalhe</span>
+                ) : null}
+              </td>
               <td className="py-2 pr-3 text-slate-600">{r.farmacia}</td>
               <td className="py-2 pr-3 text-right tabular-nums text-slate-700">
                 {fmtNumber(r.stockAtual)}

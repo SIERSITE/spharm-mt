@@ -27,6 +27,28 @@
  * fraco para escolher `productType`, mas NUNCA como categoria persistida.
  */
 
+import { ehBalde } from "@/lib/catalog/classificacao-coerencia";
+
+/**
+ * Quanto detalhe tem a classificação deste produto.
+ *
+ * A distinção que faltava, e que estava a inflacionar o indicador mais
+ * visível do catálogo:
+ *
+ *   ESPECIFICO  nível 1 e nível 2 reais — "DERMOCOSMÉTICA > Rosto"
+ *   FAMILIA     nível 1 real, nível 2 é um balde — "DERMOCOSMÉTICA >
+ *               Outros Dermocosmética". O produto ESTÁ classificado; o
+ *               que falta é granularidade dentro da família.
+ *   AUSENTE     sem nível 1 utilizável. É o único que é "por classificar".
+ *
+ * "Outros X" é um nível 2 LITERAL da taxonomia canónica — há 24 deles — e
+ * durante muito tempo foi tratado, na prática, como ausência de
+ * classificação. Não é: um produto em "Outros Medicamentos" é um
+ * medicamento, conta como medicamento, agrupa com medicamentos e vende-se
+ * na prateleira dos medicamentos. Só não se sabe qual.
+ */
+export type NivelDetalhe = "ESPECIFICO" | "FAMILIA" | "AUSENTE";
+
 export type ClassificacaoRef = { nome: string } | null | undefined;
 
 export type CategoriaSources = {
@@ -41,10 +63,27 @@ export type CategoriaSources = {
 export type ResolvedCategoria = {
   /** Nível pai canónico ou `SEM_CLASSIFICACAO_LABEL` quando ausente. */
   categoria: string;
-  /** Nível específico canónico ou `SEM_CLASSIFICACAO_LABEL` quando ausente. */
+  /**
+   * Nível específico canónico, ou a CATEGORIA quando o nível 2 é um balde.
+   *
+   * MUDANÇA (2026-09): um "Outros X" já não é devolvido como grupo. Era o
+   * que fazia os relatórios agruparem por "Outros Dermocosmética" — um
+   * grupo que não é um grupo, é o sítio onde se põe o que não se
+   * classificou — e o que punha esse texto em colunas chamadas
+   * "subcategoria". Quem quiser saber que falta detalhe pergunta-o a
+   * `detalhe`, que é onde essa informação passa a viver.
+   */
   grupo: string;
-  /** True quando não há classificação canónica — a UI deve sugerir revisão. */
+  /**
+   * True SÓ quando não há nível 1 utilizável.
+   *
+   * Um produto em "Outros X" tem nível 1 e portanto NÃO precisa de
+   * classificação — precisa de mais detalhe, que é outra coisa e tem
+   * outro campo.
+   */
   needsClassification: boolean;
+  /** Ver `NivelDetalhe`. */
+  detalhe: NivelDetalhe;
 };
 
 /**
@@ -83,13 +122,20 @@ function clean(v: string | null | undefined): string {
 export type ParClassificacao = {
   categoria: string;
   subcategoria: string;
+  /** Ver `NivelDetalhe`. Permite distinguir "" por balde de "" por ausência. */
+  detalhe: NivelDetalhe;
 };
 
 export function resolverPar(src: CategoriaSources): ParClassificacao {
   const r = resolveCategoria(src);
   return {
     categoria: r.categoria,
+    // Vazio quando não há nível 2 ESPECÍFICO — incluindo o caso do balde.
+    // Uma coluna chamada "subcategoria" com "Outros Dermocosmética" lá
+    // dentro não estava a informar ninguém: repetia a categoria com uma
+    // palavra à frente.
     subcategoria: r.grupo && r.grupo !== r.categoria ? r.grupo : "",
+    detalhe: r.detalhe,
   };
 }
 
@@ -102,15 +148,22 @@ export function resolveCategoria(src: CategoriaSources): ResolvedCategoria {
       categoria: SEM_CLASSIFICACAO_LABEL,
       grupo: SEM_CLASSIFICACAO_LABEL,
       needsClassification: true,
+      detalhe: "AUSENTE",
     };
   }
 
+  // Categoria (pai): preferir canon N1; se só houver N2, devolve-o como categoria.
+  const categoria = canonN1 || canonN2;
+  // Um "Outros X" não é um grupo — é a ausência de um. O grupo passa a ser
+  // a própria categoria, e a falta de detalhe fica registada em `detalhe`
+  // em vez de ser inferida do texto por cada consumidor à sua maneira.
+  const n2Util = canonN2 && !ehBalde(canonN2) ? canonN2 : "";
+
   return {
-    // Categoria (pai): preferir canon N1; se só houver N2, devolve-o como categoria.
-    categoria: canonN1 || canonN2,
-    // Grupo (específico): preferir canon N2; se só houver N1, devolve-o como grupo.
-    grupo: canonN2 || canonN1,
+    categoria,
+    grupo: n2Util || categoria,
     needsClassification: false,
+    detalhe: n2Util ? "ESPECIFICO" : "FAMILIA",
   };
 }
 
