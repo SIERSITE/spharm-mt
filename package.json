@@ -72,6 +72,7 @@
     "test:runner-promocao-clinica": "tsx scripts/tests/test-runner-promocao-clinica.ts",
     "test:filtro-global-residual": "tsx scripts/tests/test-filtro-global-residual.ts",
     "test:global-catalog": "tsx scripts/tests/test-global-catalog.ts",
+    "test:projeccao-estado": "tsx scripts/tests/test-projeccao-estado.ts",
     "test:control-schema": "tsx scripts/tests/test-control-schema.ts",
     "test:filtros-catalogo": "tsx scripts/tests/test-filtros-catalogo.ts",
     "test:ui-catalogo": "tsx scripts/tests/test-ui-catalogo.ts",

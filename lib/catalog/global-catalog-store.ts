@@ -16,6 +16,7 @@
 import { controlPrisma } from "../control-plane";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { chaveCache, LIMIAR_CLINICO } from "./knowledge-enrichment";
+import { carimboProjeccao } from "./projeccao-classificacao";
 import {
   avaliarProjeccao,
   avaliarPromocao,
@@ -88,6 +89,7 @@ export async function lerConhecimentoGlobal(
         subcategoria: l.subcategoria,
         productType: l.productType,
         confidence: l.confidence,
+        evidenceType: l.evidenceType,
         origem: l.origem as OrigemGlobal,
         versaoRegras: l.versaoRegras,
         verificado: l.verificado,
@@ -703,6 +705,43 @@ async function marcarComoProjectada(
   });
 }
 
+/** Uma divergencia entre o global e o tenant, pronta a abrir. */
+export type RevisaoProjeccao = {
+  cnp: number;
+  tenantSlug: string;
+  tipo: string;
+  valorGlobal: string;
+  valorLocal: string;
+  detalhe: string;
+};
+
+/**
+ * Abre uma revisao de divergencia no control plane.
+ *
+ * Extraida de dentro do ciclo para poder ser substituida nos testes — a
+ * asseracao que interessa e' "o local NAO foi alterado e abriu-se uma
+ * revisao", e sem esta costura provar a segunda metade exigia um control
+ * plane a serio.
+ */
+async function abrirRevisaoGlobal(r: RevisaoProjeccao): Promise<void> {
+  // Idempotente: uma divergência que já está aberta não gera outra.
+  const jaAberta = await controlPrisma.catalogoGlobalRevisao.findFirst({
+    where: { cnp: r.cnp, tenantSlug: r.tenantSlug, tipo: r.tipo, resolvidoEm: null },
+    select: { id: true },
+  });
+  if (jaAberta) return;
+  await controlPrisma.catalogoGlobalRevisao.create({
+    data: {
+      cnp: r.cnp,
+      tenantSlug: r.tenantSlug,
+      tipo: r.tipo,
+      valorGlobal: r.valorGlobal,
+      valorLocal: r.valorLocal,
+      detalhe: r.detalhe,
+    },
+  });
+}
+
 /**
  * Projecta o conhecimento global para a base de um tenant.
  *
@@ -727,6 +766,19 @@ export async function projectarParaTenant(
      * Omitido = catálogo todo, que é o comportamento do CLI.
      */
     cnps?: readonly number[];
+    /**
+     * Substitui os dois acessos ao control plane. SÓ para testes.
+     *
+     * Em producao fica omitido e usam-se as funcoes reais — nao ha' aqui
+     * um segundo caminho de execucao, ha' os mesmos passos com os dois
+     * pontos de saida trocaveis. O que se ganha e' poder provar as
+     * guardas (`INTOCAVEL`, `REVISAO`, idempotencia) com um prisma falso
+     * do tenant, sem um control plane a serio.
+     */
+    controlo?: {
+      lerGlobal?: (cnps: readonly number[]) => Promise<Map<number, ConhecimentoGlobal>>;
+      abrirRevisao?: (r: RevisaoProjeccao) => Promise<void>;
+    };
   } = {},
 ): Promise<ResumoProjeccao> {
   const dryRun = opts.dryRun ?? true;
@@ -784,7 +836,10 @@ export async function projectarParaTenant(
   );
   r.cnpsNoTenant = produtos.length;
 
-  const global = await lerConhecimentoGlobal(produtos.map((p) => Number(p.cnp)));
+  const lerGlobal = opts.controlo?.lerGlobal ?? lerConhecimentoGlobal;
+  const abrirRevisao = opts.controlo?.abrirRevisao ?? abrirRevisaoGlobal;
+
+  const global = await lerGlobal(produtos.map((p) => Number(p.cnp)));
   r.cnpsConhecidosGlobal = global.size;
   if (global.size === 0) return r;
 
@@ -890,21 +945,14 @@ export async function projectarParaTenant(
         r.exemplosRevisao.push({ cnp, global: d.revisao.valorGlobal, local: d.revisao.valorLocal });
       }
       if (!dryRun && d.revisao) {
-        // Idempotente: uma divergência que já está aberta não gera outra.
-        const jaAberta = await controlPrisma.catalogoGlobalRevisao.findFirst({
-          where: { cnp, tenantSlug, tipo: d.revisao.tipo, resolvidoEm: null },
-          select: { id: true },
+        await abrirRevisao({
+          cnp,
+          tenantSlug,
+          tipo: d.revisao.tipo,
+          valorGlobal: d.revisao.valorGlobal,
+          valorLocal: d.revisao.valorLocal,
+          detalhe: d.motivo,
         });
-        if (!jaAberta) {
-          await controlPrisma.catalogoGlobalRevisao.create({
-            data: {
-              cnp, tenantSlug, tipo: d.revisao.tipo,
-              valorGlobal: d.revisao.valorGlobal,
-              valorLocal: d.revisao.valorLocal,
-              detalhe: d.motivo,
-            },
-          });
-        }
       }
       continue;
     }
@@ -918,14 +966,30 @@ export async function projectarParaTenant(
       if (!n1Id || !n2Id) {
         r.semVocabulario++;
       } else if (!dryRun) {
+        // O carimbo vai NO MESMO UPDATE das colunas que descreve.
+        //
+        // Era esta a causa dos 775 da Garantia: escrever N1/N2 aqui e
+        // deixar `classificacaoEstado` para uma rotina posterior que nao
+        // existe. Duas instrucoes tambem nao serviriam — entre uma e
+        // outra o produto fica a dizer o contrario do que e', e um
+        // relatorio que corra pelo meio le' o estado errado.
+        //
+        // As guardas sao exactamente as de antes, palavra por palavra: o
+        // WHERE nao muda, portanto o CONJUNTO de produtos escritos e' o
+        // mesmo. So' mudou o que se escreve neles.
+        const carimbo = carimboProjeccao(g);
         // A não-degradação está escrita outra vez no WHERE, como no
         // runner: mesmo que o estado tenha mudado entre o SELECT e agora,
         // uma subcategoria específica não é sobreposta.
         const n = await prisma.$executeRawUnsafe(
           `update "Produto" p
-              set "classificacaoNivel1Id" = $1,
-                  "classificacaoNivel2Id" = $2,
-                  "dataAtualizacao"       = now()
+              set "classificacaoNivel1Id"  = $1,
+                  "classificacaoNivel2Id"  = $2,
+                  "classificacaoEstado"    = $4::"ClassificacaoEstado",
+                  "classificacaoOrigem"    = $5,
+                  "classificacaoConfianca" = $6,
+                  "classificacaoVersao"    = $7,
+                  "dataAtualizacao"        = now()
             where p.cnp = $3
               and p."validadoManualmente" = false
               and (p."classificacaoNivel2Id" is null
@@ -933,6 +997,7 @@ export async function projectarParaTenant(
                                where c.id = p."classificacaoNivel2Id"
                                  and c.nome ilike 'Outros %'))`,
           n1Id, n2Id, cnp,
+          carimbo.estado, carimbo.origem, carimbo.confianca, carimbo.versao,
         );
         if (Number(n) > 0) {
           r.classificacoesEscritas++;

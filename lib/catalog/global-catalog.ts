@@ -324,6 +324,18 @@ export type ConhecimentoGlobal = {
   subcategoria: string | null;
   productType: string | null;
   confidence: number;
+  /**
+   * A evidencia com que o tenant de origem decidiu.
+   *
+   * Passou a ser lida porque e' o que distingue uma classificacao
+   * canonica de uma provisoria — e a projeccao precisa de o saber para
+   * nao carimbar como facto o que do outro lado era uma deducao. Ver
+   * `carimboProjeccao` em `projeccao-classificacao.ts`.
+   *
+   * Opcional: ha' escritores do global anteriores a esta coluna, e a
+   * ausencia le-se como "nao provisoria", que e' o lado seguro.
+   */
+  evidenceType?: string | null;
   origem: OrigemGlobal;
   versaoRegras: string;
   verificado: boolean;
