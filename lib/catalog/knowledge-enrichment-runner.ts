@@ -1995,6 +1995,37 @@ export async function runKnowledgeEnrichment(
         discordancia: exigeVerificacao && !comparacao.concorda,
       });
 
+      // ── DEPENDENTES DE UM REPRESENTANTE RECUSADO: A CONTAGEM ────────
+      //
+      // Tem de ficar ACIMA da fronteira, e o defeito que isto corrige
+      // mostra porquê.
+      //
+      // A contagem vivia no bloco de escrita, lá em baixo, com um
+      // `if (!dryRun)` a proteger só a gravação da cache — escrito, ao que
+      // tudo indica, para funcionar nos dois modos. Mas o `continue` do
+      // dry-run está ANTES, e tornava o bloco inteiro inalcançável quando
+      // não se escreve. Resultado: num dry-run, um dependente cujo
+      // representante levou REVIEW ou SKIP não era contado por ninguém —
+      // e o representante, esse, estava em `comResultado`, portanto o
+      // bloco dos órfãos também o saltava.
+      //
+      // O canary da Garantia apanhou-o: 505 lidos, 500 com destino, 5 a
+      // menos. Só em dry-run, e só nesta combinação.
+      //
+      // NÃO é inventar um destino para a soma bater: o dependente TEVE
+      // destino — herdou a recusa do representante, exactamente como
+      // herdaria a aceitação. O que faltava era dizê-lo.
+      //
+      // A contagem não escreve nada, portanto subir de fronteira não a
+      // enfraquece. A gravação da cache fica onde estava.
+      const dependentesRecusados =
+        gate.decisao !== "APPLY" ? dependentes.get(r.cnp) ?? [] : [];
+      for (const dep of dependentesRecusados) {
+        resumo.propagados++;
+        resumo.propagadosSemEscrita++;
+        metrica(dep.estrato).propagados++;
+      }
+
       // ── FRONTEIRA DO DRY-RUN ────────────────────────────────────────
       // Acima desta linha só se lê e se acumula relatório. Abaixo está
       // TODA a escrita desta fase: Produto, ProdutoUtilizacao e a própria
@@ -2076,25 +2107,27 @@ export async function runKnowledgeEnrichment(
       // legitimamente como a aceitação — é a mesma família e a mesma
       // designação — e é o que dá ao dependente um estado terminal
       // honesto: "não foi escrito, e eis porquê".
-      if (gate.decisao !== "APPLY") {
-        for (const dep of dependentes.get(r.cnp) ?? []) {
-          resumo.propagados++;
-          resumo.propagadosSemEscrita++;
-          metrica(dep.estrato).propagados++;
-          if (!dryRun) {
-            await gravarCache(
-              prisma,
-              { ...r, ...semApresentacao(r), cnp: dep.cnp },
-              dep,
-              // `persistido = false`: não se escreveu nada no produto, e
-              // a cache tem de dizer a verdade sobre isso.
-              false,
-              `representante ${r.cnp} não aplicável (${gate.decisao}): ${motivo}`,
-              "PROPAGADO",
-              r.cnp,
-            );
-          }
-        }
+      //
+      // A CONTAGEM destes já foi feita acima da fronteira — é a mesma nos
+      // dois modos, e tê-la num sítio só é o que impede os dois modos de
+      // divergirem outra vez. Aqui fica só a escrita, que é o que
+      // distingue `--apply` de um dry-run.
+      //
+      // Sem `if (!dryRun)`: este código está abaixo da fronteira e por
+      // isso só corre em `--apply`. O guarda que aqui estava era o
+      // vestígio de quando a contagem e a escrita partilhavam o bloco.
+      for (const dep of dependentesRecusados) {
+        await gravarCache(
+          prisma,
+          { ...r, ...semApresentacao(r), cnp: dep.cnp },
+          dep,
+          // `persistido = false`: não se escreveu nada no produto, e
+          // a cache tem de dizer a verdade sobre isso.
+          false,
+          `representante ${r.cnp} não aplicável (${gate.decisao}): ${motivo}`,
+          "PROPAGADO",
+          r.cnp,
+        );
       }
 
       // ── PROPAGAÇÃO ────────────────────────────────────────────────
