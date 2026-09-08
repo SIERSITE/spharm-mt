@@ -40,6 +40,12 @@
  */
 import { mapToCanonical, type TaxonomyMapInput } from "../../lib/catalog-taxonomy-map";
 import type { ProductType } from "../../lib/catalog-types";
+// A tabela de casos e as portas vivem em `lib/` — partilhadas com
+// `scripts/diagnostics/mapper-coerencia.ts`, que corre a mesma
+// verificação dentro da imagem operacional, onde `scripts/tests/` não
+// entra. Duas listas divergiriam, e a primeira a divergir seria a do
+// diagnóstico: a que ninguém corre todos os dias.
+import { CASOS, verificarCaso } from "../../lib/catalog/mapper-coerencia";
 
 let ok = 0;
 let ko = 0;
@@ -68,75 +74,43 @@ const comTipo = (designacao: string, productType: ProductType): TaxonomyMapInput
   productTypeConfidence: 0.9,
 });
 
-const comBreadcrumb = (designacao: string, cat: string): TaxonomyMapInput => ({
-  ...base(designacao),
-  externalCategory: cat,
-});
-
-/** Os quatro caminhos por onde um produto chega ao mapper. */
-const CONTEXTOS: Array<{ nome: string; input: (d: string) => TaxonomyMapInput }> = [
-  { nome: "sem nada", input: base },
-  { nome: "productType=DISPOSITIVO_MEDICO", input: (d) => comTipo(d, "DISPOSITIVO_MEDICO") },
-  { nome: "breadcrumb Dispositivos Médicos", input: (d) => comBreadcrumb(d, "Dispositivos Médicos") },
-  { nome: "breadcrumb Primeiros Socorros", input: (d) => comBreadcrumb(d, "Primeiros Socorros") },
-];
-
 const par = (i: TaxonomyMapInput): string => {
   const r = mapToCanonical(i);
   return r ? `${r.nivel1} > ${r.nivel2}` : "(null)";
 };
 
-/**
- * O produto dá o mesmo resultado nos quatro contextos — e é o esperado.
- *
- * As duas metades importam. Só "são todos iguais" passaria se todos
- * fossem iguais e errados; só "o esperado" passaria se um contexto
- * divergisse sem ninguém reparar.
- */
-function estavel(designacao: string, esperado: string): void {
-  const obtidos = CONTEXTOS.map((c) => ({ nome: c.nome, valor: par(c.input(designacao)) }));
-  const distintos = new Set(obtidos.map((o) => o.valor));
-
-  check(
-    distintos.size === 1,
-    `"${designacao.slice(0, 40)}" — um só resultado nos 4 contextos`,
-    [...new Set(obtidos.map((o) => `${o.nome}=${o.valor}`))].join(" | "),
-  );
-  check(
-    obtidos.every((o) => o.valor === esperado),
-    `  …e é ${esperado}`,
-    obtidos.filter((o) => o.valor !== esperado).map((o) => `${o.nome}=${o.valor}`).join(" | "),
-  );
-}
-
 // Este ficheiro compila para CommonJS: sem top-level await.
 async function main(): Promise<void> {
-  // ── 1. Os casos com que o defeito foi reproduzido ──────────────────
-  console.log("\n=== material de curativo: a porta deixa de decidir ===");
-  {
-    estavel("Leukotape K Lig Elast Ades 5x5cm Bege", "PRIMEIROS SOCORROS > Ligaduras");
-    estavel("Leukotape K Lig Elast Ades 5x5cm Azul", "PRIMEIROS SOCORROS > Ligaduras");
-    estavel("COMPRESSA NAO TECIDO 10CMX10CM X 5UNI BV", "PRIMEIROS SOCORROS > Pensos e Compressas");
-    estavel("Compressa N Tecid Est 7,5x7,5 30g Ee1 X10 BV", "PRIMEIROS SOCORROS > Pensos e Compressas");
+  // ── 1. A tabela partilhada, caso a caso ────────────────────────────
+  //
+  // A asserção central não é "este produto dá isto": é que as QUATRO
+  // portas dão UMA resposta. É o que apanha um token novo posto nos dois
+  // conjuntos de regras, mesmo com os casos conhecidos a passar.
+  console.log("\n=== a mesma designação em todas as portas ===");
+  for (const c of CASOS) {
+    const r = verificarCaso(c.designacao, c.esperado);
+    check(
+      r.distintos === 1,
+      `"${c.designacao.slice(0, 42)}" — um só resultado nas 4 portas`,
+      r.porPorta.map((p) => `${p.porta}=${p.valor}`).join(" | "),
+    );
+    check(
+      r.correcto,
+      `  …e é ${c.esperado}`,
+      r.porPorta.filter((p) => p.valor !== c.esperado).map((p) => `${p.porta}=${p.valor}`).join(" | "),
+    );
   }
 
-  // ── 2. O específico ganha ao genérico ──────────────────────────────
-  console.log("\n=== betadine: a marca vale mais que o formato ===");
+  // A tabela é partilhada com a imagem, portanto encolher-lha em silêncio
+  // enfraqueceria o diagnóstico operacional sem nada acusar aqui.
+  console.log("\n=== a tabela partilhada cobre os três padrões ===");
   {
-    estavel("BETADINE GAZE IMPREGNADA 10X10CM CAIXA", "PRIMEIROS SOCORROS > Antissépticos");
-    // O par que revelou o defeito: o mesmo produto sem a palavra "gaze"
-    // sempre esteve certo. Continua.
-    estavel("BETADINE SOLUCAO CUTANEA 125ML", "PRIMEIROS SOCORROS > Antissépticos");
-    estavel("Iodopovidona Solucao Dermica 100ml", "PRIMEIROS SOCORROS > Antissépticos");
-  }
-
-  // ── 3. O que NÃO podia mexer ───────────────────────────────────────
-  console.log("\n=== agulhas e lancetas: intocadas ===");
-  {
-    estavel("Agulhas Clickfine 6mmx31g 100", "MATERIAL CLÍNICO E CONSUMÍVEIS > Seringas e Agulhas");
-    estavel("Agulhas Clickfine 8mmx31g 100", "MATERIAL CLÍNICO E CONSUMÍVEIS > Seringas e Agulhas");
-    estavel("Wellion Lancetas De Seguranca 23g 200", "MATERIAL CLÍNICO E CONSUMÍVEIS > Seringas e Agulhas");
-    estavel("Seringa Insulina 1ml 100ui", "MATERIAL CLÍNICO E CONSUMÍVEIS > Seringas e Agulhas");
+    const tem = (frag: string) => CASOS.some((c) => c.designacao.includes(frag));
+    check(tem("Leukotape"), "ligadura (o caso que reproduziu o defeito)");
+    check(tem("COMPRESSA") || tem("Compressa"), "compressa");
+    check(tem("BETADINE GAZE"), "betadine gaze (ordem na rota plana)");
+    check(tem("Lancetas"), "lancetas (o que NÃO podia mudar)");
+    check(CASOS.length >= 11, `pelo menos 11 casos (${CASOS.length})`);
   }
 
   console.log("\n=== Material de Imobilização: intocado ===");
