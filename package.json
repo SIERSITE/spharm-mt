@@ -46,6 +46,7 @@
     "catalog:rollback-classificacao": "tsx scripts/catalog/rollback-classificacao.ts",
     "diag:revisoes-globais": "tsx scripts/diagnostics/revisoes-globais.ts",
     "diag:mapper-coerencia": "tsx scripts/diagnostics/mapper-coerencia.ts",
+    "diag:revisoes-globais-mapper": "tsx scripts/diagnostics/revisoes-globais-mapper.ts",
     "catalog:encerrar-revisoes-falsas": "tsx scripts/catalog-master/encerrar-revisoes-falsas.ts",
     "catalog:resolver-revisao": "tsx scripts/catalog-master/resolver-revisao-global.ts",
     "catalog:sincronizar-estado": "tsx scripts/catalog/sincronizar-estado-classificacao.ts",
