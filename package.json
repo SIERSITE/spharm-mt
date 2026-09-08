@@ -43,6 +43,7 @@
     "catalog:bootstrap-global": "tsx scripts/catalog-master/bootstrap-global-catalog.ts",
     "catalog:forma-canary": "tsx scripts/catalog-master/forma-canary.ts",
     "catalog:reavaliar-cache": "tsx scripts/catalog/reavaliar-cache-classificacao.ts",
+    "catalog:alinhar-classificacao": "tsx scripts/catalog/alinhar-classificacao-tenant.ts",
     "catalog:rollback-classificacao": "tsx scripts/catalog/rollback-classificacao.ts",
     "diag:revisoes-globais": "tsx scripts/diagnostics/revisoes-globais.ts",
     "diag:mapper-coerencia": "tsx scripts/diagnostics/mapper-coerencia.ts",

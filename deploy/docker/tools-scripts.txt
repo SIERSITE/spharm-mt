@@ -109,6 +109,7 @@ catalog:reavaliar-cache
 # O par do anterior. Desfaz linha a linha pelo journal, repondo o estado
 # exacto — incluindo os "Outros X" substituidos, que um rollback por SQL
 # apagaria. Dry-run por omissao.
+catalog:alinhar-classificacao
 catalog:rollback-classificacao
 # Poe `classificacaoEstado` de acordo com as colunas N1/N2. Corrige SO' o
 # enum — nunca a classificacao. E' idempotente e feito para se correr as
