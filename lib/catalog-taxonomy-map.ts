@@ -484,7 +484,31 @@ const KEYWORD_RULES: Record<string, KeywordRule[]> = {
     { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(tens[aã]o|tensi[oó]metro|blood pressure|esfigmoman[oó])/i, nivel2: "Tensão Arterial" },
     { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(term[oó]metro|thermometer)/i, nivel2: "Termómetros" },
     { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(nebuliz|aeross?ol)/i, nivel2: "Nebulizadores" },
-    { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(curativo|compressa|penso|gaze|adesivo|ades\b|soffix|ligadura|lig\b|algod[aã]o|band-?aid)/i, nivel2: "Material de Curativo" },
+    // SO' `curativo`. Os outros tokens — compressa, penso, gaze, adesivo,
+    // ades, soffix, ligadura, lig, algodao, band-aid — sairam daqui em
+    // 2026-09-08, e a razao foi medida:
+    //
+    // Estavam TAMBEM na rota de salvamento, apontados a PRIMEIROS
+    // SOCORROS. O mesmo produto dava dois catalogos conforme a porta por
+    // onde entrava: sem `productType` corria a rota plana e saia
+    // PRIMEIROS SOCORROS > Ligaduras; com `productType=DISPOSITIVO_MEDICO`
+    // corria este dicionario e saia DISPOSITIVOS MEDICOS > Material de
+    // Curativo.
+    //
+    // "Leukotape K Lig Elast Ades", "Compressa Nao Tecido" e "Betadine
+    // Gaze" foram os tres casos com que se reproduziu, e o resultado
+    // acabava em `CatalogoGlobalRevisao` como se fosse desacordo entre
+    // farmacias. Nao era: era o mapper a discordar de si proprio.
+    //
+    // Retirar aqui e nao la' porque a rota de salvamento e' a que corre
+    // quando nao se sabe nada — e um produto com `productType` conhecido
+    // nao deve ficar PIOR classificado do que um sem. Sem nivel 2 neste
+    // dicionario, o mapper cai na rota de salvamento e as duas portas
+    // passam a dar o mesmo.
+    //
+    // `Material de Curativo` continua alcancavel por `curativo`, e
+    // `Material de Imobilizacao` nao foi tocado.
+    { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(curativo)/i, nivel2: "Material de Curativo" },
     { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(imobiliz|tala|gesso|ortotese|ort[oó]tese)/i, nivel2: "Material de Imobilização" },
     { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(teste\s+(?:gravidez|fertili|ovula)|teste|monitoriz|ox[ií]metro|saturac|autotest|\btira\b|tiras\b)/i, nivel2: "Testes e Monitorização" },
   ],
@@ -706,8 +730,23 @@ const ROTAS_SALVAMENTO: RotaSalvamento[] = [
 
   // ── Primeiros socorros ────────────────────────────────────────────────
   { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(ligaduras?|lig\.?\s+(?:elast|adesiv|pano|red|tubolar)|ligadura|rede\s+elast|malha\s+tubular)/i, nivel1: "PRIMEIROS SOCORROS", nivel2: "Ligaduras" },
-  { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(pensos?\b|compressas?|gaze|adesivos?\b|ades\b|soffix|leukosilk|leukoplast|algod[aã]o\s+(?:hidr[oó]f|card)|algod[aã]o\b)/i, nivel1: "PRIMEIROS SOCORROS", nivel2: "Pensos e Compressas" },
+  // O ANTISSEPTICO ANTES DO PENSO, e a ordem e' a regra.
+  //
+  // `resolverSalvamento` devolve o PRIMEIRO padrao que bate. Com os
+  // pensos a' frente, "BETADINE GAZE IMPREGNADA" saia Pensos e
+  // Compressas — e `betadine` esta' literalmente no padrao dos
+  // antissepticos, tres linhas abaixo, sem nunca ser alcancado.
+  //
+  // Provou-se com o par: "BETADINE SOLUCAO CUTANEA" (sem a palavra
+  // "gaze") ja' dava Antissepticos. Mesma marca, mesmo principio activo,
+  // dois N2 diferentes por causa do formato no nome.
+  //
+  // A convencao ja' existia neste ficheiro — o bloco DERMOCOSMETICA
+  // di-la por escrito, "as regras especificas vem antes das genericas".
+  // A marca e o principio activo sao sinal mais especifico do que a
+  // forma de apresentacao. Faltava aplica-la aqui.
   { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(iodopovid|betadine|clorexidina|antiss?[eé]ptic|desinfetant\s+ferid|[aá]gua\s+oxigenada|[aá]gua\s+oxig|mercuroc|nitrato\s+(?:de\s+)?prata|violeta\s+genciana)/i, nivel1: "PRIMEIROS SOCORROS", nivel2: "Antissépticos" },
+  { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(pensos?\b|compressas?|gaze|adesivos?\b|ades\b|soffix|leukosilk|leukoplast|algod[aã]o\s+(?:hidr[oó]f|card)|algod[aã]o\b)/i, nivel1: "PRIMEIROS SOCORROS", nivel2: "Pensos e Compressas" },
   { pattern: /(?<![a-zA-ZÀ-ÿ0-9])(cicatriz|trat\.?\s+ferid|spray\s+ferid|hidrocol[oó]id|[uú]lcera|escara)/i, nivel1: "PRIMEIROS SOCORROS", nivel2: "Tratamento de Feridas" },
 
   // ── Otorrino e oftalmologia ───────────────────────────────────────────

@@ -78,6 +78,7 @@
     "test:projeccao-estado": "tsx scripts/tests/test-projeccao-estado.ts",
     "test:revisao-global": "tsx scripts/tests/test-revisao-global.ts",
     "test:global-sem-classificacao": "tsx scripts/tests/test-global-sem-classificacao.ts",
+    "test:mapper-porta-de-entrada": "tsx scripts/tests/test-mapper-porta-de-entrada.ts",
     "test:control-schema": "tsx scripts/tests/test-control-schema.ts",
     "test:filtros-catalogo": "tsx scripts/tests/test-filtros-catalogo.ts",
     "test:ui-catalogo": "tsx scripts/tests/test-ui-catalogo.ts",
