@@ -14,9 +14,36 @@
  *
  *   PipelineRun        o agent regista aqui cada corrida diária. É o
  *                      primeiro sinal de que a tarefa local ARRANCOU.
- *   LoteIngestao       um lote recebido pela API, com estado e erro.
- *   IngestProdutoRun   a corrida de produtos, com o último batch.
+ *   staging            o que a API ACEITOU e gravou: IngestVendaLinhaRaw,
+ *                      IngestProdutoRun, StagingCompraRawLine,
+ *                      StagingDevolucaoFornecedorRawLine, IngestStocksMovRaw.
  *   frescura           a data máxima dos dados por dataset — o resultado.
+ *
+ * ── O ERRO QUE ESTE FICHEIRO JÁ TEVE ─────────────────────────────────
+ *
+ * A primeira versão media «o que chegou à API» por `LoteIngestao`. Está
+ * errado, e não por pouco: `LoteIngestao` é escrito por
+ * `/api/ingest/v1/snapshot/*` — o caminho dos ficheiros/snapshot — e a
+ * cadeia diária do agent entra por `/api/ingest/v1/bootstrap/*`, que
+ * **nunca** escreve um lote. A tabela está vazia para toda a gente que
+ * usa o agent, portanto a regra "correu mas não há lote" dava fase C a
+ * qualquer farmácia, sempre, independentemente do que tivesse chegado.
+ *
+ * Na Castelo isso foi desmentido pelos logs do proxy: seis endpoints
+ * `bootstrap/*` servidos às 03:30, com o diagnóstico a dizer que ela não
+ * tinha entregue nada. Um diagnóstico que acusa o elo errado é pior do
+ * que nenhum — manda arranjar o PC quando o problema está no servidor.
+ *
+ * A entrega passa a ser medida onde ela realmente aterra: os `max()` dos
+ * carimbos de ingestão das cinco tabelas de staging, por farmácia.
+ *
+ * ── E A FASE QUE FALTAVA ─────────────────────────────────────────────
+ *
+ * Faltava o caso em que TUDO funciona e o dia na mesma não fecha: o
+ * `aggregate-month` recusa-se a agregar (409) e o agent devolve erro. Os
+ * dados entraram em staging, a cadeia está sã, e o dia nunca é marcado
+ * OK — portanto o catch-up volta a propô-lo para sempre. Isso agora tem
+ * nome próprio (fase GATE) em vez de cair no balde "outro".
  *
  * O QUE NÃO SE VÊ DAQUI, e é preciso dizê-lo em vez de o adivinhar: um
  * pedido RECUSADO pela API (401, 403, tenant errado, farmaciaId
@@ -65,9 +92,10 @@ const valorArg = (argv: string[], nome: string): string | undefined =>
 /** As fases da cadeia, pela ordem em que se partem. */
 const FASES: Record<string, string> = {
   AB: "A/B · nada chegou ao servidor — tarefa não arrancou, ou o agent não leu o SQL",
-  C: "C · o agent correu mas não entregou nada à API",
+  C: "C · o agent correu mas não entregou nada à API (nenhuma staging avançou)",
   D: "D · possível recusa da API — invisível na base, ver logs do proxy",
   E: "E · a API recebeu e o backend não concluiu o processamento",
+  GATE: "GATE · entregou tudo; o aggregate-month recusou fechar o dia (409)",
   F: "F · a cadeia está sã; não há dados novos na origem",
   OK: "OK · a correr dentro do normal",
   G: "G · outro — ver as colunas em bruto",
@@ -84,19 +112,44 @@ type Run = {
   errorMessage: string | null;
   triggeredBy: string;
 };
-type Lote = {
+/**
+ * O que a API aceitou e gravou, por farmácia — uma coluna por tabela de
+ * staging da cadeia diária. É isto que prova entrega; ver o cabeçalho.
+ */
+type Entrega = {
   farmaciaId: string;
-  ultimoRecebido: Date | null;
-  ultimoProcessado: Date | null;
-  estado: string | null;
-  mensagemErro: string | null;
-  pendentes: number;
+  vendas: Date | null;
+  produtos: Date | null;
+  compras: Date | null;
+  devolucoes: Date | null;
+  movimentos: Date | null;
+};
+
+const maisRecente = (e: Entrega | undefined): Date | null => {
+  if (!e) return null;
+  const ds = [e.vendas, e.produtos, e.compras, e.devolucoes, e.movimentos].filter(
+    (d): d is Date => !!d,
+  );
+  return ds.length ? new Date(Math.max(...ds.map((d) => d.getTime()))) : null;
+};
+
+type Orfa = {
+  farmacia: string;
+  externalProductId: number;
+  documento: string | null;
+  externalSaleId: number;
+  dataVenda: Date | null;
+  tipoDocumento: number | null;
+  tipoDocumentoClass: string;
+  sourceNamespace: string;
+  noCatalogo: boolean;
 };
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const slug = valorArg(argv, "tenant") ?? "garantia";
   const dias = Number(valorArg(argv, "dias") ?? 10);
+  const hoje = new Date();
   const desde = new Date(Date.now() - dias * 86_400_000);
 
   linha("SPharm.MT · importação diária, farmácia a farmácia · READ-ONLY");
@@ -137,15 +190,41 @@ async function main(): Promise<void> {
     `select id, nome from "Farmacia" where estado = 'ATIVO' order by nome`,
   );
 
-  // ── Última corrida do agent, por farmácia ─────────────────────────
+  // ── Última corrida DIÁRIA, por farmácia ───────────────────────────
+  //
+  // `kind = 'daily-pipeline'` não é um detalhe de filtro, é a correcção
+  // de uma leitura errada. `/api/admin/pipeline/aggregate-month` grava a
+  // sua run (kind='aggregate-month') com `farmacias[0].id` — a primeira
+  // farmácia por nome — independentemente de qual agent a disparou. Como
+  // essa run aborta sempre que o mês tem órfãs, a farmácia que calha ser
+  // a primeira por ordem alfabética colecciona os ABORTED de todas as
+  // outras.
+  //
+  // Sem este filtro, essa farmácia aparecia com "última execução
+  // ABORTED" tendo os dados frescos e o seu próprio diário a correr bem
+  // — e era a leitura da run de outra pessoa. O endpoint do catch-up já
+  // filtra por `kind` (ver dias-concluidos), portanto a discrepância era
+  // só do diagnóstico.
   const runs = await prisma.$queryRawUnsafe<Run[]>(
     `select distinct on (p."farmaciaId")
             p."farmaciaId", p.kind, p.status, p."startedAt", p."finishedAt",
             p."dateRef", p."errorMessage", p."triggeredBy"
        from "PipelineRun" p
+      where p.kind = 'daily-pipeline'
       order by p."farmaciaId", p."startedAt" desc`,
   );
   const runPorFarmacia = new Map(runs.map((r) => [r.farmaciaId, r]));
+
+  // As runs de agregação, à parte e sem fingir dono. Interessam porque
+  // dizem se o mês está a abortar — não a quem.
+  const aggs = await prisma.$queryRawUnsafe<Run[]>(
+    `select p."farmaciaId", p.kind, p.status, p."startedAt", p."finishedAt",
+            p."dateRef", p."errorMessage", p."triggeredBy"
+       from "PipelineRun" p
+      where p.kind = 'aggregate-month'
+      order by p."startedAt" desc
+      limit 12`,
+  );
 
   // A última corrida BEM SUCEDIDA é outra pergunta: uma farmácia pode
   // ter corrido ontem e falhado, e o que interessa saber é quando foi a
@@ -155,23 +234,55 @@ async function main(): Promise<void> {
             p."farmaciaId", p.kind, p.status, p."startedAt", p."finishedAt",
             p."dateRef", p."errorMessage", p."triggeredBy"
        from "PipelineRun" p
-      where p.status = 'OK'
+      where p.status = 'OK' and p.kind = 'daily-pipeline'
       order by p."farmaciaId", p."startedAt" desc`,
   );
   const okPorFarmacia = new Map(okRuns.map((r) => [r.farmaciaId, r]));
 
-  // ── Lotes recebidos pela API ──────────────────────────────────────
-  const lotes = await prisma.$queryRawUnsafe<Lote[]>(
-    `select l."farmaciaId",
-            max(l."dataCriacao")                                    as "ultimoRecebido",
-            max(l."dataProcessamento")                              as "ultimoProcessado",
-            (array_agg(l.estado::text order by l."dataCriacao" desc))[1]     as estado,
-            (array_agg(l."mensagemErro" order by l."dataCriacao" desc))[1]   as "mensagemErro",
-            count(*) filter (where l."dataProcessamento" is null)::int       as pendentes
-       from "LoteIngestao" l
-      group by l."farmaciaId"`,
+  // ── O que a API ACEITOU, por farmácia ─────────────────────────────
+  //
+  // Cinco tabelas, uma por passo da cadeia diária. Um `max()` por cada:
+  // é o carimbo do servidor, portanto responde "quando é que isto
+  // chegou cá", que é exactamente a pergunta — e não "de que dia eram os
+  // dados", que é outra.
+  //
+  // `LoteIngestao` NÃO entra aqui, de propósito: é do caminho snapshot.
+  // Ver o cabeçalho.
+  const entregas = await prisma.$queryRawUnsafe<Entrega[]>(
+    `select "farmaciaId",
+            max(vendas)     as vendas,
+            max(produtos)   as produtos,
+            max(compras)    as compras,
+            max(devolucoes) as devolucoes,
+            max(movimentos) as movimentos
+       from (
+         select "farmaciaId",
+                max("importedAt")::timestamptz as vendas,
+                null::timestamptz as produtos, null::timestamptz as compras,
+                null::timestamptz as devolucoes, null::timestamptz as movimentos
+           from "IngestVendaLinhaRaw" group by 1
+         union all
+         select "farmaciaId", null::timestamptz,
+                max("lastBatchAtServer")::timestamptz,
+                null::timestamptz, null::timestamptz, null::timestamptz
+           from "IngestProdutoRun" group by 1
+         union all
+         select "farmaciaId", null::timestamptz, null::timestamptz,
+                max("ingestedAt")::timestamptz,
+                null::timestamptz, null::timestamptz
+           from "StagingCompraRawLine" group by 1
+         union all
+         select "farmaciaId", null::timestamptz, null::timestamptz, null::timestamptz,
+                max("ingestedAt")::timestamptz, null::timestamptz
+           from "StagingDevolucaoFornecedorRawLine" group by 1
+         union all
+         select "farmaciaId", null::timestamptz, null::timestamptz, null::timestamptz,
+                null::timestamptz, max("ingestedAt")::timestamptz
+           from "IngestStocksMovRaw" group by 1
+       ) t
+      group by 1`,
   );
-  const lotePorFarmacia = new Map(lotes.map((l) => [l.farmaciaId, l]));
+  const entregaPorFarmacia = new Map(entregas.map((e) => [e.farmaciaId, e]));
 
   // ── A frescura dos dados, reutilizando o loader do /admin/pipeline ─
   //
@@ -188,10 +299,10 @@ async function main(): Promise<void> {
   // ── O veredicto ───────────────────────────────────────────────────
   const diagnosticar = (f: Farmacia): { fase: string; nota: string } => {
     const run = runPorFarmacia.get(f.id);
-    const lote = lotePorFarmacia.get(f.id);
+    const entrega = maisRecente(entregaPorFarmacia.get(f.id));
     const recente = (d: Date | null | undefined) => !!d && d >= desde;
 
-    if (!recente(run?.startedAt) && !recente(lote?.ultimoRecebido)) {
+    if (!recente(run?.startedAt) && !recente(entrega)) {
       return {
         fase: "AB",
         nota: run
@@ -199,19 +310,37 @@ async function main(): Promise<void> {
           : "nunca houve corrida registada para esta farmácia",
       };
     }
+
+    // A ordem importa: o gate vem ANTES de qualquer leitura de erro,
+    // porque um dia travado no `aggregate-month` chega aqui com a
+    // corrida em ABORTED/ERROR e com a entrega feita. Testar o erro
+    // primeiro classificava-o como falha do agent — que é precisamente
+    // a acusação errada que este ficheiro já fez uma vez.
+    const msg = (run?.errorMessage ?? "").toLowerCase();
+    const travadoNoGate =
+      /aggregate-month|operational orphan|unknowns_present|totals_negative|http 409/.test(msg) ||
+      (run?.status === "ABORTED" && recente(entrega));
+    if (travadoNoGate) {
+      return {
+        fase: "GATE",
+        nota: recente(entrega)
+          ? `entregou até ${stamp(entrega)}; o mês não fecha`
+          : "o mês não fecha — ver a parte 3",
+      };
+    }
+
     if (run?.status === "ERROR") {
-      const m = (run.errorMessage ?? "").toLowerCase();
-      const sql = /sql|conex|connection|login|timeout|server/.test(m);
+      const sql = /sql|conex|connection|login|timeout|server/.test(msg);
       return {
         fase: sql ? "AB" : "G",
         nota: sql ? "a corrida falhou a ler a origem" : "a corrida terminou em erro",
       };
     }
-    if (recente(run?.startedAt) && !recente(lote?.ultimoRecebido)) {
-      return { fase: "C", nota: "o agent correu mas não há lote recebido na janela" };
-    }
-    if ((lote?.pendentes ?? 0) > 0) {
-      return { fase: "E", nota: `${lote?.pendentes} lote(s) recebidos e por processar` };
+    if (recente(run?.startedAt) && !recente(entrega)) {
+      return {
+        fase: "C",
+        nota: "a corrida arrancou e nenhuma tabela de staging avançou na janela",
+      };
     }
     const dm = dataMaxVendas(f.id);
     if (dm && dm < desde) {
@@ -226,26 +355,31 @@ async function main(): Promise<void> {
   linha("");
   linha(
     `      ${"farmácia".padEnd(20)}${"últ. execução".padEnd(18)}${"últ. OK".padEnd(18)}` +
-      `${"últ. upload".padEnd(18)}${"últ. process.".padEnd(18)}${"vendas até".padEnd(12)}estado`,
+      `${"últ. entrega".padEnd(18)}${"vendas até".padEnd(12)}estado`,
   );
-  linha(`      ${"─".repeat(112)}`);
+  linha(`      ${"─".repeat(94)}`);
 
   const veredictos = new Map<string, { fase: string; nota: string }>();
   for (const f of farmacias) {
     const run = runPorFarmacia.get(f.id);
     const ok = okPorFarmacia.get(f.id);
-    const lote = lotePorFarmacia.get(f.id);
+    const e = entregaPorFarmacia.get(f.id);
     const v = diagnosticar(f);
     veredictos.set(f.id, v);
 
     linha(
       `      ${corta(f.nome, 20)}${corta(stamp(run?.startedAt), 18)}${corta(stamp(ok?.startedAt), 18)}` +
-        `${corta(stamp(lote?.ultimoRecebido), 18)}${corta(stamp(lote?.ultimoProcessado), 18)}` +
+        `${corta(stamp(maisRecente(e)), 18)}` +
         `${corta(dia(dataMaxVendas(f.id)), 12)}${run?.status ?? "—"}`,
     );
     linha(`        id=${f.id}${run ? `  ·  kind=${run.kind} dateRef=${run.dateRef ?? "—"} por=${run.triggeredBy}` : ""}`);
-    if (run?.errorMessage) linha(`        ERRO: ${run.errorMessage.slice(0, 96)}`);
-    if (lote?.mensagemErro) linha(`        LOTE: ${lote.mensagemErro.slice(0, 96)}`);
+    // A entrega, aberta por tabela: é isto que distingue "não entregou
+    // nada" de "entregou tudo e o mês não fechou".
+    linha(
+      `        entregue: vendas=${stamp(e?.vendas)} produtos=${stamp(e?.produtos)} ` +
+        `compras=${stamp(e?.compras)} devol=${stamp(e?.devolucoes)} movs=${stamp(e?.movimentos)}`,
+    );
+    if (run?.errorMessage) linha(`        ERRO: ${run.errorMessage.slice(0, 110)}`);
     linha(`        >>> ${FASES[v.fase]}${v.nota ? `  —  ${v.nota}` : ""}`);
     linha("");
   }
@@ -273,9 +407,133 @@ async function main(): Promise<void> {
   linha("      `-Nd` = dias atrás da farmácia MAIS FRESCA deste dataset, não de hoje.");
   linha("      Comparar com hoje acusava toda a gente num fim-de-semana sem vendas.");
 
-  // ── PARTE 3 · o que a base não sabe ───────────────────────────────
+  // ── PARTE 3 · o gate do aggregate-month ───────────────────────────
+  //
+  // O passo 2 do `daily-pipeline` chama `/api/admin/pipeline/aggregate-month`
+  // para o MÊS do dia que está a processar. Esse endpoint agrega o mês
+  // inteiro de TODAS as farmácias activas do tenant — o `farmaciaId` que
+  // lá vai é metadata da run, não um filtro. Logo: uma linha órfã de UMA
+  // farmácia aborta o mês de TODAS, e cada agent recebe HTTP 409.
+  //
+  // É por isso que esta parte não é por farmácia. O gate também não é.
   linha("");
-  linha("  3 · O QUE ESTE DIAGNÓSTICO NÃO CONSEGUE VER");
+  linha("  3 · O GATE DO AGGREGATE-MONTH (é do TENANT, não da farmácia)");
+  linha("");
+  linha("      Um dia só fecha se o mês agregar. O mês agrega uma vez para todas");
+  linha("      as farmácias activas, portanto duas linhas órfãs numa farmácia");
+  linha("      travam o mês — e o dia — das cinco.");
+  linha("");
+
+  const desdeMes = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - 2, 1));
+  const porMes = await prisma.$queryRawUnsafe<
+    Array<{ mes: string; linhas: number; orfaos: number; servicos: number; unknowns: number }>
+  >(
+    `select to_char(date_trunc('month', "dataVenda"), 'YYYY-MM')                    as mes,
+            count(*)::int                                                           as linhas,
+            count(*) filter (where "produtoId" is null
+                               and "isNonStockService" = false)::int                as orfaos,
+            count(*) filter (where "produtoId" is null
+                               and "isNonStockService" = true)::int                 as servicos,
+            count(*) filter (where "tipoDocumentoClass" = 'UNKNOWN')::int           as unknowns
+       from "IngestVendaLinhaRaw"
+      where "dataVenda" >= '${desdeMes.toISOString()}'
+      group by 1
+      order by 1 desc`,
+  );
+
+  if (aggs.length > 0) {
+    linha("      ÚLTIMAS AGREGAÇÕES (do tenant — o `farmaciaId` gravado nestas");
+    linha("      linhas é a 1ª farmácia por nome, não quem as disparou):");
+    linha("");
+    for (const a of aggs.slice(0, 6)) {
+      linha(
+        `        ${stamp(a.startedAt)}  ${corta(a.dateRef, 9)}${corta(a.status, 10)}` +
+          `${(a.errorMessage ?? "").slice(0, 74)}`,
+      );
+    }
+    linha("");
+  }
+
+  linha(`      ${"mês".padEnd(10)}${"linhas".padStart(10)}${"ÓRFÃS".padStart(10)}${"serviços".padStart(10)}${"unknowns".padStart(10)}   gate`);
+  linha(`      ${"─".repeat(64)}`);
+  for (const m of porMes) {
+    const trava = m.orfaos > 0 || m.unknowns > 0;
+    linha(
+      `      ${m.mes.padEnd(10)}${String(m.linhas).padStart(10)}${String(m.orfaos).padStart(10)}` +
+        `${String(m.servicos).padStart(10)}${String(m.unknowns).padStart(10)}   ` +
+        (trava ? "ABORTA" : "passa"),
+    );
+  }
+  linha("");
+  linha("      «serviços» são órfãs benignas (Processa_Stocks=0 no ERP): taxas,");
+  linha("      administração de injectáveis, rastreios. Não travam nada.");
+  linha("      «ÓRFÃS» são as operacionais — o ERP diz que é artigo com stock e");
+  linha("      o CodigoID não existe em ProdutoFarmacia dessa farmácia.");
+
+  // As linhas concretas. Sem isto, "2 operational orphans" é um número
+  // sem acção: o gate diz quantas são e não diz quais, e a única forma
+  // de saber era abrir a base à mão.
+  const orfas = await prisma.$queryRawUnsafe<Orfa[]>(
+    `select f.nome                                        as farmacia,
+            r."externalProductId", r.documento, r."externalSaleId",
+            r."dataVenda", r."tipoDocumento", r."tipoDocumentoClass",
+            r."sourceNamespace",
+            exists (select 1 from "ProdutoFarmacia" pf
+                     where pf."farmaciaId" = r."farmaciaId"
+                       and pf."externalProductId" = r."externalProductId") as "noCatalogo"
+       from "IngestVendaLinhaRaw" r
+       join "Farmacia" f on f.id = r."farmaciaId"
+      where r."produtoId" is null
+        and r."isNonStockService" = false
+        and r."dataVenda" >= '${desdeMes.toISOString()}'
+      order by r."dataVenda" desc, r."externalProductId"
+      limit 60`,
+  );
+
+  linha("");
+  if (orfas.length === 0) {
+    linha("      Sem linhas órfãs operacionais na janela. O gate não é o travão.");
+  } else {
+    linha(`      AS ${orfas.length} LINHAS QUE TRAVAM O MÊS:`);
+    linha("");
+    linha(
+      `      ${"farmácia".padEnd(18)}${"CodigoID".padStart(10)}  ${"documento".padEnd(16)}` +
+        `${"dia".padEnd(12)}${"tipoDoc".padStart(8)}  ${"classe".padEnd(20)}catálogo`,
+    );
+    linha(`      ${"─".repeat(104)}`);
+    for (const o of orfas) {
+      linha(
+        `      ${corta(o.farmacia, 18)}${String(o.externalProductId).padStart(10)}  ` +
+          `${corta(o.documento, 16)}${corta(dia(o.dataVenda), 12)}` +
+          `${String(o.tipoDocumento ?? "—").padStart(8)}  ${corta(o.tipoDocumentoClass, 20)}` +
+          (o.noCatalogo ? "JÁ EXISTE" : "ausente"),
+      );
+    }
+    linha("");
+    linha("      A coluna «catálogo» decide a correcção, e são correcções");
+    linha("      diferentes:");
+    linha("");
+    linha("        JÁ EXISTE  o produto entrou em ProdutoFarmacia DEPOIS da venda");
+    linha("                   ter sido ingerida. A linha nunca foi re-resolvida.");
+    linha("                   → ingest:reprocess-produto-mapping (re-resolve o");
+    linha("                     produtoId a partir do raw guardado; não é preciso");
+    linha("                     re-enviar do PC)");
+    linha("");
+    linha("        ausente    o CodigoID não está mesmo no catálogo desta farmácia.");
+    linha("                   → confirmar no ERP com run-inspect-codigoid.bat.");
+    linha("                     Se Processa_Stocks=0, é serviço e o lugar dele é");
+    linha("                     ingest:backfill-services. Se for artigo a sério,");
+    linha("                     falta o /products dessa farmácia — corrigir isso,");
+    linha("                     não o gate.");
+    linha("");
+    linha("      allowOrphans NÃO é a correcção: manda somar o mês deixando as");
+    linha("      linhas de fora, em silêncio e para sempre.");
+
+  }
+
+  // ── PARTE 4 · o que a base não sabe ───────────────────────────────
+  linha("");
+  linha("  4 · O QUE ESTE DIAGNÓSTICO NÃO CONSEGUE VER");
   linha("");
   linha("      Um pedido RECUSADO pela API não escreve nada nesta base. 401, 403,");
   linha("      tenant errado ou farmaciaId inválido deixam a base exactamente como");
@@ -289,10 +547,15 @@ async function main(): Promise<void> {
   linha("");
   linha("      E a fase A (a tarefa agendada não arrancou) só se vê no PC da");
   linha("      farmácia: Agendador de Tarefas, e o log do agent na pasta dele.");
-
-  // ── PARTE 4 · resumo ──────────────────────────────────────────────
   linha("");
-  linha("  4 · RESUMO");
+  linha("      `LoteIngestao` não é consultado aqui: é do caminho snapshot");
+  linha("      (/api/ingest/v1/snapshot/*), não da cadeia diária do agent, que");
+  linha("      entra por /api/ingest/v1/bootstrap/*. Medir a entrega por lotes");
+  linha("      dava fase C a toda a gente — foi o defeito que esta versão corrige.");
+
+  // ── PARTE 5 · resumo ──────────────────────────────────────────────
+  linha("");
+  linha("  5 · RESUMO");
   for (const [fase, texto] of Object.entries(FASES)) {
     const quais = farmacias.filter((f) => veredictos.get(f.id)?.fase === fase);
     if (quais.length === 0) continue;
