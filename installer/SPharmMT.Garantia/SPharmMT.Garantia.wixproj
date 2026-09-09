@@ -1,0 +1,99 @@
+<!--
+  `InitialTargets` e nao `BeforeTargets="Build"`: com o segundo, a
+  verificacao do icone corria DEPOIS de o MSI ja' estar escrito em
+  bin\. A compilacao falhava, mas ficava um ficheiro completo no
+  disco — e um instalador com o icone errado a' espera de ser
+  enviado por engano e' exactamente o acidente que esta verificacao
+  existe para evitar. `InitialTargets` corre antes de tudo.
+-->
+<Project Sdk="WixToolset.Sdk/6.0.2" InitialTargets="ValidarIcone">
+
+  <PropertyGroup>
+    <!--
+      O nome do ficheiro entregue ao cliente. É o que ele vê na pasta de
+      transferências, e por isso diz o que faz e para quem: "Instalar",
+      o produto, a farmácia.
+
+      Igual ao do Silveira em tudo menos no último termo. São dois MSI
+      diferentes, com UpgradeCode diferente, e um não substitui o outro —
+      ver o cabeçalho do Package.wxs.
+    -->
+    <OutputName>Instalar-SPharmMT-Garantia</OutputName>
+    <OutputType>Package</OutputType>
+
+    <!--
+      x64 por causa da procura do browser.
+
+      Um MSI de 32 bits num Windows de 64 bits le' o registo pela vista
+      redireccionada (WOW6432Node), e o Chrome e o Edge — ambos de 64
+      bits ha' anos — registam o seu caminho na vista nativa. Um pacote
+      x86 simplesmente nao os encontrava, e o ICE80 recusa-se a deixar um
+      pacote de 32 bits usar localizadores de 64 bits.
+
+      A troca: nao instala em Windows de 32 bits. O Windows 11 nao existe
+      em 32 bits e o Windows 10 de 32 bits saiu de suporte em Outubro de
+      2025 — e num desses PCs a alternativa seria um atalho que nao
+      abriria nada, que e' pior do que uma recusa clara.
+    -->
+    <InstallerPlatform>x64</InstallerPlatform>
+
+    <!--
+      Avisos como erros. Num instalador, um aviso do WiX é quase sempre
+      um componente sem chave ou um atalho sem ícone — coisas que só se
+      descobrem no PC do cliente se passarem aqui.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Os textos da interface do instalador, em portugues de Portugal. -->
+    <Cultures>pt-PT</Cultures>
+
+    <!--
+      ICE91 avisa que um ficheiro instalado numa pasta do perfil do
+      utilizador nao e' copiado para os outros perfis. E' verdade, e e'
+      exactamente o que se quer: este pacote e' por utilizador de
+      proposito (ver o cabecalho do Package.wxs). Deixar o aviso ligado
+      obrigava a ignora'-lo em cada compilacao, e um aviso que se ignora
+      por habito deixa de ser um aviso.
+    -->
+    <SuppressIces>ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+  </ItemGroup>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       O ÍCONE REAL JÁ CÁ ESTÁ
+
+       `assets\SPharmMT.ico` é agora o logotipo verdadeiro, gerado a partir
+       do PNG original (1254×1254) com sete tamanhos: 256, 128, 64, 48,
+       32, 24 e 16 px.
+
+       A guarda abaixo fica. Compara o SHA-256 do ficheiro com o do
+       ícone PROVISÓRIO que aqui esteve — um quadrado verde com "S+" —
+       para o caso de alguém o repor por engano ao resolver um conflito
+       ou ao reverter um commit. Um instalador entregue com esse ficheiro
+       seria um erro calado: instalava bem, abria bem, e tinha o ícone
+       errado no Ambiente de Trabalho da farmácia.
+
+       Corre em `InitialTargets`, antes de qualquer MSI ser escrito: com
+       `BeforeTargets="Build"` a compilação falhava mas ficava um ficheiro
+       completo em bin\, à espera de ser enviado.
+       ══════════════════════════════════════════════════════════════════ -->
+  <PropertyGroup>
+    <IconeProvisorioSha256>37A8ED48A1696145CD9FEA7E33F68C1165391AC07506E212F1C7424B851123C7</IconeProvisorioSha256>
+  </PropertyGroup>
+
+  <Target Name="ValidarIcone">
+    <Error Condition="!Exists('assets\SPharmMT.ico')"
+           Text="Falta o ícone: coloque o ficheiro em installer\SPharmMT.Installer\assets\SPharmMT.ico (formato .ico, com tamanhos 16/32/48/256 px)." />
+    <GetFileHash Files="assets\SPharmMT.ico" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_IconeSha256" />
+    </GetFileHash>
+    <Error Condition="'$(_IconeSha256)' == '$(IconeProvisorioSha256)' AND '$(PermitirIconeProvisorio)' != 'true'"
+           Text="O ficheiro assets\SPharmMT.ico voltou a ser o ícone PROVISÓRIO (quadrado verde com S+). O ícone real perdeu-se — provavelmente num merge ou num revert. Reponha-o antes de gerar o instalador para o cliente." />
+    <Message Importance="high" Condition="'$(_IconeSha256)' != '$(IconeProvisorioSha256)'"
+             Text="Ícone: assets\SPharmMT.ico (SHA-256 $(_IconeSha256))" />
+  </Target>
+
+</Project>

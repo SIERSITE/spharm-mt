@@ -1,7 +1,16 @@
-# Instalador Windows — SPharm.MT · Farmácia Silveirense
+# Instalador Windows — SPharm.MT
 
-Gera um único ficheiro **`Instalar-SPharmMT-Silveira.msi`** para enviar ao
-cliente. Sem scripts, sem passos manuais no PC dele.
+Gera um único ficheiro `.msi` por farmácia, para enviar ao cliente. Sem
+scripts, sem passos manuais no PC dele.
+
+| Projecto | Ficheiro gerado | Tenant |
+|---|---|---|
+| `SPharmMT.Installer` | `Instalar-SPharmMT-Silveira.msi` | `silveira` |
+| `SPharmMT.Garantia`  | `Instalar-SPharmMT-Garantia.msi`  | `garantia` |
+
+Os dois projectos são o mesmo instalador com outro tenant. Para acrescentar
+uma farmácia, copia-se a pasta de um deles e mudam-se seis coisas — estão
+listadas em «Uma farmácia nova», no fim.
 
 ---
 
@@ -51,12 +60,17 @@ for VS2022** ajuda, mas **não é precisa para compilar**.
 $msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
 cd installer\SPharmMT.Installer
 & $msbuild SPharmMT.Installer.wixproj -restore -p:Configuration=Release -p:Platform=x64
+
+# Garantia
+cd ..\SPharmMT.Garantia
+& $msbuild SPharmMT.Garantia.wixproj -restore -p:Configuration=Release -p:Platform=x64
 ```
 
 Resultado:
 
 ```
 installer\SPharmMT.Installer\bin\x64\Release\Instalar-SPharmMT-Silveira.msi
+installer\SPharmMT.Garantia\bin\x64\Release\Instalar-SPharmMT-Garantia.msi
 ```
 
 É esse o ficheiro a enviar. Não precisa de mais nada ao lado.
@@ -68,18 +82,18 @@ installer\SPharmMT.Installer\bin\x64\Release\Instalar-SPharmMT-Silveira.msi
 
 ## O que o instalador faz no PC do cliente
 
-| | |
-|---|---|
-| Nome | SPharm.MT - Farmácia Silveirense |
-| Instala em | `%LOCALAPPDATA%\Programs\SPharmMT\` |
-| Guarda lá | `SPharmMT.ico` |
-| Atalhos | Ambiente de Trabalho e Menu Iniciar, ambos «SPharm.MT» |
-| Abre | `https://app.spharmmt.com/login?__tenant=silveira` |
-| Navegador | Google Chrome se existir; caso contrário Microsoft Edge |
-| Modo | Janela de aplicação (`--app`), **não** incógnito |
-| Perfil | `%LOCALAPPDATA%\SPharmMT\ChromeProfile` |
-| Janela | Maximizada à primeira abertura |
-| Desinstalação | Definições › Aplicações |
+| | Silveira | Garantia |
+|---|---|---|
+| Nome | SPharm.MT - Farmácia Silveirense | SPharm.MT - Garantia |
+| Instala em | `%LOCALAPPDATA%\Programs\SPharmMT\` | `%LOCALAPPDATA%\Programs\SPharmMT-Garantia\` |
+| Guarda lá | `SPharmMT.ico` | igual |
+| Atalhos | Ambiente de Trabalho e Menu Iniciar, ambos «SPharm.MT» | igual |
+| Abre | `…/login?__tenant=silveira` | `…/login?__tenant=garantia` |
+| Navegador | Google Chrome se existir; caso contrário Microsoft Edge | igual |
+| Modo | Janela de aplicação (`--app`), **não** incógnito | igual |
+| Perfil | `%LOCALAPPDATA%\SPharmMT\ChromeProfile` | `%LOCALAPPDATA%\SPharmMT-Garantia\ChromeProfile` |
+| Janela | Maximizada à primeira abertura | igual |
+| Desinstalação | Definições › Aplicações | igual |
 
 Sessão e cookies mantêm-se entre utilizações — é o objectivo do perfil dedicado.
 `F5` e `Ctrl+R` funcionam normalmente.
@@ -167,3 +181,28 @@ Ao mudar seja o que for, subir `Version` no `Package.wxs` (por exemplo para
 acumular entradas em Definições › Aplicações.
 
 O `UpgradeCode` **nunca muda** — é ele que liga as versões umas às outras.
+
+---
+
+## Uma farmácia nova
+
+A versão Garantia saiu da Silveira por cópia. O que muda, e só isto:
+
+| O quê | Onde | Porque é obrigatório |
+|---|---|---|
+| `OutputName` | `.wixproj` | é o nome do ficheiro entregue |
+| `Name` e `Description` | `Package.wxs` | é o que aparece em Definições › Aplicações |
+| `URL_APLICACAO` | `Package.wxs` | o `?__tenant=` decide a farmácia |
+| `UpgradeCode` | `Package.wxs` | **crítico** — com o mesmo, instalar uma DESINSTALA a outra |
+| os três `Guid` dos componentes | `Package.wxs` | dois componentes com o mesmo GUID em caminhos diferentes são um pacote inválido |
+| a chave `Software\SPharmMT\<tenant>` | `Package.wxs` | é o que diz ao Windows a quem pertence cada atalho |
+
+E duas que não são obrigatórias mas evitam um acidente concreto: a pasta de
+instalação e a pasta do perfil do browser levam o nome do tenant. Num PC com
+duas farmácias instaladas, a pasta partilhada fazia a desinstalação de uma
+apagar o ícone da outra, e o perfil partilhado punha as duas a escrever
+cookies no mesmo sítio — quem abrisse uma via a sessão da outra. Num posto
+com uma só farmácia, que é o caso normal, não se nota.
+
+O `.ico` é o logótipo do produto e não da farmácia: é o mesmo ficheiro nos
+dois, byte a byte, e a guarda do SHA-256 no `.wixproj` vale para ambos.
