@@ -86,6 +86,7 @@
     "test:control-schema": "tsx scripts/tests/test-control-schema.ts",
     "test:filtros-catalogo": "tsx scripts/tests/test-filtros-catalogo.ts",
     "test:ui-catalogo": "tsx scripts/tests/test-ui-catalogo.ts",
+    "test:pvp-referencia": "tsx scripts/tests/test-pvp-referencia.ts",
     "test:vendas-periodo": "tsx scripts/tests/test-vendas-periodo.ts",
     "test:vendas-fontes": "tsx scripts/tests/test-vendas-fontes.ts",
     "test:namespaces-acordo": "tsx scripts/tests/test-namespaces-acordo.ts",

@@ -4,6 +4,11 @@ import { notFound } from "next/navigation";
 import { MainShell } from "@/components/layout/main-shell";
 import { getPrisma } from "@/lib/prisma";
 import { resolveCategoria, resolverPar } from "@/lib/categoria-resolver";
+import {
+  calcularPvpReferencia,
+  descreverPvpReferencia,
+  desvioFaceAReferencia,
+} from "@/lib/pvp-referencia";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
 import {
@@ -41,6 +46,29 @@ function fmtCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return PLACEHOLDER;
   return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
+
+/**
+ * O desvio face à referência, com sinal explícito.
+ *
+ * Sinal sempre visível — sem ele, "0,24" e "-0,24" distinguem-se por um
+ * caracter fácil de perder numa coluna estreita. O menos é U+2212, que
+ * tem a largura de um dígito nas fontes tabulares; o hífen não tem, e
+ * desalinha a coluna.
+ */
+function fmtDelta(delta: number): string {
+  const abs = Math.abs(delta).toLocaleString("pt-PT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${delta > 0 ? "+" : "\u2212"}${abs}`;
+}
+
+/**
+ * Uma definição só das colunas: o cabeçalho e as linhas têm de andar
+ * juntos, e duas listas de larguras acabam por divergir na primeira vez
+ * que alguém acrescenta uma coluna a uma delas.
+ */
+const COLUNAS_STOCK = "grid-cols-[1.3fr_0.9fr_0.6fr_0.6fr_0.85fr_0.85fr]";
 
 function fmtDate(value: Date | null | undefined): string {
   if (!value) return PLACEHOLDER;
@@ -180,19 +208,28 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       .sort((a, b) => a.localeCompare(b, "pt-PT"))
       .join(" · ") || PLACEHOLDER;
 
-  // PVP: usa o primeiro PF com pvp definido (mesmo critério do importer);
-  // se quiseres "PVP da farmácia activa", troca quando houver sessão.
   const pfsActive = produto.produtosFarmacia.filter(
     (pf) => pf.farmacia.estado === "ATIVO" && pf.farmacia.nome !== "Farmácia Teste"
   );
-  const pvpRow = pfsActive.find((pf) => pf.pvp !== null);
-  const pvp = pvpRow?.pvp ? Number(pvpRow.pvp) : null;
+
+  // O PVP de cada farmácia é `ProdutoFarmacia.pvp`: o
+  // `Stocks.[Preco Venda Publico_EUR]` do ERP dessa farmácia, reescrito
+  // em cada corrida diária. Não é o preço de uma venda — esse vive em
+  // `IngestVendaLinhaRaw.pvpUnitario` e não é lido aqui.
+  const precos = pfsActive.map((pf) => ({
+    pvp: pf.pvp !== null ? Number(pf.pvp) : null,
+  }));
+  // A referência era "o primeiro PF com preço", numa consulta sem
+  // `orderBy` — instável entre carregamentos. Ver `lib/pvp-referencia.ts`.
+  const referencia = calcularPvpReferencia(precos);
+  const pvp = referencia.valor;
 
   const stockRows = pfsActive
     .map((pf) => ({
       farmaciaId: pf.farmacia.id,
       farmaciaNome: pf.farmacia.nome,
       stock: pf.stockAtual !== null ? Number(pf.stockAtual) : null,
+      pvp: pf.pvp !== null ? Number(pf.pvp) : null,
       ultimaVenda: pf.dataUltimaVenda,
       ultimaCompra: pf.dataUltimaCompra,
       validadeMaisAntiga: pf.validadeMaisAntiga,
@@ -343,7 +380,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <SmallMetric
             label="PVP de referência"
             value={fmtCurrency(pvp)}
-            helper={pvpRow ? `via ${pvpRow.farmacia.nome}` : "sem registo"}
+            helper={descreverPvpReferencia(referencia)}
           />
         </section>
 
@@ -360,25 +397,44 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.9fr_0.9fr] gap-4 border-b border-slate-100 pb-2 text-[10px] uppercase tracking-[0.14em] text-slate-400">
+              <div className={`grid ${COLUNAS_STOCK} gap-4 border-b border-slate-100 pb-2 text-[10px] uppercase tracking-[0.14em] text-slate-400`}>
                 <div>Farmácia</div>
+                <div className="text-right">PVP</div>
                 <div>Stock</div>
                 <div>Mínimo</div>
                 <div>Última venda</div>
                 <div>Validade + antiga</div>
               </div>
-              {stockRows.map((row) => (
-                <div
-                  key={row.farmaciaId}
-                  className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.9fr_0.9fr] gap-4 border-b border-slate-100 py-3 text-[12px] text-slate-600 last:border-b-0"
-                >
-                  <div className="font-medium text-slate-800">{row.farmaciaNome}</div>
-                  <div>{fmtNumber(row.stock, " un.")}</div>
-                  <div>{fmtNumber(row.stockMinimo)}</div>
-                  <div>{fmtDate(row.ultimaVenda)}</div>
-                  <div>{fmtDate(row.validadeMaisAntiga)}</div>
-                </div>
-              ))}
+              {stockRows.map((row) => {
+                // Só há desvio a mostrar quando o preço difere mesmo. Um
+                // "+0,00" em todas as linhas seria ruído a fingir sinal.
+                const desvio = desvioFaceAReferencia(row.pvp, referencia.valor);
+                return (
+                  <div
+                    key={row.farmaciaId}
+                    className={`grid ${COLUNAS_STOCK} gap-4 border-b border-slate-100 py-3 text-[12px] text-slate-600 last:border-b-0`}
+                  >
+                    <div className="font-medium text-slate-800">{row.farmaciaNome}</div>
+                    <div className="text-right tabular-nums">
+                      <span className={desvio !== null ? "text-slate-800" : undefined}>
+                        {fmtCurrency(row.pvp)}
+                      </span>
+                      {desvio !== null && (
+                        <span
+                          className="ml-1.5 text-[10px] font-medium tabular-nums text-amber-700"
+                          title={`Difere do PVP de referência (${fmtCurrency(referencia.valor)})`}
+                        >
+                          {fmtDelta(desvio)}
+                        </span>
+                      )}
+                    </div>
+                    <div>{fmtNumber(row.stock, " un.")}</div>
+                    <div>{fmtNumber(row.stockMinimo)}</div>
+                    <div>{fmtDate(row.ultimaVenda)}</div>
+                    <div>{fmtDate(row.validadeMaisAntiga)}</div>
+                  </div>
+                );
+              })}
             </>
           )}
         </section>
