@@ -148,7 +148,7 @@ function isoDateOrNull(v: unknown): string | null {
 // Schema detection
 // ─────────────────────────────────────────────────────────────────────
 
-type SchemaCapabilities = {
+export type SchemaCapabilities = {
   hasStocksMov: boolean;
   stocksMovDateCol: "DataMov" | null;
   hasDataActualiz: boolean;
@@ -172,10 +172,82 @@ async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promis
 // SQL builders
 // ─────────────────────────────────────────────────────────────────────
 
-function buildProductsSql(caps: SchemaCapabilities): string {
+/**
+ * O catálogo do dia.
+ *
+ * ── Porque `Retirado = 0` deixou de ser uma barreira ────────────────
+ *
+ * Era. E a justificação estava escrita: «um artigo retirado não tem
+ * vendas nem stock novos para sincronizar». É verdade para vendas — e é
+ * falso para o outro sentido do balcão. Uma DEVOLUÇÃO ou ANULAÇÃO de um
+ * artigo entretanto retirado é uma linha nova de um artigo retirado.
+ *
+ * O caso que o provou: Farmácia Principal, CodigoID 11899, CNP 5057674,
+ * «Atorvastatina Alter 10 Mg 56 Comp.», `Retirado = 1`,
+ * `Processa_Stocks = -1`, devolução a 2026-09-03 09:48. O artigo nunca
+ * entrava no catálogo, a linha ficava sem `produtoId`, e duas linhas
+ * assim bloquearam o `aggregate-month` de Setembro das CINCO farmácias
+ * do tenant — porque o mês agrega uma vez para todas.
+ *
+ * É o mesmo defeito que o `bootstrap-upload` já corrigiu para o
+ * onboarding histórico (ver `catalogo-historico.test.ts`), e o mesmo
+ * predicado: activo OU com movimento em `StocksMov`. Ali a janela é a do
+ * histórico; aqui é o dia que está a ser processado.
+ *
+ * ── O que NÃO mudou, e é deliberado ─────────────────────────────────
+ *
+ * `Processa_Stocks <> 0` continua obrigatório e FORA do OR. Serviços
+ * também têm ficha em `dbo.Stocks` nesta instalação — CHECKSAUDE,
+ * vacinação, ***DIVERSOS*** — e sem este filtro entram no catálogo como
+ * medicamentos. Um serviço retirado que se mexeu no dia continua fora.
+ *
+ * O ramo do activo mantém a janela de datas palavra por palavra: um
+ * artigo activo entra pelo mesmo critério de sempre, nem mais nem menos.
+ * O ramo novo é o do `StocksMov`, e está preso ao dia — um retirado sem
+ * movimento nesse dia não entra.
+ *
+ * `StocksMov` e não `Data Ultima Venda` porque não há garantia de que
+ * uma devolução actualize essa coluna. Neste caso actualizou; depender
+ * disso era depender de um comportamento do ERP que ninguém documentou.
+ * `StocksMov` cobre vendas, compras, devoluções e acertos num predicado.
+ *
+ * Sem `StocksMov` no ERP, volta-se ao filtro antigo em vez de rebentar:
+ * o pipeline de produtos tem de continuar a correr onde a tabela não
+ * existe. É o pipeline de stock que exige `StocksMov`, não este.
+ *
+ * O artigo recuperado chega com `retirado: true` no payload e o endpoint
+ * grava `flagRetirado = true`. Recuperá-lo NÃO o torna activo: todas as
+ * superfícies operacionais — dashboard, oportunidades, encomendas,
+ * stock — filtram `flagRetirado = false`.
+ *
+ * Exportada para `catalogo-retirado-diario.test.ts`, que verifica a
+ * query gerada. A prova executável continua a ser o `daily-sync-dry-run`
+ * contra o ERP.
+ */
+export function buildProductsSql(caps: SchemaCapabilities): string {
   const extraDateOr = caps.hasDataActualiz
-    ? "\n    OR CAST(s.[Data_Actualiz] AS DATE) = @date"
+    ? "\n        OR CAST(s.[Data_Actualiz] AS DATE) = @date"
     : "";
+  // O movimento do dia. Só existe se o ERP tiver a tabela e a coluna.
+  const moveuNoDia =
+    caps.hasStocksMov && caps.stocksMovDateCol
+      ? `EXISTS (
+          SELECT 1 FROM [dbo].[StocksMov] sm
+          WHERE sm.CodigoID = s.CodigoID
+            AND CAST(sm.[${caps.stocksMovDateCol}] AS DATE) = @date
+        )`
+      : null;
+  const activoNaJanela = `s.[Retirado] = 0
+        AND (
+          CAST(s.[Data Ultima Venda] AS DATE) = @date
+          OR CAST(s.[Data Ultima Compra] AS DATE) = @date${extraDateOr}
+        )`;
+  const ambito = moveuNoDia
+    ? `(
+        ${activoNaJanela}
+      )
+      OR ${moveuNoDia}`
+    : activoNaJanela;
   return `
     SELECT TOP (@n)
       s.CodigoID                   AS externalProductId,
@@ -199,12 +271,10 @@ function buildProductsSql(caps: SchemaCapabilities): string {
       ORDER BY ArmazemID
     ) ars
     LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
-    WHERE s.[Retirado] = 0
-      AND s.[Processa_Stocks] <> 0
+    WHERE s.[Processa_Stocks] <> 0
       AND s.CodigoID > @lastId
       AND (
-        CAST(s.[Data Ultima Venda] AS DATE) = @date
-        OR CAST(s.[Data Ultima Compra] AS DATE) = @date${extraDateOr}
+      ${ambito}
       )
     ORDER BY s.CodigoID
   `;

@@ -113,15 +113,43 @@ for (const [nome, fonte] of [
 // ── 3. O daily e o stock snapshot ficam intactos ──────────────────
 
 console.log("");
-console.log("=== o diário e o snapshot de stock não foram tocados ===");
-// O filtro activo continua palavra por palavra no daily-sync-runner: um
-// artigo retirado não tem vendas nem stock novos para sincronizar.
-eq(
-  "daily-sync mantém o filtro em 3 queries",
-  (dailyRunner.match(/WHERE s\.\[Retirado\] = 0/g) ?? []).length,
-  3,
+console.log("=== o snapshot de stock do diário não foi tocado ===");
+// Isto dizia "daily-sync mantém o filtro em 3 queries", com a
+// justificação de que «um artigo retirado não tem vendas nem stock novos
+// para sincronizar».
+//
+// A segunda metade continua verdadeira e a primeira não. Um retirado não
+// tem STOCK novo — mas tem DEVOLUÇÕES e ANULAÇÕES, que são linhas de
+// venda novas de um artigo retirado. Farmácia Principal, CodigoID 11899,
+// devolução a 2026-09-03: o artigo nunca entrava no catálogo, a linha
+// ficava órfã, e duas linhas assim bloquearam o `aggregate-month` de
+// Setembro das cinco farmácias do tenant.
+//
+// O catálogo do diário passou a usar o mesmo predicado do histórico
+// (activo OU movimento), com a janela do DIA. Quem verifica isso é
+// `catalogo-retirado-diario.test.ts`; aqui fica o que NÃO mudou.
+const fnProdutosDiario = dailyRunner.slice(
+  dailyRunner.indexOf("export function buildProductsSql"),
+  dailyRunner.indexOf("function buildStockSql"),
 );
-ok("daily-sync não conhece StocksMov no catálogo", !/EXISTS \(\s*\n?\s*SELECT 1 FROM \[dbo\]\.\[StocksMov\]/.test(dailyRunner));
+const fnStockDiario = dailyRunner.slice(dailyRunner.indexOf("function buildStockSql"));
+eq(
+  "as 2 queries de stock do diário mantêm o filtro activo",
+  (fnStockDiario.match(/WHERE s\.\[Retirado\] = 0/g) ?? []).length,
+  2,
+);
+ok(
+  "o catálogo do diário deixou de ter Retirado=0 como barreira",
+  !/WHERE s\.\[Retirado\] = 0/.test(fnProdutosDiario),
+);
+ok(
+  "…e o movimento que o substitui é o do dia, não uma janela",
+  /CAST\(sm\.\[\$\{caps\.stocksMovDateCol\}\] AS DATE\) = @date/.test(fnProdutosDiario),
+);
+ok(
+  "o diário continua sem janela histórica no catálogo",
+  !/@histFrom|@histTo|janelaHistorica/.test(fnProdutosDiario),
+);
 // O pipeline de stock (mesmo ficheiro, outra função) mantém o filtro.
 const fnStock = bootstrap.slice(bootstrap.indexOf("export async function runStockPipeline"));
 ok(
