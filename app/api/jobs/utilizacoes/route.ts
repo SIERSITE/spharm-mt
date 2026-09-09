@@ -11,16 +11,22 @@
  *      humana.
  *
  *   2. BACKFILL — aplica as regras ao catálogo, mas SÓ se houver
- *      trabalho: quando o último `products-upload` fechou depois do
- *      último backfill. Sem isso, um tenant parado não paga nada.
+ *      trabalho: quando o catálogo mudou depois do último backfill e já
+ *      passou o intervalo mínimo. Sem isso, um tenant parado não paga
+ *      nada.
  *
  * PORQUE NÃO HÁ FILA
  *
- * O estado necessário já existe: `IngestProdutoRun.finalizadaEm` e
+ * O estado necessário já existe: `max(Produto.dataAtualizacao)` e
  * `CatalogoBackfillRun.executadoEm`. Comparar os dois é mais robusto do
  * que uma tabela de pedidos — um pedido perdido não existe (a passagem
- * seguinte recupera), um duplicado não faz nada, e o `/finalize` não
- * ganha escrita nenhuma no caminho crítico do upload.
+ * seguinte recupera) e um duplicado não faz nada.
+ *
+ * Isto já foi `IngestProdutoRun.finalizadaEm` e estava errado: só o
+ * `products-upload` fecha corrida, a sincronização diária é um upload
+ * delta que não a fecha (nem deve — o `/finalize` dispara o sweep de
+ * retirados), e o resultado era o backfill nunca correr em produção.
+ * Ver `precisaBackfill` em `lib/catalog/utilizacoes-ciclo.ts`.
  *
  * PORQUE NÃO CORRE DENTRO DO UPLOAD
  *
@@ -47,6 +53,7 @@ import {
   precisaBackfill,
   seedUtilizacoes,
 } from "@/lib/catalog/utilizacoes-ciclo";
+import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,14 +90,27 @@ export async function GET(req: NextRequest) {
         return;
       }
 
-      // Instantes que decidem se há trabalho. Uma corrida ABERTA não
-      // conta: o upload ainda está a decorrer e classificar a meio daria
-      // um retrato falso que a passagem seguinte teria de refazer.
-      const [ultimoUpload, ultimoBackfill] = await Promise.all([
-        prisma.ingestProdutoRun.findFirst({
-          where: { estado: "FINALIZADA" },
-          orderBy: { finalizadaEm: "desc" },
-          select: { finalizadaEm: true },
+      // Instantes que decidem se há trabalho.
+      //
+      // `max(Produto.dataAtualizacao)` e não `IngestProdutoRun`: a
+      // justificação completa está em `precisaBackfill`. Em resumo — a
+      // sincronização diária é um upload DELTA e nunca fecha corrida,
+      // portanto "corrida finalizada" nunca acontecia em produção e o
+      // backfill nunca corria. Esta coluna sobe com qualquer escrita no
+      // catálogo, venha ela do delta diário, do upload completo, dos
+      // campos do ERP ou da projecção do catálogo global.
+      //
+      // Não há índice em `dataAtualizacao` e esta leitura é um seq scan:
+      // medido em produção (garantia, 35 525 produtos) dá 24 ms com tudo
+      // em cache. A 3 tenants de 10 em 10 minutos não justifica uma
+      // migração — se um dia justificar, o sintoma será o tempo deste
+      // job a subir com o tamanho do catálogo, e o índice é
+      // `@@index([dataAtualizacao])` em `Produto`.
+      const [ultimoProduto, ultimoBackfill] = await Promise.all([
+        prisma.produto.findFirst({
+          where: { cnp: whereCnpCatalogavel() },
+          orderBy: { dataAtualizacao: "desc" },
+          select: { dataAtualizacao: true },
         }),
         prisma.catalogoBackfillRun.findFirst({
           where: { kind: "utilizacoes" },
@@ -102,7 +122,7 @@ export async function GET(req: NextRequest) {
       const haTrabalho =
         force ||
         precisaBackfill({
-          ultimoUploadFinalizadoEm: ultimoUpload?.finalizadaEm ?? null,
+          ultimaAlteracaoCatalogo: ultimoProduto?.dataAtualizacao ?? null,
           ultimoBackfillEm: ultimoBackfill?.executadoEm ?? null,
         });
 
@@ -110,7 +130,7 @@ export async function GET(req: NextRequest) {
         resultados.push({
           slug: tenant.slug,
           seed,
-          backfill: { corrido: false, motivo: "sem uploads novos desde o último backfill" },
+          backfill: { corrido: false, motivo: "catálogo sem alterações novas, ou varrido há menos do que o intervalo mínimo" },
         });
         return;
       }

@@ -60,6 +60,7 @@
     "test:seguranca-origem": "tsx scripts/tests/test-seguranca-origem.ts",
     "test:motores-2026-09": "tsx scripts/tests/test-motores-2026-09.ts",
     "test:catalog-rescue-routes": "tsx scripts/tests/test-catalog-rescue-routes.ts",
+    "test:utilizacoes-snc": "tsx scripts/tests/test-utilizacoes-snc.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:classificacao-provisoria": "tsx scripts/tests/test-classificacao-provisoria.ts",
     "test:filtro-sem-classificacao": "tsx scripts/tests/test-filtro-sem-classificacao.ts",

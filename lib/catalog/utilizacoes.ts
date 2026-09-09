@@ -104,6 +104,12 @@ export const UTILIZACOES: readonly Utilizacao[] = [
   { slug: "dor-menstrual", nome: "Dor menstrual", grupo: "Dor e febre",
     descricao: "Dismenorreia e desconforto do período.",
     sinonimos: ["cólicas menstruais", "período", "dismenorreia"] },
+  // Separada de `dor-muscular-articular` porque leva a outra prateleira:
+  // a dor neuropática não se trata com AINE tópico, e quem procura
+  // pregabalina não está a procurar uma pomada para as costas.
+  { slug: "dor-neuropatica", nome: "Dor neuropática", grupo: "Dor e febre",
+    descricao: "Dor de origem nervosa: neuropatia diabética, nevralgia, ciática.",
+    sinonimos: ["neuropatia", "nevralgia", "ciática", "dor nos nervos"] },
 
   // ── Digestivo ───────────────────────────────────────────────────────
   { slug: "azia-refluxo", nome: "Azia e refluxo", grupo: "Digestivo",
@@ -231,6 +237,50 @@ export const UTILIZACOES: readonly Utilizacao[] = [
   { slug: "protecao-e-higiene", nome: "Proteção e higiene", grupo: "Apoio ao doente",
     descricao: "Máscaras, luvas, desinfeção de mãos e superfícies.",
     sinonimos: ["máscara", "luvas", "álcool-gel", "desinfetante de mãos"] },
+
+  // ── Apoio ao doente · sistema nervoso ───────────────────────────────
+  //
+  // Porque é que estas sete não existiam e passam a existir.
+  //
+  // A subcategoria "Sistema Nervoso" é o maior bolso de catálogo sem
+  // faceta nenhuma — 2 444 produtos em garantia, 1 677 em silveira. Não
+  // era um descuido: as regras não tinham para onde apontar, porque o
+  // vocabulário não tinha destino. Um antidepressivo ficava a par de um
+  // antiepiléptico e de um antiparkinsónico, todos vazios.
+  //
+  // A tentação era resolver com UMA regra de subcategoria — "Sistema
+  // Nervoso" → alguma coisa. Seria pior do que o vazio: essa subcategoria
+  // abrange pelo menos sete necessidades que mandam a pessoa a sítios
+  // diferentes, e uma faceta que devolve as sete não filtra nada.
+  //
+  // O critério de granularidade do topo deste ficheiro aplica-se tal e
+  // qual: cada uma destas passa porque um operador a usaria como termo de
+  // pesquisa E porque separa produtos que de outro modo ficavam juntos.
+  //
+  // ÂMBITO, outra vez: isto organiza a loja por necessidade declarada.
+  // Não é indicação terapêutica, e nenhuma destas facetas autoriza
+  // dispensa de coisa nenhuma — são quase todas MSRM.
+  { slug: "humor-e-depressao", nome: "Humor e depressão", grupo: "Apoio ao doente",
+    descricao: "Antidepressivos e estabilizadores do humor (N06A).",
+    sinonimos: ["antidepressivo", "depressão", "humor", "ISRS", "SSRI"] },
+  { slug: "saude-mental", nome: "Saúde mental", grupo: "Apoio ao doente",
+    descricao: "Antipsicóticos e apoio em doença psiquiátrica (N05A).",
+    sinonimos: ["antipsicótico", "neuroléptico", "psiquiatria", "bipolar"] },
+  { slug: "epilepsia", nome: "Epilepsia", grupo: "Apoio ao doente",
+    descricao: "Antiepilépticos e anticonvulsivantes (N03A).",
+    sinonimos: ["antiepiléptico", "convulsões", "anticonvulsivante", "crises"] },
+  { slug: "memoria-e-demencia", nome: "Memória e demência", grupo: "Apoio ao doente",
+    descricao: "Anticolinesterásicos e memantina (N06D).",
+    sinonimos: ["Alzheimer", "demência", "memória", "cognição"] },
+  { slug: "parkinson", nome: "Parkinson", grupo: "Apoio ao doente",
+    descricao: "Antiparkinsónicos e apoio ao tremor (N04).",
+    sinonimos: ["parkinsónico", "tremor", "levodopa", "rigidez"] },
+  { slug: "vertigens-e-tonturas", nome: "Vertigens e tonturas", grupo: "Apoio ao doente",
+    descricao: "Vertigem vestibular e desequilíbrio (N07C).",
+    sinonimos: ["vertigem", "tonturas", "labirintite", "desequilíbrio"] },
+  { slug: "atencao-e-hiperatividade", nome: "Atenção e hiperatividade", grupo: "Apoio ao doente",
+    descricao: "Psicoestimulantes e apoio em PHDA (N06B).",
+    sinonimos: ["PHDA", "défice de atenção", "hiperatividade", "metilfenidato"] },
 ];
 
 /** Índice por slug. Falha cedo se a lista tiver slugs repetidos. */

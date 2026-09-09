@@ -316,19 +316,79 @@ export async function backfillUtilizacoes(
 }
 
 /**
- * Há uploads fechados depois do último backfill?
+ * Intervalo mínimo entre duas varreduras do catálogo, em milissegundos.
  *
- * É esta comparação que substitui uma fila de pedidos. Pura, para se
- * poder testar sem base: recebe os dois instantes e decide.
+ * O backfill lê o catálogo inteiro do tenant. Como o gatilho passou a ser
+ * "o catálogo mudou" — e em produção há escrita em `Produto` quase
+ * contínua (o ciclo de enriquecimento corre de 15 em 15 minutos) —, sem
+ * um piso o job das 10 em 10 minutos varria 35 000 produtos seis vezes
+ * por hora para escrever zero.
+ *
+ * Seis horas: quatro passagens por dia chegam para que uma farmácia
+ * acabada de instalar não espere pela madrugada, que é a razão de o job
+ * não ser diário. `?force=1` ignora isto.
+ */
+export const INTERVALO_MINIMO_BACKFILL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Há trabalho de classificação por fazer?
+ *
+ * ── PORQUE É QUE ISTO DEIXOU DE OLHAR PARA `IngestProdutoRun` ─────────
+ *
+ * A pergunta era "houve um `products-upload` que fechou depois do último
+ * backfill?", lida de `IngestProdutoRun.estado = 'FINALIZADA'`. Parecia
+ * o sinal certo e não era, por uma razão que só a produção mostrou: em
+ * garantia havia 31 corridas ABANDONADA, 5 ABERTA e **zero FINALIZADA**,
+ * e o backfill nunca tinha corrido — nem uma vez, em nenhum tenant.
+ *
+ * A causa não é uma avaria. Só o comando `products-upload` chama
+ * `/bootstrap/products/finalize`; a sincronização diária faz um upload
+ * DELTA (só o que teve venda, compra ou movimento naquele dia) e não o
+ * chama — e não deve chamar, porque o `finalize` dispara o sweep de
+ * `flagRetirado`, e varrer o catálogo inteiro a partir de um delta de
+ * algumas centenas de linhas marcaria como retirado tudo o resto.
+ *
+ * Ou seja: `FINALIZADA` responde a "o catálogo foi observado por
+ * inteiro", que é a pergunta do sweep. A pergunta desta função é outra —
+ * "há produtos novos ou alterados por classificar" — e essa lê-se em
+ * `max(Produto.dataAtualizacao)`, que sobe com o delta diário, com o
+ * upload completo, com os campos vindos do ERP e com a projecção do
+ * catálogo global. Um sinal por pergunta.
+ *
+ * Não há realimentação: `backfillUtilizacoes` escreve em
+ * `ProdutoUtilizacao` e nunca em `Produto`, portanto correr o backfill
+ * não move o instante que o dispara.
+ *
+ * Pura, para se poder testar sem base: recebe os instantes e decide.
  */
 export function precisaBackfill(input: {
-  ultimoUploadFinalizadoEm: Date | null;
+  /** `max(Produto.dataAtualizacao)` do catálogo cataloguável do tenant. */
+  ultimaAlteracaoCatalogo: Date | null;
   ultimoBackfillEm: Date | null;
+  /** Injectado para o teste não depender do relógio. */
+  agora?: Date;
+  intervaloMinimoMs?: number;
 }): boolean {
-  const { ultimoUploadFinalizadoEm, ultimoBackfillEm } = input;
-  // Sem upload nenhum não há produtos vindos do ERP para classificar.
-  if (!ultimoUploadFinalizadoEm) return false;
-  // Houve upload e nunca houve backfill: há trabalho.
+  const {
+    ultimaAlteracaoCatalogo,
+    ultimoBackfillEm,
+    agora = new Date(),
+    intervaloMinimoMs = INTERVALO_MINIMO_BACKFILL_MS,
+  } = input;
+
+  // Catálogo vazio: não há nada para classificar. Um tenant acabado de
+  // provisionar cai aqui e não paga leitura nenhuma.
+  if (!ultimaAlteracaoCatalogo) return false;
+
+  // Há catálogo e nunca houve backfill: há trabalho, e não se espera.
+  // É este ramo que recupera os tenants que ficaram para trás.
   if (!ultimoBackfillEm) return true;
-  return ultimoUploadFinalizadoEm > ultimoBackfillEm;
+
+  // Nada mudou desde a última passagem.
+  if (ultimaAlteracaoCatalogo <= ultimoBackfillEm) return false;
+
+  // Mudou, mas há pouco tempo que se varreu. A alteração não se perde —
+  // continua a ser verdade na passagem seguinte, que é o que torna isto
+  // recuperável sem fila de pedidos.
+  return agora.getTime() - ultimoBackfillEm.getTime() >= intervaloMinimoMs;
 }

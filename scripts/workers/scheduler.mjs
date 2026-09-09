@@ -58,13 +58,29 @@ const JOBS = [
   { name: "enqueue-regulatory", path: "/api/jobs/enqueue-regulatory", hour: 2, minute: 0 },
   { name: "acquire-regulatory", path: "/api/jobs/acquire-regulatory", hour: 2, minute: 30 },
   { name: "refresh-ipf", path: "/api/jobs/refresh-ipf", hour: 3, minute: 0 },
-  { name: "enrich-catalog", path: "/api/jobs/enrich-catalog", hour: 4, minute: 0 },
+  // A varredura completa do residual, e a ÚNICA que alcança um produto
+  // que nunca entrou na `EnriquecimentoFila` — o que acontece sempre que
+  // o catálogo global já conhece o CNP, porque a importação só enfileira
+  // o que ele desconhece. Sem ela, esse produto fica num limbo estável:
+  // o global sabe classificá-lo mas não sabe as utilizações dele, e o
+  // modelo nunca o vê.
+  //
+  // `knowledgeLimit` TEM de vir no path. O default do endpoint é 0, e com
+  // 0 a fase de conhecimento nem carrega o SDK — o job corria, devolvia
+  // 200, e não tocava no residual. Era o que estava a acontecer.
+  //
+  // 400 produtos e 8 USD por passagem: com uma passagem por dia esgota o
+  // residual actual de um tenant em duas semanas, e o tecto de custo é a
+  // segunda tranca — o ciclo pára no tecto e o resto fica para amanhã.
+  { name: "enrich-catalog", path: "/api/jobs/enrich-catalog?knowledgeLimit=400&knowledgeCapUsd=8", hour: 4, minute: 0 },
   { name: "enrich-retail", path: "/api/jobs/enrich-retail", hour: 5, minute: 0 },
-  // Utilizações: não é diário. A sua função é reagir a um
-  // products-upload que acabou de fechar — uma farmácia acabada de
-  // instalar não pode esperar até de madrugada para ter a faceta de
-  // pesquisa preenchida. Barato quando não há trabalho: o handler
-  // compara dois timestamps por tenant e devolve logo.
+  // Utilizações: não é diário. A sua função é reagir a uma alteração do
+  // catálogo — uma farmácia acabada de instalar não pode esperar até de
+  // madrugada para ter a faceta de pesquisa preenchida. Barato quando não
+  // há trabalho: o handler compara dois timestamps por tenant e devolve
+  // logo. O backfill em si tem um piso de 6 h (ver `precisaBackfill`),
+  // portanto esta cadência de 10 min é só latência de arranque, não
+  // frequência de varredura.
   { name: "utilizacoes", path: "/api/jobs/utilizacoes", everyMinutes: 10 },
   // Ciclo curto do enriquecimento: processa SÓ o que está na
   // EnriquecimentoFila, onde a importação põe cada CNP que o catálogo

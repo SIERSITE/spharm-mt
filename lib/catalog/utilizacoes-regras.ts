@@ -112,6 +112,33 @@ export const REGRAS_ATC: readonly RegraAtc[] = [
   { atc: "C09", utilizacao: "tensao-arterial", confianca: 0.9 },
   // Diuréticos tanto tratam hipertensão como insuficiência cardíaca.
   { atc: "C03", utilizacao: "tensao-arterial", confianca: 0.75, nota: "diurético nem sempre é anti-hipertensor" },
+
+  // ── Sistema nervoso ─────────────────────────────────────────────────
+  //
+  // LEIA-SE COM A REGRA DO TOPO: estas só disparam com RegulatoryRecord.
+  // Onde o ATC vem do modelo — que hoje é a totalidade dos ATC dos dois
+  // tenants de produção — nenhuma destas rende coisa nenhuma, e é assim
+  // que tem de ser: um ATC inferido não é fonte regulatória. Quem cobre
+  // este bloco hoje é `REGRAS_SUBSTANCIA` pelo Grupo Homogéneo, que vem
+  // do ERP. Estas ficam escritas para quando houver INFARMED, pela mesma
+  // razão que as de Grupo Homogéneo ficaram escritas antes de haver GH.
+  //
+  // Prefixos ao nível a que a decisão muda: N04A e N04B vão ambos para
+  // parkinson (anticolinérgico e dopaminérgico servem a mesma pessoa),
+  // mas N06A e N06B têm de ser separados — antidepressivo e
+  // psicoestimulante não se cruzam.
+  { atc: "N06A", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { atc: "N05A", utilizacao: "saude-mental", confianca: 0.95 },
+  { atc: "N06D", utilizacao: "memoria-e-demencia", confianca: 0.95 },
+  { atc: "N04A", utilizacao: "parkinson", confianca: 0.9 },
+  { atc: "N04B", utilizacao: "parkinson", confianca: 0.95 },
+  { atc: "N07C", utilizacao: "vertigens-e-tonturas", confianca: 0.9 },
+  { atc: "N06B", utilizacao: "atencao-e-hiperatividade", confianca: 0.9 },
+  // N03A é o grupo dos antiepilépticos, mas inclui a pregabalina e a
+  // gabapentina, que em Portugal se dispensam sobretudo para dor
+  // neuropática. O prefixo não distingue as duas coisas — as substâncias
+  // distinguem, e é lá que a separação é feita.
+  { atc: "N03A", utilizacao: "epilepsia", confianca: 0.9, nota: "N03A inclui gabapentinoides usados em dor neuropática" },
 ];
 
 /** Subcategoria (nível 2) → utilização. Nome exacto da taxonomia. */
@@ -440,6 +467,129 @@ export const REGRAS_SUBSTANCIA: readonly RegraTaxonomia[] = [
   { nome: "bromazepam", utilizacao: "stress-e-ansiedade", confianca: 0.9 },
   { nome: "diazepam", utilizacao: "stress-e-ansiedade", confianca: 0.85 },
   { nome: "nicotina", utilizacao: "cessacao-tabagica", confianca: 0.95 },
+
+  // ── Sistema nervoso ─────────────────────────────────────────────────
+  //
+  // Este bloco é o que fecha o maior bolso vazio do catálogo. As regras
+  // ATC equivalentes existem logo acima e não rendem nada hoje, porque
+  // dependem de `RegulatoryRecord` e não há nenhum nos tenants de
+  // produção. Aqui o sinal é o Grupo Homogéneo, escrito pelo ERP da
+  // farmácia — para o Escitalopram Generis, `Escitalopram | A101 | Oral |
+  // 10 mg | [21-60] unidades`. É o mesmo sinal que já sustenta as
+  // estatinas e os sartans deste ficheiro.
+  //
+  // CALIBRAÇÃO DA CONFIANÇA. `PENALIZACAO_DESIGNACAO` é o que separa as
+  // duas leituras da mesma substância:
+  //   · 0.95 / 0.90 — a substância só tem este uso. Passa por GH e por
+  //     designação (o genérico português chama-se pela substância).
+  //   · 0.85       — uso dominante mas não único. Passa pelos dois, com
+  //     a nota a dizer o que se aceitou.
+  //   · 0.80       — genuinamente ambígua. Passa por Grupo Homogéneo, que
+  //     é do INFARMED via ERP, e é RECUSADA quando vem só da designação
+  //     (0.80 − 0.05 = 0.75). É a fronteira a fazer o trabalho para que
+  //     foi desenhada, não uma coincidência.
+  //
+  // O que NÃO está aqui: as benzodiazepinas ficam em `stress-e-ansiedade`
+  // e os hipnóticos em `sono`, onde já estavam. Mexer-lhes agora era
+  // reclassificar produtos que já estão bem.
+
+  // Humor e depressão (N06A)
+  { nome: "escitalopram", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "citalopram", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "sertralina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "fluoxetina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "paroxetina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "fluvoxamina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "venlafaxina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "desvenlafaxina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "mirtazapina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "vortioxetina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "agomelatina", utilizacao: "humor-e-depressao", confianca: 0.95 },
+  { nome: "clomipramina", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "nortriptilina", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "imipramina", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "tianeptina", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "reboxetina", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "trazodona", utilizacao: "humor-e-depressao", confianca: 0.9 },
+  { nome: "duloxetina", utilizacao: "humor-e-depressao", confianca: 0.9, nota: "duloxetina também é usada em dor neuropática e incontinência" },
+  { nome: "amitriptilina", utilizacao: "humor-e-depressao", confianca: 0.8, nota: "em Portugal dispensa-se sobretudo em dor e profilaxia de enxaqueca" },
+  { nome: "bupropiom", utilizacao: "humor-e-depressao", confianca: 0.8, nota: "a mesma substância é cessação tabágica" },
+  { nome: "bupropiona", utilizacao: "humor-e-depressao", confianca: 0.8, nota: "a mesma substância é cessação tabágica" },
+
+  // Saúde mental (N05A)
+  { nome: "olanzapina", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "risperidona", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "aripiprazol", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "paliperidona", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "amissulprida", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "clozapina", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "haloperidol", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "lurasidona", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "ziprasidona", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "carbonato de litio", utilizacao: "saude-mental", confianca: 0.95 },
+  { nome: "flupentixol", utilizacao: "saude-mental", confianca: 0.9 },
+  { nome: "zuclopentixol", utilizacao: "saude-mental", confianca: 0.9 },
+  { nome: "levomepromazina", utilizacao: "saude-mental", confianca: 0.9 },
+  { nome: "quetiapina", utilizacao: "saude-mental", confianca: 0.9, nota: "muito usada fora de indicação como indutor do sono" },
+  { nome: "sulpirida", utilizacao: "saude-mental", confianca: 0.85, nota: "em dose baixa também é usada como antivertiginoso" },
+  { nome: "tiaprida", utilizacao: "saude-mental", confianca: 0.85 },
+
+  // Epilepsia (N03A)
+  { nome: "levetiracetam", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "brivaracetam", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "oxcarbazepina", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "eslicarbazepina", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "fenitoina", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "zonisamida", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "lacosamida", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "etossuximida", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "perampanel", utilizacao: "epilepsia", confianca: 0.95 },
+  { nome: "carbamazepina", utilizacao: "epilepsia", confianca: 0.9 },
+  { nome: "fenobarbital", utilizacao: "epilepsia", confianca: 0.9 },
+  { nome: "valproato", utilizacao: "epilepsia", confianca: 0.9 },
+  { nome: "valproico", utilizacao: "epilepsia", confianca: 0.9 },
+  { nome: "lamotrigina", utilizacao: "epilepsia", confianca: 0.9, nota: "também estabilizador do humor" },
+  { nome: "topiramato", utilizacao: "epilepsia", confianca: 0.85, nota: "também profilaxia da enxaqueca" },
+
+  // Dor neuropática — os gabapentinoides. São N03A no ATC, mas em
+  // Portugal dispensam-se sobretudo para dor, e é a dor que a pessoa
+  // nomeia ao balcão. A substância desempata o que o prefixo ATC junta.
+  { nome: "pregabalina", utilizacao: "dor-neuropatica", confianca: 0.9, nota: "também epilepsia e ansiedade generalizada" },
+  { nome: "gabapentina", utilizacao: "dor-neuropatica", confianca: 0.9, nota: "também epilepsia" },
+
+  // Memória e demência (N06D)
+  { nome: "donepezilo", utilizacao: "memoria-e-demencia", confianca: 0.95 },
+  { nome: "memantina", utilizacao: "memoria-e-demencia", confianca: 0.95 },
+  { nome: "rivastigmina", utilizacao: "memoria-e-demencia", confianca: 0.95 },
+  { nome: "galantamina", utilizacao: "memoria-e-demencia", confianca: 0.95 },
+
+  // Parkinson (N04)
+  { nome: "levodopa", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "pramipexol", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "ropinirol", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "rotigotina", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "rasagilina", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "safinamida", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "entacapona", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "opicapona", utilizacao: "parkinson", confianca: 0.95 },
+  { nome: "selegilina", utilizacao: "parkinson", confianca: 0.9 },
+  { nome: "amantadina", utilizacao: "parkinson", confianca: 0.85 },
+  { nome: "biperideno", utilizacao: "parkinson", confianca: 0.85 },
+  { nome: "trihexifenidilo", utilizacao: "parkinson", confianca: 0.85 },
+
+  // Vertigens e tonturas (N07C). O ERP escreve a beta-histina de três
+  // maneiras; as três estão aqui porque a lista é o dicionário e não há
+  // normalização de nomes de substância em lado nenhum.
+  { nome: "beta-histina", utilizacao: "vertigens-e-tonturas", confianca: 0.95 },
+  { nome: "betahistina", utilizacao: "vertigens-e-tonturas", confianca: 0.95 },
+  { nome: "betaistina", utilizacao: "vertigens-e-tonturas", confianca: 0.95 },
+  { nome: "cinarizina", utilizacao: "vertigens-e-tonturas", confianca: 0.8, nota: "também usada no enjoo de viagem" },
+
+  // Atenção e hiperatividade (N06B)
+  { nome: "metilfenidato", utilizacao: "atencao-e-hiperatividade", confianca: 0.95 },
+  { nome: "lisdexanfetamina", utilizacao: "atencao-e-hiperatividade", confianca: 0.95 },
+  { nome: "atomoxetina", utilizacao: "atencao-e-hiperatividade", confianca: 0.95 },
+  { nome: "guanfacina", utilizacao: "atencao-e-hiperatividade", confianca: 0.9 },
 ];
 
 /**
