@@ -97,6 +97,56 @@ check(
 );
 
 // ─────────────────────────────────────────────────────────────────────
+console.log(`\n${D}\n2b. Tipo 177 — a outra metade da renumeração de 2024-03-04\n${D}`);
+
+// O buraco suspenso da Principal abriu no MESMO dia que o do circuito G:
+// 2024-03-04, 0 linhas em falta antes, ~1 000/mês depois. O ERP desta
+// farmácia renumerou os dois circuitos ao mesmo tempo, pela regra que os
+// cinco ERP confirmam: suspenso = circuito G + 100.
+check(
+  CLASSIFICACAO[S].peloSinal.has(177),
+  "177 está declarado em CLASSIFICACAO[ATENDIMENTO_SUSP_DETALHE].peloSinal",
+);
+check(
+  classificarDocumento(177, S, 1) === "VENDA",
+  "177 suspenso, quantidade > 0 → VENDA",
+  "as 27 linhas de 2026-09-09 são 27 saídas de stock de −1 sobre 26 produtos",
+);
+check(
+  classificarDocumento(177, S, -1) === "DEVOLUCAO_ANULACAO",
+  "177 suspenso, quantidade < 0 → reversão",
+  "é isto que `venda` fixa faria errado: as anulações somariam",
+);
+check(classificarDocumento(177, S, 0) === null, "177 com quantidade zero → recusado");
+check(classificarDocumento(177, S, null) === null, "177 sem quantidade legível → recusado");
+
+// A regra +100 nos dois sentidos: o que é do G não entra no suspenso e
+// vice-versa. Ler a mesma venda pelos dois circuitos duplicava-a.
+check(
+  classificarDocumento(177, G, 1) === null,
+  "177 NÃO é aceite no circuito G",
+  "o 177 é a forma suspensa do 77; aceitá-lo no G duplicava a venda",
+);
+// O 177 não pode ser classe fixa: `reversao` está excluído por medição —
+// as 27 linhas de 09/09 são saídas de stock, ou seja vendas. E em 218 222
+// movimentos RESERVA_SUSPENSA das cinco farmácias não há uma positiva,
+// portanto uma anulação suspensa é invisível ao pipeline de movimentos.
+// `peloSinal` é a única escolha que não depende de uma observação que não
+// se consegue fazer.
+check(
+  !CLASSIFICACAO[S].venda.has(177) && !CLASSIFICACAO[S].reversao.has(177),
+  "177 não foi declarado como classe fixa em nenhum dos dois sentidos",
+);
+// Os três tipos suspensos partilham a MESMA regra. Se um deles for
+// promovido a classe fixa, este teste cai — e é para cair.
+for (const t of [102, 107, 177]) {
+  check(
+    classificarDocumento(t, S, 2) === "VENDA" && classificarDocumento(t, S, -2) === "DEVOLUCAO_ANULACAO",
+    `${t} tem a mesma semântica dos irmãos do circuito suspenso`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 console.log(`\n${D}\n3. Um tipo desconhecido continua a ser recusado\n${D}`);
 
 check(classificarDocumento(999, G, 1) === null, "tipo 999 → recusado (não vira VENDA por defeito)");

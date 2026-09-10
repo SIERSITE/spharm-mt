@@ -231,10 +231,15 @@ test("o 19 não escorregou para outros circuitos", () => {
 test("os outros circuitos ficam intactos", () => {
   // Guias de transferência: tipo 38, pelo sinal. Não foi tocado.
   assert.deepEqual([...CLASSIFICACAO[NAMESPACES.GUIAS_TRANSFERENCIA].peloSinal], [38]);
-  // Suspensas: 107 e 102, pelo sinal. Não foi tocado.
+  // Suspensas: pelo sinal, e continua a ser pelo sinal.
+  //
+  // O 177 entrou em 2026-09-10, pela mesma medição que trouxe o 77: o
+  // buraco suspenso da Principal abre a 2024-03-04, o mesmo dia em que o
+  // circuito G dela passa de 7 para 77. Suspenso = circuito G + 100
+  // (2→102, 7→107, 77→177), regra que os cinco ERP confirmam.
   assert.deepEqual(
     [...CLASSIFICACAO[NAMESPACES.ATENDIMENTO_SUSP_DETALHE].peloSinal].sort((a, b) => a - b),
-    [102, 107],
+    [102, 107, 177],
   );
   // Circuito G: a classe é propriedade do tipo, e o 4 continua por
   // declarar — ver a nota no relatório desta revisão.

@@ -321,34 +321,58 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
     // Vazio por decisão, não por omissão: o 104 das NC de VSG é lido
     // pelo circuito G. Ver acima.
     reversao: new Set<number>(),
-    // ── HÁ AQUI UM BURACO POR IDENTIFICAR, E FICA ESCRITO ────────────
+    // ── O 177: A OUTRA METADE DA MESMA RENUMERAÇÃO ───────────────────
     //
-    // A Principal também perde linhas neste circuito, e o tipo NÃO está
-    // identificado. O que está medido, a 2026-09-09:
+    // O buraco suspenso da Principal e o buraco do circuito G não eram
+    // dois problemas. São o mesmo, e abriram no MESMO DIA:
     //
-    //     farmácia    linhas que chegaram    movimentos RESERVA_SUSPENSA
-    //     Castelo            80                        74
-    //     Garantia           26                        24
-    //     Nogueira           56                        48
-    //     Pereiró            41                        41
-    //     Principal          18                        43
+    //     dia          movimentos susp    com linha    sem linha
+    //     2024-03-01          44              44            0
+    //     2024-03-02          45              45            0
+    //     2024-03-03          38              38            0
+    //     2024-03-04         177             157           20   <-
+    //     2024-03-05          39               9           30
+    //     2024-03-06          81              14           67
     //
-    // As quatro saudáveis têm 102 E 107 nesse dia. A Principal só tem
-    // 102: o 107 dela parou a 2026-07-31, depois de 2 770 linhas desde
-    // 2024-01-02. O padrão é o mesmo do 77 no circuito G — uma mudança
-    // de tipo documental do lado do ERP —, mas o número novo NÃO é
-    // dedutível de nada a que se chegue pelo SaaS: o pipeline de
-    // movimentos grava `tipoDocumentoId` NULO para RESERVA_SUSPENSA, e
-    // o número do tipo recusado só é escrito no log local da farmácia.
+    // 2024-03-04 é exactamente o dia em que o `Tipo Documento 7` da
+    // Principal dá lugar ao 77 no circuito G. A partir dele o ERP desta
+    // farmácia passou a numerar os dois circuitos de outra maneira, e o
+    // agente deixou de reconhecer os dois. Desde então são ~1 000 linhas
+    // suspensas por mês, sem uma única interrupção, contra ~0 nas outras
+    // quatro farmácias (Castelo: 0, 4, 1, 0 nos últimos quatro meses).
     //
-    // NÃO se acrescenta aqui um tipo por palpite. Adivinhar entre venda,
-    // reversão e pelo-sinal neste circuito é escolher entre três totais
-    // plausíveis — o erro que a nota de cima diz que este projecto já
-    // pagou duas vezes. Identifica-se com uma linha do log do agente na
-    // Principal (`daily-sync-<data>.log`, "tipo de documento por
-    // classificar em ATENDIMENTO_SUSP_DETALHE: N") ou com uma consulta
-    // ao ERP, e só então entra — com o sinal medido, como o 107 entrou.
-    peloSinal: new Set([107, 102]),
+    // A REGRA DE NUMERAÇÃO, que os cinco ERP confirmam: o tipo suspenso é
+    // o tipo do circuito G mais 100.
+    //
+    //     circuito G      2      7     77
+    //     suspenso      102    107    177
+    //
+    // As quatro farmácias que usam 2 e 7 têm 102 e 107. A Principal, que
+    // passou a usar 77, tem 177. Não é uma coincidência aritmética: é a
+    // mesma migração vista de dois sítios.
+    //
+    // ── PORQUE `peloSinal` E NÃO `venda` ─────────────────────────────
+    //
+    // `reversao` está EXCLUÍDO por medição: as 27 linhas de 2026-09-09
+    // produzem 27 movimentos de saída de stock, de −1 cada, sobre 26
+    // produtos distintos. São vendas, não anulações.
+    //
+    // Entre `venda` e `peloSinal` há uma coisa que NÃO se consegue
+    // observar daqui, e vale a pena dizer qual: se o 177 também carrega
+    // as anulações. Não se vê porque uma anulação suspensa não gera
+    // movimento nenhum — em 218 222 linhas `RESERVA_SUSPENSA` das cinco
+    // farmácias não há UMA positiva. O pipeline de movimentos regista a
+    // saída de stock e mais nada, portanto as anulações do 177 seriam
+    // invisíveis por construção, existam elas ou não.
+    //
+    // `peloSinal` é a escolha que não depende dessa resposta:
+    //   · se o 177 nunca for negativo, `peloSinal` e `venda` dão o mesmo;
+    //   · se o 177 carregar anulações — como o 102 e o 107 carregam em
+    //     TODAS as farmácias, 26 a 640 linhas negativas cada —, então
+    //     `peloSinal` acerta e `venda` fazia as anulações somar.
+    // Não há cenário em que `peloSinal` seja pior. É também o que "a
+    // mesma semântica do 102 e do 107" quer dizer neste circuito.
+    peloSinal: new Set([107, 102, 177]),
   },
   // ── Crédito e transferências: DECLARADOS, sem tipos ─────────────
   //
