@@ -237,12 +237,41 @@ export type RegraCircuito = {
  * quantidade positiva, e o operador confirmou que é uma factura normal
  * da série G.
  *
- * O 77 esteve aqui durante meses e nunca foi observado em ERP nenhum. A
- * prova está no seed da própria migração, que se descreve a si mesmo:
- * `(77, 'VENDA', 'default Softreis')` contra `(7, 'UNKNOWN', 'detectado
- * 2024-01-01 sample')`. O 77 era a suposição do fornecedor; o 7 foi o
- * que se viu. A rev68 fechou a questão em produção: 282 linhas do dia,
- * 282 com tipo 7, zero com 77.
+ * ── O 77: TIRADO POR NÃO SE VER, REPOSTO POR SE TER VISTO ────────────
+ *
+ * O 77 esteve aqui durante meses e foi retirado por nunca ter sido
+ * observado. A prova invocada foi o seed da própria migração, que se
+ * descreve a si mesmo: `(77, 'VENDA', 'default Softreis')` contra
+ * `(7, 'UNKNOWN', 'detectado 2024-01-01 sample')` — o 77 era a suposição
+ * do fornecedor, o 7 foi o que se viu. A rev68 mediu um dia em produção:
+ * 282 linhas, 282 com tipo 7, zero com 77.
+ *
+ * A medição estava certa. A conclusão é que não estava: mediu-se UMA
+ * farmácia e concluiu-se sobre TODAS. A farmácia Principal do grupo
+ * Garantia mudou as vendas de balcão de 7 para 77 a 2024-03-04 e nunca
+ * mais foi lida — 1 090 linhas descartadas no dia 2026-09-09, ~1 100 por
+ * dia, dois anos e meio. As outras quatro farmácias do mesmo grupo
+ * continuam em 7, e é por isso que a amostra de uma farmácia nunca podia
+ * ter fechado a questão.
+ *
+ * A prova de 2026-09-09, medida em duas fontes independentes:
+ *
+ *     MovimentoArtigo.tipoDocumentoId (pipeline de StocksMov)
+ *       Castelo 7→1163   Garantia 7→687   Nogueira 7→715
+ *       Pereiró 7→543    Principal 77→1090, 2→19
+ *
+ *     IngestVendaLinhaRaw (pipeline de vendas), mesmo dia
+ *       Castelo 7→1163   Garantia 7→687   Nogueira 7→715
+ *       Pereiró 7→543    Principal 77→ZERO, 2→19
+ *
+ * As duas colunas batem 1:1 em todas menos na Principal, e o que falha
+ * na Principal é exactamente o 77. As devoluções (27 e 104) chegaram
+ * intactas o tempo todo — são elas que mantinham o dia com um total
+ * negativo plausível durante dois anos e meio.
+ *
+ * A LIÇÃO, que é maior do que o 77: "não observado" e "não existe" não
+ * são a mesma coisa quando a amostra é uma instalação. Um tipo por
+ * declarar deixa de ser silêncio a partir daqui — ver `saude-vendas.ts`.
  *
  * ── CIRCUITO SUSPENSO: A CLASSE ESTÁ NO SINAL ────────────────────────
  *
@@ -281,7 +310,9 @@ export type RegraCircuito = {
  */
 export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
   [NAMESPACES.ATENDIMENTO_DETALHE]: {
-    venda: new Set([7, 2]),
+    // 77 medido na Principal (Garantia) a 2026-09-09 em duas fontes
+    // independentes; 7 e 2 medidos nas restantes. Ver a nota acima.
+    venda: new Set([7, 2, 77]),
     reversao: new Set([104, 27]),
     peloSinal: new Set<number>(),
   },
@@ -290,6 +321,33 @@ export const CLASSIFICACAO: Record<SourceNamespace, RegraCircuito> = {
     // Vazio por decisão, não por omissão: o 104 das NC de VSG é lido
     // pelo circuito G. Ver acima.
     reversao: new Set<number>(),
+    // ── HÁ AQUI UM BURACO POR IDENTIFICAR, E FICA ESCRITO ────────────
+    //
+    // A Principal também perde linhas neste circuito, e o tipo NÃO está
+    // identificado. O que está medido, a 2026-09-09:
+    //
+    //     farmácia    linhas que chegaram    movimentos RESERVA_SUSPENSA
+    //     Castelo            80                        74
+    //     Garantia           26                        24
+    //     Nogueira           56                        48
+    //     Pereiró            41                        41
+    //     Principal          18                        43
+    //
+    // As quatro saudáveis têm 102 E 107 nesse dia. A Principal só tem
+    // 102: o 107 dela parou a 2026-07-31, depois de 2 770 linhas desde
+    // 2024-01-02. O padrão é o mesmo do 77 no circuito G — uma mudança
+    // de tipo documental do lado do ERP —, mas o número novo NÃO é
+    // dedutível de nada a que se chegue pelo SaaS: o pipeline de
+    // movimentos grava `tipoDocumentoId` NULO para RESERVA_SUSPENSA, e
+    // o número do tipo recusado só é escrito no log local da farmácia.
+    //
+    // NÃO se acrescenta aqui um tipo por palpite. Adivinhar entre venda,
+    // reversão e pelo-sinal neste circuito é escolher entre três totais
+    // plausíveis — o erro que a nota de cima diz que este projecto já
+    // pagou duas vezes. Identifica-se com uma linha do log do agente na
+    // Principal (`daily-sync-<data>.log`, "tipo de documento por
+    // classificar em ATENDIMENTO_SUSP_DETALHE: N") ou com uma consulta
+    // ao ERP, e só então entra — com o sinal medido, como o 107 entrou.
     peloSinal: new Set([107, 102]),
   },
   // ── Crédito e transferências: DECLARADOS, sem tipos ─────────────

@@ -37,6 +37,7 @@ import { withPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type PipelineAggregateResponse } from "../http-client.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
 import { runPipelineForDay, type PipelineRunCounts } from "./daily-sync-runner.js";
+import { avaliarSaudeVendas, type VeredictoVendas } from "../saude-vendas.js";
 import { ontemNaFarmacia } from "../janela.js";
 import { janelaConsulta, planearCatchUp } from "../catch-up.js";
 
@@ -679,6 +680,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   const startedAt = new Date();
   const steps: Array<{ name: string; status: "OK" | "ERROR" | "SKIPPED"; durationMs: number; message?: string }> = [];
   let dailySyncCounts: PipelineRunCounts | null = null;
+  let saudeVendas: VeredictoVendas | null = null;
   let aggregateResp: PipelineAggregateResponse | null = null;
 
   pipelineLog.raw(DOUBLE_RULE);
@@ -749,11 +751,33 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         });
       });
       const dur = Date.now() - tDailySync;
-      steps.push({ name: "daily-sync", status: "OK", durationMs: dur });
-      pipelineLog.log(`  daily-sync OK em ${fmtDuration(dur)}`);
       pipelineLog.log(`  products read=${dailySyncCounts.productsRead} upserted=${dailySyncCounts.productsUpserted} errors=${dailySyncCounts.productsErrors}`);
       pipelineLog.log(`  stock    read=${dailySyncCounts.stockRead} upserted=${dailySyncCounts.stockUpserted} errors=${dailySyncCounts.stockErrors}`);
-      pipelineLog.log(`  sales    read=${dailySyncCounts.salesRead} upserted=${dailySyncCounts.salesUpserted} non_stock=${dailySyncCounts.salesNonStockServices} op_orphans=${dailySyncCounts.salesOperationalOrphans} errors=${dailySyncCounts.salesErrors}`);
+      pipelineLog.log(`  sales    read=${dailySyncCounts.salesRead} upserted=${dailySyncCounts.salesUpserted} skipped=${dailySyncCounts.salesSkipped} non_stock=${dailySyncCounts.salesNonStockServices} op_orphans=${dailySyncCounts.salesOperationalOrphans} errors=${dailySyncCounts.salesErrors}`);
+
+      // A pergunta que faltava: o que se leu chegou lá?
+      //
+      // O `daily-sync` não atirou — leu o dia todo sem um erro. Mas uma
+      // leitura sem escrita não é um dia sincronizado, e era exactamente
+      // assim que a Principal fechava OK com 93% das vendas recusadas.
+      // Ver `saude-vendas.ts` para os números e para a escolha de
+      // PARTIAL. A degradação é só num sentido: nada aqui promove um dia
+      // que já estava pior.
+      saudeVendas = avaliarSaudeVendas(dailySyncCounts);
+      if (saudeVendas.saudavel) {
+        steps.push({ name: "daily-sync", status: "OK", durationMs: dur });
+        pipelineLog.log(`  daily-sync OK em ${fmtDuration(dur)}`);
+        if (dailySyncCounts.salesSkipped > 0) pipelineLog.log(`  ℹ ${saudeVendas.motivo}`);
+      } else {
+        steps.push({ name: "daily-sync", status: "ERROR", durationMs: dur, message: saudeVendas.motivo });
+        if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
+        errorMessage = errorMessage ?? saudeVendas.motivo;
+        pipelineLog.log(`✗ daily-sync PARCIAL em ${fmtDuration(dur)}: ${saudeVendas.motivo}`);
+        pipelineLog.log(
+          "    O dia NÃO fica fechado e o catch-up volta a propô-lo. Declarar o tipo em " +
+            "agent/src/vendas-fontes.ts (CLASSIFICACAO) e deixar o dia repetir.",
+        );
+      }
       pipelineLog.log("");
     } catch (err) {
       const dur = Date.now() - tDailySync;
@@ -906,6 +930,18 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
           aggregateMonth: month,
           steps,
           dailySync: dailySyncCounts ?? undefined,
+          // O veredicto viaja para o SaaS com os tipos por declarar lá
+          // dentro. É o que faz a diferença entre "salesSkipped=1117" —
+          // que não diz o que fazer — e "ATENDIMENTO_DETALHE:77×1090",
+          // que diz. Sem isto, diagnosticar exige o log da farmácia.
+          saudeVendas: saudeVendas
+            ? {
+                saudavel: saudeVendas.saudavel,
+                fraccaoSkipped: Number(saudeVendas.fraccaoSkipped.toFixed(4)),
+                motivo: saudeVendas.motivo,
+                tiposPorClassificar: dailySyncCounts?.salesTiposPorClassificar ?? [],
+              }
+            : undefined,
           aggregate: aggregateResp
             ? {
                 ano: parseInt(month.slice(0, 4), 10),

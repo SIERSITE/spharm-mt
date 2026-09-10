@@ -238,8 +238,15 @@ test("os outros circuitos ficam intactos", () => {
   );
   // Circuito G: a classe é propriedade do tipo, e o 4 continua por
   // declarar — ver a nota no relatório desta revisão.
+  //
+  // O 77 entrou em 2026-09-10. Não é uma reabertura da suposição do
+  // fornecedor que tinha sido retirada: é uma medição, na Principal, em
+  // duas fontes independentes no mesmo dia — 1 090 linhas em
+  // `MovimentoArtigo.tipoDocumentoId` e 1 090 linhas em falta em
+  // `IngestVendaLinhaRaw`. A farmácia mudou de 7 para 77 a 2024-03-04.
+  // Ver a nota longa em `vendas-fontes.ts`.
   const g = CLASSIFICACAO[NAMESPACES.ATENDIMENTO_DETALHE];
-  assert.deepEqual([...g.venda].sort((a, b) => a - b), [2, 7]);
+  assert.deepEqual([...g.venda].sort((a, b) => a - b), [2, 7, 77]);
   assert.deepEqual([...g.reversao].sort((a, b) => a - b), [27, 104]);
   assert.equal(
     classificarDocumento(4, NAMESPACES.ATENDIMENTO_DETALHE, 1),

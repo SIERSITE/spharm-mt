@@ -32,6 +32,7 @@ import {
   type FonteVenda,
   type SourceNamespace,
 } from "../vendas-fontes.js";
+import type { TipoPorClassificar } from "../saude-vendas.js";
 
 type SchemaProbeAPI = {
   tableExists: (
@@ -63,6 +64,17 @@ export type PipelineRunCounts = {
   salesErrors: number;
   salesNonStockServices: number;
   salesOperationalOrphans: number;
+  /**
+   * Os tipos documentais que o agente não soube classificar, com o
+   * número de linhas de cada um.
+   *
+   * Existe porque o número do tipo era a única coisa que faltava para
+   * diagnosticar a perda da Principal — e era a única que não saía da
+   * farmácia. Ficava no log local, nas primeiras 5 ocorrências, e o que
+   * chegava ao SaaS era um `salesSkipped` sem explicação. Encontrar o
+   * 77 exigiu cruzar dois pipelines; da próxima vez está no relatório.
+   */
+  salesTiposPorClassificar: TipoPorClassificar[];
 };
 
 /**
@@ -584,6 +596,14 @@ async function lerFonte(
   let lastId = -1;
   let batches = 0;
   let porClassificar = 0;
+  // Tipo -> linhas. O log só mostra as primeiras 5 ocorrências (e bem:
+  // 1 117 avisos iguais não são um log). A contagem completa por tipo é
+  // o que vai no relatório e o que diz QUAL o tipo a declarar.
+  const tiposRecusados = new Map<number | null, number>();
+  const registarRecusa = (tipo: number | null) => {
+    porClassificar++;
+    tiposRecusados.set(tipo, (tiposRecusados.get(tipo) ?? 0) + 1);
+  };
   logger.log(`  ── ${fonte.rotulo} ──`);
 
   while (true) {
@@ -606,7 +626,7 @@ async function lerFonte(
       // decide a natureza da linha, não a tabela.
       const ns = fonte.namespacePorLinha ? fonte.namespacePorLinha(row) : fonte.namespace;
       if (ns === null) {
-        porClassificar++;
+        registarRecusa(typeof row.tipoDocumento === "number" ? row.tipoDocumento : null);
         counts.salesSkipped++;
         if (porClassificar <= 5) {
           logger.log(
@@ -619,7 +639,7 @@ async function lerFonte(
       if ("erro" in r) {
         // Nao entra em silencio: uma linha por classificar e um erro de
         // ingestao, nao uma gaveta chamada UNKNOWN.
-        porClassificar++;
+        registarRecusa(typeof row.tipoDocumento === "number" ? row.tipoDocumento : null);
         counts.salesSkipped++;
         if (porClassificar <= 5) {
           logger.log(`    ⚠ linha ${row.externalLineId} ignorada: ${r.erro}`);
@@ -658,9 +678,20 @@ async function lerFonte(
   }
 
   if (porClassificar > 0) {
+    const detalhe = [...tiposRecusados.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([tipo, n]) => `${tipo ?? "(nulo)"}×${n}`)
+      .join(", ");
     logger.log(
-      `    ⚠ ${porClassificar} linha(s) por classificar em ${fonte.rotulo} — tipo de documento desconhecido`
+      `    ⚠ ${porClassificar} linha(s) por classificar em ${fonte.rotulo} — tipos: ${detalhe}`
     );
+    for (const [tipo, linhas] of tiposRecusados) {
+      counts.salesTiposPorClassificar.push({
+        sourceNamespace: fonte.namespace,
+        tipoDocumento: tipo,
+        linhas,
+      });
+    }
   }
 }
 
@@ -699,6 +730,7 @@ export async function runPipelineForDay(opts: {
     stockRead: 0, stockUpserted: 0, stockErrors: 0,
     salesRead: 0, salesUpserted: 0, salesSkipped: 0, salesErrors: 0,
     salesNonStockServices: 0, salesOperationalOrphans: 0,
+    salesTiposPorClassificar: [],
   };
   const caps = await detectCapabilities(pool, schemaProbes);
   logger.log(`Schema detection: StocksMov=${caps.hasStocksMov ? "✓" : "✗"}  Data_Actualiz=${caps.hasDataActualiz ? "✓" : "✗"}`);
