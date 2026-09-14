@@ -483,10 +483,14 @@ export function OrderDetailClient({ detail }: Props) {
           </button>
           {manualOpen && (
             <div className="p-4">
+              {/* Tambem aqui: um rascunho aberto e' onde se descobre
+                  que falta um artigo, e obrigar a sair para o criar
+                  perdia a encomenda que se estava a rever. */}
               <ProductPicker
                 farmaciaId={detail.farmaciaId}
                 disabled={busy}
                 onPick={handlePickManual}
+                permitirCriar
               />
             </div>
           )}

@@ -368,6 +368,20 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     upserted = 0;
     for (const a of dedup) {
       try {
+        // O caminho de recurso tem de aplicar as MESMAS proteccoes do
+        // bulk. Se so' o bulk as tivesse, uma falha transitoria — que e'
+        // exactamente quando este ramo corre — apagava silenciosamente
+        // a designacao escrita a mao, e ninguem ligaria as duas coisas.
+        //
+        // Aqui nao ha `ON CONFLICT` com acesso a linha existente, por
+        // isso le-se primeiro. E' uma consulta por linha, mas este ramo
+        // ja' e' o lento por definicao.
+        const existente = await ctx.prisma.produto.findUnique({
+          where: { cnp: a.cnp },
+          select: { camposManuais: true, designacao: true, origemDados: true, primeiraFarmaciaEm: true },
+        });
+        const manual = new Set(existente?.camposManuais ?? []);
+        const designacaoNova = a.designacao.trim();
         const produto = await ctx.prisma.produto.upsert({
           where: { cnp: a.cnp },
           create: {
@@ -380,9 +394,18 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           },
           update: {
             externalProductId: a.externalProductId ?? undefined,
-            designacao: a.designacao,
-            flagGenerico: a.flagGenerico,
-            flagMnsrmNCompart: a.flagMnsrmNCompart,
+            // `undefined` no Prisma significa "nao mexer" — e' assim que
+            // se preserva sem precisar de um segundo caminho de escrita.
+            designacao:
+              manual.has("designacao") || designacaoNova === "" ? undefined : a.designacao,
+            flagGenerico: manual.has("flagGenerico") ? undefined : a.flagGenerico,
+            flagMnsrmNCompart: manual.has("flagMnsrmNCompart")
+              ? undefined
+              : a.flagMnsrmNCompart,
+            primeiraFarmaciaEm:
+              existente?.origemDados === "MANUAL" && existente.primeiraFarmaciaEm === null
+                ? new Date()
+                : undefined,
           },
         });
         await ctx.prisma.produtoFarmacia.upsert({

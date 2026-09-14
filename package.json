@@ -67,6 +67,7 @@
     "test:fronteira": "tsx scripts/tests/test-fronteira-cliente-servidor.ts",
     "test:ordenacao": "tsx scripts/tests/test-ordenacao-tabelas.ts",
     "test:linhas-manuais": "tsx scripts/tests/test-linhas-manuais.ts",
+    "test:ficha-manual": "tsx scripts/tests/test-ficha-manual.ts",
     "test:knowledge-enrichment": "tsx scripts/tests/test-knowledge-enrichment.ts",
     "test:classificacao-provisoria": "tsx scripts/tests/test-classificacao-provisoria.ts",
     "test:filtro-sem-classificacao": "tsx scripts/tests/test-filtro-sem-classificacao.ts",

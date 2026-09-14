@@ -69,7 +69,9 @@ export type ClassificationSource =
 export type SourceTier =
   | "REGULATORY"         // INFARMED, EUDAMED — registos oficiais
   | "MANUFACTURER"       // catálogo do fabricante (directo)
+  | "MANUAL"             // escrito à mão por alguém desta organização
   | "DISTRIBUTOR"        // bases de dados de distribuidores / cooperativas
+  | "ERP_FARMACIA"       // dbo.Stocks do ERP de uma farmácia
   | "RETAIL"             // bases abertas / retail (Open Beauty Facts, etc.)
   | "INTERNAL_INFERRED"  // agregação de ProdutoFarmacia.*Origem
   | "MODEL_INFERRED"     // conhecimento de modelo (lib/catalog/knowledge-enrichment)
@@ -79,19 +81,36 @@ export type SourceTier =
 export const SOURCE_TIER_RANK: Record<SourceTier, number> = {
   REGULATORY: 0,
   MANUFACTURER: 1,
-  DISTRIBUTOR: 2,
-  RETAIL: 3,
-  INTERNAL_INFERRED: 4,
+  // ── MANUAL, e porque fica AQUI ────────────────────────────────────
+  //
+  // Abaixo do regulamentar e do fabricante: quem escreve um ATC a mao
+  // esta' a suprir uma falta, nao a corrigir o INFARMED. No dia em que
+  // a camada regulamentar existir, ela ganha — e e' isso que queremos,
+  // senao uma ficha manual congelava o produto para sempre.
+  //
+  // Acima do DISTRIBUTOR e do ERP: uma pessoa desta organizacao sabe
+  // coisas que a `dbo.Stocks` de uma farmacia nao sabe. Um artigo novo
+  // que ainda nao esta' em lado nenhum e' precisamente o caso em que a
+  // informacao manual e' a UNICA que existe.
+  MANUAL: 2,
+  DISTRIBUTOR: 3,
+  // O ERP da farmacia. Nao e' uma fonte de catalogo — e' o que AQUELA
+  // instalacao Softreis tem escrito nas suas colunas, com a qualidade
+  // que tiver. Autoritario sobre stock e precos (que sao dele), fraco
+  // sobre identidade do produto.
+  ERP_FARMACIA: 4,
+  RETAIL: 5,
+  INTERNAL_INFERRED: 6,
   // Último de propósito. Um modelo sabe o que é o Ozempic, mas não sabe
   // o que ESTA farmácia tem em stock nem o que o INFARMED registou. Fica
   // abaixo de tudo para que qualquer fonte real ganhe o desempate sem
   // que ninguém tenha de se lembrar de o codificar caso a caso.
-  MODEL_INFERRED: 5,
+  MODEL_INFERRED: 7,
   // Abaixo até do modelo. Um valor propagado não é uma observação deste
   // produto — é a conclusão sobre um irmão da mesma família, aplicada
   // aqui. Fica em último para que uma decisão directa, mesmo do modelo,
   // ganhe sempre o desempate.
-  MODEL_PROPAGATED: 6,
+  MODEL_PROPAGATED: 8,
 };
 
 // ─── Relevância de campos por tipo ───────────────────────────────────────────

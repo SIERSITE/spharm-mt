@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
-import { Search, Filter, ArrowRightLeft, AlertTriangle, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronLeft, ChevronRight, Filter, Plus, Search, X } from "lucide-react";
 import type { StockRow, StockPageData } from "@/lib/stock-data";
 import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
@@ -305,11 +305,24 @@ export function StockClient({ data }: StockClientProps) {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section>
-          <h1 className="text-[20px] font-semibold text-slate-900">Stock</h1>
-          <p className="mt-1 text-[12px] text-slate-500">
-            Cobertura, rotação e diferenças de stock por farmácia
-          </p>
+        <section className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[20px] font-semibold text-slate-900">Stock</h1>
+            <p className="mt-1 text-[12px] text-slate-500">
+              Cobertura, rotação e diferenças de stock por farmácia
+            </p>
+          </div>
+          {/* O segundo ponto de entrada da criacao de ficha. Leva a uma
+              PAGINA e nao a um modal: aqui o utilizador nao esta' a meio
+              de outra tarefa, e a ficha recem-criada merece o ecra todo.
+              O componente do formulario e' o mesmo do picker. */}
+          <Link
+            href="/produtos/criar"
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-[13px] font-medium text-emerald-700 transition hover:bg-emerald-100"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Criar produto
+          </Link>
         </section>
 
         {data.filter && (

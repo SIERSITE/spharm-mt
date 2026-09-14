@@ -1213,7 +1213,16 @@ export function OrderCreateClient({
           </button>
           {manualOpen && (
             <div className="p-4">
-              <ProductPicker farmaciaId={farmaciaId} disabled={busy || generating} onPick={handlePickManual} />
+              {/* `permitirCriar`: quando a pesquisa nao devolve nada, o
+                  picker oferece criar a ficha ali mesmo. O produto
+                  criado volta por `onPick` e entra como linha MANUAL,
+                  sem o utilizador sair da encomenda. */}
+              <ProductPicker
+                farmaciaId={farmaciaId}
+                disabled={busy || generating}
+                onPick={handlePickManual}
+                permitirCriar
+              />
             </div>
           )}
         </section>

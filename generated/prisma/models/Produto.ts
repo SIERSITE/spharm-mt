@@ -79,6 +79,9 @@ export type ProdutoMinAggregateOutputType = {
   manualReviewReason: string | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  criadoPorId: string | null
+  contextoCriacao: string | null
+  primeiraFarmaciaEm: Date | null
 }
 
 export type ProdutoMaxAggregateOutputType = {
@@ -120,6 +123,9 @@ export type ProdutoMaxAggregateOutputType = {
   manualReviewReason: string | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  criadoPorId: string | null
+  contextoCriacao: string | null
+  primeiraFarmaciaEm: Date | null
 }
 
 export type ProdutoCountAggregateOutputType = {
@@ -161,6 +167,10 @@ export type ProdutoCountAggregateOutputType = {
   manualReviewReason: number
   dataCriacao: number
   dataAtualizacao: number
+  camposManuais: number
+  criadoPorId: number
+  contextoCriacao: number
+  primeiraFarmaciaEm: number
   _all: number
 }
 
@@ -218,6 +228,9 @@ export type ProdutoMinAggregateInputType = {
   manualReviewReason?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  criadoPorId?: true
+  contextoCriacao?: true
+  primeiraFarmaciaEm?: true
 }
 
 export type ProdutoMaxAggregateInputType = {
@@ -259,6 +272,9 @@ export type ProdutoMaxAggregateInputType = {
   manualReviewReason?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  criadoPorId?: true
+  contextoCriacao?: true
+  primeiraFarmaciaEm?: true
 }
 
 export type ProdutoCountAggregateInputType = {
@@ -300,6 +316,10 @@ export type ProdutoCountAggregateInputType = {
   manualReviewReason?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  camposManuais?: true
+  criadoPorId?: true
+  contextoCriacao?: true
+  primeiraFarmaciaEm?: true
   _all?: true
 }
 
@@ -428,6 +448,10 @@ export type ProdutoGroupByOutputType = {
   manualReviewReason: string | null
   dataCriacao: Date
   dataAtualizacao: Date
+  camposManuais: string[]
+  criadoPorId: string | null
+  contextoCriacao: string | null
+  primeiraFarmaciaEm: Date | null
   _count: ProdutoCountAggregateOutputType | null
   _avg: ProdutoAvgAggregateOutputType | null
   _sum: ProdutoSumAggregateOutputType | null
@@ -492,6 +516,10 @@ export type ProdutoWhereInput = {
   manualReviewReason?: Prisma.StringNullableFilter<"Produto"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
+  camposManuais?: Prisma.StringNullableListFilter<"Produto">
+  criadoPorId?: Prisma.StringNullableFilter<"Produto"> | string | null
+  contextoCriacao?: Prisma.StringNullableFilter<"Produto"> | string | null
+  primeiraFarmaciaEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
   fabricante?: Prisma.XOR<Prisma.FabricanteNullableScalarRelationFilter, Prisma.FabricanteWhereInput> | null
   classificacaoNivel1?: Prisma.XOR<Prisma.ClassificacaoNullableScalarRelationFilter, Prisma.ClassificacaoWhereInput> | null
   classificacaoNivel2?: Prisma.XOR<Prisma.ClassificacaoNullableScalarRelationFilter, Prisma.ClassificacaoWhereInput> | null
@@ -553,6 +581,10 @@ export type ProdutoOrderByWithRelationInput = {
   manualReviewReason?: Prisma.SortOrderInput | Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  camposManuais?: Prisma.SortOrder
+  criadoPorId?: Prisma.SortOrderInput | Prisma.SortOrder
+  contextoCriacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  primeiraFarmaciaEm?: Prisma.SortOrderInput | Prisma.SortOrder
   fabricante?: Prisma.FabricanteOrderByWithRelationInput
   classificacaoNivel1?: Prisma.ClassificacaoOrderByWithRelationInput
   classificacaoNivel2?: Prisma.ClassificacaoOrderByWithRelationInput
@@ -617,6 +649,10 @@ export type ProdutoWhereUniqueInput = Prisma.AtLeast<{
   manualReviewReason?: Prisma.StringNullableFilter<"Produto"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
+  camposManuais?: Prisma.StringNullableListFilter<"Produto">
+  criadoPorId?: Prisma.StringNullableFilter<"Produto"> | string | null
+  contextoCriacao?: Prisma.StringNullableFilter<"Produto"> | string | null
+  primeiraFarmaciaEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
   fabricante?: Prisma.XOR<Prisma.FabricanteNullableScalarRelationFilter, Prisma.FabricanteWhereInput> | null
   classificacaoNivel1?: Prisma.XOR<Prisma.ClassificacaoNullableScalarRelationFilter, Prisma.ClassificacaoWhereInput> | null
   classificacaoNivel2?: Prisma.XOR<Prisma.ClassificacaoNullableScalarRelationFilter, Prisma.ClassificacaoWhereInput> | null
@@ -678,6 +714,10 @@ export type ProdutoOrderByWithAggregationInput = {
   manualReviewReason?: Prisma.SortOrderInput | Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  camposManuais?: Prisma.SortOrder
+  criadoPorId?: Prisma.SortOrderInput | Prisma.SortOrder
+  contextoCriacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  primeiraFarmaciaEm?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.ProdutoCountOrderByAggregateInput
   _avg?: Prisma.ProdutoAvgOrderByAggregateInput
   _max?: Prisma.ProdutoMaxOrderByAggregateInput
@@ -727,6 +767,10 @@ export type ProdutoScalarWhereWithAggregatesInput = {
   manualReviewReason?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"Produto"> | Date | string
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"Produto"> | Date | string
+  camposManuais?: Prisma.StringNullableListFilter<"Produto">
+  criadoPorId?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
+  contextoCriacao?: Prisma.StringNullableWithAggregatesFilter<"Produto"> | string | null
+  primeiraFarmaciaEm?: Prisma.DateTimeNullableWithAggregatesFilter<"Produto"> | Date | string | null
 }
 
 export type ProdutoCreateInput = {
@@ -765,6 +809,10 @@ export type ProdutoCreateInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -826,6 +874,10 @@ export type ProdutoUncheckedCreateInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -881,6 +933,10 @@ export type ProdutoUpdateInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -942,6 +998,10 @@ export type ProdutoUncheckedUpdateInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -1000,6 +1060,10 @@ export type ProdutoCreateManyInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
 }
 
 export type ProdutoUpdateManyMutationInput = {
@@ -1038,6 +1102,10 @@ export type ProdutoUpdateManyMutationInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type ProdutoUncheckedUpdateManyInput = {
@@ -1079,6 +1147,18 @@ export type ProdutoUncheckedUpdateManyInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+}
+
+export type StringNullableListFilter<$PrismaModel = never> = {
+  equals?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel> | null
+  has?: string | Prisma.StringFieldRefInput<$PrismaModel> | null
+  hasEvery?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
+  hasSome?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
+  isEmpty?: boolean
 }
 
 export type ProdutoCountOrderByAggregateInput = {
@@ -1120,6 +1200,10 @@ export type ProdutoCountOrderByAggregateInput = {
   manualReviewReason?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  camposManuais?: Prisma.SortOrder
+  criadoPorId?: Prisma.SortOrder
+  contextoCriacao?: Prisma.SortOrder
+  primeiraFarmaciaEm?: Prisma.SortOrder
 }
 
 export type ProdutoAvgOrderByAggregateInput = {
@@ -1168,6 +1252,9 @@ export type ProdutoMaxOrderByAggregateInput = {
   manualReviewReason?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  criadoPorId?: Prisma.SortOrder
+  contextoCriacao?: Prisma.SortOrder
+  primeiraFarmaciaEm?: Prisma.SortOrder
 }
 
 export type ProdutoMinOrderByAggregateInput = {
@@ -1209,6 +1296,9 @@ export type ProdutoMinOrderByAggregateInput = {
   manualReviewReason?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  criadoPorId?: Prisma.SortOrder
+  contextoCriacao?: Prisma.SortOrder
+  primeiraFarmaciaEm?: Prisma.SortOrder
 }
 
 export type ProdutoSumOrderByAggregateInput = {
@@ -1236,6 +1326,10 @@ export type ProdutoScalarRelationFilter = {
 export type ProdutoNullableScalarRelationFilter = {
   is?: Prisma.ProdutoWhereInput | null
   isNot?: Prisma.ProdutoWhereInput | null
+}
+
+export type ProdutoCreatecamposManuaisInput = {
+  set: string[]
 }
 
 export type StringFieldUpdateOperationsInput = {
@@ -1296,6 +1390,11 @@ export type NullableDateTimeFieldUpdateOperationsInput = {
 
 export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
+}
+
+export type ProdutoUpdatecamposManuaisInput = {
+  set?: string[]
+  push?: string | string[]
 }
 
 export type ProdutoCreateNestedManyWithoutFabricanteInput = {
@@ -1706,6 +1805,10 @@ export type ProdutoCreateWithoutFabricanteInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
@@ -1765,6 +1868,10 @@ export type ProdutoUncheckedCreateWithoutFabricanteInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -1852,6 +1959,10 @@ export type ProdutoScalarWhereInput = {
   manualReviewReason?: Prisma.StringNullableFilter<"Produto"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Produto"> | Date | string
+  camposManuais?: Prisma.StringNullableListFilter<"Produto">
+  criadoPorId?: Prisma.StringNullableFilter<"Produto"> | string | null
+  contextoCriacao?: Prisma.StringNullableFilter<"Produto"> | string | null
+  primeiraFarmaciaEm?: Prisma.DateTimeNullableFilter<"Produto"> | Date | string | null
 }
 
 export type ProdutoCreateWithoutClassificacaoNivel1Input = {
@@ -1890,6 +2001,10 @@ export type ProdutoCreateWithoutClassificacaoNivel1Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
@@ -1949,6 +2064,10 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel1Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -2014,6 +2133,10 @@ export type ProdutoCreateWithoutClassificacaoNivel2Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutProdutoInput
@@ -2073,6 +2196,10 @@ export type ProdutoUncheckedCreateWithoutClassificacaoNivel2Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -2170,6 +2297,10 @@ export type ProdutoCreateWithoutUtilizacoesInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -2230,6 +2361,10 @@ export type ProdutoUncheckedCreateWithoutUtilizacoesInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -2300,6 +2435,10 @@ export type ProdutoUpdateWithoutUtilizacoesInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -2360,6 +2499,10 @@ export type ProdutoUncheckedUpdateWithoutUtilizacoesInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -2414,6 +2557,10 @@ export type ProdutoCreateWithoutVerificacaoHistoricoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -2474,6 +2621,10 @@ export type ProdutoUncheckedCreateWithoutVerificacaoHistoricoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -2544,6 +2695,10 @@ export type ProdutoUpdateWithoutVerificacaoHistoricoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -2604,6 +2759,10 @@ export type ProdutoUncheckedUpdateWithoutVerificacaoHistoricoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -2658,6 +2817,10 @@ export type ProdutoCreateWithoutEnrichmentSourceLogsInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -2718,6 +2881,10 @@ export type ProdutoUncheckedCreateWithoutEnrichmentSourceLogsInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -2788,6 +2955,10 @@ export type ProdutoUpdateWithoutEnrichmentSourceLogsInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -2848,6 +3019,10 @@ export type ProdutoUncheckedUpdateWithoutEnrichmentSourceLogsInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -2902,6 +3077,10 @@ export type ProdutoCreateWithoutProdutosFarmaciaInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -2962,6 +3141,10 @@ export type ProdutoUncheckedCreateWithoutProdutosFarmaciaInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
@@ -3032,6 +3215,10 @@ export type ProdutoUpdateWithoutProdutosFarmaciaInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -3092,6 +3279,10 @@ export type ProdutoUncheckedUpdateWithoutProdutosFarmaciaInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
@@ -3146,6 +3337,10 @@ export type ProdutoCreateWithoutVendasInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -3206,6 +3401,10 @@ export type ProdutoUncheckedCreateWithoutVendasInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
@@ -3276,6 +3475,10 @@ export type ProdutoUpdateWithoutVendasInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -3336,6 +3539,10 @@ export type ProdutoUncheckedUpdateWithoutVendasInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
@@ -3390,6 +3597,10 @@ export type ProdutoCreateWithoutVendasMensaisInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -3450,6 +3661,10 @@ export type ProdutoUncheckedCreateWithoutVendasMensaisInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   compras?: Prisma.CompraUncheckedCreateNestedManyWithoutProdutoInput
@@ -3520,6 +3735,10 @@ export type ProdutoUpdateWithoutVendasMensaisInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -3580,6 +3799,10 @@ export type ProdutoUncheckedUpdateWithoutVendasMensaisInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutProdutoNestedInput
@@ -3634,6 +3857,10 @@ export type ProdutoCreateWithoutComprasInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -3694,6 +3921,10 @@ export type ProdutoUncheckedCreateWithoutComprasInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -3764,6 +3995,10 @@ export type ProdutoUpdateWithoutComprasInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -3824,6 +4059,10 @@ export type ProdutoUncheckedUpdateWithoutComprasInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -3878,6 +4117,10 @@ export type ProdutoCreateWithoutDevolucoesInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -3938,6 +4181,10 @@ export type ProdutoUncheckedCreateWithoutDevolucoesInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -4008,6 +4255,10 @@ export type ProdutoUpdateWithoutDevolucoesInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -4068,6 +4319,10 @@ export type ProdutoUncheckedUpdateWithoutDevolucoesInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -4122,6 +4377,10 @@ export type ProdutoCreateWithoutHistoricoStocksInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -4182,6 +4441,10 @@ export type ProdutoUncheckedCreateWithoutHistoricoStocksInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -4252,6 +4515,10 @@ export type ProdutoUpdateWithoutHistoricoStocksInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -4312,6 +4579,10 @@ export type ProdutoUncheckedUpdateWithoutHistoricoStocksInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -4366,6 +4637,10 @@ export type ProdutoCreateWithoutAjustesStockInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -4426,6 +4701,10 @@ export type ProdutoUncheckedCreateWithoutAjustesStockInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -4496,6 +4775,10 @@ export type ProdutoUpdateWithoutAjustesStockInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -4556,6 +4839,10 @@ export type ProdutoUncheckedUpdateWithoutAjustesStockInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -4610,6 +4897,10 @@ export type ProdutoCreateWithoutLinhasInventarioInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -4670,6 +4961,10 @@ export type ProdutoUncheckedCreateWithoutLinhasInventarioInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -4740,6 +5035,10 @@ export type ProdutoUpdateWithoutLinhasInventarioInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -4800,6 +5099,10 @@ export type ProdutoUncheckedUpdateWithoutLinhasInventarioInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -4854,6 +5157,10 @@ export type ProdutoCreateWithoutIndicadoresInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -4914,6 +5221,10 @@ export type ProdutoUncheckedCreateWithoutIndicadoresInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -4984,6 +5295,10 @@ export type ProdutoUpdateWithoutIndicadoresInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -5044,6 +5359,10 @@ export type ProdutoUncheckedUpdateWithoutIndicadoresInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -5098,6 +5417,10 @@ export type ProdutoCreateWithoutLinhasEncomendaInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -5158,6 +5481,10 @@ export type ProdutoUncheckedCreateWithoutLinhasEncomendaInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -5228,6 +5555,10 @@ export type ProdutoUpdateWithoutLinhasEncomendaInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -5288,6 +5619,10 @@ export type ProdutoUncheckedUpdateWithoutLinhasEncomendaInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -5342,6 +5677,10 @@ export type ProdutoCreateWithoutFilaRevisaoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -5402,6 +5741,10 @@ export type ProdutoUncheckedCreateWithoutFilaRevisaoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -5472,6 +5815,10 @@ export type ProdutoUpdateWithoutFilaRevisaoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -5532,6 +5879,10 @@ export type ProdutoUncheckedUpdateWithoutFilaRevisaoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -5586,6 +5937,10 @@ export type ProdutoCreateWithoutFilaEnriquecimentoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -5646,6 +6001,10 @@ export type ProdutoUncheckedCreateWithoutFilaEnriquecimentoInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -5716,6 +6075,10 @@ export type ProdutoUpdateWithoutFilaEnriquecimentoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -5776,6 +6139,10 @@ export type ProdutoUncheckedUpdateWithoutFilaEnriquecimentoInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -5830,6 +6197,10 @@ export type ProdutoCreateWithoutIngestVendasLinhasRawInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -5890,6 +6261,10 @@ export type ProdutoUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -5960,6 +6335,10 @@ export type ProdutoUpdateWithoutIngestVendasLinhasRawInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -6020,6 +6399,10 @@ export type ProdutoUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -6074,6 +6457,10 @@ export type ProdutoCreateWithoutMovimentosInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   fabricante?: Prisma.FabricanteCreateNestedOneWithoutProdutosInput
   classificacaoNivel1?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel1Input
   classificacaoNivel2?: Prisma.ClassificacaoCreateNestedOneWithoutProdutosNivel2Input
@@ -6134,6 +6521,10 @@ export type ProdutoUncheckedCreateWithoutMovimentosInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutProdutoInput
   vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutProdutoInput
   vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutProdutoInput
@@ -6204,6 +6595,10 @@ export type ProdutoUpdateWithoutMovimentosInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
@@ -6264,6 +6659,10 @@ export type ProdutoUncheckedUpdateWithoutMovimentosInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -6320,6 +6719,10 @@ export type ProdutoCreateManyFabricanteInput = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
 }
 
 export type ProdutoUpdateWithoutFabricanteInput = {
@@ -6358,6 +6761,10 @@ export type ProdutoUpdateWithoutFabricanteInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
@@ -6417,6 +6824,10 @@ export type ProdutoUncheckedUpdateWithoutFabricanteInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -6474,6 +6885,10 @@ export type ProdutoUncheckedUpdateManyWithoutFabricanteInput = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type ProdutoCreateManyClassificacaoNivel1Input = {
@@ -6514,6 +6929,10 @@ export type ProdutoCreateManyClassificacaoNivel1Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
 }
 
 export type ProdutoCreateManyClassificacaoNivel2Input = {
@@ -6554,6 +6973,10 @@ export type ProdutoCreateManyClassificacaoNivel2Input = {
   manualReviewReason?: string | null
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  camposManuais?: Prisma.ProdutoCreatecamposManuaisInput | string[]
+  criadoPorId?: string | null
+  contextoCriacao?: string | null
+  primeiraFarmaciaEm?: Date | string | null
 }
 
 export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
@@ -6592,6 +7015,10 @@ export type ProdutoUpdateWithoutClassificacaoNivel1Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel2?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel2NestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
@@ -6651,6 +7078,10 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel1Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -6708,6 +7139,10 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel1Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
@@ -6746,6 +7181,10 @@ export type ProdutoUpdateWithoutClassificacaoNivel2Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   fabricante?: Prisma.FabricanteUpdateOneWithoutProdutosNestedInput
   classificacaoNivel1?: Prisma.ClassificacaoUpdateOneWithoutProdutosNivel1NestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutProdutoNestedInput
@@ -6805,6 +7244,10 @@ export type ProdutoUncheckedUpdateWithoutClassificacaoNivel2Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutProdutoNestedInput
   vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutProdutoNestedInput
@@ -6862,6 +7305,10 @@ export type ProdutoUncheckedUpdateManyWithoutClassificacaoNivel2Input = {
   manualReviewReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  camposManuais?: Prisma.ProdutoUpdatecamposManuaisInput | string[]
+  criadoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contextoCriacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primeiraFarmaciaEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 
@@ -7078,6 +7525,10 @@ export type ProdutoSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   manualReviewReason?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  camposManuais?: boolean
+  criadoPorId?: boolean
+  contextoCriacao?: boolean
+  primeiraFarmaciaEm?: boolean
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
   classificacaoNivel2?: boolean | Prisma.Produto$classificacaoNivel2Args<ExtArgs>
@@ -7140,6 +7591,10 @@ export type ProdutoSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   manualReviewReason?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  camposManuais?: boolean
+  criadoPorId?: boolean
+  contextoCriacao?: boolean
+  primeiraFarmaciaEm?: boolean
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
   classificacaoNivel2?: boolean | Prisma.Produto$classificacaoNivel2Args<ExtArgs>
@@ -7184,6 +7639,10 @@ export type ProdutoSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   manualReviewReason?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  camposManuais?: boolean
+  criadoPorId?: boolean
+  contextoCriacao?: boolean
+  primeiraFarmaciaEm?: boolean
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
   classificacaoNivel2?: boolean | Prisma.Produto$classificacaoNivel2Args<ExtArgs>
@@ -7228,9 +7687,13 @@ export type ProdutoSelectScalar = {
   manualReviewReason?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  camposManuais?: boolean
+  criadoPorId?: boolean
+  contextoCriacao?: boolean
+  primeiraFarmaciaEm?: boolean
 }
 
-export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "classificacaoEstado" | "classificacaoOrigem" | "classificacaoConfianca" | "classificacaoVersao" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produto"]>
+export type ProdutoOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "cnp" | "externalProductId" | "designacao" | "fabricanteId" | "classificacaoNivel1Id" | "classificacaoNivel2Id" | "tipoArtigo" | "codigoATC" | "dci" | "imagemUrl" | "formaFarmaceutica" | "dosagem" | "embalagem" | "flagGenerico" | "flagMSRM" | "flagMNSRM" | "flagMnsrmNCompart" | "grupoHomogeneo" | "estado" | "origemDados" | "validadoManualmente" | "productType" | "productTypeConfidence" | "classificationSource" | "classificationVersion" | "classificacaoEstado" | "classificacaoOrigem" | "classificacaoConfianca" | "classificacaoVersao" | "verificationStatus" | "lastVerifiedAt" | "lastVerificationAttemptAt" | "externallyVerified" | "needsManualReview" | "manualReviewReason" | "dataCriacao" | "dataAtualizacao" | "camposManuais" | "criadoPorId" | "contextoCriacao" | "primeiraFarmaciaEm", ExtArgs["result"]["produto"]>
 export type ProdutoInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   fabricante?: boolean | Prisma.Produto$fabricanteArgs<ExtArgs>
   classificacaoNivel1?: boolean | Prisma.Produto$classificacaoNivel1Args<ExtArgs>
@@ -7354,6 +7817,34 @@ export type $ProdutoPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     manualReviewReason: string | null
     dataCriacao: Date
     dataAtualizacao: Date
+    /**
+     * Campos desta ficha escritos A MAO, que o ERP nao pode sobrepor.
+     * Ex.: ["designacao", "dci", "codigoATC"].
+     * 
+     * Um array e nao uma tabela lateral: o conjunto e' pequeno, le-se sem
+     * join, e — decisivo — o `ON CONFLICT` do bulk upsert consegue
+     * consulta-lo em SQL. Com uma tabela a parte, o caminho de ingestao
+     * teria de fazer um lookup por linha.
+     * 
+     * Vazio em todas as fichas existentes, e e' a verdade: nenhuma foi
+     * escrita a mao. Ver `lib/produtos/criar-produto.ts`.
+     */
+    camposManuais: string[]
+    /**
+     * Quem criou a ficha manualmente. Null nas fichas vindas do ERP.
+     */
+    criadoPorId: string | null
+    /**
+     * Onde a criacao foi iniciada: STOCK, ENCOMENDA. Para auditoria.
+     */
+    contextoCriacao: string | null
+    /**
+     * Quando o produto foi visto pela PRIMEIRA vez numa farmacia.
+     * 
+     * Escrito UMA vez, e so' para fichas manuais: e' a data em que uma
+     * ficha que existia so' no catalogo passou a existir no mundo.
+     */
+    primeiraFarmaciaEm: Date | null
   }, ExtArgs["result"]["produto"]>
   composites: {}
 }
@@ -7835,6 +8326,10 @@ export interface ProdutoFieldRefs {
   readonly manualReviewReason: Prisma.FieldRef<"Produto", 'String'>
   readonly dataCriacao: Prisma.FieldRef<"Produto", 'DateTime'>
   readonly dataAtualizacao: Prisma.FieldRef<"Produto", 'DateTime'>
+  readonly camposManuais: Prisma.FieldRef<"Produto", 'String[]'>
+  readonly criadoPorId: Prisma.FieldRef<"Produto", 'String'>
+  readonly contextoCriacao: Prisma.FieldRef<"Produto", 'String'>
+  readonly primeiraFarmaciaEm: Prisma.FieldRef<"Produto", 'DateTime'>
 }
     
 

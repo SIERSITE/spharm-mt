@@ -350,6 +350,28 @@ model Produto {
   dataCriacao               DateTime            @default(now())
   dataAtualizacao           DateTime            @updatedAt
 
+  // ── Proveniencia por campo ──────────────────────────────────────
+  /// Campos desta ficha escritos A MAO, que o ERP nao pode sobrepor.
+  /// Ex.: ["designacao", "dci", "codigoATC"].
+  ///
+  /// Um array e nao uma tabela lateral: o conjunto e' pequeno, le-se sem
+  /// join, e — decisivo — o `ON CONFLICT` do bulk upsert consegue
+  /// consulta-lo em SQL. Com uma tabela a parte, o caminho de ingestao
+  /// teria de fazer um lookup por linha.
+  ///
+  /// Vazio em todas as fichas existentes, e e' a verdade: nenhuma foi
+  /// escrita a mao. Ver `lib/produtos/criar-produto.ts`.
+  camposManuais      String[]  @default([])
+  /// Quem criou a ficha manualmente. Null nas fichas vindas do ERP.
+  criadoPorId        String?
+  /// Onde a criacao foi iniciada: STOCK, ENCOMENDA. Para auditoria.
+  contextoCriacao    String?
+  /// Quando o produto foi visto pela PRIMEIRA vez numa farmacia.
+  ///
+  /// Escrito UMA vez, e so' para fichas manuais: e' a data em que uma
+  /// ficha que existia so' no catalogo passou a existir no mundo.
+  primeiraFarmaciaEm DateTime?
+
   fabricante          Fabricante?    @relation(fields: [fabricanteId], references: [id])
   classificacaoNivel1 Classificacao? @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
   classificacaoNivel2 Classificacao? @relation("ProdutoClassificacaoNivel2", fields: [classificacaoNivel2Id], references: [id])

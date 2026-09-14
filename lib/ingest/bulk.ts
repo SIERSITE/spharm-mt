@@ -154,6 +154,30 @@ export type ProdutoRow = {
  * se vier null). NUNCA toca campos fortes do catálogo (dci, codigoATC,
  * fabricanteId, estado, verificationStatus, etc.). Devolve mapa cnp→id
  * (via RETURNING) para encadear o upsert de ProdutoFarmacia.
+ *
+ * ── DUAS PROTECÇÕES NO `ON CONFLICT`, e a razão de cada uma ──────────
+ *
+ * **1 · `camposManuais`.** Uma ficha criada à mão no SPharm.MT pode
+ * existir antes de qualquer farmácia ter o artigo. Quando o ERP traz
+ * esse CNP pela primeira vez, a designação escrita à mão — muitas vezes
+ * a única legível, porque a da `dbo.Stocks` vem truncada e em
+ * maiúsculas — era sobreposta sem condição nenhuma.
+ *
+ * O `CASE` consulta o array na própria linha em conflito. É por isso que
+ * a proveniência é um `TEXT[]` em `Produto` e não uma tabela lateral:
+ * uma tabela obrigava a um lookup por linha num caminho que processa
+ * lotes de milhares.
+ *
+ * **2 · `NULLIF(trim(…), '')`.** Independente da ficha manual, e protege
+ * as 40 651 fichas que já existem. O ERP pode mandar uma designação
+ * vazia ou só com espaços — acontece em artigos mal preenchidos na
+ * farmácia — e `"designacao" = EXCLUDED."designacao"` escrevia-a,
+ * apagando um nome que estava correcto. Uma string vazia não é uma
+ * correcção: é a ausência de informação a fazer-se passar por uma.
+ *
+ * Os dois compõem-se: primeiro o vazio vira `NULL`, depois o `COALESCE`
+ * devolve o valor actual, e só o que sobrevive aos dois é candidato a
+ * ser bloqueado pelo `camposManuais`.
  */
 export async function bulkUpsertProdutosByCnp(
   db: DbClient,
@@ -175,9 +199,29 @@ export async function bulkUpsertProdutosByCnp(
     VALUES ${Prisma.join(values)}
     ON CONFLICT ("cnp") DO UPDATE SET
       "externalProductId" = COALESCE(EXCLUDED."externalProductId", "Produto"."externalProductId"),
-      "designacao"        = EXCLUDED."designacao",
-      "flagGenerico"      = EXCLUDED."flagGenerico",
-      "flagMnsrmNCompart" = EXCLUDED."flagMnsrmNCompart",
+      -- Designacao: vazio do ERP nao apaga, e mao escrita nao e
+      -- sobreposta. Ver o bloco de comentario acima da funcao.
+      "designacao" = CASE
+        WHEN 'designacao' = ANY("Produto"."camposManuais") THEN "Produto"."designacao"
+        ELSE COALESCE(NULLIF(btrim(EXCLUDED."designacao"), ''), "Produto"."designacao")
+      END,
+      "flagGenerico" = CASE
+        WHEN 'flagGenerico' = ANY("Produto"."camposManuais") THEN "Produto"."flagGenerico"
+        ELSE EXCLUDED."flagGenerico"
+      END,
+      "flagMnsrmNCompart" = CASE
+        WHEN 'flagMnsrmNCompart' = ANY("Produto"."camposManuais") THEN "Produto"."flagMnsrmNCompart"
+        ELSE EXCLUDED."flagMnsrmNCompart"
+      END,
+      -- A data em que uma ficha manual foi vista pela PRIMEIRA vez numa
+      -- farmacia. O COALESCE escreve-a uma so vez: se ja la esta, fica.
+      -- So para fichas manuais: uma ficha que sempre veio do ERP nao tem
+      -- um primeiro aparecimento que signifique alguma coisa.
+      "primeiraFarmaciaEm" = CASE
+        WHEN "Produto"."origemDados" = 'MANUAL'::"ProdutoOrigemDados"
+          THEN COALESCE("Produto"."primeiraFarmaciaEm", now())
+        ELSE "Produto"."primeiraFarmaciaEm"
+      END,
       "dataAtualizacao"   = now()
     RETURNING "id", "cnp"
   `;

@@ -155,7 +155,11 @@ export const ProdutoScalarFieldEnum = {
   needsManualReview: 'needsManualReview',
   manualReviewReason: 'manualReviewReason',
   dataCriacao: 'dataCriacao',
-  dataAtualizacao: 'dataAtualizacao'
+  dataAtualizacao: 'dataAtualizacao',
+  camposManuais: 'camposManuais',
+  criadoPorId: 'criadoPorId',
+  contextoCriacao: 'contextoCriacao',
+  primeiraFarmaciaEm: 'primeiraFarmaciaEm'
 } as const
 
 export type ProdutoScalarFieldEnum = (typeof ProdutoScalarFieldEnum)[keyof typeof ProdutoScalarFieldEnum]

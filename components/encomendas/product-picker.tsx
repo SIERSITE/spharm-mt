@@ -6,6 +6,7 @@ import {
   searchProductsAction,
   type ProductSearchResult,
 } from "@/app/encomendas/nova/search";
+import { CriarProdutoForm } from "@/components/produtos/criar-produto-form";
 
 type Props = {
   farmaciaId: string;
@@ -13,6 +14,14 @@ type Props = {
   onPick: (product: ProductSearchResult) => void;
   /** Mensagem opcional mostrada quando o picker não tem farmácia escolhida. */
   noFarmaciaMessage?: string;
+  /**
+   * Oferece «Criar produto» quando a pesquisa não devolve nada.
+   *
+   * Opt-in: o picker é usado em sítios onde criar catálogo não faz
+   * sentido, e um botão que cria uma ficha central a partir de um ecrã
+   * de consulta seria uma surpresa desagradável.
+   */
+  permitirCriar?: boolean;
 };
 
 const DEBOUNCE_MS = 250;
@@ -23,7 +32,14 @@ function fmtStock(v: number | null): string {
   return v.toFixed(1);
 }
 
-export function ProductPicker({ farmaciaId, disabled, onPick, noFarmaciaMessage }: Props) {
+export function ProductPicker({
+  farmaciaId,
+  disabled,
+  onPick,
+  noFarmaciaMessage,
+  permitirCriar = false,
+}: Props) {
+  const [criarAberto, setCriarAberto] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -91,6 +107,10 @@ export function ProductPicker({ farmaciaId, disabled, onPick, noFarmaciaMessage 
       setOpen(false);
     }
   }
+
+  // O que o utilizador escreveu, interpretado. So digitos e' um CNP;
+  // o resto e' uma designacao. Nao ha terceira hipotese a adivinhar.
+  const cnpPesquisado = /^\d+$/.test(query.trim()) ? Number(query.trim()) : null;
 
   const noFarmacia = !farmaciaId;
   const queryReady = query.trim().length >= 2;
@@ -177,7 +197,58 @@ export function ProductPicker({ farmaciaId, disabled, onPick, noFarmaciaMessage 
 
       {showNoResults && (
         <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[12px] text-slate-500 shadow-lg">
-          Nenhum produto encontrado para “{query}”.
+          <div>Nenhum produto encontrado para “{query}”.</div>
+          {/* O caminho curto. Sem isto o utilizador tinha de sair da
+              encomenda, ir a Stocks, criar o produto, e voltar — e a
+              encomenda que estava a montar entretanto perdia-se. */}
+          {permitirCriar && (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setCriarAberto(true);
+                setOpen(false);
+              }}
+              className="mt-2 inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-medium text-emerald-700 transition hover:bg-emerald-100"
+            >
+              + Criar produto
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* O MESMO formulário de Stocks, em modal. O que muda é o
+          invólucro e o que acontece a seguir — aqui o produto volta ao
+          picker, já seleccionado, e a encomenda continua onde estava. */}
+      {criarAberto && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="mt-12 w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h2 className="mb-3 text-[15px] font-semibold text-slate-900">
+              Criar produto
+            </h2>
+            <CriarProdutoForm
+              contexto="ENCOMENDA"
+              cnpInicial={cnpPesquisado}
+              designacaoInicial={cnpPesquisado === null ? query.trim() : null}
+              onCancelar={() => setCriarAberto(false)}
+              onCriado={(p) => {
+                setCriarAberto(false);
+                setQuery("");
+                setResults([]);
+                // Devolvido ao picker exactamente como um resultado de
+                // pesquisa. `stockAtual: null` e' a verdade: a ficha
+                // acabou de nascer no catalogo e nenhuma farmacia a tem.
+                onPick({
+                  id: p.produtoId,
+                  cnp: p.cnp,
+                  designacao: p.designacao,
+                  fabricante: null,
+                  stockAtual: null,
+                });
+                inputRef.current?.focus();
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
