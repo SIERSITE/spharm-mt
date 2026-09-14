@@ -34,6 +34,7 @@
  */
 import { readFileSync } from "node:fs";
 import {
+  agregarCusto,
   custoDaFarmacia,
   custoUnitario,
   descreverFonteCusto,
@@ -228,6 +229,100 @@ eq(
   eq({ total: t.total, contadas: t.contadas, semValor: t.semValor },
      { total: 0, contadas: 0, semValor: 3 },
      "tudo por valorizar: o 0 vem acompanhado das 3 que o explicam");
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// B3. Custo agregado — soma, nunca média simples
+// ═════════════════════════════════════════════════════════════════════
+//
+// A coluna de custo do relatório de Vendas agrega várias farmácias por
+// artigo. A média simples dos unitários é a tentação óbvia e está
+// errada: dá peso igual a uma farmácia que vendeu 1 unidade e a outra
+// que vendeu 900. O número que sai não é o custo de nada.
+console.log("\nB3. Custo agregado por artigo\n");
+
+{
+  // 900 unidades a 2 € e 1 unidade a 100 €.
+  const r = agregarCusto([
+    { quantidade: 900, custoUnitario: 2 },
+    { quantidade: 1, custoUnitario: 100 },
+  ]);
+  eq(r.total, 1900, "custo total = Σ(qtd × custo) = 1800 + 100");
+  check(
+    Math.abs(r.unitarioMedio! - 1900 / 901) < 0.001,
+    "unitário médio = total / unidades ≈ 2,11 €",
+  );
+  // A média simples daria 51 € — vinte e quatro vezes o valor certo.
+  check(r.unitarioMedio! < 3, "…e NÃO os 51 € da média simples");
+}
+{
+  // Linhas sem custo não diluem o unitário: o denominador são as
+  // unidades DAS LINHAS QUE TÊM custo.
+  const r = agregarCusto([
+    { quantidade: 10, custoUnitario: 5 },
+    { quantidade: 990, custoUnitario: null },
+  ]);
+  eq(r.total, 50, "só as linhas com custo somam");
+  eq(r.unitarioMedio, 5, "o unitário NÃO é diluído pelas 990 unidades sem custo");
+  eq(r.contadas, 1, "1 linha contada");
+  eq(r.semCusto, 1, "…e 1 assinalada como sem custo");
+}
+{
+  const r = agregarCusto([
+    { quantidade: 5, custoUnitario: null },
+    { quantidade: 3, custoUnitario: null },
+  ]);
+  eq(r.total, null, "nenhuma linha valorizável → total null, NUNCA zero");
+  eq(r.unitarioMedio, null, "…e unitário null");
+  eq(r.semCusto, 2, "as duas são contadas");
+}
+{
+  eq(agregarCusto([]), { total: null, unitarioMedio: null, contadas: 0, semCusto: 0 },
+     "lista vazia não rebenta");
+}
+{
+  // Devoluções: quantidade líquida zero. O custo total continua a ser
+  // um facto (zero); o unitário médio não existe — dividir por zero
+  // daria Infinity, que a UI pintaria como um número.
+  const r = agregarCusto([
+    { quantidade: 10, custoUnitario: 4 },
+    { quantidade: -10, custoUnitario: 4 },
+  ]);
+  eq(r.total, 0, "vendas e devoluções a anularem-se dão custo zero");
+  eq(r.unitarioMedio, null, "…e unitário médio null, não Infinity");
+}
+{
+  // Quantidade zero numa linha não a conta como "sem custo": ela TEM
+  // custo conhecido, apenas não vendeu nada.
+  const r = agregarCusto([{ quantidade: 0, custoUnitario: 7 }]);
+  eq(r.semCusto, 0, "quantidade 0 com custo conhecido não é «sem custo»");
+  eq(r.total, 0, "e vale zero, que é um facto");
+}
+
+// O nome da coluna tem de dizer «est.» — em Vendas E em Margens.
+{
+  const av = src("lib/reporting/adapters/vendas.ts");
+  check(av.includes('label: "Custo unit. est."'), "Vendas: o relatório diz «est.»");
+  check(av.includes('label: "Custo est."'), "…e o total também");
+  check(
+    av.includes("nao e' o custo a data da venda") ||
+      av.includes("não é o custo à data da venda"),
+    "…e o aviso viaja no cabeçalho do relatório",
+  );
+  const am = src("lib/reporting/adapters/margens.ts");
+  check(am.includes('label: "Custo unit. est."'), "Margens: alinhado, no relatório");
+  const cm = src("components/margens/margens-client.tsx");
+  check(cm.includes("Custo unit. est."), "…e no ecrã");
+  const cv = src("components/vendas/vendas-client.tsx");
+  check(cv.includes("Custo unit. est."), "Vendas: no ecrã");
+  check(cv.includes("agregarCusto"), "…e agrega com a regra partilhada");
+  check(
+    cv.includes("estimado</strong>") || cv.includes("<strong>estimado</strong>"),
+    "…com o aviso visível na página",
+  );
+  const lv = src("lib/vendas-data.ts");
+  check(lv.includes("custoDaFarmacia"), "o loader usa a regra PMC>PUC>null partilhada");
+  check(lv.includes("custoUnitarioEstimado"), "…e devolve o campo");
 }
 
 // ═════════════════════════════════════════════════════════════════════

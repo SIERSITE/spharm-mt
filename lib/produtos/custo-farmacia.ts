@@ -153,3 +153,72 @@ export function descreverFonteCusto(fonte: FonteCusto | null): string {
   if (fonte === "PUC") return "preço da última compra (sem preço médio)";
   return "sem custo registado no ERP";
 }
+
+/**
+ * O custo de um conjunto de linhas — e o unitário médio que o acompanha.
+ *
+ * ── A média simples está ERRADA e é a tentação óbvia ─────────────────
+ *
+ * Somar os custos unitários e dividir pelo número de linhas dá peso
+ * igual a uma farmácia que vendeu 1 unidade e a outra que vendeu 900.
+ * O número que sai não é o custo de nada.
+ *
+ * O correcto é económico e é o que isto faz:
+ *
+ *     custo total     = Σ (quantidade × custo unitário)
+ *     custo unitário  = custo total / Σ quantidades
+ *
+ * ── As linhas sem custo não diluem o unitário ────────────────────────
+ *
+ * O denominador é a soma das quantidades **das linhas que têm custo**,
+ * e não de todas. Incluir as unidades sem custo conhecido baixaria o
+ * unitário médio na proporção do que não sabemos — inventando um custo
+ * mais barato a partir de uma ausência de informação.
+ *
+ * Com nenhuma linha valorizável devolve `null` nos dois campos, nunca
+ * zero: um agregado inteiro sem custo conhecido não custa nada.
+ */
+export type CustoAgregado = {
+  /** Σ dos custos das linhas com custo conhecido. `null` se nenhuma. */
+  total: number | null;
+  /** `total / unidades dessas mesmas linhas`. `null` se nenhuma. */
+  unitarioMedio: number | null;
+  /** Linhas que entraram no total. */
+  contadas: number;
+  /** Linhas com quantidade mas sem custo conhecido. */
+  semCusto: number;
+};
+
+export function agregarCusto(
+  linhas: ReadonlyArray<{ quantidade: number; custoUnitario: number | null }>,
+): CustoAgregado {
+  let total = 0;
+  let unidades = 0;
+  let contadas = 0;
+  let semCusto = 0;
+
+  for (const l of linhas) {
+    const q = Number.isFinite(l.quantidade) ? l.quantidade : 0;
+    if (l.custoUnitario === null || !Number.isFinite(l.custoUnitario)) {
+      if (q !== 0) semCusto++;
+      continue;
+    }
+    total += q * l.custoUnitario;
+    unidades += q;
+    contadas++;
+  }
+
+  if (contadas === 0) {
+    return { total: null, unitarioMedio: null, contadas: 0, semCusto };
+  }
+  const totalArredondado = Math.round(total * 100) / 100;
+  return {
+    total: totalArredondado,
+    // Quantidade líquida zero (vendas e devoluções a anularem-se) faria
+    // isto dividir por zero. O custo total continua a ser um facto; o
+    // unitário médio, nesse caso, não existe.
+    unitarioMedio: unidades === 0 ? null : Math.round((total / unidades) * 10000) / 10000,
+    contadas,
+    semCusto,
+  };
+}

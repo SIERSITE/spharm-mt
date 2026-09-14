@@ -69,7 +69,7 @@ const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
   { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 8,  showTotal: true },
   { key: "taxaIva",            label: "IVA %",        format: "text",     width: 4 },
   { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 8,  showTotal: true },
-  { key: "custoUnitario",      label: "Custo unit.",  format: "currency", width: 7 },
+  { key: "custoUnitario",      label: "Custo unit. est.",  format: "currency", width: 7 },
   { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 8,  showTotal: true },
   { key: "margemEur",          label: "Margem €",     format: "currency", width: 8,  showTotal: true },
   { key: "margemPct",          label: "Margem %",     format: "text",     width: 6 },

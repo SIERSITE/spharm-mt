@@ -103,6 +103,8 @@ const BASE_WIDTH_FIXED_COLS = {
   codigo: 7,
   descricao: 28,
   pvp: 7,
+  custoUnitarioEstimado: 9,
+  custoEstimado: 9,
   totalVendas: 9,
   existencia: 7,
   farmacia: 18,
@@ -116,6 +118,8 @@ function buildColumns(
     BASE_WIDTH_FIXED_COLS.codigo +
     BASE_WIDTH_FIXED_COLS.descricao +
     BASE_WIDTH_FIXED_COLS.pvp +
+    BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
+    BASE_WIDTH_FIXED_COLS.custoEstimado +
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
     BASE_WIDTH_FIXED_COLS.farmacia;
@@ -136,6 +140,11 @@ function buildColumns(
     { key: "codigo",      label: "Código",      format: "text",     width: BASE_WIDTH_FIXED_COLS.codigo },
     { key: "descricao",   label: "Descrição",   format: "text",     width: BASE_WIDTH_FIXED_COLS.descricao },
     { key: "pvp",         label: "PVP",         format: "currency", width: BASE_WIDTH_FIXED_COLS.pvp },
+    // «est.» no rotulo, tambem no PDF e no Excel. Uma folha impressa
+    // circula sem o ecra ao lado, e e' onde a palavra mais falta.
+    { key: "custoUnitarioEstimado", label: "Custo unit. est.", format: "currency", width: BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado },
+    // `showTotal`: o custo total do relatorio e' a soma desta coluna.
+    { key: "custoEstimado", label: "Custo est.", format: "currency", width: BASE_WIDTH_FIXED_COLS.custoEstimado, showTotal: true },
     ...monthColumns,
     { key: "totalVendas", label: "Total Unid.", format: "integer",  width: BASE_WIDTH_FIXED_COLS.totalVendas, showTotal: true },
     { key: "existencia",  label: "Stock",       format: "integer",  width: BASE_WIDTH_FIXED_COLS.existencia },
@@ -191,6 +200,13 @@ function buildFilters(
   }
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
+  // O aviso viaja COM o relatorio. Quem abre o PDF daqui a um mes nao
+  // tem como saber que a coluna de custo e' um snapshot de hoje.
+  out.push({
+    label: "Custo",
+    value:
+      "estimado pelo PMC/PUC actual da ficha — nao e' o custo a data da venda",
+  });
   if (f.artigo && f.artigo.trim()) {
     out.push({ label: "Pesquisa", value: f.artigo.trim() });
   }

@@ -39,6 +39,7 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
+import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
 import {
   restringirPorCatalogo,
   restringirSemClassificacao,
@@ -88,6 +89,43 @@ export type SalesReportRow = {
    */
   valorBruto: number;
   existencia: number;
+  /**
+   * Custo unitário ESTIMADO, sem IVA. `null` quando desconhecido.
+   *
+   * ── Porque «estimado», e porque o nome tem de o dizer ──────────────
+   *
+   * É o PMC (ou PUC em recurso) que a ficha `ProdutoFarmacia` tem HOJE.
+   * Não é o custo daquelas unidades no dia em que foram vendidas: uma
+   * venda de Janeiro mostrada com o PMC de Setembro é o custo errado
+   * com ar de certo.
+   *
+   * Não há alternativa nos dados. O ledger de vendas
+   * (`IngestVendaLinhaRaw` → `VendaMensal`) não tem coluna de custo
+   * nenhuma, e o `Venda.custoUnitario` do schema tem 0 linhas em
+   * produção — é resíduo da era do import por Excel.
+   *
+   * Medido no ledger de movimentos, que é onde havia esperança:
+   * `MovimentoArtigo.custoUnitario` está a 0 em TODOS os 3 380 464
+   * movimentos de VENDA. O ERP regista custo nas ENTRADAS (COMPRA:
+   * 100 %, ACERTO_STOCK: 99,5 %) e não nas saídas.
+   *
+   * O caminho para custo histórico real existe e fica registado:
+   * `MovimentoArtigo.pmcNovo` está preenchido em 98,0 % dos movimentos
+   * de venda e é o PMC que vigorava NAQUELE dia. Usá-lo exige activar
+   * `Farmacia.useMovimentosCanonical`, hoje `false` nas cinco farmácias,
+   * e isso tem gates próprios. Não é esta fase.
+   *
+   * A regra é a partilhada de `lib/produtos/custo-farmacia.ts`:
+   * PMC>0 → PUC>0 → `null`. Zero nunca é custo — o ERP escreve 0 tanto
+   * para «não sei» como para «é zero».
+   */
+  custoUnitarioEstimado: number | null;
+  /**
+   * `totalVendas × custoUnitarioEstimado`. `null` quando o custo é
+   * desconhecido — nunca 0, que somaria em silêncio e daria um total
+   * curto que ninguém consegue auditar.
+   */
+  custoEstimado: number | null;
   /** Alias legado de totalVendas — preservado para callers existentes. */
   unidadesVendidas: number;
   fornecedor: string;
@@ -405,6 +443,9 @@ export async function getVendasData(
       stockAtual: true,
       pvp: true,
       pmc: true,
+      // O PUC é o recurso quando não há PMC — a mesma cascata do
+      // Inventário, dos Excessos e da ficha do produto.
+      puc: true,
       categoriaOrigem: true,
       subcategoriaOrigem: true,
       fornecedorOrigem: true,
@@ -436,6 +477,15 @@ export async function getVendasData(
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
 
+    // Custo ESTIMADO — ver `SalesReportRow.custoUnitarioEstimado`.
+    const custoUnitarioEstimado = custoDaFarmacia(
+      pf?.pmc != null ? Number(pf.pmc) : null,
+      pf?.puc != null ? Number(pf.puc) : null,
+    ).valor;
+    // Sobre as unidades LÍQUIDAS do período, que é o que `totalVendas`
+    // já é: uma devolução desconta a venda e tem de descontar o custo.
+    const custoEstimado = valorizar(totalVendas, custoUnitarioEstimado);
+
     const { categoria, subcategoria } = resolverPar({
       classificacaoNivel1: produto.classificacaoNivel1,
       classificacaoNivel2: produto.classificacaoNivel2,
@@ -455,6 +505,8 @@ export async function getVendasData(
       totalVendas,
       valorBruto: acc.valorBruto,
       existencia,
+      custoUnitarioEstimado,
+      custoEstimado,
       unidadesVendidas: totalVendas,
       fornecedor,
       fabricante,

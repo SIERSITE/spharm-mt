@@ -524,7 +524,7 @@ function TabelaProduto({
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorVendido" align="right" className="py-2 pr-3 text-right">Vendas c/IVA</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="taxaIva" align="right" className="py-2 pr-3 text-right">IVA %</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorVendidoSemIva" align="right" className="py-2 pr-3 text-right">Vendas s/IVA</CabecalhoOrdenavel>
-              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoUnitario" align="right" className="py-2 pr-3 text-right">Custo unit.</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoUnitario" align="right" className="py-2 pr-3 text-right">Custo unit. est.</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoEstimado" align="right" className="py-2 pr-3 text-right">Custo est.</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemEur" align="right" className="py-2 pr-3 text-right">Margem €</CabecalhoOrdenavel>
               <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemPct" align="right" className="py-2 pr-3 text-right">Margem %</CabecalhoOrdenavel>

@@ -21,6 +21,7 @@ import {
   useOrdenacao,
 } from "@/components/ui/cabecalho-ordenavel";
 import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+import { agregarCusto } from "@/lib/produtos/custo-farmacia";
 import {
   ROTULO_TOTAL_ARTIGO,
   agruparPorArtigo,
@@ -358,6 +359,19 @@ export function VendasClient({
           valorBruto: groupedRows.reduce((s, r) => s + r.valorBruto, 0),
           existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
           unidadesVendidas: totalVendas,
+          // Custo agregado: soma dos custos das linhas, e o unitario
+          // derivado DESSA soma. Uma media simples dos unitarios daria
+          // peso igual a uma farmacia que vendeu 1 unidade e a outra que
+          // vendeu 900 — ver `agregarCusto`.
+          ...(() => {
+            const c = agregarCusto(
+              groupedRows.map((r) => ({
+                quantidade: r.totalVendas,
+                custoUnitario: r.custoUnitarioEstimado,
+              })),
+            );
+            return { custoEstimado: c.total, custoUnitarioEstimado: c.unitarioMedio };
+          })(),
           fornecedor: first.fornecedor,
           fabricante: first.fabricante,
           categoria: first.categoria,
@@ -1108,6 +1122,15 @@ export function VendasClient({
               </div>
             </div>
 
+            {/* O aviso do custo, visivel e permanente — o mesmo que as
+                Margens tem. Sem ele, "Custo unit. est." le-se como o
+                custo daquela venda, e nao e'. */}
+            <div className="border-t border-slate-100 px-4 py-2 text-[11px] text-amber-700">
+              Custo <strong>estimado</strong> pelo preço médio de compra actual da
+              ficha (ou o da última compra, quando não há médio). Não é o custo à
+              data da venda — o ERP não regista custo nas saídas.
+            </div>
+
             <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-x-auto overflow-y-auto">
               {ambito !== "comparativo" ? (
                 <table className="min-w-full text-left">
@@ -1117,6 +1140,30 @@ export function VendasClient({
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="descricao" className="px-3 py-2.5 font-semibold">Descrição</CabecalhoOrdenavel>
                       <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pvp" align="center" className="px-2 py-2.5 font-semibold">
                         PVP
+                      </CabecalhoOrdenavel>
+                      {/* «est.» no titulo e nao so no tooltip: e' o
+                          PMC/PUC de HOJE, nao o custo a data da venda. */}
+                      <CabecalhoOrdenavel
+                        as="th"
+                        ordenacao={ordenacao}
+                        onOrdenar={alternar}
+                        coluna="custoUnitarioEstimado"
+                        align="right"
+                        className="px-2 py-2.5 font-semibold"
+                        title="Custo unitario ESTIMADO: preco medio de compra actual da ficha (ou o da ultima compra, sem medio). NAO e' o custo a data da venda."
+                      >
+                        Custo unit. est.
+                      </CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel
+                        as="th"
+                        ordenacao={ordenacao}
+                        onOrdenar={alternar}
+                        coluna="custoEstimado"
+                        align="right"
+                        className="px-2 py-2.5 font-semibold"
+                        title="Unidades vendidas x custo unitario estimado. Traco quando o custo e' desconhecido — nunca zero."
+                      >
+                        Custo est.
                       </CabecalhoOrdenavel>
                       {/* As colunas mensais são dinâmicas — dependem do
                           período escolhido. A chave de ordenação leva o
@@ -1187,6 +1234,15 @@ export function VendasClient({
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           {subtotal ? "—" : `${formatMoney(row.pvp)} €`}
+                        </td>
+                        {/* O custo aparece TAMBEM no subtotal do artigo:
+                            e' a soma dos detalhes, e e' onde a pergunta
+                            "quanto me custou este artigo" se responde. */}
+                        <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
+                          {fmtCustoOuTraco(row.custoUnitarioEstimado)}
+                        </td>
+                        <td className="px-2 py-2.5 text-right font-medium tabular-nums text-slate-800">
+                          {fmtCustoOuTraco(row.custoEstimado)}
                         </td>
                         {row.meses.map((m, i) => (
                           <td
@@ -1869,6 +1925,8 @@ type ColunaVendas =
   | "codigo"
   | "descricao"
   | "pvp"
+  | "custoUnitarioEstimado"
+  | "custoEstimado"
   | "totalVendas"
   | "existencia"
   | "farmacia"
@@ -1886,4 +1944,17 @@ function acessorVendas(row: SalesReportRow, coluna: ColunaVendas): ValorOrdenave
   // "5880075" vinha antes de "999999".
   if (coluna === "codigo") return Number(row.codigo);
   return row[coluna as keyof SalesReportRow] as ValorOrdenavel;
+}
+
+
+/**
+ * Custo em euros, ou traco quando e' desconhecido.
+ *
+ * NUNCA "0,00 €" para uma ausencia: um artigo sem PMC/PUC na ficha nao
+ * custou zero — custou um valor que nao sabemos, e escreve-lo como zero
+ * fa-lo somar em silencio nos totais.
+ */
+function fmtCustoOuTraco(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
+  return `${formatMoney(v)} €`;
 }

@@ -34,12 +34,15 @@
  * A linha de total NÃO é persistida, não é uma venda, e é excluída de
  * todos os totais gerais (ver `linhasDeDetalhe` em report-types).
  */
+import { agregarCusto } from "@/lib/produtos/custo-farmacia";
 
 /** Um bucket mensal — mesma shape do loader (`SalesMonthBucket`). */
 export type BucketMes = { ano: number; mes: number; quantidade: number };
 
 /** O mínimo que uma linha de vendas precisa de ter para ser agrupada. */
 export type LinhaAgrupavel = {
+  /** Custo unitário estimado da linha. `null` = desconhecido. */
+  custoUnitarioEstimado?: number | null;
   codigo: string;
   descricao: string;
   farmacia: string;
@@ -66,6 +69,10 @@ export type GrupoArtigo<T extends LinhaAgrupavel> = {
     valorBruto: number;
     existencia: number;
     unidadesVendidas: number;
+    /** Σ dos custos dos detalhes. `null` quando nenhum tem custo. */
+    custoEstimado: number | null;
+    /** `custoEstimado / unidades das linhas com custo`. Nunca média simples. */
+    custoUnitarioEstimado: number | null;
   };
 };
 
@@ -132,6 +139,18 @@ export function agruparPorArtigo<T extends LinhaAgrupavel>(
           (s, d) => s + (d.unidadesVendidas ?? d.totalVendas ?? 0),
           0,
         ),
+        // Custo: soma dos custos dos detalhes, e o unitario derivado
+        // DESSA soma. Nunca media simples dos unitarios — ver
+        // `agregarCusto`.
+        ...(() => {
+          const c = agregarCusto(
+            detalhes.map((d) => ({
+              quantidade: d.unidadesVendidas ?? d.totalVendas ?? 0,
+              custoUnitario: d.custoUnitarioEstimado ?? null,
+            })),
+          );
+          return { custoEstimado: c.total, custoUnitarioEstimado: c.unitarioMedio };
+        })(),
       },
     });
   }

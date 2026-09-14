@@ -577,13 +577,29 @@ console.log("\nK · as duas colunas no relatório");
   check(chaves.includes("pvpUnitario"), "coluna PVP unit. no relatório");
   check(chaves.includes("custoUnitario"), "coluna Custo unit. no relatório");
 
+  // «Custo unit. est.» e nao «Custo unit.», desde 2026-09-15.
+  //
+  // A LOGICA nao mudou — continua a ser o PMC/PUC ACTUAL do
+  // ProdutoFarmacia, como o cabecalho deste modulo sempre disse. O que
+  // mudou foi o rotulo passar a admiti-lo no ecra e no PDF.
+  //
+  // A renomeacao veio do relatorio de Vendas, que ganhou a mesma coluna
+  // e onde o risco e' maior: uma venda de Janeiro ao lado do PMC de
+  // Setembro le-se como o custo daquela venda. Alinhar os dois evita o
+  // pior dos mundos — o mesmo numero com dois nomes em dois relatorios.
+  const ESPERADOS = [
+    "Qtd", "PVP unit.", "Vendas c/IVA", "IVA %", "Vendas s/IVA",
+    "Custo unit. est.", "Custo est.", "Margem €", "Margem %",
+  ];
   const rotulos = report.columns.map((c) => c.label);
   eq(
-    rotulos.filter((l) =>
-      ["Qtd", "PVP unit.", "Vendas c/IVA", "IVA %", "Vendas s/IVA", "Custo unit.", "Custo est.", "Margem €", "Margem %"].includes(l),
-    ),
-    ["Qtd", "PVP unit.", "Vendas c/IVA", "IVA %", "Vendas s/IVA", "Custo unit.", "Custo est.", "Margem €", "Margem %"],
+    rotulos.filter((l) => ESPERADOS.includes(l)),
+    ESPERADOS,
     "ordem: preço unitário → custo unitário → margem",
+  );
+  check(
+    !rotulos.includes("Custo unit."),
+    "…e o rótulo antigo sem «est.» desapareceu",
   );
 
   eq(report.rows[0].pvpUnitario, 13.96, "o valor viaja para a linha do relatório");
