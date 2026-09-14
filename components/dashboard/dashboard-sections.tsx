@@ -472,6 +472,14 @@ export function TransferenciasCard({
           <div className="mt-1 text-[12px] text-slate-400">
             Σ qty × pvp das sugestões
           </div>
+          {/* A incompletude ao lado do número, e não escondida num
+              tooltip: um total de capital sem a contagem do que ficou
+              por valorizar afirma mais do que os dados suportam. */}
+          {data.linhasSemPvp > 0 && (
+            <div className="mt-0.5 text-[12px] text-amber-600">
+              {data.linhasSemPvp} linha{data.linhasSemPvp === 1 ? "" : "s"} sem PVP
+            </div>
+          )}
         </div>
       </div>
 
@@ -515,10 +523,20 @@ export function TransferenciasCard({
                   </span>
                   <span>·</span>
                   <span>{fmtNumber(t.quantidadeSugerida)} un.</span>
-                  {t.valorUnlocked > 0 && (
+                  {/* `!= null` antes do `> 0`: com `valorUnlocked`
+                      anulável, `null > 0` é `false` e a linha
+                      desaparecia na mesma — mas por acidente da
+                      coerção, não por intenção. Explícito. */}
+                  {t.valorUnlocked != null && t.valorUnlocked > 0 && (
                     <>
                       <span>·</span>
                       <span>{fmtEur(t.valorUnlocked)}</span>
+                    </>
+                  )}
+                  {t.valorUnlocked === null && (
+                    <>
+                      <span>·</span>
+                      <span className="text-amber-600">sem PVP</span>
                     </>
                   )}
                 </div>

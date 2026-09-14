@@ -11,6 +11,11 @@
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
+import {
+  custoDaFarmacia,
+  valorizar,
+  type FonteCusto,
+} from "@/lib/produtos/custo-farmacia";
 import { getOperationalPolicy, reservaOrigemDias } from "@/lib/operational/policy";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import {
@@ -69,10 +74,73 @@ export type TransferSuggestionRow = {
   observacao?: string;
   /**
    * Valor estimado em € que fica disponível ao executar a transferência:
-   * `quantidadeSugerida × pvp` na farmácia de origem. 0 quando não há pvp
-   * registado.
+   * `quantidadeSugerida × pvp` na farmácia de origem.
+   *
+   * ── `null` NÃO é zero, e é essa a razão de este campo ser anulável ──
+   *
+   * Devolvia `0` quando não havia PVP. É o mesmo defeito que o custo já
+   * não tem: um preço que não se sabe não é um preço de zero, e somá-lo
+   * como zero dá um total curto que ninguém consegue auditar — a linha
+   * aparece na lista, não soma nada, e nada no ecrã o diz.
+   *
+   * A distinção que o campo passa a fazer:
+   *
+   *   · `0`    — o valor é MESMO zero. Acontece com `quantidadeSugerida`
+   *              a zero (não se transfere nada, não se liberta nada) e
+   *              com artigos que valem genuinamente zero.
+   *   · `null` — não há PVP utilizável na origem. Não sabemos.
+   *
+   * Medido na produção (tenant garantia, 2026-09): de 33 125 linhas com
+   * stock e não retiradas, **6** não têm PVP utilizável. E quatro dessas
+   * seis valem legitimamente zero — duas vacinas do contingente SNS, uma
+   * oferta comercial, um contentor Valormed. O ERP escreve `0` nos dois
+   * casos e não os distingue, por isso nós também não conseguimos: o que
+   * conseguimos é parar de afirmar que são zero.
+   *
+   * O total no dashboard NÃO muda um cêntimo — essas seis linhas
+   * contribuíam `0` e agora ficam de fora. O que muda é passar a existir
+   * a contagem das que ficaram por valorizar.
    */
-  valorUnlocked: number;
+  valorUnlocked: number | null;
+
+  // ── Valorizacao economica ────────────────────────────────────────
+  //
+  // Tudo o que se segue ja' vinha de `loadPfAndSales` (que seleciona
+  // pvp, pmc e puc desde sempre) e era descartado aqui. Nao houve
+  // query nova, nem alteracao ao agente, nem migracao.
+  //
+  // `null` e' DIFERENTE de zero em todos estes campos, e e' o ponto:
+  // um artigo sem custo registado no ERP nao vale 0 EUR, vale um valor
+  // que nao sabemos. Somar zeros silenciosos a uma coluna de capital
+  // imobilizado da' um total curto que ninguem consegue auditar.
+
+  /** PVP na farmacia de ORIGEM. `null` = sem preco registado. */
+  pvpOrigem: number | null;
+  /** Custo unitario na origem: PMC>0, senao PUC>0. `null` = desconhecido. */
+  custoOrigem: number | null;
+  /** Qual das duas colunas deu o custo. Para o tooltip. */
+  fonteCustoOrigem: FonteCusto | null;
+  /** `excessoOrigem x custoOrigem` — o capital imobilizado na sobra. */
+  valorCustoExcesso: number | null;
+  /** `excessoOrigem x pvpOrigem` — a mesma sobra a preco de venda. */
+  valorPvpExcesso: number | null;
+  /**
+   * `quantidadeSugerida x custoOrigem` — o valor economico DA
+   * TRANSFERENCIA.
+   *
+   * A custo e nao a PVP, e a razao nao e' de gosto: uma transferencia
+   * entre duas farmacias do mesmo grupo nao e' uma venda. Valorizada a
+   * PVP inscreveria uma margem que ninguem ganhou, dos dois lados do
+   * movimento. O ERP concorda — a linha de documento
+   * `[dbo].[Encomendas Detalhe]` tem uma coluna `[PrecoCusto]`, e e' o
+   * custo que la' vai.
+   *
+   * Coexiste com `valorUnlocked` de proposito: aquele responde a
+   * «quanto capital de VENDA se liberta», este a «quanto vale o que se
+   * move». Sao perguntas diferentes e ambas legitimas.
+   */
+  valorCustoTransferencia: number | null;
+
   // Enriquecimento clínico — surfaced em tooltip na UI.
   dci: string | null;
   codigoATC: string | null;
@@ -85,6 +153,73 @@ export type TransferSuggestionRow = {
 function toF(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * O PVP, ou `null` quando não é utilizável.
+ *
+ * ── ZERO CONHECIDO ≠ PREÇO DESCONHECIDO ──────────────────────────────
+ *
+ * Esta função existe porque a distinção não se consegue fazer no dado.
+ * O ERP escreve `0` em `ProdutoFarmacia.pvp` tanto quando o artigo não
+ * tem preço de venda — uma vacina do contingente SNS, uma oferta
+ * comercial, um contentor de recolha — como quando simplesmente não
+ * sabe. As colunas nunca vêm a NULL.
+ *
+ * Sem forma de os separar, a escolha é entre duas afirmações erradas:
+ * dizer que valem zero, ou dizer que não sabemos. A segunda é a que não
+ * corrompe um total — um `null` sai do somatório e é contado à parte;
+ * um `0` entra e desaparece.
+ *
+ * É a MESMA regra que `custoDaFarmacia` aplica ao custo, e vive aqui
+ * ao lado dela de propósito: as duas colunas de valorização de uma
+ * linha têm de se comportar igual, ou o utilizador vê um traço numa e
+ * um zero na outra para a mesma ausência.
+ *
+ * O que NÃO é ausência: um preço válido multiplicado por quantidade
+ * zero. Esse vale zero, e `valorizar` devolve `0`. Ver o teste
+ * «PVP conhecido + quantidade zero».
+ */
+function pvpUtilizavel(pvp: number | null | undefined): number | null {
+  return typeof pvp === "number" && Number.isFinite(pvp) && pvp > 0 ? pvp : null;
+}
+
+/**
+ * A parte económica de uma linha, calculada a partir da ORIGEM.
+ *
+ * Origem e não destino, e para todos os campos: o stock que está a mais
+ * é o da origem, foi a origem que o pagou, e é o custo dela que diz
+ * quanto capital está preso. O destino entra no cálculo da quantidade,
+ * não no do valor.
+ *
+ * Devolve um objecto espalhado na linha em vez de seis atribuições
+ * soltas, para que a regra do `null` não possa ser esquecida num dos
+ * campos quando alguém acrescentar o sétimo.
+ */
+function valorizacaoDaOrigem(
+  origem: { pvp: number | null; pmc: number | null; puc: number | null; excesso: number },
+  quantidadeSugerida: number,
+): Pick<
+  TransferSuggestionRow,
+  | "pvpOrigem"
+  | "custoOrigem"
+  | "fonteCustoOrigem"
+  | "valorCustoExcesso"
+  | "valorPvpExcesso"
+  | "valorCustoTransferencia"
+> {
+  // Ver `pvpUtilizavel`: o zero do ERP não é um preço.
+  const pvp = pvpUtilizavel(origem.pvp);
+  const { valor: custo, fonte } = custoDaFarmacia(origem.pmc, origem.puc);
+
+  return {
+    pvpOrigem: pvp,
+    custoOrigem: custo,
+    fonteCustoOrigem: fonte,
+    valorCustoExcesso: valorizar(origem.excesso, custo),
+    valorPvpExcesso: valorizar(origem.excesso, pvp),
+    valorCustoTransferencia: valorizar(quantidadeSugerida, custo),
+  };
 }
 
 export type PfBase = {
@@ -414,9 +549,11 @@ function montarLinha(
     prioridade,
     observacao,
     // O valor libertado é o da quantidade que SE VAI MESMO transferir.
-    // Com sugestão 0 não se liberta nada.
-    valorUnlocked:
-      origem.pvp != null && origem.pvp > 0 ? par.quantidadeSugerida * origem.pvp : 0,
+    // Com sugestão 0 não se liberta nada — e esse zero é um zero real,
+    // não uma ausência. `valorizar` devolve 0 aqui, e `null` só quando o
+    // PVP não é utilizável.
+    valorUnlocked: valorizar(par.quantidadeSugerida, pvpUtilizavel(origem.pvp)),
+    ...valorizacaoDaOrigem(origem, par.quantidadeSugerida),
     dci: origem.dci,
     codigoATC: origem.codigoATC,
     produtoId: origem.produtoId,

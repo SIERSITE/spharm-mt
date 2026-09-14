@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+import { descreverFonteCusto, somarParcial } from "@/lib/produtos/custo-farmacia";
 import { runExcessosReport } from "@/app/excessos/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import { janelaExcessosPorOmissao } from "@/lib/operational/janela-meses";
@@ -28,32 +34,20 @@ type Ordenacao =
 
 type Priority = "alta" | "media" | "baixa";
 
-type TransferSuggestionRow = {
-  cnp: string;
-  produto: string;
-  farmaciaOrigem: string;
-  farmaciaDestino: string;
-  stockOrigem: number;
-  stockDestino: number;
-  coberturaOrigem: number;
-  coberturaDestino: number;
-  quantidadeSugerida: number;
-  excessoOrigem: number;
-  necessidadeDestino: number;
-  /** Unidades vendidas NESTA farmacia nos 6 meses completos ate' a data-fim. */
-  vendas6M: number;
-  /** `vendas6M / 6`, uma casa decimal. */
-  mediaMensal6M: number;
-  fabricante: string;
-  categoria: string;
-  /** Nivel 2 canonico, ou "" — o loader garante o campo. */
-  subcategoria: string;
-  /** Slugs das utilizacoes do produto. */
-  utilizacoes: string[];
-  fornecedor: string;
-  prioridade: Priority;
-  observacao?: string;
-};
+/**
+ * A linha vem do loader e o TIPO vem de lá também.
+ *
+ * Havia aqui uma cópia local, e no `transferencias-client` outra. É o
+ * defeito que `lib/reporting/filters-shared.ts` já documenta noutro
+ * contexto: «vários clientes têm cópias locais do tipo da linha», e o
+ * resultado é o cliente a compilar enquanto o loader ganha campos que
+ * ele nunca mostra — que foi exactamente o que aconteceu com `pvp`,
+ * `pmc` e `puc`, seleccionados em SQL desde sempre e invisíveis na UI.
+ *
+ * `import type` é apagado na compilação: nada de `lib/transferencias-data`
+ * chega ao bundle do browser.
+ */
+import type { TransferSuggestionRow } from "@/lib/transferencias-data";
 
 type ReportSnapshot = {
   farmaciasOrigemSelecionadas: string[];
@@ -280,6 +274,37 @@ export function ExcessosClient({
       }
     });
   }, [rowsForReport, snapshot]);
+
+  // ── Ordenação por cabeçalho ──────────────────────────────────────
+  //
+  // Sobrepõe-se ao selector "Ordenar por" que já existia, sem o
+  // substituir: enquanto ninguém clicar num cabeçalho, o selector manda.
+  // Duas formas de ordenar a mesma tabela é confuso; uma a ignorar a
+  // outra em silêncio seria pior.
+  //
+  // O dataset está TODO em memória (o loader não pagina), portanto
+  // ordenar aqui ordena as linhas todas e não só as visíveis. Nas
+  // tabelas paginadas server-side — /stock e /catálogo — a ordenação
+  // tem de viajar para o SQL; ver `lib/tabela/ordenacao.ts`.
+  const { ordenacao, alternar } = useOrdenacao<ColunaExcessos>(null);
+
+  const rowsVisiveis = useMemo(
+    () => (ordenacao ? ordenarLinhas(orderedRows, ordenacao, acessorExcessos) : orderedRows),
+    [orderedRows, ordenacao],
+  );
+
+  // Os totais em dinheiro contam também quantas linhas NÃO puderam ser
+  // somadas. Um total de capital imobilizado sem esse número afirma mais
+  // do que os dados suportam — ver `somarParcial`.
+  const totalCustoExcesso = useMemo(
+    () => somarParcial(rowsVisiveis.map((r) => r.valorCustoExcesso)),
+    [rowsVisiveis],
+  );
+  const totalPvpExcesso = useMemo(
+    () => somarParcial(rowsVisiveis.map((r) => r.valorPvpExcesso)),
+    [rowsVisiveis],
+  );
+
 
   const resumo = useMemo(() => ({
     totalSugestoes: orderedRows.length,
@@ -542,53 +567,104 @@ export function ExcessosClient({
 
             <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-y-auto">
               <table className="min-w-full table-fixed text-left">
-                {/* 13 colunas. A ordem segue a leitura operacional:
-                    o que a ORIGEM tem e vende, o que sobra, e so' depois
-                    para onde poderia ir. */}
+                {/* 17 colunas. A ordem segue a leitura operacional:
+                    o que a ORIGEM tem e vende, o que sobra, QUANTO VALE
+                    essa sobra, e so' depois para onde poderia ir.
+
+                    O bloco economico fica colado a` coluna "Excesso" de
+                    proposito: e' a quantidade que ele valoriza, e separa-
+                    -los obrigava a olhar para as duas pontas da tabela
+                    para ler uma multiplicacao. */}
                 <colgroup>
-                  <col className="w-[7%]" />
-                  <col className="w-[19%]" />
-                  <col className="w-[9%]" />
                   <col className="w-[6%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[6%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[6%]" />
-                  <col className="w-[6%]" />
-                  <col className="w-[6%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[4.5%]" />
                   <col className="w-[5%]" />
+                  <col className="w-[5%]" />
+                  <col className="w-[4.5%]" />
+                  <col className="w-[5%]" />
+                  <col className="w-[5.5%]" />
+                  <col className="w-[5.5%]" />
+                  <col className="w-[6.5%]" />
+                  <col className="w-[6.5%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[4.5%]" />
+                  <col className="w-[4.5%]" />
+                  <col className="w-[4.5%]" />
+                  <col className="w-[4.5%]" />
                 </colgroup>
                 <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                   <tr>
-                    <th className="px-4 py-2.5 font-semibold">CNP</th>
-                    <th className="px-3 py-2.5 font-semibold">Produto</th>
-                    <th className="px-3 py-2.5 font-semibold">Farmácia</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">St. O.</th>
-                    <th
-                      className="px-2 py-2.5 text-center font-semibold"
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="cnp" className="px-4 py-2.5 font-semibold">CNP</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="produto" className="px-3 py-2.5 font-semibold">Produto</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="farmaciaOrigem" className="px-3 py-2.5 font-semibold">Farmácia</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="stockOrigem" align="center" className="px-2 py-2.5 font-semibold">St. O.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="vendas6M"
+                      align="center"
+                      className="px-2 py-2.5 font-semibold"
                       title="Unidades vendidas nesta farmácia nos últimos 6 meses completos até à data fim."
                     >
                       Vendas 6M
-                    </th>
-                    <th
-                      className="px-2 py-2.5 text-center font-semibold"
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="mediaMensal6M"
+                      align="center"
+                      className="px-2 py-2.5 font-semibold"
                       title="Média mensal de unidades vendidas nesse período."
                     >
                       Méd./mês
-                    </th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Cob. O.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Excesso</th>
-                    <th className="px-3 py-2.5 font-semibold">Destino poss.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">St. D.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Cob. D.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Necess.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Sug.</th>
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="coberturaOrigem" align="center" className="px-2 py-2.5 font-semibold">Cob. O.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="excessoOrigem" align="center" className="px-2 py-2.5 font-semibold">Excesso</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="pvpOrigem"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="PVP na farmácia de origem. Traço quando o ERP não tem preço registado."
+                    >
+                      PVP
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="custoOrigem"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="Preço médio de compra na farmácia de origem; o da última compra quando não há médio (marcado com *)."
+                    >
+                      Custo
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="valorCustoExcesso"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="Excesso × custo unitário. É o capital imobilizado na sobra."
+                    >
+                      € custo exc.
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="valorPvpExcesso"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="Excesso × PVP. É quanto essa sobra valeria vendida."
+                    >
+                      € PVP exc.
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="farmaciaDestino" className="px-3 py-2.5 font-semibold">Destino poss.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="stockDestino" align="center" className="px-2 py-2.5 font-semibold">St. D.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="coberturaDestino" align="center" className="px-2 py-2.5 font-semibold">Cob. D.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="necessidadeDestino" align="center" className="px-2 py-2.5 font-semibold">Necess.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="quantidadeSugerida" align="center" className="px-2 py-2.5 font-semibold">Sug.</CabecalhoOrdenavel>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-                  {orderedRows.map((row, index) => (
+                  {rowsVisiveis.map((row, index) => (
                     <tr key={`${row.cnp}-${row.farmaciaOrigem}-${index}`} className="transition hover:bg-slate-50/70">
                       <td className="px-4 py-2.5 align-top font-medium text-slate-800">{row.cnp}</td>
                       <td className="px-3 py-2.5 align-top">
@@ -610,6 +686,22 @@ export function ExcessosClient({
                       </td>
                       <td className="px-2 py-2.5 text-center">{row.coberturaOrigem}</td>
                       <td className="px-2 py-2.5 text-center font-semibold text-slate-900">{row.excessoOrigem}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums">{fmtEur(row.pvpOrigem)}</td>
+                      <td
+                        className="px-2 py-2.5 text-right tabular-nums"
+                        title={descreverFonteCusto(row.fonteCustoOrigem)}
+                      >
+                        {fmtEur(row.custoOrigem)}
+                        {row.fonteCustoOrigem === "PUC" && (
+                          <span className="ml-0.5 text-[10px] text-slate-400">*</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+                        {fmtEur(row.valorCustoExcesso)}
+                      </td>
+                      <td className="px-2 py-2.5 text-right tabular-nums text-slate-600">
+                        {fmtEur(row.valorPvpExcesso)}
+                      </td>
                       <td className="px-3 py-2.5">{row.farmaciaDestino}</td>
                       <td className="px-2 py-2.5 text-center">{row.stockDestino}</td>
                       <td className="px-2 py-2.5 text-center">{row.coberturaDestino}</td>
@@ -617,20 +709,36 @@ export function ExcessosClient({
                       <td className="px-2 py-2.5 text-center">{row.quantidadeSugerida}</td>
                     </tr>
                   ))}
-                  {snapshot.incluirTotais && orderedRows.length > 0 && (
+                  {snapshot.incluirTotais && rowsVisiveis.length > 0 && (
                     <tr className="bg-slate-50/70 font-semibold text-slate-900">
                       <td className="px-4 py-2.5" colSpan={4}>Totais</td>
-                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.vendas6M))}</td>
+                      <td className="px-2 py-2.5 text-center">{sum(rowsVisiveis.map((r) => r.vendas6M))}</td>
                       {/* Méd./mês não é totalizada: somar médias mensais de
                           artigos diferentes não significa nada. */}
                       <td className="px-2 py-2.5 text-center text-slate-400">—</td>
                       <td className="px-2 py-2.5" />
-                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.excessoOrigem))}</td>
+                      <td className="px-2 py-2.5 text-center">{sum(rowsVisiveis.map((r) => r.excessoOrigem))}</td>
+                      {/* Preços unitários não se somam: a soma dos PVP de
+                          artigos diferentes não é um preço de nada. */}
+                      <td className="px-2 py-2.5 text-right text-slate-400">—</td>
+                      <td className="px-2 py-2.5 text-right text-slate-400">—</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums" title={rotuloTotal(totalCustoExcesso)}>
+                        {fmtEur(totalCustoExcesso.total)}
+                        {totalCustoExcesso.semValor > 0 && (
+                          <span className="ml-0.5 text-[10px] font-normal text-amber-600">*</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2.5 text-right tabular-nums" title={rotuloTotal(totalPvpExcesso)}>
+                        {fmtEur(totalPvpExcesso.total)}
+                        {totalPvpExcesso.semValor > 0 && (
+                          <span className="ml-0.5 text-[10px] font-normal text-amber-600">*</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5" />
                       <td className="px-2 py-2.5" />
                       <td className="px-2 py-2.5" />
-                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.necessidadeDestino))}</td>
-                      <td className="px-2 py-2.5 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
+                      <td className="px-2 py-2.5 text-center">{sum(rowsVisiveis.map((r) => r.necessidadeDestino))}</td>
+                      <td className="px-2 py-2.5 text-center">{sum(rowsVisiveis.map((r) => r.quantidadeSugerida))}</td>
                     </tr>
                   )}
                 </tbody>
@@ -687,7 +795,14 @@ export function ExcessosClient({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
-                        {orderedRows.map((row, index) => (
+                        {/* A vista de relatorio segue a MESMA ordem do
+                            ecra. Usava `orderedRows` enquanto a tabela
+                            usava `rowsVisiveis`: ordenar por valor e
+                            depois imprimir dava duas ordens diferentes
+                            para os mesmos dados, e a folha impressa e'
+                            precisamente o artefacto que ninguem volta a
+                            conferir. */}
+                        {rowsVisiveis.map((row, index) => (
                           <tr key={`report-${row.cnp}-${row.farmaciaOrigem}-${index}`}>
                             <td className="whitespace-nowrap px-3 py-1.5">{row.cnp}</td>
                             <td className="px-3 py-1.5">{row.produto}</td>
@@ -701,16 +816,16 @@ export function ExcessosClient({
                             <td className="px-3 py-1.5"><PriorityBadge prioridade={row.prioridade} /></td>
                           </tr>
                         ))}
-                        {snapshot.incluirTotais && orderedRows.length > 0 && (
+                        {snapshot.incluirTotais && rowsVisiveis.length > 0 && (
                           <tr className="bg-slate-50 font-semibold text-slate-900">
                             <td className="px-3 py-2" colSpan={3}>Totais</td>
-                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.vendas6M))}</td>
+                            <td className="px-3 py-2 text-center">{sum(rowsVisiveis.map((r) => r.vendas6M))}</td>
                             {/* Méd./mês não se soma. */}
                             <td className="px-3 py-2 text-center text-slate-400">—</td>
-                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.excessoOrigem))}</td>
+                            <td className="px-3 py-2 text-center">{sum(rowsVisiveis.map((r) => r.excessoOrigem))}</td>
                             <td className="px-3 py-2" />
-                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.necessidadeDestino))}</td>
-                            <td className="px-3 py-2 text-center">{sum(orderedRows.map((r) => r.quantidadeSugerida))}</td>
+                            <td className="px-3 py-2 text-center">{sum(rowsVisiveis.map((r) => r.necessidadeDestino))}</td>
+                            <td className="px-3 py-2 text-center">{sum(rowsVisiveis.map((r) => r.quantidadeSugerida))}</td>
                             <td className="px-3 py-2" />
                           </tr>
                         )}
@@ -873,6 +988,55 @@ function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }
       <button type="button" onClick={onRemove} className="text-slate-400 transition hover:text-slate-700"><X className="h-3 w-3" /></button>
     </span>
   );
+}
+
+/**
+ * As colunas ordenáveis dos Excessos.
+ *
+ * É uma união de literais e não `string` para que acrescentar uma coluna
+ * ao `<thead>` sem lhe dar acessor seja erro de compilação, e não uma
+ * coluna que se clica e não faz nada.
+ */
+type ColunaExcessos =
+  | "cnp"
+  | "produto"
+  | "farmaciaOrigem"
+  | "stockOrigem"
+  | "vendas6M"
+  | "mediaMensal6M"
+  | "coberturaOrigem"
+  | "excessoOrigem"
+  | "pvpOrigem"
+  | "custoOrigem"
+  | "valorCustoExcesso"
+  | "valorPvpExcesso"
+  | "farmaciaDestino"
+  | "stockDestino"
+  | "coberturaDestino"
+  | "necessidadeDestino"
+  | "quantidadeSugerida";
+
+/**
+ * De onde sai o valor de cada coluna.
+ *
+ * `cnp` é texto na linha mas é um número: ordená-lo como texto punha
+ * "5880075" antes de "999999". O `Number` devolve-o ao que ele é.
+ */
+function acessorExcessos(row: TransferSuggestionRow, coluna: ColunaExcessos): ValorOrdenavel {
+  if (coluna === "cnp") return Number(row.cnp);
+  return row[coluna] as ValorOrdenavel;
+}
+
+/** Em euros, com `—` para o desconhecido. NUNCA `0,00 €`. */
+function fmtEur(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
+  return v.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+}
+
+/** O que o total realmente representa, quando há linhas por valorizar. */
+function rotuloTotal(t: { contadas: number; semValor: number }): string {
+  if (t.semValor === 0) return `${t.contadas} linha(s) somadas`;
+  return `${t.contadas} linha(s) somadas · ${t.semValor} sem valor conhecido, fora do total`;
 }
 
 function ToggleRow({ label, checked, onChange, compact = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; compact?: boolean }) {

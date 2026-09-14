@@ -31,6 +31,7 @@ import type {
   ReportSummaryItem,
 } from "../report-types";
 import { ROW_KIND_KEY } from "../report-types";
+import { filtroListaImportada } from "../filters-shared";
 import {
   agruparPorArtigo,
   contarReferenciasUnicas,
@@ -90,6 +91,8 @@ export type VendasAdapterFilters = {
   ordenarPor?: string;
   apenasComVendas?: boolean;
   apenasComStock?: boolean;
+  /** CNP da lista importada por ficheiro. Ver `SharedReportFilters.cnps`. */
+  cnps?: number[];
 };
 
 /**
@@ -186,6 +189,8 @@ function buildFilters(
       value: joinList(f.categoriasSelecionadas, universe.categorias.length, "Todas"),
     });
   }
+  const lista = filtroListaImportada(f.cnps);
+  if (lista) out.push(lista);
   if (f.artigo && f.artigo.trim()) {
     out.push({ label: "Pesquisa", value: f.artigo.trim() });
   }

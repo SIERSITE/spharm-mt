@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@/generated/prisma/client";
+import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
 
 /**
  * lib/ingest/orders.ts
@@ -40,6 +41,15 @@ export type OrderLineInput = {
   quantidadeAjustada?: number | null;
   fornecedorSugeridoId?: string | null;
   notas?: string | null;
+  /**
+   * De onde veio a linha. Omitida = `PROPOSTA`.
+   *
+   * O default é o mesmo da coluna, e pela mesma razão: até esta
+   * revisão, o cálculo automático era o único caminho para criar uma
+   * linha. Um chamador que não diga nada está a criar uma linha de
+   * proposta — que é o que sempre esteve a fazer.
+   */
+  origem?: OrigemLinha;
 };
 
 export type CreateOrderInput = {
@@ -117,6 +127,7 @@ export async function createEncomendaWithOutbox(
             quantidadeAjustada: l.quantidadeAjustada ?? null,
             fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
             notas: l.notas ?? null,
+            origem: l.origem ?? "PROPOSTA",
           })),
         },
       },

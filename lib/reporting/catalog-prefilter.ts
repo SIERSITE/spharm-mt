@@ -16,13 +16,23 @@
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
+import { temListaCodigos } from "@/lib/produtos/lista-codigos-tipos";
 import type { SharedReportFilters } from "./filters-shared";
 
-export type FiltrosCatalogo = Pick<SharedReportFilters, "subcategorias" | "utilizacoes">;
+export type FiltrosCatalogo = Pick<
+  SharedReportFilters,
+  "subcategorias" | "utilizacoes" | "cnps"
+>;
 
 /** Há alguma restrição destas para aplicar? */
 export function temFiltroCatalogo(f: FiltrosCatalogo): boolean {
-  return (f.subcategorias?.length ?? 0) > 0 || (f.utilizacoes?.length ?? 0) > 0;
+  return (
+    (f.subcategorias?.length ?? 0) > 0 ||
+    (f.utilizacoes?.length ?? 0) > 0 ||
+    // PRESENÇA, não comprimento: uma lista importada de que nada foi
+    // encontrado é `[]` e tem de filtrar para zero. Ver `temListaCodigos`.
+    temListaCodigos(f.cnps)
+  );
 }
 
 export async function restringirPorCatalogo(
@@ -31,6 +41,31 @@ export async function restringirPorCatalogo(
   actual: string[] | null,
 ): Promise<string[] | null> {
   let ids = actual;
+
+  // ── Lista de CNP importada por ficheiro ─────────────────────────
+  //
+  // Primeiro de propósito. É o eixo mais selectivo dos três — uma lista
+  // de 400 CNP contra um catálogo de 30 000 — e é o mais barato, porque
+  // `Produto.cnp` é `@unique`. Encolher aqui faz as duas consultas
+  // seguintes correrem sobre centenas de ids em vez de dezenas de
+  // milhares.
+  //
+  // `temListaCodigos` distingue "não importou" de "importou e não
+  // encontrou nada". O segundo caso devolve [] — nenhum produto — e não
+  // o catálogo inteiro.
+  if (temListaCodigos(filtros.cnps)) {
+    const cnps = filtros.cnps!;
+    if (cnps.length === 0) return [];
+    const produtos = await prisma.produto.findMany({
+      where: {
+        cnp: { in: cnps },
+        ...(ids ? { id: { in: ids } } : {}),
+      },
+      select: { id: true },
+    });
+    ids = produtos.map((p) => p.id);
+    if (ids.length === 0) return [];
+  }
 
   if (filtros.subcategorias && filtros.subcategorias.length > 0) {
     // Por NOME e não por id: é o nome que a UI conhece e o que a lista de

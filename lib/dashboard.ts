@@ -30,6 +30,7 @@
  */
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
+import { somarParcial } from "@/lib/produtos/custo-farmacia";
 import { Prisma } from "@/generated/prisma/client";
 import { WINDOW_90D } from "@/lib/operational/metrics-shared";
 import { avaliarLinha, type ParametrosMotor } from "@/lib/operational/motor-stock";
@@ -67,7 +68,8 @@ export type DashboardTopSuggestion = {
   farmaciaDestino: string;
   quantidadeSugerida: number;
   prioridade: Priority;
-  valorUnlocked: number;
+  /** `null` = sem PVP na origem. NÃO é zero. Ver `TransferSuggestionRow`. */
+  valorUnlocked: number | null;
 };
 
 /**
@@ -168,7 +170,25 @@ export type DashboardData = {
   // Transferências sugeridas
   optimization: {
     transferSuggestionsTotal: number;
+    /**
+     * Soma de `qty × pvp` das sugestões — SÓ das linhas valorizáveis.
+     *
+     * Ver `linhasSemPvp`: um total sozinho afirma mais do que os dados
+     * suportam quando há linhas sem preço.
+     */
     estimatedValueUnlockedEur: number;
+    /**
+     * Quantas sugestões não puderam ser valorizadas por falta de PVP na
+     * origem.
+     *
+     * Existe porque o total e este número são a mesma informação: «123
+     * 456 €» e «123 456 €, com 2 linhas sem PVP» são leituras
+     * diferentes da mesma coluna, e só a segunda é honesta. Zero na
+     * esmagadora maioria dos dias — medido na produção, 6 linhas em
+     * 33 125 no universo inteiro, e nem todas chegam a produzir
+     * sugestão.
+     */
+    linhasSemPvp: number;
     topTransferSuggestions: DashboardTopSuggestion[];
   };
 
@@ -630,10 +650,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   const noMovementRows = stockRows.filter((r) => matchStockFilter(r, "no-movement-3m"));
 
   // ── Optimization ──────────────────────────────────────────────────────
-  const estimatedValueUnlockedEur = allTransfers.reduce(
-    (sum, t) => sum + (t.valorUnlocked ?? 0),
-    0,
-  );
+  // `somarParcial` em vez de `reduce(… ?? 0)`: o `?? 0` somava zeros
+  // silenciosos por cada linha sem PVP. Numericamente o total é o MESMO
+  // (zero não altera uma soma); o que muda é passar a haver a contagem
+  // do que ficou de fora, em vez de a incompletude ser invisível.
+  const unlocked = somarParcial(allTransfers.map((t) => t.valorUnlocked));
+  const estimatedValueUnlockedEur = unlocked.total;
+  const linhasSemPvp = unlocked.semValor;
   const topTransferSuggestions: DashboardTopSuggestion[] = allTransfers
     .slice(0, TRANSFER_SAMPLE_SIZE)
     .map((t) => ({
@@ -643,7 +666,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       farmaciaDestino: t.farmaciaDestino,
       quantidadeSugerida: t.quantidadeSugerida,
       prioridade: t.prioridade,
-      valorUnlocked: t.valorUnlocked ?? 0,
+      valorUnlocked: t.valorUnlocked,
     }));
 
   // ── Tendência: derivada da série mensal real ──────────────────────────
@@ -705,6 +728,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     optimization: {
       transferSuggestionsTotal: allTransfers.length,
       estimatedValueUnlockedEur,
+      linhasSemPvp,
       topTransferSuggestions,
     },
 

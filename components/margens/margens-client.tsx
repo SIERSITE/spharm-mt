@@ -20,6 +20,16 @@ import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
+import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import {
+  ordenarLinhas,
+  type EstadoOrdenacao,
+  type ValorOrdenavel,
+} from "@/lib/tabela/ordenacao";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { runMargensReport } from "@/app/relatorios/margens/actions";
 import type {
@@ -132,7 +142,17 @@ export function MargensClient({
     to: new Date().toISOString().slice(0, 10),
   });
 
-  const [nivel, setNivel] = useState<Nivel>("produto");
+  /**
+   * A lista de CNP importada por ficheiro.
+   *
+   * Vive ao lado dos filtros e não dentro deles: `filters.cnps` é só o
+   * array de números que o loader precisa, e isto é o resumo que a UI
+   * mostra (ficheiro, encontrados, não encontrados). Quem os mantém em
+   * sincronia é o `ReportFiltersBar`, num único `onChange`.
+   */
+  const [lista, setLista] = useState<ListaCodigosResolvida | null>(null);
+
+    const [nivel, setNivel] = useState<Nivel>("produto");
   const [estadoChip, setEstadoChip] = useState<"todos" | EstadoMargem>("todos");
 
   const [result, setResult] = useState<MargensResult | null>(null);
@@ -200,6 +220,20 @@ export function MargensClient({
     return result.porProduto.filter((r) => r.estado === estadoChip);
   }, [result, estadoChip]);
 
+  // ── Ordenação por cabeçalho ──────────────────────────────────────
+  //
+  // `getMargensData` não pagina: devolve o universo e o cliente refina.
+  // Ordenar aqui ordena TUDO.
+  const { ordenacao, alternar } = useOrdenacao<ColunaMargens>(null);
+
+  const rowsOrdenadasProduto = useMemo(
+    () =>
+      ordenacao
+        ? ordenarLinhas(rowsByEstadoProduto, ordenacao, acessorMargens)
+        : rowsByEstadoProduto,
+    [rowsByEstadoProduto, ordenacao],
+  );
+
   const counts = useMemo(() => {
     const c: Record<"todos" | EstadoMargem, number> = {
       todos: result?.porProduto.length ?? 0,
@@ -234,7 +268,9 @@ export function MargensClient({
   const buildReport = () => {
     if (nivel === "produto") {
       return buildMargensProdutoReport({
-        rows: rowsByEstadoProduto,
+        // As MESMAS linhas do ecrã, na MESMA ordem: quem ordena e
+        // exporta espera o ficheiro pela ordem que viu.
+        rows: rowsOrdenadasProduto,
         filters,
         universe: {
           farmacias: universe.farmacias,
@@ -306,6 +342,8 @@ export function MargensClient({
           value={filters}
           onChange={setFilters}
           searchPlaceholder="Pesquisar CNP ou descrição"
+          lista={lista}
+          onListaChange={setLista}
         />
 
         {error && (
@@ -379,7 +417,7 @@ export function MargensClient({
             )}
 
             {nivel === "produto" ? (
-              <TabelaProduto rows={rowsByEstadoProduto} />
+              <TabelaProduto rows={rowsOrdenadasProduto} ordenacao={ordenacao} onOrdenar={alternar} />
             ) : (
               <TabelaAgg rows={linhasAgregadas(result, nivel)} header={NIVEL_HEADER[nivel]} />
             )}
@@ -455,7 +493,15 @@ function KPI({
 
 // ── Tabela Por Produto ────────────────────────────────────────────
 
-function TabelaProduto({ rows }: { rows: MargemRow[] }) {
+function TabelaProduto({
+  rows,
+  ordenacao,
+  onOrdenar,
+}: {
+  rows: MargemRow[];
+  ordenacao: EstadoOrdenacao<ColunaMargens>;
+  onOrdenar: (c: ColunaMargens) => void;
+}) {
   if (rows.length === 0) {
     return (
       <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-6 py-12 text-center text-[12px] text-slate-500">
@@ -469,22 +515,20 @@ function TabelaProduto({ rows }: { rows: MargemRow[] }) {
         <table className="min-w-full text-left text-[12px]">
           <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
             <tr>
-              <th className="py-2 pr-3">CNP</th>
-              <th className="py-2 pr-3">Descrição</th>
-              <th className="py-2 pr-3">Categoria</th>
-              <th className="py-2 pr-3">Farmácia</th>
-              <th className="py-2 pr-3 text-right">Qtd</th>
-              {/* Ordem de leitura: preço unitário → custo unitário →
-                  margem resultante. */}
-              <th className="py-2 pr-3 text-right">PVP unit.</th>
-              <th className="py-2 pr-3 text-right">Vendas c/IVA</th>
-              <th className="py-2 pr-3 text-right">IVA %</th>
-              <th className="py-2 pr-3 text-right">Vendas s/IVA</th>
-              <th className="py-2 pr-3 text-right">Custo unit.</th>
-              <th className="py-2 pr-3 text-right">Custo est.</th>
-              <th className="py-2 pr-3 text-right">Margem €</th>
-              <th className="py-2 pr-3 text-right">Margem %</th>
-              <th className="py-2 pr-3">Estado</th>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="cnp" className="py-2 pr-3">CNP</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="designacao" className="py-2 pr-3">Descrição</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="categoria" className="py-2 pr-3">Categoria</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="farmacia" className="py-2 pr-3">Farmácia</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="qtdVendida" align="right" className="py-2 pr-3 text-right">Qtd</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="pvpUnitario" align="right" className="py-2 pr-3 text-right">PVP unit.</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorVendido" align="right" className="py-2 pr-3 text-right">Vendas c/IVA</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="taxaIva" align="right" className="py-2 pr-3 text-right">IVA %</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorVendidoSemIva" align="right" className="py-2 pr-3 text-right">Vendas s/IVA</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoUnitario" align="right" className="py-2 pr-3 text-right">Custo unit.</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="custoEstimado" align="right" className="py-2 pr-3 text-right">Custo est.</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemEur" align="right" className="py-2 pr-3 text-right">Margem €</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="margemPct" align="right" className="py-2 pr-3 text-right">Margem %</CabecalhoOrdenavel>
+              <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="estado" className="py-2 pr-3">Estado</CabecalhoOrdenavel>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -606,4 +650,52 @@ function TabelaAgg({ rows, header }: { rows: MargensAgg[]; header: string }) {
       </div>
     </section>
   );
+}
+
+
+/** As colunas ordenáveis das Margens «Por produto». */
+type ColunaMargens =
+  | "cnp"
+  | "designacao"
+  | "categoria"
+  | "farmacia"
+  | "qtdVendida"
+  | "pvpUnitario"
+  | "valorVendido"
+  | "taxaIva"
+  | "valorVendidoSemIva"
+  | "custoUnitario"
+  | "custoEstimado"
+  | "margemEur"
+  | "margemPct"
+  | "estado";
+
+/**
+ * A severidade dos estados de margem.
+ *
+ * `EstadoMargem` descreve QUANTO se pode confiar no número da margem, e
+ * a ordem útil é a da desconfiança: quem clica nesta coluna quer ver
+ * primeiro as linhas cujo cálculo é duvidoso, não as que começam pela
+ * letra mais baixa do alfabeto.
+ *
+ * A ordem vem de `lib/margens-data.ts`, onde o enum é definido: FIAVEL
+ * é o estado em que a margem tem custo e IVA conhecidos; os outros
+ * descrevem o que falta.
+ */
+// `Record<EstadoMargem, number>` e nao `Record<string, number>`: com
+// `string` o compilador aceita uma chave inventada e o `?? 0` esconde-a
+// em runtime — foi exactamente o que aconteceu na primeira versao deste
+// mapa, com um "SEM_IVA" que nao existe no enum. Tipado assim, faltar
+// ou sobrar um estado e' erro de compilacao.
+const SEVERIDADE_MARGEM: Record<EstadoMargem, number> = {
+  SEM_CUSTO: 4,
+  IVA_POR_APURAR: 3,
+  PARCIAL: 2,
+  FIAVEL: 1,
+};
+
+function acessorMargens(row: MargemRow, coluna: ColunaMargens): ValorOrdenavel {
+  // `estado` é um enum: ordenado como texto daria a ordem do alfabeto.
+  if (coluna === "estado") return SEVERIDADE_MARGEM[row.estado];
+  return row[coluna] as ValorOrdenavel;
 }

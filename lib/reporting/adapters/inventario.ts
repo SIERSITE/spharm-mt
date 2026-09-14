@@ -25,7 +25,7 @@ import type {
   InventarioPorIvaRow,
   EstadoInventario,
 } from "@/lib/inventario-data";
-import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 const ESTADO_LABEL: Record<EstadoInventario, string> = {
   NORMAL: "Normal",
@@ -100,6 +100,8 @@ function buildFiltersLabel(
   if (f.pesquisa && f.pesquisa.trim()) {
     out.push({ label: "Pesquisa", value: f.pesquisa.trim() });
   }
+  const lista = filtroListaImportada(f.cnps);
+  if (lista) out.push(lista);
   if (f.apenasSemClassif) {
     // O relatório exportado diz exactamente o que o filtro fez —
     // incluindo o que EXCLUIU. Sem a segunda metade, quem receber o PDF

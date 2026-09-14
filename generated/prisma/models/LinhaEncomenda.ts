@@ -44,6 +44,7 @@ export type LinhaEncomendaMinAggregateOutputType = {
   quantidadeAjustada: runtime.Decimal | null
   fornecedorSugeridoId: string | null
   notas: string | null
+  origem: $Enums.OrigemLinhaEncomenda | null
 }
 
 export type LinhaEncomendaMaxAggregateOutputType = {
@@ -54,6 +55,7 @@ export type LinhaEncomendaMaxAggregateOutputType = {
   quantidadeAjustada: runtime.Decimal | null
   fornecedorSugeridoId: string | null
   notas: string | null
+  origem: $Enums.OrigemLinhaEncomenda | null
 }
 
 export type LinhaEncomendaCountAggregateOutputType = {
@@ -64,6 +66,7 @@ export type LinhaEncomendaCountAggregateOutputType = {
   quantidadeAjustada: number
   fornecedorSugeridoId: number
   notas: number
+  origem: number
   _all: number
 }
 
@@ -86,6 +89,7 @@ export type LinhaEncomendaMinAggregateInputType = {
   quantidadeAjustada?: true
   fornecedorSugeridoId?: true
   notas?: true
+  origem?: true
 }
 
 export type LinhaEncomendaMaxAggregateInputType = {
@@ -96,6 +100,7 @@ export type LinhaEncomendaMaxAggregateInputType = {
   quantidadeAjustada?: true
   fornecedorSugeridoId?: true
   notas?: true
+  origem?: true
 }
 
 export type LinhaEncomendaCountAggregateInputType = {
@@ -106,6 +111,7 @@ export type LinhaEncomendaCountAggregateInputType = {
   quantidadeAjustada?: true
   fornecedorSugeridoId?: true
   notas?: true
+  origem?: true
   _all?: true
 }
 
@@ -203,6 +209,7 @@ export type LinhaEncomendaGroupByOutputType = {
   quantidadeAjustada: runtime.Decimal | null
   fornecedorSugeridoId: string | null
   notas: string | null
+  origem: $Enums.OrigemLinhaEncomenda
   _count: LinhaEncomendaCountAggregateOutputType | null
   _avg: LinhaEncomendaAvgAggregateOutputType | null
   _sum: LinhaEncomendaSumAggregateOutputType | null
@@ -236,6 +243,7 @@ export type LinhaEncomendaWhereInput = {
   quantidadeAjustada?: Prisma.DecimalNullableFilter<"LinhaEncomenda"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
   notas?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFilter<"LinhaEncomenda"> | $Enums.OrigemLinhaEncomenda
   listaEncomenda?: Prisma.XOR<Prisma.ListaEncomendaScalarRelationFilter, Prisma.ListaEncomendaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedorSugerido?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
@@ -249,6 +257,7 @@ export type LinhaEncomendaOrderByWithRelationInput = {
   quantidadeAjustada?: Prisma.SortOrderInput | Prisma.SortOrder
   fornecedorSugeridoId?: Prisma.SortOrderInput | Prisma.SortOrder
   notas?: Prisma.SortOrderInput | Prisma.SortOrder
+  origem?: Prisma.SortOrder
   listaEncomenda?: Prisma.ListaEncomendaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
   fornecedorSugerido?: Prisma.FornecedorOrderByWithRelationInput
@@ -266,6 +275,7 @@ export type LinhaEncomendaWhereUniqueInput = Prisma.AtLeast<{
   quantidadeAjustada?: Prisma.DecimalNullableFilter<"LinhaEncomenda"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
   notas?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFilter<"LinhaEncomenda"> | $Enums.OrigemLinhaEncomenda
   listaEncomenda?: Prisma.XOR<Prisma.ListaEncomendaScalarRelationFilter, Prisma.ListaEncomendaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   fornecedorSugerido?: Prisma.XOR<Prisma.FornecedorNullableScalarRelationFilter, Prisma.FornecedorWhereInput> | null
@@ -279,6 +289,7 @@ export type LinhaEncomendaOrderByWithAggregationInput = {
   quantidadeAjustada?: Prisma.SortOrderInput | Prisma.SortOrder
   fornecedorSugeridoId?: Prisma.SortOrderInput | Prisma.SortOrder
   notas?: Prisma.SortOrderInput | Prisma.SortOrder
+  origem?: Prisma.SortOrder
   _count?: Prisma.LinhaEncomendaCountOrderByAggregateInput
   _avg?: Prisma.LinhaEncomendaAvgOrderByAggregateInput
   _max?: Prisma.LinhaEncomendaMaxOrderByAggregateInput
@@ -297,6 +308,7 @@ export type LinhaEncomendaScalarWhereWithAggregatesInput = {
   quantidadeAjustada?: Prisma.DecimalNullableWithAggregatesFilter<"LinhaEncomenda"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.StringNullableWithAggregatesFilter<"LinhaEncomenda"> | string | null
   notas?: Prisma.StringNullableWithAggregatesFilter<"LinhaEncomenda"> | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaWithAggregatesFilter<"LinhaEncomenda"> | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateInput = {
@@ -304,6 +316,7 @@ export type LinhaEncomendaCreateInput = {
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
   listaEncomenda: Prisma.ListaEncomendaCreateNestedOneWithoutLinhasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutLinhasEncomendaInput
   fornecedorSugerido?: Prisma.FornecedorCreateNestedOneWithoutLinhasEncomendaInput
@@ -317,6 +330,7 @@ export type LinhaEncomendaUncheckedCreateInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUpdateInput = {
@@ -324,6 +338,7 @@ export type LinhaEncomendaUpdateInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
   listaEncomenda?: Prisma.ListaEncomendaUpdateOneRequiredWithoutLinhasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutLinhasEncomendaNestedInput
   fornecedorSugerido?: Prisma.FornecedorUpdateOneWithoutLinhasEncomendaNestedInput
@@ -337,6 +352,7 @@ export type LinhaEncomendaUncheckedUpdateInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateManyInput = {
@@ -347,6 +363,7 @@ export type LinhaEncomendaCreateManyInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUpdateManyMutationInput = {
@@ -354,6 +371,7 @@ export type LinhaEncomendaUpdateManyMutationInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUncheckedUpdateManyInput = {
@@ -364,6 +382,7 @@ export type LinhaEncomendaUncheckedUpdateManyInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaListRelationFilter = {
@@ -389,6 +408,7 @@ export type LinhaEncomendaCountOrderByAggregateInput = {
   quantidadeAjustada?: Prisma.SortOrder
   fornecedorSugeridoId?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
 }
 
 export type LinhaEncomendaAvgOrderByAggregateInput = {
@@ -404,6 +424,7 @@ export type LinhaEncomendaMaxOrderByAggregateInput = {
   quantidadeAjustada?: Prisma.SortOrder
   fornecedorSugeridoId?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
 }
 
 export type LinhaEncomendaMinOrderByAggregateInput = {
@@ -414,6 +435,7 @@ export type LinhaEncomendaMinOrderByAggregateInput = {
   quantidadeAjustada?: Prisma.SortOrder
   fornecedorSugeridoId?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  origem?: Prisma.SortOrder
 }
 
 export type LinhaEncomendaSumOrderByAggregateInput = {
@@ -547,11 +569,16 @@ export type LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput = 
   deleteMany?: Prisma.LinhaEncomendaScalarWhereInput | Prisma.LinhaEncomendaScalarWhereInput[]
 }
 
+export type EnumOrigemLinhaEncomendaFieldUpdateOperationsInput = {
+  set?: $Enums.OrigemLinhaEncomenda
+}
+
 export type LinhaEncomendaCreateWithoutProdutoInput = {
   id?: string
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
   listaEncomenda: Prisma.ListaEncomendaCreateNestedOneWithoutLinhasInput
   fornecedorSugerido?: Prisma.FornecedorCreateNestedOneWithoutLinhasEncomendaInput
 }
@@ -563,6 +590,7 @@ export type LinhaEncomendaUncheckedCreateWithoutProdutoInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateOrConnectWithoutProdutoInput = {
@@ -602,6 +630,7 @@ export type LinhaEncomendaScalarWhereInput = {
   quantidadeAjustada?: Prisma.DecimalNullableFilter<"LinhaEncomenda"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
   notas?: Prisma.StringNullableFilter<"LinhaEncomenda"> | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFilter<"LinhaEncomenda"> | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateWithoutFornecedorSugeridoInput = {
@@ -609,6 +638,7 @@ export type LinhaEncomendaCreateWithoutFornecedorSugeridoInput = {
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
   listaEncomenda: Prisma.ListaEncomendaCreateNestedOneWithoutLinhasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutLinhasEncomendaInput
 }
@@ -620,6 +650,7 @@ export type LinhaEncomendaUncheckedCreateWithoutFornecedorSugeridoInput = {
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateOrConnectWithoutFornecedorSugeridoInput = {
@@ -653,6 +684,7 @@ export type LinhaEncomendaCreateWithoutListaEncomendaInput = {
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
   produto: Prisma.ProdutoCreateNestedOneWithoutLinhasEncomendaInput
   fornecedorSugerido?: Prisma.FornecedorCreateNestedOneWithoutLinhasEncomendaInput
 }
@@ -664,6 +696,7 @@ export type LinhaEncomendaUncheckedCreateWithoutListaEncomendaInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateOrConnectWithoutListaEncomendaInput = {
@@ -699,6 +732,7 @@ export type LinhaEncomendaCreateManyProdutoInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUpdateWithoutProdutoInput = {
@@ -706,6 +740,7 @@ export type LinhaEncomendaUpdateWithoutProdutoInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
   listaEncomenda?: Prisma.ListaEncomendaUpdateOneRequiredWithoutLinhasNestedInput
   fornecedorSugerido?: Prisma.FornecedorUpdateOneWithoutLinhasEncomendaNestedInput
 }
@@ -717,6 +752,7 @@ export type LinhaEncomendaUncheckedUpdateWithoutProdutoInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUncheckedUpdateManyWithoutProdutoInput = {
@@ -726,6 +762,7 @@ export type LinhaEncomendaUncheckedUpdateManyWithoutProdutoInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateManyFornecedorSugeridoInput = {
@@ -735,6 +772,7 @@ export type LinhaEncomendaCreateManyFornecedorSugeridoInput = {
   quantidadeSugerida?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUpdateWithoutFornecedorSugeridoInput = {
@@ -742,6 +780,7 @@ export type LinhaEncomendaUpdateWithoutFornecedorSugeridoInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
   listaEncomenda?: Prisma.ListaEncomendaUpdateOneRequiredWithoutLinhasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutLinhasEncomendaNestedInput
 }
@@ -753,6 +792,7 @@ export type LinhaEncomendaUncheckedUpdateWithoutFornecedorSugeridoInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUncheckedUpdateManyWithoutFornecedorSugeridoInput = {
@@ -762,6 +802,7 @@ export type LinhaEncomendaUncheckedUpdateManyWithoutFornecedorSugeridoInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaCreateManyListaEncomendaInput = {
@@ -771,6 +812,7 @@ export type LinhaEncomendaCreateManyListaEncomendaInput = {
   quantidadeAjustada?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: string | null
   notas?: string | null
+  origem?: $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUpdateWithoutListaEncomendaInput = {
@@ -778,6 +820,7 @@ export type LinhaEncomendaUpdateWithoutListaEncomendaInput = {
   quantidadeSugerida?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutLinhasEncomendaNestedInput
   fornecedorSugerido?: Prisma.FornecedorUpdateOneWithoutLinhasEncomendaNestedInput
 }
@@ -789,6 +832,7 @@ export type LinhaEncomendaUncheckedUpdateWithoutListaEncomendaInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 export type LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaInput = {
@@ -798,6 +842,7 @@ export type LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaInput = {
   quantidadeAjustada?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   fornecedorSugeridoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  origem?: Prisma.EnumOrigemLinhaEncomendaFieldUpdateOperationsInput | $Enums.OrigemLinhaEncomenda
 }
 
 
@@ -810,6 +855,7 @@ export type LinhaEncomendaSelect<ExtArgs extends runtime.Types.Extensions.Intern
   quantidadeAjustada?: boolean
   fornecedorSugeridoId?: boolean
   notas?: boolean
+  origem?: boolean
   listaEncomenda?: boolean | Prisma.ListaEncomendaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorSugerido?: boolean | Prisma.LinhaEncomenda$fornecedorSugeridoArgs<ExtArgs>
@@ -823,6 +869,7 @@ export type LinhaEncomendaSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   quantidadeAjustada?: boolean
   fornecedorSugeridoId?: boolean
   notas?: boolean
+  origem?: boolean
   listaEncomenda?: boolean | Prisma.ListaEncomendaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorSugerido?: boolean | Prisma.LinhaEncomenda$fornecedorSugeridoArgs<ExtArgs>
@@ -836,6 +883,7 @@ export type LinhaEncomendaSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   quantidadeAjustada?: boolean
   fornecedorSugeridoId?: boolean
   notas?: boolean
+  origem?: boolean
   listaEncomenda?: boolean | Prisma.ListaEncomendaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   fornecedorSugerido?: boolean | Prisma.LinhaEncomenda$fornecedorSugeridoArgs<ExtArgs>
@@ -849,9 +897,10 @@ export type LinhaEncomendaSelectScalar = {
   quantidadeAjustada?: boolean
   fornecedorSugeridoId?: boolean
   notas?: boolean
+  origem?: boolean
 }
 
-export type LinhaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "listaEncomendaId" | "produtoId" | "quantidadeSugerida" | "quantidadeAjustada" | "fornecedorSugeridoId" | "notas", ExtArgs["result"]["linhaEncomenda"]>
+export type LinhaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "listaEncomendaId" | "produtoId" | "quantidadeSugerida" | "quantidadeAjustada" | "fornecedorSugeridoId" | "notas" | "origem", ExtArgs["result"]["linhaEncomenda"]>
 export type LinhaEncomendaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   listaEncomenda?: boolean | Prisma.ListaEncomendaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -883,6 +932,13 @@ export type $LinhaEncomendaPayload<ExtArgs extends runtime.Types.Extensions.Inte
     quantidadeAjustada: runtime.Decimal | null
     fornecedorSugeridoId: string | null
     notas: string | null
+    /**
+     * Proveniencia da linha. Default PROPOSTA: e' o que todas as linhas
+     * existentes sao — foram criadas pelo calculo automatico, que era o
+     * unico caminho ate' agora. Nenhuma linha historica muda de
+     * significado com esta coluna.
+     */
+    origem: $Enums.OrigemLinhaEncomenda
   }, ExtArgs["result"]["linhaEncomenda"]>
   composites: {}
 }
@@ -1316,6 +1372,7 @@ export interface LinhaEncomendaFieldRefs {
   readonly quantidadeAjustada: Prisma.FieldRef<"LinhaEncomenda", 'Decimal'>
   readonly fornecedorSugeridoId: Prisma.FieldRef<"LinhaEncomenda", 'String'>
   readonly notas: Prisma.FieldRef<"LinhaEncomenda", 'String'>
+  readonly origem: Prisma.FieldRef<"LinhaEncomenda", 'OrigemLinhaEncomenda'>
 }
     
 

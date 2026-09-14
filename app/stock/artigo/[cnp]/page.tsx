@@ -9,6 +9,14 @@ import {
   descreverPvpReferencia,
   desvioFaceAReferencia,
 } from "@/lib/pvp-referencia";
+import {
+  calcularPrecoReferencia,
+  descreverPrecoReferencia,
+} from "@/lib/produtos/preco-referencia";
+import {
+  custoDaFarmacia,
+  descreverFonteCusto,
+} from "@/lib/produtos/custo-farmacia";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ExtratoMovimentos } from "@/components/stock/extrato-movimentos";
 import {
@@ -68,7 +76,8 @@ function fmtDelta(delta: number): string {
  * juntos, e duas listas de larguras acabam por divergir na primeira vez
  * que alguém acrescenta uma coluna a uma delas.
  */
-const COLUNAS_STOCK = "grid-cols-[1.3fr_0.9fr_0.6fr_0.6fr_0.85fr_0.85fr]";
+const COLUNAS_STOCK =
+  "grid-cols-[1.2fr_0.85fr_0.85fr_0.55fr_0.55fr_0.8fr_0.8fr]";
 
 function fmtDate(value: Date | null | undefined): string {
   if (!value) return PLACEHOLDER;
@@ -224,12 +233,37 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const referencia = calcularPvpReferencia(precos);
   const pvp = referencia.valor;
 
+  // O CUSTO de cada farmácia: `ProdutoFarmacia.pmc`, com `.puc` quando o
+  // médio não existe. A regra é a de `lib/produtos/custo-farmacia.ts`, a
+  // mesma do Inventário e dos Excessos — e é lá que está escrito porque
+  // um zero não conta como custo.
+  //
+  // A referência usa o MESMO motor do PVP. O custo de um artigo não é
+  // igual em todas as farmácias por regra nenhuma: cada uma compra ao
+  // seu grossista, nas suas condições. É precisamente por isso que a
+  // pergunta «quem destoa» faz aqui mais sentido do que no PVP, onde a
+  // margem legal já aperta a dispersão.
+  const custosPorFarmacia = pfsActive.map((pf) =>
+    custoDaFarmacia(
+      pf.pmc !== null ? Number(pf.pmc) : null,
+      pf.puc !== null ? Number(pf.puc) : null,
+    ),
+  );
+  const custoReferencia = calcularPrecoReferencia(custosPorFarmacia.map((c) => c.valor));
+
   const stockRows = pfsActive
     .map((pf) => ({
       farmaciaId: pf.farmacia.id,
       farmaciaNome: pf.farmacia.nome,
       stock: pf.stockAtual !== null ? Number(pf.stockAtual) : null,
       pvp: pf.pvp !== null ? Number(pf.pvp) : null,
+      ...(() => {
+        const c = custoDaFarmacia(
+          pf.pmc !== null ? Number(pf.pmc) : null,
+          pf.puc !== null ? Number(pf.puc) : null,
+        );
+        return { custo: c.valor, fonteCusto: c.fonte };
+      })(),
       ultimaVenda: pf.dataUltimaVenda,
       ultimaCompra: pf.dataUltimaCompra,
       validadeMaisAntiga: pf.validadeMaisAntiga,
@@ -382,6 +416,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             value={fmtCurrency(pvp)}
             helper={descreverPvpReferencia(referencia)}
           />
+          {/* O custo ao lado do PVP e com o mesmo tratamento: é a
+              pergunta económica que faltava à ficha, e quem a faz tem o
+              PVP à frente dos olhos na mesma linha. */}
+          <SmallMetric
+            label="Custo de referência"
+            value={fmtCurrency(custoReferencia.valor)}
+            helper={descreverPrecoReferencia(custoReferencia, "pago")}
+          />
         </section>
 
         {/* Stock por farmácia (real) */}
@@ -400,6 +442,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               <div className={`grid ${COLUNAS_STOCK} gap-4 border-b border-slate-100 pb-2 text-[10px] uppercase tracking-[0.14em] text-slate-400`}>
                 <div>Farmácia</div>
                 <div className="text-right">PVP</div>
+                <div className="text-right">Custo</div>
                 <div>Stock</div>
                 <div>Mínimo</div>
                 <div>Última venda</div>
@@ -409,6 +452,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 // Só há desvio a mostrar quando o preço difere mesmo. Um
                 // "+0,00" em todas as linhas seria ruído a fingir sinal.
                 const desvio = desvioFaceAReferencia(row.pvp, referencia.valor);
+                const desvioCusto = desvioFaceAReferencia(row.custo, custoReferencia.valor);
                 return (
                   <div
                     key={row.farmaciaId}
@@ -425,6 +469,28 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                           title={`Difere do PVP de referência (${fmtCurrency(referencia.valor)})`}
                         >
                           {fmtDelta(desvio)}
+                        </span>
+                      )}
+                    </div>
+                    {/* Mesmo tratamento do PVP: o desvio só aparece
+                        quando há diferença real face à referência. */}
+                    <div
+                      className="text-right tabular-nums"
+                      title={descreverFonteCusto(row.fonteCusto)}
+                    >
+                      <span className="text-slate-800">{fmtCurrency(row.custo)}</span>
+                      {row.fonteCusto === "PUC" && (
+                        // Um custo vindo da última compra não é o mesmo
+                        // dado que um preço médio, e a coluna não pode
+                        // fingir que é. O asterisco é o aviso mínimo.
+                        <span className="ml-0.5 text-[10px] text-slate-400">*</span>
+                      )}
+                      {desvioCusto !== null && (
+                        <span
+                          className="ml-1.5 text-[10px] font-medium tabular-nums text-amber-700"
+                          title={`Difere do custo de referência (${fmtCurrency(custoReferencia.valor)})`}
+                        >
+                          {fmtDelta(desvioCusto)}
                         </span>
                       )}
                     </div>

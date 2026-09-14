@@ -14,6 +14,13 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
+import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
+import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
 import {
   ROTULO_TOTAL_ARTIGO,
   agruparPorArtigo,
@@ -165,6 +172,15 @@ export function VendasClient({
   const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
   const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
   const [artigo, setArtigo] = useState("");
+  /**
+   * Lista de CNP importada por ficheiro.
+   *
+   * Ao contrário dos outros filtros desta página, NÃO é refinada
+   * client-side: viaja em `filters.cnps` e restringe o universo já no
+   * SQL, via `restringirPorCatalogo`. É a mesma lista, o mesmo campo e
+   * o mesmo caminho do Inventário, das Margens e das Encomendas.
+   */
+  const [listaCodigos, setListaCodigos] = useState<ListaCodigosResolvida | null>(null);
   const [dataInicio, setDataInicio] = useState(defaultDataInicio());
   const [dataFim, setDataFim] = useState(defaultDataFim());
   const [agruparPor, setAgruparPor] = useState<Agrupamento>("artigo");
@@ -404,15 +420,39 @@ export function VendasClient({
    * qualquer soma — os totais gerais continuam a somar `orderedRows`,
    * que são só as linhas reais.
    */
+  // ── Ordenação por cabeçalho ──────────────────────────────────────
+  //
+  // Sobrepõe-se ao selector "Ordenar por" sem o substituir: enquanto
+  // ninguém clicar num cabeçalho, o selector manda.
+  //
+  // Aplica-se a `orderedRows` — ANTES do agrupamento por artigo — e a
+  // razão é estrutural: `agruparPorArtigo` insere uma linha
+  // "TOTAL ARTIGO" a seguir aos detalhes de cada código. Ordenar depois
+  // do agrupamento arrancaria os totais dos grupos a que pertencem e
+  // espalhá-los-ia pela tabela como se fossem produtos.
+  //
+  // O agrupamento preserva a ordem: usa um `Map` por código, e a ordem
+  // de inserção de um Map é a de primeira aparição — ou seja, a ordem
+  // que a ordenação acabou de definir.
+  const { ordenacao, alternar } = useOrdenacao<ColunaVendas>(null);
+
+  const rowsOrdenadas = useMemo(
+    () =>
+      ordenacao
+        ? ordenarLinhas(orderedRows, ordenacao, (row, col) => acessorVendas(row, col))
+        : orderedRows,
+    [orderedRows, ordenacao],
+  );
+
   const linhasTabela = useMemo(() => {
     const detalhe = (row: AggregatedRow, i: number) => ({
       row,
       subtotal: false,
       key: `d-${row.codigo}-${row.farmacia}-${i}`,
     });
-    if (agruparPor !== "artigo") return orderedRows.map(detalhe);
+    if (agruparPor !== "artigo") return rowsOrdenadas.map(detalhe);
 
-    return agruparPorArtigo(orderedRows, buckets).flatMap((g) => {
+    return agruparPorArtigo(rowsOrdenadas, buckets).flatMap((g) => {
       const linhas = g.detalhes.map(detalhe);
       // Um artigo numa farmácia só não leva total: era uma cópia da
       // linha de cima.
@@ -428,7 +468,7 @@ export function VendasClient({
       };
       return [...linhas, { row: total, subtotal: true, key: `t-${g.codigo}` }];
     });
-  }, [orderedRows, agruparPor, buckets]);
+  }, [rowsOrdenadas, agruparPor, buckets]);
 
   const resumo = useMemo(() => {
     // Valor gravado no ledger, não `totalVendas × pvp`. O `pvp` vem de
@@ -601,7 +641,10 @@ export function VendasClient({
     farmaciasSelecionadas.length +
     fornecedoresSelecionados.length +
     fabricantesSelecionados.length +
-    categoriasSelecionadas.length;
+    categoriasSelecionadas.length +
+    // A lista conta como UM filtro, não como 437. O contador diz quantos
+    // eixos estão activos, e um ficheiro é um eixo.
+    (listaCodigos ? 1 : 0);
 
   const showFarmaciaColumnInReport =
     ambito === "comparativo" || farmaciasSelecionadas.length !== 1;
@@ -634,6 +677,9 @@ export function VendasClient({
               ? fornecedoresSelecionados
               : undefined,
           pesquisa: artigo.trim() ? artigo.trim() : undefined,
+          // `undefined` sem lista, o array (mesmo vazio) com lista.
+          // Ver `SharedReportFilters.cnps`.
+          cnps: listaCodigos ? listaCodigos.cnps : undefined,
           // Explícitos, não `|| undefined`: um `false` desligado pelo
           // utilizador tem de chegar ao loader como `false`, não como
           // "não disse nada" — que voltaria ao default ON.
@@ -764,6 +810,7 @@ export function VendasClient({
                       fabricantesSelecionados,
                       categoriasSelecionadas,
                       artigo,
+                      cnps: listaCodigos ? listaCodigos.cnps : undefined,
                       dataInicio: periodHeader?.from ?? dataInicio,
                       dataFim: periodHeader?.to ?? dataFim,
                       agruparPor,
@@ -784,6 +831,13 @@ export function VendasClient({
 
           {filtrosAbertos && (
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="mb-3">
+                <ImportListaCodigos
+                  lista={listaCodigos}
+                  onChange={setListaCodigos}
+                  disabled={isPending}
+                />
+              </div>
               <div className="grid gap-3 xl:grid-cols-4">
                 <SearchableMultiSelect
                   label="Farmácia"
@@ -1059,25 +1113,37 @@ export function VendasClient({
                 <table className="min-w-full text-left">
                   <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                     <tr>
-                      <th className="px-4 py-2.5 font-semibold">Código</th>
-                      <th className="px-3 py-2.5 font-semibold">Descrição</th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="codigo" className="px-4 py-2.5 font-semibold">Código</CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="descricao" className="px-3 py-2.5 font-semibold">Descrição</CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pvp" align="center" className="px-2 py-2.5 font-semibold">
                         PVP
-                      </th>
-                      {buckets.map((b) => (
-                        <th
+                      </CabecalhoOrdenavel>
+                      {/* As colunas mensais são dinâmicas — dependem do
+                          período escolhido. A chave de ordenação leva o
+                          ÍNDICE do bucket (`mes:0`, `mes:1`…) e não o
+                          ano-mês: é a posição em `row.meses` que o
+                          acessor precisa, e é ela que sobrevive a uma
+                          mudança de período sem apontar para o mês
+                          errado. */}
+                      {buckets.map((b, i) => (
+                        <CabecalhoOrdenavel
                           key={`th-${bucketKey(b)}`}
-                          className="px-2 py-2.5 text-center font-semibold"
+                          as="th"
+                          ordenacao={ordenacao}
+                          onOrdenar={alternar}
+                          coluna={`mes:${i}` as ColunaVendas}
+                          align="center"
+                          className="px-2 py-2.5 font-semibold"
                         >
                           {bucketLabel(b)}
-                        </th>
+                        </CabecalhoOrdenavel>
                       ))}
-                      <th className="px-2 py-2.5 text-center font-semibold">
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="totalVendas" align="center" className="px-2 py-2.5 font-semibold">
                         Tot. Ven.
-                      </th>
-                      <th className="px-2 py-2.5 text-center font-semibold">
+                      </CabecalhoOrdenavel>
+                      <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="existencia" align="center" className="px-2 py-2.5 font-semibold">
                         Exist.
-                      </th>
+                      </CabecalhoOrdenavel>
                     </tr>
                   </thead>
 
@@ -1788,4 +1854,36 @@ function humanizeOption(option: string) {
   };
 
   return map[option] ?? option;
+}
+
+
+/**
+ * As colunas ordenáveis do Relatório de Vendas.
+ *
+ * `mes:${number}` é uma chave-modelo e não uma lista fixa: as colunas
+ * mensais dependem do período escolhido, e um período de 14 meses tem
+ * 14 colunas que não existem em código. O índice é a posição em
+ * `row.meses` — alinhada com `buckets` pelo loader.
+ */
+type ColunaVendas =
+  | "codigo"
+  | "descricao"
+  | "pvp"
+  | "totalVendas"
+  | "existencia"
+  | "farmacia"
+  | `mes:${number}`;
+
+function acessorVendas(row: SalesReportRow, coluna: ColunaVendas): ValorOrdenavel {
+  if (coluna.startsWith("mes:")) {
+    const i = Number(coluna.slice(4));
+    // Uma linha pode vir curta se o loader e os buckets se
+    // dessincronizarem; `undefined` é tratado como ausência pelo motor,
+    // que a manda para o fim em vez de a somar como zero.
+    return row.meses[i]?.quantidade;
+  }
+  // `codigo` é texto na linha mas é um número: ordenado como texto,
+  // "5880075" vinha antes de "999999".
+  if (coluna === "codigo") return Number(row.codigo);
+  return row[coluna as keyof SalesReportRow] as ValorOrdenavel;
 }

@@ -323,7 +323,10 @@ export async function getMargensData(
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return emptyResult();
   }
-  // Subcategoria (N2) e utilização — mesmo padrão, helper partilhado.
+  // Lista de CNP importada, subcategoria (N2) e utilizacao —
+  // mesmo padrao, helper partilhado. A lista entra por aqui e nao
+  // por um ramo proprio: e' o que faz os tres relatorios ganharem-na
+  // sem nenhum deles a conhecer. Ver lib/reporting/catalog-prefilter.ts.
   if (temFiltroCatalogo(filters)) {
     produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
     if (produtoIdFilter && produtoIdFilter.length === 0) return emptyResult();

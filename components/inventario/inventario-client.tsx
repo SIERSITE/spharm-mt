@@ -23,6 +23,16 @@ import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useMemo, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
+import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import {
+  ordenarLinhas,
+  type EstadoOrdenacao,
+  type ValorOrdenavel,
+} from "@/lib/tabela/ordenacao";
 import { ReportActions } from "@/components/reporting/report-actions";
 import { runInventarioReport } from "@/app/relatorios/inventario/actions";
 import type {
@@ -125,7 +135,17 @@ export function InventarioClient({
     to: new Date().toISOString().slice(0, 10),
   });
 
-  // Vista + agrupamento dentro de "Por produto"
+  /**
+   * A lista de CNP importada por ficheiro.
+   *
+   * Vive ao lado dos filtros e não dentro deles: `filters.cnps` é só o
+   * array de números que o loader precisa, e isto é o resumo que a UI
+   * mostra (ficheiro, encontrados, não encontrados). Quem os mantém em
+   * sincronia é o `ReportFiltersBar`, num único `onChange`.
+   */
+  const [lista, setLista] = useState<ListaCodigosResolvida | null>(null);
+
+    // Vista + agrupamento dentro de "Por produto"
   const [vista, setVista] = useState<Vista>("produto");
   const [agrupamento, setAgrupamento] = useState<AgrupamentoProduto>("artigo");
   const [estadoChip, setEstadoChip] = useState<"todos" | EstadoInventario>("todos");
@@ -155,6 +175,19 @@ export function InventarioClient({
     if (estadoChip === "todos") return result.porProduto;
     return result.porProduto.filter((r) => r.estado === estadoChip);
   }, [result, estadoChip]);
+
+  // ── Ordenação por cabeçalho ──────────────────────────────────────
+  //
+  // O loader NÃO pagina: `getInventarioData` devolve o universo inteiro
+  // e o cliente refina. Ordenar aqui ordena TUDO, não a página — ao
+  // contrário de /stock, que pagina no servidor e por isso manda a
+  // ordenação para o SQL. Ver `lib/tabela/ordenacao.ts`.
+  const { ordenacao, alternar } = useOrdenacao<ColunaInventario>(null);
+
+  const rowsOrdenadas = useMemo(
+    () => (ordenacao ? ordenarLinhas(rowsByEstado, ordenacao, acessorInventario) : rowsByEstado),
+    [rowsByEstado, ordenacao],
+  );
 
   // Agregações para "agruparPor=farmacia" sobre rowsByEstado.
   // (artigo = sem agregação, mostra linha-a-linha.)
@@ -253,7 +286,9 @@ export function InventarioClient({
       });
     }
     return buildInventarioReport({
-      rows: rowsByEstado,
+      // As MESMAS linhas que estão no ecrã, na MESMA ordem: quem ordena
+      // a tabela e depois exporta espera o PDF pela ordem que viu.
+      rows: rowsOrdenadas,
       filters,
       universe: uni,
       organization,
@@ -333,6 +368,8 @@ export function InventarioClient({
           onChange={setFilters}
           hideDates
           searchPlaceholder="Pesquisar CNP ou descrição"
+          lista={lista}
+          onListaChange={setLista}
         />
 
         {error && (
@@ -360,7 +397,9 @@ export function InventarioClient({
           <ViewPorIva rows={result?.porIva ?? []} />
         ) : (
           <ViewPorProduto
-            rows={rowsByEstado}
+            rows={rowsOrdenadas}
+            ordenacao={ordenacao}
+            onOrdenar={alternar}
             counts={counts}
             estadoChip={estadoChip}
             setEstadoChip={setEstadoChip}
@@ -384,8 +423,12 @@ function ViewPorProduto({
   agrupamento,
   setAgrupamento,
   aggregated,
+  ordenacao,
+  onOrdenar,
 }: {
   rows: InventarioRow[];
+  ordenacao: EstadoOrdenacao<ColunaInventario>;
+  onOrdenar: (c: ColunaInventario) => void;
   counts: Record<"todos" | EstadoInventario, number>;
   estadoChip: "todos" | EstadoInventario;
   setEstadoChip: (s: "todos" | EstadoInventario) => void;
@@ -461,14 +504,22 @@ function ViewPorProduto({
         {aggregated ? (
           <TabelaAgregadaProduto rows={aggregated} groupBy={agrupamento} />
         ) : (
-          <TabelaLinhaProduto rows={rows} />
+          <TabelaLinhaProduto rows={rows} ordenacao={ordenacao} onOrdenar={onOrdenar} />
         )}
       </section>
     </>
   );
 }
 
-function TabelaLinhaProduto({ rows }: { rows: InventarioRow[] }) {
+function TabelaLinhaProduto({
+  rows,
+  ordenacao,
+  onOrdenar,
+}: {
+  rows: InventarioRow[];
+  ordenacao: EstadoOrdenacao<ColunaInventario>;
+  onOrdenar: (c: ColunaInventario) => void;
+}) {
   if (rows.length === 0) {
     return (
       <div className="px-4 py-10 text-center text-[12px] text-slate-500">
@@ -481,19 +532,19 @@ function TabelaLinhaProduto({ rows }: { rows: InventarioRow[] }) {
       <table className="min-w-full text-left text-[12px]">
         <thead className="border-b border-slate-200 text-[10px] uppercase tracking-[0.14em] text-slate-500">
           <tr>
-            <th className="py-2 pr-3">CNP</th>
-            <th className="py-2 pr-3">Descrição</th>
-            <th className="py-2 pr-3">Categoria</th>
-            <th className="py-2 pr-3">Farmácia</th>
-            <th className="py-2 pr-3 text-right">Stock</th>
-            <th className="py-2 pr-3 text-right">PMC</th>
-            <th className="py-2 pr-3 text-right">PVP</th>
-            <th className="py-2 pr-3 text-right">IVA %</th>
-            <th className="py-2 pr-3 text-right">Val. s/IVA</th>
-            <th className="py-2 pr-3 text-right">IVA €</th>
-            <th className="py-2 pr-3 text-right">Val. c/IVA</th>
-            <th className="py-2 pr-3 text-right">Cobert.</th>
-            <th className="py-2 pr-3">Estado</th>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="cnp" className="py-2 pr-3">CNP</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="designacao" className="py-2 pr-3">Descrição</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="categoria" className="py-2 pr-3">Categoria</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="farmacia" className="py-2 pr-3">Farmácia</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="stockAtual" align="right" className="py-2 pr-3 text-right">Stock</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="pmc" align="right" className="py-2 pr-3 text-right">PMC</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="pvp" align="right" className="py-2 pr-3 text-right">PVP</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="taxaIva" align="right" className="py-2 pr-3 text-right">IVA %</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorStock" align="right" className="py-2 pr-3 text-right">Val. s/IVA</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorIva" align="right" className="py-2 pr-3 text-right">IVA €</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="valorStockComIva" align="right" className="py-2 pr-3 text-right">Val. c/IVA</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="coberturaDias" align="right" className="py-2 pr-3 text-right">Cobert.</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={onOrdenar} coluna="estado" className="py-2 pr-3">Estado</CabecalhoOrdenavel>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -905,4 +956,55 @@ function ViewPorFarmacia({ rows }: { rows: InventarioPorFarmaciaRow[] }) {
       </div>
     </section>
   );
+}
+
+
+/**
+ * As colunas ordenáveis do Inventário «Por produto».
+ *
+ * União de literais: acrescentar um cabeçalho sem lhe dar acessor passa
+ * a ser erro de compilação, e não uma coluna que se clica sem efeito.
+ */
+type ColunaInventario =
+  | "cnp"
+  | "designacao"
+  | "categoria"
+  | "farmacia"
+  | "stockAtual"
+  | "pmc"
+  | "pvp"
+  | "taxaIva"
+  | "valorStock"
+  | "valorIva"
+  | "valorStockComIva"
+  | "coberturaDias"
+  | "estado";
+
+/**
+ * A severidade dos estados, para a coluna «Estado» ordenar por algo que
+ * signifique alguma coisa.
+ *
+ * Alfabeticamente, `EXCESSO` vem antes de `NORMAL` que vem antes de
+ * `ROTURA` — uma ordem que não diz nada a ninguém. A ordem útil é a da
+ * gravidade operacional: a rotura é o que custa vendas hoje, o excesso é
+ * capital preso, e as ausências de dado ficam no fim porque não são um
+ * estado do artigo mas do que sabemos sobre ele.
+ *
+ * Ordenar descendente põe as roturas no topo, que é a razão de alguém
+ * clicar nesta coluna.
+ */
+const SEVERIDADE_INVENTARIO: Record<EstadoInventario, number> = {
+  ROTURA: 6,
+  EXCESSO: 5,
+  SEM_MOVIMENTO: 4,
+  NORMAL: 3,
+  SEM_STOCK: 2,
+  SEM_CUSTO: 1,
+};
+
+function acessorInventario(row: InventarioRow, coluna: ColunaInventario): ValorOrdenavel {
+  // `estado` é um enum e não um texto: ordenado como texto daria a ordem
+  // do alfabeto, que não é a ordem de ninguém.
+  if (coluna === "estado") return SEVERIDADE_INVENTARIO[row.estado];
+  return row[coluna] as ValorOrdenavel;
 }

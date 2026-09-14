@@ -733,7 +733,8 @@ export const LinhaEncomendaScalarFieldEnum = {
   quantidadeSugerida: 'quantidadeSugerida',
   quantidadeAjustada: 'quantidadeAjustada',
   fornecedorSugeridoId: 'fornecedorSugeridoId',
-  notas: 'notas'
+  notas: 'notas',
+  origem: 'origem'
 } as const
 
 export type LinhaEncomendaScalarFieldEnum = (typeof LinhaEncomendaScalarFieldEnum)[keyof typeof LinhaEncomendaScalarFieldEnum]

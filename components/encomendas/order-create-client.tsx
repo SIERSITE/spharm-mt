@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
+import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import {
   createOrderAction,
   createInternalTransferAction,
@@ -15,6 +15,24 @@ import {
   type ProductSearchResult,
 } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
+import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+import {
+  fundirComProposta,
+  rotuloOrigem,
+  sobreviveARecalculo,
+  type OrigemLinha,
+} from "@/lib/encomendas/origem-linha";
+import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
+// Do modulo PURO, nao de `proposal.ts`: aquele tem `server-only` e um
+// import de VALOR daqui arrastava-o para o bundle do browser. O `tsc`
+// nao apanha isto — so' o bundler, no `next build`.
+import { MAX_LINHAS_PROPOSTA } from "@/lib/encomendas/limites";
+import type { ResumoListaImportada } from "@/lib/encomendas/proposal";
 import type {
   ProposalRow,
   ProposalBaseRule,
@@ -44,21 +62,27 @@ type Line = {
   transferirQty: number;
   finalQty: string;
   notas: string;
-  source: "proposal" | "manual" | "prefill";
+  /**
+   * Proveniência da linha — os MESMOS valores do enum da base de dados
+   * (`OrigemLinhaEncomenda`).
+   *
+   * Eram `"proposal" | "manual" | "prefill"`, só no cliente e sem
+   * persistência. Passam a ser `PROPOSTA | MANUAL | SUGESTAO` para não
+   * haver tradução entre o que o ecrã sabe e o que a coluna guarda: a
+   * tradução é o sítio onde os dois lados divergem no dia em que alguém
+   * acrescenta um quarto valor a um só deles.
+   */
+  origem: OrigemLinha;
   estado: ProposalEstado | null;
   motivo: string | null;
   excessoFonte: ExcessoInfo[];
+  /**
+   * O artigo está aqui porque o utilizador o nomeou numa lista
+   * importada e NÃO vendeu no período. Ver `ProposalRow`.
+   */
+  semVendasNoPeriodo: boolean;
 };
 
-type SortCol =
-  | "designacao"
-  | "farmaciaNome"
-  | "salesQty"
-  | "avgDailySales"
-  | "currentStock"
-  | "coberturaAtualDias"
-  | "pendingQty"
-  | "suggestedQty";
 
 type Props = {
   farmacias: { id: string; nome: string }[];
@@ -180,6 +204,15 @@ export function OrderCreateClient({
   const [selSubcategorias, setSelSubcategorias] = useState<string[]>([]);
   const [selUtilizacoes, setSelUtilizacoes] = useState<string[]>([]);
   const [selProductTypes, setSelProductTypes] = useState<string[]>([]);
+  /**
+   * Lista de CNP importada por ficheiro.
+   *
+   * Define o UNIVERSO de artigos da proposta e mais nada: a cobertura, o
+   * stock, os pendentes e o excedente continuam a ser calculados pela
+   * lógica de sempre. É o mesmo componente, o mesmo endpoint e o mesmo
+   * campo (`cnps`) dos Relatórios.
+   */
+  const [listaCodigos, setListaCodigos] = useState<ListaCodigosResolvida | null>(null);
 
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
@@ -198,6 +231,14 @@ export function OrderCreateClient({
   const [proposalMeta, setProposalMeta] = useState<{
     numDays: number;
     stats: ProposalStats;
+    /** A proposta bateu no tecto de 500 linhas. Ver `ProposalResult.meta`. */
+    truncated: boolean;
+    /** Quantos CNP vinham da lista importada. */
+    cnpsNaLista?: number;
+    /** Produtos DISTINTOS que a proposta encontrou com vendas no período. */
+    comVendas: number;
+    /** A contabilidade da lista importada. Ver `ResumoListaImportada`. */
+    listaImportada?: ResumoListaImportada;
   } | null>(null);
 
   // ─── Filtros da tabela ────────────────────────────────────────────────────
@@ -206,8 +247,20 @@ export function OrderCreateClient({
   const [filterFarmaciaTabela, setFilterFarmaciaTabela] = useState("");
   const [filterRuturas, setFilterRuturas] = useState(false);
   const [filterStockBaixo, setFilterStockBaixo] = useState(false);
-  const [sortCol, setSortCol] = useState<SortCol>("salesQty");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // ── Ordenação ────────────────────────────────────────────────────
+  //
+  // Esta tabela era a ÚNICA da aplicação com ordenação por cabeçalho, e
+  // tinha a sua própria cópia do ciclo asc/desc, do comparador e do
+  // indicador. É literalmente o caso que `lib/tabela/ordenacao.ts`
+  // existe para eliminar — passa a usar o motor comum.
+  //
+  // O estado inicial preserva EXACTAMENTE o comportamento anterior:
+  // vendas decrescentes. Arrancar sem ordenação mudaria a primeira
+  // coisa que o utilizador vê ao gerar uma proposta.
+  const { ordenacao, alternar } = useOrdenacao<ColunaEncomenda>({
+    coluna: "salesQty",
+    direcao: "desc",
+  });
 
   // ─── Picker manual ────────────────────────────────────────────────────────
   const [manualOpen, setManualOpen] = useState(false);
@@ -253,26 +306,10 @@ export function OrderCreateClient({
         (l) => l.currentStock != null && l.currentStock > 0 && l.suggestedQty != null && l.suggestedQty > 0
       );
 
-    return [...list].sort((a, b) => {
-      let va: number | string | null = null;
-      let vb: number | string | null = null;
-      switch (sortCol) {
-        case "designacao": va = a.designacao; vb = b.designacao; break;
-        case "farmaciaNome": va = a.farmaciaNome ?? ""; vb = b.farmaciaNome ?? ""; break;
-        case "salesQty": va = a.salesQty; vb = b.salesQty; break;
-        case "avgDailySales": va = a.avgDailySales; vb = b.avgDailySales; break;
-        case "currentStock": va = a.currentStock; vb = b.currentStock; break;
-        case "coberturaAtualDias": va = a.coberturaAtualDias; vb = b.coberturaAtualDias; break;
-        case "pendingQty": va = a.pendingQty; vb = b.pendingQty; break;
-        case "suggestedQty": va = a.suggestedQty; vb = b.suggestedQty; break;
-      }
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
-      if (typeof va === "string" && typeof vb === "string")
-        return sortDir === "asc" ? va.localeCompare(vb, "pt") : vb.localeCompare(va, "pt");
-      return sortDir === "asc" ? Number(va) - Number(vb) : Number(vb) - Number(va);
-    });
-  }, [linhas, tableSearch, filterFarmaciaTabela, filterEstado, filterRuturas, filterStockBaixo, sortCol, sortDir]);
+    // A ordenação vem DEPOIS dos filtros, sobre a lista já filtrada:
+    // o utilizador ordena o que está a ver.
+    return ordenarLinhas(list, ordenacao, acessorEncomenda);
+  }, [linhas, tableSearch, filterFarmaciaTabela, filterEstado, filterRuturas, filterStockBaixo, ordenacao]);
 
   // Vista consolidada (agrupada por produto)
   const consolidadoRows = useMemo(() => {
@@ -378,7 +415,10 @@ export function OrderCreateClient({
       salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
       coberturaAtualDias: null, pendingQty: null, suggestedQty: qty,
       transferirQty: 0, finalQty: qty != null ? String(qty) : "", notas: "",
-      source: "prefill", estado: null, motivo: null, excessoFonte: [],
+      origem: "SUGESTAO", estado: null, motivo: null, excessoFonte: [],
+      // Linha posta a mao: a nocao de "vendeu no periodo" nao se
+      // aplica — nao veio de nenhum calculo sobre vendas.
+      semVendasNoPeriodo: false,
     };
   }
 
@@ -392,8 +432,9 @@ export function OrderCreateClient({
       pendingQty: r.pendingQty, suggestedQty: r.suggestedQty,
       transferirQty: r.transferirQty,
       finalQty: r.estado === "TRANSFERÊNCIA" ? "0" : String(r.suggestedQty),
-      notas: "", source: "proposal",
+      notas: "", origem: "PROPOSTA",
       estado: r.estado, motivo: r.motivo, excessoFonte: r.excessoFonte,
+      semVendasNoPeriodo: r.semVendasNoPeriodo,
     };
   }
 
@@ -406,7 +447,10 @@ export function OrderCreateClient({
       salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
       coberturaAtualDias: null, pendingQty: null, suggestedQty: null,
       transferirQty: 0, finalQty: "1", notas: "",
-      source: "manual", estado: null, motivo: null, excessoFonte: [],
+      origem: "MANUAL", estado: null, motivo: null, excessoFonte: [],
+      // Linha posta a mao: a nocao de "vendeu no periodo" nao se
+      // aplica — nao veio de nenhum calculo sobre vendas.
+      semVendasNoPeriodo: false,
     };
   }
 
@@ -432,10 +476,6 @@ export function OrderCreateClient({
     setFarmaciaId(nextId);
   }
 
-  function handleSort(col: SortCol) {
-    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortCol(col); setSortDir("desc"); }
-  }
 
   function handleGenerate() {
     setFlash(null);
@@ -443,7 +483,17 @@ export function OrderCreateClient({
       setFlash({ type: "err", msg: "Seleccione uma farmácia." });
       return;
     }
-    if (linhas.length > 0 && !window.confirm("Gerar nova proposta substitui as linhas actuais. Continuar?"))
+    // O aviso só faz sentido quando há mesmo algo a perder: as linhas
+    // de PROPOSTA. As manuais e as de sugestão sobrevivem, e avisar que
+    // vão ser substituídas quando não vão ensina a ignorar o aviso.
+    const descartaveis = linhas.filter((l) => !sobreviveARecalculo(l.origem)).length;
+    if (
+      descartaveis > 0 &&
+      !window.confirm(
+        `Gerar nova proposta substitui ${descartaveis} linha(s) calculada(s). ` +
+          `As linhas manuais são preservadas. Continuar?`,
+      )
+    )
       return;
 
     const commonInput = {
@@ -455,6 +505,8 @@ export function OrderCreateClient({
         fabricantes: selFabricantes, fornecedores: selFornecedores,
         categorias: selCategorias, subcategorias: selSubcategorias,
         utilizacoes: selUtilizacoes, productTypes: selProductTypes,
+        // `undefined` sem lista; o array (mesmo vazio) com lista.
+        cnps: listaCodigos ? listaCodigos.cnps : undefined,
       },
     };
 
@@ -462,24 +514,66 @@ export function OrderCreateClient({
       const result = await generateProposalAction(commonInput);
       if (!result.ok) { setFlash({ type: "err", msg: result.error }); return; }
 
-      const lines = result.data.rows
-        .filter((r) => r.estado !== "ADEQUADO" || !considerStock)
+      // ── Quem entra na encomenda ──────────────────────────────────
+      //
+      // Sem lista, mantém-se o de sempre: as linhas ADEQUADAS não
+      // aparecem, porque a proposta automática só propõe o que há a
+      // fazer e uma lista de 3 000 artigos «já está bem» não é uma
+      // encomenda.
+      //
+      // COM lista, todas entram. O utilizador nomeou os artigos um a
+      // um; escondê-los porque o cálculo deu zero é exactamente o
+      // «desaparecer em silêncio» — ele contou 1 210 e viu 940, sem
+      // nada no ecrã a explicar os 270. Entram com quantidade 0,
+      // prontos a ser ajustados à mão.
+      const temLista = listaCodigos !== null;
+      const novas = result.data.rows
+        .filter((r) => temLista || r.estado !== "ADEQUADO" || !considerStock)
         .map(buildProposalLine);
 
-      setLinhas(lines);
+      // ── O recálculo NÃO destrói o que foi decidido à mão ──────────
+      //
+      // Isto era `setLinhas(novas)`. Tudo o que o utilizador tinha
+      // acrescentado desaparecia — e a linha manual é, por construção,
+      // a que ele mais pensou: foi escolhida uma a uma, contra a
+      // recomendação do cálculo. Havia um `confirm()` a avisar, mas
+      // avisar de uma perda não é o mesmo que não a causar.
+      //
+      // A regra vive em `lib/encomendas/origem-linha.ts`, onde é
+      // testável sem montar um DOM.
+      const fusao = fundirComProposta(linhas, novas);
+      setLinhas(fusao.linhas);
       setHasProposal(true);
-      setProposalMeta({ numDays: result.data.meta.numDays, stats: result.data.meta.stats });
+      setProposalMeta({
+        numDays: result.data.meta.numDays,
+        stats: result.data.meta.stats,
+        truncated: result.data.meta.truncated,
+        cnpsNaLista: result.data.meta.cnpsNaLista,
+        // Produtos distintos: em modo grupo a mesma referência aparece
+        // uma vez por farmácia, e contar linhas dizia "360 de 437" para
+        // 120 artigos em três farmácias.
+        comVendas: new Set(result.data.rows.map((r) => r.cnp)).size,
+        listaImportada: result.data.meta.listaImportada,
+      });
       setFilterEstado(null);
       setFilterFarmaciaTabela("");
 
       const { stats } = result.data.meta;
       const parts: string[] = [];
+      if (fusao.preservadas > 0) {
+        parts.push(`${fusao.preservadas} linha(s) manuais preservadas`);
+      }
+      if (fusao.propostasIgnoradas > 0) {
+        // O utilizador tem de saber que o cálculo propôs algo para um
+        // artigo que ele já tinha decidido — e que a decisão dele ficou.
+        parts.push(`${fusao.propostasIgnoradas} proposta(s) ignorada(s) por já haver linha manual`);
+      }
       if (stats.comprar > 0) parts.push(`${stats.comprar} a comprar`);
       if (stats.transferencia > 0) parts.push(`${stats.transferencia} transferências`);
       if (stats.aguardar > 0) parts.push(`${stats.aguardar} aguardar`);
       setFlash({
         type: "info",
-        msg: `${lines.length} linhas · ${result.data.meta.numDays} dias${parts.length ? " · " + parts.join(" · ") : ""}`,
+        msg: `${fusao.linhas.length} linhas · ${result.data.meta.numDays} dias${parts.length ? " · " + parts.join(" · ") : ""}`,
       });
     });
   }
@@ -488,8 +582,28 @@ export function OrderCreateClient({
     setLinhas((prev) => {
       const existing = prev.findIndex((l) => l.produtoId === p.id);
       if (existing >= 0)
+        // ── Já lá está: soma, não duplica ────────────────────────────
+        //
+        // `@@unique([listaEncomendaId, produtoId])` recusaria a gravação
+        // de duas linhas do mesmo produto, e o utilizador veria um erro
+        // de base de dados em vez de uma tabela coerente. Aqui a regra é
+        // a mesma, uma camada acima.
+        //
+        // E a linha passa a MANUAL. Escolher um produto no picker que já
+        // está na proposta é dizer «este quero eu» — a partir daí a
+        // decisão é dele e tem de sobreviver a um recálculo.
+        //
+        // Editar a quantidade no input NÃO promove: isso é ajustar a
+        // proposta, e se cada ajuste tornasse a linha manual, uma
+        // passagem de revisão deixava «recalcular» sem nada para fazer.
         return prev.map((l, i) =>
-          i !== existing ? l : { ...l, finalQty: String((Number(l.finalQty || "0") || 0) + 1) }
+          i !== existing
+            ? l
+            : {
+                ...l,
+                finalQty: String((Number(l.finalQty || "0") || 0) + 1),
+                origem: "MANUAL" as OrigemLinha,
+              }
         );
       return [...prev, buildManualLine(p)];
     });
@@ -569,6 +683,7 @@ export function OrderCreateClient({
                 quantidadeSugerida: l.suggestedQty ?? null,
                 quantidadeAjustada: Number(l.finalQty),
                 notas: l.notas.trim() || null,
+                origem: l.origem,
               })),
             })
           )
@@ -594,6 +709,10 @@ export function OrderCreateClient({
           quantidadeSugerida: l.suggestedQty ?? null,
           quantidadeAjustada: Number(l.finalQty),
           notas: l.notas.trim() || null,
+          // Guardar e reabrir preserva a origem: sem isto, a encomenda
+          // reaberta era uma lista de linhas todas iguais e o recálculo
+          // a partir daí voltava a apagar as manuais.
+          origem: l.origem,
         })),
       };
       startTransition(async () => {
@@ -617,7 +736,10 @@ export function OrderCreateClient({
 
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
-    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length;
+    selSubcategorias.length + selUtilizacoes.length + selProductTypes.length +
+    // A lista conta como UM filtro, não como 437: o contador diz quantos
+    // eixos estão activos, e um ficheiro é um eixo.
+    (listaCodigos ? 1 : 0);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -776,7 +898,26 @@ export function OrderCreateClient({
         </div>
 
         {filtersOpen && (
-          <div className="grid gap-4 border-t border-slate-100 px-4 py-4 md:grid-cols-2 lg:grid-cols-4">
+          <>
+          <div className="border-t border-slate-100 px-4 pt-4">
+            <ImportListaCodigos
+              lista={listaCodigos}
+              onChange={setListaCodigos}
+              disabled={busy || generating}
+            />
+            {/* A contabilidade da lista FACE À PROPOSTA. Só existe
+                depois de gerar — antes disso não há como saber quantos
+                venderam. É aqui que os números do ficheiro e os da
+                encomenda se encontram; sem isto, quem importa 1 210 e
+                vê 940 conclui que 270 se perderam. */}
+            {listaCodigos && proposalMeta?.listaImportada && (
+              <ResumoDaLista
+                lista={listaCodigos}
+                resumo={proposalMeta.listaImportada}
+              />
+            )}
+          </div>
+          <div className="grid gap-4 px-4 py-4 md:grid-cols-2 lg:grid-cols-4">
             <FilterMulti label="Fabricantes" options={filterOptions.fabricantes} selected={selFabricantes} onChange={setSelFabricantes} disabled={busy || generating} />
             <FilterMulti label="Distribuidores" options={filterOptions.distribuidores} selected={selFornecedores} onChange={setSelFornecedores} disabled={busy || generating} />
             <FilterMulti label="Categorias" options={filterOptions.categorias} selected={selCategorias} onChange={setSelCategorias} disabled={busy || generating} />
@@ -790,8 +931,26 @@ export function OrderCreateClient({
             />
             <FilterMulti label="Tipos" options={productTypes} selected={selProductTypes} onChange={setSelProductTypes} disabled={busy || generating} />
           </div>
+          </>
         )}
       </section>
+
+      {/* Truncagem.
+          O `LIMIT 500` da proposta sempre existiu e com os filtros
+          interactivos raramente se atingia. Com um ficheiro de milhares
+          de CNP atinge-se quase sempre — e as linhas que faltam
+          desapareciam sem uma palavra. O corte é por vendas
+          decrescentes: perde-se a cauda, que é a parte menos importante,
+          mas é uma decisão que tem de ser vista e não adivinhada. */}
+      {proposalMeta?.truncated && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-900">
+          A proposta foi cortada às {MAX_LINHAS_PROPOSTA.toLocaleString("pt-PT")} linhas com mais vendas
+          {proposalMeta.cnpsNaLista !== undefined
+            ? ` — a lista importada tem ${proposalMeta.cnpsNaLista.toLocaleString("pt-PT")} produtos`
+            : ""}
+          . Reduza o período ou parta a lista em ficheiros mais pequenos para ver o resto.
+        </div>
+      )}
 
       {/* PAINEL DE RESUMO */}
       {proposalMeta && (
@@ -888,14 +1047,14 @@ export function OrderCreateClient({
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
                     <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
-                    <SortableHeader col="designacao" label="Produto" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                    {isGroupMode && <SortableHeader col="farmaciaNome" label="Farmácia" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />}
-                    <SortableHeader col="salesQty" label="Vendas" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                    <SortableHeader col="avgDailySales" label="Média/d" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                    <SortableHeader col="currentStock" label="Stock" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                    <SortableHeader col="coberturaAtualDias" label="Cobert." sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                    <SortableHeader col="pendingQty" label="Pendente" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
-                    <SortableHeader col="suggestedQty" label="Sugerida" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} right />
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="designacao" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Produto</CabecalhoOrdenavel>
+                    {isGroupMode && <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmaciaNome" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Farmácia</CabecalhoOrdenavel>}
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="salesQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Vendas</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="avgDailySales" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Média/d</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="currentStock" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Stock</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="coberturaAtualDias" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Cobert.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
                     <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400">Final</th>
                     <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
                     <th className="px-3 py-2" />
@@ -917,8 +1076,15 @@ export function OrderCreateClient({
                         <td className="px-3 py-2 min-w-[200px]">
                           <div className="flex items-baseline gap-1.5">
                             <span className="font-medium text-slate-900">{l.designacao}</span>
-                            {l.source === "manual" && <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-700">manual</span>}
-                            {l.source === "prefill" && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-1.5 text-[10px] text-cyan-700">sugestão</span>}
+                            {rotuloOrigem(l.origem) && (
+                              <span className={`rounded-full border px-1.5 text-[10px] ${
+                                l.origem === "MANUAL"
+                                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                                  : "border-cyan-200 bg-cyan-50 text-cyan-700"
+                              }`}>
+                                {rotuloOrigem(l.origem)}
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 text-[11px] text-slate-500">
                             <span className="font-mono">CNP {l.cnp}</span>
@@ -1090,27 +1256,122 @@ export function OrderCreateClient({
 
 // ─── SortableHeader ───────────────────────────────────────────────────────────
 
-function SortableHeader({ col, label, sortCol, sortDir, onSort, right = false }: {
-  col: SortCol; label: string; sortCol: SortCol;
-  sortDir: "asc" | "desc"; onSort: (c: SortCol) => void; right?: boolean;
+
+// ─── FilterMulti ─────────────────────────────────────────────────────────────
+
+/**
+ * O que a lista importada produziu nesta proposta.
+ *
+ * Seis números e duas listas consultáveis. Os seis somam de forma
+ * verificável — é isso que os torna auditáveis em vez de decorativos:
+ *
+ *     lidos = encontrados + não encontrados          (do ficheiro)
+ *     encontrados = com vendas + sem vendas + sem registo   (da proposta)
+ *
+ * Os duplicados contam-se à parte porque não são uma quarta categoria
+ * de produto: são leituras repetidas do mesmo código no ficheiro.
+ */
+function ResumoDaLista({
+  lista,
+  resumo,
+}: {
+  lista: ListaCodigosResolvida;
+  resumo: ResumoListaImportada;
 }) {
-  const active = sortCol === col;
+  const [aberto, setAberto] = useState<"semVendas" | "naoEncontrados" | null>(null);
+
+  const n = (v: number) => v.toLocaleString("pt-PT");
+
   return (
-    <th className={`px-3 py-2 ${right ? "text-right" : ""}`}>
-      <button type="button" onClick={() => onSort(col)}
-        className={`inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors ${
-          active ? "text-cyan-600" : "text-slate-400 hover:text-slate-600"
-        }`}>
-        {label}
-        {active ? (
-          sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-        ) : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
-      </button>
-    </th>
+    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[12px]">
+        <Numero valor={n(lista.totalLidos)} rotulo="códigos lidos" />
+        <Numero valor={n(lista.encontrados)} rotulo="produtos encontrados" />
+        <Numero
+          valor={n(resumo.comVendas)}
+          rotulo="considerados na proposta"
+          destaque
+        />
+        {resumo.semVendas > 0 && (
+          <button
+            type="button"
+            onClick={() => setAberto((a) => (a === "semVendas" ? null : "semVendas"))}
+            className="text-left underline-offset-2 hover:underline"
+          >
+            <Numero
+              valor={n(resumo.semVendas)}
+              rotulo="sem vendas no período ▾"
+              cor="text-amber-700"
+            />
+          </button>
+        )}
+        {resumo.semRegistoNaFarmacia > 0 && (
+          <Numero
+            valor={n(resumo.semRegistoNaFarmacia)}
+            rotulo="sem registo na farmácia"
+            cor="text-slate-500"
+          />
+        )}
+        {lista.duplicados > 0 && (
+          <Numero valor={n(lista.duplicados)} rotulo="duplicados" cor="text-slate-500" />
+        )}
+        {lista.naoEncontrados.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              setAberto((a) => (a === "naoEncontrados" ? null : "naoEncontrados"))
+            }
+            className="text-left underline-offset-2 hover:underline"
+          >
+            <Numero
+              valor={n(lista.naoEncontrados.length)}
+              rotulo="não encontrados ▾"
+              cor="text-rose-700"
+            />
+          </button>
+        )}
+      </div>
+
+      {/* Os artigos sem vendas CONTINUAM na encomenda, com quantidade 0.
+          Dizê-lo aqui evita a leitura de que foram excluídos. */}
+      {resumo.semVendas > 0 && (
+        <p className="mt-2 text-[11px] text-slate-500">
+          Os artigos sem vendas no período entram na encomenda com quantidade 0 e
+          podem ser ajustados à mão.
+        </p>
+      )}
+
+      {aberto && (
+        <div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 font-mono text-[11px] leading-5 text-slate-700">
+          {aberto === "semVendas"
+            ? resumo.listaSemVendas.join(", ")
+            : lista.naoEncontrados.join(", ")}
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── FilterMulti ─────────────────────────────────────────────────────────────
+function Numero({
+  valor,
+  rotulo,
+  cor = "text-slate-700",
+  destaque = false,
+}: {
+  valor: string;
+  rotulo: string;
+  cor?: string;
+  destaque?: boolean;
+}) {
+  return (
+    <span className={cor}>
+      <span className={destaque ? "font-semibold text-emerald-700" : "font-semibold"}>
+        {valor}
+      </span>{" "}
+      <span className="text-slate-500">{rotulo}</span>
+    </span>
+  );
+}
 
 function FilterMulti({ label, options, selected, onChange, disabled }: {
   label: string; options: string[]; selected: string[];
@@ -1156,4 +1417,26 @@ function FilterMulti({ label, options, selected, onChange, disabled }: {
       </div>
     </div>
   );
+}
+
+
+/**
+ * As colunas ordenáveis da proposta de encomenda.
+ *
+ * `finalQty` NÃO está aqui, e é deliberado: é um `<input>` que o
+ * utilizador está a preencher. Ordenar por ele reordenaria as linhas
+ * debaixo do cursor a cada dígito escrito.
+ */
+type ColunaEncomenda =
+  | "designacao"
+  | "farmaciaNome"
+  | "salesQty"
+  | "avgDailySales"
+  | "currentStock"
+  | "coberturaAtualDias"
+  | "pendingQty"
+  | "suggestedQty";
+
+function acessorEncomenda(linha: Line, coluna: ColunaEncomenda): ValorOrdenavel {
+  return linha[coluna] as ValorOrdenavel;
 }

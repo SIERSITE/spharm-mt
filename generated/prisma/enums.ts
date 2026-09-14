@@ -285,3 +285,12 @@ export const EnrichmentSourceStatus = {
 } as const
 
 export type EnrichmentSourceStatus = (typeof EnrichmentSourceStatus)[keyof typeof EnrichmentSourceStatus]
+
+
+export const OrigemLinhaEncomenda = {
+  PROPOSTA: 'PROPOSTA',
+  MANUAL: 'MANUAL',
+  SUGESTAO: 'SUGESTAO'
+} as const
+
+export type OrigemLinhaEncomenda = (typeof OrigemLinhaEncomenda)[keyof typeof OrigemLinhaEncomenda]

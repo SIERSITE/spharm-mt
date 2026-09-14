@@ -1,6 +1,7 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import type { OrderExportState, EstadoListaEncomenda } from "@/generated/prisma/client";
+import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
 
 export type OrderDetailLine = {
   id: string;
@@ -13,6 +14,15 @@ export type OrderDetailLine = {
   quantidadeSugerida: number | null;
   quantidadeAjustada: number | null;
   notas: string | null;
+  /**
+   * Proveniência da linha, para a ficha reaberta continuar a distinguir
+   * o que foi calculado do que foi decidido.
+   *
+   * É o que faz «guardar e reabrir» preservar a origem: sem isto, uma
+   * encomenda reaberta era uma lista de linhas todas iguais, e o
+   * recálculo a partir daí voltava a apagar as manuais.
+   */
+  origem: OrigemLinha;
 };
 
 export type OrderTimelineEvent = {
@@ -150,6 +160,7 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
     linhas: lista.linhas.map((l) => ({
       id: l.id,
       produtoId: l.produtoId,
+      origem: l.origem,
       cnp: l.produto.cnp,
       designacao: l.produto.designacao,
       fabricante: l.produto.fabricante?.nomeNormalizado ?? null,

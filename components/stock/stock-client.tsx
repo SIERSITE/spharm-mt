@@ -6,6 +6,9 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { Search, Filter, ArrowRightLeft, AlertTriangle, X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { StockRow, StockPageData } from "@/lib/stock-data";
+import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
+import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
+import type { ColunaOrdenacaoStock } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
 
 const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"] as const;
@@ -249,6 +252,34 @@ export function StockClient({ data }: StockClientProps) {
       else p.set("page", String(newPage));
     });
   };
+
+  // ── Ordenação ────────────────────────────────────────────────────
+  //
+  // Ao contrário dos Excessos e das Transferências, aqui o estado NÃO
+  // vive num `useState`: vive na URL, e o servidor é que ordena. Esta
+  // tabela mostra 50 linhas de um universo que chega às dezenas de
+  // milhar, e ordenar as 50 visíveis diria que o artigo com mais stock
+  // é um que por acaso calhou nesta página.
+  //
+  // Voltar à página 1 é obrigatório: manter a página 7 depois de mudar
+  // o critério mostra a sétima fatia de uma lista completamente
+  // diferente, o que parece um salto aleatório.
+  const ordenacao = (data.params.ordenacao ?? null) as EstadoOrdenacao<ColunaOrdenacaoStock>;
+
+  const alternarOrdenacao = (coluna: ColunaOrdenacaoStock) => {
+    const proxima = proximaOrdenacao(ordenacao, coluna);
+    push((p) => {
+      if (!proxima) {
+        p.delete("ord");
+        p.delete("dir");
+      } else {
+        p.set("ord", proxima.coluna);
+        p.set("dir", proxima.direcao);
+      }
+      p.delete("page");
+    });
+  };
+
 
   const totalPages = Math.max(1, Math.ceil(data.totalRows / data.pageSize));
   const showingFrom = data.totalRows === 0 ? 0 : (data.page - 1) * data.pageSize + 1;
@@ -537,12 +568,18 @@ export function StockClient({ data }: StockClientProps) {
         ) : (
         <section className="rounded-[16px] border border-slate-200/60 bg-white/72 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
           <div className="grid grid-cols-[2.2fr_0.8fr_1fr_0.8fr_0.9fr_0.9fr_1.1fr_1.2fr] gap-4 border-b border-slate-200 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            <div>Produto</div>
-            <div>Farmácia</div>
-            <div>Stock</div>
+            <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternarOrdenacao} as="div" coluna="produto">Produto</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternarOrdenacao} as="div" coluna="farmacia">Farmácia</CabecalhoOrdenavel>
+            <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternarOrdenacao} as="div" coluna="stock">Stock</CabecalhoOrdenavel>
+            {/* Cobertura, Rotação, Estado e Sugestão não ordenam, e a
+                razão está em `ColunaOrdenacaoStock`: são calculadas em
+                JS com a política de IPF, o SQL não as sabe calcular, e
+                esta tabela pagina no servidor. Ordená-las exigiria ou
+                duplicar a política em SQL — duas definições do mesmo
+                número — ou varrer o universo inteiro a cada clique. */}
             <div>Cobertura</div>
             <div>Rotação</div>
-            <div>Último mov.</div>
+            <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternarOrdenacao} as="div" coluna="ultimoMovimento">Último mov.</CabecalhoOrdenavel>
             <div>Estado</div>
             <div>Sugestão</div>
           </div>

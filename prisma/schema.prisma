@@ -294,8 +294,8 @@ enum AcquisitionJobStatus {
 
 /// Produto global do grupo, identificado por CNP.
 model Produto {
-  id                        String             @id @default(cuid())
-  cnp                       Int                @unique
+  id                        String              @id @default(cuid())
+  cnp                       Int                 @unique
   /// Identificador do produto no ERP da farmácia (Softreis: Stocks.CodigoID).
   /// Mantido como referência cross-tenant — útil para o agent fazer
   /// lookup rápido sem JOIN, MAS não é chave canónica: o ERP pode
@@ -315,16 +315,16 @@ model Produto {
   formaFarmaceutica         String?
   dosagem                   String?
   embalagem                 String?
-  flagGenerico              Boolean            @default(false)
-  flagMSRM                  Boolean            @default(false)
-  flagMNSRM                 Boolean            @default(false)
+  flagGenerico              Boolean             @default(false)
+  flagMSRM                  Boolean             @default(false)
+  flagMNSRM                 Boolean             @default(false)
   /// MNSRM **não comparticipado** (Softreis: Stocks.MNSRM_NCompart). Distinto
   /// de `flagMNSRM` (OTC); este sinaliza OTC que não tem comparticipação SNS.
-  flagMnsrmNCompart         Boolean            @default(false)
+  flagMnsrmNCompart         Boolean             @default(false)
   grupoHomogeneo            String?
-  estado                    ProdutoEstado      @default(PENDENTE)
-  origemDados               ProdutoOrigemDados @default(FARMACIA)
-  validadoManualmente       Boolean            @default(false)
+  estado                    ProdutoEstado       @default(PENDENTE)
+  origemDados               ProdutoOrigemDados  @default(FARMACIA)
+  validadoManualmente       Boolean             @default(false)
   // Classificação e verificação automática
   productType               String?
   productTypeConfidence     Float?
@@ -341,14 +341,14 @@ model Produto {
   classificacaoConfianca    Float?
   /// Versão do processo que escreveu — "ke-2.1" para as provisórias.
   classificacaoVersao       String?
-  verificationStatus        VerificationStatus @default(PENDING)
+  verificationStatus        VerificationStatus  @default(PENDING)
   lastVerifiedAt            DateTime?
   lastVerificationAttemptAt DateTime?
-  externallyVerified        Boolean            @default(false)
-  needsManualReview         Boolean            @default(false)
+  externallyVerified        Boolean             @default(false)
+  needsManualReview         Boolean             @default(false)
   manualReviewReason        String?
-  dataCriacao               DateTime           @default(now())
-  dataAtualizacao           DateTime           @updatedAt
+  dataCriacao               DateTime            @default(now())
+  dataAtualizacao           DateTime            @updatedAt
 
   fabricante          Fabricante?    @relation(fields: [fabricanteId], references: [id])
   classificacaoNivel1 Classificacao? @relation("ProdutoClassificacaoNivel1", fields: [classificacaoNivel1Id], references: [id])
@@ -1538,15 +1538,36 @@ model ListaEncomenda {
   @@index([estadoExport])
 }
 
+/// De onde veio uma linha de encomenda.
+///
+/// PROPOSTA  — gerada pelo calculo automatico a partir de vendas.
+/// MANUAL    — o utilizador escolheu o artigo e escreveu a quantidade.
+/// SUGESTAO  — veio de uma sugestao aceite noutro ecra (excessos,
+///             transferencias) via prefill.
+///
+/// Serve para que um recalculo da proposta NAO destrua o que foi
+/// decidido a mao: so' as linhas PROPOSTA sao substituidas. Ver
+/// `lib/encomendas/origem-linha.ts`, onde a regra vive e e' testada.
+enum OrigemLinhaEncomenda {
+  PROPOSTA
+  MANUAL
+  SUGESTAO
+}
+
 /// Linhas da lista de encomenda.
 model LinhaEncomenda {
-  id                   String   @id @default(cuid())
+  id                   String               @id @default(cuid())
   listaEncomendaId     String
   produtoId            String
-  quantidadeSugerida   Decimal? @db.Decimal(14, 3)
-  quantidadeAjustada   Decimal? @db.Decimal(14, 3)
+  quantidadeSugerida   Decimal?             @db.Decimal(14, 3)
+  quantidadeAjustada   Decimal?             @db.Decimal(14, 3)
   fornecedorSugeridoId String?
   notas                String?
+  /// Proveniencia da linha. Default PROPOSTA: e' o que todas as linhas
+  /// existentes sao — foram criadas pelo calculo automatico, que era o
+  /// unico caminho ate' agora. Nenhuma linha historica muda de
+  /// significado com esta coluna.
+  origem               OrigemLinhaEncomenda @default(PROPOSTA)
 
   listaEncomenda     ListaEncomenda @relation(fields: [listaEncomendaId], references: [id], onDelete: Cascade)
   produto            Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
@@ -1682,7 +1703,7 @@ model IngestVendaLinhaRaw {
   documento String?
   /// Sequência da linha dentro do atendimento. Permite ordenar e
   /// distinguir linhas duplicadas legítimas no mesmo Atendimento ID.
-  sequencia          Int?
+  sequencia Int?
 
   dataVenda          DateTime?
   /// Softreis: Atendimento.[Tipo Documento]. Raw int.
@@ -2358,8 +2379,8 @@ model KnowledgeEnrichmentCache {
   /// Quando esta linha foi reavaliada por uma política posterior, e por
   /// que versão. É o que torna o reprocessamento idempotente e retomável:
   /// uma corrida interrompida a meio sabe onde ficou.
-  reavaliadoEm      DateTime?
-  reavaliadoVersao  String?
+  reavaliadoEm     DateTime?
+  reavaliadoVersao String?
 
   /// Foi escrito no Produto, ou ficou só registado? Distingue "o modelo
   /// não soube" de "o modelo soube e nós recusámos" na hora de explicar

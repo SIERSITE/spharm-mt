@@ -32,6 +32,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...excepto o exemplo. NAO tem segredos: e' a lista do que e' preciso
+# definir para um checkout limpo arrancar e COMPILAR. Sem ele, o
+# `npm run build` falha num checkout aparentemente correcto, porque a
+# guarda do next.config.ts exige SERVER_ACTIONS_ALLOWED_ORIGINS e nada
+# no repositorio dizia isso.
+!.env.example
 
 # vercel
 .vercel

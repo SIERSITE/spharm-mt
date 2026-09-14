@@ -46,6 +46,27 @@ export type SharedReportFilters = {
    * um xarope que também serve para constipação.
    */
   utilizacoes?: string[];
+  /**
+   * Lista de CNP importada por ficheiro. Ver
+   * `lib/produtos/lista-codigos-tipos.ts`.
+   *
+   * A semântica é diferente de TODOS os outros multi-selects deste tipo,
+   * e a diferença é deliberada:
+   *
+   *   · `undefined` → sem restrição (não foi importada lista nenhuma)
+   *   · `[]`        → NENHUM produto
+   *   · não-vazio   → exactamente estes CNP
+   *
+   * Nos outros campos, vazio significa "todos", porque vazio é o estado
+   * inicial de um multi-select. Aqui não: um array vazio só existe
+   * depois de alguém ter importado um ficheiro de que nenhum código
+   * existe no catálogo, e devolver-lhe o catálogo inteiro seria o oposto
+   * do que pediu. Quem não tem lista manda `undefined`.
+   *
+   * Combina-se com os restantes filtros por E lógico, como qualquer
+   * outro eixo.
+   */
+  cnps?: number[];
   /** Fabricantes canónicos seleccionados. Vazio = todos. */
   fabricantes?: string[];
   /** Distribuidores / grossistas seleccionados. Vazio = todos. */
@@ -80,6 +101,32 @@ export type SharedReportFilters = {
    */
   apenasSemClassif?: boolean;
 };
+
+/**
+ * A linha de cabeçalho que anuncia a lista importada.
+ *
+ * Vive aqui e não em cada adaptador porque um relatório que foi
+ * restringido por um ficheiro e não o diz é um relatório que ninguém
+ * consegue reproduzir dois dias depois — a folha mostra 437 artigos e
+ * nada explica porque não são 30 000.
+ *
+ * Deriva do MESMO array que o loader usou. Não recebe o nome do
+ * ficheiro nem as contagens do parse de propósito: esses vivem no
+ * cliente e podiam ficar dessincronizados do filtro que realmente
+ * correu. Isto não pode.
+ */
+export function filtroListaImportada(
+  cnps: number[] | undefined | null,
+): { label: string; value: string } | null {
+  if (!Array.isArray(cnps)) return null;
+  return {
+    label: "Lista importada",
+    value:
+      cnps.length === 0
+        ? "0 produtos (nenhum código do ficheiro existe no catálogo)"
+        : `${cnps.length.toLocaleString("pt-PT")} produto${cnps.length === 1 ? "" : "s"}`,
+  };
+}
 
 /** Universo de opções carregado server-side, vindo do tenant. */
 export type ReportFilterOptions = {

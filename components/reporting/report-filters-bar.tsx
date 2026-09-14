@@ -25,6 +25,8 @@
  */
 import { Search } from "lucide-react";
 import { FilterSelect } from "./filter-select";
+import { ImportListaCodigos } from "./import-lista-codigos";
+import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import type {
   ReportFilterOptions,
   SharedReportFilters,
@@ -50,6 +52,16 @@ type Props = {
    * não tem naturezas para ligar ou desligar.
    */
   mostrarNaturezas?: boolean;
+  /**
+   * Lista de CNP importada por ficheiro. Vive no pai porque é ele que a
+   * mostra no cabeçalho do relatório e a limpa quando muda de contexto.
+   *
+   * O importador só aparece se `onListaChange` for passado — opt-in
+   * explícito, para que um relatório onde a lista não faça sentido não
+   * a ganhe por acidente.
+   */
+  lista?: ListaCodigosResolvida | null;
+  onListaChange?: (lista: ListaCodigosResolvida | null) => void;
 };
 
 export function ReportFiltersBar({
@@ -59,8 +71,26 @@ export function ReportFiltersBar({
   hideDates = false,
   searchPlaceholder = "Pesquisar produto, CNP, fornecedor ou fabricante",
   mostrarNaturezas = false,
+  lista = null,
+  onListaChange,
 }: Props) {
   const patch = (delta: Partial<SharedReportFilters>) => onChange({ ...value, ...delta });
+
+  /**
+   * A lista e o filtro movem-se JUNTOS, num único `onChange` de cada
+   * lado. Manter `filters.cnps` sincronizado noutro sítio (um `useEffect`
+   * no pai, por exemplo) abria a janela em que o chip já diz "437
+   * produtos" e o relatório ainda corre sem restrição — e é exactamente
+   * essa janela que o utilizador apanharia, porque carrega em "Gerar"
+   * logo a seguir a importar.
+   *
+   * `undefined` quando não há lista, e não `[]`: são coisas diferentes.
+   * Ver `SharedReportFilters.cnps`.
+   */
+  const aplicarLista = (nova: ListaCodigosResolvida | null) => {
+    onListaChange?.(nova);
+    onChange({ ...value, cnps: nova ? nova.cnps : undefined });
+  };
 
   // As subcategorias visíveis acompanham a categoria escolhida: com
   // "MEDICAMENTOS" seleccionado, oferecer "Solares" seria oferecer uma
@@ -115,6 +145,16 @@ export function ReportFiltersBar({
           </>
         )}
       </div>
+
+      {/* Lista importada por ficheiro. Fica logo abaixo da pesquisa
+          porque é a mesma pergunta — "que artigos?" — feita com um
+          ficheiro em vez de com uma caixa de texto. Combina-se com tudo
+          o que vem a seguir por E lógico. */}
+      {onListaChange && (
+        <div className="mt-3">
+          <ImportListaCodigos lista={lista} onChange={aplicarLista} />
+        </div>
+      )}
 
       {/* Linha 2: catálogo — farmácia, os DOIS níveis, e utilização.
           Categoria e subcategoria são selects separados de propósito: são

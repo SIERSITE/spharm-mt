@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
+import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import {
@@ -361,7 +362,24 @@ export function OrderDetailClient({ detail }: Props) {
                 {linhas.map((l) => (
                   <tr key={l.id} className="border-b border-slate-50">
                     <td className="px-3 py-2">
-                      <div className="font-medium text-slate-900">{l.designacao}</div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-medium text-slate-900">{l.designacao}</span>
+                        {/* A origem sobrevive a guardar-e-reabrir. Sem
+                            isto, uma encomenda reaberta era uma lista de
+                            linhas todas iguais e ninguem distinguia o
+                            que foi calculado do que foi decidido. */}
+                        {rotuloOrigem(l.origem) && (
+                          <span
+                            className={`rounded-full border px-1.5 text-[10px] ${
+                              l.origem === "MANUAL"
+                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-cyan-200 bg-cyan-50 text-cyan-700"
+                            }`}
+                          >
+                            {rotuloOrigem(l.origem)}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
                         <span className="font-mono">CNP {l.cnp}</span>
                         {l.fabricante && (

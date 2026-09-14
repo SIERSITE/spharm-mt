@@ -4658,7 +4658,8 @@ export const LinhaEncomendaScalarFieldEnum = {
   quantidadeSugerida: 'quantidadeSugerida',
   quantidadeAjustada: 'quantidadeAjustada',
   fornecedorSugeridoId: 'fornecedorSugeridoId',
-  notas: 'notas'
+  notas: 'notas',
+  origem: 'origem'
 } as const
 
 export type LinhaEncomendaScalarFieldEnum = (typeof LinhaEncomendaScalarFieldEnum)[keyof typeof LinhaEncomendaScalarFieldEnum]
@@ -5378,6 +5379,20 @@ export type EnumOrderExportStateFieldRefInput<$PrismaModel> = FieldRefInputType<
  * Reference to a field of type 'OrderExportState[]'
  */
 export type ListEnumOrderExportStateFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrderExportState[]'>
+    
+
+
+/**
+ * Reference to a field of type 'OrigemLinhaEncomenda'
+ */
+export type EnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrigemLinhaEncomenda'>
+    
+
+
+/**
+ * Reference to a field of type 'OrigemLinhaEncomenda[]'
+ */
+export type ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrigemLinhaEncomenda[]'>
     
 
 

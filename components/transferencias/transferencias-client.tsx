@@ -29,36 +29,29 @@ type Ordenacao =
 
 type Priority = "alta" | "media" | "baixa";
 
-type TransferSuggestionRow = {
-  cnp: string;
-  produto: string;
-  farmaciaOrigem: string;
-  farmaciaDestino: string;
-  stockOrigem: number;
-  stockDestino: number;
-  coberturaOrigem: number;
-  coberturaDestino: number;
-  quantidadeSugerida: number;
-  excessoOrigem: number;
-  necessidadeDestino: number;
-  fabricante: string;
-  categoria: string;
-  /** Nivel 2 canonico, ou "" — o loader garante o campo. */
-  subcategoria: string;
-  /** Slugs das utilizacoes do produto. */
-  utilizacoes: string[];
-  fornecedor: string;
-  prioridade: Priority;
-  observacao?: string;
-  // Enriquecimento clínico — opcional para retro-compat com snapshots
-  // antigos que não tinham estes campos.
-  dci?: string | null;
-  codigoATC?: string | null;
-  // IDs internos — opcionais para retro-compat com snapshots antigos.
-  produtoId?: string;
-  farmaciaOrigemId?: string;
-  farmaciaDestinoId?: string;
-};
+/**
+ * A linha vem do loader e o TIPO vem de lá também.
+ *
+ * Havia aqui uma cópia local, e no `transferencias-client` outra. É o
+ * defeito que `lib/reporting/filters-shared.ts` já documenta noutro
+ * contexto: «vários clientes têm cópias locais do tipo da linha», e o
+ * resultado é o cliente a compilar enquanto o loader ganha campos que
+ * ele nunca mostra — que foi exactamente o que aconteceu com `pvp`,
+ * `pmc` e `puc`, seleccionados em SQL desde sempre e invisíveis na UI.
+ *
+ * `import type` é apagado na compilação: nada de `lib/transferencias-data`
+ * chega ao bundle do browser.
+ */
+import type { TransferSuggestionRow } from "@/lib/transferencias-data";
+import {
+  CabecalhoOrdenavel,
+  useOrdenacao,
+} from "@/components/ui/cabecalho-ordenavel";
+import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+import {
+  descreverFonteCusto,
+  somarParcial,
+} from "@/lib/produtos/custo-farmacia";
 
 type ReportSnapshot = {
   farmaciasOrigemSelecionadas: string[];
@@ -321,6 +314,27 @@ export function TransferenciasClient({
       }
     });
   }, [rowsForReport, snapshot]);
+
+  // ── Ordenação por cabeçalho ──────────────────────────────────────
+  //
+  // Sobrepõe-se ao selector "Ordenar por" sem o substituir: enquanto
+  // ninguém clicar num cabeçalho, o selector manda. O dataset está todo
+  // em memória, portanto ordenar aqui ordena tudo — o que não seria
+  // verdade em /stock, que pagina no servidor.
+  const { ordenacao, alternar } = useOrdenacao<ColunaTransferencias>(null);
+
+  const rowsVisiveis = useMemo(
+    () => (ordenacao ? ordenarLinhas(orderedRows, ordenacao, acessorTransferencias) : orderedRows),
+    [orderedRows, ordenacao],
+  );
+
+  // O total global da transferência, com a contagem das linhas que não
+  // puderam ser valorizadas. Ver `somarParcial`.
+  const totalTransferencia = useMemo(
+    () => somarParcial(rowsVisiveis.map((r) => r.valorCustoTransferencia)),
+    [rowsVisiveis],
+  );
+
 
   const resumo = useMemo(() => {
     const totalSugestoes = orderedRows.length;
@@ -865,39 +879,62 @@ export function TransferenciasClient({
 
             <div className="max-h-[calc(100vh-360px)] min-h-[420px] overflow-y-auto">
               <table className="min-w-full table-fixed text-left">
+                {/* 13 colunas: as 11 operacionais mais o preço unitário
+                    e o valor da linha. O bloco económico fica logo a
+                    seguir a "Sug." porque é a quantidade que valoriza. */}
                 <colgroup>
+                  <col className="w-[7%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
+                  <col className="w-[6%]" />
                   <col className="w-[8%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
                   <col className="w-[8%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[7%]" />
+                  <col className="w-[5%]" />
+                  <col className="w-[5%]" />
                 </colgroup>
 
                 <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 text-[10px] uppercase tracking-[0.14em] text-slate-500 backdrop-blur">
                   <tr>
-                    <th className="px-4 py-2.5 font-semibold">CNP</th>
-                    <th className="px-3 py-2.5 font-semibold">Produto</th>
-                    <th className="px-3 py-2.5 font-semibold">Origem</th>
-                    <th className="px-3 py-2.5 font-semibold">Destino</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">St. O.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">St. D.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Cob. O.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Cob. D.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Sug.</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Excesso</th>
-                    <th className="px-2 py-2.5 text-center font-semibold">Necess.</th>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="cnp" className="px-4 py-2.5 font-semibold">CNP</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="produto" className="px-3 py-2.5 font-semibold">Produto</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="farmaciaOrigem" className="px-3 py-2.5 font-semibold">Origem</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="farmaciaDestino" className="px-3 py-2.5 font-semibold">Destino</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="stockOrigem" align="center" className="px-2 py-2.5 font-semibold">St. O.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="stockDestino" align="center" className="px-2 py-2.5 font-semibold">St. D.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="coberturaOrigem" align="center" className="px-2 py-2.5 font-semibold">Cob. O.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="coberturaDestino" align="center" className="px-2 py-2.5 font-semibold">Cob. D.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="quantidadeSugerida" align="center" className="px-2 py-2.5 font-semibold">Sug.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="custoOrigem"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="Preço unitário da transferência: o custo na farmácia de ORIGEM (preço médio de compra; o da última compra quando não há médio, marcado com *). Não é o PVP — uma transferência interna não é uma venda."
+                    >
+                      Preço un.
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel
+                      ordenacao={ordenacao} onOrdenar={alternar} as="th"
+                      coluna="valorCustoTransferencia"
+                      align="right"
+                      className="px-2 py-2.5 font-semibold"
+                      title="Quantidade sugerida × preço unitário. Traço quando o custo da origem é desconhecido."
+                    >
+                      Valor
+                    </CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="excessoOrigem" align="center" className="px-2 py-2.5 font-semibold">Excesso</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel ordenacao={ordenacao} onOrdenar={alternar} as="th" coluna="necessidadeDestino" align="center" className="px-2 py-2.5 font-semibold">Necess.</CabecalhoOrdenavel>
                     <th className="px-2 py-2.5 font-semibold">Acção</th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
-                  {orderedRows.map((row, index) => (
+                  {rowsVisiveis.map((row, index) => (
                     <tr
                       key={`${row.cnp}-${row.farmaciaOrigem}-${row.farmaciaDestino}-${index}`}
                       className="transition hover:bg-slate-50/70"
@@ -951,6 +988,18 @@ export function TransferenciasClient({
                       <td className="px-2 py-2.5 text-center font-semibold text-slate-900">
                         {row.quantidadeSugerida}
                       </td>
+                      <td
+                        className="px-2 py-2.5 text-right tabular-nums"
+                        title={descreverFonteCusto(row.fonteCustoOrigem)}
+                      >
+                        {fmtEur(row.custoOrigem)}
+                        {row.fonteCustoOrigem === "PUC" && (
+                          <span className="ml-0.5 text-[10px] text-slate-400">*</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+                        {fmtEur(row.valorCustoTransferencia)}
+                      </td>
                       <td className="px-2 py-2.5 text-center">{row.excessoOrigem}</td>
                       <td className="px-2 py-2.5 text-center">{row.necessidadeDestino}</td>
                       <td className="px-2 py-2.5">
@@ -977,19 +1026,31 @@ export function TransferenciasClient({
                     </tr>
                   ))}
 
-                  {snapshot.incluirTotais && orderedRows.length > 0 && (
+                  {snapshot.incluirTotais && rowsVisiveis.length > 0 && (
                     <tr className="bg-slate-50/70 font-semibold text-slate-900">
                       <td className="px-4 py-2.5" colSpan={8}>
                         Totais
                       </td>
                       <td className="px-2 py-2.5 text-center">
-                        {sum(orderedRows.map((r) => r.quantidadeSugerida))}
+                        {sum(rowsVisiveis.map((r) => r.quantidadeSugerida))}
+                      </td>
+                      {/* Preços unitários não se somam. */}
+                      <td className="px-2 py-2.5 text-right text-slate-400">—</td>
+                      {/* O TOTAL GLOBAL da transferência. */}
+                      <td
+                        className="px-2 py-2.5 text-right tabular-nums"
+                        title={rotuloTotal(totalTransferencia)}
+                      >
+                        {fmtEur(totalTransferencia.total)}
+                        {totalTransferencia.semValor > 0 && (
+                          <span className="ml-0.5 text-[10px] font-normal text-amber-600">*</span>
+                        )}
                       </td>
                       <td className="px-2 py-2.5 text-center">
-                        {sum(orderedRows.map((r) => r.excessoOrigem))}
+                        {sum(rowsVisiveis.map((r) => r.excessoOrigem))}
                       </td>
                       <td className="px-2 py-2.5 text-center">
-                        {sum(orderedRows.map((r) => r.necessidadeDestino))}
+                        {sum(rowsVisiveis.map((r) => r.necessidadeDestino))}
                       </td>
                       <td className="px-2 py-2.5" />
                     </tr>
@@ -1073,7 +1134,14 @@ export function TransferenciasClient({
                       </thead>
 
                       <tbody className="divide-y divide-slate-200 text-[12px] text-slate-700">
-                        {orderedRows.map((row, index) => (
+                        {/* A vista de relatorio segue a MESMA ordem do
+                            ecra. Usava `orderedRows` enquanto a tabela
+                            usava `rowsVisiveis`: ordenar por valor e
+                            depois imprimir dava duas ordens diferentes
+                            para os mesmos dados, e a folha impressa e'
+                            precisamente o artefacto que ninguem volta a
+                            conferir. */}
+                        {rowsVisiveis.map((row, index) => (
                           <tr
                             key={`report-main-${row.cnp}-${row.farmaciaOrigem}-${row.farmaciaDestino}-${index}`}
                           >
@@ -1090,19 +1158,19 @@ export function TransferenciasClient({
                           </tr>
                         ))}
 
-                        {snapshot.incluirTotais && orderedRows.length > 0 && (
+                        {snapshot.incluirTotais && rowsVisiveis.length > 0 && (
                           <tr className="bg-slate-50 font-semibold text-slate-900">
                             <td className="px-3 py-2" colSpan={4}>
                               Totais
                             </td>
                             <td className="px-3 py-2 text-center">
-                              {sum(orderedRows.map((r) => r.quantidadeSugerida))}
+                              {sum(rowsVisiveis.map((r) => r.quantidadeSugerida))}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              {sum(orderedRows.map((r) => r.excessoOrigem))}
+                              {sum(rowsVisiveis.map((r) => r.excessoOrigem))}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              {sum(orderedRows.map((r) => r.necessidadeDestino))}
+                              {sum(rowsVisiveis.map((r) => r.necessidadeDestino))}
                             </td>
                             <td className="px-3 py-2" />
                           </tr>
@@ -1494,6 +1562,50 @@ function TabButton({
     </button>
   );
 }
+
+/**
+ * As colunas ordenáveis das Transferências.
+ *
+ * União de literais e não `string`: acrescentar um `<H>` sem acessor
+ * passa a ser erro de compilação em vez de um cabeçalho que se clica e
+ * não faz nada.
+ */
+type ColunaTransferencias =
+  | "cnp"
+  | "produto"
+  | "farmaciaOrigem"
+  | "farmaciaDestino"
+  | "stockOrigem"
+  | "stockDestino"
+  | "coberturaOrigem"
+  | "coberturaDestino"
+  | "quantidadeSugerida"
+  | "custoOrigem"
+  | "valorCustoTransferencia"
+  | "excessoOrigem"
+  | "necessidadeDestino";
+
+/** `cnp` é texto na linha mas é um número — ordenado como texto, "5880075" vinha antes de "999999". */
+function acessorTransferencias(
+  row: TransferSuggestionRow,
+  coluna: ColunaTransferencias,
+): ValorOrdenavel {
+  if (coluna === "cnp") return Number(row.cnp);
+  return row[coluna] as ValorOrdenavel;
+}
+
+/** Em euros, com `—` para o desconhecido. NUNCA `0,00 €`. */
+function fmtEur(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
+  return v.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+}
+
+/** O que o total realmente representa, quando há linhas por valorizar. */
+function rotuloTotal(t: { contadas: number; semValor: number }): string {
+  if (t.semValor === 0) return `${t.contadas} linha(s) somadas`;
+  return `${t.contadas} linha(s) somadas · ${t.semValor} sem custo conhecido, fora do total`;
+}
+
 
 function PriorityBadge({ prioridade }: { prioridade: Priority }) {
   const styles =

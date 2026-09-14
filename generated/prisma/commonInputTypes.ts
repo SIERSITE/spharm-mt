@@ -731,6 +731,23 @@ export type EnumOrderExportStateWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumOrderExportStateFilter<$PrismaModel>
 }
 
+export type EnumOrigemLinhaEncomendaFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrigemLinhaEncomenda | Prisma.EnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  in?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel> | $Enums.OrigemLinhaEncomenda
+}
+
+export type EnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrigemLinhaEncomenda | Prisma.EnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  in?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel> | $Enums.OrigemLinhaEncomenda
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
+}
+
 export type EnumTipoRevisaoFilter<$PrismaModel = never> = {
   equals?: $Enums.TipoRevisao | Prisma.EnumTipoRevisaoFieldRefInput<$PrismaModel>
   in?: $Enums.TipoRevisao[] | Prisma.ListEnumTipoRevisaoFieldRefInput<$PrismaModel>
@@ -1546,6 +1563,23 @@ export type NestedEnumOrderExportStateWithAggregatesFilter<$PrismaModel = never>
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumOrderExportStateFilter<$PrismaModel>
   _max?: Prisma.NestedEnumOrderExportStateFilter<$PrismaModel>
+}
+
+export type NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrigemLinhaEncomenda | Prisma.EnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  in?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel> | $Enums.OrigemLinhaEncomenda
+}
+
+export type NestedEnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.OrigemLinhaEncomenda | Prisma.EnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  in?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.OrigemLinhaEncomenda[] | Prisma.ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel> | $Enums.OrigemLinhaEncomenda
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
 }
 
 export type NestedEnumTipoRevisaoFilter<$PrismaModel = never> = {

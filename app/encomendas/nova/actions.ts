@@ -7,6 +7,7 @@ import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import { createEncomendaWithOutbox, type OrderLineInput } from "@/lib/ingest/orders";
 import { logAudit } from "@/lib/audit";
+import { MAX_CODIGOS } from "@/lib/produtos/lista-codigos-tipos";
 import {
   generateOrderProposal,
   generateGroupProposal,
@@ -106,6 +107,30 @@ export async function generateProposalAction(
     }
     if (input.targetCoverageDays < 1) {
       return { ok: false, error: "Cobertura alvo deve ser pelo menos 1 dia." };
+    }
+
+    // ── Lista importada ────────────────────────────────────────────
+    //
+    // Sanea o array antes de o deixar chegar ao SQL. A lista vem do
+    // cliente e não do endpoint de upload — nada impede um pedido
+    // forjado de mandar 10 milhões de entradas ou strings.
+    //
+    // A PRESENÇA é preservada com cuidado: um array vazio que chegue
+    // vazio tem de sair vazio, porque `[]` significa "nenhum produto" e
+    // não "sem filtro". Convertê-lo a `undefined` aqui devolvia ao
+    // utilizador o catálogo inteiro. Ver `ProposalFilters.cnps`.
+    const cnpsRecebidos = input.filters?.cnps;
+    if (Array.isArray(cnpsRecebidos)) {
+      if (cnpsRecebidos.length > MAX_CODIGOS) {
+        return {
+          ok: false,
+          error: `A lista importada tem ${cnpsRecebidos.length.toLocaleString("pt-PT")} códigos; o máximo é ${MAX_CODIGOS.toLocaleString("pt-PT")}.`,
+        };
+      }
+      const limpos = [
+        ...new Set(cnpsRecebidos.filter((n) => typeof n === "number" && Number.isSafeInteger(n))),
+      ];
+      input = { ...input, filters: { ...input.filters, cnps: limpos } };
     }
 
     end.setHours(23, 59, 59, 999);

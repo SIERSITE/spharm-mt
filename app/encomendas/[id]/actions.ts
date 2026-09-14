@@ -174,9 +174,14 @@ export async function addManualLineAction(input: {
       data: {
         listaEncomendaId: input.listaEncomendaId,
         produtoId: input.produtoId,
+        // Sem quantidade sugerida: nao houve calculo nenhum. Deixa-la a
+        // null e' o que torna a linha legivel — `quantidadeAjustada`
+        // sozinha diz "alguem escolheu este numero".
         quantidadeSugerida: null,
         quantidadeAjustada: input.quantidadeAjustada,
         notas: input.notas?.trim() ? input.notas.trim() : null,
+        // A marca que faz esta linha sobreviver a um recalculo futuro.
+        origem: "MANUAL",
       },
     });
     await prisma.listaEncomenda.update({

@@ -13,6 +13,13 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { loadPfAndSales } from "@/lib/transferencias-data";
 import { getPrisma } from "@/lib/prisma";
+import {
+  ordenarLinhas,
+  resolverOrdenacaoSql,
+  type EstadoOrdenacao,
+  type MapaOrdenacaoSql,
+  type ValorOrdenavel,
+} from "@/lib/tabela/ordenacao";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { restringirPorCatalogo, temFiltroCatalogo } from "@/lib/reporting/catalog-prefilter";
 import {
@@ -275,6 +282,52 @@ export const STOCK_STATUS_VALUES: StockRow["status"][] = [
 export const STOCK_DEFAULT_PAGE_SIZE = 50;
 export const STOCK_MAX_PAGE_SIZE = 200;
 
+/**
+ * As colunas de /stock que se podem ordenar.
+ *
+ * ── PORQUE NÃO SÃO TODAS ─────────────────────────────────────────────
+ *
+ * Cobertura, Rotação, Estado e Sugestão NÃO estão aqui, e a omissão é
+ * deliberada: são calculadas em JS, com a política de IPF
+ * (`resolveAvgDaily90d` — IPF quando existe, vendas live quando não).
+ * O SQL não sabe calculá-las.
+ *
+ * Havia duas formas de as tornar ordenáveis, e as duas são piores:
+ *
+ *   · reescrever a política em SQL — passava a haver duas definições da
+ *     mesma cobertura, e o dia em que divergissem a página mostraria uma
+ *     ordem que não corresponde aos números que ela própria imprime;
+ *
+ *   · carregar o universo todo para ordenar em JS — é exactamente o que
+ *     o caminho rápido desta página existe para evitar, e transformaria
+ *     um clique num cabeçalho numa varredura de 95 000 linhas.
+ *
+ * Uma coluna que não ordena é honesta. Uma que ordena mal não é.
+ */
+export type ColunaOrdenacaoStock = "produto" | "farmacia" | "stock" | "ultimoMovimento";
+
+/**
+ * `chave → expressão SQL`. Lista FECHADA: a chave vem da query-string,
+ * e uma coluna vinda do browser nunca pode ser colada num `ORDER BY`.
+ */
+export const ORDENACOES_STOCK: MapaOrdenacaoSql<ColunaOrdenacaoStock> = {
+  produto: 'p.designacao',
+  farmacia: 'f.nome',
+  stock: 'pf."stockAtual"',
+  ultimoMovimento: 'pf."dataUltimaVenda"',
+};
+
+/**
+ * A ordem por omissão, que é a que a página sempre teve.
+ *
+ * O desempate por `produtoId` não é cosmético: sem ele, duas páginas
+ * consecutivas de um `LIMIT/OFFSET` sobre uma coluna com repetidos podem
+ * mostrar a mesma linha duas vezes e esconder outra. O Postgres não
+ * promete ordem estável entre execuções; a paginação assume que promete.
+ */
+const ORDENACAO_STOCK_DEFAULT = { coluna: "produto" as const, direcao: "asc" as const };
+const DESEMPATE_STOCK = 'f.nome ASC, pf."produtoId" ASC';
+
 export type StockSearchParams = {
   q?: string;
   pharmacies?: string[];
@@ -289,6 +342,17 @@ export type StockSearchParams = {
   utilizacoes?: string[];
   page: number;
   pageSize: number;
+  /**
+   * Ordenação pedida pelo utilizador ao clicar num cabeçalho.
+   *
+   * Vive nos PARÂMETROS e não no estado do cliente porque esta tabela é
+   * paginada no servidor: ordenar as 50 linhas visíveis de 5 000 daria
+   * um ranking falso — a linha com mais stock do universo continuaria na
+   * página 40, invisível, com o ecrã a afirmar que a maior é outra.
+   *
+   * `undefined` = a ordem por omissão (designação ascendente).
+   */
+  ordenacao?: EstadoOrdenacao<string>;
 };
 
 export type StockPageData = {
@@ -324,6 +388,24 @@ function getCoverageBucket(coverageStr: string): StockCoverageBucket | null {
   if (days <= 5) return "0-5 dias";
   if (days <= 15) return "6-15 dias";
   return "16+ dias";
+}
+
+/**
+ * O valor pelo qual cada coluna ordena, no caminho que ordena em JS.
+ *
+ * `lastMovement` é uma data formatada em texto na linha — ordená-la como
+ * texto punha "01/12/2024" antes de "02/01/2026". O `Date.parse` do
+ * formato dd/mm/aaaa não é fiável, por isso a linha guarda também a data
+ * crua; quando não guarda, a coluna ordena por texto e diz-se aqui que é
+ * uma aproximação, em vez de se fingir que não é.
+ */
+function acessorStock(row: StockRow, coluna: ColunaOrdenacaoStock): ValorOrdenavel {
+  switch (coluna) {
+    case "produto": return row.product;
+    case "farmacia": return row.pharmacy;
+    case "stock": return row.stock;
+    case "ultimoMovimento": return row.lastMovement;
+  }
 }
 
 export function clampStockPage(n: number): number {
@@ -786,9 +868,18 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     const totalRows = lite.length;
     const offset = (page - 1) * pageSize;
 
+    // A ordenação entra no SQL, não em JS: é isso que faz o topo da
+    // tabela ser o topo do UNIVERSO e não o topo da página. Chave
+    // desconhecida cai na ordem por omissão — ver `resolverOrdenacaoSql`.
+    const ord = resolverOrdenacaoSql(
+      params.ordenacao ?? null,
+      ORDENACOES_STOCK,
+      ORDENACAO_STOCK_DEFAULT,
+      DESEMPATE_STOCK,
+    );
     const pageRows = await prisma.$queryRaw<StockSqlFull[]>(
       Prisma.sql`${STOCK_FULL_SELECT} ${fromWhere}
-        ORDER BY p.designacao ASC, f.nome ASC, pf."produtoId" ASC
+        ORDER BY ${Prisma.raw(ord.sql)}
         LIMIT ${pageSize} OFFSET ${offset}`,
     );
     const rows = pageRows.map((b) => toLegacyRow(enrichFull(b), peerMap));
@@ -830,17 +921,22 @@ export async function getStockData(params: StockSearchParams): Promise<StockPage
     return true;
   });
 
-  filtered.sort((a, b) => {
-    if (a.product < b.product) return -1;
-    if (a.product > b.product) return 1;
-    if (a.pharmacy < b.pharmacy) return -1;
-    if (a.pharmacy > b.pharmacy) return 1;
-    return 0;
-  });
+  // O MESMO critério do caminho rápido, aplicado ao conjunto inteiro
+  // antes de cortar a página. Dois caminhos com ordens diferentes para
+  // os mesmos filtros seria a página a mudar de ordem consoante o
+  // utilizador tivesse ou não um filtro de estado ligado — e ninguém
+  // ligaria as duas coisas.
+  const ordenado = ordenarLinhas(
+    filtered,
+    params.ordenacao && Object.prototype.hasOwnProperty.call(ORDENACOES_STOCK, params.ordenacao.coluna)
+      ? (params.ordenacao as EstadoOrdenacao<ColunaOrdenacaoStock>)
+      : { coluna: ORDENACAO_STOCK_DEFAULT.coluna, direcao: ORDENACAO_STOCK_DEFAULT.direcao },
+    acessorStock,
+  );
 
-  const totalRows = filtered.length;
+  const totalRows = ordenado.length;
   const start = (page - 1) * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
+  const visible = ordenado.slice(start, start + pageSize);
 
   const metrics: StockMetrics = {
     referencias: totalRows,

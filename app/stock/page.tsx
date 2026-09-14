@@ -12,6 +12,7 @@ import {
   type StockRow,
 } from "@/lib/stock-data";
 import { StockClient } from "@/components/stock/stock-client";
+import { lerOrdenacaoDeParams } from "@/lib/tabela/ordenacao";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,11 @@ function parseParams(sp: Record<string, string | string[] | undefined>): StockSe
     categorias: asArray(sp.categoria),
     subcategorias: asArray(sp.subcategoria),
     utilizacoes: asArray(sp.utilizacao),
+    // A ordenacao viaja na query-string, como a pagina e os filtros:
+    // esta tabela pagina no servidor, e o criterio tem de sobreviver a
+    // uma mudanca de pagina e a um refresh. Chave invalida cai no
+    // default sem erro — pode ser um bookmark antigo.
+    ordenacao: lerOrdenacaoDeParams({ ord: asString(sp.ord), dir: asString(sp.dir) }),
     page: clampStockPage(Number(asString(sp.page) ?? 1)),
     pageSize: clampStockPageSize(Number(asString(sp.pageSize) ?? STOCK_DEFAULT_PAGE_SIZE)),
   };

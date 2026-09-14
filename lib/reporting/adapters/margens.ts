@@ -24,7 +24,7 @@ import type {
   MargensAgg,
   EstadoMargem,
 } from "@/lib/margens-data";
-import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
 
 /**
  * As dimensoes em que Margens agrega — o modo "so' totalizadores".
@@ -118,6 +118,8 @@ function buildFiltersLabel(
     });
   }
   if (f.pesquisa && f.pesquisa.trim()) out.push({ label: "Pesquisa", value: f.pesquisa.trim() });
+  const lista = filtroListaImportada(f.cnps);
+  if (lista) out.push(lista);
   return out;
 }
 

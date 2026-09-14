@@ -43,6 +43,7 @@ import {
   temFiltroCatalogo,
 } from "@/lib/reporting/catalog-prefilter";
 import { normalizeIva, TAXA_IVA_BUCKETS, type TaxaIvaCanonica } from "@/lib/iva";
+import { custoUnitario as custoUnitarioDaFarmacia } from "@/lib/produtos/custo-farmacia";
 import { EXCESSO_COVERAGE_DAYS } from "@/lib/operational/metrics-shared";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 
@@ -266,7 +267,10 @@ export async function getInventarioData(
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return { porProduto: [], porFarmacia: [], porGrupo: [], porIva: [] };
   }
-  // Subcategoria (N2) e utilização — mesmo padrão, helper partilhado.
+  // Lista de CNP importada, subcategoria (N2) e utilizacao —
+  // mesmo padrao, helper partilhado. A lista entra por aqui e nao
+  // por um ramo proprio: e' o que faz os tres relatorios ganharem-na
+  // sem nenhum deles a conhecer. Ver lib/reporting/catalog-prefilter.ts.
   if (temFiltroCatalogo(filters)) {
     produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
     if (produtoIdFilter && produtoIdFilter.length === 0) {
@@ -386,7 +390,11 @@ export async function getInventarioData(
     const pmc = numOrNull(r.pmc);
     const puc = numOrNull(r.puc);
     const pvp = numOrNull(r.pvp);
-    const custoUnitario = pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
+    // A regra vive em `lib/produtos/custo-farmacia.ts`. Estava aqui,
+    // correcta e sozinha, ate' a ficha do produto, os Excessos e as
+    // Transferencias precisarem da mesma — e a forma de a terem igual
+    // nos quatro sitios nao e' copia-la tres vezes.
+    const custoUnitario = custoUnitarioDaFarmacia(pmc, puc);
     const valorStock =
       custoUnitario !== null && stockAtual !== null
         ? Math.round(stockAtual * custoUnitario * 100) / 100
