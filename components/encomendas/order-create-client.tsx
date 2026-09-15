@@ -498,24 +498,39 @@ export function OrderCreateClient({
     () => [...new Set(linhas.map((l) => l.produtoId))].sort(),
     [linhas],
   );
+  const farmaciaIdsParaHistorico = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of linhas) if (l.farmaciaId) set.add(l.farmaciaId);
+    // Fallback: modo "farmacia" antes de gerar proposta (linhas manuais
+    // ainda sem `farmaciaId` preenchido não deveria acontecer, mas não
+    // custa nada ser defensivo aqui).
+    if (set.size === 0 && farmaciaId) set.add(farmaciaId);
+    return [...set].sort();
+  }, [linhas, farmaciaId]);
+  /**
+   * Chave de CONTEÚDO, não de referência.
+   *
+   * `produtoIdsParaHistorico`/`farmaciaIdsParaHistorico` são arrays NOVOS
+   * a cada render em que `linhas` muda de referência — e `linhas` muda de
+   * referência em QUALQUER edição de campo (`updateLine` faz
+   * `setLinhas((prev) => prev.map(...))`), incluindo escrever num único
+   * dígito da quantidade final. Antes desta correcção (2026-09), o efeito
+   * abaixo dependia directamente do array `produtoIdsParaHistorico` — como
+   * um array novo nunca é `Object.is`-igual ao anterior mesmo com o MESMO
+   * conteúdo, o efeito recarregava o lote inteiro de histórico (todos os
+   * produtos × farmácias, em chunks de 150, sequenciais) a cada tecla
+   * premida em qualquer input da tabela. A chave de string abaixo só muda
+   * de VALOR quando o conjunto de produtos ou de farmácias realmente
+   * muda — nunca por causa de uma edição de quantidade/notas/decisão.
+   */
+  const chaveHistorico = `${produtoIdsParaHistorico.join(",")}::${farmaciaIdsParaHistorico.join(",")}`;
   const [historicoPorProduto, setHistoricoPorProduto] = useState<Map<string, HistoricoProduto12MesesResult>>(
     new Map(),
   );
   const [historicoCarregando, setHistoricoCarregando] = useState(false);
 
   useEffect(() => {
-    if (produtoIdsParaHistorico.length === 0) {
-      setHistoricoPorProduto(new Map());
-      return;
-    }
-    const farmaciaIdsSet = new Set<string>();
-    for (const l of linhas) if (l.farmaciaId) farmaciaIdsSet.add(l.farmaciaId);
-    // Fallback: modo "farmacia" antes de gerar proposta (linhas manuais
-    // ainda sem `farmaciaId` preenchido não deveria acontecer, mas não
-    // custa nada ser defensivo aqui).
-    if (farmaciaIdsSet.size === 0 && farmaciaId) farmaciaIdsSet.add(farmaciaId);
-    const farmaciaIdsArr = [...farmaciaIdsSet];
-    if (farmaciaIdsArr.length === 0) {
+    if (produtoIdsParaHistorico.length === 0 || farmaciaIdsParaHistorico.length === 0) {
       setHistoricoPorProduto(new Map());
       return;
     }
@@ -531,10 +546,17 @@ export function OrderCreateClient({
 
     (async () => {
       const acumulado = new Map<string, HistoricoProduto12MesesResult>();
-      for (const chunk of chunks) {
-        if (cancelled) return;
-        const r = await getHistoricoProdutosLoteAction({ produtoIds: chunk, farmaciaIds: farmaciaIdsArr });
-        if (cancelled) return;
+      // Chunks em paralelo — já não há razão para serializar: cada chunk
+      // é uma chamada independente à mesma server action, e o único
+      // motivo para existirem chunks é o limite prático de parâmetros
+      // de uma única query `ANY(...)`, não concorrência de escrita.
+      const resultados = await Promise.all(
+        chunks.map((chunk) =>
+          getHistoricoProdutosLoteAction({ produtoIds: chunk, farmaciaIds: farmaciaIdsParaHistorico }),
+        ),
+      );
+      if (cancelled) return;
+      for (const r of resultados) {
         if (r.ok) {
           for (const [pid, data] of Object.entries(r.data)) acumulado.set(pid, data);
         }
@@ -546,10 +568,11 @@ export function OrderCreateClient({
     })();
 
     return () => { cancelled = true; };
-    // farmaciaId só entra como fallback quando nenhuma linha ainda tem
-    // farmaciaId próprio — não é um eixo de recarregamento à parte.
+    // Depende só da CHAVE de conteúdo (ver comentário acima) — os arrays
+    // em si são recriados a cada render, mas isso já não dispara o
+    // efeito. `chaveHistorico` já incorpora tudo o que os arrays trariam.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [produtoIdsParaHistorico]);
+  }, [chaveHistorico]);
 
   // Vista consolidada (agrupada por produto)
   const consolidadoRows = useMemo(() => {
@@ -2072,7 +2095,11 @@ function HistoricoInlineMiniGrid({
   const relevantes = historico?.farmacias.filter((f) => farmaciaIds.includes(f.farmaciaId)) ?? [];
   if (relevantes.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-400">
+      <div
+        className={`rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-400 ${
+          carregando ? "animate-pulse" : ""
+        }`}
+      >
         {carregando ? "A carregar histórico…" : "Sem histórico disponível."}
       </div>
     );

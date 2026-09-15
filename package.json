@@ -150,7 +150,8 @@
     "test:historico-lote": "tsx scripts/tests/test-historico-lote.ts",
     "test:fabricante-correcao-tier-aware": "tsx scripts/tests/test-fabricante-correcao-tier-aware.ts",
     "test:sync-on-demand": "tsx scripts/tests/test-sync-on-demand.ts",
-    "test:transferencia-por-id": "tsx scripts/tests/test-transferencia-por-id.ts"
+    "test:transferencia-por-id": "tsx scripts/tests/test-transferencia-por-id.ts",
+    "test:historico-inline-refetch": "tsx scripts/tests/test-historico-inline-refetch.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
