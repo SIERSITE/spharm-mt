@@ -8,8 +8,10 @@ REM for adoptado. Ver agent/docs/sync-now.md para o desenho completo
 REM (endpoint, frequencia, autenticacao, lock, retry, comando schtasks).
 REM
 REM Sem prompts, sem janela visivel — feito para o Task Scheduler.
-REM Cada execucao: GET pending (so a farmacia configurada) -> se houver
-REM pedido, produtos+stock DE HOJE -> ack/fail ao SaaS. NUNCA vendas.
+REM Cada execucao: ate 3 ciclos de long-poll a GET pending (waitSeconds=18,
+REM o servidor mantem o pedido em espera) -> se algo aparecer, produtos+stock
+REM DE HOJE -> ack/fail ao SaaS. NUNCA vendas. Ver agent/docs/sync-now.md
+REM secção 2 para o desenho completo e o /MO 1 recomendado no schtasks.
 REM Log em logs\sync-now-<YYYY-MM-DD>.log (append, um ficheiro por dia).
 REM Exit code do node propagado: 0 = nada pendente ou sucesso, 1 = erro
 REM antes de reclamar o pedido, 2 = pedido reclamado mas falhou/expirou.

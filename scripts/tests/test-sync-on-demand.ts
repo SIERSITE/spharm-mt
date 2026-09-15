@@ -37,6 +37,14 @@ import {
 } from "../../lib/sync-request/estado";
 import { can, canAccessFarmaciaSync } from "../../lib/permissions-core";
 import type { SessionUser } from "../../lib/session-claims";
+import { clampWaitSeconds, longPollClaim, LONGPOLL_MAX_WAIT_SECONDS } from "../../lib/sync-request/longpoll";
+import {
+  runLongPollCycles,
+  decidePostClaim,
+  SYNC_NOW_LONGPOLL_CYCLES,
+  SYNC_NOW_LONGPOLL_WAIT_SECONDS,
+} from "../../agent/src/commands/sync-now";
+import { syncNowLongPollTimeoutMs } from "../../agent/src/http-client";
 
 let ok = 0;
 let ko = 0;
@@ -278,8 +286,8 @@ console.log("\n== H. Wiring ponta-a-ponta ==");
   check(httpClient.includes("failSyncRequest"), "SaasClient expõe failSyncRequest");
 
   check(
-    src("agent/build.mjs").includes('process.env.AGENT_PACKAGE_REV ?? "93"'),
-    "AGENT_REV avançou para 93 (Bloco E)",
+    src("agent/build.mjs").includes('process.env.AGENT_PACKAGE_REV ?? "94"'),
+    "AGENT_REV avançou para 94 (long-polling real)",
   );
 
   const stockClient = src("components/stock/stock-client.tsx");
@@ -364,8 +372,8 @@ console.log("\n== J. Timeout local e política de retry do agent ==");
 
   const docSyncNow = src("agent/docs/sync-now.md");
   check(
-    /schtasks \/Create/.test(docSyncNow) && /\/SC MINUTE \/MO 2/.test(docSyncNow),
-    "docs/sync-now.md documenta o comando schtasks exacto, a 2 minutos",
+    /schtasks \/Create/.test(docSyncNow) && /\/SC MINUTE \/MO 1/.test(docSyncNow),
+    "docs/sync-now.md documenta o comando schtasks exacto, a 1 minuto",
   );
   check(
     /Terminal, sem reagendamento automático/.test(docSyncNow),
@@ -384,5 +392,277 @@ console.log("\n== J. Timeout local e política de retry do agent ==");
 }
 
 // ═════════════════════════════════════════════════════════════════════
-console.log(`\n${ko === 0 ? "PASSOU" : "FALHOU"} — ${ok} OK, ${ko} falhas\n`);
-process.exit(ko === 0 ? 0 : 1);
+// K — Long-poll no SERVIDOR (`lib/sync-request/longpoll.ts`)
+//
+// Núcleo puro (sem BD) — testado com um `attemptClaim` falso e um
+// relógio/sleep INJECTADOS, para nunca esperar `waitSeconds` a sério:
+// o "sleep" falso só avança um contador em vez de dormir de verdade.
+// ═════════════════════════════════════════════════════════════════════
+async function correrTestesAssincronos(): Promise<void> {
+console.log("\n== K. Long-poll no servidor (lib/sync-request/longpoll.ts) ==");
+{
+  // -- clampWaitSeconds --
+  eq(clampWaitSeconds(null), 0, "clampWaitSeconds(null) → 0 (sem long-poll, comportamento actual)");
+  eq(clampWaitSeconds(""), 0, "clampWaitSeconds('') → 0");
+  eq(clampWaitSeconds("0"), 0, "clampWaitSeconds('0') → 0");
+  eq(clampWaitSeconds("-5"), 0, "clampWaitSeconds negativo → 0");
+  eq(clampWaitSeconds("abc"), 0, "clampWaitSeconds não-numérico → 0");
+  eq(clampWaitSeconds("10"), 10, "clampWaitSeconds('10') → 10 (dentro do tecto)");
+  eq(
+    clampWaitSeconds("999"),
+    LONGPOLL_MAX_WAIT_SECONDS,
+    `clampWaitSeconds('999') → cortado ao tecto (${LONGPOLL_MAX_WAIT_SECONDS}s)`,
+  );
+  eq(LONGPOLL_MAX_WAIT_SECONDS, 25, "tecto de segurança do long-poll é 25s");
+
+  // -- longPollClaim: relógio/sleep falsos, deterministas --
+  function fakeClock() {
+    let clock = 0;
+    return {
+      now: () => clock,
+      sleep: async (ms: number) => {
+        clock += ms;
+      },
+    };
+  }
+
+  // a) já havia algo pendente no primeiro SELECT → devolve de imediato,
+  //    sem esperar nenhum waitSeconds.
+  {
+    let calls = 0;
+    const { now, sleep } = fakeClock();
+    const result = await longPollClaim(
+      async () => {
+        calls++;
+        return [{ id: "ja-pendente" }];
+      },
+      { waitSeconds: 20, now, sleep },
+    );
+    eq(result, [{ id: "ja-pendente" }], "já pendente no 1º SELECT → devolve esse pedido");
+    eq(calls, 1, "…sem repetir a tentativa — 1 única chamada a attemptClaim");
+    eq(now(), 0, "…e sem avançar o relógio — não esperou nada");
+  }
+
+  // b) nada aparece → devolve vazio exactamente ao fim do waitSeconds.
+  {
+    let calls = 0;
+    const { now, sleep } = fakeClock();
+    const result = await longPollClaim(
+      async () => {
+        calls++;
+        return [] as Array<{ id: string }>;
+      },
+      { waitSeconds: 2, pollIntervalMs: 1200, now, sleep },
+    );
+    eq(result, [], "nada em todo o waitSeconds → devolve vazio (count:0 equivalente)");
+    check(calls >= 2, "…repetiu a tentativa pelo menos uma vez durante a espera", `calls=${calls}`);
+    check(now() >= 2000, "…o relógio avançou pelo menos os 2000ms pedidos", `now()=${now()}`);
+  }
+
+  // c) aparece a meio da espera → pára logo, não espera o waitSeconds todo.
+  {
+    let calls = 0;
+    const { now, sleep } = fakeClock();
+    const result = await longPollClaim(
+      async () => {
+        calls++;
+        return calls >= 3 ? [{ id: "apareceu-a-meio" }] : [];
+      },
+      { waitSeconds: 20, pollIntervalMs: 1200, now, sleep },
+    );
+    eq(result, [{ id: "apareceu-a-meio" }], "aparece no 3º attempt → devolve-o");
+    eq(calls, 3, "…pára exactamente no attempt que encontrou algo (não continua a tentar)");
+    check(
+      now() < 20_000,
+      "…o relógio NÃO chegou aos 20s pedidos — não esperou o waitSeconds todo",
+      `now()=${now()}`,
+    );
+  }
+
+  // d) waitSeconds <= 0 → uma única tentativa, resposta imediata (o
+  //    comportamento de sempre para quem não pede long-poll).
+  {
+    let calls = 0;
+    const result = await longPollClaim(
+      async () => {
+        calls++;
+        return [] as Array<{ id: string }>;
+      },
+      { waitSeconds: 0 },
+    );
+    eq(result, [], "waitSeconds=0 e nada pendente → vazio de imediato");
+    eq(calls, 1, "…1 única tentativa, sem loop de espera");
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// L — Ciclos de long-poll do AGENT (`runLongPollCycles`) e a decisão
+//     pós-claim quando o lock está ocupado (`decidePostClaim`) —
+//     ambas puras, sem SQL/fs/rede.
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n== L. runLongPollCycles + decidePostClaim (agent/src/commands/sync-now.ts) ==");
+{
+  eq(SYNC_NOW_LONGPOLL_CYCLES, 3, "3 ciclos de long-poll por corrida");
+  eq(SYNC_NOW_LONGPOLL_WAIT_SECONDS, 18, "18s por ciclo (orçamento total ~54s quando nada está pendente)");
+
+  // -- runLongPollCycles --
+  {
+    let pulls = 0;
+    const req = { syncRequestId: "s1", farmaciaId: "f1", requestedAt: "t", timeoutAt: "t2" };
+    const r = await runLongPollCycles(
+      async (waitSeconds) => {
+        pulls++;
+        eq(waitSeconds, 18, `ciclo ${pulls} pede waitSeconds=18`);
+        return { count: 1, syncRequests: [req] };
+      },
+      { cycles: 3, waitSeconds: 18 },
+    );
+    eq(r.claimed, req, "1º ciclo já encontra algo → devolve esse pedido");
+    eq(r.cyclesUsed, 1, "…cyclesUsed=1 (não gastou os 3 ciclos)");
+    eq(pulls, 1, "…só chamou pullOnce 1 vez — parou ao encontrar");
+  }
+  {
+    let pulls = 0;
+    const r = await runLongPollCycles(
+      async () => {
+        pulls++;
+        return { count: 0, syncRequests: [] };
+      },
+      { cycles: 3, waitSeconds: 18 },
+    );
+    eq(r.claimed, null, "nenhum ciclo encontra nada → claimed=null");
+    eq(r.cyclesUsed, 3, "…cyclesUsed=3 (gastou todos os ciclos configurados)");
+    eq(pulls, 3, "…chamou pullOnce exactamente 3 vezes, nem mais nem menos");
+  }
+  {
+    let pulls = 0;
+    const req = { syncRequestId: "s2", farmaciaId: "f1", requestedAt: "t", timeoutAt: "t2" };
+    const r = await runLongPollCycles(
+      async () => {
+        pulls++;
+        return pulls === 2 ? { count: 1, syncRequests: [req] } : { count: 0, syncRequests: [] };
+      },
+      { cycles: 3, waitSeconds: 18 },
+    );
+    eq(r.claimed, req, "encontra no 2º de 3 ciclos → devolve-o");
+    eq(r.cyclesUsed, 2, "…cyclesUsed=2");
+    eq(pulls, 2, "…não chega a fazer o 3º ciclo (pára ao encontrar)");
+  }
+
+  // -- decidePostClaim --
+  eq(decidePostClaim(null), { action: "process" }, "lock livre (acquireLock devolveu null) → processar");
+  {
+    const decisao = decidePostClaim("Outro pipeline já corre (pid=123, kind=daily-pipeline, started=...)");
+    check(decisao.action === "fail-lock-busy", "lock ocupado → fail-lock-busy, não 'process'");
+    if (decisao.action === "fail-lock-busy") {
+      check(decisao.message.length > 0, "…mensagem não vazia (vai para failSyncRequest)");
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// M — Timeout do cliente HTTP para long-poll (`syncNowLongPollTimeoutMs`)
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n== M. syncNowLongPollTimeoutMs (agent/src/http-client.ts) ==");
+{
+  eq(syncNowLongPollTimeoutMs(18), 28_000, "waitSeconds=18 → timeout do cliente 28s (18s + 10s de folga)");
+  eq(syncNowLongPollTimeoutMs(0), 10_000, "waitSeconds=0 → ainda assim 10s de folga (nunca 0)");
+  eq(syncNowLongPollTimeoutMs(-5), 10_000, "waitSeconds negativo tratado como 0 (nunca timeout negativo)");
+  check(
+    syncNowLongPollTimeoutMs(18) > 18_000,
+    "timeout do cliente é sempre MAIOR que waitSeconds*1000 — nunca aborta antes do servidor poder responder",
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// N — Correcção 3: o long-poll está de facto ligado (rota + agent),
+//     e o lock só é adquirido DEPOIS do claim, nunca durante a espera.
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n== N. Wiring do long-poll (rota + agent) e ordem lock-depois-do-claim ==");
+{
+  const pendingRoute = src("app/api/outbox/v1/sync-requests/pending/route.ts");
+  check(pendingRoute.includes('export const runtime = "nodejs"'), "rota pending declara runtime nodejs");
+  check(pendingRoute.includes('export const dynamic = "force-dynamic"'), "rota pending declara dynamic force-dynamic");
+  check(
+    pendingRoute.includes("longPollClaim") && pendingRoute.includes("clampWaitSeconds"),
+    "rota pending usa longPollClaim + clampWaitSeconds de lib/sync-request/longpoll",
+  );
+  check(
+    pendingRoute.includes('from "@/lib/sync-request/longpoll"'),
+    "rota pending importa de lib/sync-request/longpoll (núcleo partilhado/testável)",
+  );
+
+  const httpClient = src("agent/src/http-client.ts");
+  check(
+    httpClient.includes("waitSeconds") && httpClient.includes("syncNowLongPollTimeoutMs"),
+    "http-client.ts: pullPendingSyncRequests aceita waitSeconds e usa syncNowLongPollTimeoutMs",
+  );
+
+  const syncNowSrc = src("agent/src/commands/sync-now.ts");
+  check(
+    syncNowSrc.includes("SYNC_NOW_LONGPOLL_CYCLES") && syncNowSrc.includes("SYNC_NOW_LONGPOLL_WAIT_SECONDS"),
+    "sync-now.ts declara as constantes de ciclos/duração do long-poll",
+  );
+  check(syncNowSrc.includes("runLongPollCycles"), "sync-now.ts chama runLongPollCycles");
+  check(syncNowSrc.includes("decidePostClaim"), "sync-now.ts usa decidePostClaim para decidir com o lock ocupado");
+
+  // Ordem: dentro de syncNow(), a CHAMADA a runLongPollCycles(...) tem de
+  // vir ANTES da CHAMADA a acquireLock() — nunca lock antes de reclamar.
+  const bodyStart = syncNowSrc.indexOf("export async function syncNow");
+  check(bodyStart !== -1, "encontra o corpo de syncNow() para verificar a ordem");
+  const body = syncNowSrc.slice(bodyStart);
+  const idxCyclesCall = body.indexOf("runLongPollCycles(");
+  // A definição de acquireLock() está ANTES de "export async function
+  // syncNow" no ficheiro, logo fora de `body` — o único "acquireLock()"
+  // que sobra aqui dentro é a chamada real.
+  const idxLockCall = body.indexOf("acquireLock()");
+  check(
+    idxCyclesCall !== -1 && idxLockCall !== -1 && idxCyclesCall < idxLockCall,
+    "dentro de syncNow(): a chamada a runLongPollCycles() precede a chamada a acquireLock() — lock só depois do claim",
+    `idxCyclesCall=${idxCyclesCall}, idxLockCall=${idxLockCall}`,
+  );
+
+  check(
+    /fail-lock-busy[\s\S]{0,300}failSyncRequest/.test(syncNowSrc),
+    "quando decidePostClaim devolve fail-lock-busy, o código chama failSyncRequest de imediato (não fica pendurado)",
+  );
+  check(
+    !/acquireLock\(\)[\s\S]{0,400}runLongPollCycles/.test(body),
+    "acquireLock() não é chamado antes de runLongPollCycles em lado nenhum do corpo (sem call-site invertido)",
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// O — UI: textos honestos, sem falar em "próximo poll"
+// ═════════════════════════════════════════════════════════════════════
+console.log('\n== O. UI — textos deixam de falar em "próximo poll" ==');
+{
+  const widget = src("components/stock/sync-now-widget.tsx");
+  check(!/próximo poll/.test(widget), "sync-now-widget.tsx já não menciona 'próximo poll'");
+  check(widget.includes("A solicitar actualização"), "widget: texto de PENDENTE");
+  check(widget.includes("Farmácia a sincronizar"), "widget: texto de EM_CURSO");
+  check(widget.includes("Atualizado agora"), "widget: texto de CONCLUIDO");
+  check(
+    /garantia instantânea/.test(widget),
+    "widget continua honesto: 'muito mais rápido', não 'instantâneo garantido'",
+  );
+
+  const estado = src("lib/sync-request/estado.ts");
+  check(
+    !/assim que o agent fizer o próximo poll/.test(estado),
+    "estado.ts já não usa a redacção antiga (poll dedicado a minutos)",
+  );
+
+  const syncActions = src("app/stock/sync-actions.ts");
+  check(
+    !/assim que o agent fizer o próximo poll dedicado/.test(syncActions),
+    "sync-actions.ts já não usa a redacção antiga",
+  );
+}
+}
+
+// ═════════════════════════════════════════════════════════════════════
+correrTestesAssincronos().then(() => {
+  console.log(`\n${ko === 0 ? "PASSOU" : "FALHOU"} — ${ok} OK, ${ko} falhas\n`);
+  process.exit(ko === 0 ? 0 : 1);
+});

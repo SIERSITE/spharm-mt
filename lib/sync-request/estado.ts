@@ -6,10 +6,14 @@
  * "snapshot" simples e devolve uma decisão, para ser testável sem BD
  * (ver `scripts/tests/test-sync-on-demand.ts`).
  *
- * Padrão outbox invertido: o browser deposita o pedido; o agent (poll
- * dedicado, curto, fora deste módulo) executa-o na próxima passagem.
- * "Agora" aqui significa "assim que o agent fizer o próximo poll" —
- * nunca instantâneo. A UI tem de comunicar isto (ver
+ * Padrão outbox invertido: o browser deposita o pedido; o agent (fora
+ * deste módulo) executa-o assim que o reclamar. Desde que o agent
+ * passou a fazer long-polling real (`agent/src/commands/sync-now.ts`,
+ * `agent/docs/sync-now.md` secção 2), "agora" significa tipicamente
+ * segundos — não minutos —, mas continua a não ser uma garantia
+ * instantânea a 100% (o agent só reclama no ciclo de long-poll em que
+ * o pedido calhar de existir, e a sincronização em si ainda depende do
+ * ERP). A UI comunica isto sem exagerar (ver
  * `components/stock/sync-now-widget.tsx`).
  */
 
@@ -25,13 +29,14 @@ export function isEstadoAtivo(estado: EstadoSyncRequest): boolean {
 /**
  * Minutos até um pedido PENDENTE/EM_CURSO ser considerado expirado.
  *
- * 15 minutos cobre confortavelmente um poll dedicado a correr a cada
- * 1–5 min (a configurar no Task Scheduler quando isto for publicado —
- * fora de âmbito deste bloco) mais o tempo da corrida em si
- * (produtos+stock de uma farmácia, tipicamente segundos a poucos
- * minutos). Longo demais e o utilizador fica a olhar para um botão
- * "a sincronizar" muito depois de o agent ter desistido; curto demais e
- * um poll legitimamente lento expira antes do ack chegar.
+ * 15 minutos cobre confortavelmente o pior caso de reclamação pelo
+ * agent — hoje tipicamente ~1 minuto com o Task Scheduler a 1 min e o
+ * long-poll interno a dominar a latência (ver `agent/docs/sync-now.md`
+ * secção 2), não os ~2 min do desenho anterior — mais o tempo da
+ * corrida em si (produtos+stock de uma farmácia, tipicamente segundos a
+ * poucos minutos). Longo demais e o utilizador fica a olhar para um
+ * botão "a sincronizar" muito depois de o agent ter desistido; curto
+ * demais e uma corrida legitimamente lenta expira antes do ack chegar.
  */
 export const SYNC_REQUEST_TIMEOUT_MINUTOS_DEFAULT = 15;
 

@@ -474,22 +474,40 @@ export class SaasClient {
   // contrário de `pullPendingOrders`.
 
   /**
-   * GET /api/outbox/v1/sync-requests/pending?farmaciaId=<id>
+   * GET /api/outbox/v1/sync-requests/pending?farmaciaId=<id>&waitSeconds=<N>
    *
    * Reclama atomicamente (se existir) o pedido PENDENTE desta farmácia
    * — no máximo 1, garantido pelo mutex server-side. Sem TTL de lease
    * a reclamar: o comando `sync-now` corre o trabalho de forma síncrona
    * logo a seguir, dentro da mesma invocação.
+   *
+   * `waitSeconds` > 0 pede LONG-POLL ao servidor: o pedido HTTP fica
+   * pendurado até `waitSeconds` (tecto server-side de 25s, ver
+   * `lib/sync-request/longpoll.ts`) ou até aparecer algo reclamável — o
+   * que vier primeiro. `sync-now.ts` chama isto várias vezes em
+   * sequência (`runLongPollCycles`) para cobrir mais tempo do que um
+   * único hold, sem processo persistente.
+   *
+   * O timeout do CLIENTE (`timeoutMs`) tem de exceder `waitSeconds` —
+   * senão o `fetch` aborta antes do servidor responder. Por omissão
+   * (sem `options.timeoutMs` explícito) é calculado por
+   * `syncNowLongPollTimeoutMs`; passar `timeoutMs` explicitamente
+   * ignora esse cálculo.
    */
   async pullPendingSyncRequests(
     farmaciaId: string,
-    options: { agentInstance?: string; timeoutMs?: number } = {}
+    options: { agentInstance?: string; waitSeconds?: number; timeoutMs?: number } = {}
   ): Promise<PendingSyncRequestsResponse> {
     const headers: Record<string, string> = {};
     if (options.agentInstance) headers["x-agent-instance"] = options.agentInstance;
-    const url = `/api/outbox/v1/sync-requests/pending?farmaciaId=${encodeURIComponent(farmaciaId)}`;
+    const waitSeconds = options.waitSeconds ?? 0;
+    const qs = new URLSearchParams({ farmaciaId });
+    if (waitSeconds > 0) qs.set("waitSeconds", String(waitSeconds));
+    const url = `/api/outbox/v1/sync-requests/pending?${qs.toString()}`;
+    const timeoutMs =
+      options.timeoutMs ?? (waitSeconds > 0 ? syncNowLongPollTimeoutMs(waitSeconds) : undefined);
     return this.requestWithHeaders<PendingSyncRequestsResponse>("GET", url, headers, {
-      timeoutMs: options.timeoutMs,
+      timeoutMs,
     });
   }
 
@@ -621,6 +639,21 @@ export class SaasClient {
 }
 
 // ── Sync-now (Bloco E) ──────────────────────────────────────────────
+
+/**
+ * Timeout do cliente para uma chamada de long-poll a `.../pending`.
+ *
+ * Tem de ser MAIOR que `waitSeconds` — o servidor pode legitimamente
+ * demorar até `waitSeconds` a responder (mesmo com `count: 0`), e um
+ * timeout de cliente igual ou menor abortaria a chamada antes disso,
+ * transformando um "nada pendente" normal num falso erro de rede.
+ * +10s de folga cobre round-trip/TLS/fila do servidor. Extraída como
+ * função pura (sem `fetch`, sem `AbortController`) para ser testável
+ * sem rede — ver `scripts/tests/test-sync-on-demand.ts`.
+ */
+export function syncNowLongPollTimeoutMs(waitSeconds: number): number {
+  return Math.max(0, waitSeconds) * 1000 + 10_000;
+}
 
 export type PendingSyncRequest = {
   syncRequestId: string;

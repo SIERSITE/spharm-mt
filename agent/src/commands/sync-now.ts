@@ -5,11 +5,22 @@
  *
  * O SaaS não consegue invocar o agent directamente (comunicação
  * agent↔SaaS é 100% unidireccional — o agent só faz PULL agendado via
- * Task Scheduler). Este comando é esse PULL: uma verificação única,
- * pensada para correr num poll dedicado MAIS CURTO do que o
- * `daily-pipeline` — ver `agent/docs/sync-now.md` para a frequência
- * escolhida (2 min), a tarefa `.bat` (`run-sync-now-poll-auto.bat`) e o
- * comando `schtasks` exacto para a instalar/actualizar.
+ * Task Scheduler). Um PROCESSO PERSISTENTE (`/SC ONSTART`) foi avaliado
+ * e rejeitado: o lock `run/pipeline.lock` é adquirido uma vez por
+ * invocação inteira, e um processo vivo há horas ficaria a segurá-lo
+ * indefinidamente, bloqueando `daily-pipeline`/`full-sync`; e o Task
+ * Scheduler não reinicia sozinho um processo persistente que morra.
+ *
+ * O desenho em vez disso: continua a ser uma corrida CURTA disparada
+ * pelo Task Scheduler, mas cada corrida faz LONG-POLLING real —
+ * `SYNC_NOW_LONGPOLL_CYCLES` ciclos sequenciais de
+ * `GET .../pending?waitSeconds=N`, com o SERVIDOR a manter cada pedido
+ * em espera (não resposta imediata) até `N` segundos ou até aparecer
+ * um pedido. Isto dá latência de segundos (a duração de um hold), não
+ * do intervalo entre corridas do Task Scheduler — sem processo
+ * persistente nem reescrita do lock. Ver `agent/docs/sync-now.md`
+ * secção 2 para a frequência do Task Scheduler escolhida e o número
+ * concreto de latência pior-caso.
  *
  * ── Corpo LEVE, não o bootstrap ───────────────────────────────────────
  *
@@ -36,20 +47,30 @@
  * que este ficheiro não arrasta a esse módulo pesado.
  *
  * Fluxo por invocação:
- *   1. Resolve a farmácia configurada (`SPHARMMT_FARMACIA`).
- *   2. Adquire o MESMO lockfile do `daily-pipeline`/`full-sync`
- *      (`run/pipeline.lock`) — serializa com o pipeline nocturno. Um
- *      "sync agora" nunca corre ao mesmo tempo que um `daily-pipeline`
- *      ou `full-sync` na mesma máquina (ver secção "Lockfile" abaixo).
- *   3. GET /api/outbox/v1/sync-requests/pending?farmaciaId=... — se não
- *      houver nada, sai com 0 (nada a fazer, não é erro).
- *   4. Se houver um pedido: corre o subconjunto LEVE — produtos (que já
- *      inclui fabricante + os outros campos do catálogo regulamentar,
- *      via `catalog-discovery.ts` partilhado) e stock (existências),
- *      ambos de HOJE. NUNCA vendas.
- *   5. POST .../ack com os três contadores, ou .../fail com o erro.
+ *   1. Resolve a farmácia configurada (`SPHARMMT_FARMACIA`). SEM lock
+ *      ainda — nada a proteger enquanto só se está a perguntar se há
+ *      trabalho.
+ *   2. Até `SYNC_NOW_LONGPOLL_CYCLES` ciclos sequenciais de
+ *      `GET .../pending?waitSeconds=SYNC_NOW_LONGPOLL_WAIT_SECONDS`
+ *      (`runLongPollCycles`) — cada um mantido em espera pelo SERVIDOR.
+ *      Continua sem lock: os ciclos só perguntam, não escrevem
+ *      produtos/stock.
+ *   3. Nada reclamado em nenhum ciclo → sai com exit 0. O lock NUNCA
+ *      foi tocado nesta corrida.
+ *   4. Algo reclamado → SÓ AGORA adquire o lockfile
+ *      (`run/pipeline.lock`, partilhado com `daily-pipeline`/
+ *      `full-sync`). Se estiver ocupado (pipeline nocturno a correr),
+ *      não espera por ele: chama `.../fail` de imediato (o pedido não
+ *      fica pendurado até expirar aos 15 min) e sai com exit 2.
+ *   5. Lock livre → corre o subconjunto LEVE — produtos (que já inclui
+ *      fabricante + os outros campos do catálogo regulamentar, via
+ *      `catalog-discovery.ts` partilhado) e stock (existências), ambos
+ *      de HOJE. NUNCA vendas.
+ *   6. POST .../ack com os três contadores, ou .../fail com o erro.
+ *      `releaseLock()` no `finally` — só liberta o que só agora
+ *      adquiriu.
  *
- * Timeout local: a corrida inteira (passo 4) tem um limite de parede de
+ * Timeout local: a corrida do passo 5 tem um limite de parede de
  * `SYNC_NOW_LOCAL_TIMEOUT_MS` — ver essa constante para o porquê do
  * valor. Um ERP preso não deixa este comando pendurado indefinidamente:
  * ao expirar, é tratado como qualquer outro erro (cai no mesmo
@@ -57,19 +78,27 @@
  * substituto, do `requestTimeout` já configurado por-pedido no pool SQL
  * (`ERP_SQLSERVER_REQUEST_TIMEOUT_MS`, default 30s) — aquele limita UMA
  * query; este limita a corrida inteira (múltiplos batches + POSTs).
+ * Também complementar ao timeout do CLIENTE HTTP nos ciclos de
+ * long-poll (`syncNowLongPollTimeoutMs` em `http-client.ts`) — aquele
+ * cobre só a ESPERA por um pedido; este cobre o TRABALHO depois de o
+ * reclamar.
  *
  * Exit codes:
- *   0  nada pendente, ou pedido processado e acked com sucesso
- *   1  config inválida / lock ocupado / erro antes de reclamar o pedido
- *   2  pedido reclamado mas a sincronização falhou ou excedeu o timeout
- *      local (fail enviado ao SaaS)
+ *   0  nada pendente após todos os ciclos de long-poll (lock nunca
+ *      tocado), ou pedido reclamado, processado e acked com sucesso
+ *   1  config inválida / erro a perguntar por pedidos (antes de
+ *      reclamar nada)
+ *   2  pedido reclamado mas: o lock local estava ocupado (fail enviado
+ *      de imediato), ou a sincronização falhou/excedeu o timeout local
+ *      (fail enviado ao SaaS)
  *
  * ── Retry ──────────────────────────────────────────────────────────
  *
- * Uma falha a MEIO (ex.: SQL Server local inacessível) chama
- * `failSyncRequest` e o pedido fica `FALHOU` — TERMINAL, sem
- * reagendamento automático (mesma decisão do endpoint `.../fail`, ver o
- * cabeçalho de `app/api/outbox/v1/sync-requests/[syncRequestId]/fail/route.ts`).
+ * Uma falha a MEIO (ex.: SQL Server local inacessível, ou lock ocupado
+ * no momento da reclamação) chama `failSyncRequest` e o pedido fica
+ * `FALHOU` — TERMINAL, sem reagendamento automático (mesma decisão do
+ * endpoint `.../fail`, ver o cabeçalho de
+ * `app/api/outbox/v1/sync-requests/[syncRequestId]/fail/route.ts`).
  * O utilizador vê o erro no widget e decide se carrega no botão outra
  * vez — o mutex já permite um novo pedido assim que este deixa de estar
  * activo. Não há retry automático do LADO DO AGENT para o MESMO pedido:
@@ -78,7 +107,7 @@
  * trata-o como `EXPIRADO` ao fim de `SYNC_REQUEST_TIMEOUT_MINUTOS_DEFAULT`
  * (15 min) — o mutex volta a libertar a farmácia sem intervenção manual.
  * Um pedido ainda `PENDENTE` (nunca chegou a ser reclamado, ex.: este
- * comando falhou ANTES do passo 3) fica candidato ao PRÓXIMO poll, que
+ * comando falhou ANTES do passo 2) fica candidato à PRÓXIMA corrida, que
  * o reclama normalmente — nenhuma acção extra necessária.
  */
 
@@ -88,10 +117,32 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
-import { SaasClient, SaasApiError, type SyncNowResultado } from "../http-client.js";
+import {
+  SaasClient,
+  SaasApiError,
+  type SyncNowResultado,
+  type PendingSyncRequest,
+  type PendingSyncRequestsResponse,
+} from "../http-client.js";
 import { tableExists, listColumns } from "./probe-helpers.js";
 import { hojeNaFarmacia } from "../janela.js";
 import { runPipelineForDay, type DailySyncLogger } from "./daily-sync-runner.js";
+
+// ─────────────────────────────────────────────────────────────────────
+// Long-poll — quantos ciclos, quanto tempo cada um.
+//
+// 3 ciclos × 18s ≈ 54s de orçamento nesta corrida QUANDO NADA ESTÁ
+// PENDENTE (o caso comum). Escolhido a par da frequência do Task
+// Scheduler documentada em `agent/docs/sync-now.md` secção 2 — ali está
+// o número concreto de latência pior-caso, não repetido aqui para não
+// desalinhar os dois ficheiros.
+//
+// Quando ALGO está pendente, o primeiro ciclo que o apanha interrompe
+// os restantes de imediato (`runLongPollCycles` pára ao primeiro
+// `count > 0`) — a corrida não gasta os 54s inteiros nesse caso.
+// ─────────────────────────────────────────────────────────────────────
+export const SYNC_NOW_LONGPOLL_CYCLES = 3;
+export const SYNC_NOW_LONGPOLL_WAIT_SECONDS = 18;
 
 const RULE = "─".repeat(70);
 
@@ -101,11 +152,13 @@ const RULE = "─".repeat(70);
 // 8 minutos, escolhido com folga face ao timeout SERVER-SIDE do pedido
 // (`SYNC_REQUEST_TIMEOUT_MINUTOS_DEFAULT` = 15 min, em
 // `lib/sync-request/estado.ts`): entre o clique e este comando reclamar
-// o pedido já passou até 1 poll (ver `agent/docs/sync-now.md` — 2 min),
-// e depois do trabalho ainda falta o `ack`/`fail` viajar até ao SaaS.
-// 8 min deixa esses ~2 min de espera + a chamada final com folga
-// confortável dentro dos 15 min totais, e ainda é generoso para o caso
-// leve (produtos+stock de um só dia, não o histórico inteiro).
+// o pedido, o pior caso agora é ~1 minuto (ver `agent/docs/sync-now.md`
+// secção 2 — gap entre corridas do Task Scheduler, dominado pelos
+// ciclos de long-poll, não pelo intervalo entre corridas), e depois do
+// trabalho ainda falta o `ack`/`fail` viajar até ao SaaS. 8 min deixa
+// essa espera + a chamada final com folga larga dentro dos 15 min
+// totais, e continua generoso para o caso leve (produtos+stock de um
+// só dia, não o histórico inteiro).
 // ─────────────────────────────────────────────────────────────────────
 const SYNC_NOW_LOCAL_TIMEOUT_MS = 8 * 60 * 1000;
 
@@ -147,6 +200,15 @@ function withLocalTimeout<T>(promise: Promise<T>, ms: number, label: string): Pr
 // Continua coerente com o corpo leve desta revisão: o corpo mudou (para
 // `runPipelineForDay`), a necessidade de serializar com o pipeline
 // nocturno não — ambos escrevem produtos/stock da mesma farmácia.
+//
+// QUANDO é adquirido: só depois de `runLongPollCycles` devolver um
+// pedido reclamado — nunca durante os ciclos de espera. Não há nada a
+// proteger enquanto o comando só está a perguntar "há algo pendente?";
+// adquirir o lock antes disso (o desenho anterior a este bloco)
+// seguraria `run/pipeline.lock` pelos ~54s do orçamento de long-poll em
+// TODAS as corridas, mesmo nas que não têm nada para processar —
+// exactamente o cenário que se quer evitar (um `daily-pipeline` que
+// precise do lock teria de esperar por um sync-now ocioso).
 //
 // A verificação de liveness por PID (via `tasklist`) é copiada de
 // `daily-pipeline.ts::isPidAlive` — não apenas a idade do timestamp —
@@ -247,6 +309,55 @@ async function resolveFarmaciaId(client: SaasClient, hint: string): Promise<stri
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Ciclos de long-poll — PURO (sem lock, sem SQL, sem fs), testável sem
+// rede injectando um `pullOnce` falso (ver
+// scripts/tests/test-sync-on-demand.ts). Não toca no lockfile por
+// construção: esta função nem sequer importa `acquireLock`.
+// ─────────────────────────────────────────────────────────────────────
+
+export type LongPollCyclesResult = {
+  claimed: PendingSyncRequest | null;
+  /** Quantos ciclos foram efectivamente consultados (1..cycles). */
+  cyclesUsed: number;
+};
+
+export async function runLongPollCycles(
+  pullOnce: (waitSeconds: number) => Promise<PendingSyncRequestsResponse>,
+  opts: { cycles: number; waitSeconds: number },
+): Promise<LongPollCyclesResult> {
+  for (let i = 1; i <= opts.cycles; i++) {
+    const pending = await pullOnce(opts.waitSeconds);
+    if (pending.count > 0 && pending.syncRequests[0]) {
+      return { claimed: pending.syncRequests[0], cyclesUsed: i };
+    }
+  }
+  return { claimed: null, cyclesUsed: opts.cycles };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Decisão pós-claim quando o lock local está ocupado — PURA, testável
+// sem fs/SQL. `acquireLock()` já devolve `null` (adquirido) ou uma
+// mensagem (recusado); esta função só decide o que fazer com isso
+// DEPOIS de já se ter reclamado um pedido — nunca antes.
+// ─────────────────────────────────────────────────────────────────────
+
+export type PostClaimDecision =
+  | { action: "process" }
+  | { action: "fail-lock-busy"; message: string };
+
+export function decidePostClaim(lockRefusal: string | null): PostClaimDecision {
+  if (lockRefusal) {
+    return {
+      action: "fail-lock-busy",
+      message:
+        `Pedido reclamado mas o lock local está ocupado (${lockRefusal}). ` +
+        `A falhar de imediato em vez de esperar pelo lock — o pedido não fica pendurado até expirar aos 15 min.`,
+    };
+  }
+  return { action: "process" };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 export async function syncNow(): Promise<number> {
   let cfg: AgentConfig;
@@ -277,35 +388,59 @@ export async function syncNow(): Promise<number> {
     return 1;
   }
   console.log(`Farmácia (resolved): ${farmaciaId}`);
+  console.log(
+    `Long-poll: até ${SYNC_NOW_LONGPOLL_CYCLES} ciclo(s) de ${SYNC_NOW_LONGPOLL_WAIT_SECONDS}s cada ` +
+      `(orçamento desta corrida quando nada está pendente: ~${SYNC_NOW_LONGPOLL_CYCLES * SYNC_NOW_LONGPOLL_WAIT_SECONDS}s). ` +
+      `Lock local só é tocado se algo for reclamado.`
+  );
 
+  const agentInstance = `${cfg.tenantSlug}-${os.hostname()}`.slice(0, 100);
+
+  // ── Ciclos de long-poll — SEM lock. Nada aqui escreve produtos/stock,
+  // por isso nada aqui precisa de serializar com daily-pipeline/full-sync.
+  let cycleResult: LongPollCyclesResult;
+  try {
+    cycleResult = await runLongPollCycles(
+      (waitSeconds) => client.pullPendingSyncRequests(farmaciaId, { agentInstance, waitSeconds }),
+      { cycles: SYNC_NOW_LONGPOLL_CYCLES, waitSeconds: SYNC_NOW_LONGPOLL_WAIT_SECONDS }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`✗ pullPendingSyncRequests falhou: ${msg}`);
+    return 1;
+  }
+
+  const req = cycleResult.claimed;
+  if (!req) {
+    console.log(`Nada pendente após ${cycleResult.cyclesUsed} ciclo(s) de long-poll. OK. (lock nunca foi tocado)`);
+    return 0;
+  }
+
+  console.log(
+    `▶ Pedido reclamado: ${req.syncRequestId} (farmácia=${req.farmaciaId}, timeoutAt=${req.timeoutAt}, ` +
+      `ciclo ${cycleResult.cyclesUsed}/${SYNC_NOW_LONGPOLL_CYCLES})`
+  );
+  console.log("");
+
+  // ── SÓ AGORA o lock — algo foi reclamado e vai ser processado.
   const lockRefusal = acquireLock();
-  if (lockRefusal) {
-    console.log(lockRefusal);
-    console.log("✓ sync-now sai sem tentar reclamar nenhum pedido (lock ocupado).");
-    return 0; // Não é uma falha do sync-now — é o mutex a funcionar. O
-    // próximo poll (minutos depois) tenta de novo.
+  const decision = decidePostClaim(lockRefusal);
+  if (decision.action === "fail-lock-busy") {
+    console.log(decision.message);
+    try {
+      await client.failSyncRequest(req.syncRequestId, decision.message);
+      console.log("· fail enviado ao SaaS (pedido reclamado mas não processado — lock ocupado).");
+    } catch (failErr) {
+      console.error(
+        `✗ fail também falhou (o pedido fica EM_CURSO até expirar por timeout): ${
+          failErr instanceof Error ? failErr.message : String(failErr)
+        }`
+      );
+    }
+    return 2;
   }
 
   try {
-    const agentInstance = `${cfg.tenantSlug}-${os.hostname()}`.slice(0, 100);
-    let pending;
-    try {
-      pending = await client.pullPendingSyncRequests(farmaciaId, { agentInstance });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`✗ pullPendingSyncRequests falhou: ${msg}`);
-      return 1;
-    }
-
-    if (pending.count === 0) {
-      console.log("Nada pendente. OK.");
-      return 0;
-    }
-
-    const req = pending.syncRequests[0];
-    console.log(`▶ Pedido reclamado: ${req.syncRequestId} (farmácia=${req.farmaciaId}, timeoutAt=${req.timeoutAt})`);
-    console.log("");
-
     const date = hojeNaFarmacia();
     console.log(`Dia (hoje na farmácia): ${date}`);
     console.log(`Timeout local         : ${(SYNC_NOW_LOCAL_TIMEOUT_MS / 60_000).toFixed(0)} min`);
@@ -386,6 +521,8 @@ export async function syncNow(): Promise<number> {
     console.log("✓ sync-now concluído e acked com sucesso.");
     return 0;
   } finally {
+    // Só liberta o que foi adquirido acima (depois do claim) — nunca
+    // tocado durante os ciclos de long-poll.
     releaseLock();
   }
 }

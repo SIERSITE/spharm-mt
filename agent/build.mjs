@@ -62,7 +62,16 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // daily-pipeline/full-sync). NÃO empacotado nem publicado por este
 // bloco — só o contador local avançou; a tarefa agendada do Windows
 // dedicada e a publicação real ficam para quando isto for adoptado.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "93";
+// rev94 — sync-now passa a fazer LONG-POLLING real: até 3 ciclos de
+// `GET .../pending?waitSeconds=18` por corrida (servidor mantém o
+// pedido em espera), lock local (`run/pipeline.lock`) só adquirido
+// quando um pedido é efectivamente reclamado (nunca durante os ciclos
+// de espera), fail imediato se o lock estiver ocupado na reclamação, e
+// timeout do cliente HTTP alinhado com `waitSeconds`. Latência
+// pior-caso passa de ~2 min a ~7-11s (ver agent/docs/sync-now.md secção
+// 2). NÃO empacotado nem publicado por este bloco — só o contador
+// local avançou; a tarefa agendada do Windows continua por instalar.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "94";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //

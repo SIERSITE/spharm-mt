@@ -8,9 +8,11 @@
  * O browser NUNCA toca na BD/ERP local da farmácia — só deposita um
  * `SyncRequest` (padrão outbox, invertido face ao `OrderOutbox` de
  * encomendas: aqui quem escreve é o humano e quem consome é o agent).
- * "Agora" na prática significa "assim que o agent fizer o próximo poll
- * dedicado" — nunca instantâneo. Ver `agent/src/commands/sync-now.ts` e
- * `app/api/outbox/v1/sync-requests/*`.
+ * "Agora" na prática significa "assim que o agent reclamar o pedido
+ * num dos seus ciclos de long-poll" — tipicamente segundos, desde a
+ * mudança para long-polling real (`agent/src/commands/sync-now.ts`,
+ * `agent/docs/sync-now.md` secção 2), mas nunca uma garantia
+ * instantânea a 100%. Ver também `app/api/outbox/v1/sync-requests/*`.
  *
  * Auth: mesmo padrão do Bloco A (`getHistoricoProdutoAction`) —
  * `requirePermission("stock.sync")` + `canAccessFarmaciaSync` por
