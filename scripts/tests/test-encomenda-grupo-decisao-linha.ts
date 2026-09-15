@@ -472,7 +472,9 @@ console.log("\nG · schema, migration, cliente e acção usam o mesmo mecanismo\
 }
 {
   const acoes = src("app/encomendas/nova/actions.ts");
-  const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\n}\n/);
+  // \r?\n — o repositório é desenvolvido em Windows com core.autocrlf=true;
+  // um \n bare não sobrevive a um checkout com terminadores CRLF.
+  const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\r?\n\}\r?\n/);
   check(match !== null, "createInternalTransferAction ainda existe");
   const corpo = match ? match[0] : "";
   check(

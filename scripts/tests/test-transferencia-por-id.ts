@@ -134,7 +134,9 @@ console.log("\n=== 4. createInternalTransferAction nunca resolve por nome ===");
     "não existe nenhum findFirst por nome de farmácia",
     !/farmacia\.findFirst\(\s*\{\s*where:\s*\{\s*nome/.test(acoes),
   );
-  const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\n}\n/);
+  // \r?\n — o repositório é desenvolvido em Windows com core.autocrlf=true;
+  // um \n bare não sobrevive a um checkout com terminadores CRLF.
+  const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\r?\n\}\r?\n/);
   ok("createInternalTransferAction existe", match !== null);
   const corpo = match ? match[0] : "";
   ok(
