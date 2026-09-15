@@ -53,7 +53,11 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // `dist-agent/<DIST_NAME>/` da revisão anterior — `cleanDist()` apaga a
 // pasta de destino, e apagar a rev instalada para inspeccionar um comando
 // novo é exactamente o que não se quer.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "91";
+// rev92 — Bloco C: daily-sync passa a enviar fabricante (e dci/codigoATC/
+// grupoHomogeneo) via a mesma descoberta do onboarding, agora partilhada
+// em `agent/src/catalog-discovery.ts`. NÃO empacotado nem publicado por
+// este bloco — só o contador local avançou.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "92";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //

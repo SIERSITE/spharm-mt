@@ -33,6 +33,13 @@ import {
   type SourceNamespace,
 } from "../vendas-fontes.js";
 import type { TipoPorClassificar } from "../saude-vendas.js";
+import {
+  discoverCatalogPlan,
+  buildCatalogSqlFragments,
+  catalogFieldsToPayload,
+  EMPTY_CATALOG_PLAN,
+  type CatalogPlan,
+} from "../catalog-discovery.js";
 
 type SchemaProbeAPI = {
   tableExists: (
@@ -164,6 +171,20 @@ export type SchemaCapabilities = {
   hasStocksMov: boolean;
   stocksMovDateCol: "DataMov" | null;
   hasDataActualiz: boolean;
+  /**
+   * rev92 — a mesma descoberta do catálogo regulamentar (DCI, ATC, Grupo
+   * Homogéneo, Fabricante) que o onboarding/refresh manual já corria em
+   * `bootstrap-upload.ts` (`discoverCatalogPlan`, rev46-52). O daily-sync
+   * NUNCA a corria, e por isso o pipeline agendado nunca enviava
+   * fabricante nem os outros três campos — só o onboarding/`products-upload`
+   * o fazia.
+   *
+   * Opcional: os testes existentes (`catalogo-retirado-diario.test.ts`)
+   * constroem `SchemaCapabilities` à mão sem este campo, e ausência aqui
+   * tem exactamente o mesmo efeito de uma instalação sem estas colunas
+   * (`EMPTY_CATALOG_PLAN`) — nenhuma query se parte por faltar.
+   */
+  catalogPlan?: CatalogPlan;
 };
 
 async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promise<SchemaCapabilities> {
@@ -177,7 +198,8 @@ async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promis
   }
   const stocksCols = await probes.listColumns(pool, { schema: "dbo", table: "Stocks" });
   const hasDataActualiz = stocksCols.some((c) => c.name === "Data_Actualiz");
-  return { hasStocksMov, stocksMovDateCol, hasDataActualiz };
+  const catalogPlan = await discoverCatalogPlan(pool);
+  return { hasStocksMov, stocksMovDateCol, hasDataActualiz, catalogPlan };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -260,6 +282,13 @@ export function buildProductsSql(caps: SchemaCapabilities): string {
       )
       OR ${moveuNoDia}`
     : activoNaJanela;
+  // rev92 — mesmo catálogo regulamentar que o onboarding já lê
+  // (`bootstrap-upload.ts` via `discoverCatalogPlan`). `caps.catalogPlan`
+  // vem de `detectCapabilities`; ausente (ex.: testes que constroem
+  // `SchemaCapabilities` à mão) tem o mesmo efeito de nenhuma coluna
+  // detectada — os quatro campos vão NULL, a query não se parte.
+  const { dciSelect, atcSelect, ghSelect, ghJoin, fabricanteSelect, fabricanteJoin } =
+    buildCatalogSqlFragments(caps.catalogPlan ?? EMPTY_CATALOG_PLAN);
   return `
     SELECT TOP (@n)
       s.CodigoID                   AS externalProductId,
@@ -274,7 +303,11 @@ export function buildProductsSql(caps: SchemaCapabilities): string {
       s.[Generico]                 AS generico,
       s.[MNSRM_NCompart]           AS mnsrmNCompart,
       ars.[Fornecedor Habitual]    AS fornecedorHabitualId,
-      f.[Nome Abreviado]           AS fornecedorHabitualNome
+      f.[Nome Abreviado]           AS fornecedorHabitualNome,
+      ${dciSelect}                 AS dci,
+      ${atcSelect}                 AS codigoATC,
+      ${ghSelect}                  AS grupoHomogeneo,
+      ${fabricanteSelect}          AS fabricante
     FROM [dbo].[Stocks] s
     OUTER APPLY (
       SELECT TOP 1 [Fornecedor Habitual]
@@ -283,6 +316,8 @@ export function buildProductsSql(caps: SchemaCapabilities): string {
       ORDER BY ArmazemID
     ) ars
     LEFT JOIN [dbo].[Fornecedores] f ON f.[Fornecedor ID] = ars.[Fornecedor Habitual]
+    ${fabricanteJoin}
+    ${ghJoin}
     WHERE s.[Processa_Stocks] <> 0
       AND s.CodigoID > @lastId
       AND (
@@ -339,7 +374,7 @@ function buildStockSql(caps: SchemaCapabilities): string {
 // Pipelines
 // ─────────────────────────────────────────────────────────────────────
 
-type ProductRow = {
+export type ProductRow = {
   externalProductId: number;
   cnp: number | null;
   designacao: string | null;
@@ -353,9 +388,16 @@ type ProductRow = {
   mnsrmNCompart: unknown;
   fornecedorHabitualId: number | null;
   fornecedorHabitualNome: string | null;
+  /** rev92 — catálogo regulamentar. Ver `catalog-discovery.ts`. */
+  dci: unknown;
+  codigoATC: unknown;
+  grupoHomogeneo: unknown;
+  fabricante: unknown;
 };
 
-function rowToProductPayload(r: ProductRow): Record<string, unknown> {
+/** Exportada para `test-agent-fabricante-daily-sync.ts` — confirma que o
+ * payload do sync diário passou a incluir o catálogo regulamentar. */
+export function rowToProductPayload(r: ProductRow): Record<string, unknown> {
   return {
     externalProductId: numOrNull(r.externalProductId),
     cnp: numOrNull(r.cnp),
@@ -370,6 +412,7 @@ function rowToProductPayload(r: ProductRow): Record<string, unknown> {
     mnsrmNCompart: boolOrNull(r.mnsrmNCompart),
     fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
     fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
+    ...catalogFieldsToPayload(r),
   };
 }
 
@@ -734,6 +777,13 @@ export async function runPipelineForDay(opts: {
   };
   const caps = await detectCapabilities(pool, schemaProbes);
   logger.log(`Schema detection: StocksMov=${caps.hasStocksMov ? "✓" : "✗"}  Data_Actualiz=${caps.hasDataActualiz ? "✓" : "✗"}`);
+  // rev92 — mesma descoberta do onboarding, agora também no sync diário.
+  const cp = caps.catalogPlan;
+  const fabricanteDetectado = !!(cp?.fabricante || cp?.fabricanteFk);
+  logger.log(
+    `Catálogo ERP: DCI=${cp?.dci ? "✓" : "✗"} ATC=${cp?.atc ? "✓" : "✗"} ` +
+      `GrupoHomogeneo=${cp?.grupoHomogeneoLookup ? "✓" : "✗"} Fabricante=${fabricanteDetectado ? "✓" : "✗"}`,
+  );
   logger.raw("");
   if (!caps.hasStocksMov) {
     throw new Error("dbo.StocksMov é OBRIGATÓRIO para o pipeline de stock incremental.");

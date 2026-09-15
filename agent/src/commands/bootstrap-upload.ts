@@ -49,6 +49,12 @@ import {
   aplicarGuardaTemporal,
   leuIncluirHoje,
 } from "../janela.js";
+import {
+  discoverCatalogPlan,
+  buildCatalogSqlFragments,
+  catalogFieldsToPayload,
+  logCatalogPlan,
+} from "../catalog-discovery.js";
 
 const RULE = "─".repeat(70);
 const DOUBLE_RULE = "═".repeat(70);
@@ -437,176 +443,12 @@ type IvaJoinPlan = {
   masterRateColumn: string | null;  // ex.: "Taxa"
 };
 
-/**
- * rev46 — plano de leitura do catálogo regulamentar (DCI, ATC, Grupo
- * Homogéneo, Fabricante) a partir do ERP.
- *
- * Mesmo princípio da descoberta do IVA e do movimentos-audit rev32: os
- * nomes das colunas variam entre instalações Softreis, por isso são
- * descobertos em `sys.columns` e não escritos à mão. Coluna que não
- * existe cai a NULL no SELECT em vez de partir a query.
- *
- * Para cada conceito escolhe-se a coluna TEXTUAL com nome mais
- * específico. Colunas numéricas são ignoradas de propósito: um código
- * interno do ERP (17) não é uma DCI nem um ATC, e enviá-lo poluiria o
- * catálogo central com valores sem significado fora daquela instalação.
- * Quando o valor real vive numa tabela de lookup, `catalog-audit` mostra
- * a chave e o JOIN pode ser acrescentado aqui com evidência.
- */
-type CatalogPlan = {
-  dci: string | null;
-  atc: string | null;
-  /** Coluna textual directa em Stocks (raro). */
-  fabricante: string | null;
-  /**
-   * rev48 — fabricante por lookup, confirmado pelo catalog-audit da
-   * Silveirense: Stocks.[GamaFabricanteID] (smallint, 98,8% preenchido,
-   * 1084 distintos) contra dbo.tblGamaFabricante, PK GamaFabricanteID do
-   * mesmo tipo, texto em [Descricao] varchar(74).
-   *
-   * Não há FK declarada — o Softreis quase não as declara — por isso a
-   * ligação é confirmada por três evidências e não pela nomenclatura:
-   * nome igual, tipo igual, e a coluna do lado do lookup é a PK.
-   */
-  fabricanteFk: { stocksColumn: string; table: string; pk: string; textColumn: string } | null;
-  /**
-   * rev52 — Grupo Homogéneo. Relação OBSERVADA na Silveirense em
-   * 2026-08-11, não inferida por nomenclatura:
-   *
-   *   Stocks.[GrupoHomID] -> dbo.Stocks_GrupoHom.[GrupoHomID] -> [Descr]
-   *
-   * Porque está correcta: os dois lados contêm o mesmo código de domínio
-   * (GH0052, GH0379) e não um inteiro que possa coincidir por acaso; o
-   * lookup tem 1 002 linhas, zero GrupoHomID repetidos, logo o LEFT JOIN
-   * não multiplica produtos. Medido: 18 743 produtos, 6 916 com
-   * GrupoHomID, 3 944 resolvidos pelo lookup.
-   *
-   * Não é procurado por padrão de nome — foi exactamente isso que fez o
-   * catalog-audit falhar esta coluna (nenhum de %homog%, %grupo hom%, %gh%
-   * casa com "GrupoHomID"). Aqui só se confirma que existe.
-   */
-  grupoHomogeneoLookup: boolean;
-};
-
-/** Nomes fixos porque foram observados, não adivinhados. */
-const GH = { coluna: "GrupoHomID", tabela: "Stocks_GrupoHom", texto: "Descr" } as const;
-
-/** Sentinela do ERP para "sem grupo homogéneo". */
-const GH_SEM_GRUPO = "GH0000";
-
-async function discoverCatalogPlan(pool: SqlPool): Promise<CatalogPlan> {
-  const r = await pool.request().query<{ nome: string; tipo: string }>(`
-    SELECT c.name AS nome, ty.name AS tipo
-    FROM sys.columns c
-    JOIN sys.tables t  ON c.object_id = t.object_id
-    JOIN sys.schemas s ON t.schema_id = s.schema_id
-    JOIN sys.types ty  ON c.user_type_id = ty.user_type_id
-    WHERE s.name = 'dbo' AND t.name = 'Stocks'
-    ORDER BY c.column_id
-  `);
-  const textuais = r.recordset.filter((c) => /char|text/i.test(c.tipo));
-
-  /** Primeira coluna textual que case com um dos padrões, por ordem de preferência. */
-  const escolher = (padroes: RegExp[]): string | null => {
-    for (const p of padroes) {
-      const hit = textuais.find((c) => p.test(c.nome));
-      if (hit) return hit.nome;
-    }
-    return null;
-  };
-
-  return {
-    dci: escolher([/^dci$/i, /dci/i, /subst.nc/i, /princ.pio/i]),
-    atc: escolher([/^atc$/i, /atc/i]),
-    fabricante: escolher([/fabricante/i, /laborat/i, /titular/i, /marca/i]),
-    fabricanteFk: await discoverFabricanteFk(pool, r.recordset),
-    grupoHomogeneoLookup: await confirmarLookupGrupoHomogeneo(pool),
-  };
-}
-
-/**
- * Confirma que a relação do Grupo Homogéneo existe nesta instalação. Não
- * procura nada: verifica os três nomes observados. Faltando um, o campo
- * vai NULL em vez de o upload rebentar numa instalação diferente.
- */
-async function confirmarLookupGrupoHomogeneo(pool: SqlPool): Promise<boolean> {
-  const r = await pool.request().query<{ emStocks: number; noLookup: number }>(`
-    SELECT
-      (SELECT COUNT(*) FROM sys.columns
-        WHERE object_id = OBJECT_ID('dbo.Stocks') AND name = '${GH.coluna}')      AS emStocks,
-      (SELECT COUNT(*) FROM sys.columns
-        WHERE object_id = OBJECT_ID('dbo.${GH.tabela}')
-          AND name IN ('${GH.coluna}', '${GH.texto}'))                            AS noLookup
-  `);
-  const x = r.recordset[0];
-  return Number(x?.emStocks ?? 0) === 1 && Number(x?.noLookup ?? 0) === 2;
-}
-
-/**
- * Procura o par (coluna de código em Stocks, tabela de lookup) para o
- * fabricante. Exige as três evidências, e devolve null se faltar uma —
- * sem lookup confirmado o payload leva fabricante=null em vez de um
- * código interno que não significa nada fora desta instalação.
- */
-async function discoverFabricanteFk(
-  pool: SqlPool,
-  stocksCols: Array<{ nome: string; tipo: string }>,
-): Promise<CatalogPlan["fabricanteFk"]> {
-  const candidatas = stocksCols.filter(
-    (c) => /fabricante|laborat|titular/i.test(c.nome) && /int/i.test(c.tipo),
-  );
-  for (const col of candidatas) {
-    // A tabela de lookup tem o nome da coluna sem o sufixo ID.
-    const base = col.nome.replace(/id$/i, "");
-    const r = await pool.request().input("b", sql.NVarChar, `%${base}%`).query<{
-      tabela: string; pk: string; texto: string;
-    }>(`
-      SELECT TOP 1
-        t.name AS tabela,
-        pkc.name AS pk,
-        txt.name AS texto
-      FROM sys.tables t
-      JOIN sys.schemas s ON s.schema_id = t.schema_id
-      JOIN sys.indexes i ON i.object_id = t.object_id AND i.is_primary_key = 1
-      JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-      JOIN sys.columns pkc ON pkc.object_id = ic.object_id AND pkc.column_id = ic.column_id
-      JOIN sys.columns txt ON txt.object_id = t.object_id
-      JOIN sys.types ty ON ty.user_type_id = txt.user_type_id
-      WHERE s.name = 'dbo' AND t.name LIKE @b
-        AND pkc.name = '${col.nome.replace(/'/g, "''")}'
-        AND ty.name IN ('varchar','nvarchar','char','nchar')
-      ORDER BY txt.max_length DESC
-    `);
-    const hit = r.recordset[0];
-    if (hit) {
-      return { stocksColumn: col.nome, table: hit.tabela, pk: hit.pk, textColumn: hit.texto };
-    }
-  }
-  return null;
-}
-
-function logCatalogPlan(plan: CatalogPlan): void {
-  const f = (label: string, col: string | null) =>
-    console.log(`     ${label.padEnd(16)} ${col ? `Stocks.[${col}]` : "✗ não detectada — enviado NULL"}`);
-  console.log("  Plano de catálogo regulamentar (rev46):");
-  f("DCI:", plan.dci);
-  f("ATC:", plan.atc);
-  f("Fabricante:", plan.fabricante);
-  console.log(
-    `     ${"Grupo Homog. :".padEnd(16)} ${
-      plan.grupoHomogeneoLookup
-        ? `Stocks.[${GH.coluna}] -> ${GH.tabela}.[${GH.coluna}] -> [${GH.texto}]  (${GH_SEM_GRUPO} = sem grupo)`
-        : "✗ lookup ausente — enviado NULL"
-    }`,
-  );
-  if (plan.fabricanteFk) {
-    const k = plan.fabricanteFk;
-    console.log(`     ${"Fabricante (FK):".padEnd(16)} Stocks.[${k.stocksColumn}] -> ${k.table}.[${k.pk}] -> [${k.textColumn}]`);
-  }
-  if (!plan.dci && !plan.atc && !plan.grupoHomogeneoLookup && !plan.fabricante && !plan.fabricanteFk) {
-    console.log("     Nenhum campo detectado nesta instalação — o catálogo vai sem enriquecimento do ERP.");
-  }
-}
+// rev46-52 — plano de leitura do catalogo regulamentar (DCI, ATC, Grupo
+// Homogeneo, Fabricante) a partir do ERP: `CatalogPlan`, `discoverCatalogPlan`,
+// `discoverFabricanteFk`, `logCatalogPlan`. Movidos para
+// `../catalog-discovery.js` (rev92) para serem partilhados com
+// `daily-sync-runner.ts`, que tinha a mesma lacuna — o sync diario nunca
+// enviava fabricante nem os outros tres campos.
 
 async function discoverIvaJoinPlan(pool: SqlPool): Promise<IvaJoinPlan> {
   // 1. Coluna IVA em Stocks (qualquer coluna com 'iva' no nome — preferimos
@@ -823,32 +665,8 @@ export async function runProductsPipeline(
 
   const catalogPlan = await discoverCatalogPlan(pool);
   logCatalogPlan(catalogPlan);
-  const col = (c: string | null) => (c ? `s.[${c}]` : `CAST(NULL AS NVARCHAR(200))`);
-  const dciSelect = col(catalogPlan.dci);
-  const atcSelect = col(catalogPlan.atc);
-  // Grupo Homogéneo: descrição do lookup, nunca o código interno — GH0052
-  // não significa nada fora desta instalação; "Paracetamol | A101 | Oral |
-  // 1000 mg" significa em todas.
-  const ghSelect = catalogPlan.grupoHomogeneoLookup
-    ? `gh_lk.[${GH.texto}]`
-    : `CAST(NULL AS NVARCHAR(200))`;
-  // A sentinela fica de fora do JOIN: "sem grupo" tem de chegar ao SaaS
-  // como NULL e não como uma descrição de grupo que não existe.
-  const ghJoin = catalogPlan.grupoHomogeneoLookup
-    ? `LEFT JOIN [dbo].[${GH.tabela}] gh_lk
-         ON gh_lk.[${GH.coluna}] = s.[${GH.coluna}]
-        AND s.[${GH.coluna}] <> '${GH_SEM_GRUPO}'`
-    : ``;
-  // Coluna directa se existir; senão o texto do lookup confirmado.
-  const fabricanteSelect = catalogPlan.fabricante
-    ? `s.[${catalogPlan.fabricante}]`
-    : catalogPlan.fabricanteFk
-      ? `fab_lk.[${catalogPlan.fabricanteFk.textColumn}]`
-      : `CAST(NULL AS NVARCHAR(200))`;
-  const fabricanteJoin = !catalogPlan.fabricante && catalogPlan.fabricanteFk
-    ? `LEFT JOIN [dbo].[${catalogPlan.fabricanteFk.table}] fab_lk
-         ON fab_lk.[${catalogPlan.fabricanteFk.pk}] = s.[${catalogPlan.fabricanteFk.stocksColumn}]`
-    : ``;
+  const { dciSelect, atcSelect, ghSelect, ghJoin, fabricanteSelect, fabricanteJoin } =
+    buildCatalogSqlFragments(catalogPlan);
 
   const ivaJoinClause =
     ivaPlan.masterTable && ivaPlan.masterPk && ivaPlan.stocksColumn
@@ -988,10 +806,7 @@ export async function runProductsPipeline(
       fornecedorHabitualId: numOrNull(r.fornecedorHabitualId),
       fornecedorHabitualNome: strOrNull(r.fornecedorHabitualNome),
       taxaIva: numOrNull(r.taxaIva),
-      dci: strOrNull(r.dci),
-      codigoATC: strOrNull(r.codigoATC),
-      grupoHomogeneo: strOrNull(r.grupoHomogeneo),
-      fabricante: strOrNull(r.fabricante),
+      ...catalogFieldsToPayload(r),
     }));
 
     if (dryRun) {

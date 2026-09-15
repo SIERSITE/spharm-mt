@@ -206,6 +206,11 @@ export async function applyErpCatalogFields(
       tipoArtigo: true,
       productType: true,
       productTypeConfidence: true,
+      // Guarda extra para o fabricante: uma ficha validada à mão por um
+      // humano é mais autoritativa que o ERP (SourceTier.MANUAL > ERP_FARMACIA)
+      // mesmo sem o campo estar em `camposManuais`, que só cobre
+      // designacao/flagGenerico/flagMnsrmNCompart.
+      validadoManualmente: true,
       // O nome normalizado é preciso para comparar com o do ERP: sem ele
       // cada corrida veria "valor diferente" e reescreveria o mesmo
       // fabricante para sempre.
@@ -307,8 +312,18 @@ export async function applyErpCatalogFields(
     aplicar(
       "fabricante",
       r.fabricante,
-      produto.fabricanteId ? " existe" : null,
-      !!reg?.titularAim,
+      // Bug corrigido: o "actual" era o literal sentinela " existe"
+      // (nunca igual a `novo`), por isso `actual === novo` nunca era
+      // verdadeiro e a decisao caia sempre em "substituir" quando
+      // `fonteForte` era falso -- UPDATE + EnrichmentSourceLog novo em
+      // TODA corrida, mesmo reenviando o mesmo fabricante.
+      produto.fabricante?.nomeNormalizado ?? null,
+      // `validadoManualmente` e a guarda extra: uma ficha validada a mao
+      // por um humano (SourceTier.MANUAL) nao pode ser sobreposta pelo
+      // ERP (SourceTier.ERP_FARMACIA), mesmo sem RegulatoryRecord nem
+      // log de enriquecimento a proteger o fabricante. `camposManuais`
+      // nao cobre `fabricanteId` -- esta e a unica proteccao desse campo.
+      !!reg?.titularAim || produto.validadoManualmente,
     );
 
     // ── ProductType ────────────────────────────────────────────────
