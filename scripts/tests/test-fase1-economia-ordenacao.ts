@@ -303,23 +303,18 @@ console.log("\nB3. Custo agregado por artigo\n");
 {
   const av = src("lib/reporting/adapters/vendas.ts");
   check(av.includes('label: "Custo unit. est."'), "Vendas: o relatório diz «est.»");
-  check(av.includes('label: "Custo est."'), "…e o total também");
-  check(
-    av.includes("nao e' o custo a data da venda") ||
-      av.includes("não é o custo à data da venda"),
-    "…e o aviso viaja no cabeçalho do relatório",
-  );
+  // Removido a pedido (2026-09): Vendas deixou de ter "Custo est."
+  // (total) — só o unitário. Margens mantém o total, é outro relatório.
+  check(!av.includes('label: "Custo est."'), "…mas já não tem o TOTAL — só o unitário");
   const am = src("lib/reporting/adapters/margens.ts");
   check(am.includes('label: "Custo unit. est."'), "Margens: alinhado, no relatório");
+  check(am.includes('label: "Custo est."'), "…e Margens continua com o total — não é aqui que se remove");
   const cm = src("components/margens/margens-client.tsx");
   check(cm.includes("Custo unit. est."), "…e no ecrã");
   const cv = src("components/vendas/vendas-client.tsx");
   check(cv.includes("Custo unit. est."), "Vendas: no ecrã");
+  check(!cv.includes("Custo est."), "…sem a coluna total no ecrã");
   check(cv.includes("agregarCusto"), "…e agrega com a regra partilhada");
-  check(
-    cv.includes("estimado</strong>") || cv.includes("<strong>estimado</strong>"),
-    "…com o aviso visível na página",
-  );
   const lv = src("lib/vendas-data.ts");
   check(lv.includes("custoDaFarmacia"), "o loader usa a regra PMC>PUC>null partilhada");
   check(lv.includes("custoUnitarioEstimado"), "…e devolve o campo");

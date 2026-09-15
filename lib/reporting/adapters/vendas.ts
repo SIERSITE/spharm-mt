@@ -104,7 +104,6 @@ const BASE_WIDTH_FIXED_COLS = {
   descricao: 28,
   pvp: 7,
   custoUnitarioEstimado: 9,
-  custoEstimado: 9,
   totalVendas: 9,
   existencia: 7,
   farmacia: 18,
@@ -119,7 +118,6 @@ function buildColumns(
     BASE_WIDTH_FIXED_COLS.descricao +
     BASE_WIDTH_FIXED_COLS.pvp +
     BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
-    BASE_WIDTH_FIXED_COLS.custoEstimado +
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
     BASE_WIDTH_FIXED_COLS.farmacia;
@@ -142,9 +140,12 @@ function buildColumns(
     { key: "pvp",         label: "PVP",         format: "currency", width: BASE_WIDTH_FIXED_COLS.pvp },
     // «est.» no rotulo, tambem no PDF e no Excel. Uma folha impressa
     // circula sem o ecra ao lado, e e' onde a palavra mais falta.
+    //
+    // Só o unitário — sem "Custo est." (total). Removido a pedido
+    // (2026-09): o custo total estimado somava um valor por natureza
+    // aproximado (PMC/PUC actual × unidades, nunca o custo à data da
+    // venda) e o pedido explícito foi mantê-lo fora da apresentação.
     { key: "custoUnitarioEstimado", label: "Custo unit. est.", format: "currency", width: BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado },
-    // `showTotal`: o custo total do relatorio e' a soma desta coluna.
-    { key: "custoEstimado", label: "Custo est.", format: "currency", width: BASE_WIDTH_FIXED_COLS.custoEstimado, showTotal: true },
     ...monthColumns,
     { key: "totalVendas", label: "Total Unid.", format: "integer",  width: BASE_WIDTH_FIXED_COLS.totalVendas, showTotal: true },
     { key: "existencia",  label: "Stock",       format: "integer",  width: BASE_WIDTH_FIXED_COLS.existencia },
