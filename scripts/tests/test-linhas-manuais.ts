@@ -49,7 +49,12 @@ const src = (p: string) => readFileSync(p, "utf8");
 
 /** Uma linha de teste com quantidade, para provar que ela não muda. */
 type L = LinhaFundivel & { qtd: number };
-const l = (produtoId: string, origem: OrigemLinha, qtd: number): L => ({ produtoId, origem, qtd });
+const l = (produtoId: string, origem: OrigemLinha, qtd: number, farmaciaId: string | null = null): L => ({
+  produtoId,
+  origem,
+  qtd,
+  farmaciaId,
+});
 
 // ═════════════════════════════════════════════════════════════════════
 // A. Quem sobrevive a um recálculo
@@ -241,6 +246,77 @@ console.log("\nG. As pontas estão ligadas\n");
 {
   const orders = src("lib/ingest/orders.ts");
   check(/origem: l\.origem \?\? "PROPOSTA"/.test(orders), "a gravação assume PROPOSTA por omissão");
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// H. Modo grupo — o MESMO produtoId em DUAS farmácias não é duplicado
+// ═════════════════════════════════════════════════════════════════════
+//
+// Regressão (2026-09): `fundirComProposta` chaveava só por `produtoId`,
+// tal como `mapaDecisoes`/`fundirDecisoesGrupo` chaveavam antes da
+// correção em `decisao-grupo.ts` (ver secção equivalente em
+// scripts/tests/test-encomenda-grupo-decisao-linha.ts). Numa proposta
+// de grupo com duas farmácias a precisar do MESMO produto, a segunda
+// entrava em `novaProposta` com o mesmo `produtoId` da primeira e era
+// descartada como "duplicado" — a UI consolidada por CNP acabava a
+// mostrar "1 farmácia" quando havia duas. A chave tem de ser
+// produtoId+farmaciaId, exactamente como em decisao-grupo.ts.
+console.log("\nH. Duas farmácias com o mesmo produto NÃO se pisam\n");
+
+{
+  // O cenário exacto do relatório: "Segurado" e "Silveirense" precisam
+  // do mesmo CNP na mesma proposta de grupo.
+  const nova = [
+    l("p1", "PROPOSTA", 10, "farm-segurado"),
+    l("p1", "PROPOSTA", 25, "farm-silveirense"),
+  ];
+  const r = fundirComProposta([], nova);
+
+  eq(r.linhas.length, 2, "as DUAS farmácias sobrevivem — não é duplicado");
+  eq(r.propostasIgnoradas, 0, "nenhuma foi descartada por engano");
+  const porFarmacia = new Map(r.linhas.map((x) => [x.farmaciaId, x.qtd]));
+  eq(porFarmacia.get("farm-segurado"), 10, "…cada farmácia mantém a SUA quantidade");
+  eq(porFarmacia.get("farm-silveirense"), 25, "…sem uma sobrescrever a outra");
+}
+{
+  // Uma das duas farmácias tem uma linha MANUAL para o mesmo produto —
+  // só essa farmácia deve ganhar à proposta; a outra farmácia recebe a
+  // proposta normalmente, porque a chave é produtoId+farmaciaId, não só
+  // produtoId.
+  const existentes = [l("p1", "MANUAL", 999, "farm-segurado")];
+  const nova = [
+    l("p1", "PROPOSTA", 10, "farm-segurado"), // ignorada: o manual desta farmácia ganha
+    l("p1", "PROPOSTA", 25, "farm-silveirense"), // entra: farmácia diferente, sem colisão
+  ];
+  const r = fundirComProposta(existentes, nova);
+
+  eq(r.linhas.length, 2, "duas linhas: a manual + a proposta da outra farmácia");
+  eq(r.propostasIgnoradas, 1, "só UMA proposta foi ignorada — a da farmácia com manual");
+  const porFarmacia = new Map(r.linhas.map((x) => [x.farmaciaId, { qtd: x.qtd, origem: x.origem }]));
+  eq(porFarmacia.get("farm-segurado"), { qtd: 999, origem: "MANUAL" }, "Segurado mantém o manual");
+  eq(
+    porFarmacia.get("farm-silveirense"),
+    { qtd: 25, origem: "PROPOSTA" },
+    "Silveirense recebe a proposta — não herda o manual de Segurado",
+  );
+}
+{
+  // Recalcular duas vezes seguidas, com as duas farmácias, não acumula
+  // nem funde as duas num par só.
+  const inicial = [l("p1", "PROPOSTA", 1, "fA"), l("p1", "PROPOSTA", 2, "fB")];
+  const r1 = fundirComProposta([], inicial);
+  const r2 = fundirComProposta(r1.linhas, [l("p1", "PROPOSTA", 9, "fA"), l("p1", "PROPOSTA", 8, "fB")]);
+  eq(r2.linhas.length, 2, "continuam duas linhas após um segundo recálculo");
+  const porFarmacia = new Map(r2.linhas.map((x) => [x.farmaciaId, x.qtd]));
+  eq(porFarmacia.get("fA"), 9, "fA actualizada para o novo valor");
+  eq(porFarmacia.get("fB"), 8, "fB actualizada para o seu próprio novo valor, não o de fA");
+}
+{
+  const cli = src("components/encomendas/order-create-client.tsx");
+  check(
+    cli.includes("agruparPorProduto"),
+    "a UI consolida por produto — e depende de fundirComProposta preservar as duas farmácias antes disso",
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════

@@ -83,8 +83,31 @@ export function rotuloOrigem(origem: OrigemLinha): string | null {
 /** O mínimo que a fusão precisa de saber sobre uma linha. */
 export type LinhaFundivel = {
   produtoId: string;
+  /**
+   * Farmácia DESTA linha — distinta de qualquer farmácia de decisão
+   * (encomenda/origem/destino). Obrigatória para a chave composta desta
+   * fusão: sem ela, o mesmo `produtoId` necessário em duas farmácias
+   * diferentes (proposta de grupo com >1 farmácia a precisar do mesmo
+   * produto) colidia no `Set`/`some()` de `fundirComProposta` e a
+   * segunda farmácia era descartada como "duplicado", quando na
+   * verdade `produtoId+farmaciaId` é a granularidade real de uma linha
+   * de proposta de grupo — o mesmo raciocínio que já levou
+   * `decisao-grupo.ts` a chavear por `chaveLinha(produtoId, farmaciaId)`
+   * em vez de só `produtoId`.
+   */
+  farmaciaId: string | null;
   origem: OrigemLinha;
 };
+
+/**
+ * Chave composta produto+farmácia — espelha `chaveLinha` em
+ * `decisao-grupo.ts`. Nunca usar só `produtoId` como chave de
+ * dedup/índice de linhas: em modo grupo, o mesmo produto pode ter uma
+ * linha por farmácia.
+ */
+function chaveLinha(produtoId: string, farmaciaId: string | null): string {
+  return `${produtoId}:${farmaciaId ?? ""}`;
+}
 
 export type ResultadoFusao<T extends LinhaFundivel> = {
   /** As linhas finais: as preservadas primeiro, depois as novas. */
@@ -93,7 +116,7 @@ export type ResultadoFusao<T extends LinhaFundivel> = {
   preservadas: number;
   /**
    * Quantas linhas da nova proposta foram descartadas por já existir
-   * linha manual para o mesmo produto.
+   * linha manual para o mesmo produto NA MESMA farmácia.
    *
    * Não é ruído de implementação: é o número que a UI mostra ao
    * utilizador para ele saber que o cálculo propôs algo para um artigo
@@ -109,7 +132,9 @@ export type ResultadoFusao<T extends LinhaFundivel> = {
  * Invariantes, todas verificadas por teste:
  *
  *   · nenhuma linha manual ou de sugestão se perde;
- *   · nenhum `produtoId` aparece duas vezes;
+ *   · nenhum par `produtoId`+`farmaciaId` aparece duas vezes — mas o
+ *     MESMO `produtoId` pode aparecer várias vezes, uma por farmácia
+ *     (modo grupo: duas farmácias podem precisar do mesmo produto);
  *   · a linha manual mantém a sua quantidade — a da proposta não a
  *     sobrepõe nem se soma a ela;
  *   · as linhas de PROPOSTA anteriores desaparecem, porque é isso que
@@ -123,24 +148,31 @@ export function fundirComProposta<T extends LinhaFundivel>(
   novaProposta: readonly T[],
 ): ResultadoFusao<T> {
   const preservadas = existentes.filter((l) => sobreviveARecalculo(l.origem));
-  const jaTem = new Set(preservadas.map((l) => l.produtoId));
+  const jaTem = new Set(preservadas.map((l) => chaveLinha(l.produtoId, l.farmaciaId)));
 
   const novas: T[] = [];
+  const novasChaves = new Set<string>();
   let propostasIgnoradas = 0;
   for (const l of novaProposta) {
-    if (jaTem.has(l.produtoId)) {
+    const chave = chaveLinha(l.produtoId, l.farmaciaId);
+    if (jaTem.has(chave)) {
       propostasIgnoradas++;
       continue;
     }
-    // Uma proposta com o mesmo produto duas vezes não deveria acontecer
-    // — o loader agrupa por produto — mas se acontecer, a segunda não
-    // entra: `@@unique([listaEncomendaId, produtoId])` recusaria a
-    // gravação e o utilizador veria um erro de base de dados em vez de
-    // uma tabela coerente.
-    if (novas.some((n) => n.produtoId === l.produtoId)) {
+    // Uma proposta com o mesmo produto+farmácia duas vezes não deveria
+    // acontecer — o loader agrupa por produto+farmácia — mas se
+    // acontecer, a segunda não entra:
+    // `@@unique([listaEncomendaId, produtoId])` recusaria a gravação e
+    // o utilizador veria um erro de base de dados em vez de uma tabela
+    // coerente. (Duas FARMÁCIAS diferentes com o mesmo produtoId não
+    // colidem nesse `@@unique` — cada farmácia do grupo gera a sua
+    // própria `ListaEncomenda` — por isso a chave aqui tem de incluir
+    // `farmaciaId`, nunca só `produtoId`.)
+    if (novasChaves.has(chave)) {
       propostasIgnoradas++;
       continue;
     }
+    novasChaves.add(chave);
     novas.push(l);
   }
 
