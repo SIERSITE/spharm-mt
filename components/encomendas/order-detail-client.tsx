@@ -8,6 +8,7 @@ import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-det
 import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
+import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import {
   addManualLineAction,
   cancelOutboxAction,
@@ -355,6 +356,7 @@ export function OrderDetailClient({ detail }: Props) {
                   <th className="px-3 py-2 text-right">Sugerida</th>
                   <th className="px-3 py-2 text-right">Final</th>
                   <th className="px-3 py-2">Notas</th>
+                  <th className="px-3 py-2" />
                   {editable && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
@@ -439,6 +441,13 @@ export function OrderDetailClient({ detail }: Props) {
                       ) : (
                         <span className="text-slate-600">{l.notas ?? "—"}</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <HistoricoProdutoButton
+                        produtoId={l.produtoId}
+                        produtoDesignacao={l.designacao}
+                        farmaciaIds={[detail.farmaciaId]}
+                      />
                     </td>
                     {editable && (
                       <td className="px-3 py-2 text-right">
