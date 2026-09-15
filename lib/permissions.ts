@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { getSession, type SessionUser } from "@/lib/auth";
+import { can, type Perfil, type Permission } from "@/lib/permissions-core";
 
 /**
  * RBAC mínimo para SPharm.MT. Perfis e o que cada um pode fazer:
@@ -19,54 +20,16 @@ import { getSession, type SessionUser } from "@/lib/auth";
  *   OPERADOR         — só leitura dentro da(s) sua(s) farmácia(s). Não
  *                      pode alterar configurações nem criar utilizadores.
  *
- * Matriz de permissões mapeada no objecto PERMISSIONS. Cada ponto de
- * controlo chama `can(session, "acao")` ou uma das helpers dedicadas.
+ * A matriz de permissões e as guardas puras (`can`, `canAccessFarmaciaSync`)
+ * vivem em `lib/permissions-core.ts` — sem `"server-only"`, para serem
+ * importáveis por testes (e, se algum dia precisar, por client
+ * components) sem arrastar `next/headers`. Este ficheiro é o ponto de
+ * entrada público de sempre: reexporta a matriz e acrescenta as guardas
+ * que PRECISAM de sessão/redirect (`requireSession`, `requirePermission`).
  */
 
-export type Perfil = "ADMINISTRADOR" | "GESTOR_GRUPO" | "GESTOR_FARMACIA" | "OPERADOR";
-
-/** Acções nomeadas que podem ser verificadas no código. */
-export type Permission =
-  | "users.manage"           // criar / editar / desactivar / reset password
-  | "users.view"             // ver lista
-  | "settings.global"        // editar config global (SMTP, etc.)
-  | "settings.farmacia"      // editar config da farmácia
-  | "reports.write"          // poder gerar ordens/encomendas
-  | "reports.read"           // ver relatórios
-  | "catalog.write"          // editar Produto/Fabricante/etc.
-  | "catalog.read";
-
-/**
- * ── PORQUE É QUE O `GESTOR_GRUPO` SAIU DAQUI ──────────────────────────
- *
- * `users.manage` e `users.view` incluíam o GESTOR_GRUPO. A única coisa
- * que o distinguia de um ADMINISTRADOR era uma linha no
- * `updateUtilizador` a proibi-lo de ATRIBUIR o perfil ADMINISTRADOR.
- * Podia, com tudo o resto: editar qualquer conta, repor a password de
- * qualquer pessoa, desactivar contas, e DESPROMOVER um administrador —
- * o que lhe permitia tirar do caminho quem o pudesse travar.
- *
- * `users.manage` e `users.view` passam a ser exclusivos do
- * ADMINISTRADOR. O que sobra ao GESTOR_GRUPO é o trabalho do grupo:
- * relatórios, encomendas, catálogo, configuração — e a sua própria
- * password, que não passa por aqui porque não é gestão de utilizadores.
- */
-const PERMISSIONS: Record<Permission, Perfil[]> = {
-  "users.manage": ["ADMINISTRADOR"],
-  "users.view": ["ADMINISTRADOR"],
-  "settings.global": ["ADMINISTRADOR", "GESTOR_GRUPO"],
-  "settings.farmacia": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA"],
-  "reports.write": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA"],
-  "reports.read": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA", "OPERADOR"],
-  "catalog.write": ["ADMINISTRADOR", "GESTOR_GRUPO"],
-  "catalog.read": ["ADMINISTRADOR", "GESTOR_GRUPO", "GESTOR_FARMACIA", "OPERADOR"],
-};
-
-export function can(session: SessionUser | null, perm: Permission): boolean {
-  if (!session) return false;
-  const allowed = PERMISSIONS[perm];
-  return allowed.includes(session.perfil as Perfil);
-}
+export type { Perfil, Permission };
+export { can, canAccessFarmaciaSync } from "@/lib/permissions-core";
 
 /**
  * Exige uma sessão autenticada. Redirecciona para /login se não houver.
@@ -88,20 +51,4 @@ export async function requirePermission(perm: Permission): Promise<SessionUser> 
     redirect("/dashboard");
   }
   return session;
-}
-
-/**
- * Regra de visibilidade por farmácia. Devolve true se a sessão pode
- * ver dados da farmácia pedida. Regras:
- *   · ADMINISTRADOR / GESTOR_GRUPO → qualquer farmácia
- *   · GESTOR_FARMACIA / OPERADOR   → só farmácia primária ou associadas
- *     em UtilizadorFarmacia (verificação via BD — ver canAccessFarmacia)
- */
-export function canAccessFarmaciaSync(
-  session: SessionUser | null,
-  farmaciaId: string
-): boolean {
-  if (!session) return false;
-  if (session.perfil === "ADMINISTRADOR" || session.perfil === "GESTOR_GRUPO") return true;
-  return session.farmaciaId === farmaciaId;
 }

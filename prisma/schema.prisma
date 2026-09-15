@@ -998,6 +998,7 @@ model Farmacia {
   ingestProdutoRuns                   IngestProdutoRun[]
   compraDocumentos                    CompraDocumento[]
   ingestStocksMovRaw                  IngestStocksMovRaw[]
+  syncRequests                        SyncRequest[]
 
   /// OBSOLETA desde 2026-08-18 — já NÃO escolhe fonte nenhuma.
   ///
@@ -1059,11 +1060,13 @@ model Utilizador {
   dataCriacao        DateTime         @default(now())
   dataAtualizacao    DateTime         @updatedAt
 
-  farmacia        Farmacia?            @relation(fields: [farmaciaId], references: [id])
-  farmacias       UtilizadorFarmacia[]
-  listasEncomenda ListaEncomenda[]
-  transferencias  Transferencia[]
-  auditoria       AuditLog[]           @relation("AuditLogActor")
+  farmacia            Farmacia?            @relation(fields: [farmaciaId], references: [id])
+  farmacias           UtilizadorFarmacia[]
+  listasEncomenda     ListaEncomenda[]
+  transferencias      Transferencia[]
+  auditoria           AuditLog[]           @relation("AuditLogActor")
+  /// Pedidos de "Sincronizar agora" feitos por este utilizador.
+  syncRequestsPedidos SyncRequest[]
 }
 
 /// Associação N:N utilizador → farmácias para perfis com acesso a
@@ -2239,6 +2242,92 @@ model OrderExportAudit {
 
   @@index([outboxId, at])
   @@index([status, at])
+}
+
+//////////////////////////////////////////////////////
+// SYNC REQUEST (Bloco E — botão "Sincronizar agora" em /stock)
+//
+// Mesmo padrão outbox do OrderOutbox, só que na direcção inversa: aqui
+// quem cria o pedido é o browser (via server action) e quem o consome é
+// o agent (GET pending → lease → executa → ack|fail). Existe porque a
+// comunicação agent↔SaaS é 100% unidireccional — o agent só faz PULL
+// agendado (Task Scheduler), nunca há webhook/SSE a acordar o agent no
+// instante do clique. "Sincronizar agora" significa, na prática,
+// "assim que o agent fizer o próximo poll dedicado" — não instantâneo.
+//////////////////////////////////////////////////////
+
+enum EstadoSyncRequest {
+  PENDENTE
+  EM_CURSO
+  CONCLUIDO
+  FALHOU
+  EXPIRADO
+}
+
+/// Pedido de sincronização "agora" (existências + fabricante) para UMA
+/// farmácia explícita. 1 row por clique no botão.
+///
+/// Ciclo de vida:
+///   PENDENTE  → criado pela server action, à espera do próximo poll do
+///               agent (GET /api/outbox/v1/sync-requests/pending).
+///   EM_CURSO  → o agent reclamou (lease): `leasedAt`/`leasedBy`/`startedAt`
+///               preenchidos. O agent corre o subconjunto leve (produtos +
+///               stock) de forma síncrona dentro do mesmo comando CLI —
+///               não há sub-passo "a meio" para reportar.
+///   CONCLUIDO → agent fez POST .../ack com `resultado` preenchido.
+///   FALHOU    → agent fez POST .../fail com `erro` preenchido, OU o
+///               lease nunca chegou a ack/fail e o pedido expirou.
+///   EXPIRADO  → calculado de forma LAZY: não há cron dedicado neste
+///               projecto para isto. Qualquer leitura que encontre
+///               `estado IN (PENDENTE, EM_CURSO)` e `now() > timeoutAt`
+///               trata/persiste o estado como EXPIRADO (ver
+///               `lib/sync-request/estado.ts::resolverEstadoEfetivo`).
+///
+/// Mutex: só pode existir UM pedido ACTIVO (PENDENTE ou EM_CURSO) por
+/// farmácia. Garantido a dois níveis — mesmo padrão de `IngestProdutoRun`:
+///   1. Índice único PARCIAL a nível de Postgres, criado à mão na
+///      migração (`WHERE estado IN ('PENDENTE','EM_CURSO')`) — o Prisma
+///      não exprime unicidade condicional em `schema.prisma`.
+///   2. Verificação aplicacional em `requestSyncNowAction` (dá a
+///      mensagem de erro amigável no caminho feliz; o índice é a rede
+///      de segurança real contra races).
+///
+/// `requestedByUserId` é "quem pediu" — estruturado (FK), ao contrário
+/// do `actorId` livre de `OrderExportAudit`, porque aqui há sempre
+/// exactamente UM pedinte humano por row. Um `logAudit` adicional ao
+/// criar regista o evento também no log genérico (ver
+/// `app/stock/sync-actions.ts`).
+model SyncRequest {
+  id                String            @id @default(cuid())
+  farmaciaId        String
+  estado            EstadoSyncRequest @default(PENDENTE)
+  requestedByUserId String
+  requestedAt       DateTime          @default(now())
+  /// Preenchido quando o agent reclama o pedido (GET pending).
+  leasedAt          DateTime?
+  /// Identificador do agent que reclamou (mesmo formato de
+  /// `OrderOutbox.leasedBy`: `<tenantSlug>-<hostname>`).
+  leasedBy          String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  /// `requestedAt + N minutos` (N configurável — ver
+  /// `SYNC_REQUEST_TIMEOUT_MINUTOS_DEFAULT`). Depois disto, um pedido
+  /// ainda PENDENTE/EM_CURSO é lido como EXPIRADO.
+  timeoutAt         DateTime
+  /// `{ stockAtualizado, produtosAtualizados, fabricantesAlterados }` —
+  /// ver `lib/sync-request/estado.ts::SyncResultado`. Só em CONCLUIDO.
+  resultado         Json?
+  /// Mensagem de erro do agent. Só em FALHOU.
+  erro              String?
+
+  farmacia    Farmacia   @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  requestedBy Utilizador @relation(fields: [requestedByUserId], references: [id])
+
+  // Hot path: agent faz poll filtrado por farmácia + estado PENDENTE.
+  @@index([farmaciaId, estado])
+  // Leitura de estado/UI: último pedido de uma farmácia, mais recente
+  // primeiro; e detecção de expirados por estado+timeout.
+  @@index([estado, timeoutAt])
 }
 
 //////////////////////////////////////////////////////

@@ -302,3 +302,14 @@ export const OrigemLinhaEncomenda = {
 } as const
 
 export type OrigemLinhaEncomenda = (typeof OrigemLinhaEncomenda)[keyof typeof OrigemLinhaEncomenda]
+
+
+export const EstadoSyncRequest = {
+  PENDENTE: 'PENDENTE',
+  EM_CURSO: 'EM_CURSO',
+  CONCLUIDO: 'CONCLUIDO',
+  FALHOU: 'FALHOU',
+  EXPIRADO: 'EXPIRADO'
+} as const
+
+export type EstadoSyncRequest = (typeof EstadoSyncRequest)[keyof typeof EstadoSyncRequest]

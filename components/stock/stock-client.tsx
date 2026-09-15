@@ -10,6 +10,8 @@ import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import { proximaOrdenacao, type EstadoOrdenacao } from "@/lib/tabela/ordenacao";
 import type { ColunaOrdenacaoStock } from "@/lib/stock-data";
 import { STOCK_FILTER_LABELS } from "@/lib/stock-shared";
+import { SyncNowWidget } from "@/components/stock/sync-now-widget";
+import type { SyncFarmaciaOption } from "@/lib/sync-request-data";
 
 const coverageOptions = ["0-5 dias", "6-15 dias", "16+ dias"] as const;
 const statusOptions: StockRow["status"][] = [
@@ -125,9 +127,11 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 type StockClientProps = {
   data: StockPageData;
+  /** Bloco E — vazio quando a sessão não tem permissão `stock.sync`. */
+  syncFarmacias?: SyncFarmaciaOption[];
 };
 
-export function StockClient({ data }: StockClientProps) {
+export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -312,17 +316,22 @@ export function StockClient({ data }: StockClientProps) {
               Cobertura, rotação e diferenças de stock por farmácia
             </p>
           </div>
-          {/* O segundo ponto de entrada da criacao de ficha. Leva a uma
-              PAGINA e nao a um modal: aqui o utilizador nao esta' a meio
-              de outra tarefa, e a ficha recem-criada merece o ecra todo.
-              O componente do formulario e' o mesmo do picker. */}
-          <Link
-            href="/produtos/criar"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-[13px] font-medium text-emerald-700 transition hover:bg-emerald-100"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            Criar produto
-          </Link>
+          <div className="flex flex-wrap items-start gap-2">
+            {/* Bloco E — só desenha algo quando a sessão tem a permissão
+                `stock.sync` E pelo menos uma farmácia acessível. */}
+            <SyncNowWidget farmacias={syncFarmacias} />
+            {/* O segundo ponto de entrada da criacao de ficha. Leva a uma
+                PAGINA e nao a um modal: aqui o utilizador nao esta' a meio
+                de outra tarefa, e a ficha recem-criada merece o ecra todo.
+                O componente do formulario e' o mesmo do picker. */}
+            <Link
+              href="/produtos/criar"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 text-[13px] font-medium text-emerald-700 transition hover:bg-emerald-100"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              Criar produto
+            </Link>
+          </div>
         </section>
 
         {data.filter && (

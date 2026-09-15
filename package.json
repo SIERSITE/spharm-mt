@@ -144,7 +144,8 @@
     "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts",
     "test:vendas-para-encomenda": "tsx scripts/tests/test-vendas-para-encomenda.ts",
     "test:encomenda-grupo-decisao-linha": "tsx scripts/tests/test-encomenda-grupo-decisao-linha.ts",
-    "test:fabricante-correcao-tier-aware": "tsx scripts/tests/test-fabricante-correcao-tier-aware.ts"
+    "test:fabricante-correcao-tier-aware": "tsx scripts/tests/test-fabricante-correcao-tier-aware.ts",
+    "test:sync-on-demand": "tsx scripts/tests/test-sync-on-demand.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

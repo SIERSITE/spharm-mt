@@ -98,6 +98,7 @@ export const ModelName = {
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit',
+  SyncRequest: 'SyncRequest',
   MovimentoArtigo: 'MovimentoArtigo',
   IngestStocksMovRaw: 'IngestStocksMovRaw',
   KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache'
@@ -992,6 +993,24 @@ export const OrderExportAuditScalarFieldEnum = {
 } as const
 
 export type OrderExportAuditScalarFieldEnum = (typeof OrderExportAuditScalarFieldEnum)[keyof typeof OrderExportAuditScalarFieldEnum]
+
+
+export const SyncRequestScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  estado: 'estado',
+  requestedByUserId: 'requestedByUserId',
+  requestedAt: 'requestedAt',
+  leasedAt: 'leasedAt',
+  leasedBy: 'leasedBy',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  timeoutAt: 'timeoutAt',
+  resultado: 'resultado',
+  erro: 'erro'
+} as const
+
+export type SyncRequestScalarFieldEnum = (typeof SyncRequestScalarFieldEnum)[keyof typeof SyncRequestScalarFieldEnum]
 
 
 export const MovimentoArtigoScalarFieldEnum = {

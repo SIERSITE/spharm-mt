@@ -73,6 +73,7 @@ import { acertosStockDryRun } from "./commands/acertos-stock.js";
 import { ivaAudit } from "./commands/iva-audit.js";
 import { catalogAudit } from "./commands/catalog-audit.js";
 import { catalogDiscoverLinks } from "./commands/catalog-discover-links.js";
+import { syncNow } from "./commands/sync-now.js";
 import { health } from "./commands/health.js";
 
 type CommandFn = () => Promise<number>;
@@ -257,6 +258,10 @@ const COMMANDS: Record<string, { run: CommandFn; desc: string }> = {
   "acertos-stock-dry-run": {
     run: acertosStockDryRun,
     desc: "Read-only: conta os acertos de stock (MOV_INTERNO) da janela — sinais, quantidade líquida, produtos, duplicados por StocksMovID, amostras. SEM POST.",
+  },
+  "sync-now": {
+    run: syncNow,
+    desc: "Bloco E: poll dedicado do botão \"Sincronizar agora\" (/stock) — produtos+stock só se houver pedido pendente. Partilha o lockfile do daily-pipeline/full-sync.",
   },
   health: {
     run: health,

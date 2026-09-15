@@ -50,6 +50,18 @@ export type AggregateMonthDetails = {
   aggregateRunId?: string;
 };
 
+/**
+ * Counts emitidos por uma execução de `sync-now` (Bloco E — botão
+ * "Sincronizar agora" em /stock). Subconjunto leve do daily-sync: só
+ * produtos (+ fabricante) e stock, nunca vendas.
+ */
+export type SyncNowDetails = {
+  syncRequestId: string;
+  stockAtualizado: number;
+  produtosAtualizados: number;
+  fabricantesAlterados: number;
+};
+
 /** Payload composto do orquestrador daily-pipeline. */
 export type DailyPipelineDetails = {
   /// "ontem" calculado pelo orquestrador (YYYY-MM-DD).
@@ -104,6 +116,11 @@ export const PIPELINE_KIND = {
   DAILY: "daily-pipeline",
   DAILY_SYNC: "daily-sync",
   AGGREGATE: "aggregate-month",
+  /// Bloco E — execução pontual disparada pelo botão "Sincronizar
+  /// agora" em /stock e consumida via SyncRequest. `triggeredBy` fica
+  /// "operator" (foi um humano que pediu, mesmo a execução sendo do
+  /// agent) — ver `app/api/outbox/v1/sync-requests/[syncRequestId]/ack/route.ts`.
+  SYNC_NOW: "sync-now",
 } as const;
 
 export const PIPELINE_STATUS = {
@@ -124,7 +141,12 @@ export type PipelineKind = (typeof PIPELINE_KIND)[keyof typeof PIPELINE_KIND];
 export type PipelineStatus = (typeof PIPELINE_STATUS)[keyof typeof PIPELINE_STATUS];
 
 export function isPipelineKind(s: string): s is PipelineKind {
-  return s === PIPELINE_KIND.DAILY || s === PIPELINE_KIND.DAILY_SYNC || s === PIPELINE_KIND.AGGREGATE;
+  return (
+    s === PIPELINE_KIND.DAILY ||
+    s === PIPELINE_KIND.DAILY_SYNC ||
+    s === PIPELINE_KIND.AGGREGATE ||
+    s === PIPELINE_KIND.SYNC_NOW
+  );
 }
 
 export function isPipelineStatus(s: string): s is PipelineStatus {

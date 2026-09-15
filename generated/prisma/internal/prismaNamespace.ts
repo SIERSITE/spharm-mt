@@ -431,6 +431,7 @@ export const ModelName = {
   TipoDocumentoClassificacao: 'TipoDocumentoClassificacao',
   OrderOutbox: 'OrderOutbox',
   OrderExportAudit: 'OrderExportAudit',
+  SyncRequest: 'SyncRequest',
   MovimentoArtigo: 'MovimentoArtigo',
   IngestStocksMovRaw: 'IngestStocksMovRaw',
   KnowledgeEnrichmentCache: 'KnowledgeEnrichmentCache'
@@ -449,7 +450,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -3931,6 +3932,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    SyncRequest: {
+      payload: Prisma.$SyncRequestPayload<ExtArgs>
+      fields: Prisma.SyncRequestFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SyncRequestFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SyncRequestFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        findFirst: {
+          args: Prisma.SyncRequestFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SyncRequestFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        findMany: {
+          args: Prisma.SyncRequestFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>[]
+        }
+        create: {
+          args: Prisma.SyncRequestCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        createMany: {
+          args: Prisma.SyncRequestCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SyncRequestCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>[]
+        }
+        delete: {
+          args: Prisma.SyncRequestDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        update: {
+          args: Prisma.SyncRequestUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        deleteMany: {
+          args: Prisma.SyncRequestDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SyncRequestUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SyncRequestUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>[]
+        }
+        upsert: {
+          args: Prisma.SyncRequestUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SyncRequestPayload>
+        }
+        aggregate: {
+          args: Prisma.SyncRequestAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSyncRequest>
+        }
+        groupBy: {
+          args: Prisma.SyncRequestGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SyncRequestGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SyncRequestCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SyncRequestCountAggregateOutputType> | number
+        }
+      }
+    }
     MovimentoArtigo: {
       payload: Prisma.$MovimentoArtigoPayload<ExtArgs>
       fields: Prisma.MovimentoArtigoFieldRefs
@@ -5067,6 +5142,24 @@ export const OrderExportAuditScalarFieldEnum = {
 export type OrderExportAuditScalarFieldEnum = (typeof OrderExportAuditScalarFieldEnum)[keyof typeof OrderExportAuditScalarFieldEnum]
 
 
+export const SyncRequestScalarFieldEnum = {
+  id: 'id',
+  farmaciaId: 'farmaciaId',
+  estado: 'estado',
+  requestedByUserId: 'requestedByUserId',
+  requestedAt: 'requestedAt',
+  leasedAt: 'leasedAt',
+  leasedBy: 'leasedBy',
+  startedAt: 'startedAt',
+  finishedAt: 'finishedAt',
+  timeoutAt: 'timeoutAt',
+  resultado: 'resultado',
+  erro: 'erro'
+} as const
+
+export type SyncRequestScalarFieldEnum = (typeof SyncRequestScalarFieldEnum)[keyof typeof SyncRequestScalarFieldEnum]
+
+
 export const MovimentoArtigoScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
@@ -5687,6 +5780,20 @@ export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaMod
 
 
 /**
+ * Reference to a field of type 'EstadoSyncRequest'
+ */
+export type EnumEstadoSyncRequestFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EstadoSyncRequest'>
+    
+
+
+/**
+ * Reference to a field of type 'EstadoSyncRequest[]'
+ */
+export type ListEnumEstadoSyncRequestFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EstadoSyncRequest[]'>
+    
+
+
+/**
  * Reference to a field of type 'TipoMovimentoArtigo'
  */
 export type EnumTipoMovimentoArtigoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoMovimentoArtigo'>
@@ -5855,6 +5962,7 @@ export type GlobalOmitConfig = {
   tipoDocumentoClassificacao?: Prisma.TipoDocumentoClassificacaoOmit
   orderOutbox?: Prisma.OrderOutboxOmit
   orderExportAudit?: Prisma.OrderExportAuditOmit
+  syncRequest?: Prisma.SyncRequestOmit
   movimentoArtigo?: Prisma.MovimentoArtigoOmit
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawOmit
   knowledgeEnrichmentCache?: Prisma.KnowledgeEnrichmentCacheOmit

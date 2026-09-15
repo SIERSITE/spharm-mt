@@ -82,6 +82,17 @@ export type PipelineRunCounts = {
    * 77 exigiu cruzar dois pipelines; da próxima vez está no relatório.
    */
   salesTiposPorClassificar: TipoPorClassificar[];
+  /**
+   * rev93 — Bloco E (sync-now). Quantos produtos, nesta corrida, tiveram
+   * o campo `fabricante` escrito ou substituído no catálogo central,
+   * agregado a partir de `BootstrapBatchResponse.catalogoErp`. Não
+   * existia porque nenhum caller até agora precisava de o reportar
+   * separadamente — o resumo do daily-sync mostra só
+   * upserted/skipped/errors. O botão "Sincronizar agora" devolve os três
+   * contadores (stock, produtos, fabricantes) ao utilizador, e é esta
+   * corrida — a mesma que já lê `catalogPlan` — que os tem à mão.
+   */
+  fabricantesAlterados: number;
 };
 
 /**
@@ -327,7 +338,13 @@ export function buildProductsSql(caps: SchemaCapabilities): string {
   `;
 }
 
-function buildStockSql(caps: SchemaCapabilities): string {
+/**
+ * rev93 — exportada para `sync-now.ts` (Bloco E) poder ser testada por
+ * inspecção estática sem duplicar SQL: o botão "Sincronizar agora" não
+ * escreve esta query — chama `runPipelineForDay({ scope: "products-stock" })`,
+ * que a usa internamente. Exportar torna essa reutilização verificável.
+ */
+export function buildStockSql(caps: SchemaCapabilities): string {
   if (!caps.hasStocksMov || !caps.stocksMovDateCol) {
     throw new Error(
       "dbo.StocksMov não disponível — sem fonte de incremental para stock."
@@ -456,6 +473,10 @@ async function pipelineProducts(
       counts.productsUpserted += response.upserted;
       counts.productsSkipped += response.skipped.length;
       counts.productsErrors += response.errors.length;
+      const c = response.catalogoErp;
+      if (c) {
+        counts.fabricantesAlterados += (c.preenchidos?.fabricante ?? 0) + (c.substituidos?.fabricante ?? 0);
+      }
       logger.log(
         `  batch ${batches}: read=${rs.recordset.length} upserted=${response.upserted} skipped=${response.skipped.length} errors=${response.errors.length} (${response.durationMs}ms)`
       );
@@ -760,9 +781,23 @@ export async function runPipelineForDay(opts: {
   dryRun?: boolean;
   /** Onde deixar os primeiros payloads de cada pipeline, no dry-run. */
   amostras?: Amostras;
+  /**
+   * rev93 — Bloco E ("Sincronizar agora"). `"products-stock"` corre só os
+   * Pipelines 1 e 2 (produtos + stock) e NUNCA o Pipeline 3 (vendas) —
+   * é o subconjunto leve e cirúrgico que o botão precisa, sem reler as
+   * três fontes de venda nem tocar em `IngestVendaLinhaRaw`. Default
+   * `"full"` é o comportamento de sempre (`daily-sync`/`daily-pipeline`):
+   * os três pipelines, por essa ordem.
+   *
+   * Existe como parâmetro em vez de uma função nova para não duplicar a
+   * detecção de schema/catálogo nem a leitura de produtos/stock — `sync-now.ts`
+   * chama exactamente este runner, só que com menos trabalho a fazer.
+   */
+  scope?: "full" | "products-stock";
 }): Promise<PipelineRunCounts> {
   const { pool, client, farmaciaId, date, schemaProbes, logger } = opts;
   const envio: Envio = { dryRun: opts.dryRun === true, amostras: opts.amostras };
+  const scope = opts.scope ?? "full";
   // Um `client` em falta fora do dry-run seria um dia inteiro lido e
   // deitado fora, com contagens de leitura a dar a impressão contrária.
   if (!envio.dryRun && !client) {
@@ -770,6 +805,7 @@ export async function runPipelineForDay(opts: {
   }
   const counts: PipelineRunCounts = {
     productsRead: 0, productsUpserted: 0, productsSkipped: 0, productsErrors: 0,
+    fabricantesAlterados: 0,
     stockRead: 0, stockUpserted: 0, stockErrors: 0,
     salesRead: 0, salesUpserted: 0, salesSkipped: 0, salesErrors: 0,
     salesNonStockServices: 0, salesOperationalOrphans: 0,
@@ -791,7 +827,12 @@ export async function runPipelineForDay(opts: {
   await pipelineProducts(pool, caps, client, farmaciaId, date, counts, logger, envio);
   logger.raw("");
   await pipelineStock(pool, caps, client, farmaciaId, date, counts, logger, envio);
-  logger.raw("");
-  await pipelineSales(pool, client, farmaciaId, date, counts, logger, envio);
+  if (scope === "full") {
+    logger.raw("");
+    await pipelineSales(pool, client, farmaciaId, date, counts, logger, envio);
+  } else {
+    logger.raw("");
+    logger.log("▶ Pipeline 3: SALES-LINES — saltado (scope=products-stock, ver sync-now)");
+  }
   return counts;
 }

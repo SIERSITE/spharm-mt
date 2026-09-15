@@ -57,7 +57,12 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // grupoHomogeneo) via a mesma descoberta do onboarding, agora partilhada
 // em `agent/src/catalog-discovery.ts`. NÃO empacotado nem publicado por
 // este bloco — só o contador local avançou.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "92";
+// rev93 — Bloco E: comando novo `sync-now` (poll dedicado do botão
+// "Sincronizar agora" em /stock; produtos+stock, partilha o lockfile do
+// daily-pipeline/full-sync). NÃO empacotado nem publicado por este
+// bloco — só o contador local avançou; a tarefa agendada do Windows
+// dedicada e a publicação real ficam para quando isto for adoptado.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "93";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //

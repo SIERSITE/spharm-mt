@@ -512,6 +512,43 @@ export type OrderOutbox = Prisma.OrderOutboxModel
  */
 export type OrderExportAudit = Prisma.OrderExportAuditModel
 /**
+ * Model SyncRequest
+ * Pedido de sincronização "agora" (existências + fabricante) para UMA
+ * farmácia explícita. 1 row por clique no botão.
+ * 
+ * Ciclo de vida:
+ * PENDENTE  → criado pela server action, à espera do próximo poll do
+ * agent (GET /api/outbox/v1/sync-requests/pending).
+ * EM_CURSO  → o agent reclamou (lease): `leasedAt`/`leasedBy`/`startedAt`
+ * preenchidos. O agent corre o subconjunto leve (produtos +
+ * stock) de forma síncrona dentro do mesmo comando CLI —
+ * não há sub-passo "a meio" para reportar.
+ * CONCLUIDO → agent fez POST .../ack com `resultado` preenchido.
+ * FALHOU    → agent fez POST .../fail com `erro` preenchido, OU o
+ * lease nunca chegou a ack/fail e o pedido expirou.
+ * EXPIRADO  → calculado de forma LAZY: não há cron dedicado neste
+ * projecto para isto. Qualquer leitura que encontre
+ * `estado IN (PENDENTE, EM_CURSO)` e `now() > timeoutAt`
+ * trata/persiste o estado como EXPIRADO (ver
+ * `lib/sync-request/estado.ts::resolverEstadoEfetivo`).
+ * 
+ * Mutex: só pode existir UM pedido ACTIVO (PENDENTE ou EM_CURSO) por
+ * farmácia. Garantido a dois níveis — mesmo padrão de `IngestProdutoRun`:
+ * 1. Índice único PARCIAL a nível de Postgres, criado à mão na
+ * migração (`WHERE estado IN ('PENDENTE','EM_CURSO')`) — o Prisma
+ * não exprime unicidade condicional em `schema.prisma`.
+ * 2. Verificação aplicacional em `requestSyncNowAction` (dá a
+ * mensagem de erro amigável no caminho feliz; o índice é a rede
+ * de segurança real contra races).
+ * 
+ * `requestedByUserId` é "quem pediu" — estruturado (FK), ao contrário
+ * do `actorId` livre de `OrderExportAudit`, porque aqui há sempre
+ * exactamente UM pedinte humano por row. Um `logAudit` adicional ao
+ * criar regista o evento também no log genérico (ver
+ * `app/stock/sync-actions.ts`).
+ */
+export type SyncRequest = Prisma.SyncRequestModel
+/**
  * Model MovimentoArtigo
  * Movimento canónico de stock por artigo, derivado 1:1 de
  * `dbo.StocksMov` no SPharm ERP (audit rev32). Substitui semanticamente

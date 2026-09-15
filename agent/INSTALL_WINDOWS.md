@@ -309,6 +309,24 @@ Falha do preflight aborta o run com exit=1 antes de leasing qualquer encomenda �
 
 Detalhes completos em [pilot-operator-guide.md](pilot-operator-guide.md#rev15).
 
+### 8.5 "Sincronizar agora" — stock+produtos sob pedido (Bloco E)
+
+O botão "Sincronizar agora" em `/stock` deposita um pedido no SaaS; o
+agent não é chamado directamente (a comunicação é sempre PULL). Um
+segundo `.bat`, dedicado e mais frequente do que os anteriores, faz
+esse pull:
+
+- **`run-sync-now-poll-auto.bat`** — para Task Scheduler, a cada **2
+  minutos**. Sem prompts. GET pending (só a farmácia configurada) → se
+  houver pedido, produtos+stock DE HOJE (nunca vendas, nunca o
+  histórico inteiro) → ack/fail ao SaaS. Log em
+  `logs\sync-now-<YYYY-MM-DD>.log`.
+
+Documentação completa — endpoint exacto, porquê 2 minutos, autenticação,
+lock/claim, timeout local, política de retry, e o comando `schtasks`
+exacto para instalar/actualizar a tarefa — em
+[docs/sync-now.md](docs/sync-now.md).
+
 ### 8.3 Como parar / desinstalar
 
 Como o agent não é um serviço Windows na v0.1:

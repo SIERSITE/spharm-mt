@@ -465,6 +465,72 @@ export class SaasClient {
     );
   }
 
+  // ── Outbox (sync-now: botão "Sincronizar agora" em /stock, Bloco E) ──
+  //
+  // Direcção invertida face aos orders acima: aqui quem depositou o
+  // pedido foi um humano no browser, e o agent consome-o. Cada
+  // instalação do agent está ligada a UMA farmácia (`SPHARMMT_FARMACIA`)
+  // — por isso `farmaciaId` vai sempre explícito no pedido, ao
+  // contrário de `pullPendingOrders`.
+
+  /**
+   * GET /api/outbox/v1/sync-requests/pending?farmaciaId=<id>
+   *
+   * Reclama atomicamente (se existir) o pedido PENDENTE desta farmácia
+   * — no máximo 1, garantido pelo mutex server-side. Sem TTL de lease
+   * a reclamar: o comando `sync-now` corre o trabalho de forma síncrona
+   * logo a seguir, dentro da mesma invocação.
+   */
+  async pullPendingSyncRequests(
+    farmaciaId: string,
+    options: { agentInstance?: string; timeoutMs?: number } = {}
+  ): Promise<PendingSyncRequestsResponse> {
+    const headers: Record<string, string> = {};
+    if (options.agentInstance) headers["x-agent-instance"] = options.agentInstance;
+    const url = `/api/outbox/v1/sync-requests/pending?farmaciaId=${encodeURIComponent(farmaciaId)}`;
+    return this.requestWithHeaders<PendingSyncRequestsResponse>("GET", url, headers, {
+      timeoutMs: options.timeoutMs,
+    });
+  }
+
+  /**
+   * POST /api/outbox/v1/sync-requests/{syncRequestId}/ack
+   *
+   * Confirma sincronização concluída com os três contadores que o
+   * botão mostra: stock actualizado, produtos actualizados, fabricantes
+   * alterados.
+   */
+  async ackSyncRequest(
+    syncRequestId: string,
+    resultado: SyncNowResultado,
+    timeoutMs?: number
+  ): Promise<{ ok: true; resultado: SyncNowResultado }> {
+    return this.request(
+      "POST",
+      `/api/outbox/v1/sync-requests/${encodeURIComponent(syncRequestId)}/ack`,
+      { body: { resultado }, timeoutMs }
+    );
+  }
+
+  /**
+   * POST /api/outbox/v1/sync-requests/{syncRequestId}/fail
+   *
+   * Reporta falha TERMINAL — ao contrário de `/orders/{id}/nack`, não
+   * há re-agendamento: o utilizador vê o erro e decide se carrega no
+   * botão outra vez.
+   */
+  async failSyncRequest(
+    syncRequestId: string,
+    error: string,
+    timeoutMs?: number
+  ): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/outbox/v1/sync-requests/${encodeURIComponent(syncRequestId)}/fail`,
+      { body: { error }, timeoutMs }
+    );
+  }
+
   /**
    * Wrapper interno que permite passar headers extra (ex: x-agent-instance).
    * Mantido privado para evitar exposição directa do fetch.
@@ -553,6 +619,27 @@ export class SaasClient {
     return (await res.json()) as T;
   }
 }
+
+// ── Sync-now (Bloco E) ──────────────────────────────────────────────
+
+export type PendingSyncRequest = {
+  syncRequestId: string;
+  farmaciaId: string;
+  requestedAt: string;
+  timeoutAt: string;
+};
+
+export type PendingSyncRequestsResponse = {
+  count: number;
+  syncRequests: PendingSyncRequest[];
+};
+
+/** Os três contadores que o botão "Sincronizar agora" mostra ao concluir. */
+export type SyncNowResultado = {
+  stockAtualizado: number;
+  produtosAtualizados: number;
+  fabricantesAlterados: number;
+};
 
 export type PendingOrderLine = {
   produtoId: string;

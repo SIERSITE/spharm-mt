@@ -13,6 +13,9 @@ import {
 } from "@/lib/stock-data";
 import { StockClient } from "@/components/stock/stock-client";
 import { lerOrdenacaoDeParams } from "@/lib/tabela/ordenacao";
+import { getSession } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { loadFarmaciasParaSync } from "@/lib/sync-request-data";
 
 export const dynamic = "force-dynamic";
 
@@ -70,5 +73,14 @@ export default async function StockPage({ searchParams }: Props) {
   const params = parseParams(sp);
   const data = await getStockData(params);
 
-  return <StockClient data={data} />;
+  // Bloco E — botão "Sincronizar agora". A página em si não exige
+  // nenhuma permissão (comportamento pré-existente, intocado); o widget
+  // é que só aparece para quem tem `stock.sync` e só sobre farmácias a
+  // que a sessão tem acesso (`canAccessFarmaciaSync`, mesmo padrão do
+  // Bloco A). Sem sessão ou sem permissão, `syncFarmacias` fica vazio e
+  // `SyncNowWidget` não desenha nada.
+  const session = await getSession();
+  const syncFarmacias = session && can(session, "stock.sync") ? await loadFarmaciasParaSync(session) : [];
+
+  return <StockClient data={data} syncFarmacias={syncFarmacias} />;
 }
