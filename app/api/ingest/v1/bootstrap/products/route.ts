@@ -282,6 +282,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           grupoHomogeneo: a.grupoHomogeneo,
           fabricante: a.fabricante,
         })),
+        farmaciaId,
       );
       const escritos =
         Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +

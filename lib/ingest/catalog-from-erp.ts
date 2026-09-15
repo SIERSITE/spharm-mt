@@ -108,6 +108,96 @@ export function normalizarFabricante(v: string | null): string | null {
 
 export type Decisao = "preencher" | "substituir" | "preservar" | "nada";
 
+export type DecisaoFabricanteBaseline = {
+  /** true = escrever `Produto.fabricanteId` com `novoCanonico`. */
+  escrever: boolean;
+  /** true só na primeira observação desta farmácia+CNP (baseline era null). */
+  primeiroCiclo: boolean;
+  /** true quando `ProdutoFarmacia.fabricanteErpBaseline` deve avançar para `novoCanonico`. */
+  avancaBaseline: boolean;
+  /** true só quando é uma mudança REAL pós-baseline (nunca no 1º ciclo). */
+  mudou: boolean;
+  motivo: string;
+};
+
+/**
+ * Baseline de fabricante ERP por farmácia+CNP — substitui `fonteForte`
+ * (RegulatoryRecord/EnrichmentSourceLog) como autoridade para ESTE campo
+ * neste caminho. Isolada e pura para ser exaustivamente testável sem BD.
+ *
+ * Porque substitui `fonteForte` em vez de se somar a ela: uma correcção
+ * via listagem regulatória escreve `RegulatoryRecord.titularAim`, o que
+ * tornaria `fonteForte` verdadeiro para sempre — bloqueando até uma
+ * mudança FUTURA legítima no ERP da farmácia. O baseline decide por
+ * frescura observada (mudou desde a última vez que olhámos PARA ESTA
+ * FARMÁCIA?), não por hierarquia de fonte estática.
+ *
+ * `validadoManualmente` continua a ser avaliado — é a ÚNICA protecção que
+ * sobrevive deste campo, exactamente como antes.
+ *
+ * Ordem de avaliação:
+ *   1. baseline === null (nunca observámos esta farmácia+CNP antes):
+ *        estabelece baseline sempre; só ESCREVE se o campo estiver vazio
+ *        e não houver validadoManualmente — nunca substitui um valor já
+ *        existente no primeiro ciclo (é aí que uma correcção via listagem
+ *        fica protegida contra o ERP antigo).
+ *   2. baseline === novoCanonico: sem mudança desde a última vez — nunca
+ *      escreve, mesmo que difira do que está gravado no SPharm.MT.
+ *   3. baseline !== novoCanonico: mudança REAL confirmada — escreve e
+ *      avança o baseline, EXCEPTO se validadoManualmente bloquear (nesse
+ *      caso o baseline NÃO avança, para a mudança continuar a ser
+ *      reportada em cada ciclo enquanto a protecção manual existir).
+ */
+export function decidirFabricanteBaseline(input: {
+  baseline: string | null;
+  novoCanonico: string;
+  fabricanteAtualNormalizado: string | null;
+  validadoManualmente: boolean;
+}): DecisaoFabricanteBaseline {
+  const { baseline, novoCanonico, fabricanteAtualNormalizado, validadoManualmente } = input;
+
+  if (baseline === null) {
+    const podeEscrever = !validadoManualmente && fabricanteAtualNormalizado === null;
+    return {
+      escrever: podeEscrever,
+      primeiroCiclo: true,
+      avancaBaseline: true,
+      mudou: false,
+      motivo: podeEscrever
+        ? "primeiro ciclo desta farmácia+CNP, campo vazio — preenche"
+        : "primeiro ciclo desta farmácia+CNP — só estabelece baseline, nunca substitui",
+    };
+  }
+
+  if (baseline === novoCanonico) {
+    return {
+      escrever: false,
+      primeiroCiclo: false,
+      avancaBaseline: false,
+      mudou: false,
+      motivo: "ERP sem mudança desde o baseline — não toca, mesmo que difira do SPharm.MT",
+    };
+  }
+
+  if (validadoManualmente) {
+    return {
+      escrever: false,
+      primeiroCiclo: false,
+      avancaBaseline: false,
+      mudou: false,
+      motivo: "mudança real detectada desde o baseline, mas bloqueada por validadoManualmente",
+    };
+  }
+
+  return {
+    escrever: true,
+    primeiroCiclo: false,
+    avancaBaseline: true,
+    mudou: true,
+    motivo: "mudança real confirmada desde o baseline — corrige mesmo que o valor actual viesse de listagem corrigida",
+  };
+}
+
 /**
  * Precedência do tipo de produto, isolada para poder ser testada.
  *
@@ -167,6 +257,13 @@ export function decidirEscrita(
 export async function applyErpCatalogFields(
   prisma: PrismaClient,
   rows: ErpCatalogRow[],
+  /**
+   * Farmácia de onde este batch veio — obrigatório desde que o fabricante
+   * passou a usar baseline por farmácia+CNP em vez de `fonteForte`
+   * (ver `decidirFabricanteBaseline`). Os outros campos (dci/codigoATC/
+   * grupoHomogeneo) continuam a ignorar isto — só afecta fabricante.
+   */
+  farmaciaId: string,
 ): Promise<ErpCatalogResult> {
   const res: ErpCatalogResult = {
     candidatos: 0,
@@ -271,6 +368,22 @@ export async function applyErpCatalogFields(
     }
   }
 
+  // Baseline de fabricante ERP desta farmácia — ver decidirFabricanteBaseline.
+  // Só os produtos com fabricante útil no payload precisam disto.
+  const produtoIdsComFabricante = existentes
+    .filter((p) => uteis.some((r) => r.cnp === p.cnp && r.fabricante))
+    .map((p) => p.id);
+  const baselinesExistentes = produtoIdsComFabricante.length
+    ? await prisma.produtoFarmacia.findMany({
+        where: { produtoId: { in: produtoIdsComFabricante }, farmaciaId },
+        select: { produtoId: true, fabricanteErpBaseline: true },
+      })
+    : [];
+  const baselinePorProduto = new Map(baselinesExistentes.map((pf) => [pf.produtoId, pf.fabricanteErpBaseline]));
+
+  const agora = new Date();
+  const pfUpdates: { produtoId: string; data: Record<string, string | Date> }[] = [];
+
   for (const r of uteis) {
     const produto = porCnp.get(r.cnp);
     if (!produto) continue; // produto ainda não existe no catálogo central
@@ -313,22 +426,41 @@ export async function applyErpCatalogFields(
     // O RegulatoryRecord não guarda Grupo Homogéneo, por isso não há
     // prova regulamentar a proteger este campo — só um log forte o faz.
     aplicar("grupoHomogeneo", r.grupoHomogeneo, produto.grupoHomogeneo, false);
-    aplicar(
-      "fabricante",
-      r.fabricante,
-      // Bug corrigido: o "actual" era o literal sentinela "\0existe"
-      // (nunca igual a `novo`), por isso `actual === novo` nunca era
-      // verdadeiro e a decisao caia sempre em "substituir" quando
-      // `fonteForte` era falso -- UPDATE + EnrichmentSourceLog novo em
-      // TODA corrida, mesmo reenviando o mesmo fabricante.
-      produto.fabricante?.nomeNormalizado ?? null,
-      // `validadoManualmente` e a guarda extra: uma ficha validada a mao
-      // por um humano (SourceTier.MANUAL) nao pode ser sobreposta pelo
-      // ERP (SourceTier.ERP_FARMACIA), mesmo sem RegulatoryRecord nem
-      // log de enriquecimento a proteger o fabricante. `camposManuais`
-      // nao cobre `fabricanteId` -- esta e a unica proteccao desse campo.
-      !!reg?.titularAim || produto.validadoManualmente,
-    );
+
+    // Fabricante: baseline por farmácia+CNP (decidirFabricanteBaseline),
+    // NÃO `fonteForte`/RegulatoryRecord — ver o comentário da função para
+    // o porquê. `pfUpdates` grava o resultado em ProdutoFarmacia depois
+    // do loop.
+    if (r.fabricante) {
+      const baseline = baselinePorProduto.get(produto.id) ?? null;
+      const decisao = decidirFabricanteBaseline({
+        baseline,
+        novoCanonico: r.fabricante,
+        fabricanteAtualNormalizado: produto.fabricante?.nomeNormalizado ?? null,
+        validadoManualmente: produto.validadoManualmente,
+      });
+
+      const pfData: Record<string, string | Date> = {
+        fabricanteErpAtual: r.fabricante,
+        fabricanteErpLastSeenAt: agora,
+      };
+      if (decisao.primeiroCiclo) pfData.fabricanteErpFirstSeenAt = agora;
+      if (decisao.avancaBaseline) pfData.fabricanteErpBaseline = r.fabricante;
+      if (decisao.mudou) pfData.fabricanteErpChangedAt = agora;
+      pfUpdates.push({ produtoId: produto.id, data: pfData });
+
+      if (decisao.escrever) {
+        const fabId = fabPorNome.get(r.fabricante);
+        if (fabId) {
+          dados.fabricanteId = fabId;
+          escritos.push("fabricante");
+          if (decisao.primeiroCiclo) res.preenchidos.fabricante++;
+          else res.substituidos.fabricante++;
+        }
+      } else {
+        res.preservados.fabricante++;
+      }
+    }
 
     // ── ProductType ────────────────────────────────────────────────
     //
@@ -390,6 +522,21 @@ export async function applyErpCatalogFields(
         matchedBy: "cnp",
         fieldsReturned: escritos,
       },
+    });
+  }
+
+  // Baseline de fabricante ERP: grava/actualiza por último, depois de
+  // todas as decisões de Produto.fabricanteId já terem sido tomadas.
+  // Upsert (não update) porque `ProdutoFarmacia` desta farmácia pode
+  // ainda não existir neste momento do pedido — `bulkUpsertProdutoFarmaciaProducts`
+  // só corre depois disto no endpoint (ver bootstrap/products/route.ts).
+  // As colunas aqui gravadas não colidem com as desse bulk (SET explícito
+  // por coluna, ON CONFLICT DO UPDATE — ver lib/ingest/bulk.ts).
+  for (const u of pfUpdates) {
+    await prisma.produtoFarmacia.upsert({
+      where: { produtoId_farmaciaId: { produtoId: u.produtoId, farmaciaId } },
+      create: { produtoId: u.produtoId, farmaciaId, ...u.data },
+      update: u.data,
     });
   }
 

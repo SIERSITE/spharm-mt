@@ -525,6 +525,11 @@ export const ProdutoFarmaciaScalarFieldEnum = {
   taxaIvaPercent: 'taxaIvaPercent',
   taxaIvaSource: 'taxaIvaSource',
   taxaIvaUpdatedAt: 'taxaIvaUpdatedAt',
+  fabricanteErpBaseline: 'fabricanteErpBaseline',
+  fabricanteErpAtual: 'fabricanteErpAtual',
+  fabricanteErpFirstSeenAt: 'fabricanteErpFirstSeenAt',
+  fabricanteErpLastSeenAt: 'fabricanteErpLastSeenAt',
+  fabricanteErpChangedAt: 'fabricanteErpChangedAt',
   dataAtualizacao: 'dataAtualizacao',
   dataCriacao: 'dataCriacao'
 } as const

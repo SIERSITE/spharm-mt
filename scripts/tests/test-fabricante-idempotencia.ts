@@ -3,7 +3,7 @@
  *
  * Bloco C — o bug de idempotência do fabricante em `catalog-from-erp.ts`.
  *
- * ── O defeito ────────────────────────────────────────────────────────
+ * ── O defeito original (Bloco C) ─────────────────────────────────────
  *
  * Em `aplicar()`, o "actual" passado para o campo `fabricante` era o
  * literal sentinela `"\0existe"` — nunca igual ao `novo` vindo do ERP.
@@ -12,22 +12,31 @@
  * mais `EnrichmentSourceLog` novo em TODA corrida, mesmo reenviando
  * exactamente o mesmo fabricante todos os dias.
  *
- * Este teste fixa o comportamento correcto directamente contra
- * `applyErpCatalogFields` (não só contra `decidirEscrita`, que já não
- * apanhava o bug — o bug estava no CALLER, na passagem do "actual"):
+ * ── Actualização (baseline ERP por farmácia, 2026-09) ────────────────
  *
- *   1. reenviar o MESMO fabricante não escreve nada;
- *   2. um fabricante DIFERENTE, sem fonte forte, substitui (é o caminho
- *      que continua a funcionar: o ERP CONSEGUE corrigir um fabricante
- *      cuja origem também foi o ERP);
+ * `fonteForte`/`decidirEscrita` já não decidem fabricante — substituídas
+ * por `decidirFabricanteBaseline` (por farmácia+CNP). Estes 4 cenários
+ * continuam válidos, só adaptados para configurar o baseline explicitamente
+ * em vez de confiarem em `produto.fabricante.nomeNormalizado` sozinho:
+ *
+ *   1. reenviar o MESMO fabricante (baseline já = esse valor) não escreve;
+ *   2. um fabricante DIFERENTE do baseline substitui (mudança real —
+ *      o ERP CONSEGUE corrigir um fabricante cuja origem também foi ERP);
  *   3. `Produto.validadoManualmente = true` protege o fabricante mesmo
- *      sem `RegulatoryRecord` nem `EnrichmentSourceLog` fortes — a guarda
- *      nova que `camposManuais` não cobria (não inclui `fabricanteId`).
+ *      havendo uma mudança real detectada — a guarda que sobrevive
+ *      sozinha depois de `fonteForte` deixar de se aplicar a este campo;
+ *   4. campo vazio no ERP nunca apaga o fabricante existente.
+ *
+ * Os 8 cenários específicos do baseline (1º ciclo, ciclos repetidos,
+ * mudanças sucessivas, farmácias isoladas, protecção em massa da listagem
+ * corrigida) estão em test-fabricante-baseline-erp.ts.
  *
  * Uso: npx tsx scripts/tests/test-fabricante-idempotencia.ts
  */
 import { applyErpCatalogFields, type ErpCatalogRow } from "../../lib/ingest/catalog-from-erp";
 import type { PrismaClient } from "../../generated/prisma/client";
+
+const FARMACIA_ID = "farm-1";
 
 let pass = 0;
 let fail = 0;
@@ -89,10 +98,17 @@ function produtoBase(overrides: Partial<ProdutoFalso>): ProdutoFalso {
   };
 }
 
-/** Prisma falso: só os métodos que `applyErpCatalogFields` chama. */
-function prismaFalso(produto: ProdutoFalso) {
-  const calls = { produtoUpdate: 0, logCreate: 0, fabricanteUpsert: 0 };
+/**
+ * Prisma falso: só os métodos que `applyErpCatalogFields` chama.
+ * `baseline` simula o `ProdutoFarmacia.fabricanteErpBaseline` já gravado
+ * para (produto, FARMACIA_ID) antes desta corrida — `null` = 1º ciclo.
+ */
+function prismaFalso(produto: ProdutoFalso, baseline: string | null) {
+  const calls = { produtoUpdate: 0, logCreate: 0, fabricanteUpsert: 0, pfUpsert: 0 };
   const fabricantesConhecidos = new Map<string, string>([["BAYER PORTUGAL", "fab-bayer-pt"]]);
+  const pf: { fabricanteErpBaseline: string | null; [k: string]: unknown } = {
+    fabricanteErpBaseline: baseline,
+  };
   const prisma = {
     produto: {
       findMany: async () => [produto],
@@ -112,6 +128,14 @@ function prismaFalso(produto: ProdutoFalso) {
         return {};
       },
     },
+    produtoFarmacia: {
+      findMany: async () => [{ produtoId: produto.id, fabricanteErpBaseline: pf.fabricanteErpBaseline }],
+      upsert: async (args: { update: Record<string, unknown> }) => {
+        calls.pfUpsert++;
+        Object.assign(pf, args.update);
+        return pf;
+      },
+    },
     fabricante: {
       findMany: async (args: { where: { nomeNormalizado: { in: string[] } } }) =>
         args.where.nomeNormalizado.in
@@ -125,7 +149,7 @@ function prismaFalso(produto: ProdutoFalso) {
       },
     },
   };
-  return { prisma: prisma as unknown as PrismaClient, calls };
+  return { prisma: prisma as unknown as PrismaClient, calls, pf };
 }
 
 const linha = (fabricante: string | null): ErpCatalogRow => ({
@@ -137,11 +161,13 @@ const linha = (fabricante: string | null): ErpCatalogRow => ({
 });
 
 async function main() {
-  console.log("=== 1. reenviar o MESMO fabricante não escreve nada ===");
+  console.log("=== 1. reenviar o MESMO fabricante (baseline já = esse valor) não escreve nada ===");
   {
     const produto = produtoBase({});
-    const { prisma, calls } = prismaFalso(produto);
-    const res = await applyErpCatalogFields(prisma, [linha("Bayer Portugal")]);
+    // baseline já estabelecido em ciclo anterior com o mesmo valor —
+    // testa "sem mudança desde o baseline", não o caso de 1º ciclo.
+    const { prisma, calls } = prismaFalso(produto, "BAYER PORTUGAL");
+    const res = await applyErpCatalogFields(prisma, [linha("Bayer Portugal")], FARMACIA_ID);
     eq("candidatos considerados", res.candidatos, 1);
     eq("nenhum campo preenchido", res.preenchidos.fabricante, 0);
     eq("nenhum campo substituído", res.substituidos.fabricante, 0);
@@ -149,11 +175,12 @@ async function main() {
     eq("EnrichmentSourceLog NÃO foi criado", calls.logCreate, 0);
   }
 
-  console.log("\n=== 2. fabricante DIFERENTE, sem fonte forte → substitui ===");
+  console.log("\n=== 2. fabricante DIFERENTE do baseline → mudança real, substitui ===");
   {
     const produto = produtoBase({});
-    const { prisma, calls } = prismaFalso(produto);
-    const res = await applyErpCatalogFields(prisma, [linha("Bayer AG")]);
+    // baseline = valor actual (BAYER PORTUGAL); ERP reporta AG — mudou.
+    const { prisma, calls } = prismaFalso(produto, "BAYER PORTUGAL");
+    const res = await applyErpCatalogFields(prisma, [linha("Bayer AG")], FARMACIA_ID);
     eq("substituído (o ERP consegue corrigir o próprio ERP)", res.substituidos.fabricante, 1);
     eq("produto.update foi chamado uma vez", calls.produtoUpdate, 1);
     eq("EnrichmentSourceLog foi criado uma vez", calls.logCreate, 1);
@@ -163,11 +190,11 @@ async function main() {
     );
   }
 
-  console.log("\n=== 3. validadoManualmente protege o fabricante mesmo sem RegulatoryRecord ===");
+  console.log("\n=== 3. validadoManualmente protege o fabricante mesmo com mudança real detectada ===");
   {
     const produto = produtoBase({ validadoManualmente: true });
-    const { prisma, calls } = prismaFalso(produto);
-    const res = await applyErpCatalogFields(prisma, [linha("Bayer AG")]);
+    const { prisma, calls } = prismaFalso(produto, "BAYER PORTUGAL");
+    const res = await applyErpCatalogFields(prisma, [linha("Bayer AG")], FARMACIA_ID);
     eq("preservado, não substituído", res.substituidos.fabricante, 0);
     eq("contabilizado como preservado", res.preservados.fabricante, 1);
     eq("produto.update NÃO foi chamado", calls.produtoUpdate, 0);
@@ -178,8 +205,8 @@ async function main() {
   console.log("\n=== 4. campo vazio no ERP nunca apaga o fabricante existente ===");
   {
     const produto = produtoBase({});
-    const { prisma, calls } = prismaFalso(produto);
-    const res = await applyErpCatalogFields(prisma, [linha(null)]);
+    const { prisma, calls } = prismaFalso(produto, "BAYER PORTUGAL");
+    const res = await applyErpCatalogFields(prisma, [linha(null)], FARMACIA_ID);
     eq("nenhum candidato (linha sem nada de útil)", res.candidatos, 0);
     eq("produto.update NÃO foi chamado", calls.produtoUpdate, 0);
     eq("EnrichmentSourceLog NÃO foi criado", calls.logCreate, 0);

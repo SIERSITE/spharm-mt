@@ -1172,6 +1172,40 @@ model ProdutoFarmacia {
   /// sem ruído de outros campos.
   taxaIvaUpdatedAt DateTime?
 
+  // ── Baseline de fabricante ERP, por farmácia (2026-09) ───────────
+  //
+  // Existe porque `RegulatoryRecord.titularAim` (a correcção via listagem
+  // regulatória) protege o fabricante PARA SEMPRE contra o ERP — mesmo
+  // uma mudança legítima futura no ERP da farmácia ficaria bloqueada. O
+  // baseline resolve isto ao nível certo: por FARMÁCIA + CNP, não
+  // globalmente, porque é o ERP de cada farmácia que se observa.
+  //
+  // Regra (lib/ingest/catalog-from-erp.ts, applyErpCatalogFields):
+  //   baseline == null            → 1º ciclo: só grava baseline, nunca
+  //                                  substitui um Produto.fabricanteId
+  //                                  já existente (preenche se vazio).
+  //   baseline == valor ERP actual → sem mudança, não toca, mesmo que
+  //                                  difira do que está no SPharm.MT.
+  //   baseline != valor ERP actual → mudança REAL confirmada desde o
+  //                                  baseline — só aqui é que corrige
+  //                                  Produto.fabricanteId, mesmo que o
+  //                                  valor actual tenha vindo de uma
+  //                                  listagem corrigida. `validadoManualmente`
+  //                                  continua a bloquear sempre.
+  //
+  // Todos os valores são a forma CANÓNICA (`normalizeFabricanteCanonico`
+  // — lib/catalog-normalizers.ts), nunca texto bruto.
+  /// Último valor ERP CONFIRMADO como baseline — só avança quando uma
+  /// mudança real é aplicada com sucesso (ou no 1º ciclo).
+  fabricanteErpBaseline    String?
+  /// Último valor ERP observado nesta farmácia, actualizado em TODO ciclo
+  /// (mesmo quando igual ao baseline) — diagnóstico, não decide sozinho.
+  fabricanteErpAtual       String?
+  fabricanteErpFirstSeenAt DateTime?
+  fabricanteErpLastSeenAt  DateTime?
+  /// Só preenchido quando uma mudança real (baseline≠actual) foi aplicada.
+  fabricanteErpChangedAt   DateTime?
+
   dataAtualizacao DateTime @updatedAt
   dataCriacao     DateTime @default(now())
 

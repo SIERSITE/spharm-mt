@@ -85,6 +85,11 @@ export type ProdutoFarmaciaMinAggregateOutputType = {
   taxaIvaPercent: number | null
   taxaIvaSource: string | null
   taxaIvaUpdatedAt: Date | null
+  fabricanteErpBaseline: string | null
+  fabricanteErpAtual: string | null
+  fabricanteErpFirstSeenAt: Date | null
+  fabricanteErpLastSeenAt: Date | null
+  fabricanteErpChangedAt: Date | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -118,6 +123,11 @@ export type ProdutoFarmaciaMaxAggregateOutputType = {
   taxaIvaPercent: number | null
   taxaIvaSource: string | null
   taxaIvaUpdatedAt: Date | null
+  fabricanteErpBaseline: string | null
+  fabricanteErpAtual: string | null
+  fabricanteErpFirstSeenAt: Date | null
+  fabricanteErpLastSeenAt: Date | null
+  fabricanteErpChangedAt: Date | null
   dataAtualizacao: Date | null
   dataCriacao: Date | null
 }
@@ -151,6 +161,11 @@ export type ProdutoFarmaciaCountAggregateOutputType = {
   taxaIvaPercent: number
   taxaIvaSource: number
   taxaIvaUpdatedAt: number
+  fabricanteErpBaseline: number
+  fabricanteErpAtual: number
+  fabricanteErpFirstSeenAt: number
+  fabricanteErpLastSeenAt: number
+  fabricanteErpChangedAt: number
   dataAtualizacao: number
   dataCriacao: number
   _all: number
@@ -216,6 +231,11 @@ export type ProdutoFarmaciaMinAggregateInputType = {
   taxaIvaPercent?: true
   taxaIvaSource?: true
   taxaIvaUpdatedAt?: true
+  fabricanteErpBaseline?: true
+  fabricanteErpAtual?: true
+  fabricanteErpFirstSeenAt?: true
+  fabricanteErpLastSeenAt?: true
+  fabricanteErpChangedAt?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -249,6 +269,11 @@ export type ProdutoFarmaciaMaxAggregateInputType = {
   taxaIvaPercent?: true
   taxaIvaSource?: true
   taxaIvaUpdatedAt?: true
+  fabricanteErpBaseline?: true
+  fabricanteErpAtual?: true
+  fabricanteErpFirstSeenAt?: true
+  fabricanteErpLastSeenAt?: true
+  fabricanteErpChangedAt?: true
   dataAtualizacao?: true
   dataCriacao?: true
 }
@@ -282,6 +307,11 @@ export type ProdutoFarmaciaCountAggregateInputType = {
   taxaIvaPercent?: true
   taxaIvaSource?: true
   taxaIvaUpdatedAt?: true
+  fabricanteErpBaseline?: true
+  fabricanteErpAtual?: true
+  fabricanteErpFirstSeenAt?: true
+  fabricanteErpLastSeenAt?: true
+  fabricanteErpChangedAt?: true
   dataAtualizacao?: true
   dataCriacao?: true
   _all?: true
@@ -402,6 +432,11 @@ export type ProdutoFarmaciaGroupByOutputType = {
   taxaIvaPercent: number | null
   taxaIvaSource: string | null
   taxaIvaUpdatedAt: Date | null
+  fabricanteErpBaseline: string | null
+  fabricanteErpAtual: string | null
+  fabricanteErpFirstSeenAt: Date | null
+  fabricanteErpLastSeenAt: Date | null
+  fabricanteErpChangedAt: Date | null
   dataAtualizacao: Date
   dataCriacao: Date
   _count: ProdutoFarmaciaCountAggregateOutputType | null
@@ -458,6 +493,11 @@ export type ProdutoFarmaciaWhereInput = {
   taxaIvaPercent?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   taxaIvaSource?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   taxaIvaUpdatedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpBaseline?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpAtual?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -494,6 +534,11 @@ export type ProdutoFarmaciaOrderByWithRelationInput = {
   taxaIvaPercent?: Prisma.SortOrderInput | Prisma.SortOrder
   taxaIvaSource?: Prisma.SortOrderInput | Prisma.SortOrder
   taxaIvaUpdatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpBaseline?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpAtual?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpFirstSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpLastSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   produto?: Prisma.ProdutoOrderByWithRelationInput
@@ -534,6 +579,11 @@ export type ProdutoFarmaciaWhereUniqueInput = Prisma.AtLeast<{
   taxaIvaPercent?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   taxaIvaSource?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   taxaIvaUpdatedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpBaseline?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpAtual?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
@@ -570,6 +620,11 @@ export type ProdutoFarmaciaOrderByWithAggregationInput = {
   taxaIvaPercent?: Prisma.SortOrderInput | Prisma.SortOrder
   taxaIvaSource?: Prisma.SortOrderInput | Prisma.SortOrder
   taxaIvaUpdatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpBaseline?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpAtual?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpFirstSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpLastSeenAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  fabricanteErpChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   _count?: Prisma.ProdutoFarmaciaCountOrderByAggregateInput
@@ -611,6 +666,11 @@ export type ProdutoFarmaciaScalarWhereWithAggregatesInput = {
   taxaIvaPercent?: Prisma.IntNullableWithAggregatesFilter<"ProdutoFarmacia"> | number | null
   taxaIvaSource?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
   taxaIvaUpdatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpBaseline?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpAtual?: Prisma.StringNullableWithAggregatesFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpChangedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProdutoFarmacia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -641,6 +701,11 @@ export type ProdutoFarmaciaCreateInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -677,6 +742,11 @@ export type ProdutoFarmaciaUncheckedCreateInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -707,6 +777,11 @@ export type ProdutoFarmaciaUpdateInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -743,6 +818,11 @@ export type ProdutoFarmaciaUncheckedUpdateInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -776,6 +856,11 @@ export type ProdutoFarmaciaCreateManyInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -806,6 +891,11 @@ export type ProdutoFarmaciaUpdateManyMutationInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -839,6 +929,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -887,6 +982,11 @@ export type ProdutoFarmaciaCountOrderByAggregateInput = {
   taxaIvaPercent?: Prisma.SortOrder
   taxaIvaSource?: Prisma.SortOrder
   taxaIvaUpdatedAt?: Prisma.SortOrder
+  fabricanteErpBaseline?: Prisma.SortOrder
+  fabricanteErpAtual?: Prisma.SortOrder
+  fabricanteErpFirstSeenAt?: Prisma.SortOrder
+  fabricanteErpLastSeenAt?: Prisma.SortOrder
+  fabricanteErpChangedAt?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -935,6 +1035,11 @@ export type ProdutoFarmaciaMaxOrderByAggregateInput = {
   taxaIvaPercent?: Prisma.SortOrder
   taxaIvaSource?: Prisma.SortOrder
   taxaIvaUpdatedAt?: Prisma.SortOrder
+  fabricanteErpBaseline?: Prisma.SortOrder
+  fabricanteErpAtual?: Prisma.SortOrder
+  fabricanteErpFirstSeenAt?: Prisma.SortOrder
+  fabricanteErpLastSeenAt?: Prisma.SortOrder
+  fabricanteErpChangedAt?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -968,6 +1073,11 @@ export type ProdutoFarmaciaMinOrderByAggregateInput = {
   taxaIvaPercent?: Prisma.SortOrder
   taxaIvaSource?: Prisma.SortOrder
   taxaIvaUpdatedAt?: Prisma.SortOrder
+  fabricanteErpBaseline?: Prisma.SortOrder
+  fabricanteErpAtual?: Prisma.SortOrder
+  fabricanteErpFirstSeenAt?: Prisma.SortOrder
+  fabricanteErpLastSeenAt?: Prisma.SortOrder
+  fabricanteErpChangedAt?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
 }
@@ -1147,6 +1257,11 @@ export type ProdutoFarmaciaCreateWithoutProdutoInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1181,6 +1296,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutProdutoInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1243,6 +1363,11 @@ export type ProdutoFarmaciaScalarWhereInput = {
   taxaIvaPercent?: Prisma.IntNullableFilter<"ProdutoFarmacia"> | number | null
   taxaIvaSource?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
   taxaIvaUpdatedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpBaseline?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpAtual?: Prisma.StringNullableFilter<"ProdutoFarmacia"> | string | null
+  fabricanteErpFirstSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
+  fabricanteErpChangedAt?: Prisma.DateTimeNullableFilter<"ProdutoFarmacia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoFarmacia"> | Date | string
 }
@@ -1273,6 +1398,11 @@ export type ProdutoFarmaciaCreateWithoutFornecedorHabitualInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1307,6 +1437,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFornecedorHabitualInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1363,6 +1498,11 @@ export type ProdutoFarmaciaCreateWithoutFarmaciaInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutProdutosFarmaciaInput
@@ -1397,6 +1537,11 @@ export type ProdutoFarmaciaUncheckedCreateWithoutFarmaciaInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1455,6 +1600,11 @@ export type ProdutoFarmaciaCreateManyProdutoInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1485,6 +1635,11 @@ export type ProdutoFarmaciaUpdateWithoutProdutoInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1519,6 +1674,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutProdutoInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1551,6 +1711,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutProdutoInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1583,6 +1748,11 @@ export type ProdutoFarmaciaCreateManyFornecedorHabitualInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1613,6 +1783,11 @@ export type ProdutoFarmaciaUpdateWithoutFornecedorHabitualInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1647,6 +1822,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFornecedorHabitualInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1679,6 +1859,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFornecedorHabitualInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1711,6 +1896,11 @@ export type ProdutoFarmaciaCreateManyFarmaciaInput = {
   taxaIvaPercent?: number | null
   taxaIvaSource?: string | null
   taxaIvaUpdatedAt?: Date | string | null
+  fabricanteErpBaseline?: string | null
+  fabricanteErpAtual?: string | null
+  fabricanteErpFirstSeenAt?: Date | string | null
+  fabricanteErpLastSeenAt?: Date | string | null
+  fabricanteErpChangedAt?: Date | string | null
   dataAtualizacao?: Date | string
   dataCriacao?: Date | string
 }
@@ -1741,6 +1931,11 @@ export type ProdutoFarmaciaUpdateWithoutFarmaciaInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutProdutosFarmaciaNestedInput
@@ -1775,6 +1970,11 @@ export type ProdutoFarmaciaUncheckedUpdateWithoutFarmaciaInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1807,6 +2007,11 @@ export type ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaInput = {
   taxaIvaPercent?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   taxaIvaSource?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   taxaIvaUpdatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpBaseline?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpAtual?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  fabricanteErpFirstSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpLastSeenAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  fabricanteErpChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1842,6 +2047,11 @@ export type ProdutoFarmaciaSelect<ExtArgs extends runtime.Types.Extensions.Inter
   taxaIvaPercent?: boolean
   taxaIvaSource?: boolean
   taxaIvaUpdatedAt?: boolean
+  fabricanteErpBaseline?: boolean
+  fabricanteErpAtual?: boolean
+  fabricanteErpFirstSeenAt?: boolean
+  fabricanteErpLastSeenAt?: boolean
+  fabricanteErpChangedAt?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1878,6 +2088,11 @@ export type ProdutoFarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   taxaIvaPercent?: boolean
   taxaIvaSource?: boolean
   taxaIvaUpdatedAt?: boolean
+  fabricanteErpBaseline?: boolean
+  fabricanteErpAtual?: boolean
+  fabricanteErpFirstSeenAt?: boolean
+  fabricanteErpLastSeenAt?: boolean
+  fabricanteErpChangedAt?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1914,6 +2129,11 @@ export type ProdutoFarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   taxaIvaPercent?: boolean
   taxaIvaSource?: boolean
   taxaIvaUpdatedAt?: boolean
+  fabricanteErpBaseline?: boolean
+  fabricanteErpAtual?: boolean
+  fabricanteErpFirstSeenAt?: boolean
+  fabricanteErpLastSeenAt?: boolean
+  fabricanteErpChangedAt?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -1950,11 +2170,16 @@ export type ProdutoFarmaciaSelectScalar = {
   taxaIvaPercent?: boolean
   taxaIvaSource?: boolean
   taxaIvaUpdatedAt?: boolean
+  fabricanteErpBaseline?: boolean
+  fabricanteErpAtual?: boolean
+  fabricanteErpFirstSeenAt?: boolean
+  fabricanteErpLastSeenAt?: boolean
+  fabricanteErpChangedAt?: boolean
   dataAtualizacao?: boolean
   dataCriacao?: boolean
 }
 
-export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "externalProductId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "stockEncomenda" | "stockReserva" | "fornecedorHabitualId" | "fornecedorExternalId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "taxaIvaPercent" | "taxaIvaSource" | "taxaIvaUpdatedAt" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
+export type ProdutoFarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "farmaciaId" | "externalProductId" | "designacaoLocal" | "pvp" | "pmc" | "puc" | "stockAtual" | "stockRaw" | "stockMinimo" | "stockMaximo" | "stockEncomenda" | "stockReserva" | "fornecedorHabitualId" | "fornecedorExternalId" | "dataUltimaVenda" | "dataUltimaCompra" | "validadeMaisAntiga" | "flagRetirado" | "modeloGestaoStock" | "familiaOrigem" | "categoriaOrigem" | "subcategoriaOrigem" | "fornecedorOrigem" | "taxaIvaPercent" | "taxaIvaSource" | "taxaIvaUpdatedAt" | "fabricanteErpBaseline" | "fabricanteErpAtual" | "fabricanteErpFirstSeenAt" | "fabricanteErpLastSeenAt" | "fabricanteErpChangedAt" | "dataAtualizacao" | "dataCriacao", ExtArgs["result"]["produtoFarmacia"]>
 export type ProdutoFarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
@@ -2050,6 +2275,22 @@ export type $ProdutoFarmaciaPayload<ExtArgs extends runtime.Types.Extensions.Int
      * sem ruído de outros campos.
      */
     taxaIvaUpdatedAt: Date | null
+    /**
+     * Último valor ERP CONFIRMADO como baseline — só avança quando uma
+     * mudança real é aplicada com sucesso (ou no 1º ciclo).
+     */
+    fabricanteErpBaseline: string | null
+    /**
+     * Último valor ERP observado nesta farmácia, actualizado em TODO ciclo
+     * (mesmo quando igual ao baseline) — diagnóstico, não decide sozinho.
+     */
+    fabricanteErpAtual: string | null
+    fabricanteErpFirstSeenAt: Date | null
+    fabricanteErpLastSeenAt: Date | null
+    /**
+     * Só preenchido quando uma mudança real (baseline≠actual) foi aplicada.
+     */
+    fabricanteErpChangedAt: Date | null
     dataAtualizacao: Date
     dataCriacao: Date
   }, ExtArgs["result"]["produtoFarmacia"]>
@@ -2506,6 +2747,11 @@ export interface ProdutoFarmaciaFieldRefs {
   readonly taxaIvaPercent: Prisma.FieldRef<"ProdutoFarmacia", 'Int'>
   readonly taxaIvaSource: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
   readonly taxaIvaUpdatedAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
+  readonly fabricanteErpBaseline: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly fabricanteErpAtual: Prisma.FieldRef<"ProdutoFarmacia", 'String'>
+  readonly fabricanteErpFirstSeenAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
+  readonly fabricanteErpLastSeenAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
+  readonly fabricanteErpChangedAt: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly dataAtualizacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
   readonly dataCriacao: Prisma.FieldRef<"ProdutoFarmacia", 'DateTime'>
 }
