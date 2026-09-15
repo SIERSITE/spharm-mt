@@ -55,10 +55,10 @@ import * as path from "path";
 import * as XLSX from "xlsx";
 import { legacyPrisma as prisma } from "../lib/prisma";
 
-const MIN_CNP = 2_000_000;
+export const MIN_CNP = 2_000_000;
 
 // Campos canónicos do schema RegulatoryRecord — ordem usada nos logs.
-const FIELDS = [
+export const FIELDS = [
   "cnp",
   "designacaoOficial",
   "dci",
@@ -70,7 +70,7 @@ const FIELDS = [
   "titularAim",
   "estadoAim",
 ] as const;
-type FieldName = (typeof FIELDS)[number];
+export type FieldName = (typeof FIELDS)[number];
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
 
@@ -190,7 +190,7 @@ function readRowsXlsx(filePath: string): string[][] {
   );
 }
 
-function readRows(filePath: string): string[][] {
+export function readRows(filePath: string): string[][] {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".csv") return readRowsCsv(filePath);
   if (ext === ".xlsx" || ext === ".xls") return readRowsXlsx(filePath);
@@ -230,7 +230,7 @@ const FIELD_ALIASES: Record<FieldName, string[]> = {
  * inteiro. Com isto, ficheiros como o CEDIME-ANF (linha 1 = "9999904;...")
  * são correctamente detectados como sem-header.
  */
-function looksLikeHeader(firstRow: string[]): boolean {
+export function looksLikeHeader(firstRow: string[]): boolean {
   if (firstRow.length === 0) return false;
   const first = firstRow[0];
   if (!first) return false;
@@ -244,7 +244,7 @@ function looksLikeHeader(firstRow: string[]): boolean {
  * Devolve um mapping field→colIndex usando o header do ficheiro. Os
  * fields não encontrados ficam ausentes do mapping.
  */
-function mappingFromHeader(headerRow: string[]): Partial<Record<FieldName, number>> {
+export function mappingFromHeader(headerRow: string[]): Partial<Record<FieldName, number>> {
   const map: Partial<Record<FieldName, number>> = {};
   for (let i = 0; i < headerRow.length; i++) {
     const norm = normHeader(headerRow[i]);
@@ -261,24 +261,40 @@ function mappingFromHeader(headerRow: string[]): Partial<Record<FieldName, numbe
 }
 
 /** Mapping default para o formato CEDIME/ANF de 4 colunas (sem header). */
-const DEFAULT_4COL_MAPPING: Partial<Record<FieldName, number>> = {
+export const DEFAULT_4COL_MAPPING: Partial<Record<FieldName, number>> = {
   cnp: 0,
   estadoAim: 1,
   designacaoOficial: 2,
   titularAim: 3,
 };
 
+/**
+ * Decide o mapping campo→coluna e se o ficheiro tem header, com a mesma
+ * lógica usada por `main()`. Extraído para ser reutilizável por outros
+ * scripts que leiam o mesmo formato (ex.: correcção de fabricantes —
+ * `scripts/correct-fabricantes-listagem.ts`) sem duplicar a detecção.
+ */
+export function resolveMapping(
+  rows: string[][],
+  manualMap: Partial<Record<FieldName, number>> | null,
+): { mapping: Partial<Record<FieldName, number>>; hasHeader: boolean } {
+  const hasHeader = manualMap === null && rows.length > 0 && looksLikeHeader(rows[0]);
+  if (manualMap) return { mapping: manualMap, hasHeader };
+  if (hasHeader) return { mapping: mappingFromHeader(rows[0]), hasHeader };
+  return { mapping: DEFAULT_4COL_MAPPING, hasHeader };
+}
+
 // ─── Parse ────────────────────────────────────────────────────────────────────
 
-type ParsedRow = Partial<Record<Exclude<FieldName, "cnp">, string | null>> & { cnp: number };
+export type ParsedRow = Partial<Record<Exclude<FieldName, "cnp">, string | null>> & { cnp: number };
 
-function cleanCellString(raw: string | undefined | null): string | null {
+export function cleanCellString(raw: string | undefined | null): string | null {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).replace(/\s+/g, " ").trim();
   return s.length > 0 ? s : null;
 }
 
-function parseCnp(raw: unknown): number | null {
+export function parseCnp(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;
   const cleaned = String(raw).replace(/[^\d]/g, "");
   if (!cleaned) return null;
@@ -287,7 +303,7 @@ function parseCnp(raw: unknown): number | null {
   return Math.round(n);
 }
 
-type ParseStats = {
+export type ParseStats = {
   totalRead: number;
   parsed: ParsedRow[];
   skippedNoCnp: number;
@@ -295,7 +311,7 @@ type ParseStats = {
   skippedNoFields: number;
 };
 
-function parseRows(
+export function parseRows(
   rows: string[][],
   mapping: Partial<Record<FieldName, number>>,
   hasHeader: boolean,
@@ -373,14 +389,14 @@ function normalizeEstado(raw: string | null): string | null {
 
 // ─── Upsert com regra "preservar não-null" ────────────────────────────────────
 
-type UpsertCounters = {
+export type UpsertCounters = {
   inserted: number;
   updatedSomeFields: number;
   unchanged: number;
   failed: number;
 };
 
-async function upsertBatch(
+export async function upsertBatch(
   batch: ParsedRow[],
   source: string,
   force: boolean,
@@ -519,16 +535,12 @@ async function main(): Promise<void> {
   console.log(`  ${rows.length} linhas lidas em ${fmtMs(Date.now() - t0)}`);
 
   // Mapping
-  const hasHeader = args.manualMap === null && rows.length > 0 && looksLikeHeader(rows[0]);
-  let mapping: Partial<Record<FieldName, number>>;
+  const { mapping, hasHeader } = resolveMapping(rows, args.manualMap);
   if (args.manualMap) {
-    mapping = args.manualMap;
     console.log(`  mapping: manual override ${JSON.stringify(mapping)}`);
   } else if (hasHeader) {
-    mapping = mappingFromHeader(rows[0]);
     console.log(`  mapping: detectado por header → ${JSON.stringify(mapping)}`);
   } else {
-    mapping = DEFAULT_4COL_MAPPING;
     console.log(
       `  mapping: sem header → 4-col positional default ` +
         `(cnp=0, estadoAim=1, designacaoOficial=2, titularAim=3)`,
@@ -649,11 +661,18 @@ async function main(): Promise<void> {
   console.log("─".repeat(74));
 }
 
-main()
-  .catch((err) => {
-    console.error("[erro fatal]", err);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarda de entry-point: este módulo agora é importado por
+// `scripts/correct-fabricantes-listagem.ts` (reaproveita leitura/parsing/
+// upsert em vez de duplicar). Sem esta guarda, `main()` corria também
+// quando importado, competindo com o CLI do script chamador (mesmo padrão
+// já usado em `scripts/vendas/reconciliar-dia.ts`).
+if (/[\\/]import-regulatory-record\.(ts|js|mjs|cjs)$/.test(process.argv[1] ?? "")) {
+  main()
+    .catch((err) => {
+      console.error("[erro fatal]", err);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

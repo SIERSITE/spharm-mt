@@ -34,6 +34,8 @@
  */
 
 import { legacyPrisma as prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@/generated/prisma/client";
+import { SOURCE_TIER_RANK } from "./catalog-types";
 import type {
   CanonicalDecision,
   FieldDecision,
@@ -74,7 +76,7 @@ const THRESHOLD_PARTIAL = 0.50;
  * a persistência nunca grava fabricante/DCI/ATC a partir de fontes de
  * baixa autoridade (como o conector interno que lê fornecedores habituais).
  */
-const AUTHORITATIVE_TIERS: readonly SourceTier[] = ["REGULATORY", "MANUFACTURER"];
+export const AUTHORITATIVE_TIERS: readonly SourceTier[] = ["REGULATORY", "MANUFACTURER"];
 const AUTHORITATIVE_FIELDS = new Set(["fabricante", "dci", "codigoATC"]);
 
 // ─── Fabricante ───────────────────────────────────────────────────────────────
@@ -758,4 +760,549 @@ export async function persistResolvedProduct(
     fieldDecisions: decisions,
     canonical: canonicalDecision,
   };
+}
+
+// ─── Correcção tier-aware de fabricante a partir de listagem regulatória ──────
+// (Bloco F — Set/2026)
+//
+// `persistResolvedProduct` acima só PREENCHE `fabricanteId` quando está a
+// `null` (regra 1.4 do topo do ficheiro) — nunca corrige um valor já
+// preenchido, seja qual for a proveniência actual. Essa regra continua
+// correcta para o pipeline diário/semanal (evita que uma fonte fraca
+// (RETAIL, INTERNAL_INFERRED) apague um fabricante bom por engano).
+//
+// O que falta é um modo OPT-IN, explícito, para quando o utilizador tem
+// uma listagem regulamentar actualizada (`RegulatoryRecord.titularAim`,
+// carregada por `scripts/import-regulatory-record.ts`) e quer corrigir
+// fabricantes já preenchidos — incluindo os errados — sem nunca substituir
+// uma fonte mais forte pela nova. É esse modo que as funções abaixo
+// implementam. Não corre por omissão em lado nenhum: só é invocado por
+// `scripts/correct-fabricantes-listagem.ts`.
+//
+// ── Heurística de "tier actual" ────────────────────────────────────────────
+//
+// Não existe proveniência per-campo persistida (não é âmbito deste bloco
+// inventar essa tabela). A melhor aproximação disponível, na mesma linha do
+// que `lib/ingest/catalog-from-erp.ts` já faz para o caminho ERP:
+//
+//   1. `Produto.validadoManualmente === true` → bloqueado, sem excepção.
+//      É o sinal mais forte que existe de "alguém corrigiu isto à mão".
+//   2. Senão, olha-se ao `EnrichmentSourceLog` MAIS RECENTE deste produto
+//      com "fabricante" em `fieldsReturned`. O nome da fonte desse log é
+//      mapeado para o tier que o respectivo conector declara em
+//      `catalog-connectors.ts` (ex.: "infarmed" → REGULATORY, "spharm_erp"
+//      → ERP_FARMACIA). Fontes desconhecidas (ex.: uma tag livre doutro
+//      import manual) com confiança ≥ 0.95 são tratadas como equivalentes
+//      a REGULATORY — 0.95 é exactamente a confiança que o conector
+//      INFARMED declara (ver `infarmedConnector` em catalog-connectors.ts).
+//   3. Na ausência de qualquer log — produto cujo fabricante veio só do
+//      ERP de uma farmácia ou nunca foi tocado pelo pipeline — assume-se
+//      origem fraca/desconhecida e a correcção prossegue.
+//
+// "Tão ou mais forte" bloqueia por omissão. Uma fonte ESTRITAMENTE mais
+// forte que a nova bloqueia sempre, sem excepção. Um EMPATE de tier (ex.:
+// duas fontes REGULATORY sucessivas) bloqueia por omissão pela mesma razão
+// — evitar que duas corridas desta ferramenta em listagens diferentes
+// fiquem a oscilar o mesmo campo sem supervisão humana — mas agora é
+// opt-in reversível: `allowSameTierOverwrite` (CLI `--allow-same-tier-overwrite`)
+// permite explicitamente a substituição same-tier, corrida a corrida,
+// mantendo o default "empate bloqueia" intacto. `validadoManualmente`
+// continua a bloquear sempre, com ou sem esta flag.
+
+/** Nomes de fonte conhecidos → tier, espelhando `catalog-connectors.ts`. */
+const KNOWN_MANUFACTURER_SOURCE_TIER: Readonly<Record<string, SourceTier>> = {
+  infarmed: "REGULATORY",
+  eudamed: "REGULATORY",
+  spharm_erp: "ERP_FARMACIA",
+  internal_pharmacy_data: "INTERNAL_INFERRED",
+  retail_pharmacy: "RETAIL",
+  open_beauty_facts: "RETAIL",
+  open_food_facts: "RETAIL",
+};
+
+/** Confiança a partir da qual uma fonte desconhecida é tratada como REGULATORY. */
+const UNKNOWN_SOURCE_REGULATORY_EQUIVALENT_CONFIDENCE = 0.95;
+
+/**
+ * Infere o tier da fonte que gravou por último `fabricante` para um
+ * produto, a partir do `EnrichmentSourceLog` mais recente que o declarou.
+ * Devolve `null` quando a origem é desconhecida ou fraca — nesse caso a
+ * correcção pode prosseguir livremente (respeitando sempre
+ * `validadoManualmente`, verificado à parte pelo chamador).
+ */
+export function inferCurrentManufacturerTier(
+  mostRecentLog: { source: string; confidence: number | null } | null,
+): SourceTier | null {
+  if (!mostRecentLog) return null;
+  const known = KNOWN_MANUFACTURER_SOURCE_TIER[mostRecentLog.source];
+  if (known) return known;
+  if ((mostRecentLog.confidence ?? 0) >= UNKNOWN_SOURCE_REGULATORY_EQUIVALENT_CONFIDENCE) {
+    return "REGULATORY";
+  }
+  return null;
+}
+
+export type ManufacturerCorrectionAction =
+  | "update"                 // corrige/preenche fabricanteId
+  | "unchanged"               // valor novo igual ao actual — nada a fazer
+  | "empty"                   // valor novo vazio após normalização
+  | "blocked_manual"          // validadoManualmente=true
+  | "blocked_source"          // tier não-autoritário OU fonte actual tão/mais forte
+  | "blocked_low_confidence"; // confidence da nova fonte abaixo do limiar
+
+export type ManufacturerCorrectionDecision = {
+  action: ManufacturerCorrectionAction;
+  reason: string;
+  /**
+   * true quando esta decisão foi tomada num cenário de EMPATE de tier
+   * (`currentTierEvidence` tem exactamente o mesmo rank que `newTier`).
+   * Não muda o valor de `action` — serve só para o chamador (relatório do
+   * script de correcção) poder mostrar "same-tier bloqueado" / "same-tier
+   * actualizado" como categoria própria, distinta dos casos normais de
+   * "bloqueado por fonte mais forte" / "actualizado". Ausente (undefined)
+   * em todos os outros cenários.
+   */
+  sameTier?: boolean;
+};
+
+/**
+ * Decisão PURA (sem I/O) sobre se `Produto.fabricanteId` pode ser corrigido
+ * por uma fonte autoritária (REGULATORY/MANUFACTURER). Ordem de avaliação
+ * — primeira regra que casa decide:
+ *
+ *   1. tier da nova fonte não-autoritário             → blocked_source
+ *   2. valor novo vazio/inválido após normalização     → empty
+ *   3. validadoManualmente=true                        → blocked_manual (SEMPRE,
+ *      mesmo com allowSameTierOverwrite=true — esta regra é avaliada antes
+ *      de qualquer comparação de tier)
+ *   4. valor novo igual ao actual                      → unchanged
+ *   5. confiança da nova fonte < THRESHOLD_PARTIAL      → blocked_low_confidence
+ *   6. campo actual vazio                               → update (preenche)
+ *   7. fonte actual ESTRITAMENTE mais forte que a nova   → blocked_source
+ *      (nunca é afectado por `allowSameTierOverwrite` — só o empate é)
+ *   8. fonte actual com o MESMO tier que a nova (empate) →
+ *        allowSameTierOverwrite=false (default) → blocked_source (sameTier=true)
+ *        allowSameTierOverwrite=true            → update (sameTier=true)
+ *   9. fonte actual mais fraca que a nova                → update (corrige)
+ */
+export function decideManufacturerCorrection(input: {
+  validadoManualmente: boolean;
+  currentNormalized: string | null;
+  newNormalized: string | null;
+  newTier: SourceTier;
+  newConfidence: number;
+  currentTierEvidence: SourceTier | null;
+  /**
+   * Opt-in explícito para permitir substituir um valor cuja evidência de
+   * fonte actual tem o MESMO tier que a nova (ex.: REGULATORY↔REGULATORY).
+   * Default false — "empate bloqueia" continua a ser o comportamento por
+   * omissão, sem excepção nem flag nenhuma. Nunca afecta os outros casos:
+   * tier actual estritamente mais forte continua sempre bloqueado, tier
+   * actual mais fraco continua sempre a ser corrigido.
+   */
+  allowSameTierOverwrite?: boolean;
+}): ManufacturerCorrectionDecision {
+  const {
+    validadoManualmente,
+    currentNormalized,
+    newNormalized,
+    newTier,
+    newConfidence,
+    currentTierEvidence,
+    allowSameTierOverwrite = false,
+  } = input;
+
+  if (!AUTHORITATIVE_TIERS.includes(newTier)) {
+    return {
+      action: "blocked_source",
+      reason: `tier "${newTier}" não é autoritário para fabricante (só ${AUTHORITATIVE_TIERS.join("/")})`,
+    };
+  }
+  if (!newNormalized) {
+    return { action: "empty", reason: "valor novo vazio (ou inválido) após normalização — nada para escrever" };
+  }
+  if (validadoManualmente) {
+    return {
+      action: "blocked_manual",
+      reason: "produto validadoManualmente=true — fabricante nunca é corrigido automaticamente",
+    };
+  }
+  if (currentNormalized === newNormalized) {
+    return { action: "unchanged", reason: "valor novo é igual ao valor actual" };
+  }
+  if (newConfidence < THRESHOLD_PARTIAL) {
+    return {
+      action: "blocked_low_confidence",
+      reason: `confiança da nova fonte ${(newConfidence * 100).toFixed(0)}% < limiar ${(THRESHOLD_PARTIAL * 100).toFixed(0)}%`,
+    };
+  }
+  if (currentNormalized === null) {
+    return { action: "update", reason: `campo vazio — preenchido por fonte ${newTier}` };
+  }
+  if (currentTierEvidence !== null) {
+    const currentRank = SOURCE_TIER_RANK[currentTierEvidence];
+    const newRank = SOURCE_TIER_RANK[newTier];
+    if (currentRank < newRank) {
+      return {
+        action: "blocked_source",
+        reason:
+          `valor actual já tem evidência de fonte "${currentTierEvidence}" ` +
+          `(rank ${currentRank}), estritamente mais forte que a nova ` +
+          `"${newTier}" (rank ${newRank}) — não corrige, com ou sem allowSameTierOverwrite`,
+      };
+    }
+    if (currentRank === newRank) {
+      if (!allowSameTierOverwrite) {
+        return {
+          action: "blocked_source",
+          sameTier: true,
+          reason:
+            `empate de tier: valor actual tem evidência "${currentTierEvidence}", igual à nova ` +
+            `"${newTier}" (rank ${newRank}) — empate bloqueia por omissão ` +
+            `(usa allowSameTierOverwrite/--allow-same-tier-overwrite para permitir)`,
+        };
+      }
+      return {
+        action: "update",
+        sameTier: true,
+        reason:
+          `empate de tier: valor actual tem evidência "${currentTierEvidence}", igual à nova ` +
+          `"${newTier}" (rank ${newRank}) — substituição same-tier explicitamente permitida ` +
+          `por allowSameTierOverwrite/--allow-same-tier-overwrite`,
+      };
+    }
+    // currentRank > newRank → evidência actual mais fraca que a nova, cai para o "update" abaixo.
+  }
+  return {
+    action: "update",
+    reason:
+      `valor actual sem evidência de fonte tão forte quanto "${newTier}" ` +
+      `(evidência actual: ${currentTierEvidence ?? "nenhuma/fraca"}) — corrige`,
+  };
+}
+
+export type ManufacturerListingRow = {
+  cnp: number;
+  /** Nome do fabricante tal como veio da listagem (RegulatoryRecord.titularAim), já com trim; null se vazio. */
+  titularAim: string | null;
+};
+
+export type ManufacturerCorrectionCategory =
+  | "atualizado"
+  | "atualizadoMesmoTier"
+  | "semAlteracao"
+  | "cnpNaoEncontrado"
+  | "fabricanteVazio"
+  | "bloqueadoValidadoManualmente"
+  | "bloqueadoFonteForte"
+  | "bloqueadoMesmoTier"
+  | "bloqueadoConfiancaBaixa";
+
+export type ManufacturerCorrectionDetail = {
+  cnp: number;
+  categoria: ManufacturerCorrectionCategory;
+  produtoId?: string;
+  designacao?: string;
+  valorAtual?: string | null;
+  valorNovo?: string | null;
+  fonteAtualInferida?: SourceTier | null;
+  detalhe: string;
+};
+
+export type ManufacturerCorrectionReport = {
+  linhasProcessadas: number;
+  produtosEncontrados: number;
+  atualizados: number;
+  /**
+   * Subconjunto de "atualizados" — na verdade uma categoria PRÓPRIA, não
+   * somada a `atualizados` — de correcções same-tier (empate) só aplicadas
+   * porque `allowSameTierOverwrite` estava activo. Com a flag desligada
+   * (default) este valor é sempre 0 e essas correcções aparecem em
+   * `mesmoTierBloqueado`.
+   */
+  mesmoTierAtualizado: number;
+  /**
+   * Correcções same-tier (empate: fonte actual inferida com o mesmo tier
+   * da nova) que ficaram bloqueadas por omissão — só ficam disponíveis com
+   * `allowSameTierOverwrite`/`--allow-same-tier-overwrite`. Já estão
+   * incluídas em `conflitos`; este contador serve só para dar visibilidade
+   * a quantas existem, mesmo quando a flag está desligada.
+   */
+  mesmoTierBloqueado: number;
+  semAlteracao: number;
+  cnpNaoEncontrado: number;
+  fabricanteVazio: number;
+  /** blocked_manual + blocked_source (inclui mesmoTierBloqueado) + blocked_low_confidence agregados. */
+  conflitos: number;
+  aplicado: boolean;
+  detalhes: ManufacturerCorrectionDetail[];
+};
+
+export type ManufacturerCorrectionOptions = {
+  /** Tag de proveniência gravada em EnrichmentSourceLog.source para os fabricantes corrigidos. */
+  source: string;
+  /** Tier da nova fonte. Default REGULATORY (o único caso testado/documentado neste bloco). */
+  newTier?: SourceTier;
+  /** Confiança da nova fonte. Default 0.95 — igual à do infarmedConnector. */
+  newConfidence?: number;
+  /** true (default) simula sem escrever; false aplica as correcções. */
+  dryRun?: boolean;
+  /**
+   * Opt-in explícito para permitir substituir um fabricante REGULATORY já
+   * preenchido por um fabricante REGULATORY novo da listagem (empate de
+   * tier). Default false — "empate bloqueia" continua o comportamento por
+   * omissão, sem excepção. Nunca abre a porta para um tier inferior
+   * substituir um superior — isso continua sempre bloqueado, com ou sem
+   * esta flag (ver `decideManufacturerCorrection`).
+   */
+  allowSameTierOverwrite?: boolean;
+};
+
+/**
+ * Aplica (ou simula) a correcção tier-aware de `Produto.fabricanteId` a
+ * partir de uma listagem regulatória (tipicamente `RegulatoryRecord`
+ * acabado de importar/corrigir por `scripts/import-regulatory-record.ts`).
+ *
+ * Dependency-injected (`prisma` como parâmetro, não o singleton do módulo)
+ * para poder ser testado sem BD viva — mesmo padrão de
+ * `lib/ingest/catalog-from-erp.ts::applyErpCatalogFields`.
+ *
+ * Não filtra CNPs internos (`cnp <= 2_000_000`) — assume que o chamador já
+ * filtrou na leitura do ficheiro (ver `scripts/import-regulatory-record.ts`
+ * `MIN_CNP`), para manter esta função pequena e reutilizável.
+ */
+export async function applyAuthoritativeManufacturerCorrections(
+  prisma: PrismaClient,
+  rows: ManufacturerListingRow[],
+  opts: ManufacturerCorrectionOptions,
+): Promise<ManufacturerCorrectionReport> {
+  const newTier = opts.newTier ?? "REGULATORY";
+  const newConfidence = opts.newConfidence ?? 0.95;
+  const dryRun = opts.dryRun ?? true;
+  const allowSameTierOverwrite = opts.allowSameTierOverwrite ?? false;
+
+  const report: ManufacturerCorrectionReport = {
+    linhasProcessadas: rows.length,
+    produtosEncontrados: 0,
+    atualizados: 0,
+    mesmoTierAtualizado: 0,
+    mesmoTierBloqueado: 0,
+    semAlteracao: 0,
+    cnpNaoEncontrado: 0,
+    fabricanteVazio: 0,
+    conflitos: 0,
+    aplicado: !dryRun,
+    detalhes: [],
+  };
+
+  if (rows.length === 0) return report;
+
+  const cnps = rows.map((r) => r.cnp);
+  const produtos = await prisma.produto.findMany({
+    where: { cnp: { in: cnps } },
+    select: {
+      id: true,
+      cnp: true,
+      designacao: true,
+      validadoManualmente: true,
+      fabricante: { select: { nomeNormalizado: true } },
+    },
+  });
+  const produtoPorCnp = new Map(produtos.map((p) => [p.cnp, p]));
+
+  const produtoIds = produtos.map((p) => p.id);
+  const logs = produtoIds.length
+    ? await prisma.enrichmentSourceLog.findMany({
+        where: { produtoId: { in: produtoIds }, fieldsReturned: { has: "fabricante" } },
+        select: { produtoId: true, source: true, confidence: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+  // O primeiro log visto por produto, com a ordenação desc, é o mais recente.
+  const latestLogPorProduto = new Map<string, { source: string; confidence: number | null }>();
+  for (const l of logs) {
+    if (!latestLogPorProduto.has(l.produtoId)) {
+      latestLogPorProduto.set(l.produtoId, { source: l.source, confidence: l.confidence });
+    }
+  }
+
+  // Fabricantes já existentes para os nomes normalizados que a listagem traz
+  // — resolvidos em lote para evitar N lookups (mesmo espírito de
+  // `applyErpCatalogFields`). Os que faltarem são criados on-demand no loop
+  // (só quando `!dryRun` e a linha decide "update").
+  const novosNomes = [
+    ...new Set(rows.map((r) => normalizeManufacturerName(r.titularAim)).filter((x): x is string => !!x)),
+  ];
+  const fabPorNome = new Map<string, string>();
+  if (novosNomes.length) {
+    const existentes = await prisma.fabricante.findMany({
+      where: { nomeNormalizado: { in: novosNomes } },
+      select: { id: true, nomeNormalizado: true },
+    });
+    for (const f of existentes) fabPorNome.set(f.nomeNormalizado, f.id);
+  }
+
+  for (const row of rows) {
+    const produto = produtoPorCnp.get(row.cnp);
+    if (!produto) {
+      report.cnpNaoEncontrado++;
+      report.detalhes.push({
+        cnp: row.cnp,
+        categoria: "cnpNaoEncontrado",
+        valorNovo: row.titularAim,
+        detalhe: "Não existe Produto com este CNP no catálogo central",
+      });
+      continue;
+    }
+    report.produtosEncontrados++;
+
+    const newNormalized = normalizeManufacturerName(row.titularAim);
+    const currentNormalized = produto.fabricante?.nomeNormalizado ?? null;
+    const currentLog = latestLogPorProduto.get(produto.id) ?? null;
+    const currentTierEvidence = inferCurrentManufacturerTier(currentLog);
+
+    const decision = decideManufacturerCorrection({
+      validadoManualmente: produto.validadoManualmente,
+      currentNormalized,
+      newNormalized,
+      newTier,
+      newConfidence,
+      currentTierEvidence,
+      allowSameTierOverwrite,
+    });
+
+    const base = {
+      cnp: row.cnp,
+      produtoId: produto.id,
+      designacao: produto.designacao,
+      valorAtual: currentNormalized,
+      valorNovo: newNormalized,
+    };
+
+    if (decision.action === "empty") {
+      report.fabricanteVazio++;
+      report.detalhes.push({ ...base, categoria: "fabricanteVazio", detalhe: decision.reason });
+      continue;
+    }
+    if (decision.action === "unchanged") {
+      report.semAlteracao++;
+      report.detalhes.push({ ...base, categoria: "semAlteracao", detalhe: decision.reason });
+      continue;
+    }
+    if (decision.action === "blocked_manual") {
+      report.conflitos++;
+      report.detalhes.push({ ...base, categoria: "bloqueadoValidadoManualmente", detalhe: decision.reason });
+      continue;
+    }
+    if (decision.action === "blocked_source") {
+      report.conflitos++;
+      if (decision.sameTier) {
+        report.mesmoTierBloqueado++;
+        report.detalhes.push({
+          ...base,
+          categoria: "bloqueadoMesmoTier",
+          fonteAtualInferida: currentTierEvidence,
+          detalhe: decision.reason,
+        });
+      } else {
+        report.detalhes.push({
+          ...base,
+          categoria: "bloqueadoFonteForte",
+          fonteAtualInferida: currentTierEvidence,
+          detalhe: decision.reason,
+        });
+      }
+      continue;
+    }
+    if (decision.action === "blocked_low_confidence") {
+      report.conflitos++;
+      report.detalhes.push({ ...base, categoria: "bloqueadoConfiancaBaixa", detalhe: decision.reason });
+      continue;
+    }
+
+    // action === "update" — eventualmente uma correcção same-tier (decision.sameTier),
+    // só chega aqui quando allowSameTierOverwrite permitiu. Categoria própria no
+    // relatório, distinta de "atualizado" normal.
+    if (decision.sameTier) {
+      report.mesmoTierAtualizado++;
+      report.detalhes.push({
+        ...base,
+        categoria: "atualizadoMesmoTier",
+        fonteAtualInferida: currentTierEvidence,
+        detalhe: decision.reason,
+      });
+    } else {
+      report.atualizados++;
+      report.detalhes.push({ ...base, categoria: "atualizado", detalhe: decision.reason });
+    }
+
+    if (dryRun) continue;
+
+    let fabId = fabPorNome.get(newNormalized!);
+    if (!fabId) {
+      const criado = await prisma.fabricante.upsert({
+        where: { nomeNormalizado: newNormalized! },
+        create: { nomeNormalizado: newNormalized! },
+        update: {},
+        select: { id: true },
+      });
+      fabId = criado.id;
+      fabPorNome.set(newNormalized!, fabId);
+    }
+    // Alias: preserva o nome cru da listagem quando difere do normalizado
+    // (mesmo padrão de `getOrCreateFabricante` acima). Falha silenciosa —
+    // é um extra de diagnóstico, não crítico.
+    const rawTrimmed = row.titularAim?.trim() ?? null;
+    if (rawTrimmed && rawTrimmed !== newNormalized) {
+      await prisma.fabricanteAlias
+        .upsert({
+          where: { fabricanteId_aliasNome: { fabricanteId: fabId, aliasNome: rawTrimmed } },
+          create: { fabricanteId: fabId, aliasNome: rawTrimmed },
+          update: {},
+        })
+        .catch(() => {});
+    }
+
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { fabricanteId: fabId, dataAtualizacao: new Date() },
+    });
+    // Auditoria da correcção same-tier: `EnrichmentSourceLog` não tem um
+    // campo dedicado "valor anterior" / "fonte anterior" (e este bloco não
+    // deve exigir migration), por isso reaproveitamos dois campos livres já
+    // existentes no modelo, sem alterar o seu contrato para os restantes
+    // conectores que os preenchem com o significado original:
+    //   - `rawBrand`  → aqui guarda o valor NORMALIZADO ANTERIOR de
+    //     fabricante (o que estava em Produto.fabricanteId antes desta
+    //     escrita) — nos outros conectores guarda a marca crua da FONTE,
+    //     mas para uma correcção same-tier o dado que falta ao auditor é
+    //     precisamente "o que é que isto substituiu".
+    //   - `query`     → aqui guarda uma nota textual com o tier anterior
+    //     inferido e o novo tier ("previousTier=... newTier=..."); este
+    //     fluxo nunca usa `query` com o seu significado original (não há
+    //     pesquisa/query nenhuma — o match é por CNP a partir de um
+    //     ficheiro), por isso fica livre para esta nota sem colidir com
+    //     outros leitores da tabela.
+    //   - `fieldsReturned` ganha o marcador "sameTierOverwrite" além de
+    //     "fabricante", para poder filtrar estas correcções sem depender
+    //     dos dois campos acima.
+    await prisma.enrichmentSourceLog.create({
+      data: {
+        produtoId: produto.id,
+        source: opts.source,
+        status: "SUCCESS",
+        confidence: newConfidence,
+        matchedBy: "cnp",
+        fieldsReturned: decision.sameTier ? ["fabricante", "sameTierOverwrite"] : ["fabricante"],
+        ...(decision.sameTier
+          ? {
+              rawBrand: currentNormalized,
+              query: `same-tier-overwrite: previousTier=${currentTierEvidence ?? "desconhecida"} newTier=${newTier}`,
+            }
+          : {}),
+      },
+    });
+  }
+
+  return report;
 }
