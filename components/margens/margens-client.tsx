@@ -342,6 +342,13 @@ export function MargensClient({
           value={filters}
           onChange={setFilters}
           searchPlaceholder="Pesquisar CNP ou descrição"
+          // Mesmo comportamento de /vendas: os dois interruptores do
+          // relatório oficial do SPharm (crédito/transferências) têm de
+          // valer aqui também — Margens agregava sempre as três naturezas
+          // sem opção de desligar, o que fazia "vendas consideradas"
+          // divergir de Vendas quando os toggles não estavam nos
+          // defaults. `getMargensData` já aplica `naturezasIncluidas`.
+          mostrarNaturezas
           lista={lista}
           onListaChange={setLista}
         />

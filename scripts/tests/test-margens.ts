@@ -421,6 +421,51 @@ function prismaFalso(resultados: Record<string, Array<{ id: string }>>) {
   return { fake, chamadas };
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// N · CRÉDITO / TRANSFERÊNCIAS — os mesmos interruptores de Vendas
+//
+// Correcção (2026-09): Margens somava sempre as três naturezas
+// (NORMAL+CREDITO+TRANSFERENCIA), sem opção de desligar — ao contrário
+// de Vendas, que já tinha os dois interruptores desde sempre. Isso
+// fazia "vendas consideradas" divergir entre os dois relatórios quando
+// os toggles de Vendas não estavam nos defaults. Correcção: a MESMA
+// `naturezasIncluidas(filters)` de `lib/reporting/natureza-venda.ts`
+// (o módulo que `lib/vendas-data.ts` já usa) passa a filtrar a query
+// de Margens; a UI ganha os mesmos dois checkboxes via
+// `mostrarNaturezas` em `ReportFiltersBar` — controlo que já existia,
+// pronto, e só não estava a ser pedido por Margens.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nN · crédito / transferências em Margens\n");
+{
+  check(
+    dados.includes('from "@/lib/reporting/natureza-venda"') && dados.includes("naturezasIncluidas"),
+    "lib/margens-data.ts importa naturezasIncluidas — o MESMO módulo de Vendas",
+  );
+  check(
+    /const naturezas = naturezasIncluidas\(filters\);/.test(dados),
+    "…e calcula a lista de naturezas a partir dos filtros recebidos",
+  );
+  check(
+    /AND vm\."naturezaVenda" = ANY\(\$\{naturezas\}\)/.test(dados),
+    "…e a query principal FILTRA por ela — não é só um cálculo que fica por usar",
+  );
+
+  check(
+    /mostrarNaturezas\b/.test(cliente) && cliente.includes("<ReportFiltersBar"),
+    "components/margens/margens-client.tsx passa mostrarNaturezas ao ReportFiltersBar",
+  );
+  check(
+    !/mostrarNaturezas=\{false\}/.test(cliente),
+    "…passado como verdadeiro (presença da prop, não desligado)",
+  );
+
+  const barra = readFileSync("components/reporting/report-filters-bar.tsx", "utf8");
+  check(
+    barra.includes("Incluir vendas a crédito") && barra.includes("Incluir guias de transferência"),
+    "o componente partilhado já tinha os dois checkboxes prontos — não foram inventados de novo",
+  );
+}
+
 async function principal() {
 console.log("\nG · a utilização filtra pela relação própria");
 {

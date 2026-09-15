@@ -47,6 +47,7 @@ import {
 } from "@/lib/reporting/catalog-prefilter";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
+import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
 import {
   SQL_LINHAS_ELEGIVEIS,
   SQL_QUANTIDADE_ASSINADA,
@@ -272,19 +273,22 @@ export async function getVendasData(
     produtoIdFilter = await restringirPorCatalogo(prisma, filters, produtoIdFilter);
     if (produtoIdFilter && produtoIdFilter.length === 0) return { period, rows: [] };
   }
-  // Pesquisa (CNP exacto ou ILIKE designação) também pré-filtra o universo.
+  // Pesquisa por CNP (exacto OU parcial) ou designação — MESMA regra que
+  // Margens (`construirCondicaoPesquisa`, lib/reporting/pesquisa-produto.ts).
+  // Antes desta correcção (2026-09), Vendas reimplementava esta pesquisa à
+  // mão com `prisma.produto.findMany` e só encontrava o CNP por igualdade
+  // EXACTA (`cnp: asNumber`) — escrever metade do código não encontrava
+  // nada, o mesmo problema que Margens já tinha corrigido no seu próprio
+  // loader. `$queryRaw` (em vez de `findMany`) é o que permite `cnp::text
+  // LIKE`, que o query-builder do Prisma Client não expõe para um campo Int.
   if (filters.pesquisa && filters.pesquisa.trim()) {
-    const q = filters.pesquisa.trim();
-    const asNumber = Number(q);
-    const produtos = await prisma.produto.findMany({
-      where: {
-        ...(Number.isFinite(asNumber) && Number.isInteger(asNumber)
-          ? { OR: [{ cnp: asNumber }, { designacao: { contains: q, mode: "insensitive" } }] }
-          : { designacao: { contains: q, mode: "insensitive" } }),
-        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
-      },
-      select: { id: true },
-    });
+    const pesquisaCond = construirCondicaoPesquisa(filters.pesquisa);
+    const produtos = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT p.id FROM "Produto" p
+      WHERE 1 = 1
+        ${pesquisaCond}
+        ${produtoIdFilter ? Prisma.sql`AND p.id = ANY(${produtoIdFilter})` : Prisma.empty}
+    `);
     produtoIdFilter = produtos.map((p) => p.id);
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }

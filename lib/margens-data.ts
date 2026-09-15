@@ -60,6 +60,9 @@ import {
 } from "@/lib/reporting/catalog-prefilter";
 import { normalizeIva, type TaxaIvaCanonica } from "@/lib/iva";
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
+import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
+import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
 
 export type EstadoMargem = "FIAVEL" | "PARCIAL" | "SEM_CUSTO" | "IVA_POR_APURAR";
 
@@ -91,11 +94,14 @@ export type MargemRow = {
    */
   pvpUnitario: number | null;
   /**
-   * Custo unitário: `custoEstimado / qtdVendida`.
-   *
-   * Coincide com `custoUnitarioBase` (o PMC/PUC de que o custo estimado
-   * é derivado) e é calculado à mesma pela divisão, para a coluna do
-   * ecrã ser sempre coerente com as duas que estão ao lado dela.
+   * Custo unitário — é `custoUnitarioBase` (PMC/PUC actual da ficha via
+   * `custoDaFarmacia()`, o MESMO valor que `lib/vendas-data.ts` mostra em
+   * "Custo unit. est."), NUNCA re-derivado por divisão de
+   * `custoEstimado`. Um `custoEstimado / qtdVendida` já passou por um
+   * arredondamento a 2 casas no total — dividir de volta introduzia um
+   * erro de arredondamento duplo que podia divergir ±0,01 € do valor
+   * exacto, consoante a quantidade. Ver
+   * scripts/tests/test-custo-vendas-margens.ts.
    */
   custoUnitario: number | null;
   /** PVP × qty / (1 + taxa/100). null quando taxa IVA desconhecida. */
@@ -209,31 +215,13 @@ function ymToIndex(iso: string | undefined, fallback: { y: number; m: number }):
 }
 
 /**
- * A condição SQL da pesquisa por artigo. Exportada para ser testável.
- *
- * Três formas, e as três no MESMO campo:
- *   · CNP exacto         "5880034"
- *   · parte do CNP       "58800"
- *   · designação parcial "depuralina", sem distinguir maiúsculas
- *
- * O CNP compara-se em TEXTO (`cnp::text LIKE`) e não por igualdade
- * numérica. A igualdade exacta continua coberta — é o caso particular em
- * que o padrão é o código inteiro — mas `= 58800` não encontrava nada
- * quando se escrevia metade do código.
- *
- * Devolve `Prisma.empty` para termo vazio: sem pesquisa, sem condição.
+ * Movida para `lib/reporting/pesquisa-produto.ts` (2026-09) para ser
+ * partilhada com `lib/vendas-data.ts` — Vendas reimplementava a mesma
+ * pesquisa com uma limitação que aqui já tinha sido corrigida (CNP só
+ * por igualdade exacta). Re-exportada aqui para não obrigar a mudar
+ * quem já importa `construirCondicaoPesquisa` de `lib/margens-data`.
  */
-export function construirCondicaoPesquisa(pesquisa: string | undefined | null): Prisma.Sql {
-  const q = (pesquisa ?? "").trim();
-  if (!q) return Prisma.empty;
-  const padrao = `%${q}%`;
-  // Só faz sentido procurar no CNP quando o termo são mesmo dígitos.
-  // "depuralina" contra `cnp::text` nunca casa e só custa tempo.
-  if (/^\d+$/.test(q)) {
-    return Prisma.sql`AND (p."cnp"::text LIKE ${padrao} OR p."designacao" ILIKE ${padrao})`;
-  }
-  return Prisma.sql`AND p."designacao" ILIKE ${padrao}`;
-}
+export { construirCondicaoPesquisa };
 
 /**
  * Os dois valores unitários da tabela de Margens.
@@ -358,6 +346,12 @@ export async function getMargensData(
   // agregações derivam de `porProduto`, portanto filtrar aqui é o que
   // faz os cartões de topo acompanharem a pesquisa.
   const pesquisaCond = construirCondicaoPesquisa(filters.pesquisa);
+  // Os dois interruptores do relatório oficial do SPharm — MESMA lista
+  // que lib/vendas-data.ts usa (naturezasIncluidas), para que "vendas
+  // consideradas" nunca divirja entre os dois relatórios com os mesmos
+  // toggles. Antes desta correcção, Margens somava sempre as três
+  // naturezas (NORMAL+CREDITO+TRANSFERENCIA) sem opção de desligar.
+  const naturezas = naturezasIncluidas(filters);
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -384,6 +378,7 @@ export async function getMargensData(
         SUM(COALESCE(vm."valorBruto", vm."valorTotal"))::numeric AS valor_bruto
       FROM "VendaMensal" vm
       WHERE vm."farmaciaId" = ANY(${farmaciaIds})
+        AND vm."naturezaVenda" = ANY(${naturezas})
         AND (vm."ano" * 12 + vm."mes") BETWEEN ${minIdx} AND ${maxIdx}
       GROUP BY 1, 2
     )
@@ -434,8 +429,13 @@ export async function getMargensData(
     const valorVendido = rounded2(toF(r.valor_bruto)); // com IVA
     const pmc = numOrNull(r.pmc);
     const puc = numOrNull(r.puc);
-    const custoUnitarioBase =
-      pmc !== null && pmc > 0 ? pmc : puc !== null && puc > 0 ? puc : null;
+    // Fonte ÚNICA de custo, partilhada com Vendas (lib/vendas-data.ts) —
+    // ver lib/produtos/custo-farmacia.ts. Antes desta correcção (2026-09),
+    // esta regra estava reimplementada aqui à mão, com o MESMO resultado
+    // hoje, mas divergente por construção de qualquer ajuste futuro à
+    // regra (ex: uma terceira fonte de custo) que só passasse a existir
+    // num dos dois sítios.
+    const custoUnitarioBase = custoDaFarmacia(pmc, puc).valor;
     // Taxa IVA persistida em ProdutoFarmacia.taxaIvaPercent pelo
     // pipeline de recuperação (lib/iva-recovery.ts). Valor já em
     // {0,6,13,23,null} — `normalizeIva()` aqui é defensivo contra
@@ -453,7 +453,8 @@ export async function getMargensData(
       ? rounded2(valorVendido / (1 + (taxaIva as number) / 100))
       : null;
 
-    const custoEstimado = custoOk ? rounded2(qty * (custoUnitarioBase as number)) : null;
+    // valorizar() — mesma função que Vendas usa para o total estimado.
+    const custoEstimado = valorizar(qty, custoUnitarioBase);
 
     // Margem só quando temos AMBOS: IVA conhecido (para descontar) +
     // custo conhecido. Caso contrário é não fiável — null e estado SEM_*.
@@ -490,7 +491,18 @@ export async function getMargensData(
       subcategoriaOrigem: r.subcategoriaOrigem,
     });
 
-    const { pvpUnitario, custoUnitario } = derivarUnitarios(qty, valorVendido, custoEstimado);
+    // pvpUnitario continua derivado por divisão (valorVendido/qty — não há
+    // outra fonte). custoUnitario NÃO é: é `custoUnitarioBase` a direito,
+    // sem passar pelo `custoEstimado` já arredondado. Antes desta
+    // correcção (2026-09), custoUnitario vinha de
+    // `derivarUnitarios(qty, valorVendido, custoEstimado).custoUnitario`
+    // — ou seja, `arredondar(arredondar(qty × base) / qty)`, um
+    // arredondamento duplo através do total que podia divergir em ±0,01 €
+    // do valor exacto de `custoUnitarioBase` (o MESMO PMC/PUC que
+    // `lib/vendas-data.ts` mostra como "Custo unit. est."), consoante a
+    // quantidade vendida no período. Ver scripts/tests/test-custo-vendas-margens.ts.
+    const { pvpUnitario } = derivarUnitarios(qty, valorVendido, custoEstimado);
+    const custoUnitario = custoUnitarioBase;
 
     return {
       cnp: r.cnp,
