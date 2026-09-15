@@ -112,6 +112,19 @@ enum EstadoListaEncomenda {
   EXPORTADA
 }
 
+/// Estado de uma transferência interna entre farmácias do grupo.
+///
+/// Só dois valores, de propósito: uma transferência não tem circuito de
+/// exportação ao ERP (ver `Transferencia`) — não há PENDENTE/EXPORTADA
+/// a monitorizar, só o registo em si (RASCUNHO) e a decisão fechada
+/// (FINALIZADA). Se um dia precisar de mais estados, é aí que se sabe
+/// quais — inventá-los agora era copiar `EstadoListaEncomenda` sem
+/// necessidade.
+enum EstadoTransferencia {
+  RASCUNHO
+  FINALIZADA
+}
+
 /// Estado do fluxo outbound de exportação de uma lista de encomenda
 /// para a instância SPharm da farmácia. Distinto de EstadoListaEncomenda:
 /// aquele é a fase de negócio (rascunho → finalizada → exportada); este
@@ -386,6 +399,7 @@ model Produto {
   linhasInventario      LinhaInventario[]
   indicadores           IndicadoresProdutoFarmacia[]
   linhasEncomenda       LinhaEncomenda[]
+  linhasTransferencia   LinhaTransferencia[]
   filaRevisao           FilaRevisao[]
   filaEnriquecimento    EnriquecimentoFila[]
   verificacaoHistorico  ProdutoVerificacaoHistorico[]
@@ -971,6 +985,8 @@ model Farmacia {
   inventarios                         Inventario[]
   indicadores                         IndicadoresProdutoFarmacia[]
   listasEncomenda                     ListaEncomenda[]
+  transferenciasOrigem                Transferencia[]                     @relation("TransferenciaOrigem")
+  transferenciasDestino               Transferencia[]                     @relation("TransferenciaDestino")
   lotesIngestao                       LoteIngestao[]
   emailConfig                         EmailConfig?
   ingestVendasLinhasRaw               IngestVendaLinhaRaw[]
@@ -1046,6 +1062,7 @@ model Utilizador {
   farmacia        Farmacia?            @relation(fields: [farmaciaId], references: [id])
   farmacias       UtilizadorFarmacia[]
   listasEncomenda ListaEncomenda[]
+  transferencias  Transferencia[]
   auditoria       AuditLog[]           @relation("AuditLogActor")
 }
 
@@ -1598,6 +1615,68 @@ model LinhaEncomenda {
   @@unique([listaEncomendaId, produtoId])
   @@index([produtoId])
   @@index([fornecedorSugeridoId])
+}
+
+/// Transferência interna de artigos entre duas farmácias do grupo,
+/// decidida linha-a-linha na encomenda de grupo (Bloco D).
+///
+/// ── O que isto NÃO é ─────────────────────────────────────────────────
+///
+/// Não é uma ListaEncomenda disfarçada. Antes desta modelação,
+/// "transferir" era criar uma segunda ListaEncomenda na farmácia
+/// destino com uma LinhaEncomenda de `notas` livre — o que arrastava a
+/// transferência para o circuito de exportação ao ERP
+/// (OrderOutbox/OrderExportAudit) e obrigava a navegar para o detalhe
+/// dessa encomenda, perdendo o contexto da proposta de grupo em
+/// preparação. Ver `createInternalTransferAction` em
+/// `app/encomendas/nova/actions.ts`.
+///
+/// Uma Transferencia é SÓ o registo interno da decisão:
+///
+///   · sem exportação ao ERP — nenhum OrderOutbox/OrderExportAudit
+///     é criado a partir daqui;
+///   · unilateral, como já era — não decrementa nem gera saída na
+///     farmácia de origem, é só o registo da decisão + quantidade.
+///
+/// `farmaciaOrigemId`/`farmaciaDestinoId` usam `@relation` nomeada
+/// porque são DUAS FK para o mesmo modelo (`Farmacia`) — sem nome, o
+/// Prisma não sabe qual é qual.
+model Transferencia {
+  id                String              @id @default(cuid())
+  farmaciaOrigemId  String
+  farmaciaDestinoId String
+  estado            EstadoTransferencia @default(RASCUNHO)
+  criadoPorId       String
+  dataCriacao       DateTime            @default(now())
+  dataAtualizacao   DateTime            @updatedAt
+
+  farmaciaOrigem  Farmacia             @relation("TransferenciaOrigem", fields: [farmaciaOrigemId], references: [id])
+  farmaciaDestino Farmacia             @relation("TransferenciaDestino", fields: [farmaciaDestinoId], references: [id])
+  criadoPor       Utilizador           @relation(fields: [criadoPorId], references: [id])
+  linhas          LinhaTransferencia[]
+
+  @@index([farmaciaOrigemId])
+  @@index([farmaciaDestinoId])
+  @@index([criadoPorId])
+  @@index([estado])
+}
+
+/// Linhas de uma Transferencia — produto + quantidade a transferir.
+/// Mesma forma que `LinhaEncomenda` (unicidade por produto dentro do
+/// documento), sem os campos de proposta/exportação que não se
+/// aplicam aqui.
+model LinhaTransferencia {
+  id              String  @id @default(cuid())
+  transferenciaId String
+  produtoId       String
+  quantidade      Decimal @db.Decimal(14, 3)
+  notas           String?
+
+  transferencia Transferencia @relation(fields: [transferenciaId], references: [id], onDelete: Cascade)
+  produto       Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([transferenciaId, produtoId])
+  @@index([produtoId])
 }
 
 /// Fila de revisão manual do catálogo.

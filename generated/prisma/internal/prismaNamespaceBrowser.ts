@@ -86,6 +86,8 @@ export const ModelName = {
   IndicadoresProdutoFarmacia: 'IndicadoresProdutoFarmacia',
   ListaEncomenda: 'ListaEncomenda',
   LinhaEncomenda: 'LinhaEncomenda',
+  Transferencia: 'Transferencia',
+  LinhaTransferencia: 'LinhaTransferencia',
   FilaRevisao: 'FilaRevisao',
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
@@ -742,6 +744,30 @@ export const LinhaEncomendaScalarFieldEnum = {
 } as const
 
 export type LinhaEncomendaScalarFieldEnum = (typeof LinhaEncomendaScalarFieldEnum)[keyof typeof LinhaEncomendaScalarFieldEnum]
+
+
+export const TransferenciaScalarFieldEnum = {
+  id: 'id',
+  farmaciaOrigemId: 'farmaciaOrigemId',
+  farmaciaDestinoId: 'farmaciaDestinoId',
+  estado: 'estado',
+  criadoPorId: 'criadoPorId',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type TransferenciaScalarFieldEnum = (typeof TransferenciaScalarFieldEnum)[keyof typeof TransferenciaScalarFieldEnum]
+
+
+export const LinhaTransferenciaScalarFieldEnum = {
+  id: 'id',
+  transferenciaId: 'transferenciaId',
+  produtoId: 'produtoId',
+  quantidade: 'quantidade',
+  notas: 'notas'
+} as const
+
+export type LinhaTransferenciaScalarFieldEnum = (typeof LinhaTransferenciaScalarFieldEnum)[keyof typeof LinhaTransferenciaScalarFieldEnum]
 
 
 export const FilaRevisaoScalarFieldEnum = {

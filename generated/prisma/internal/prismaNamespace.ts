@@ -419,6 +419,8 @@ export const ModelName = {
   IndicadoresProdutoFarmacia: 'IndicadoresProdutoFarmacia',
   ListaEncomenda: 'ListaEncomenda',
   LinhaEncomenda: 'LinhaEncomenda',
+  Transferencia: 'Transferencia',
+  LinhaTransferencia: 'LinhaTransferencia',
   FilaRevisao: 'FilaRevisao',
   EnriquecimentoFila: 'EnriquecimentoFila',
   LoteIngestao: 'LoteIngestao',
@@ -447,7 +449,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -3041,6 +3043,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Transferencia: {
+      payload: Prisma.$TransferenciaPayload<ExtArgs>
+      fields: Prisma.TransferenciaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TransferenciaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TransferenciaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        findFirst: {
+          args: Prisma.TransferenciaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TransferenciaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        findMany: {
+          args: Prisma.TransferenciaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>[]
+        }
+        create: {
+          args: Prisma.TransferenciaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        createMany: {
+          args: Prisma.TransferenciaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TransferenciaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>[]
+        }
+        delete: {
+          args: Prisma.TransferenciaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        update: {
+          args: Prisma.TransferenciaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        deleteMany: {
+          args: Prisma.TransferenciaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TransferenciaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TransferenciaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>[]
+        }
+        upsert: {
+          args: Prisma.TransferenciaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TransferenciaPayload>
+        }
+        aggregate: {
+          args: Prisma.TransferenciaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTransferencia>
+        }
+        groupBy: {
+          args: Prisma.TransferenciaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TransferenciaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TransferenciaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TransferenciaCountAggregateOutputType> | number
+        }
+      }
+    }
+    LinhaTransferencia: {
+      payload: Prisma.$LinhaTransferenciaPayload<ExtArgs>
+      fields: Prisma.LinhaTransferenciaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LinhaTransferenciaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LinhaTransferenciaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        findFirst: {
+          args: Prisma.LinhaTransferenciaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LinhaTransferenciaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        findMany: {
+          args: Prisma.LinhaTransferenciaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>[]
+        }
+        create: {
+          args: Prisma.LinhaTransferenciaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        createMany: {
+          args: Prisma.LinhaTransferenciaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LinhaTransferenciaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>[]
+        }
+        delete: {
+          args: Prisma.LinhaTransferenciaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        update: {
+          args: Prisma.LinhaTransferenciaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        deleteMany: {
+          args: Prisma.LinhaTransferenciaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LinhaTransferenciaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LinhaTransferenciaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>[]
+        }
+        upsert: {
+          args: Prisma.LinhaTransferenciaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LinhaTransferenciaPayload>
+        }
+        aggregate: {
+          args: Prisma.LinhaTransferenciaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLinhaTransferencia>
+        }
+        groupBy: {
+          args: Prisma.LinhaTransferenciaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LinhaTransferenciaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LinhaTransferenciaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LinhaTransferenciaCountAggregateOutputType> | number
+        }
+      }
+    }
     FilaRevisao: {
       payload: Prisma.$FilaRevisaoPayload<ExtArgs>
       fields: Prisma.FilaRevisaoFieldRefs
@@ -4669,6 +4819,30 @@ export const LinhaEncomendaScalarFieldEnum = {
 export type LinhaEncomendaScalarFieldEnum = (typeof LinhaEncomendaScalarFieldEnum)[keyof typeof LinhaEncomendaScalarFieldEnum]
 
 
+export const TransferenciaScalarFieldEnum = {
+  id: 'id',
+  farmaciaOrigemId: 'farmaciaOrigemId',
+  farmaciaDestinoId: 'farmaciaDestinoId',
+  estado: 'estado',
+  criadoPorId: 'criadoPorId',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type TransferenciaScalarFieldEnum = (typeof TransferenciaScalarFieldEnum)[keyof typeof TransferenciaScalarFieldEnum]
+
+
+export const LinhaTransferenciaScalarFieldEnum = {
+  id: 'id',
+  transferenciaId: 'transferenciaId',
+  produtoId: 'produtoId',
+  quantidade: 'quantidade',
+  notas: 'notas'
+} as const
+
+export type LinhaTransferenciaScalarFieldEnum = (typeof LinhaTransferenciaScalarFieldEnum)[keyof typeof LinhaTransferenciaScalarFieldEnum]
+
+
 export const FilaRevisaoScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
@@ -5401,6 +5575,20 @@ export type ListEnumOrigemLinhaEncomendaFieldRefInput<$PrismaModel> = FieldRefIn
 
 
 /**
+ * Reference to a field of type 'EstadoTransferencia'
+ */
+export type EnumEstadoTransferenciaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EstadoTransferencia'>
+    
+
+
+/**
+ * Reference to a field of type 'EstadoTransferencia[]'
+ */
+export type ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'EstadoTransferencia[]'>
+    
+
+
+/**
  * Reference to a field of type 'TipoRevisao'
  */
 export type EnumTipoRevisaoFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TipoRevisao'>
@@ -5655,6 +5843,8 @@ export type GlobalOmitConfig = {
   indicadoresProdutoFarmacia?: Prisma.IndicadoresProdutoFarmaciaOmit
   listaEncomenda?: Prisma.ListaEncomendaOmit
   linhaEncomenda?: Prisma.LinhaEncomendaOmit
+  transferencia?: Prisma.TransferenciaOmit
+  linhaTransferencia?: Prisma.LinhaTransferenciaOmit
   filaRevisao?: Prisma.FilaRevisaoOmit
   enriquecimentoFila?: Prisma.EnriquecimentoFilaOmit
   loteIngestao?: Prisma.LoteIngestaoOmit

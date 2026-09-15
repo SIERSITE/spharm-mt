@@ -134,6 +134,14 @@ export const EstadoListaEncomenda = {
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]
 
 
+export const EstadoTransferencia = {
+  RASCUNHO: 'RASCUNHO',
+  FINALIZADA: 'FINALIZADA'
+} as const
+
+export type EstadoTransferencia = (typeof EstadoTransferencia)[keyof typeof EstadoTransferencia]
+
+
 export const OrderExportState = {
   PENDENTE: 'PENDENTE',
   EM_EXPORTACAO: 'EM_EXPORTACAO',

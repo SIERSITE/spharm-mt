@@ -5,16 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import {
   createOrderAction,
-  createInternalTransferAction,
   generateProposalAction,
+  gerarPlanoGrupoAction,
   type CreateOrderFormInput,
   type ProposalMode,
+  type DecisaoLinhaGrupoInput,
 } from "@/app/encomendas/nova/actions";
-import {
-  resolveProductsByCnpAction,
-  type ProductSearchResult,
-} from "@/app/encomendas/nova/search";
+import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
+import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
   CabecalhoOrdenavel,
@@ -27,6 +26,14 @@ import {
   sobreviveARecalculo,
   type OrigemLinha,
 } from "@/lib/encomendas/origem-linha";
+import {
+  sugerirDecisao,
+  fundirDecisoesGrupo,
+  mapaDecisoes,
+  calcularResumoGrupo,
+  type AcaoLinhaGrupo,
+  type DecisaoLinha,
+} from "@/lib/encomendas/decisao-grupo";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 // Do modulo PURO, nao de `proposal.ts`: aquele tem `server-only` e um
 // import de VALOR daqui arrastava-o para o bundle do browser. O `tsc`
@@ -41,6 +48,10 @@ import type {
   ExcessoInfo,
 } from "@/lib/encomendas/proposal";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
+import {
+  ENCOMENDA_PREFILL_STORAGE_KEY,
+  parseEncomendaPrefillPayload,
+} from "@/lib/encomendas/prefill-from-vendas";
 
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
@@ -81,6 +92,21 @@ type Line = {
    * importada e NÃO vendeu no período. Ver `ProposalRow`.
    */
   semVendasNoPeriodo: boolean;
+
+  // ── Bloco D — decisão por linha em modo grupo ────────────────────
+  //
+  // Só têm sentido em `mode === "grupo"`, mas vivem em `Line` (e não
+  // num tipo à parte) porque `linhas` é UM único array partilhado por
+  // todos os modos — um segundo array em paralelo indexado pela mesma
+  // `key` seria dessincronizável. Nos outros modos ficam com os
+  // valores por omissão de `sugerirDecisao` e nunca são lidos.
+  //
+  // Ver `lib/encomendas/decisao-grupo.ts`.
+  acao: AcaoLinhaGrupo;
+  acaoTocada: boolean;
+  farmaciaEncomendaId: string | null;
+  farmaciaOrigemId: string | null;
+  farmaciaDestinoId: string | null;
 };
 
 
@@ -92,14 +118,6 @@ type Props = {
   userPerfil: string;
   userFarmaciaId: string | null;
 };
-
-type PrefillStash = {
-  farmaciaNome?: string;
-  farmaciaId?: string;
-  lines: Array<{ cnp: number | string; quantidade?: number | string }>;
-};
-
-const PREFILL_KEY = "encomenda-prefill";
 
 let lineKeyCounter = 0;
 function nextKey(): number {
@@ -174,7 +192,7 @@ export function OrderCreateClient({
   const searchParams = useSearchParams();
   const [busy, startTransition] = useTransition();
   const [generating, startGenerate] = useTransition();
-  const [creatingTransfer, startTransfer] = useTransition();
+  const [gerandoPlano, startGerarPlano] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err" | "info"; msg: string } | null>(null);
 
   const canGroupMode = CAN_GROUP_PERFIS.has(userPerfil);
@@ -239,6 +257,12 @@ export function OrderCreateClient({
     comVendas: number;
     /** A contabilidade da lista importada. Ver `ResumoListaImportada`. */
     listaImportada?: ResumoListaImportada;
+  } | null>(null);
+
+  // ─── Bloco D — plano de grupo gerado ────────────────────────────────────
+  const [planoResultado, setPlanoResultado] = useState<{
+    listasEncomenda: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[];
+    transferencias: { farmaciaOrigemId: string; farmaciaDestinoId: string; transferenciaId: string; nLinhas: number }[];
   } | null>(null);
 
   // ─── Filtros da tabela ────────────────────────────────────────────────────
@@ -349,52 +373,160 @@ export function OrderCreateClient({
     );
   }, [linhas, mode]);
 
-  // ─── Prefill ──────────────────────────────────────────────────────────────
+  // ─── Bloco D — resumo por balde (modo grupo) ───────────────────────────────
+  //
+  // `finalQty` é o ÚNICO campo de quantidade da linha (ver `Line`): para
+  // ENCOMENDAR é a quantidade a comprar, para TRANSFERIR a quantidade a
+  // transferir. `linhaParaDecisao` traduz a `Line` do ecrã para o
+  // `DecisaoLinha` puro que `calcularResumoGrupo`/`agruparParaGeracao`
+  // conhecem — a mesma fronteira que já existe para `origem-linha.ts`.
+  function linhaParaDecisao(l: Line): DecisaoLinha {
+    const qty = Number(l.finalQty) || 0;
+    return {
+      produtoId: l.produtoId,
+      acao: l.acao,
+      acaoTocada: l.acaoTocada,
+      farmaciaEncomendaId: l.farmaciaEncomendaId,
+      quantidadeFinal: qty,
+      farmaciaOrigemId: l.farmaciaOrigemId,
+      farmaciaDestinoId: l.farmaciaDestinoId,
+      quantidadeTransferir: qty,
+    };
+  }
+
+  function nomeFarmacia(id: string): string {
+    return farmacias.find((f) => f.id === id)?.nome ?? id;
+  }
+
+  const resumoGrupoAtual = useMemo(() => {
+    if (mode !== "grupo") return null;
+    return calcularResumoGrupo(linhas.map(linhaParaDecisao));
+  }, [linhas, mode]);
+
+  function handleGerarPlano() {
+    setFlash(null);
+    setPlanoResultado(null);
+
+    const decisoes: DecisaoLinhaGrupoInput[] = linhas.map((l) => ({
+      ...linhaParaDecisao(l),
+      quantidadeSugerida: l.suggestedQty,
+      notas: l.notas.trim() || null,
+      origem: l.origem,
+    }));
+
+    const resumo = calcularResumoGrupo(decisoes);
+    if (resumo.encomendas.length === 0 && resumo.transferencias.length === 0) {
+      setFlash({
+        type: "err",
+        msg: 'Sem linhas accionáveis — todas as decisões são "Não fazer" ou têm quantidade 0.',
+      });
+      return;
+    }
+
+    startGerarPlano(async () => {
+      const result = await gerarPlanoGrupoAction({
+        nome: nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`,
+        decisoes,
+      });
+      if (!result.ok) {
+        setFlash({ type: "err", msg: result.error });
+        return;
+      }
+      setPlanoResultado(result);
+      const partes: string[] = [];
+      if (result.listasEncomenda.length > 0) partes.push(`${result.listasEncomenda.length} encomenda(s)`);
+      if (result.transferencias.length > 0) partes.push(`${result.transferencias.length} transferência(s)`);
+      setFlash({ type: "ok", msg: `Gerado: ${partes.join(" · ")}.` });
+      setLinhas([]);
+      setHasProposal(false);
+      setProposalMeta(null);
+    });
+  }
+
+  // ─── Prefill (vindo do Relatório de Vendas) ────────────────────────────────
+  //
+  // Vendas não calcula sugestões — só entrega o universo de CNP e os
+  // parâmetros da chamada. Este efeito faz exactamente o que o botão
+  // "Gerar proposta" faria manualmente: chama `generateProposalAction`
+  // com `filters.cnps` fechado, e o cálculo é sempre o mesmo motor.
+  //
+  // Ver `lib/encomendas/prefill-from-vendas.ts` para o contrato do
+  // payload e o porquê de já não haver formato antigo a suportar.
   useEffect(() => {
     if (searchParams.get("prefill") !== "1") return;
     if (typeof window === "undefined") return;
-    const raw = window.sessionStorage.getItem(PREFILL_KEY);
+    const raw = window.sessionStorage.getItem(ENCOMENDA_PREFILL_STORAGE_KEY);
     if (!raw) return;
-    window.sessionStorage.removeItem(PREFILL_KEY);
+    window.sessionStorage.removeItem(ENCOMENDA_PREFILL_STORAGE_KEY);
 
-    let stash: PrefillStash;
-    try { stash = JSON.parse(raw) as PrefillStash; } catch { return; }
-    if (!Array.isArray(stash.lines) || stash.lines.length === 0) return;
-
-    let resolvedFarmaciaId = "";
-    if (stash.farmaciaId && farmaciasVisiveis.some((f) => f.id === stash.farmaciaId))
-      resolvedFarmaciaId = stash.farmaciaId;
-    else if (stash.farmaciaNome)
-      resolvedFarmaciaId = farmaciasVisiveis.find((f) => f.nome === stash.farmaciaNome)?.id ?? "";
-
-    if (!resolvedFarmaciaId) {
-      setFlash({ type: "err", msg: "Farmácia da sugestão não encontrada." });
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    const payload = parseEncomendaPrefillPayload(parsed);
+    if (!payload) {
+      setFlash({ type: "err", msg: "Pré-preenchimento de Vendas inválido ou incompleto." });
       return;
     }
-    setFarmaciaId(resolvedFarmaciaId);
 
-    const cnps: number[] = [];
-    const qtyByCnp = new Map<number, number>();
-    for (const l of stash.lines) {
-      const cnp = Number(l.cnp);
-      if (!Number.isFinite(cnp) || cnp <= 0) continue;
-      cnps.push(cnp);
-      const q = Number(l.quantidade);
-      if (Number.isFinite(q) && q > 0) qtyByCnp.set(cnp, q);
+    // Rede de segurança: Vendas já desactiva o botão para quem não tem
+    // perfil de grupo, mas a acção do lado do servidor também recusa
+    // — aqui só se evita a chamada e a mensagem confusa que ela daria.
+    if (payload.mode === "grupo" && !canGroupMode) {
+      setFlash({ type: "err", msg: "Sem permissão para vista de grupo." });
+      return;
     }
-    if (cnps.length === 0) return;
+
+    if (payload.mode === "farmacia") {
+      if (!payload.farmaciaId || !farmaciasVisiveis.some((f) => f.id === payload.farmaciaId)) {
+        setFlash({ type: "err", msg: "Farmácia do relatório de Vendas não encontrada." });
+        return;
+      }
+      setFarmaciaId(payload.farmaciaId);
+    }
+    setMode(payload.mode);
+    setStartDate(payload.startDate.slice(0, 10));
+    setEndDate(payload.endDate.slice(0, 10));
+    setConsiderStock(payload.considerStock);
+    setBaseRule(payload.baseRule);
+    setCoverageDays(payload.targetCoverageDays);
 
     startGenerate(async () => {
-      const products = await resolveProductsByCnpAction({ cnps, farmaciaId: resolvedFarmaciaId });
-      const farmNome = farmaciasVisiveis.find((f) => f.id === resolvedFarmaciaId)?.nome ?? null;
-      setLinhas(products.map((p) => buildPrefillLine(p, qtyByCnp.get(p.cnp) ?? null, resolvedFarmaciaId, farmNome)));
+      const result = await generateProposalAction({
+        mode: payload.mode,
+        farmaciaId: payload.mode === "farmacia" ? payload.farmaciaId : undefined,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        considerStock: payload.considerStock,
+        baseRule: payload.baseRule,
+        targetCoverageDays: payload.targetCoverageDays,
+        filters: { cnps: payload.cnps },
+      });
+      if (!result.ok) {
+        setFlash({ type: "err", msg: result.error });
+        return;
+      }
+
+      // Universo FECHADO vindo de Vendas: todos os produtos entram,
+      // mesmo os que a proposta calcula a 0 — a mesma regra de "com
+      // lista importada" em `handleGenerate` (ver comentário lá).
+      //
+      // `payload.mode` e não o `mode` do estado: este efeito só corre
+      // UMA vez (dependências `[]`), e `setMode(payload.mode)` acima
+      // ainda não repintou quando este `map` corre — o `mode` capturado
+      // no fecho seria sempre o valor inicial ("farmacia").
+      const novas = result.data.rows.map((r) => buildProposalLine(r, payload.mode));
+      setLinhas(novas);
       setHasProposal(true);
-      const missing = cnps.length - products.length;
+      setProposalMeta({
+        numDays: result.data.meta.numDays,
+        stats: result.data.meta.stats,
+        truncated: result.data.meta.truncated,
+        cnpsNaLista: result.data.meta.cnpsNaLista,
+        comVendas: new Set(result.data.rows.map((r) => r.cnp)).size,
+        listaImportada: result.data.meta.listaImportada,
+      });
       setFlash({
         type: "info",
-        msg: missing > 0
-          ? `${products.length} de ${cnps.length} produtos pré-preenchidos. ${missing} CNP não encontrados.`
-          : `${products.length} produtos pré-preenchidos.`,
+        msg: `${novas.length} produto(s) do Relatório de Vendas · ${result.data.meta.numDays} dias de histórico · cobertura pedida: ${payload.targetCoverageDays} dias.`,
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,27 +534,33 @@ export function OrderCreateClient({
 
   // ─── Builders de linha ────────────────────────────────────────────────────
 
-  function buildPrefillLine(
-    p: ProductSearchResult,
-    qty: number | null,
-    lineFarmaciaId: string,
-    lineFarmaciaNome: string | null
-  ): Line {
-    return {
-      key: nextKey(), produtoId: p.id, cnp: p.cnp, designacao: p.designacao,
-      fabricante: p.fabricante, fornecedor: null,
-      farmaciaNome: lineFarmaciaNome, farmaciaId: lineFarmaciaId,
-      salesQty: null, avgDailySales: null, currentStock: p.stockAtual,
-      coberturaAtualDias: null, pendingQty: null, suggestedQty: qty,
-      transferirQty: 0, finalQty: qty != null ? String(qty) : "", notas: "",
-      origem: "SUGESTAO", estado: null, motivo: null, excessoFonte: [],
-      // Linha posta a mao: a nocao de "vendeu no periodo" nao se
-      // aplica — nao veio de nenhum calculo sobre vendas.
-      semVendasNoPeriodo: false,
-    };
-  }
-
-  function buildProposalLine(r: ProposalRow): Line {
+  function buildProposalLine(r: ProposalRow, modoAtual: ProposalMode): Line {
+    const decisao = sugerirDecisao({
+      farmaciaId: r.farmaciaId,
+      estado: r.estado,
+      suggestedQty: r.suggestedQty,
+      transferirQty: r.transferirQty,
+      excessoFonte: r.excessoFonte,
+    });
+    // A quantidade final do "Final" só acompanha a decisão em modo
+    // GRUPO — é lá que existe a coluna "Decisão" e é lá que TRANSFERIR
+    // precisa de uma quantidade não-zero nesse campo partilhado (ver
+    // `Line`). Em "farmacia"/"consolidação" mantém-se EXACTAMENTE o
+    // comportamento de sempre: TRANSFERÊNCIA (só possível vinda de
+    // `generateGroupProposal`, usada em "consolidação") continua a
+    // nascer com Final=0, porque esses modos não têm nenhum sítio que
+    // leia `acao`/`farmaciaOrigemId` — mudar o default ali reintroduzia
+    // silenciosamente uma linha de compra onde antes não entrava.
+    const finalQtyPadrao =
+      modoAtual === "grupo"
+        ? decisao.acao === "TRANSFERIR"
+          ? decisao.quantidadeTransferir
+          : decisao.acao === "ENCOMENDAR"
+            ? decisao.quantidadeFinal
+            : 0
+        : r.estado === "TRANSFERÊNCIA"
+          ? 0
+          : r.suggestedQty;
     return {
       key: nextKey(), produtoId: r.produtoId, cnp: r.cnp, designacao: r.designacao,
       fabricante: r.fabricante, fornecedor: r.fornecedor,
@@ -431,10 +569,15 @@ export function OrderCreateClient({
       currentStock: r.currentStock, coberturaAtualDias: r.coberturaAtualDias,
       pendingQty: r.pendingQty, suggestedQty: r.suggestedQty,
       transferirQty: r.transferirQty,
-      finalQty: r.estado === "TRANSFERÊNCIA" ? "0" : String(r.suggestedQty),
+      finalQty: String(finalQtyPadrao),
       notas: "", origem: "PROPOSTA",
       estado: r.estado, motivo: r.motivo, excessoFonte: r.excessoFonte,
       semVendasNoPeriodo: r.semVendasNoPeriodo,
+      acao: decisao.acao,
+      acaoTocada: false,
+      farmaciaEncomendaId: decisao.farmaciaEncomendaId,
+      farmaciaOrigemId: decisao.farmaciaOrigemId,
+      farmaciaDestinoId: decisao.farmaciaDestinoId,
     };
   }
 
@@ -451,6 +594,12 @@ export function OrderCreateClient({
       // Linha posta a mao: a nocao de "vendeu no periodo" nao se
       // aplica — nao veio de nenhum calculo sobre vendas.
       semVendasNoPeriodo: false,
+      // O picker manual só existe em modo "farmacia" — estes campos
+      // nunca são lidos aí, mas o tipo `Line` é partilhado por todos
+      // os modos.
+      acao: "NAO_FAZER", acaoTocada: false,
+      farmaciaEncomendaId: isGroupMode ? null : farmaciaId,
+      farmaciaOrigemId: null, farmaciaDestinoId: null,
     };
   }
 
@@ -529,7 +678,7 @@ export function OrderCreateClient({
       const temLista = listaCodigos !== null;
       const novas = result.data.rows
         .filter((r) => temLista || r.estado !== "ADEQUADO" || !considerStock)
-        .map(buildProposalLine);
+        .map((r) => buildProposalLine(r, mode));
 
       // ── O recálculo NÃO destrói o que foi decidido à mão ──────────
       //
@@ -542,7 +691,19 @@ export function OrderCreateClient({
       // A regra vive em `lib/encomendas/origem-linha.ts`, onde é
       // testável sem montar um DOM.
       const fusao = fundirComProposta(linhas, novas);
-      setLinhas(fusao.linhas);
+
+      // ── E também não apaga a decisão ENCOMENDAR/TRANSFERIR/NÃO FAZER ──
+      //
+      // `fundirComProposta` preserva a linha INTEIRA quando a origem é
+      // MANUAL/SUGESTAO — a decisão já vem intacta com ela. O que falta
+      // é o caso da linha PROPOSTA: essa é sempre substituída pela nova
+      // (para reflectir stock/excesso actualizados), e sem isto a
+      // decisão que o utilizador tinha tomado à mão para ela
+      // desapareceria a cada "Gerar nova proposta". Mesmo espírito de
+      // `sobreviveARecalculo`, um nível abaixo — ver
+      // `lib/encomendas/decisao-grupo.ts`.
+      const linhasComDecisao = fundirDecisoesGrupo(fusao.linhas, mapaDecisoes(linhas));
+      setLinhas(linhasComDecisao);
       setHasProposal(true);
       setProposalMeta({
         numDays: result.data.meta.numDays,
@@ -615,35 +776,6 @@ export function OrderCreateClient({
 
   function removeLine(key: number) {
     setLinhas((prev) => prev.filter((l) => l.key !== key));
-  }
-
-  function handleCriarTransferencia(l: Line) {
-    if (!l.farmaciaId || l.excessoFonte.length === 0) return;
-    const fonte = l.excessoFonte[0];
-    const quantidade = l.transferirQty > 0 ? l.transferirQty : (l.suggestedQty ?? 0);
-    if (quantidade <= 0) return;
-
-    startTransfer(async () => {
-      const result = await createInternalTransferAction({
-        destinoFarmaciaId: l.farmaciaId!,
-        sourceFarmaciaNome: fonte.farmaciaNome,
-        produtoId: l.produtoId,
-        cnp: String(l.cnp),
-        designacao: l.designacao,
-        quantidade,
-        kind: "same-cnp",
-        motivo: l.motivo ?? "Proposta de encomenda — excedente disponível no grupo",
-      });
-      if (result.ok) {
-        setFlash({
-          type: "ok",
-          msg: `Transferência criada (rascunho) para ${l.designacao}. A abrir…`,
-        });
-        setTimeout(() => router.push(`/encomendas/${result.listaEncomendaId}`), 800);
-      } else {
-        setFlash({ type: "err", msg: result.error });
-      }
-    });
   }
 
   function submit(finalize: boolean) {
@@ -1057,6 +1189,9 @@ export function OrderCreateClient({
                     <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
                     <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400">Final</th>
                     <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
+                    {mode === "grupo" && (
+                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Decisão</th>
+                    )}
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -1109,19 +1244,10 @@ export function OrderCreateClient({
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
                         </td>
                         <td className="px-3 py-2 min-w-[220px]">
-                          {l.estado === "TRANSFERÊNCIA" && l.excessoFonte.length > 0 ? (
-                            <div className="space-y-1">
-                              <p className="text-[11px] text-blue-700">{l.motivo}</p>
-                              <button type="button"
-                                onClick={() => handleCriarTransferencia(l)}
-                                disabled={creatingTransfer || busy}
-                                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50">
-                                <ArrowLeftRight className="h-3 w-3" />
-                                Criar transferência
-                              </button>
-                            </div>
-                          ) : l.motivo ? (
-                            <p className="text-[11px] text-slate-500">{l.motivo}</p>
+                          {l.motivo ? (
+                            <p className={`text-[11px] ${l.estado === "TRANSFERÊNCIA" ? "text-blue-700" : "text-slate-500"}`}>
+                              {l.motivo}
+                            </p>
                           ) : (
                             <input type="text" value={l.notas}
                               onChange={(e) => updateLine(l.key, { notas: e.target.value })}
@@ -1130,11 +1256,31 @@ export function OrderCreateClient({
                               className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right">
-                          <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
-                            className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        {mode === "grupo" && (
+                          <td className="px-3 py-2 min-w-[240px]">
+                            <DecisaoLinhaCell linha={l} farmacias={farmacias} disabled={busy} onChange={(patch) => updateLine(l.key, patch)} />
+                          </td>
+                        )}
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <HistoricoProdutoButton
+                              produtoId={l.produtoId}
+                              produtoDesignacao={l.designacao}
+                              farmaciaIds={
+                                l.farmaciaId
+                                  ? [l.farmaciaId]
+                                  : isGroupMode
+                                    ? farmaciasVisiveis.map((f) => f.id)
+                                    : farmaciaId
+                                      ? [farmaciaId]
+                                      : []
+                              }
+                            />
+                            <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
+                              className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1228,37 +1374,136 @@ export function OrderCreateClient({
         </section>
       )}
 
-      {/* GUARDAR / FINALIZAR */}
-      <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-          <div>
-            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
-              {mode === "consolidacao" ? "Prefixo do nome (aplicado a cada encomenda)" : "Nome da encomenda"}
-            </label>
-            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)}
-              placeholder={mode === "consolidacao"
-                ? `Grupo ${new Date().toLocaleDateString("pt-PT")}`
-                : `Encomenda ${new Date().toLocaleDateString("pt-PT")}`}
-              disabled={busy}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
-            {mode === "consolidacao" && linhas.length > 0 && (
-              <p className="mt-1 text-[11px] text-slate-500">
-                Vai criar {new Set(linhas.map((l) => l.farmaciaId).filter(Boolean)).size} encomenda(s) — uma por farmácia.
-              </p>
-            )}
+      {/* GUARDAR / FINALIZAR — não em modo grupo: aí a etapa final é o
+          resumo por balde + "Gerar" (ver secção seguinte). Continua a
+          servir "farmacia" e "consolidação", exactamente como antes. */}
+      {mode !== "grupo" && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+          <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                {mode === "consolidacao" ? "Prefixo do nome (aplicado a cada encomenda)" : "Nome da encomenda"}
+              </label>
+              <input type="text" value={nome} onChange={(e) => setNome(e.target.value)}
+                placeholder={mode === "consolidacao"
+                  ? `Grupo ${new Date().toLocaleDateString("pt-PT")}`
+                  : `Encomenda ${new Date().toLocaleDateString("pt-PT")}`}
+                disabled={busy}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
+              {mode === "consolidacao" && linhas.length > 0 && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Vai criar {new Set(linhas.map((l) => l.farmaciaId).filter(Boolean)).size} encomenda(s) — uma por farmácia.
+                </p>
+              )}
+            </div>
+            <button type="button" onClick={() => submit(false)}
+              disabled={busy || linhas.length === 0}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
+              {busy ? "A guardar..." : "Guardar rascunho"}
+            </button>
+            <button type="button" onClick={() => submit(true)}
+              disabled={busy || linhas.length === 0}
+              className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
+              {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
+            </button>
           </div>
-          <button type="button" onClick={() => submit(false)}
-            disabled={busy || linhas.length === 0}
-            className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
-            {busy ? "A guardar..." : "Guardar rascunho"}
-          </button>
-          <button type="button" onClick={() => submit(true)}
-            disabled={busy || linhas.length === 0}
-            className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
-            {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* RESUMO + GERAR — modo grupo (Bloco D) ────────────────────────
+          A etapa final: contagem por balde (uma ListaEncomenda por
+          farmácia com ENCOMENDAR, uma Transferencia por direcção com
+          TRANSFERIR), e só depois o botão que gera. Nunca cria
+          documento vazio — `calcularResumoGrupo`/`agruparParaGeracao`
+          garantem-no (`lib/encomendas/decisao-grupo.ts`), testado em
+          `test-encomenda-grupo-decisao-linha.ts`. */}
+      {mode === "grupo" && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+          <h2 className="text-[14px] font-semibold text-slate-900">Resumo</h2>
+          {linhas.length === 0 ? (
+            <p className="mt-2 text-[12px] text-slate-400">
+              Gere a proposta e decida ENCOMENDAR / TRANSFERIR / NÃO FAZER linha a linha antes de gerar.
+            </p>
+          ) : (
+            <>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {resumoGrupoAtual?.encomendas.map((b) => (
+                  <span key={b.farmaciaId} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[12px] font-medium text-rose-700">
+                    Encomenda {nomeFarmacia(b.farmaciaId)}: {b.nLinhas} linha{b.nLinhas === 1 ? "" : "s"}
+                  </span>
+                ))}
+                {resumoGrupoAtual?.transferencias.map((b) => (
+                  <span key={`${b.origemId}>${b.destinoId}`} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[12px] font-medium text-blue-700">
+                    {nomeFarmacia(b.origemId)} → {nomeFarmacia(b.destinoId)}: {b.nLinhas} linha{b.nLinhas === 1 ? "" : "s"}
+                  </span>
+                ))}
+                {!!resumoGrupoAtual?.naoFazer && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[12px] font-medium text-slate-500">
+                    Não fazer: {resumoGrupoAtual.naoFazer} linha{resumoGrupoAtual.naoFazer === 1 ? "" : "s"}
+                  </span>
+                )}
+                {resumoGrupoAtual &&
+                  resumoGrupoAtual.encomendas.length === 0 &&
+                  resumoGrupoAtual.transferencias.length === 0 && (
+                    <span className="text-[12px] text-amber-700">
+                      Nenhuma linha accionável ainda — não há nada para gerar.
+                    </span>
+                  )}
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                    Prefixo do nome (aplicado a cada encomenda gerada)
+                  </label>
+                  <input type="text" value={nome} onChange={(e) => setNome(e.target.value)}
+                    placeholder={`Grupo ${new Date().toLocaleDateString("pt-PT")}`}
+                    disabled={gerandoPlano}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
+                </div>
+                <button type="button" onClick={handleGerarPlano}
+                  disabled={
+                    gerandoPlano ||
+                    !resumoGrupoAtual ||
+                    (resumoGrupoAtual.encomendas.length === 0 && resumoGrupoAtual.transferencias.length === 0)
+                  }
+                  className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {gerandoPlano ? "A gerar…" : "Gerar"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* O que foi criado — resumo + link para cada ListaEncomenda.
+              Para Transferencia não há página de detalhe dedicada nesta
+              fase: é um registo interno simples, e a confirmação inline
+              (farmácias + nº de linhas) é o mínimo razoável para o
+              utilizador confirmar o que aconteceu sem sobre-construir
+              um ecrã que o Bloco D não pediu. */}
+          {planoResultado && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[12px] text-emerald-900">
+              <p className="font-semibold">Gerado</p>
+              <ul className="mt-1.5 space-y-1">
+                {planoResultado.listasEncomenda.map((le) => (
+                  <li key={le.listaEncomendaId}>
+                    Encomenda · {nomeFarmacia(le.farmaciaId)} · {le.nLinhas} linha{le.nLinhas === 1 ? "" : "s"}
+                    {" — "}
+                    <a href={`/encomendas/${le.listaEncomendaId}`} className="underline hover:text-emerald-700">
+                      abrir
+                    </a>
+                  </li>
+                ))}
+                {planoResultado.transferencias.map((t) => (
+                  <li key={t.transferenciaId}>
+                    Transferência · {nomeFarmacia(t.farmaciaOrigemId)} → {nomeFarmacia(t.farmaciaDestinoId)} ·{" "}
+                    {t.nLinhas} linha{t.nLinhas === 1 ? "" : "s"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -1379,6 +1624,91 @@ function Numero({
       </span>{" "}
       <span className="text-slate-500">{rotulo}</span>
     </span>
+  );
+}
+
+/**
+ * A decisão de uma linha, em modo grupo: ENCOMENDAR / TRANSFERIR / NÃO
+ * FAZER, mais os sub-campos de cada acção. A quantidade não vive aqui —
+ * é a coluna "Final" que a tabela já tem, partilhada pelos dois casos
+ * accionáveis (ver `Line`).
+ *
+ * Componente pequeno e sem estado próprio de propósito: recebe a linha
+ * e devolve o patch a aplicar via `updateLine`, exactamente como os
+ * outros campos editáveis da tabela.
+ */
+function DecisaoLinhaCell({
+  linha,
+  farmacias,
+  disabled,
+  onChange,
+}: {
+  linha: Line;
+  farmacias: { id: string; nome: string }[];
+  disabled?: boolean;
+  onChange: (patch: Partial<Line>) => void;
+}) {
+  const selectCls =
+    "w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-cyan-400 focus:outline-none disabled:opacity-50";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <select
+        value={linha.acao}
+        disabled={disabled}
+        onChange={(e) => onChange({ acao: e.target.value as AcaoLinhaGrupo, acaoTocada: true })}
+        className={`${selectCls} font-medium`}
+      >
+        <option value="ENCOMENDAR">Encomendar</option>
+        <option value="TRANSFERIR">Transferir</option>
+        <option value="NAO_FAZER">Não fazer</option>
+      </select>
+
+      {linha.acao === "ENCOMENDAR" && (
+        <select
+          value={linha.farmaciaEncomendaId ?? ""}
+          disabled={disabled}
+          onChange={(e) => onChange({ farmaciaEncomendaId: e.target.value, acaoTocada: true })}
+          className={selectCls}
+        >
+          <option value="">Farmácia…</option>
+          {farmacias.map((f) => (
+            <option key={f.id} value={f.id}>{f.nome}</option>
+          ))}
+        </select>
+      )}
+
+      {linha.acao === "TRANSFERIR" && (
+        <div className="flex items-center gap-1">
+          <select
+            value={linha.farmaciaOrigemId ?? ""}
+            disabled={disabled}
+            onChange={(e) => onChange({ farmaciaOrigemId: e.target.value, acaoTocada: true })}
+            className={`${selectCls} min-w-0`}
+          >
+            <option value="">Origem…</option>
+            {farmacias.map((f) => (
+              <option key={f.id} value={f.id}>{f.nome}</option>
+            ))}
+          </select>
+          <ArrowLeftRight className="h-3 w-3 shrink-0 text-slate-400" />
+          <select
+            value={linha.farmaciaDestinoId ?? ""}
+            disabled={disabled}
+            onChange={(e) => onChange({ farmaciaDestinoId: e.target.value, acaoTocada: true })}
+            className={`${selectCls} min-w-0`}
+          >
+            <option value="">Destino…</option>
+            {farmacias.map((f) => (
+              <option key={f.id} value={f.id}>{f.nome}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {linha.acao === "TRANSFERIR" && linha.farmaciaOrigemId && linha.farmaciaOrigemId === linha.farmaciaDestinoId && (
+        <p className="text-[10px] text-rose-600">Origem e destino não podem ser a mesma farmácia.</p>
+      )}
+    </div>
   );
 }
 

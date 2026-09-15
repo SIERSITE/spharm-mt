@@ -382,6 +382,42 @@ export type ListaEncomenda = Prisma.ListaEncomendaModel
  */
 export type LinhaEncomenda = Prisma.LinhaEncomendaModel
 /**
+ * Model Transferencia
+ * Transferência interna de artigos entre duas farmácias do grupo,
+ * decidida linha-a-linha na encomenda de grupo (Bloco D).
+ * 
+ * ── O que isto NÃO é ─────────────────────────────────────────────────
+ * 
+ * Não é uma ListaEncomenda disfarçada. Antes desta modelação,
+ * "transferir" era criar uma segunda ListaEncomenda na farmácia
+ * destino com uma LinhaEncomenda de `notas` livre — o que arrastava a
+ * transferência para o circuito de exportação ao ERP
+ * (OrderOutbox/OrderExportAudit) e obrigava a navegar para o detalhe
+ * dessa encomenda, perdendo o contexto da proposta de grupo em
+ * preparação. Ver `createInternalTransferAction` em
+ * `app/encomendas/nova/actions.ts`.
+ * 
+ * Uma Transferencia é SÓ o registo interno da decisão:
+ * 
+ * · sem exportação ao ERP — nenhum OrderOutbox/OrderExportAudit
+ * é criado a partir daqui;
+ * · unilateral, como já era — não decrementa nem gera saída na
+ * farmácia de origem, é só o registo da decisão + quantidade.
+ * 
+ * `farmaciaOrigemId`/`farmaciaDestinoId` usam `@relation` nomeada
+ * porque são DUAS FK para o mesmo modelo (`Farmacia`) — sem nome, o
+ * Prisma não sabe qual é qual.
+ */
+export type Transferencia = Prisma.TransferenciaModel
+/**
+ * Model LinhaTransferencia
+ * Linhas de uma Transferencia — produto + quantidade a transferir.
+ * Mesma forma que `LinhaEncomenda` (unicidade por produto dentro do
+ * documento), sem os campos de proposta/exportação que não se
+ * aplicam aqui.
+ */
+export type LinhaTransferencia = Prisma.LinhaTransferenciaModel
+/**
  * Model FilaRevisao
  * Fila de revisão manual do catálogo.
  */

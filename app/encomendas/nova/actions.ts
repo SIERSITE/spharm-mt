@@ -14,6 +14,12 @@ import {
   type ProposalInput,
   type ProposalResult,
 } from "@/lib/encomendas/proposal";
+import {
+  agruparParaGeracao,
+  ehAcaoLinhaGrupo,
+  type DecisaoLinha,
+} from "@/lib/encomendas/decisao-grupo";
+import { ehOrigemLinha, type OrigemLinha } from "@/lib/encomendas/origem-linha";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────────
 
@@ -275,6 +281,182 @@ export async function createInternalTransferAction(
     revalidatePath("/encomendas");
     revalidatePath("/dashboard");
     return { ok: true, listaEncomendaId: result.listaEncomendaId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+// ─── Bloco D — encomenda de grupo com decisão por linha ────────────────────────
+//
+// O utilizador percorre a proposta de grupo e decide, linha a linha,
+// ENCOMENDAR / TRANSFERIR / NÃO FAZER (ver `lib/encomendas/decisao-grupo.ts`).
+// Esta acção recebe o conjunto final de decisões e gera, no máximo, uma
+// `ListaEncomenda` por farmácia com linhas ENCOMENDAR e uma `Transferencia`
+// por direcção com linhas TRANSFERIR — nunca um documento vazio, porque
+// `agruparParaGeracao` só cria uma entrada no Map quando há pelo menos uma
+// linha para lá.
+//
+// Nota de desenho: cada `ListaEncomenda` nasce pelo ÚNICO caminho suportado
+// (`createEncomendaWithOutbox`, que já embrulha lista+linhas+outbox na sua
+// própria transacção) e cada `Transferencia` nasce na sua própria transacção
+// (lista+linhas). Não há UMA transacção a embrulhar TODOS os documentos —
+// o cliente de transacção interactiva do Prisma não suporta transacções
+// aninhadas, e `createEncomendaWithOutbox` já é, por regra do módulo, o
+// único sítio donde uma ListaEncomenda pode nascer. Cada documento gerado
+// é atómico (lista+linhas+outbox, ou transferência+linhas, nunca a meio);
+// o que não existe é atomicidade ENTRE documentos — a mesma garantia que o
+// modo "consolidação" já tem hoje (`Promise.all` de `createOrderAction`
+// independentes).
+
+export type DecisaoLinhaGrupoInput = DecisaoLinha & {
+  /** Preservado para a ListaEncomenda — o valor que o motor sugeriu. */
+  quantidadeSugerida?: number | null;
+  notas?: string | null;
+  /** Proveniência da linha (MANUAL/SUGESTAO sobrevivem a recálculo). */
+  origem?: OrigemLinha;
+};
+
+export type GerarPlanoGrupoInput = {
+  /** Prefixo do nome de cada ListaEncomenda gerada. */
+  nome: string;
+  decisoes: DecisaoLinhaGrupoInput[];
+};
+
+export type GerarPlanoGrupoResult =
+  | {
+      ok: true;
+      listasEncomenda: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[];
+      transferencias: {
+        farmaciaOrigemId: string;
+        farmaciaDestinoId: string;
+        transferenciaId: string;
+        nLinhas: number;
+      }[];
+    }
+  | { ok: false; error: string };
+
+function validarDecisoes(decisoes: unknown): decisoes is DecisaoLinhaGrupoInput[] {
+  if (!Array.isArray(decisoes)) return false;
+  return decisoes.every((d) => {
+    if (typeof d !== "object" || d === null) return false;
+    const r = d as Record<string, unknown>;
+    if (typeof r.produtoId !== "string" || r.produtoId.length === 0) return false;
+    if (!ehAcaoLinhaGrupo(r.acao)) return false;
+    if (typeof r.acaoTocada !== "boolean") return false;
+    if (r.origem !== undefined && !ehOrigemLinha(r.origem)) return false;
+    return true;
+  });
+}
+
+export async function gerarPlanoGrupoAction(
+  input: GerarPlanoGrupoInput
+): Promise<GerarPlanoGrupoResult> {
+  const session = await requirePermission("reports.write");
+
+  // Mesma gate que `generateProposalAction` usa para modo "grupo" — não
+  // se inventa uma segunda porta para a mesma sala.
+  if (session.perfil !== "ADMINISTRADOR" && session.perfil !== "GESTOR_GRUPO") {
+    return { ok: false, error: "Sem permissão para vista de grupo." };
+  }
+
+  if (!validarDecisoes(input.decisoes)) {
+    return { ok: false, error: "Decisões inválidas." };
+  }
+  if (input.decisoes.length === 0) {
+    return { ok: false, error: "Sem linhas na proposta." };
+  }
+
+  const prisma = await getPrisma();
+  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+
+  const { porFarmacia, porDirecao } = agruparParaGeracao(input.decisoes);
+
+  if (porFarmacia.size === 0 && porDirecao.size === 0) {
+    return {
+      ok: false,
+      error: "Sem linhas accionáveis — todas as decisões são \"Não fazer\" ou têm quantidade 0.",
+    };
+  }
+
+  const nomePrefixo = (input.nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(
+    0,
+    140
+  );
+
+  try {
+    const resultadoListas: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[] = [];
+    for (const [farmaciaId, linhas] of porFarmacia) {
+      const resultado = await createEncomendaWithOutbox(prisma, tenantSlug, {
+        farmaciaId,
+        criadoPorId: session.sub,
+        nome: `${nomePrefixo} · encomendar`.slice(0, 180),
+        finalize: false,
+        linhas: linhas.map((l) => ({
+          produtoId: l.produtoId,
+          quantidadeSugerida: l.quantidadeSugerida ?? null,
+          quantidadeAjustada: l.quantidadeFinal,
+          notas: l.notas ?? null,
+          origem: l.origem ?? "PROPOSTA",
+        })),
+      });
+      resultadoListas.push({
+        farmaciaId,
+        listaEncomendaId: resultado.listaEncomendaId,
+        nLinhas: linhas.length,
+      });
+      await logAudit({
+        actorId: session.sub,
+        action: "group_plan.encomenda_created",
+        entity: "ListaEncomenda",
+        entityId: resultado.listaEncomendaId,
+        meta: { farmaciaId, linhasCount: linhas.length, outboxId: resultado.outboxId },
+      });
+    }
+
+    const resultadoTransferencias: {
+      farmaciaOrigemId: string;
+      farmaciaDestinoId: string;
+      transferenciaId: string;
+      nLinhas: number;
+    }[] = [];
+    for (const [, linhas] of porDirecao) {
+      const farmaciaOrigemId = linhas[0].farmaciaOrigemId!;
+      const farmaciaDestinoId = linhas[0].farmaciaDestinoId!;
+      const transferencia = await prisma.$transaction(async (tx) => {
+        return tx.transferencia.create({
+          data: {
+            farmaciaOrigemId,
+            farmaciaDestinoId,
+            criadoPorId: session.sub,
+            linhas: {
+              create: linhas.map((l) => ({
+                produtoId: l.produtoId,
+                quantidade: l.quantidadeTransferir,
+                notas: l.notas ?? null,
+              })),
+            },
+          },
+        });
+      });
+      resultadoTransferencias.push({
+        farmaciaOrigemId,
+        farmaciaDestinoId,
+        transferenciaId: transferencia.id,
+        nLinhas: linhas.length,
+      });
+      await logAudit({
+        actorId: session.sub,
+        action: "group_plan.transferencia_created",
+        entity: "Transferencia",
+        entityId: transferencia.id,
+        meta: { farmaciaOrigemId, farmaciaDestinoId, linhasCount: linhas.length },
+      });
+    }
+
+    revalidatePath("/encomendas");
+    revalidatePath("/configuracoes/integracao");
+
+    return { ok: true, listasEncomenda: resultadoListas, transferencias: resultadoTransferencias };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }

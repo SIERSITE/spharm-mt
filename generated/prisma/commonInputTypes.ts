@@ -748,6 +748,23 @@ export type EnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel = never> =
   _max?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
 }
 
+export type EnumEstadoTransferenciaFilter<$PrismaModel = never> = {
+  equals?: $Enums.EstadoTransferencia | Prisma.EnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  in?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel> | $Enums.EstadoTransferencia
+}
+
+export type EnumEstadoTransferenciaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.EstadoTransferencia | Prisma.EnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  in?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEstadoTransferenciaWithAggregatesFilter<$PrismaModel> | $Enums.EstadoTransferencia
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel>
+}
+
 export type EnumTipoRevisaoFilter<$PrismaModel = never> = {
   equals?: $Enums.TipoRevisao | Prisma.EnumTipoRevisaoFieldRefInput<$PrismaModel>
   in?: $Enums.TipoRevisao[] | Prisma.ListEnumTipoRevisaoFieldRefInput<$PrismaModel>
@@ -1580,6 +1597,23 @@ export type NestedEnumOrigemLinhaEncomendaWithAggregatesFilter<$PrismaModel = ne
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
   _max?: Prisma.NestedEnumOrigemLinhaEncomendaFilter<$PrismaModel>
+}
+
+export type NestedEnumEstadoTransferenciaFilter<$PrismaModel = never> = {
+  equals?: $Enums.EstadoTransferencia | Prisma.EnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  in?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel> | $Enums.EstadoTransferencia
+}
+
+export type NestedEnumEstadoTransferenciaWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.EstadoTransferencia | Prisma.EnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  in?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  notIn?: $Enums.EstadoTransferencia[] | Prisma.ListEnumEstadoTransferenciaFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumEstadoTransferenciaWithAggregatesFilter<$PrismaModel> | $Enums.EstadoTransferencia
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumEstadoTransferenciaFilter<$PrismaModel>
 }
 
 export type NestedEnumTipoRevisaoFilter<$PrismaModel = never> = {
