@@ -18,7 +18,9 @@ export const dynamic = "force-dynamic";
  *   · IPF stale (read-model com idade > threshold)
  *
  * Cada item tem CTA "Criar transferência" que reusa o flow
- * existente (`createInternalTransferAction` → ListaEncomenda RASCUNHO).
+ * existente (`createInternalTransferAction` → `Transferencia` real,
+ * visível em /transferencias — ver o comentário no modelo
+ * `Transferencia` em `prisma/schema.prisma`).
  *
  * Server-rendered, sem chat, sem notificações realtime. Re-fresh
  * por reload da página.

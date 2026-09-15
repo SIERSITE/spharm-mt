@@ -110,19 +110,27 @@ enum EstadoListaEncomenda {
   RASCUNHO
   FINALIZADA
   EXPORTADA
+  /// Soft-delete (2026-09): o utilizador eliminou a encomenda. A row e as
+  /// linhas continuam na BD (auditabilidade) mas saem da listagem normal.
+  /// NÃO desfaz uma exportação já efectiva ao SPharm — ver
+  /// `podeEliminarListaEncomenda` em lib/encomendas/eliminacao.ts para a
+  /// distinção entre "ainda não exportou" (elimina livremente) e "já
+  /// exportou de verdade" (exige confirmação explícita, aviso próprio).
+  ELIMINADA
 }
 
 /// Estado de uma transferência interna entre farmácias do grupo.
 ///
-/// Só dois valores, de propósito: uma transferência não tem circuito de
-/// exportação ao ERP (ver `Transferencia`) — não há PENDENTE/EXPORTADA
-/// a monitorizar, só o registo em si (RASCUNHO) e a decisão fechada
-/// (FINALIZADA). Se um dia precisar de mais estados, é aí que se sabe
-/// quais — inventá-los agora era copiar `EstadoListaEncomenda` sem
-/// necessidade.
+/// Nunca teve circuito de exportação ao ERP (ver `Transferencia`) — não
+/// há PENDENTE/EXPORTADA a monitorizar, só o registo em si (RASCUNHO), a
+/// decisão fechada (FINALIZADA) e agora ELIMINADA (soft-delete,
+/// 2026-09) — uma transferência nunca foi enviada ao SPharm, por isso
+/// eliminar não tem o cuidado extra que uma ListaEncomenda exportada
+/// exige.
 enum EstadoTransferencia {
   RASCUNHO
   FINALIZADA
+  ELIMINADA
 }
 
 /// Estado do fluxo outbound de exportação de uma lista de encomenda

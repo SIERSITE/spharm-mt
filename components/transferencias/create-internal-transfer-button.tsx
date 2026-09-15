@@ -15,7 +15,7 @@ type Props = {
   variant?: "cyan" | "amber";
   /** Override label do botão. Default depende do `kind`. */
   label?: string;
-  /** Quando true, ao criar abre a `ListaEncomenda` no editor. Default true. */
+  /** Quando true, ao criar navega para a listagem de Transferências (/transferencias). Default true. */
   redirectOnSuccess?: boolean;
   /** className extra para integrar com layouts apertados. */
   className?: string;
@@ -24,8 +24,10 @@ type Props = {
 /**
  * CTA "Criar transferência" — wrapper único reutilizado em encomendas,
  * transferências, dashboard e inbox de oportunidades. Cria uma
- * `ListaEncomenda` em RASCUNHO via `createInternalTransferAction` e
- * redirecciona para o flow de edição existente em /encomendas/[id].
+ * `Transferencia` real via `createInternalTransferAction` (ver o
+ * comentário nessa função — já não cria `ListaEncomenda`/`OrderOutbox`)
+ * e redirecciona para a listagem de Transferências reais em
+ * /transferencias.
  *
  * Exige confirmação humana — pop-up nativo do browser confirma a
  * intenção antes de submeter. Zero side-effects automáticos.
@@ -62,7 +64,13 @@ export function CreateInternalTransferButton({
         return;
       }
       if (redirectOnSuccess) {
-        router.push(`/encomendas/${result.listaEncomendaId}`);
+        // `push` para quem vem de outro ecrã (encomendas, oportunidades,
+        // dashboard); `refresh` a mais garante que quem já está em
+        // /transferencias (o próprio ecrã de sugestões) vê a nova
+        // transferência sem depender de um "push" para a MESMA rota
+        // disparar um novo fetch do lado do servidor.
+        router.push("/transferencias");
+        router.refresh();
       } else {
         router.refresh();
       }

@@ -4,17 +4,18 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
-import type { OrderListData, OrderListFilters } from "@/lib/encomendas/orders-data";
+import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import {
+  deleteListaEncomendaAction,
   finalizeOrderAction,
-  simulateAckAction,
-  simulateNackAction,
 } from "@/app/encomendas/lista/actions";
 
 type Props = {
   data: OrderListData;
   filters: OrderListFilters;
+  /** Mesma gate de `deleteListaEncomendaAction` — controla o botão "Eliminar". */
+  podeEliminar: boolean;
 };
 
 function fmtDate(d: Date | string | null): string {
@@ -57,7 +58,7 @@ const EXPORT_OPTIONS = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-export function OrderListClient({ data, filters }: Props) {
+export function OrderListClient({ data, filters, podeEliminar }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -137,27 +138,30 @@ export function OrderListClient({ data, filters }: Props) {
     });
   }
 
-  function handleSimulateAck(outboxId: string) {
-    if (!confirm("Simular ACK (sucesso de exportação)?")) return;
+  function handleDelete(order: OrderRow) {
+    if (!confirm(`Eliminar a encomenda "${order.nome}"? A linha deixa de aparecer nesta lista (a encomenda e as suas linhas não são apagadas da base de dados).`)) {
+      return;
+    }
+    setFlash(null);
     startTransition(async () => {
-      const r = await simulateAckAction(outboxId);
-      setFlash(
-        r.ok
-          ? { type: "ok", msg: "ACK simulado — encomenda marcada como exportada." }
-          : { type: "err", msg: r.error }
-      );
-    });
-  }
-
-  function handleSimulateNack(outboxId: string) {
-    if (!confirm("Simular NACK (falha de exportação)?")) return;
-    startTransition(async () => {
-      const r = await simulateNackAction(outboxId);
-      setFlash(
-        r.ok
-          ? { type: "ok", msg: "NACK simulado — encomenda marcada como falhada." }
-          : { type: "err", msg: r.error }
-      );
+      const r = await deleteListaEncomendaAction(order.id);
+      if (r.ok) {
+        setFlash({ type: "ok", msg: "Encomenda eliminada." });
+        router.refresh();
+        return;
+      }
+      if ("requerConfirmacaoExportada" in r) {
+        if (!confirm(`${r.aviso}\n\nEliminar mesmo assim?`)) return;
+        const r2 = await deleteListaEncomendaAction(order.id, true);
+        setFlash(
+          r2.ok
+            ? { type: "ok", msg: "Encomenda eliminada." }
+            : { type: "err", msg: "error" in r2 ? r2.error : "Erro desconhecido" }
+        );
+        if (r2.ok) router.refresh();
+        return;
+      }
+      setFlash({ type: "err", msg: r.error });
     });
   }
 
@@ -386,28 +390,16 @@ export function OrderListClient({ data, filters }: Props) {
                           </button>
                         )}
 
-                        {o.outboxId &&
-                          (o.estadoExport === "PENDENTE" ||
-                            o.estadoExport === "EM_EXPORTACAO") && (
-                            <>
-                              <button
-                                disabled={busy}
-                                onClick={() => handleSimulateAck(o.outboxId!)}
-                                className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                                title="Simular sucesso (ACK)"
-                              >
-                                ACK
-                              </button>
-                              <button
-                                disabled={busy}
-                                onClick={() => handleSimulateNack(o.outboxId!)}
-                                className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                                title="Simular falha (NACK)"
-                              >
-                                NACK
-                              </button>
-                            </>
-                          )}
+                        {podeEliminar && (
+                          <button
+                            disabled={busy}
+                            onClick={() => handleDelete(o)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                            title="Eliminar encomenda"
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -455,19 +447,6 @@ export function OrderListClient({ data, filters }: Props) {
           </div>
         </div>
       )}
-
-      {/* Legend */}
-      <section className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-        <h3 className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">
-          Ferramentas de teste
-        </h3>
-        <p className="mt-1 text-[12px] text-slate-500">
-          Os botões <strong>ACK</strong> e <strong>NACK</strong> simulam respostas do agent de
-          exportação. ACK marca a encomenda como exportada com sucesso (gera um SPharm Document ID
-          simulado). NACK marca como falhada. Estas acções são apenas para testar o fluxo antes do
-          agent real estar ligado.
-        </p>
-      </section>
     </div>
   );
 }

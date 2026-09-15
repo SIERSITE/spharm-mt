@@ -74,7 +74,14 @@ export async function loadOrderListData(
 
   const where: Prisma.ListaEncomendaWhereInput = {};
   if (filters.farmaciaId) where.farmaciaId = filters.farmaciaId;
-  if (filters.estado) where.estado = filters.estado;
+  if (filters.estado) {
+    where.estado = filters.estado;
+  } else {
+    // Soft-delete (ver enum `EstadoListaEncomenda`): sem filtro explícito,
+    // uma encomenda ELIMINADA nunca aparece na listagem normal. A row e
+    // as suas linhas continuam na BD — só saem daqui.
+    where.estado = { not: "ELIMINADA" };
+  }
   if (filters.estadoExport) where.estadoExport = filters.estadoExport;
   if (filters.search && filters.search.trim().length > 0) {
     where.nome = { contains: filters.search.trim(), mode: "insensitive" };

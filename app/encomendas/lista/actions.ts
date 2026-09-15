@@ -7,6 +7,7 @@ import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import { finalizeAndQueueOrder } from "@/lib/ingest/orders";
 import { logAudit } from "@/lib/audit";
+import { podeEliminarListaEncomenda } from "@/lib/encomendas/eliminacao";
 
 type ActionResult =
   | { ok: true; outboxId?: string }
@@ -119,6 +120,17 @@ export async function simulateAckAction(outboxId: string): Promise<ActionResult>
 /**
  * Simula NACK do agent — transita PENDENTE → FALHADO (non-retryable).
  * Para testes manuais.
+ *
+ * Nota (2026-09): o bloco "Ferramentas de teste" que expunha esta acção
+ * (e `simulateAckAction`) na UI de `/encomendas` foi removido —
+ * `components/encomendas/order-list-client.tsx` já não a chama. Ficou
+ * órfã DE PROPÓSITO em vez de ser apagada: é útil para testar o fluxo
+ * de exportação manualmente (chamada directa em ambiente de
+ * desenvolvimento) sem estar ligada a um agent real, e apagá-la
+ * arriscava perder essa capacidade sem ganho nenhum — a acção em si
+ * nunca foi o problema (já exigia `settings.global`); o problema era o
+ * botão estar visível a perfis sem essa permissão (`reports.write`
+ * bastava para ver a página) e falhar sem aviso claro ao clicar.
  */
 export async function simulateNackAction(outboxId: string): Promise<ActionResult> {
   const session = await requirePermission("settings.global");
@@ -179,6 +191,82 @@ export async function simulateNackAction(outboxId: string): Promise<ActionResult
     });
     revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+// ─── Eliminar (soft-delete) ──────────────────────────────────────────────────
+
+export type DeleteListaEncomendaResult =
+  | { ok: true }
+  | { ok: false; error: string }
+  | { ok: false; requerConfirmacaoExportada: true; aviso: string };
+
+/**
+ * Soft-delete de uma `ListaEncomenda` — transita `estado` para
+ * `ELIMINADA`. Nunca apaga a row nem as `LinhaEncomenda` (ver o
+ * comentário no enum `EstadoListaEncomenda`, em `prisma/schema.prisma`).
+ *
+ * Duas variantes, decididas por `podeEliminarListaEncomenda`
+ * (`lib/encomendas/eliminacao.ts`):
+ *
+ *   · Ainda não foi exportada de facto (sem `OrderOutbox` em
+ *     `EXPORTADO` real — distinto de um ACK simulado) — elimina
+ *     directamente, só com a confirmação normal do lado do cliente.
+ *
+ *   · Já foi exportada de facto — devolve `requerConfirmacaoExportada`
+ *     em vez de eliminar. O cliente mostra o aviso e só volta a chamar
+ *     esta acção com `confirmarExportadaMesmoAssim: true` depois de o
+ *     utilizador confirmar explicitamente esse segundo passo. Mesmo
+ *     assim NUNCA desfaz a exportação — só o registo interno no SaaS.
+ *
+ * Mesma gate de permissão que `cancelOutboxAction`/`retryOutboxAction`
+ * (`settings.global`) — a mesma família de acções destrutivas sobre
+ * encomendas já finalizadas/exportadas.
+ */
+export async function deleteListaEncomendaAction(
+  listaEncomendaId: string,
+  confirmarExportadaMesmoAssim: boolean = false
+): Promise<DeleteListaEncomendaResult> {
+  const session = await requirePermission("settings.global");
+  const prisma = await getPrisma();
+
+  try {
+    const lista = await prisma.listaEncomenda.findUnique({
+      where: { id: listaEncomendaId },
+      select: {
+        id: true,
+        estado: true,
+        outbox: { select: { state: true, spharmDocumentId: true } },
+      },
+    });
+    if (!lista) return { ok: false, error: "Encomenda não encontrada." };
+    if (lista.estado === "ELIMINADA") {
+      return { ok: false, error: "Esta encomenda já foi eliminada." };
+    }
+
+    const decisao = podeEliminarListaEncomenda(lista.outbox);
+    if (!decisao.podeEliminarDirectamente && !confirmarExportadaMesmoAssim) {
+      return { ok: false, requerConfirmacaoExportada: true, aviso: decisao.aviso };
+    }
+
+    await prisma.listaEncomenda.update({
+      where: { id: listaEncomendaId },
+      data: { estado: "ELIMINADA" },
+    });
+
+    await logAudit({
+      actorId: session.sub,
+      action: "order.deleted",
+      entity: "ListaEncomenda",
+      entityId: listaEncomendaId,
+      meta: { jaExportadaDeFacto: !decisao.podeEliminarDirectamente },
+    });
+
+    revalidatePath("/encomendas");
+    revalidatePath(`/encomendas/${listaEncomendaId}`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };

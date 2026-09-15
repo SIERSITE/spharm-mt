@@ -128,7 +128,8 @@ export type TipoRevisao = (typeof TipoRevisao)[keyof typeof TipoRevisao]
 export const EstadoListaEncomenda = {
   RASCUNHO: 'RASCUNHO',
   FINALIZADA: 'FINALIZADA',
-  EXPORTADA: 'EXPORTADA'
+  EXPORTADA: 'EXPORTADA',
+  ELIMINADA: 'ELIMINADA'
 } as const
 
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]
@@ -136,7 +137,8 @@ export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof Es
 
 export const EstadoTransferencia = {
   RASCUNHO: 'RASCUNHO',
-  FINALIZADA: 'FINALIZADA'
+  FINALIZADA: 'FINALIZADA',
+  ELIMINADA: 'ELIMINADA'
 } as const
 
 export type EstadoTransferencia = (typeof EstadoTransferencia)[keyof typeof EstadoTransferencia]

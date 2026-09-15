@@ -448,12 +448,44 @@ console.log("\nG · schema, migration, cliente e acção usam o mesmo mecanismo\
   );
 }
 {
-  // O botão partilhado, usado por Transferências/Oportunidades/Dashboard,
-  // continua intocado — Bloco D não mexeu nesse módulo.
+  // Bloco 2026-09 (eliminação + transferência real): `createInternalTransferAction`
+  // deixou de criar uma `ListaEncomenda` a fingir de transferência — passa
+  // a criar uma `Transferencia` real, o MESMO desenho já testado acima
+  // para `gerarPlanoGrupoAction`. O botão partilhado continua a chamar a
+  // mesma acção (a assinatura de `CreateInternalTransferInput` não
+  // mudou), mas já não recebe `listaEncomendaId` de volta nem navega
+  // para /encomendas/[id] — por isso a asserção antiga ("não foi
+  // tocado") deixou de ser verdade e foi substituída por esta.
   const botao = src("components/transferencias/create-internal-transfer-button.tsx");
   check(
     botao.includes("createInternalTransferAction"),
-    "CreateInternalTransferButton continua a usar createInternalTransferAction — não foi tocado",
+    "CreateInternalTransferButton continua a chamar createInternalTransferAction — mesma acção, novo comportamento",
+  );
+  check(
+    !botao.includes("listaEncomendaId"),
+    "…mas já não conhece listaEncomendaId — a acção deixou de o devolver",
+  );
+  check(
+    botao.includes('router.push("/transferencias")'),
+    "…e agora navega para a listagem de Transferências reais, não para o editor de uma encomenda",
+  );
+}
+{
+  const acoes = src("app/encomendas/nova/actions.ts");
+  const match = acoes.match(/export async function createInternalTransferAction\b[\s\S]*?\n}\n/);
+  check(match !== null, "createInternalTransferAction ainda existe");
+  const corpo = match ? match[0] : "";
+  check(
+    corpo.includes("tx.transferencia.create"),
+    "createInternalTransferAction cria uma Transferencia real numa transacção própria",
+  );
+  check(
+    !corpo.includes("createEncomendaWithOutbox"),
+    "…e já não passa pelo caminho único de ListaEncomenda+OrderOutbox",
+  );
+  check(
+    !corpo.includes("OrderOutbox") && !corpo.includes("listaEncomenda.create"),
+    "…nenhuma ListaEncomenda nem OrderOutbox nasce daqui — sem exportação ao ERP, tal como gerarPlanoGrupoAction",
   );
 }
 

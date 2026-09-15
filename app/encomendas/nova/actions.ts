@@ -213,7 +213,7 @@ export type CreateInternalTransferInput = {
 };
 
 export type CreateInternalTransferResult =
-  | { ok: true; listaEncomendaId: string }
+  | { ok: true; transferenciaId: string }
   | { ok: false; error: string };
 
 function buildTransferNote(input: CreateInternalTransferInput): string {
@@ -228,48 +228,80 @@ function buildTransferNote(input: CreateInternalTransferInput): string {
   return lines.join(" · ");
 }
 
+/**
+ * Cria uma transferência interna real (`Transferencia`+`LinhaTransferencia`),
+ * o MESMO desenho já usado por `gerarPlanoGrupoAction` para o ramo
+ * TRANSFERIR — ver o comentário no modelo `Transferencia` em
+ * `prisma/schema.prisma`.
+ *
+ * Antes desta revisão (2026-09), esta acção criava uma `ListaEncomenda`
+ * a fingir de transferência (nome "Transferência interna · …",
+ * `LinhaEncomenda` com `notas` em texto livre) via
+ * `createEncomendaWithOutbox` — o que arrastava a transferência para o
+ * circuito de exportação ao ERP (`OrderOutbox`/`OrderExportAudit`),
+ * fazia-a aparecer em `/encomendas` como uma encomenda normal e mostrar
+ * "exportação pendente" para sempre, porque nunca havia agent nenhum a
+ * exportá-la. Uma transferência interna nunca foi, nem deve ser, uma
+ * encomenda ao fornecedor.
+ *
+ * Não cria nenhum `OrderOutbox`/`OrderExportAudit` — sem exportação ao
+ * ERP, tal como `gerarPlanoGrupoAction`.
+ */
 export async function createInternalTransferAction(
   input: CreateInternalTransferInput
 ): Promise<CreateInternalTransferResult> {
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
-  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
   if (!input.destinoFarmaciaId) return { ok: false, error: "Farmácia destino em falta." };
   if (!input.produtoId) return { ok: false, error: "Produto em falta." };
+  if (!input.sourceFarmaciaNome.trim()) return { ok: false, error: "Farmácia de origem em falta." };
   if (!Number.isFinite(input.quantidade) || input.quantidade <= 0) {
     return { ok: false, error: "Quantidade tem de ser > 0." };
   }
 
-  const nome =
-    input.kind === "same-cnp"
-      ? `Transferência interna · ${input.sourceFarmaciaNome} → ${input.designacao}`
-      : `Transferência DCI · ${input.sourceFarmaciaNome} → ${input.designacao}`;
-
   try {
-    const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
-      farmaciaId: input.destinoFarmaciaId,
-      criadoPorId: session.sub,
-      nome: nome.slice(0, 180),
-      finalize: false,
-      linhas: [
-        {
-          produtoId: input.produtoId,
-          quantidadeSugerida: input.quantidade,
-          quantidadeAjustada: null,
-          fornecedorSugeridoId: null,
-          notas: buildTransferNote(input),
+    const farmaciaOrigem = await prisma.farmacia.findFirst({
+      where: { nome: input.sourceFarmaciaNome },
+      select: { id: true },
+    });
+    if (!farmaciaOrigem) {
+      return {
+        ok: false,
+        error: `Farmácia de origem "${input.sourceFarmaciaNome}" não encontrada.`,
+      };
+    }
+    if (farmaciaOrigem.id === input.destinoFarmaciaId) {
+      return { ok: false, error: "Origem e destino não podem ser a mesma farmácia." };
+    }
+
+    const transferencia = await prisma.$transaction(async (tx) => {
+      return tx.transferencia.create({
+        data: {
+          farmaciaOrigemId: farmaciaOrigem.id,
+          farmaciaDestinoId: input.destinoFarmaciaId,
+          criadoPorId: session.sub,
+          linhas: {
+            create: [
+              {
+                produtoId: input.produtoId,
+                quantidade: input.quantidade,
+                notas: buildTransferNote(input),
+              },
+            ],
+          },
         },
-      ],
+      });
     });
 
     await logAudit({
       actorId: session.sub,
-      action: "internal_transfer.created_draft",
-      entity: "ListaEncomenda",
-      entityId: result.listaEncomendaId,
+      action: "internal_transfer.created",
+      entity: "Transferencia",
+      entityId: transferencia.id,
       meta: {
         kind: input.kind,
+        farmaciaOrigemId: farmaciaOrigem.id,
         destinoFarmaciaId: input.destinoFarmaciaId,
         sourceFarmaciaNome: input.sourceFarmaciaNome,
         cnp: input.cnp,
@@ -278,9 +310,9 @@ export async function createInternalTransferAction(
       },
     });
 
-    revalidatePath("/encomendas");
+    revalidatePath("/transferencias");
     revalidatePath("/dashboard");
-    return { ok: true, listaEncomendaId: result.listaEncomendaId };
+    return { ok: true, transferenciaId: transferencia.id };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }

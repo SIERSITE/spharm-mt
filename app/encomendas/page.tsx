@@ -1,5 +1,5 @@
 import { MainShell } from "@/components/layout/main-shell";
-import { requirePermission } from "@/lib/permissions";
+import { can, requirePermission } from "@/lib/permissions";
 import {
   clampPage,
   clampPageSize,
@@ -66,10 +66,16 @@ type Props = {
 };
 
 export default async function EncomendasPage({ searchParams }: Props) {
-  await requirePermission("reports.write");
+  const session = await requirePermission("reports.write");
   const sp = await searchParams;
   const filters = parseFilters(sp);
   const data = await loadOrderListData(filters);
+  // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction` —
+  // calculada aqui para o botão "Eliminar" nunca aparecer a quem a
+  // server action recusaria (a mesma inconsistência que existia com
+  // ACK/NACK, visíveis a qualquer GESTOR_FARMACIA mas recusados pela
+  // acção, que exigia settings.global).
+  const podeEliminar = can(session, "settings.global");
 
   return (
     <MainShell>
@@ -79,7 +85,7 @@ export default async function EncomendasPage({ searchParams }: Props) {
           Lista de encomendas criadas. Finalize rascunhos e acompanhe o estado de exportação.
         </p>
         <div className="mt-6">
-          <OrderListClient data={data} filters={filters} />
+          <OrderListClient data={data} filters={filters} podeEliminar={podeEliminar} />
         </div>
       </div>
     </MainShell>

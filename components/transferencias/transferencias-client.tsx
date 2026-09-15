@@ -18,6 +18,8 @@ import { buildTransferenciasReport } from "@/lib/reporting/adapters/transferenci
 import { formatFarmaciaHeader, type FarmaciaInfo } from "@/lib/farmacias-header";
 import type { ReportingFilterOptions } from "@/lib/reporting-filter-options";
 import { CreateInternalTransferButton } from "@/components/transferencias/create-internal-transfer-button";
+import { TransferenciasRegistadasList } from "@/components/transferencias/transferencias-registadas-list";
+import type { TransferenciaRegistadaRow } from "@/lib/transferencias/registadas-data";
 
 type ModoVisualizacao = "tabela" | "relatorio";
 type Ordenacao =
@@ -86,9 +88,13 @@ function toggleValue(
 export function TransferenciasClient({
   farmaciasInfo,
   filterOptions,
+  transferenciasRegistadas,
+  podeEliminarTransferencia,
 }: {
   farmaciasInfo: FarmaciaInfo[];
   filterOptions: ReportingFilterOptions;
+  transferenciasRegistadas: TransferenciaRegistadaRow[];
+  podeEliminarTransferencia: boolean;
 }) {
   // Lazy: nada de Transferências é carregado até clicar em "Gerar".
   const [rows, setRows] = useState<TransferSuggestionRow[]>([]);
@@ -483,6 +489,11 @@ export function TransferenciasClient({
           />
           </div>
         </section>
+
+        <TransferenciasRegistadasList
+          rows={transferenciasRegistadas}
+          podeEliminar={podeEliminarTransferencia}
+        />
 
         {generationError && (
           <section className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
