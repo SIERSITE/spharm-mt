@@ -139,7 +139,8 @@
     "test:precedencia-tenant": "tsx scripts/tests/test-precedencia-tenant.ts",
     "test:agent-endpoint": "node scripts/tests/test-agent-endpoint.mjs",
     "test:macos-installer": "bash installer-macos/tests/test-macos-installer.sh",
-    "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts"
+    "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts",
+    "test:vendas-para-encomenda": "tsx scripts/tests/test-vendas-para-encomenda.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { runVendasReport } from "@/app/vendas/actions";
+import { useUtilizador } from "@/components/layout/session-provider";
+import {
+  ENCOMENDA_PREFILL_STORAGE_KEY,
+  buildEncomendaPrefillFromVendas,
+  modoEncomendaParaVendas,
+} from "@/lib/encomendas/prefill-from-vendas";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
 import {
   Eye,
@@ -25,6 +32,7 @@ import { agregarCusto } from "@/lib/produtos/custo-farmacia";
 import {
   ROTULO_TOTAL_ARTIGO,
   agruparPorArtigo,
+  codigosVisiveisVendas,
   contarReferenciasUnicas,
   grupoPrecisaDeTotal,
 } from "@/lib/reporting/vendas-agrupamento";
@@ -133,6 +141,12 @@ function toggleValue(
   );
 }
 
+// Duplicado de propósito, não importado de `lib/permissions.ts`: aquele
+// ficheiro é `server-only` e um Client Component não o pode importar —
+// `components/encomendas/order-create-client.tsx` tem a mesma cópia,
+// pela mesma razão.
+const CAN_GROUP_PERFIS = new Set(["ADMINISTRADOR", "GESTOR_GRUPO"]);
+
 export function VendasClient({
   farmaciasInfo,
   filterOptions,
@@ -153,6 +167,20 @@ export function VendasClient({
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const utilizador = useUtilizador();
+  const podeEncomendaDeGrupo = CAN_GROUP_PERFIS.has(utilizador?.perfil ?? "");
+
+  // ─── "Criar encomenda com estes produtos" ──────────────────────────────
+  //
+  // Vendas só recolhe o universo (CNP das linhas geradas) e os
+  // parâmetros — quem calcula sugestões continua a ser sempre
+  // `generateOrderProposal`/`generateGroupProposal`, do lado de
+  // Encomendas. Ver `lib/encomendas/prefill-from-vendas.ts`.
+  const [encomendaModalAberto, setEncomendaModalAberto] = useState(false);
+  const [coberturaDiasEncomenda, setCoberturaDiasEncomenda] = useState(15);
+  const [encomendaErro, setEncomendaErro] = useState<string | null>(null);
 
   const initialRows = rows;
 
@@ -711,6 +739,76 @@ export function VendasClient({
     });
   };
 
+  // O modo que a acção "Criar encomenda" vai pedir ao motor, calculado
+  // já aqui para o botão poder desactivar-se ANTES de o utilizador
+  // sequer abrir o modal — falhar em silêncio no fim seria pior do que
+  // não deixar começar.
+  const modoEncomendaPrevisto = modoEncomendaParaVendas(
+    ambito,
+    farmaciasSelecionadas.length,
+    farmacias.length,
+  );
+  const encomendaBloqueadaPorPerfil =
+    modoEncomendaPrevisto === "grupo" && !podeEncomendaDeGrupo;
+
+  // "Criar encomenda" só está disponível com "Agrupar por = Artigo": é o
+  // único agrupamento em que `codigo` continua a ser um CNP de produto —
+  // nos outros (fabricante, categoria, ...), `groupRows` reaproveita o
+  // mesmo campo para guardar a chave do grupo assim que `ambito ===
+  // "grupo"`. Em vez de tentar distinguir caso a caso quando `codigo`
+  // ainda é seguro, desactiva-se sempre fora de "artigo" — mais simples
+  // e sem zonas cinzentas.
+  const encomendaDisponivelPorAgrupamento = agruparPor === "artigo";
+
+  // O universo EFECTIVO de CNP — as linhas depois de todos os toggles
+  // client-side (`apenasComVendas`, `apenasComStock`, e qualquer outro
+  // que no futuro filtre `currentRows`), nunca o relatório bruto. Usa
+  // `currentRows`, a mesma fonte que a tabela renderiza (`baseFiltered`
+  // fora de "grupo", `groupRows` dentro), por isso nunca diverge do que
+  // está no ecrã.
+  const codigosParaEncomenda = useMemo(
+    () => codigosVisiveisVendas(currentRows, { apenasComVendas, apenasComStock }),
+    [currentRows, apenasComVendas, apenasComStock],
+  );
+
+  function handleConfirmarEncomenda() {
+    setEncomendaErro(null);
+    if (!encomendaDisponivelPorAgrupamento) {
+      setEncomendaErro('Só disponível com "Agrupar por" = Artigo.');
+      return;
+    }
+    const resultado = buildEncomendaPrefillFromVendas({
+      ambito,
+      farmaciasSelecionadas,
+      farmaciasDisponiveis: farmaciasInfo,
+      // O universo efectivamente apresentado, pós-toggles — nunca as
+      // linhas cruas do relatório. Ver `codigosParaEncomenda` acima.
+      codigos: codigosParaEncomenda,
+      dataInicio: periodHeader?.from ?? dataInicio,
+      dataFim: periodHeader?.to ?? dataFim,
+      targetCoverageDays: coberturaDiasEncomenda,
+    });
+    if (!resultado.ok) {
+      setEncomendaErro(resultado.error);
+      return;
+    }
+    if (resultado.payload.mode === "grupo" && !podeEncomendaDeGrupo) {
+      setEncomendaErro("Sem permissão para encomendas de grupo.");
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(
+        ENCOMENDA_PREFILL_STORAGE_KEY,
+        JSON.stringify(resultado.payload),
+      );
+    } catch {
+      setEncomendaErro("Não foi possível preparar os dados. Tente novamente.");
+      return;
+    }
+    setEncomendaModalAberto(false);
+    router.push("/encomendas/nova?prefill=1");
+  }
+
   return (
     <AppShell>
       <div className="space-y-3">
@@ -840,6 +938,23 @@ export function VendasClient({
                   })
                 }
               />
+              {hasGenerated && rows.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setEncomendaErro(null); setEncomendaModalAberto(true); }}
+                  disabled={encomendaBloqueadaPorPerfil || !encomendaDisponivelPorAgrupamento}
+                  title={
+                    encomendaBloqueadaPorPerfil
+                      ? "Sem permissão para encomendas de grupo — reduza a selecção a uma farmácia."
+                      : !encomendaDisponivelPorAgrupamento
+                        ? 'Só disponível com "Agrupar por" = Artigo — nos outros agrupamentos o código deixa de identificar um produto.'
+                        : undefined
+                  }
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 text-[13px] font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Criar encomenda com estes produtos
+                </button>
+              )}
             </div>
           </div>
 
@@ -1610,6 +1725,58 @@ export function VendasClient({
           </section>
         )}
         </>
+        )}
+
+        {/* Modal "Criar encomenda com estes produtos" — pede só a
+            cobertura futura. O período histórico é o do relatório já
+            gerado; não se pede outra vez. */}
+        {encomendaModalAberto && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
+            <div className="mt-24 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+              <h2 className="text-[15px] font-semibold text-slate-900">
+                Criar encomenda com estes produtos
+              </h2>
+              <p className="mt-1 text-[12px] leading-5 text-slate-500">
+                {new Set(codigosParaEncomenda).size} produto(s) — os que estão
+                visíveis agora, já com os filtros e toggles aplicados. O
+                período histórico usado para calcular médias é o do relatório
+                ({periodHeader?.from ?? dataInicio} a {periodHeader?.to ?? dataFim}).
+                Indique só a cobertura futura pretendida — o cálculo de
+                quantidades é feito de raiz em Encomendas.
+              </p>
+              <label className="mb-1 mt-4 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                Pretendo encomendar para (dias)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={coberturaDiasEncomenda}
+                onChange={(e) =>
+                  setCoberturaDiasEncomenda(Math.max(1, Number(e.target.value) || 1))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[14px] text-slate-800 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+              />
+              {encomendaErro && (
+                <p className="mt-2 text-[12px] text-rose-600">{encomendaErro}</p>
+              )}
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEncomendaModalAberto(false)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmarEncomenda}
+                  className="rounded-lg border border-emerald-500 bg-emerald-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-emerald-700"
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AppShell>

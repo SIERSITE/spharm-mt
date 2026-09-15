@@ -173,3 +173,50 @@ export function grupoPrecisaDeTotal<T extends LinhaAgrupavel>(g: GrupoArtigo<T>)
 export function contarReferenciasUnicas(linhas: readonly { codigo: string }[]): number {
   return new Set(linhas.map((l) => l.codigo)).size;
 }
+
+/**
+ * Os dois "Filtros rápidos" client-side do Relatório de Vendas.
+ *
+ * Vive aqui — não como duas linhas soltas repetidas em `vendas-client`
+ * — para que qualquer extracção do universo de produtos feita a partir
+ * das linhas (hoje: "Criar encomenda com estes produtos") aplique
+ * exactamente o mesmo critério que decide o que a tabela mostra.
+ */
+export type TogglesRapidosVendas = {
+  apenasComVendas: boolean;
+  apenasComStock: boolean;
+};
+
+/** `true` se a linha sobrevive aos toggles rápidos activos. */
+export function passaTogglesRapidosVendas(
+  linha: Pick<LinhaAgrupavel, "totalVendas" | "existencia">,
+  toggles: TogglesRapidosVendas,
+): boolean {
+  if (toggles.apenasComVendas && linha.totalVendas === 0) return false;
+  if (toggles.apenasComStock && linha.existencia <= 0) return false;
+  return true;
+}
+
+/**
+ * O universo de CNP EFECTIVAMENTE visível numa vista de Vendas, depois
+ * de todos os toggles client-side — nunca as linhas cruas do loader.
+ *
+ * Usado por "Criar encomenda com estes produtos" (Bloco B): a encomenda
+ * tem de nascer do que está no ecrã naquele momento, não do relatório
+ * bruto que o antecedeu.
+ *
+ * Exclui explicitamente qualquer linha de APRESENTAÇÃO — hoje só a
+ * `TOTAL ARTIGO` que `agruparPorArtigo` insere para a tabela — mesmo
+ * que nunca chegue a `baseFiltered`/`groupRows` (que a não produzem):
+ * é a garantia de que ninguém a reintroduz por engano ao extrair CNPs
+ * de `linhasTabela` no futuro.
+ */
+export function codigosVisiveisVendas<T extends LinhaAgrupavel>(
+  linhas: readonly T[],
+  toggles: TogglesRapidosVendas,
+): string[] {
+  return linhas
+    .filter((l) => l.farmacia !== ROTULO_TOTAL_ARTIGO)
+    .filter((l) => passaTogglesRapidosVendas(l, toggles))
+    .map((l) => l.codigo);
+}
