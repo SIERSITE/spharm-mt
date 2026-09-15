@@ -33,6 +33,7 @@ import { getPrisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
+import { normalizeFabricanteCanonico } from "@/lib/catalog-normalizers";
 import {
   normalizarFichaManual,
   validarFichaManual,
@@ -79,15 +80,41 @@ export async function criarProdutoManualAction(
   //
   // Só resolve; não inventa. Sem nome, fica `null` — um produto sem
   // fabricante conhecido é um estado legítimo e frequente.
+  //
+  // A chave é sempre `normalizeFabricanteCanonico` — a mesma função do
+  // ingest do ERP e da correcção via listagem regulatória (ver
+  // lib/catalog-normalizers.ts) — para não abrir aqui uma QUARTA grafia
+  // divergente de `Fabricante.nomeNormalizado`. Não usa `getOrCreateFabricante`
+  // (ver nota no cabeçalho do ficheiro sobre porquê), mas usa a MESMA chave.
+  // O texto tal como o utilizador escreveu fica de alias, se distinto do
+  // canónico, para não perder a grafia legível.
   let fabricanteId: string | null = null;
   if (ficha.fabricante) {
-    const fab = await prisma.fabricante.upsert({
-      where: { nomeNormalizado: ficha.fabricante },
-      create: { nomeNormalizado: ficha.fabricante, estado: "ATIVO" },
-      update: {},
-      select: { id: true },
-    });
-    fabricanteId = fab.id;
+    const canonico = normalizeFabricanteCanonico(ficha.fabricante);
+    if (canonico) {
+      const fab = await prisma.fabricante.upsert({
+        where: { nomeNormalizado: canonico },
+        create: {
+          nomeNormalizado: canonico,
+          estado: "ATIVO",
+          ...(ficha.fabricante !== canonico
+            ? { aliases: { create: { aliasNome: ficha.fabricante } } }
+            : {}),
+        },
+        update: {},
+        select: { id: true },
+      });
+      fabricanteId = fab.id;
+      if (ficha.fabricante !== canonico) {
+        await prisma.fabricanteAlias
+          .upsert({
+            where: { fabricanteId_aliasNome: { fabricanteId: fab.id, aliasNome: ficha.fabricante } },
+            create: { fabricanteId: fab.id, aliasNome: ficha.fabricante },
+            update: {},
+          })
+          .catch(() => {});
+      }
+    }
   }
 
   // ── Classificação ─────────────────────────────────────────────────

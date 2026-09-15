@@ -31,6 +31,7 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { classifyProductType, CLASSIFICATION_VERSION } from "@/lib/catalog-classifier";
+import { normalizeFabricanteCanonico } from "@/lib/catalog-normalizers";
 
 /** Confiança atribuída ao ERP da farmácia como fonte de catálogo. */
 export const ERP_CONFIDENCE = 0.9;
@@ -89,17 +90,20 @@ export function limparAtc(v: string | null): string | null {
   return /^[A-Z]\d{2}([A-Z]{1,2}(\d{2})?)?$/.test(u) ? u : null;
 }
 
+/**
+ * Delega em `normalizeFabricanteCanonico` (lib/catalog-normalizers.ts) —
+ * mesma função usada pela correcção via listagem regulatória e por
+ * `getOrCreateFabricante`. Manteve o nome/assinatura originais deste
+ * ficheiro por compatibilidade com quem já importa `normalizarFabricante`
+ * daqui (ex. scripts/tests/test-catalog-from-erp.ts); a única mudança de
+ * comportamento é que pontos de abreviatura ("Lda.", "S.A.") deixam de
+ * sobreviver à normalização — eram precisamente a causa de "Lda." e "Lda"
+ * nunca convergirem.
+ */
 export function normalizarFabricante(v: string | null): string | null {
   const t = limpar(v);
   if (!t) return null;
-  const n = t
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9 &.\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return n.length >= 2 && n.length <= 60 ? n : null;
+  return normalizeFabricanteCanonico(t);
 }
 
 export type Decisao = "preencher" | "substituir" | "preservar" | "nada";
@@ -312,7 +316,7 @@ export async function applyErpCatalogFields(
     aplicar(
       "fabricante",
       r.fabricante,
-      // Bug corrigido: o "actual" era o literal sentinela " existe"
+      // Bug corrigido: o "actual" era o literal sentinela "\0existe"
       // (nunca igual a `novo`), por isso `actual === novo` nunca era
       // verdadeiro e a decisao caia sempre em "substituir" quando
       // `fonteForte` era falso -- UPDATE + EnrichmentSourceLog novo em

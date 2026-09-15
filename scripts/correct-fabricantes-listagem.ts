@@ -411,6 +411,29 @@ async function runCorrecao(
     }
   }
 
+  // Amostra dos primeiros 10 "a actualizar" — só em dry-run. Mostra o valor
+  // BRUTO (tal como está gravado / tal como veio do ficheiro) ao lado do
+  // CANÓNICO (o que a comparação realmente usa), para o operador poder
+  // confirmar visualmente que a decisão faz sentido antes de --apply.
+  if (dryRun) {
+    const amostra = report.detalhes
+      .filter((d) => d.categoria === "atualizado" || d.categoria === "atualizadoMesmoTier")
+      .slice(0, 10);
+    if (amostra.length > 0) {
+      console.log(`\n  Amostra dos primeiros ${amostra.length} classificados como alteração:`);
+      for (const d of amostra) {
+        console.log(`    cnp=${d.cnp}`);
+        console.log(`      fabricante atual:     "${d.valorAtualBruto ?? "—"}"`);
+        console.log(`      normalizado atual:    "${d.valorAtual ?? "—"}"`);
+        console.log(`      fabricante novo:      "${d.valorNovoBruto ?? "—"}"`);
+        console.log(`      normalizado novo:     "${d.valorNovo ?? "—"}"`);
+        console.log(`      tier atual:           ${d.fonteAtualInferida ?? "nenhuma/fraca"}`);
+        console.log(`      tier novo:            ${d.tierNovo ?? "—"}`);
+        console.log(`      motivo:               ${d.detalhe}`);
+      }
+    }
+  }
+
   if (dryRun) {
     console.log(
       `\n⚠  DRY-RUN — nenhuma alteração foi gravada. Reveja o relatório acima e, ` +

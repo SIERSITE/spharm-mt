@@ -48,6 +48,7 @@ import type {
 } from "./catalog-types";
 import { getFieldRelevance } from "./catalog-classifier";
 import {
+  normalizeFabricanteCanonico,
   normalizeManufacturerName,
   normalizePrincipioAtivo,
   normalizeATC,
@@ -82,12 +83,28 @@ const AUTHORITATIVE_FIELDS = new Set(["fabricante", "dci", "codigoATC"]);
 // ─── Fabricante ───────────────────────────────────────────────────────────────
 
 /**
- * Devolve o ID de um Fabricante pelo nome normalizado.
- * Cria se não existir. Garante FabricanteAlias quando o nome original
- * difere do nome normalizado.
+ * Devolve o ID de um Fabricante pela CHAVE CANÓNICA (`normalizeFabricanteCanonico`).
+ * Cria se não existir. Garante FabricanteAlias quando o nome legível difere
+ * do canónico.
+ *
+ * `normalizedName` é canonicalizado AQUI DENTRO, independentemente do que o
+ * chamador já tenha pré-normalizado — é assim que os quatro chamadores
+ * deste ficheiro (pipeline de enriquecimento, revisão manual admin,
+ * `scripts/update-fabricantes-from-xlsx.ts`, e agora a correcção via
+ * listagem regulatória) convergem para a MESMA chave, mesmo que cada um
+ * continue a passar formas diferentes (Title Case, maiúsculas do ERP,
+ * texto cru). Ver `normalizeFabricanteCanonico` para o porquê disto
+ * existir — era precisamente a ausência desta convergência que fazia
+ * "BAYER PORTUGAL LDA" e "Bayer Portugal, Lda." virarem dois Fabricante
+ * distintos.
+ *
+ * Se o chamador não passar `aliasName` explícito mas o que passou como
+ * `normalizedName` for mais legível que o canónico (ex.: Title Case),
+ * essa forma fica de alias automaticamente — não se perde a grafia só
+ * por a chave ter de ser canónica.
  *
  * Resolução:
- *   1. Match exacto por nomeNormalizado
+ *   1. Match exacto por nomeNormalizado (agora sempre canónico)
  *   2. Match por FabricanteAlias.aliasNome
  *   3. Criação de novo Fabricante
  */
@@ -95,17 +112,30 @@ export async function getOrCreateFabricante(
   normalizedName: string,
   aliasName?: string | null
 ): Promise<string> {
+  const canonico = normalizeFabricanteCanonico(normalizedName);
+  if (!canonico) {
+    throw new Error(
+      `getOrCreateFabricante: nome inválido após normalização canónica: "${normalizedName}"`
+    );
+  }
+  const aliasCandidato =
+    aliasName !== undefined
+      ? aliasName
+      : normalizedName !== canonico
+        ? normalizedName
+        : null;
+
   const byNome = await prisma.fabricante.findUnique({
-    where: { nomeNormalizado: normalizedName },
+    where: { nomeNormalizado: canonico },
     select: { id: true },
   });
 
   if (byNome) {
-    if (aliasName && aliasName !== normalizedName) {
+    if (aliasCandidato && aliasCandidato !== canonico) {
       await prisma.fabricanteAlias
         .upsert({
-          where: { fabricanteId_aliasNome: { fabricanteId: byNome.id, aliasNome: aliasName } },
-          create: { fabricanteId: byNome.id, aliasNome: aliasName },
+          where: { fabricanteId_aliasNome: { fabricanteId: byNome.id, aliasNome: aliasCandidato } },
+          create: { fabricanteId: byNome.id, aliasNome: aliasCandidato },
           update: {},
         })
         .catch(() => {});
@@ -113,9 +143,9 @@ export async function getOrCreateFabricante(
     return byNome.id;
   }
 
-  if (aliasName) {
+  if (aliasCandidato) {
     const byAlias = await prisma.fabricanteAlias.findFirst({
-      where: { aliasNome: aliasName },
+      where: { aliasNome: aliasCandidato },
       select: { fabricanteId: true },
     });
     if (byAlias) return byAlias.fabricanteId;
@@ -123,10 +153,10 @@ export async function getOrCreateFabricante(
 
   const created = await prisma.fabricante.create({
     data: {
-      nomeNormalizado: normalizedName,
+      nomeNormalizado: canonico,
       estado: "ATIVO",
-      ...(aliasName && aliasName !== normalizedName
-        ? { aliases: { create: { aliasNome: aliasName } } }
+      ...(aliasCandidato && aliasCandidato !== canonico
+        ? { aliases: { create: { aliasNome: aliasCandidato } } }
         : {}),
     },
     select: { id: true },
@@ -1003,9 +1033,16 @@ export type ManufacturerCorrectionDetail = {
   categoria: ManufacturerCorrectionCategory;
   produtoId?: string;
   designacao?: string;
+  /** Forma CANÓNICA (normalizeFabricanteCanonico) — a que decide a comparação. */
   valorAtual?: string | null;
+  /** Forma CANÓNICA (normalizeFabricanteCanonico) — a que decide a comparação. */
   valorNovo?: string | null;
+  /** `Fabricante.nomeNormalizado` tal como está gravado hoje, sem re-canonicalizar. */
+  valorAtualBruto?: string | null;
+  /** `titularAim` tal como veio da listagem, sem normalizar. */
+  valorNovoBruto?: string | null;
   fonteAtualInferida?: SourceTier | null;
+  tierNovo?: SourceTier;
   detalhe: string;
 };
 
@@ -1126,20 +1163,28 @@ export async function applyAuthoritativeManufacturerCorrections(
     }
   }
 
-  // Fabricantes já existentes para os nomes normalizados que a listagem traz
-  // — resolvidos em lote para evitar N lookups (mesmo espírito de
-  // `applyErpCatalogFields`). Os que faltarem são criados on-demand no loop
-  // (só quando `!dryRun` e a linha decide "update").
-  const novosNomes = [
-    ...new Set(rows.map((r) => normalizeManufacturerName(r.titularAim)).filter((x): x is string => !!x)),
-  ];
-  const fabPorNome = new Map<string, string>();
-  if (novosNomes.length) {
-    const existentes = await prisma.fabricante.findMany({
-      where: { nomeNormalizado: { in: novosNomes } },
-      select: { id: true, nomeNormalizado: true },
-    });
-    for (const f of existentes) fabPorNome.set(f.nomeNormalizado, f.id);
+  // Fabricantes já existentes — TODOS, não só os que batem exactamente com
+  // os nomes novos. Um `findMany({where:{nomeNormalizado:{in:...}}})` só
+  // acharia duplicados quando o valor já gravado fosse IGUAL, byte a byte,
+  // ao novo canónico — e é exactamente aí que a divergência histórica entre
+  // o ingest do ERP (maiúsculas) e o pipeline de enriquecimento (Title
+  // Case) faria criar um SEGUNDO Fabricante para o mesmo nome real, só
+  // porque a grafia gravada era diferente. Em vez disso, cada Fabricante já
+  // existente é re-canonicalizado aqui em memória, e o lookup é feito pela
+  // forma canónica de ambos os lados — sem tocar em nenhuma linha já
+  // gravada (não há UPDATE nenhum a `Fabricante.nomeNormalizado` aqui).
+  // O catálogo de fabricantes tem cardinalidade baixa (dezenas/centenas,
+  // não milhares) — um único SELECT sem filtro é seguro.
+  const fabricantesExistentes = await prisma.fabricante.findMany({
+    select: { id: true, nomeNormalizado: true },
+  });
+  const fabPorNomeCanonico = new Map<string, string>();
+  for (const f of fabricantesExistentes) {
+    const canon = normalizeFabricanteCanonico(f.nomeNormalizado);
+    // Em caso de colisão (duas linhas legadas já divergentes cujo
+    // canónico coincide), fica a primeira — desempatar isso é trabalho de
+    // um backfill deliberado, não desta correcção.
+    if (canon && !fabPorNomeCanonico.has(canon)) fabPorNomeCanonico.set(canon, f.id);
   }
 
   for (const row of rows) {
@@ -1150,14 +1195,19 @@ export async function applyAuthoritativeManufacturerCorrections(
         cnp: row.cnp,
         categoria: "cnpNaoEncontrado",
         valorNovo: row.titularAim,
+        valorNovoBruto: row.titularAim,
         detalhe: "Não existe Produto com este CNP no catálogo central",
       });
       continue;
     }
     report.produtosEncontrados++;
 
-    const newNormalized = normalizeManufacturerName(row.titularAim);
-    const currentNormalized = produto.fabricante?.nomeNormalizado ?? null;
+    const valorAtualBruto = produto.fabricante?.nomeNormalizado ?? null;
+    // Re-canonicaliza o valor JÁ GRAVADO, não só o novo — é isto que torna
+    // a comparação imune a linhas legadas gravadas antes desta correcção
+    // existir (Title Case ou qualquer outra grafia), sem exigir backfill.
+    const currentNormalized = normalizeFabricanteCanonico(valorAtualBruto);
+    const newNormalized = normalizeFabricanteCanonico(row.titularAim);
     const currentLog = latestLogPorProduto.get(produto.id) ?? null;
     const currentTierEvidence = inferCurrentManufacturerTier(currentLog);
 
@@ -1177,6 +1227,9 @@ export async function applyAuthoritativeManufacturerCorrections(
       designacao: produto.designacao,
       valorAtual: currentNormalized,
       valorNovo: newNormalized,
+      valorAtualBruto,
+      valorNovoBruto: row.titularAim,
+      tierNovo: newTier,
     };
 
     if (decision.action === "empty") {
@@ -1233,12 +1286,22 @@ export async function applyAuthoritativeManufacturerCorrections(
       });
     } else {
       report.atualizados++;
-      report.detalhes.push({ ...base, categoria: "atualizado", detalhe: decision.reason });
+      report.detalhes.push({
+        ...base,
+        categoria: "atualizado",
+        fonteAtualInferida: currentTierEvidence,
+        detalhe: decision.reason,
+      });
     }
 
     if (dryRun) continue;
 
-    let fabId = fabPorNome.get(newNormalized!);
+    // Lookup pelo canónico primeiro — reutiliza um Fabricante já existente
+    // mesmo que a grafia gravada seja diferente (Title Case, maiúsculas do
+    // ERP, etc.). Só cria um novo quando NENHUMA linha existente, depois de
+    // re-canonicalizada, coincide — nesse caso, e só nesse, o novo
+    // Fabricante nasce já com a chave canónica correcta.
+    let fabId = fabPorNomeCanonico.get(newNormalized!);
     if (!fabId) {
       const criado = await prisma.fabricante.upsert({
         where: { nomeNormalizado: newNormalized! },
@@ -1247,7 +1310,7 @@ export async function applyAuthoritativeManufacturerCorrections(
         select: { id: true },
       });
       fabId = criado.id;
-      fabPorNome.set(newNormalized!, fabId);
+      fabPorNomeCanonico.set(newNormalized!, fabId);
     }
     // Alias: preserva o nome cru da listagem quando difere do normalizado
     // (mesmo padrão de `getOrCreateFabricante` acima). Falha silenciosa —

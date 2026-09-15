@@ -11,6 +11,49 @@
 
 // ── Fabricante ───────────────────────────────────────────────────────────────
 
+/**
+ * Normalização CANÓNICA de fabricante — é esta que decide se duas grafias
+ * são "o mesmo fabricante". Maiúsculas, sem acentos, sem pontuação
+ * (INCLUINDO pontos de abreviatura — "Lda." e "Lda" têm de convergir para o
+ * mesmo valor, senão nunca se reconhecem como o mesmo fabricante).
+ *
+ * ── Porque existe ────────────────────────────────────────────────────────
+ * Havia duas normalizações de fabricante incompatíveis no repositório:
+ * `lib/ingest/catalog-from-erp.ts` tinha a sua própria cópia (maiúsculas,
+ * mantendo pontos), e o pipeline de enriquecimento genérico usava
+ * `normalizeManufacturerName` (Title Case, abaixo) como se fosse a mesma
+ * coisa. O resultado: `Fabricante.nomeNormalizado` escrito por um caminho
+ * ("BAYER PORTUGAL LDA") nunca batia certo com o mesmo fabricante escrito
+ * ou comparado pelo outro ("Bayer Portugal, Lda."/"Bayer Portugal Lda") —
+ * um dry-run de correcção via listagem regulatória via a marcar 100% dos
+ * produtos como "a actualizar", mesmo quando o fabricante já estava certo.
+ *
+ * Esta função é agora a ÚNICA usada para decidir identidade de fabricante:
+ * `lib/ingest/catalog-from-erp.ts` (ingest ERP), `getOrCreateFabricante`
+ * (upsert/criação, abaixo em catalog-persistence.ts) e
+ * `applyAuthoritativeManufacturerCorrections` (comparação da correcção
+ * regulatória) importam-na, em vez de manter cada uma a sua versão.
+ *
+ * NUNCA usar para apresentação — é só a chave de identidade. Para mostrar
+ * ao utilizador, usar o nome tal como veio da fonte (guardado em
+ * `FabricanteAlias.aliasNome` quando difere do canónico).
+ *
+ * "BAYER PORTUGAL LDA", "Bayer Portugal, Lda." e "Bayer Portugal Lda"
+ * convergem todas para "BAYER PORTUGAL LDA".
+ */
+export function normalizeFabricanteCanonico(
+  value: string | null | undefined
+): string | null {
+  if (!value) return null;
+  const semAcentos = value.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const canonico = semAcentos
+    .toUpperCase()
+    .replace(/[^A-Z0-9 &-]/g, " ") // pontuação (incl. pontos de abreviatura) vira espaço
+    .replace(/\s+/g, " ")
+    .trim();
+  return canonico.length >= 2 && canonico.length <= 60 ? canonico : null;
+}
+
 /** Sufixos empresariais que devem ficar em maiúsculas. */
 const CORPORATE_SUFFIXES =
   /^(S\.A\.?|Lda\.?|S\.L\.?|GmbH|Ltd\.?|Inc\.?|LLC|PLC|SRL|NV|BV|SARL|AG)$/i;
@@ -21,6 +64,14 @@ const CORPORATE_SUFFIXES =
  * - "BAYER S.A."   → "Bayer S.A."
  * - "   pfizer   " → "Pfizer"
  * - null           → null
+ *
+ * SÓ para apresentação. NÃO usar para decidir identidade/igualdade de
+ * fabricante nem como chave de `Fabricante.nomeNormalizado` — para isso é
+ * `normalizeFabricanteCanonico` (acima), que colapsa maiúsculas/acentos/
+ * pontuação de forma determinística. Usar esta função como chave foi
+ * precisamente o que causou a divergência entre o ingest do ERP e o
+ * pipeline de enriquecimento — ver o comentário de
+ * `normalizeFabricanteCanonico`.
  */
 export function normalizeManufacturerName(
   value: string | null | undefined

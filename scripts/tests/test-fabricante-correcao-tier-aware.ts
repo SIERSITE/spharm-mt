@@ -36,6 +36,8 @@ import {
   inferCurrentManufacturerTier,
   type ManufacturerListingRow,
 } from "../../lib/catalog-persistence";
+import { normalizeFabricanteCanonico } from "../../lib/catalog-normalizers";
+import { normalizarFabricante } from "../../lib/ingest/catalog-from-erp";
 import { parseRows, readRows, resolveMapping } from "../import-regulatory-record";
 import { dedupeByLastCnp, parseArgs } from "../correct-fabricantes-listagem";
 import { AlvoRecusado, resolverAlvo, type TenantParaLigacao } from "../../lib/catalog/target-db";
@@ -339,10 +341,13 @@ function prismaFalso(produtos: ProdutoFalso[], logs: LogFalso[]) {
       },
     },
     fabricante: {
-      findMany: async (args: { where: { nomeNormalizado: { in: string[] } } }) =>
-        args.where.nomeNormalizado.in
-          .filter((n) => fabricantesConhecidos.has(n))
-          .map((n) => ({ id: fabricantesConhecidos.get(n)!, nomeNormalizado: n })),
+      // applyAuthoritativeManufacturerCorrections passa a ler TODOS os
+      // fabricantes (sem `where`) para poder deduplicar por forma canónica
+      // mesmo quando um já existente está gravado numa grafia diferente —
+      // ver o comentário em lib/catalog-persistence.ts. O mock replica isso:
+      // devolve tudo o que já foi criado, ignorando qualquer `where`.
+      findMany: async () =>
+        [...fabricantesConhecidos.entries()].map(([nome, id]) => ({ id, nomeNormalizado: nome })),
       upsert: async (args: { where: { nomeNormalizado: string }; create: { nomeNormalizado: string } }) => {
         calls.fabricanteUpsert++;
         const id = fabricantesConhecidos.get(args.where.nomeNormalizado) ?? `fab-novo-${calls.fabricanteUpsert}`;
@@ -442,7 +447,9 @@ async function testApplyReal(): Promise<void> {
   eq("enrichmentSourceLog.create chamado 2 vezes", calls.logCreate, 2);
 
   const p1 = produtos.find((p) => p.id === "p1")!;
-  eq("p1 (cnp 5000001) passou a ter o fabricante novo", p1.fabricante?.nomeNormalizado, "Bayer AG");
+  // Canónico (maiúsculas) — é o que fica GRAVADO. O "Bayer AG" cru da
+  // listagem sobrevive como FabricanteAlias, não como nomeNormalizado.
+  eq("p1 (cnp 5000001) passou a ter o fabricante novo", p1.fabricante?.nomeNormalizado, "BAYER AG");
   const p6 = produtos.find((p) => p.id === "p6")!;
   eq("p6 (validadoManualmente) manteve o fabricante original", p6.fabricante?.nomeNormalizado, "Old Fab");
   const p7 = produtos.find((p) => p.id === "p7")!;
@@ -492,10 +499,11 @@ async function testApplySameTierOverwriteApply(): Promise<void> {
   eq("p6 (validadoManualmente) continua protegido mesmo com allowSameTierOverwrite=true", p6.fabricante?.nomeNormalizado, "Old Fab");
 
   const p7 = produtos.find((p) => p.id === "p7")!;
-  eq("p7 (empate REGULATORY↔REGULATORY, flag ON) foi corrigido para o valor novo", p7.fabricante?.nomeNormalizado, "New Fab2");
+  // Canónico — "New Fab2" cru sobrevive como alias, não como chave.
+  eq("p7 (empate REGULATORY↔REGULATORY, flag ON) foi corrigido para o valor novo", p7.fabricante?.nomeNormalizado, "NEW FAB2");
 
   const p1 = produtos.find((p) => p.id === "p1")!;
-  eq("p1 (correcção normal, sem evidência forte) continua a ser corrigido normalmente", p1.fabricante?.nomeNormalizado, "Bayer AG");
+  eq("p1 (correcção normal, sem evidência forte) continua a ser corrigido normalmente", p1.fabricante?.nomeNormalizado, "BAYER AG");
 
   const logP7 = logCalls.find((d) => d.produtoId === "p7");
   ok(
@@ -503,7 +511,9 @@ async function testApplySameTierOverwriteApply(): Promise<void> {
     !!logP7 && Array.isArray(logP7.fieldsReturned) && (logP7.fieldsReturned as string[]).includes("sameTierOverwrite"),
     JSON.stringify(logP7),
   );
-  eq("log same-tier de p7 regista o valor ANTERIOR (Old Fab2) em rawBrand", logP7?.rawBrand, "Old Fab2");
+  // rawBrand grava `currentNormalized` — já canónico (re-canonicalizado a
+  // partir do valor gravado "Old Fab2", que era Title Case legado).
+  eq("log same-tier de p7 regista o valor ANTERIOR (Old Fab2) em rawBrand", logP7?.rawBrand, "OLD FAB2");
   ok(
     "log same-tier de p7 regista a fonte/tier anterior (REGULATORY) em query",
     typeof logP7?.query === "string" && (logP7!.query as string).includes("REGULATORY"),
@@ -760,6 +770,131 @@ async function testTenantSafety(): Promise<void> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 6. normalizeFabricanteCanonico — a divergência ERP vs listagem regulatória
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A falha real que isto corrige: "BAYER PORTUGAL LDA" (ingest do ERP,
+// maiúsculas) e "Bayer Portugal, Lda." (listagem regulatória, Title Case)
+// nunca batiam certo — um dry-run real marcava 100% dos produtos
+// encontrados como "a actualizar", mesmo quando o fabricante já estava
+// certo. Esta secção prova que as três grafias convergem, que fabricantes
+// genuinamente diferentes continuam diferentes, e que o ingest do ERP
+// (`normalizarFabricante`) e a comparação (`normalizeFabricanteCanonico`)
+// são agora LITERALMENTE a mesma função, não duas cópias sincronizadas à mão.
+
+function testNormalizeFabricanteCanonico(): void {
+  console.log("\n=== 6. normalizeFabricanteCanonico — equivalências e distinção ===");
+
+  const variantes = ["BAYER PORTUGAL LDA", "Bayer Portugal, Lda.", "Bayer Portugal Lda"];
+  const canonicos = variantes.map((v) => normalizeFabricanteCanonico(v));
+  ok(
+    "as três grafias de 'Bayer Portugal Lda' convergem para o mesmo canónico",
+    canonicos.every((c) => c === canonicos[0]) && canonicos[0] !== null,
+    JSON.stringify(canonicos),
+  );
+  eq("o canónico é maiúsculas sem pontuação", canonicos[0], "BAYER PORTUGAL LDA");
+
+  eq("acentos são removidos", normalizeFabricanteCanonico("Laboratórios Vitória"), "LABORATORIOS VITORIA");
+  eq("espaços a mais colapsam", normalizeFabricanteCanonico("Bayer    Portugal"), "BAYER PORTUGAL");
+  eq("'&' sobrevive (ex.: Johnson & Johnson)", normalizeFabricanteCanonico("Johnson & Johnson"), "JOHNSON & JOHNSON");
+
+  {
+    const a = normalizeFabricanteCanonico("Bayer Portugal Lda");
+    const b = normalizeFabricanteCanonico("Bayer AG");
+    const c = normalizeFabricanteCanonico("Bayer Portugal SA");
+    ok(
+      "fabricantes genuinamente diferentes continuam diferentes",
+      a !== b && a !== c && b !== c,
+      JSON.stringify({ a, b, c }),
+    );
+  }
+
+  eq("nulo/vazio continua nulo", normalizeFabricanteCanonico(null), null);
+  eq("string vazia continua nula", normalizeFabricanteCanonico("   "), null);
+
+  // O ingest do ERP e a comparação da correcção regulatória são a MESMA
+  // função — não duas normalizações que só coincidem por acidente.
+  for (const v of [...variantes, "Laboratórios Vitória", "X", null]) {
+    eq(
+      `normalizarFabricante (ERP) === normalizeFabricanteCanonico para "${v}"`,
+      normalizarFabricante(v),
+      normalizeFabricanteCanonico(v),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 7. applyAuthoritativeManufacturerCorrections não duplica Fabricante
+//    quando já existe numa grafia diferente
+// ─────────────────────────────────────────────────────────────────────────
+
+async function testNaoDuplicaFabricanteExistente(): Promise<void> {
+  console.log("\n=== 7. Sem duplicar Fabricante já existente numa grafia diferente ===");
+
+  // p1 já tem fabricante gravado em Title Case LEGADO (pré-existente antes
+  // desta correcção existir — não é tocado, não há backfill). p2 não tem
+  // fabricante nenhum e vai receber, da listagem, uma grafia DIFERENTE do
+  // mesmo fabricante real (maiúsculas + pontuação).
+  const produtos: ProdutoFalso[] = [
+    { id: "p1", cnp: 6000001, designacao: "Produto Legado", validadoManualmente: false, fabricante: { nomeNormalizado: "Bayer Portugal Lda" } },
+    { id: "p2", cnp: 6000002, designacao: "Produto Novo", validadoManualmente: false, fabricante: null },
+  ];
+  const { prisma, calls } = prismaFalso(produtos, []);
+  const rows: ManufacturerListingRow[] = [
+    { cnp: 6000002, titularAim: "BAYER PORTUGAL, LDA." },
+  ];
+
+  const report = await applyAuthoritativeManufacturerCorrections(prisma, rows, {
+    source: "teste_dedup",
+    dryRun: false,
+  });
+
+  eq("p2: 1 produto actualizado", report.atualizados, 1);
+  const p2 = produtos.find((p) => p.id === "p2")!;
+  const p1 = produtos.find((p) => p.id === "p1")!;
+  // p2 fica a apontar para o MESMO Fabricante que p1 já usava — a prova é a
+  // grafia gravada continuar "Bayer Portugal Lda" (Title Case legado, nunca
+  // reescrito) em vez de uma nova linha em maiúsculas: se tivesse sido
+  // criado um Fabricante novo, p2 ficaria com "BAYER PORTUGAL LDA".
+  eq(
+    "p2 aponta para o MESMO Fabricante que p1 (grafia legada preservada, sem rewrite)",
+    p2.fabricante?.nomeNormalizado,
+    p1.fabricante?.nomeNormalizado,
+  );
+  eq(
+    "nenhum Fabricante novo foi criado — reaproveitou o existente (fabricanteUpsert=0)",
+    calls.fabricanteUpsert,
+    0,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 8. Amostra do dry-run — CNP/bruto/canónico/tier para os primeiros 10
+// ─────────────────────────────────────────────────────────────────────────
+
+async function testAmostraDryRun(): Promise<void> {
+  console.log("\n=== 8. Amostra do dry-run distingue bruto de canónico ===");
+
+  const produtos: ProdutoFalso[] = [
+    { id: "p1", cnp: 7000001, designacao: "Produto X", validadoManualmente: false, fabricante: { nomeNormalizado: "Bayer Portugal Lda" } },
+  ];
+  const { prisma } = prismaFalso(produtos, []);
+  const rows: ManufacturerListingRow[] = [{ cnp: 7000001, titularAim: "BAYER PORTUGAL, LDA." }];
+
+  const report = await applyAuthoritativeManufacturerCorrections(prisma, rows, {
+    source: "teste_amostra",
+    dryRun: true,
+  });
+
+  const d = report.detalhes.find((x) => x.cnp === 7000001)!;
+  eq("categoria = semAlteracao (mesmo fabricante, grafias diferentes)", d.categoria, "semAlteracao");
+  eq("valorAtualBruto preserva a grafia gravada (Title Case legado)", d.valorAtualBruto, "Bayer Portugal Lda");
+  eq("valorAtual (canónico) é maiúsculas", d.valorAtual, "BAYER PORTUGAL LDA");
+  eq("valorNovoBruto preserva a grafia da listagem", d.valorNovoBruto, "BAYER PORTUGAL, LDA.");
+  eq("valorNovo (canónico) bate com o actual — por isso é semAlteracao", d.valorNovo, d.valorAtual);
+}
+
 async function main() {
   testDecideManufacturerCorrection();
   testInferCurrentManufacturerTier();
@@ -769,6 +904,9 @@ async function main() {
   await testApplySameTierOverwriteApply();
   await testCsvEndToEnd();
   await testTenantSafety();
+  testNormalizeFabricanteCanonico();
+  await testNaoDuplicaFabricanteExistente();
+  await testAmostraDryRun();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);
