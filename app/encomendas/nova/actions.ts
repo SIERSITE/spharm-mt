@@ -20,6 +20,7 @@ import {
   type DecisaoLinha,
 } from "@/lib/encomendas/decisao-grupo";
 import { ehOrigemLinha, type OrigemLinha } from "@/lib/encomendas/origem-linha";
+import { resolverTransferenciaInterna } from "@/lib/transferencias/resolver-transferencia-interna";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────────
 
@@ -201,6 +202,17 @@ export type InternalTransferKind = "same-cnp" | "dci-equivalent";
 
 export type CreateInternalTransferInput = {
   destinoFarmaciaId: string;
+  /**
+   * Identidade REAL da farmácia de origem. Nunca resolvida por nome —
+   * `Farmacia.nome` não é único na BD, e um `findFirst({where:{nome}})`
+   * já causou o risco de escolher a farmácia errada quando duas
+   * partilham o mesmo nome. Todos os chamadores já tinham este ID
+   * disponível (`suggestedSourceFarmaciaId`/`sourceFarmaciaId`/
+   * `farmaciaOrigemId` nos módulos de origem) — só não estava a ser
+   * passado até aqui.
+   */
+  sourceFarmaciaId: string;
+  /** Só para apresentação (diálogo de confirmação, notas, auditoria) — nunca usado para resolver a farmácia. */
   sourceFarmaciaNome: string;
   produtoId: string;
   cnp: string;
@@ -216,10 +228,15 @@ export type CreateInternalTransferResult =
   | { ok: true; transferenciaId: string }
   | { ok: false; error: string };
 
-function buildTransferNote(input: CreateInternalTransferInput): string {
+/**
+ * `nomeOrigemAutoritativo` vem de `Farmacia.nome` lido da BD pelo id
+ * (ver chamador) — nunca de `input.sourceFarmaciaNome`, que é só o que
+ * o browser mostrou no diálogo de confirmação antes de submeter.
+ */
+function buildTransferNote(input: CreateInternalTransferInput, nomeOrigemAutoritativo: string): string {
   const lines: string[] = [];
   lines.push(`Transferência interna sugerida (${input.kind}).`);
-  lines.push(`Origem: ${input.sourceFarmaciaNome}`);
+  lines.push(`Origem: ${nomeOrigemAutoritativo}`);
   if (input.kind === "dci-equivalent" && input.dciSourceProductName) {
     lines.push(`Source product: ${input.dciSourceProductName} (CNP ${input.dciSourceCnp ?? "—"})`);
     lines.push(`Atenção: DCI-equivalente. Validar antes de transferir.`);
@@ -253,40 +270,39 @@ export async function createInternalTransferAction(
   const session = await requirePermission("reports.write");
   const prisma = await getPrisma();
 
-  if (!input.destinoFarmaciaId) return { ok: false, error: "Farmácia destino em falta." };
   if (!input.produtoId) return { ok: false, error: "Produto em falta." };
-  if (!input.sourceFarmaciaNome.trim()) return { ok: false, error: "Farmácia de origem em falta." };
   if (!Number.isFinite(input.quantidade) || input.quantidade <= 0) {
     return { ok: false, error: "Quantidade tem de ser > 0." };
   }
 
   try {
-    const farmaciaOrigem = await prisma.farmacia.findFirst({
-      where: { nome: input.sourceFarmaciaNome },
-      select: { id: true },
-    });
-    if (!farmaciaOrigem) {
-      return {
-        ok: false,
-        error: `Farmácia de origem "${input.sourceFarmaciaNome}" não encontrada.`,
-      };
-    }
-    if (farmaciaOrigem.id === input.destinoFarmaciaId) {
-      return { ok: false, error: "Origem e destino não podem ser a mesma farmácia." };
-    }
+    // `prisma` (getPrisma()) já é o cliente do TENANT corrente — uma
+    // farmácia de outro tenant simplesmente não existe nesta ligação,
+    // vive noutra base de dados. `findUnique` por id é a única
+    // resolução: nunca por nome (Farmacia.nome não é único).
+    const [farmaciaOrigemRow, farmaciaDestinoRow] = await Promise.all([
+      prisma.farmacia.findUnique({ where: { id: input.sourceFarmaciaId }, select: { id: true, nome: true } }),
+      prisma.farmacia.findUnique({ where: { id: input.destinoFarmaciaId }, select: { id: true, nome: true } }),
+    ]);
+    const resolucao = resolverTransferenciaInterna(input, farmaciaOrigemRow, farmaciaDestinoRow);
+    if (!resolucao.ok) return resolucao;
+    const { farmaciaOrigem, farmaciaDestino } = resolucao;
 
     const transferencia = await prisma.$transaction(async (tx) => {
       return tx.transferencia.create({
         data: {
           farmaciaOrigemId: farmaciaOrigem.id,
-          farmaciaDestinoId: input.destinoFarmaciaId,
+          farmaciaDestinoId: farmaciaDestino.id,
           criadoPorId: session.sub,
           linhas: {
             create: [
               {
                 produtoId: input.produtoId,
                 quantidade: input.quantidade,
-                notas: buildTransferNote(input),
+                // Nome AUTORITATIVO (acabado de ler da BD pelo id), nunca
+                // o que o cliente mandou em sourceFarmaciaNome — esse é
+                // só para o diálogo de confirmação no browser.
+                notas: buildTransferNote(input, farmaciaOrigem.nome),
               },
             ],
           },
@@ -302,8 +318,8 @@ export async function createInternalTransferAction(
       meta: {
         kind: input.kind,
         farmaciaOrigemId: farmaciaOrigem.id,
-        destinoFarmaciaId: input.destinoFarmaciaId,
-        sourceFarmaciaNome: input.sourceFarmaciaNome,
+        destinoFarmaciaId: farmaciaDestino.id,
+        sourceFarmaciaNome: farmaciaOrigem.nome,
         cnp: input.cnp,
         quantidade: input.quantidade,
         motivo: input.motivo,

@@ -1160,13 +1160,14 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                                       €
                                     </span>
                                   )}
-                                  {item.produtoId && item.farmaciaId && (
+                                  {item.produtoId && item.farmaciaId && item.substitutionSourceFarmaciaId && (
                                     <div className="mt-1">
                                       <CreateInternalTransferButton
                                         kind="same-cnp"
                                         variant="cyan"
                                         input={{
                                           destinoFarmaciaId: item.farmaciaId,
+                                          sourceFarmaciaId: item.substitutionSourceFarmaciaId,
                                           sourceFarmaciaNome: item.substitutionSourceFarmacia ?? "",
                                           produtoId: item.produtoId,
                                           cnp: row.cnp,
@@ -1207,13 +1208,14 @@ export function EncomendasClient({ farmaciasInfo, filterOptions }: Props) {
                                   <div className="text-amber-700/80">
                                     Validar antes de transferir
                                   </div>
-                                  {item.farmaciaId && item.dciEquivalentSourceProdutoId && (
+                                  {item.farmaciaId && item.dciEquivalentSourceProdutoId && item.dciEquivalentSourceFarmaciaId && (
                                     <div className="mt-1">
                                       <CreateInternalTransferButton
                                         kind="dci-equivalent"
                                         variant="amber"
                                         input={{
                                           destinoFarmaciaId: item.farmaciaId,
+                                          sourceFarmaciaId: item.dciEquivalentSourceFarmaciaId,
                                           sourceFarmaciaNome: item.dciEquivalentSourceFarmacia ?? "",
                                           produtoId: item.dciEquivalentSourceProdutoId,
                                           cnp: item.dciEquivalentCnp ?? row.cnp,

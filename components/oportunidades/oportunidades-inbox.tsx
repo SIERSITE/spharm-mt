@@ -9,6 +9,7 @@ type SameCnpItem = {
   destinoFarmaciaId: string;
   destinoFarmaciaNome: string;
   destinoCoverage: number | null;
+  sourceFarmaciaId: string;
   sourceFarmaciaNome: string;
   sourceCoverage: number;
   transferableQty: number;
@@ -25,6 +26,7 @@ type DciItem = {
   sourceProdutoId: string;
   sourceCnp: string;
   sourceDesignacao: string;
+  sourceFarmaciaId: string;
   sourceFarmaciaNome: string;
   sourceCoverage: number;
   transferableQty: number;
@@ -157,6 +159,7 @@ export function OportunidadesInbox({ sameCnp, dciEquivalent, ipfFreshness }: Pro
                     label="Criar transferência"
                     input={{
                       destinoFarmaciaId: s.destinoFarmaciaId,
+                      sourceFarmaciaId: s.sourceFarmaciaId,
                       sourceFarmaciaNome: s.sourceFarmaciaNome,
                       produtoId: s.produtoId,
                       cnp: s.cnp,
@@ -228,6 +231,7 @@ export function OportunidadesInbox({ sameCnp, dciEquivalent, ipfFreshness }: Pro
                     label="Criar transferência"
                     input={{
                       destinoFarmaciaId: d.destinoFarmaciaId,
+                      sourceFarmaciaId: d.sourceFarmaciaId,
                       sourceFarmaciaNome: d.sourceFarmaciaNome,
                       produtoId: d.sourceProdutoId,
                       cnp: d.sourceCnp,

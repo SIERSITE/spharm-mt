@@ -1021,6 +1021,7 @@ export function TransferenciasClient({
                             label="Criar"
                             input={{
                               destinoFarmaciaId: row.farmaciaDestinoId,
+                              sourceFarmaciaId: row.farmaciaOrigemId,
                               sourceFarmaciaNome: row.farmaciaOrigem,
                               produtoId: row.produtoId,
                               cnp: row.cnp,
