@@ -54,6 +54,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as XLSX from "xlsx";
 import { legacyPrisma as prisma } from "../lib/prisma";
+import type { PrismaClient } from "../generated/prisma/client";
 
 export const MIN_CNP = 2_000_000;
 
@@ -396,17 +397,29 @@ export type UpsertCounters = {
   failed: number;
 };
 
+/**
+ * `prismaClient` é opcional e por omissão é o `legacyPrisma` deste
+ * ficheiro (ligado a `process.env.DATABASE_URL`) — comportamento
+ * inalterado para quem chama `import-regulatory-record.ts` directamente.
+ *
+ * `scripts/correct-fabricantes-listagem.ts` passa o cliente resolvido
+ * pelo tenant (`resolverAlvo`/`buildTenantConnectionString`) em vez de
+ * aceitar este default — sem este parâmetro, a fase 1 (RegulatoryRecord)
+ * escreveria sempre na base de `DATABASE_URL`, tenant nenhum, mesmo
+ * depois de esse script resolver correctamente a fase 2.
+ */
 export async function upsertBatch(
   batch: ParsedRow[],
   source: string,
   force: boolean,
   dryRun: boolean,
+  prismaClient: Pick<PrismaClient, "regulatoryRecord"> = prisma,
 ): Promise<UpsertCounters> {
   const counters: UpsertCounters = { inserted: 0, updatedSomeFields: 0, unchanged: 0, failed: 0 };
   if (batch.length === 0) return counters;
 
   // Carrega registos existentes em massa
-  const existing = await prisma.regulatoryRecord.findMany({
+  const existing = await prismaClient.regulatoryRecord.findMany({
     where: { cnp: { in: batch.map((r) => r.cnp) } },
   });
   const byCnp = new Map(existing.map((r) => [r.cnp, r]));
@@ -473,7 +486,7 @@ export async function upsertBatch(
       // fonte. Skipped duplicates NÃO são falhas — só linhas que já existem
       // e que o merge não precisava de tocar. Os outros já foram contados
       // como `unchanged` ou `updatedSomeFields` no pré-split.
-      const res = await prisma.regulatoryRecord.createMany({ data, skipDuplicates: true });
+      const res = await prismaClient.regulatoryRecord.createMany({ data, skipDuplicates: true });
       counters.inserted += res.count;
       // Diff entre toInsert.length e res.count = duplicados absorvidos
       // pelo skipDuplicates. Não somar a `failed` — não são erros.
@@ -488,7 +501,7 @@ export async function upsertBatch(
   // Updates per-row (caminho lento, mas só corre quando há overlap real)
   for (const u of toUpdate) {
     try {
-      await prisma.regulatoryRecord.update({ where: { cnp: u.cnp }, data: u.data });
+      await prismaClient.regulatoryRecord.update({ where: { cnp: u.cnp }, data: u.data });
       counters.updatedSomeFields++;
     } catch (err) {
       counters.failed++;

@@ -148,6 +148,9 @@ async function main() {
     "../catalog-master/project-global-catalog.ts",
     "../catalog-master/bootstrap-global-catalog.ts",
     "../catalog-master/promote-global-knowledge.ts",
+    // Bloco F — corrige fabricanteId de um tenant real a partir de uma
+    // listagem externa; sem isto escrevia sempre em DATABASE_URL.
+    "../correct-fabricantes-listagem.ts",
   ];
   for (const caminho of TENANT_AWARE) {
     const nome = caminho.split("/").pop()!;

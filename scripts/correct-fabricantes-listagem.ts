@@ -23,7 +23,9 @@
  * ── Formato do ficheiro ─────────────────────────────────────────────────
  * Igual ao de `import-regulatory-record.ts`: CSV/XLSX, posicional
  * `cnp;estadoAim;designacaoOficial;titularAim` sem header (auto-detect
- * também aceita header e `--map=` manual — ver esse ficheiro).
+ * também aceita header e `--map=` manual — ver esse ficheiro). Um ficheiro
+ * de 2 colunas com header `CNP` / `Fabricante` é detectado sozinho — os
+ * aliases de `titularAim` incluem literalmente "fabricante".
  *
  * ── Segurança: dry-run é o DEFAULT, aplicar exige --apply ───────────────
  * Ao contrário de `import-regulatory-record.ts` (onde dry-run é opt-in e
@@ -33,16 +35,35 @@
  * correr por engano é maior, por isso o "opt-in para escrever" é mais
  * apertado do que no importador de base.
  *
+ * ── Segurança: destino é resolvido pelo tenant, nunca por DATABASE_URL ──
+ * `--tenant=<slug>` é OBRIGATÓRIO. O destino nunca vem de
+ * `process.env.DATABASE_URL` nem de um valor por omissão — vem sempre do
+ * control plane, via `resolverAlvo`/`getTenantBySlug`/
+ * `buildTenantConnectionString` (`lib/catalog/target-db.ts`), o MESMO
+ * mecanismo já usado por `scripts/catalog/alinhar-classificacao-tenant.ts`
+ * e pelos scripts de `catalog-master/`. Não há um segundo caminho de
+ * resolução de tenant inventado aqui.
+ *
+ * Um tenant inexistente é recusado (`AlvoRecusado`) ANTES de qualquer
+ * ligação à base do tenant ser tentada — só a base do control plane é
+ * consultada para a busca por slug. O tenant/base/host resolvidos são
+ * impressos antes de o ficheiro ser processado (nunca a password). Em
+ * dry-run a sessão Postgres fica `default_transaction_read_only = on` —
+ * a mesma tranca do lado do servidor que os outros scripts de
+ * `catalog-master/` já usam, não uma invenção nova.
+ *
  * Uso:
  *   # 1. Dry-run — SEMPRE correr primeiro. Lê o ficheiro, simula as duas
  *   #    fases (RegulatoryRecord + Produto.fabricanteId) e imprime o
  *   #    relatório completo. Não escreve nada.
  *   npx tsx scripts/correct-fabricantes-listagem.ts \
+ *     --tenant=<slug> \
  *     --file=caminho/para/listagem.csv \
  *     --source=cedime_anf_2026-09
  *
  *   # 2. Aplicar de facto, depois de validar o relatório do dry-run.
  *   npx tsx scripts/correct-fabricantes-listagem.ts \
+ *     --tenant=<slug> \
  *     --file=caminho/para/listagem.csv \
  *     --source=cedime_anf_2026-09 \
  *     --apply
@@ -52,12 +73,16 @@
  *   #    Corre sempre primeiro em dry-run (sem --apply) para ver quantas
  *   #    correcções same-tier existem antes de decidir activar a flag.
  *   npx tsx scripts/correct-fabricantes-listagem.ts \
+ *     --tenant=<slug> \
  *     --file=caminho/para/listagem.csv \
  *     --source=cedime_anf_2026-09 \
  *     --apply \
  *     --allow-same-tier-overwrite
  *
  * Opções:
+ *   --tenant=<slug>      Obrigatório. Resolvido contra o control plane —
+ *                        ver lib/catalog/target-db.ts. Sem valor por
+ *                        omissão e sem fallback para DATABASE_URL.
  *   --file=<path>       Obrigatório. CSV/XLSX no formato do importador base.
  *   --source=<tag>       Obrigatório. Tag de proveniência gravada em
  *                        RegulatoryRecord.source e EnrichmentSourceLog.source.
@@ -75,11 +100,20 @@
  *   --limit=N             Como em import-regulatory-record.ts.
  *   --batch-size=N        Tamanho de lote do upsert de RegulatoryRecord (default 500).
  *   --map=campo:col,...  Override manual de mapping (ver import-regulatory-record.ts).
+ *   --permitir-externo   Necessário se o tenant resolvido não for a VPS de
+ *                        produção (ex.: Neon/Vercel) — ver target-db.ts.
+ *
+ * Qualquer outra flag não reconhecida é um erro fatal (não um aviso): um
+ * `--tenant=silveira` mal-escrito como `--tenatn=silveira` tem de parar o
+ * script, não correr silenciosamente contra um destino errado.
  */
 
 import "dotenv/config";
 import * as fs from "fs";
-import { legacyPrisma as prisma } from "../lib/prisma";
+import { PrismaClient } from "../generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { buildTenantConnectionString, getTenantBySlug } from "../lib/control-plane";
+import { AlvoRecusado, descreverAlvo, resolverAlvo, type AlvoDb } from "../lib/catalog/target-db";
 import {
   applyAuthoritativeManufacturerCorrections,
   type ManufacturerListingRow,
@@ -97,6 +131,12 @@ import {
 } from "./import-regulatory-record";
 
 // ─── CLI args ───────────────────────────────────────────────────────────────
+//
+// `--tenant=` e `--permitir-externo` são reconhecidos aqui só para NÃO
+// caírem no ramo "argumento desconhecido" — quem os consome de facto é
+// `resolverAlvo` em `main()`, antes desta função ser chamada. Duplicar a
+// leitura do slug aqui traria dois sítios a poder discordar sobre o
+// destino; nenhuma lógica de tenant vive nesta função.
 
 type Args = {
   file: string;
@@ -108,8 +148,7 @@ type Args = {
   manualMap: Partial<Record<FieldName, number>> | null;
 };
 
-function parseArgs(): Args {
-  const argv = process.argv.slice(2);
+export function parseArgs(argv: readonly string[]): Args {
   const out: Partial<Args> = {
     apply: false,
     allowSameTierOverwrite: false,
@@ -122,7 +161,9 @@ function parseArgs(): Args {
     else if (a.startsWith("--source=")) out.source = a.slice("--source=".length);
     else if (a === "--apply") out.apply = true;
     else if (a === "--allow-same-tier-overwrite") out.allowSameTierOverwrite = true;
-    else if (a === "--dry-run") {
+    else if (a.startsWith("--tenant=") || a === "--permitir-externo") {
+      // Consumido por resolverAlvo (ver main()). Nada a fazer aqui.
+    } else if (a === "--dry-run") {
       // Aceite por compatibilidade/clareza — é o comportamento default de
       // qualquer forma. Nunca inverte para "aplicar".
     } else if (a.startsWith("--limit=")) {
@@ -144,7 +185,10 @@ function parseArgs(): Args {
       }
       out.manualMap = map;
     } else {
-      console.warn(`[aviso] argumento desconhecido: ${a}`);
+      // Fatal, não aviso — um argumento mal-escrito (ex.: --tenatn=x) não
+      // pode deixar o script continuar a correr contra um destino que
+      // ninguém pediu.
+      throw new Error(`argumento desconhecido: ${a}`);
     }
   }
   if (!out.file) throw new Error("--file=<path> é obrigatório");
@@ -174,28 +218,86 @@ function fmtPct(n: number, d: number): string {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs();
-  const dryRun = !args.apply;
+  const argv = process.argv.slice(2);
 
-  console.log("═".repeat(78));
-  console.log("Correcção tier-aware de fabricantes a partir de listagem regulatória");
-  console.log("═".repeat(78));
-  console.log(`  file:       ${args.file}`);
-  console.log(`  source:     ${args.source}`);
-  console.log(`  modo:       ${dryRun ? "DRY-RUN (nada é escrito)" : "APLICAR (escreve na BD)"}`);
-  console.log(
-    `  allow-same-tier-overwrite: ${args.allowSameTierOverwrite ? "ON (empate REGULATORY↔REGULATORY permitido)" : "OFF (default — empate bloqueia)"}`,
-  );
-  if (args.limit) console.log(`  limit:      ${args.limit}`);
-  console.log(`  batchSize:  ${args.batchSize}`);
-  if (args.manualMap) console.log(`  manualMap:  ${JSON.stringify(args.manualMap)}`);
-
-  if (!fs.existsSync(args.file)) {
-    console.error(`[fatal] ficheiro não encontrado: ${args.file}`);
-    process.exitCode = 1;
-    return;
+  // ── Destino: resolvido pelo tenant, nunca por DATABASE_URL ──────────────
+  //
+  // Isto corre ANTES de qualquer parsing de --file/--source e antes de
+  // qualquer ligação à base do tenant ser tentada — um tenant que não
+  // existe no control plane pára aqui, sem nunca chegar a
+  // `buildTenantConnectionString`/`new PrismaClient`.
+  let alvo: AlvoDb;
+  try {
+    alvo = await resolverAlvo(argv, { getTenantBySlug, buildTenantConnectionString });
+  } catch (err) {
+    if (err instanceof AlvoRecusado) {
+      console.error(`\n[fatal] ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
   }
 
+  const args = parseArgs(argv);
+  const dryRun = !args.apply;
+
+  // Defesa em profundidade: `resolverAlvo` já garante isto por construção
+  // (`alvo.tenant` vem do MESMO `--tenant=` que foi parseado), mas o
+  // requisito pede uma garantia explícita e testável, não só confiança na
+  // implementação de `resolverAlvo`.
+  const tenantPedido = argv.find((a) => a.startsWith("--tenant="))?.slice("--tenant=".length).trim();
+  if (alvo.tenant !== tenantPedido) {
+    throw new Error(
+      `invariante violada: tenant resolvido ("${alvo.tenant}") difere do tenant pedido ("${tenantPedido}")`,
+    );
+  }
+
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: alvo.url }) });
+
+  try {
+    // Em dry-run a sessão fica read-only do lado do Postgres — a mesma
+    // tranca que os scripts de catalog-master já usam. Fora do dry-run,
+    // limpa-se o estado herdado (ligações -pooler do Neon reutilizam
+    // sessão entre clientes).
+    await prisma.$executeRawUnsafe(
+      `set session default_transaction_read_only = ${dryRun ? "on" : "off"}`,
+    );
+
+    console.log("═".repeat(78));
+    console.log("Correcção tier-aware de fabricantes a partir de listagem regulatória");
+    console.log("═".repeat(78));
+    console.log(`  Tenant:   ${alvo.tenant}`);
+    console.log(`  Database: ${alvo.base}`);
+    console.log(`  Host:     ${alvo.host}`);
+    console.log(`  Modo:     ${dryRun ? "DRY-RUN" : "APPLY"}`);
+    // Formato longo, igual ao resto dos scripts que resolvem por tenant.
+    console.log(`  ${descreverAlvo(alvo)}`);
+    console.log(`  file:       ${args.file}`);
+    console.log(`  source:     ${args.source}`);
+    console.log(
+      `  allow-same-tier-overwrite: ${args.allowSameTierOverwrite ? "ON (empate REGULATORY↔REGULATORY permitido)" : "OFF (default — empate bloqueia)"}`,
+    );
+    if (args.limit) console.log(`  limit:      ${args.limit}`);
+    console.log(`  batchSize:  ${args.batchSize}`);
+    if (args.manualMap) console.log(`  manualMap:  ${JSON.stringify(args.manualMap)}`);
+
+    if (!fs.existsSync(args.file)) {
+      console.error(`[fatal] ficheiro não encontrado: ${args.file}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    await runCorrecao(prisma, args, dryRun);
+  } finally {
+    await prisma.$disconnect().catch(() => {});
+  }
+}
+
+async function runCorrecao(
+  prisma: PrismaClient,
+  args: Args,
+  dryRun: boolean,
+): Promise<void> {
   // ── Leitura + parsing (reaproveita import-regulatory-record.ts) ─────────
   console.log(`\n[1/4] A ler e a parsear o ficheiro...`);
   const rows = readRows(args.file);
@@ -247,7 +349,9 @@ async function main(): Promise<void> {
   const regTotals = { inserted: 0, updatedSomeFields: 0, unchanged: 0, failed: 0 };
   for (let i = 0; i < deduped.length; i += args.batchSize) {
     const slice = deduped.slice(i, i + args.batchSize);
-    const c = await upsertBatch(slice, args.source, /* force */ true, dryRun);
+    // prisma explícito: sem isto, a fase 1 escreveria sempre em
+    // DATABASE_URL, ignorando o tenant resolvido para a fase 2.
+    const c = await upsertBatch(slice, args.source, /* force */ true, dryRun, prisma);
     regTotals.inserted += c.inserted;
     regTotals.updatedSomeFields += c.updatedSomeFields;
     regTotals.unchanged += c.unchanged;
@@ -322,13 +426,13 @@ async function main(): Promise<void> {
 // `dedupeByLastCnp` sem duplicar a lógica. Sem esta guarda, `main()`
 // corria também quando importado (mesmo padrão de `import-regulatory-record.ts`
 // e de `scripts/vendas/reconciliar-dia.ts`).
+//
+// O disconnect do Prisma do tenant já acontece dentro de `main()` (o
+// cliente só existe depois de o tenant ser resolvido — não há um
+// singleton module-level para desligar aqui).
 if (/[\\/]correct-fabricantes-listagem\.(ts|js|mjs|cjs)$/.test(process.argv[1] ?? "")) {
-  main()
-    .catch((err) => {
-      console.error("[erro fatal]", err);
-      process.exitCode = 1;
-    })
-    .finally(async () => {
-      await prisma.$disconnect();
-    });
+  main().catch((err) => {
+    console.error("[erro fatal]", err);
+    process.exitCode = 1;
+  });
 }

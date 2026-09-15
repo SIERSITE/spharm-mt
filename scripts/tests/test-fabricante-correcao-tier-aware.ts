@@ -37,7 +37,9 @@ import {
   type ManufacturerListingRow,
 } from "../../lib/catalog-persistence";
 import { parseRows, readRows, resolveMapping } from "../import-regulatory-record";
-import { dedupeByLastCnp } from "../correct-fabricantes-listagem";
+import { dedupeByLastCnp, parseArgs } from "../correct-fabricantes-listagem";
+import { AlvoRecusado, resolverAlvo, type TenantParaLigacao } from "../../lib/catalog/target-db";
+import { readFileSync } from "node:fs";
 
 let pass = 0;
 let fail = 0;
@@ -573,6 +575,191 @@ async function testCsvEndToEnd(): Promise<void> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 5. Segurança de tenant — --tenant obrigatório, sem fallback DATABASE_URL
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A falha real que isto impede: correr `correct-fabricantes-listagem.ts`
+// sem pensar em tenant nenhum escrevia sempre em `process.env.DATABASE_URL`
+// (o `legacyPrisma` de `lib/prisma.ts`) — sem avisar em que base, sem
+// distinguir garantia de sier de grupo-silveira. `resolverAlvo` já existe e
+// já é testado (`test-target-db.ts`); aqui só se prova que ESTE script o
+// usa correctamente, incluindo os dois pontos que o motor genérico não
+// cobre: o parser de opções PRÓPRIO deste script (`--file`, `--source`,
+// `--apply`, ...) e a fase 1 (`upsertBatch`, RegulatoryRecord).
+
+// Host "postgres" (VPS local, não Neon/Vercel) para não disparar a guarda
+// de host externo de resolverAlvo — isso já está coberto por
+// test-target-db.ts, não é o que esta secção testa.
+const TENANTS: Record<string, TenantParaLigacao> = {
+  "grupo-silveira": {
+    slug: "grupo-silveira",
+    dbHost: "postgres",
+    dbPort: 5432,
+    dbName: "spharmmt_t_grupo_silveira",
+    dbUser: "spharmmt_t_grupo_silveira",
+    dbPassEncrypted: "cifrado",
+  },
+  garantia: {
+    slug: "garantia",
+    dbHost: "postgres",
+    dbPort: 5432,
+    dbName: "spharmmt_t_garantia",
+    dbUser: "spharmmt_t_garantia",
+    dbPassEncrypted: "cifrado",
+  },
+};
+
+const tenantDeps = {
+  getTenantBySlug: async (slug: string) => TENANTS[slug] ?? null,
+  buildTenantConnectionString: (t: TenantParaLigacao) =>
+    `postgresql://${t.dbUser}:decifrada@${t.dbHost}:${t.dbPort}/${t.dbName}`,
+};
+
+async function resolve(argv: string[]) {
+  try {
+    return { alvo: await resolverAlvo(argv, tenantDeps) };
+  } catch (err) {
+    if (err instanceof AlvoRecusado) return { erro: err.message };
+    throw err;
+  }
+}
+
+async function testTenantSafety(): Promise<void> {
+  console.log("\n=== 5. Segurança de tenant (--tenant obrigatório) ===");
+
+  // ── --tenant é obrigatório ──────────────────────────────────────────
+  {
+    const semTenant = await resolve(["--file=x.csv", "--source=teste"]);
+    ok("sem --tenant é recusado", semTenant.erro !== undefined, JSON.stringify(semTenant));
+  }
+
+  // ── tenant inexistente aborta, e aborta ANTES de abrir a BD do tenant ──
+  {
+    let buildFoiChamado = false;
+    const depsQueContam = {
+      getTenantBySlug: async (slug: string) => TENANTS[slug] ?? null,
+      buildTenantConnectionString: (t: TenantParaLigacao) => {
+        buildFoiChamado = true;
+        return tenantDeps.buildTenantConnectionString(t);
+      },
+    };
+    try {
+      await resolverAlvo(["--tenant=nao-existe"], depsQueContam);
+      fail++;
+      console.log("  [FALHA] tenant inexistente deveria ter lançado AlvoRecusado");
+    } catch (err) {
+      ok("tenant inexistente é recusado", err instanceof AlvoRecusado, String(err));
+    }
+    ok(
+      "tenant inexistente nunca chega a construir a connection string (não abre BD)",
+      buildFoiChamado === false,
+    );
+  }
+
+  // ── flag desconhecida é erro fatal, não aviso ──────────────────────────
+  {
+    let lancou = false;
+    try {
+      parseArgs(["--tenant=grupo-silveira", "--file=x.csv", "--source=teste", "--tenatn=grupo-silveira"]);
+    } catch {
+      lancou = true;
+    }
+    ok("flag desconhecida (typo em --tenant) faz parseArgs lançar, não avisar", lancou);
+  }
+  {
+    let lancou = false;
+    try {
+      parseArgs(["--tenant=grupo-silveira", "--file=x.csv", "--source=teste", "--bogus"]);
+    } catch {
+      lancou = true;
+    }
+    ok("qualquer flag desconhecida faz parseArgs lançar", lancou);
+  }
+  {
+    // --tenant= e --permitir-externo são reconhecidos por parseArgs (só
+    // não fazem nada aqui — quem os consome é resolverAlvo) e NÃO devem
+    // ser tratados como desconhecidos.
+    let lancou = false;
+    try {
+      parseArgs(["--tenant=grupo-silveira", "--permitir-externo", "--file=x.csv", "--source=teste"]);
+    } catch {
+      lancou = true;
+    }
+    ok("--tenant= e --permitir-externo não são 'desconhecidos' para parseArgs", !lancou);
+  }
+
+  // ── slug é exacto — "silveira" não resolve por magia para "grupo-silveira" ──
+  {
+    const comSlugParcial = await resolve(["--tenant=silveira"]);
+    ok(
+      "'silveira' não é aceite quando o tenant real é 'grupo-silveira' (exact match only)",
+      comSlugParcial.erro?.includes("não existe no control plane") === true,
+      JSON.stringify(comSlugParcial),
+    );
+    const comSlugReal = await resolve(["--tenant=grupo-silveira"]);
+    ok("'grupo-silveira' (slug real) resolve normalmente", comSlugReal.alvo !== undefined);
+  }
+
+  // ── só a BD do slug pedido é usada — nunca a de outro tenant ──────────
+  {
+    const paraGarantia = await resolve(["--tenant=garantia"]);
+    const paraSilveira = await resolve(["--tenant=grupo-silveira"]);
+    ok(
+      "tenant=garantia resolve para a base de garantia, não a de grupo-silveira",
+      paraGarantia.alvo?.base === "spharmmt_t_garantia",
+    );
+    ok(
+      "tenant=grupo-silveira resolve para a base de grupo-silveira, não a de garantia",
+      paraSilveira.alvo?.base === "spharmmt_t_grupo_silveira",
+    );
+    ok(
+      "as duas connection strings resolvidas são diferentes",
+      paraGarantia.alvo?.url !== paraSilveira.alvo?.url,
+    );
+  }
+
+  // ── inspecção estática: o script não tem um caminho de fallback para
+  //    DATABASE_URL/legacyPrisma, e a fase 1 recebe um prisma explícito ──
+  {
+    const src = readFileSync(new URL("../correct-fabricantes-listagem.ts", import.meta.url), "utf8");
+    const codigo = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+
+    ok("correct-fabricantes-listagem.ts chama resolverAlvo", /resolverAlvo\s*\(/.test(codigo));
+    ok(
+      "correct-fabricantes-listagem.ts NÃO importa legacyPrisma/lib/prisma",
+      !/legacyPrisma|from ["'].*lib\/prisma["']/.test(codigo),
+    );
+    ok(
+      "correct-fabricantes-listagem.ts liga-se com a URL resolvida (alvo.url)",
+      /connectionString:\s*alvo\.url/.test(codigo),
+    );
+    ok(
+      "correct-fabricantes-listagem.ts imprime Tenant/Database/Host/Modo antes de processar o ficheiro",
+      /Tenant:\s*\$\{alvo\.tenant\}/.test(codigo) &&
+        /Database:\s*\$\{alvo\.base\}/.test(codigo) &&
+        /Host:\s*\$\{alvo\.host\}/.test(codigo) &&
+        /Modo:\s*\$\{dryRun/.test(codigo),
+    );
+    ok(
+      "correct-fabricantes-listagem.ts nunca imprime alvo.url (password incluída)",
+      !/console\.log\([^)]*alvo\.url/.test(codigo),
+    );
+    ok(
+      "fase 1 (upsertBatch) recebe o prisma do tenant explicitamente, não o default",
+      /upsertBatch\(slice, args\.source, [^,]+, dryRun, prisma\)/.test(codigo),
+    );
+    ok(
+      "sessão Postgres fica read-only em dry-run (mesma tranca dos scripts catalog-master)",
+      /default_transaction_read_only = \$\{dryRun \? "on" : "off"\}/.test(codigo),
+    );
+  }
+}
+
 async function main() {
   testDecideManufacturerCorrection();
   testInferCurrentManufacturerTier();
@@ -581,6 +768,7 @@ async function main() {
   await testApplySameTierOverwriteDryRun();
   await testApplySameTierOverwriteApply();
   await testCsvEndToEnd();
+  await testTenantSafety();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);
