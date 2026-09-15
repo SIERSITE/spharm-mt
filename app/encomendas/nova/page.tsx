@@ -46,7 +46,7 @@ export default async function NovaEncomendaPage() {
 
   return (
     <MainShell>
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="py-8">
         <h1 className="text-2xl font-semibold text-gray-900">Nova Encomenda</h1>
         <p className="mt-1 text-sm text-gray-600">
           Defina o período de vendas e os filtros para gerar uma proposta. Pode rever,

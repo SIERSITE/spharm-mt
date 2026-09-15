@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import {
@@ -11,9 +12,12 @@ import {
   type ProposalMode,
   type DecisaoLinhaGrupoInput,
 } from "@/app/encomendas/nova/actions";
+import { getHistoricoProdutosLoteAction } from "@/app/encomendas/actions";
 import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
+import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
+import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
   CabecalhoOrdenavel,
@@ -109,6 +113,16 @@ type Line = {
   farmaciaDestinoId: string | null;
 };
 
+/** `Line[]` consolidado por produto — só usado em `mode === "grupo"`. Ver `lib/encomendas/agrupar-produto.ts`. */
+type GrupoProdutoLine = GrupoProduto<Line>;
+
+/**
+ * Os campos "operacionais" de uma linha, pela ordem em que Enter/Shift+Enter
+ * os percorre (ver Ponto 3 — navegação por teclado). `finalQty` existe em
+ * TODOS os modos; os três primeiros só em `mode === "grupo"` (célula de
+ * Decisão) — ver `ordemCamposLinha`.
+ */
+type CampoSlot = "acao" | "encomendaFarmacia" | "origemFarmacia" | "destinoFarmacia" | "finalQty";
 
 type Props = {
   farmacias: { id: string; nome: string }[];
@@ -334,6 +348,208 @@ export function OrderCreateClient({
     // o utilizador ordena o que está a ver.
     return ordenarLinhas(list, ordenacao, acessorEncomenda);
   }, [linhas, tableSearch, filterFarmaciaTabela, filterEstado, filterRuturas, filterStockBaixo, ordenacao]);
+
+  // ─── Ponto 2 — consolidação por produto (SÓ modo grupo) ────────────────────
+  //
+  // `visibleLinhas` já filtrou as `Line` individuais (Ponto 2.4: filtra
+  // primeiro, agrupa depois) — agrupar o resultado já filtrado é o que
+  // faz um filtro por farmácia esconder só as sub-linhas dessa farmácia
+  // dentro de cada grupo (ou o grupo inteiro, se nenhuma sub-linha
+  // sobreviver: `agruparPorProduto` simplesmente não cria entrada para
+  // um produto sem nenhuma linha de entrada).
+  const gruposProduto = useMemo<GrupoProdutoLine[]>(() => {
+    if (mode !== "grupo") return [];
+    return agruparPorProduto(visibleLinhas);
+  }, [mode, visibleLinhas]);
+
+  // ─── Ponto 3 — navegação por teclado: a ordem "visual" das linhas ──────────
+  //
+  // Em modo grupo a unidade de navegação é a SUB-linha (uma por
+  // farmácia dentro de cada bloco de produto), não a `Line` "solta" — daí
+  // achatar `gruposProduto` em vez de usar `visibleLinhas` directamente
+  // (a ordem resultante é a mesma, só reagrupada produto a produto, que é
+  // também a ordem em que a tabela as desenha).
+  const linhasNavegaveis = useMemo<Line[]>(() => {
+    if (mode === "grupo") return gruposProduto.flatMap((g) => g.subLinhas);
+    return visibleLinhas;
+  }, [mode, gruposProduto, visibleLinhas]);
+
+  /** `Line.key` → posição na lista navegável — o índice ESTÁVEL que as refs usam (Ponto 3.6). */
+  const rowIndexByKey = useMemo(() => {
+    const m = new Map<number, number>();
+    linhasNavegaveis.forEach((l, i) => m.set(l.key, i));
+    return m;
+  }, [linhasNavegaveis]);
+
+  // Refs por "campo" (coluna), indexadas pelo índice estável acima — o
+  // MESMO padrão de `encomendas-client.tsx` (`inputRefs` + `handleRowKeyNavigation`),
+  // estendido para vários campos por linha (célula de Decisão) em vez de um só.
+  const acaoRefs = useRef<Array<HTMLSelectElement | null>>([]);
+  const encomendaFarmaciaRefs = useRef<Array<HTMLSelectElement | null>>([]);
+  const origemFarmaciaRefs = useRef<Array<HTMLSelectElement | null>>([]);
+  const destinoFarmaciaRefs = useRef<Array<HTMLSelectElement | null>>([]);
+  const finalQtyRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const notasRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  /**
+   * A ordem dos campos "operacionais" de UMA linha, para Enter/Shift+Enter
+   * (Ponto 3.1/3.2). Fora do modo grupo não há célula de Decisão — só
+   * "Final". Em modo grupo: Decisão → (farmácia de encomenda OU
+   * origem+destino, conforme a acção) → Final. "Notas" fica de fora
+   * deliberadamente — não é um campo operacional/quantidade, é texto
+   * livre opcional.
+   */
+  function ordemCamposLinha(l: Line): CampoSlot[] {
+    if (mode !== "grupo") return ["finalQty"];
+    const campos: CampoSlot[] = ["acao"];
+    if (l.acao === "ENCOMENDAR") campos.push("encomendaFarmacia");
+    else if (l.acao === "TRANSFERIR") campos.push("origemFarmacia", "destinoFarmacia");
+    campos.push("finalQty");
+    return campos;
+  }
+
+  function focarCampoSlot(rowIndex: number, slot: CampoSlot): boolean {
+    let el: HTMLInputElement | HTMLSelectElement | null = null;
+    switch (slot) {
+      case "acao": el = acaoRefs.current[rowIndex]; break;
+      case "encomendaFarmacia": el = encomendaFarmaciaRefs.current[rowIndex]; break;
+      case "origemFarmacia": el = origemFarmaciaRefs.current[rowIndex]; break;
+      case "destinoFarmacia": el = destinoFarmaciaRefs.current[rowIndex]; break;
+      case "finalQty": el = finalQtyRefs.current[rowIndex]; break;
+    }
+    if (!el) return false;
+    el.focus();
+    if (el instanceof HTMLInputElement) el.select();
+    return true;
+  }
+
+  function registrarCampoRef(
+    slot: "acao" | "encomendaFarmacia" | "origemFarmacia" | "destinoFarmacia",
+    rowIndex: number,
+    el: HTMLSelectElement | null,
+  ) {
+    if (slot === "acao") acaoRefs.current[rowIndex] = el;
+    else if (slot === "encomendaFarmacia") encomendaFarmaciaRefs.current[rowIndex] = el;
+    else if (slot === "origemFarmacia") origemFarmaciaRefs.current[rowIndex] = el;
+    else destinoFarmaciaRefs.current[rowIndex] = el;
+  }
+
+  /**
+   * Setas ↑/↓ num `<input>` (Final/Notas): move para o MESMO campo na
+   * linha adjacente (Ponto 3.3) — nunca em `<select>` (Ponto 3.7: não
+   * capturar setas nos selects, para não quebrar a forma nativa de mudar
+   * de opção com o teclado).
+   */
+  function handleInputVerticalNav(
+    e: ReactKeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    refsArr: MutableRefObject<Array<HTMLInputElement | null>>,
+  ) {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const targetIndex =
+      e.key === "ArrowDown"
+        ? Math.min(rowIndex + 1, linhasNavegaveis.length - 1)
+        : Math.max(rowIndex - 1, 0);
+    const el = refsArr.current[targetIndex];
+    if (el) { el.focus(); el.select(); }
+  }
+
+  /**
+   * Enter avança para o próximo campo da cadeia (`ordemCamposLinha`); ao
+   * fim da linha, avança para o PRIMEIRO campo da linha seguinte.
+   * Shift+Enter faz o inverso (Ponto 3.1/3.2). Usada tanto pelos
+   * `<select>` da célula de Decisão como pelo `<input>` Final — nunca
+   * chama `preventDefault` fora da tecla Enter, e nunca intercepta Tab.
+   */
+  function handleCampoEnter(e: ReactKeyboardEvent, rowIndex: number, slot: CampoSlot) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const linha = linhasNavegaveis[rowIndex];
+    if (!linha) return;
+    const chain = ordemCamposLinha(linha);
+    const pos = chain.indexOf(slot);
+
+    if (e.shiftKey) {
+      if (pos > 0) { focarCampoSlot(rowIndex, chain[pos - 1]); return; }
+      const prevLinha = linhasNavegaveis[rowIndex - 1];
+      if (prevLinha) {
+        const prevChain = ordemCamposLinha(prevLinha);
+        focarCampoSlot(rowIndex - 1, prevChain[prevChain.length - 1]);
+      }
+      return;
+    }
+
+    if (pos < chain.length - 1) { focarCampoSlot(rowIndex, chain[pos + 1]); return; }
+    const nextLinha = linhasNavegaveis[rowIndex + 1];
+    if (nextLinha) {
+      const nextChain = ordemCamposLinha(nextLinha);
+      focarCampoSlot(rowIndex + 1, nextChain[0]);
+    }
+  }
+
+  // ─── Ponto 1 — histórico de 12 meses em lote, sempre visível ───────────────
+  //
+  // Carregado UMA vez (paginado por chunk se a proposta for grande) quando
+  // o CONJUNTO de produtos muda — nunca a cada keystroke de filtro/pesquisa
+  // (por isso a dependência é `linhas`, não `visibleLinhas`), e nunca um
+  // pedido por linha (ver `getHistoricoProdutosLoteAction`).
+  const produtoIdsParaHistorico = useMemo(
+    () => [...new Set(linhas.map((l) => l.produtoId))].sort(),
+    [linhas],
+  );
+  const [historicoPorProduto, setHistoricoPorProduto] = useState<Map<string, HistoricoProduto12MesesResult>>(
+    new Map(),
+  );
+  const [historicoCarregando, setHistoricoCarregando] = useState(false);
+
+  useEffect(() => {
+    if (produtoIdsParaHistorico.length === 0) {
+      setHistoricoPorProduto(new Map());
+      return;
+    }
+    const farmaciaIdsSet = new Set<string>();
+    for (const l of linhas) if (l.farmaciaId) farmaciaIdsSet.add(l.farmaciaId);
+    // Fallback: modo "farmacia" antes de gerar proposta (linhas manuais
+    // ainda sem `farmaciaId` preenchido não deveria acontecer, mas não
+    // custa nada ser defensivo aqui).
+    if (farmaciaIdsSet.size === 0 && farmaciaId) farmaciaIdsSet.add(farmaciaId);
+    const farmaciaIdsArr = [...farmaciaIdsSet];
+    if (farmaciaIdsArr.length === 0) {
+      setHistoricoPorProduto(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    setHistoricoCarregando(true);
+
+    const CHUNK = 150;
+    const chunks: string[][] = [];
+    for (let i = 0; i < produtoIdsParaHistorico.length; i += CHUNK) {
+      chunks.push(produtoIdsParaHistorico.slice(i, i + CHUNK));
+    }
+
+    (async () => {
+      const acumulado = new Map<string, HistoricoProduto12MesesResult>();
+      for (const chunk of chunks) {
+        if (cancelled) return;
+        const r = await getHistoricoProdutosLoteAction({ produtoIds: chunk, farmaciaIds: farmaciaIdsArr });
+        if (cancelled) return;
+        if (r.ok) {
+          for (const [pid, data] of Object.entries(r.data)) acumulado.set(pid, data);
+        }
+      }
+      if (!cancelled) {
+        setHistoricoPorProduto(acumulado);
+        setHistoricoCarregando(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // farmaciaId só entra como fallback quando nenhuma linha ainda tem
+    // farmaciaId próprio — não é um eixo de recarregamento à parte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produtoIdsParaHistorico]);
 
   // Vista consolidada (agrupada por produto)
   const consolidadoRows = useMemo(() => {
@@ -866,12 +1082,155 @@ export function OrderCreateClient({
   const totalFinalAll = linhas.reduce((s, l) => s + (Number(l.finalQty || "0") || 0), 0);
   const hasTableFilters = !!tableSearch || !!filterEstado || filterRuturas || filterStockBaixo || !!filterFarmaciaTabela;
 
+  // Total de colunas da tabela — usado pelo `colSpan` da linha de
+  // histórico inline (Ponto 1) e do cabeçalho de grupo (Ponto 2).
+  // Estado, Produto, Vendas, Média/d, Stock, Cobert., Pendente, Sugerida,
+  // Final, Notas/Motivo, Ações = 11 colunas fixas; + Farmácia (isGroupMode)
+  // + Decisão (mode === "grupo").
+  const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0);
+
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
     selSubcategorias.length + selUtilizacoes.length + selProductTypes.length +
     // A lista conta como UM filtro, não como 437: o contador diz quantos
     // eixos estão activos, e um ficheiro é um eixo.
     (listaCodigos ? 1 : 0);
+
+  // ─── Renderização de UMA linha (Ponto 1 + Ponto 2 + Ponto 3) ───────────────
+  //
+  // Reaproveitada tanto pelo modo "farmacia" (uma `<tr>` por `Line`, como
+  // sempre foi) como pelas sub-linhas de cada bloco de produto em modo
+  // "grupo" (`isSubLinha: true`) — a ÚNICA diferença visual é a célula
+  // "Produto": a sub-linha não repete designação/CNP/fabricante (já estão
+  // no cabeçalho do grupo, ver `ProdutoGrupoHeader`), só um indicador de
+  // proveniência (Ponto 2.2/2.3).
+  function renderLinhaRow(l: Line, opts?: { isSubLinha?: boolean }) {
+    const isSubLinha = opts?.isSubLinha ?? false;
+    const rowIndex = rowIndexByKey.get(l.key) ?? -1;
+    const isRutura = l.currentStock != null && l.currentStock <= 0;
+    const cobBaixo = l.coberturaAtualDias != null && l.coberturaAtualDias > 0 && l.coberturaAtualDias < 7;
+    return (
+      <tr
+        key={l.key}
+        className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""} ${isSubLinha ? "bg-slate-50/20" : ""}`}
+      >
+        <td className="px-3 py-2">
+          {l.estado && (
+            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(l.estado)}`}>
+              {estadoLabel(l.estado)}
+            </span>
+          )}
+        </td>
+        <td className="px-3 py-2 min-w-[200px]">
+          {isSubLinha ? (
+            <div className="flex items-center gap-1.5 pl-3 text-slate-300">
+              <span aria-hidden>↳</span>
+              {rotuloOrigem(l.origem) && (
+                <span className={`rounded-full border px-1.5 text-[10px] ${
+                  l.origem === "MANUAL"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-cyan-200 bg-cyan-50 text-cyan-700"
+                }`}>
+                  {rotuloOrigem(l.origem)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-medium text-slate-900">{l.designacao}</span>
+                {rotuloOrigem(l.origem) && (
+                  <span className={`rounded-full border px-1.5 text-[10px] ${
+                    l.origem === "MANUAL"
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-cyan-200 bg-cyan-50 text-cyan-700"
+                  }`}>
+                    {rotuloOrigem(l.origem)}
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                <span className="font-mono">CNP {l.cnp}</span>
+                {l.fabricante && <><span className="mx-1 text-slate-300">·</span>{l.fabricante}</>}
+              </div>
+            </>
+          )}
+        </td>
+        {isGroupMode && <td className="px-3 py-2 text-[11px] text-slate-600">{l.farmaciaNome ?? "—"}</td>}
+        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.salesQty)}</td>
+        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.avgDailySales, 1)}</td>
+        <td className={`px-3 py-2 text-right tabular-nums font-medium ${isRutura ? "text-rose-600" : "text-slate-700"}`}>
+          {fmtNum(l.currentStock)}
+        </td>
+        <td className={`px-3 py-2 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
+          {l.coberturaAtualDias != null ? `${l.coberturaAtualDias.toFixed(1)}d` : "—"}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
+        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
+        <td className="px-3 py-2">
+          <input type="number" min="0" value={l.finalQty}
+            ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
+            onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => { handleInputVerticalNav(e, rowIndex, finalQtyRefs); handleCampoEnter(e, rowIndex, "finalQty"); }}
+            disabled={busy}
+            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+        </td>
+        <td className="px-3 py-2 min-w-[220px]">
+          {l.motivo ? (
+            <p className={`text-[11px] ${l.estado === "TRANSFERÊNCIA" ? "text-blue-700" : "text-slate-500"}`}>
+              {l.motivo}
+            </p>
+          ) : (
+            <input type="text" value={l.notas}
+              ref={(el) => { notasRefs.current[rowIndex] = el; }}
+              onChange={(e) => updateLine(l.key, { notas: e.target.value })}
+              onKeyDown={(e) => handleInputVerticalNav(e, rowIndex, notasRefs)}
+              placeholder="notas"
+              disabled={busy}
+              className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+          )}
+        </td>
+        {mode === "grupo" && (
+          <td className="px-3 py-2 min-w-[240px]">
+            <DecisaoLinhaCell
+              linha={l} farmacias={farmacias} disabled={busy}
+              onChange={(patch) => updateLine(l.key, patch)}
+              rowIndex={rowIndex}
+              registrarRef={registrarCampoRef}
+              onEnterNav={handleCampoEnter}
+            />
+          </td>
+        )}
+        <td className="px-3 py-2">
+          <div className="flex items-center justify-end gap-1.5">
+            {/* Em modo grupo o histórico já está no cabeçalho do produto
+                (uma vez, agregando todas as farmácias) — o botão por
+                sub-linha seria redundante. Ver `ProdutoGrupoHeader`. */}
+            {!isSubLinha && (
+              <HistoricoProdutoButton
+                produtoId={l.produtoId}
+                produtoDesignacao={l.designacao}
+                farmaciaIds={
+                  l.farmaciaId
+                    ? [l.farmaciaId]
+                    : isGroupMode
+                      ? farmaciasVisiveis.map((f) => f.id)
+                      : farmaciaId
+                        ? [farmaciaId]
+                        : []
+                }
+              />
+            )}
+            <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
+              className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -1196,95 +1555,32 @@ export function OrderCreateClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleLinhas.map((l) => {
-                    const isRutura = l.currentStock != null && l.currentStock <= 0;
-                    const cobBaixo = l.coberturaAtualDias != null && l.coberturaAtualDias > 0 && l.coberturaAtualDias < 7;
-                    return (
-                      <tr key={l.key} className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""}`}>
-                        <td className="px-3 py-2">
-                          {l.estado && (
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(l.estado)}`}>
-                              {estadoLabel(l.estado)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 min-w-[200px]">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="font-medium text-slate-900">{l.designacao}</span>
-                            {rotuloOrigem(l.origem) && (
-                              <span className={`rounded-full border px-1.5 text-[10px] ${
-                                l.origem === "MANUAL"
-                                  ? "border-amber-200 bg-amber-50 text-amber-700"
-                                  : "border-cyan-200 bg-cyan-50 text-cyan-700"
-                              }`}>
-                                {rotuloOrigem(l.origem)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 text-[11px] text-slate-500">
-                            <span className="font-mono">CNP {l.cnp}</span>
-                            {l.fabricante && <><span className="mx-1 text-slate-300">·</span>{l.fabricante}</>}
-                          </div>
-                        </td>
-                        {isGroupMode && <td className="px-3 py-2 text-[11px] text-slate-600">{l.farmaciaNome ?? "—"}</td>}
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.salesQty)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.avgDailySales, 1)}</td>
-                        <td className={`px-3 py-2 text-right tabular-nums font-medium ${isRutura ? "text-rose-600" : "text-slate-700"}`}>
-                          {fmtNum(l.currentStock)}
-                        </td>
-                        <td className={`px-3 py-2 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
-                          {l.coberturaAtualDias != null ? `${l.coberturaAtualDias.toFixed(1)}d` : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
-                        <td className="px-3 py-2">
-                          <input type="number" min="0" value={l.finalQty}
-                            onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
-                            disabled={busy}
-                            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
-                        </td>
-                        <td className="px-3 py-2 min-w-[220px]">
-                          {l.motivo ? (
-                            <p className={`text-[11px] ${l.estado === "TRANSFERÊNCIA" ? "text-blue-700" : "text-slate-500"}`}>
-                              {l.motivo}
-                            </p>
-                          ) : (
-                            <input type="text" value={l.notas}
-                              onChange={(e) => updateLine(l.key, { notas: e.target.value })}
-                              placeholder="notas"
-                              disabled={busy}
-                              className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
-                          )}
-                        </td>
-                        {mode === "grupo" && (
-                          <td className="px-3 py-2 min-w-[240px]">
-                            <DecisaoLinhaCell linha={l} farmacias={farmacias} disabled={busy} onChange={(patch) => updateLine(l.key, patch)} />
-                          </td>
-                        )}
-                        <td className="px-3 py-2">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <HistoricoProdutoButton
-                              produtoId={l.produtoId}
-                              produtoDesignacao={l.designacao}
-                              farmaciaIds={
-                                l.farmaciaId
-                                  ? [l.farmaciaId]
-                                  : isGroupMode
-                                    ? farmaciasVisiveis.map((f) => f.id)
-                                    : farmaciaId
-                                      ? [farmaciaId]
-                                      : []
-                              }
-                            />
-                            <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
-                              className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {mode === "grupo"
+                    ? gruposProduto.map((g) => (
+                        <Fragment key={g.produtoId}>
+                          <ProdutoGrupoHeader
+                            grupo={g}
+                            colSpan={colSpanTotal}
+                            historico={historicoPorProduto.get(g.produtoId)}
+                            historicoCarregando={historicoCarregando}
+                          />
+                          {g.subLinhas.map((l) => renderLinhaRow(l, { isSubLinha: true }))}
+                        </Fragment>
+                      ))
+                    : visibleLinhas.map((l) => (
+                        <Fragment key={l.key}>
+                          {renderLinhaRow(l)}
+                          <tr className="border-b border-slate-100">
+                            <td colSpan={colSpanTotal} className="px-3 pb-2.5 pt-0">
+                              <HistoricoInlineMiniGrid
+                                historico={historicoPorProduto.get(l.produtoId)}
+                                farmaciaIds={l.farmaciaId ? [l.farmaciaId] : []}
+                                carregando={historicoCarregando}
+                              />
+                            </td>
+                          </tr>
+                        </Fragment>
+                      ))}
                 </tbody>
               </table>
             </div>
@@ -1328,10 +1624,20 @@ export function OrderCreateClient({
                             <span className="text-[11px] text-slate-400">suger. {fmtNum(l.suggestedQty)}</span>
                             <input type="number" min="0" value={l.finalQty}
                               onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+                              onFocus={(e) => e.target.select()}
                               disabled={busy}
                               className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-right text-[12px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
                           </div>
                         ))}
+                      </div>
+                      {/* Ponto 1 — histórico inline, uma vez por produto (a
+                          vista consolidada já é agrupada por produto). */}
+                      <div className="mt-2">
+                        <HistoricoInlineMiniGrid
+                          historico={historicoPorProduto.get(g.produtoId)}
+                          farmaciaIds={[...new Set(g.farmaciaLinhas.map((l) => l.farmaciaId).filter((id): id is string => !!id))]}
+                          carregando={historicoCarregando}
+                        />
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
@@ -1642,11 +1948,28 @@ function DecisaoLinhaCell({
   farmacias,
   disabled,
   onChange,
+  rowIndex,
+  registrarRef,
+  onEnterNav,
 }: {
   linha: Line;
   farmacias: { id: string; nome: string }[];
   disabled?: boolean;
   onChange: (patch: Partial<Line>) => void;
+  /** Índice estável na lista navegável (Ponto 3.6) — para as refs/Enter abaixo. */
+  rowIndex: number;
+  /** Regista a ref do `<select>` deste campo, para navegação por teclado (Ponto 3). */
+  registrarRef: (
+    slot: "acao" | "encomendaFarmacia" | "origemFarmacia" | "destinoFarmacia",
+    rowIndex: number,
+    el: HTMLSelectElement | null,
+  ) => void;
+  /**
+   * Enter/Shift+Enter avança/recua na cadeia de campos operacionais
+   * (Ponto 3.1/3.2). Nunca intercepta ArrowUp/ArrowDown — um `<select>`
+   * mantém o comportamento nativo das setas (Ponto 3.7).
+   */
+  onEnterNav: (e: ReactKeyboardEvent, rowIndex: number, slot: CampoSlot) => void;
 }) {
   const selectCls =
     "w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-cyan-400 focus:outline-none disabled:opacity-50";
@@ -1654,9 +1977,11 @@ function DecisaoLinhaCell({
   return (
     <div className="flex flex-col gap-1">
       <select
+        ref={(el) => registrarRef("acao", rowIndex, el)}
         value={linha.acao}
         disabled={disabled}
         onChange={(e) => onChange({ acao: e.target.value as AcaoLinhaGrupo, acaoTocada: true })}
+        onKeyDown={(e) => onEnterNav(e, rowIndex, "acao")}
         className={`${selectCls} font-medium`}
       >
         <option value="ENCOMENDAR">Encomendar</option>
@@ -1666,9 +1991,11 @@ function DecisaoLinhaCell({
 
       {linha.acao === "ENCOMENDAR" && (
         <select
+          ref={(el) => registrarRef("encomendaFarmacia", rowIndex, el)}
           value={linha.farmaciaEncomendaId ?? ""}
           disabled={disabled}
           onChange={(e) => onChange({ farmaciaEncomendaId: e.target.value, acaoTocada: true })}
+          onKeyDown={(e) => onEnterNav(e, rowIndex, "encomendaFarmacia")}
           className={selectCls}
         >
           <option value="">Farmácia…</option>
@@ -1681,9 +2008,11 @@ function DecisaoLinhaCell({
       {linha.acao === "TRANSFERIR" && (
         <div className="flex items-center gap-1">
           <select
+            ref={(el) => registrarRef("origemFarmacia", rowIndex, el)}
             value={linha.farmaciaOrigemId ?? ""}
             disabled={disabled}
             onChange={(e) => onChange({ farmaciaOrigemId: e.target.value, acaoTocada: true })}
+            onKeyDown={(e) => onEnterNav(e, rowIndex, "origemFarmacia")}
             className={`${selectCls} min-w-0`}
           >
             <option value="">Origem…</option>
@@ -1693,9 +2022,11 @@ function DecisaoLinhaCell({
           </select>
           <ArrowLeftRight className="h-3 w-3 shrink-0 text-slate-400" />
           <select
+            ref={(el) => registrarRef("destinoFarmacia", rowIndex, el)}
             value={linha.farmaciaDestinoId ?? ""}
             disabled={disabled}
             onChange={(e) => onChange({ farmaciaDestinoId: e.target.value, acaoTocada: true })}
+            onKeyDown={(e) => onEnterNav(e, rowIndex, "destinoFarmacia")}
             className={`${selectCls} min-w-0`}
           >
             <option value="">Destino…</option>
@@ -1709,6 +2040,150 @@ function DecisaoLinhaCell({
         <p className="text-[10px] text-rose-600">Origem e destino não podem ser a mesma farmácia.</p>
       )}
     </div>
+  );
+}
+
+// ─── Ponto 1 — histórico inline (mini-grelha compacta) ─────────────────────
+
+/**
+ * 12 colunas (meses) × 2 linhas (Compras/Vendas), sempre visível por
+ * omissão — substitui o modal on-demand para o caso comum. Quando
+ * `historico.farmacias` tem mais do que uma farmácia RELEVANTE (Ponto
+ * 1.4/2.3 — grupo consolidado com N farmácias), agrega por soma em vez
+ * de repetir a grelha inteira por farmácia: mais legível no espaço
+ * compacto de uma linha de tabela.
+ *
+ * `farmaciaIds` filtra `historico.farmacias` para as farmácias
+ * RELEVANTES a este produto/linha — o `historico` vem de um lote
+ * carregado para TODAS as farmácias da proposta (`historicoPorProduto`),
+ * e mostrar farmácias fora do âmbito desta linha/grupo seria confuso.
+ */
+function HistoricoInlineMiniGrid({
+  historico,
+  farmaciaIds,
+  carregando,
+}: {
+  historico: HistoricoProduto12MesesResult | undefined;
+  farmaciaIds: string[];
+  carregando: boolean;
+}) {
+  if (farmaciaIds.length === 0) return null;
+
+  const relevantes = historico?.farmacias.filter((f) => farmaciaIds.includes(f.farmaciaId)) ?? [];
+  if (relevantes.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-400">
+        {carregando ? "A carregar histórico…" : "Sem histórico disponível."}
+      </div>
+    );
+  }
+
+  const nMeses = relevantes[0].meses.length;
+  const meses = Array.from({ length: nMeses }, (_, i) => {
+    let compras = 0;
+    let vendas = 0;
+    let label = "";
+    for (const f of relevantes) {
+      const m = f.meses[i];
+      if (m) {
+        compras += m.compras;
+        vendas += m.vendas;
+        label = m.label;
+      }
+    }
+    return { label, compras, vendas };
+  });
+  const semLedger = relevantes.filter((f) => !f.temLedger);
+
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
+      <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
+        <span className="font-medium uppercase tracking-wider text-slate-400">Histórico 12 meses</span>
+        {relevantes.length > 1 && <span>· agregado de {relevantes.length} farmácias</span>}
+        {semLedger.length > 0 && (
+          <span className="text-amber-700">
+            · sem ledger: {semLedger.map((f) => f.farmaciaNome).join(", ")}
+          </span>
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[10px] leading-tight">
+          <thead>
+            <tr>
+              <th className="w-16 pb-0.5 pr-2 text-left font-medium text-slate-400" />
+              {meses.map((m, i) => (
+                <th key={i} className="px-1 pb-0.5 text-right font-medium text-slate-400">{m.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="pr-2 text-slate-500">Compras</td>
+              {meses.map((m, i) => (
+                <td key={i} className="px-1 text-right tabular-nums text-slate-700">{Math.round(m.compras)}</td>
+              ))}
+            </tr>
+            <tr>
+              <td className="pr-2 text-slate-500">Vendas</td>
+              {meses.map((m, i) => (
+                <td key={i} className={`px-1 text-right tabular-nums ${m.vendas < 0 ? "text-rose-600" : "text-slate-700"}`}>
+                  {Math.round(m.vendas)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Cabeçalho de UM bloco de produto em modo grupo (Ponto 2.2) — CNP,
+ * designação e fabricante aparecem AQUI, uma única vez, nunca repetidos
+ * por sub-linha de farmácia (ver `renderLinhaRow`, `isSubLinha: true`).
+ * O histórico inline (Ponto 2.3) vive logo a seguir, também uma vez,
+ * agregando `farmaciaIds` de TODAS as sub-linhas do produto (Ponto 1.5).
+ */
+function ProdutoGrupoHeader({
+  grupo,
+  colSpan,
+  historico,
+  historicoCarregando,
+}: {
+  grupo: GrupoProdutoLine;
+  colSpan: number;
+  historico: HistoricoProduto12MesesResult | undefined;
+  historicoCarregando: boolean;
+}) {
+  const farmaciaIds = [
+    ...new Set(grupo.subLinhas.map((l) => l.farmaciaId).filter((id): id is string => !!id)),
+  ];
+  return (
+    <>
+      <tr className="border-b border-slate-100 bg-slate-50">
+        <td colSpan={colSpan} className="px-3 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-semibold text-slate-900">{grupo.designacao}</span>
+            <span className="font-mono text-[11px] text-slate-500">CNP {grupo.cnp}</span>
+            {grupo.fabricante && <span className="text-[11px] text-slate-500">{grupo.fabricante}</span>}
+            <span className="text-[11px] text-slate-400">
+              · {grupo.subLinhas.length} farmácia{grupo.subLinhas.length === 1 ? "" : "s"}
+            </span>
+            <HistoricoProdutoButton
+              produtoId={grupo.produtoId}
+              produtoDesignacao={grupo.designacao}
+              farmaciaIds={farmaciaIds}
+            />
+          </div>
+        </td>
+      </tr>
+      <tr className="border-b border-slate-100">
+        <td colSpan={colSpan} className="px-3 pb-2.5 pt-0">
+          <HistoricoInlineMiniGrid historico={historico} farmaciaIds={farmaciaIds} carregando={historicoCarregando} />
+        </td>
+      </tr>
+    </>
   );
 }
 

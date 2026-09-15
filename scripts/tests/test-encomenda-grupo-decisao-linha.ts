@@ -67,6 +67,7 @@ function decisao(partial: Partial<DecisaoLinha> & { produtoId: string }): Decisa
 /** Uma "linha do ecrã" mínima, para os testes de `fundirDecisoesGrupo`. */
 function linhaCliente(partial: Partial<LinhaComDecisao> & { produtoId: string }): LinhaComDecisao {
   return {
+    farmaciaId: null,
     acao: "NAO_FAZER",
     acaoTocada: false,
     farmaciaEncomendaId: null,
@@ -279,6 +280,29 @@ console.log("\nD · a decisão tocada à mão sobrevive a um recálculo\n");
     new Map(),
   );
   eq(resultado[0].acao, "ENCOMENDAR", "produto sem histórico: fica como veio");
+}
+{
+  // REGRESSÃO: o MESMO produtoId em DUAS farmácias — o cenário exacto que
+  // `mapaDecisoes`/`fundirDecisoesGrupo` chaveados só por `produtoId`
+  // (sem `farmaciaId`) misturavam. Farmácia A decide TRANSFERIR à mão;
+  // farmácia B (mesmo produto, sua própria linha) decide ENCOMENDAR à
+  // mão. Um recálculo não pode fazer uma herdar a decisão da outra.
+  const antigas = [
+    linhaCliente({ produtoId: "p1", farmaciaId: "A", acao: "TRANSFERIR", acaoTocada: true, farmaciaOrigemId: "B", farmaciaDestinoId: "A", finalQty: "7" }),
+    linhaCliente({ produtoId: "p1", farmaciaId: "B", acao: "ENCOMENDAR", acaoTocada: true, farmaciaEncomendaId: "B", finalQty: "15" }),
+  ];
+  const novasSugeridas = [
+    linhaCliente({ produtoId: "p1", farmaciaId: "A", acao: "ENCOMENDAR", acaoTocada: false, farmaciaEncomendaId: "A", finalQty: "3" }),
+    linhaCliente({ produtoId: "p1", farmaciaId: "B", acao: "NAO_FAZER", acaoTocada: false, finalQty: "0" }),
+  ];
+  const resultado = fundirDecisoesGrupo(novasSugeridas, mapaDecisoes(antigas));
+
+  const linhaA = resultado.find((l) => l.farmaciaId === "A")!;
+  const linhaB = resultado.find((l) => l.farmaciaId === "B")!;
+  eq(linhaA.acao, "TRANSFERIR", "farmácia A: mantém a SUA decisão (TRANSFERIR), não herda a de B");
+  eq(linhaA.finalQty, "7", "…com a SUA quantidade, não a de B (15) nem a nova sugestão (3)");
+  eq(linhaB.acao, "ENCOMENDAR", "farmácia B: mantém a SUA decisão (ENCOMENDAR), não herda a de A");
+  eq(linhaB.finalQty, "15", "…com a SUA quantidade, não a de A (7) nem a nova sugestão (0)");
 }
 
 // ═════════════════════════════════════════════════════════════════════

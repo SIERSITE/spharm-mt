@@ -73,11 +73,10 @@ export default async function EncomendasPage({ searchParams }: Props) {
 
   return (
     <MainShell>
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="py-8">
         <h1 className="text-2xl font-semibold text-gray-900">Encomendas</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Lista de encomendas criadas. Finalize rascunhos, acompanhe o estado de exportação e
-          simule respostas do agent.
+          Lista de encomendas criadas. Finalize rascunhos e acompanhe o estado de exportação.
         </p>
         <div className="mt-6">
           <OrderListClient data={data} filters={filters} />

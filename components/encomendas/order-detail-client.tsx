@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
@@ -70,6 +71,36 @@ export function OrderDetailClient({ detail }: Props) {
   // de verdade). Em caso de erro, o flash mostra e o router refresh
   // restaura.
   const [linhas, setLinhas] = useState(detail.linhas);
+
+  // ─── Ponto 3 (secundário) — navegação por teclado no campo "Final" ────────
+  //
+  // Tabela mais simples que a de `order-create-client.tsx` — sem célula
+  // de Decisão, um único campo operacional por linha ("Final"). Mesmo
+  // padrão de índice estável (posição na lista renderizada) + refs, sem
+  // capturar Tab nem as setas de nenhum `<select>` (não há nenhum aqui).
+  const finalQtyRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  function handleFinalQtyKeyDown(e: ReactKeyboardEvent<HTMLInputElement>, rowIndex: number) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const el = finalQtyRefs.current[Math.min(rowIndex + 1, linhas.length - 1)];
+      if (el) { el.focus(); el.select(); }
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const el = finalQtyRefs.current[Math.max(rowIndex - 1, 0)];
+      if (el) { el.focus(); el.select(); }
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const targetIndex = e.shiftKey ? rowIndex - 1 : rowIndex + 1;
+      if (targetIndex < 0 || targetIndex > linhas.length - 1) return;
+      const el = finalQtyRefs.current[targetIndex];
+      if (el) { el.focus(); el.select(); }
+    }
+  }
 
   const editable = detail.editable && !busy;
   const totalQty = linhas.reduce(
@@ -361,7 +392,7 @@ export function OrderDetailClient({ detail }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {linhas.map((l) => (
+                {linhas.map((l, rowIndex) => (
                   <tr key={l.id} className="border-b border-slate-50">
                     <td className="px-3 py-2">
                       <div className="flex items-baseline gap-1.5">
@@ -413,11 +444,14 @@ export function OrderDetailClient({ detail }: Props) {
                     <td className="px-3 py-2 text-right">
                       {editable ? (
                         <input
+                          ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
                           type="number"
                           min="0"
                           value={l.quantidadeAjustada ?? ""}
                           onChange={(e) => handleQtyChange(l.id, e.target.value)}
                           onBlur={() => handleQtyBlur(l.id)}
+                          onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => handleFinalQtyKeyDown(e, rowIndex)}
                           disabled={busy}
                           className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50"
                         />

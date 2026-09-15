@@ -132,6 +132,16 @@ export function sugerirDecisao(input: {
  */
 export type LinhaComDecisao = {
   produtoId: string;
+  /**
+   * Farmácia DESTA linha (a que gerou a sugestão original) — distinta de
+   * `farmaciaEncomendaId`/`farmaciaOrigemId`/`farmaciaDestinoId`, que são
+   * a DECISÃO. Obrigatória para a chave composta de `mapaDecisoes` — sem
+   * ela, o mesmo `produtoId` em duas farmácias diferentes (proposta de
+   * grupo com &gt;1 farmácia a precisar/ter excesso do mesmo produto)
+   * colidia no `Map` e uma farmácia herdava, por engano, a decisão da
+   * outra ao recalcular a proposta.
+   */
+  farmaciaId: string | null;
   acao: AcaoLinhaGrupo;
   acaoTocada: boolean;
   farmaciaEncomendaId: string | null;
@@ -139,6 +149,15 @@ export type LinhaComDecisao = {
   farmaciaDestinoId: string | null;
   finalQty: string;
 };
+
+/**
+ * Chave composta produto+farmácia — é a granularidade real de uma linha
+ * de proposta de grupo (ver `LinhaComDecisao.farmaciaId`). Nunca usar só
+ * `produtoId` como chave de um `Map`/índice de linhas de grupo.
+ */
+function chaveLinha(produtoId: string, farmaciaId: string | null): string {
+  return `${produtoId}:${farmaciaId ?? ""}`;
+}
 
 /**
  * Preserva a decisão do utilizador entre recálculos da proposta.
@@ -159,7 +178,7 @@ export function fundirDecisoesGrupo<T extends LinhaComDecisao>(
   decisoesAntigas: ReadonlyMap<string, LinhaComDecisao>,
 ): T[] {
   return linhasFinais.map((l) => {
-    const antiga = decisoesAntigas.get(l.produtoId);
+    const antiga = decisoesAntigas.get(chaveLinha(l.produtoId, l.farmaciaId));
     if (!antiga || !antiga.acaoTocada) return l;
     return {
       ...l,
@@ -173,15 +192,16 @@ export function fundirDecisoesGrupo<T extends LinhaComDecisao>(
   });
 }
 
-/** Índice por produtoId, para `fundirDecisoesGrupo`. */
+/** Índice por produtoId+farmaciaId (`chaveLinha`), para `fundirDecisoesGrupo`. */
 export function mapaDecisoes<T extends LinhaComDecisao>(
   linhas: readonly T[],
 ): Map<string, LinhaComDecisao> {
   return new Map(
     linhas.map((l) => [
-      l.produtoId,
+      chaveLinha(l.produtoId, l.farmaciaId),
       {
         produtoId: l.produtoId,
+        farmaciaId: l.farmaciaId,
         acao: l.acao,
         acaoTocada: l.acaoTocada,
         farmaciaEncomendaId: l.farmaciaEncomendaId,

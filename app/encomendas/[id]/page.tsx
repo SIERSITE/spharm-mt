@@ -19,7 +19,7 @@ export default async function OrderDetailPage({ params }: Props) {
 
   return (
     <MainShell>
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="py-8">
         <OrderDetailClient detail={detail} />
       </div>
     </MainShell>

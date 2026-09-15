@@ -159,3 +159,84 @@ export function buildHistoricoSeries(input: BuildHistoricoSeriesInput): Historic
     };
   });
 }
+
+// ─── Lote (N produtos) — partição pura, sem Prisma ─────────────────────────
+
+/** Uma linha de movimento mensal já agregada, com `produtoId` — a forma que vem do `$queryRaw` em lote. */
+export type HistoricoMovRowLote = HistoricoMovRow & { produtoId: string };
+
+/** `ProdutoFarmacia.stockAtual` de um (produto, farmácia). */
+export type HistoricoStockRowLote = {
+  produtoId: string;
+  farmaciaId: string;
+  stockAtual: number | null;
+};
+
+export type BuildHistoricoLoteInput = {
+  produtos: Array<{ id: string; cnp: number; designacao: string }>;
+  farmaciaIds: string[];
+  movRows: HistoricoMovRowLote[];
+  stockRows: HistoricoStockRowLote[];
+  nomeById: Map<string, string>;
+  ledgerById: Map<string, boolean>;
+  periodEndKey: number;
+  monthsBack?: number;
+};
+
+/**
+ * A parte PURA de `getHistoricoProdutosEmLote`
+ * (`lib/encomendas/historico-produto.ts`): reparte `movRows`/`stockRows`
+ * (já vindas de UMA consulta agregada para N produtos) por `produtoId`, e
+ * chama `buildHistoricoSeries` uma vez por produto — a MESMA função pura
+ * que a versão de um único produto usa, sem reimplementar nada da
+ * agregação em si (janela de 12 meses, zero-preenchimento, métricas
+ * canónicas). `nomeById`/`ledgerById`/`farmaciaIds` são partilhados por
+ * todos os produtos do lote — o ledger e o universo de farmácias não
+ * mudam de produto para produto.
+ *
+ * Testável com fixtures sintéticas, sem BD — mesma razão de
+ * `buildHistoricoSeries`.
+ */
+export function buildHistoricoLote(
+  input: BuildHistoricoLoteInput,
+): Map<string, HistoricoProduto12MesesResult> {
+  const movRowsByProduto = new Map<string, HistoricoMovRow[]>();
+  for (const r of input.movRows) {
+    let arr = movRowsByProduto.get(r.produtoId);
+    if (!arr) {
+      arr = [];
+      movRowsByProduto.set(r.produtoId, arr);
+    }
+    arr.push({ farmaciaId: r.farmaciaId, ano: r.ano, mes: r.mes, compras: r.compras, vendas: r.vendas });
+  }
+
+  const stockByProduto = new Map<string, Map<string, number | null>>();
+  for (const r of input.stockRows) {
+    let m = stockByProduto.get(r.produtoId);
+    if (!m) {
+      m = new Map();
+      stockByProduto.set(r.produtoId, m);
+    }
+    m.set(r.farmaciaId, r.stockAtual);
+  }
+
+  const resultado = new Map<string, HistoricoProduto12MesesResult>();
+  for (const produto of input.produtos) {
+    const series = buildHistoricoSeries({
+      farmaciaIds: input.farmaciaIds,
+      movRows: movRowsByProduto.get(produto.id) ?? [],
+      nomeById: input.nomeById,
+      stockById: stockByProduto.get(produto.id) ?? new Map(),
+      ledgerById: input.ledgerById,
+      periodEndKey: input.periodEndKey,
+      monthsBack: input.monthsBack,
+    });
+    resultado.set(produto.id, {
+      produtoId: produto.id,
+      cnp: produto.cnp,
+      designacao: produto.designacao,
+      farmacias: series,
+    });
+  }
+  return resultado;
+}
