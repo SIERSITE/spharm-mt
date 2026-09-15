@@ -58,7 +58,10 @@ console.log("\n=== A. CNP exacto, CNP parcial, designação parcial — o MESMO 
 {
   const exacto = construirCondicaoPesquisa("5880034");
   ok("CNP exacto compara em texto (cobre exacto E parcial)", exacto.sql.includes('p."cnp"::text LIKE'));
-  ok("…e também tenta a designação", exacto.sql.includes('p."designacao" ILIKE'));
+  ok(
+    "…e também tenta a designação, via unaccent_immutable dos dois lados",
+    exacto.sql.includes('unaccent_immutable(p."designacao") ILIKE unaccent_immutable('),
+  );
   eq("padrão = %termo%, para os dois campos", exacto.values, ["%5880034%", "%5880034%"]);
 
   const parcial = construirCondicaoPesquisa("58800");
@@ -66,7 +69,10 @@ console.log("\n=== A. CNP exacto, CNP parcial, designação parcial — o MESMO 
 
   const nome = construirCondicaoPesquisa("depuralina");
   ok("texto não-numérico só compara designação (CNP nunca casa com letras)", !nome.sql.includes('p."cnp"'));
-  ok("…via ILIKE, sem distinguir maiúsculas", nome.sql.includes('p."designacao" ILIKE'));
+  ok(
+    "…via unaccent_immutable + ILIKE, sem distinguir maiúsculas nem acentos",
+    nome.sql.includes('unaccent_immutable(p."designacao") ILIKE unaccent_immutable('),
+  );
   eq("padrão da designação", nome.values, ["%depuralina%"]);
 }
 
@@ -124,6 +130,34 @@ console.log("\n=== D. Vendas já não exige CNP exacto ===");
     "a UI de pesquisa (\"Artigo\") continua no ecrã — nunca desapareceu",
     src("components/vendas/vendas-client.tsx").includes('label="Artigo"'),
   );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// E · Migration da extensão/índice unaccent — sem ela, o SQL de A falha
+// ═════════════════════════════════════════════════════════════════════
+//
+// A prova de que a query REALMENTE devolve os produtos certos (contra
+// Postgres a sério, com a migration aplicada) está em
+// scripts/tests/test-pesquisa-produto-live.ts — este teste só confirma
+// que a migration existe, é aditiva e está ligada ao módulo de pesquisa.
+console.log("\n=== E. Migration unaccent — aditiva, sem tocar no índice existente ===");
+{
+  const mig = src("prisma/migrations/20260915140000_pesquisa_unaccent/migration.sql");
+  ok("activa a extensão unaccent (trusted, sem superuser)", mig.includes("CREATE EXTENSION IF NOT EXISTS unaccent"));
+  ok(
+    "cria o wrapper IMMUTABLE — unaccent() sozinho é STABLE e não serve para índice",
+    mig.includes("LANGUAGE sql IMMUTABLE") && mig.includes("unaccent_immutable"),
+  );
+  ok(
+    "índice GIN trigram FUNCIONAL sobre unaccent_immutable(designacao) — mantém a pesquisa rápida",
+    mig.includes('CREATE INDEX IF NOT EXISTS "Produto_designacao_unaccent_trgm_idx"') &&
+      mig.includes("gin_trgm_ops"),
+  );
+  ok(
+    "não remove o índice trigram raw nem nada que outro relatório (ex: /stock) já use",
+    !/DROP INDEX|DROP FUNCTION|DROP EXTENSION/i.test(mig),
+  );
+  ok("não reescreve nem apaga dados", !/UPDATE |DELETE /i.test(mig));
 }
 
 console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

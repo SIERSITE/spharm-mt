@@ -153,7 +153,9 @@
     "test:transferencia-por-id": "tsx scripts/tests/test-transferencia-por-id.ts",
     "test:historico-inline-refetch": "tsx scripts/tests/test-historico-inline-refetch.ts",
     "test:custo-vendas-margens": "tsx scripts/tests/test-custo-vendas-margens.ts",
-    "test:pesquisa-produto": "tsx scripts/tests/test-pesquisa-produto.ts"
+    "test:pesquisa-produto": "tsx scripts/tests/test-pesquisa-produto.ts",
+    "test:pesquisa-produto-live": "tsx scripts/tests/test-pesquisa-produto-live.ts",
+    "test:margens-custo-cnp8322628": "tsx scripts/tests/test-margens-custo-cnp8322628.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

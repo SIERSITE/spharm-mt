@@ -65,7 +65,10 @@ console.log("\nA · pesquisa por CNP");
 {
   const c = construirCondicaoPesquisa("5880034");
   check(c.sql.includes('p."cnp"::text LIKE'), "compara o CNP em texto");
-  check(c.sql.includes('p."designacao" ILIKE'), "procura também na designação");
+  check(
+    c.sql.includes('unaccent_immutable(p."designacao") ILIKE unaccent_immutable('),
+    "procura também na designação — sem distinguir acentos (unaccent_immutable)",
+  );
   eq(c.values, ["%5880034%", "%5880034%"], "parâmetros = o padrão, duas vezes");
 
   // Parte do CNP — o caso que a igualdade numérica não cobria.
@@ -95,7 +98,10 @@ console.log("\nA · pesquisa por CNP");
 console.log("\nB · pesquisa por designação");
 {
   const c = construirCondicaoPesquisa("depuralina");
-  check(c.sql.includes('p."designacao" ILIKE'), "ILIKE — não distingue maiúsculas");
+  check(
+    c.sql.includes('unaccent_immutable(p."designacao") ILIKE unaccent_immutable('),
+    "ILIKE — não distingue maiúsculas nem acentos",
+  );
   check(
     !c.sql.includes('p."cnp"'),
     "não procura no CNP quando o termo tem letras (seria sempre falso)",
