@@ -1899,6 +1899,51 @@ function writeBatchWrappers() {
     "utf8"
   );
 
+  // sync-now-poll-auto — Bloco E, TASK SCHEDULER target (poll de 2 em 2 min).
+  // Mesmo estilo de exportOrdersAutoBat: sem prompts, sem janela visivel,
+  // tudo redirigido para o log. Cada execucao: GET pending (so a farmacia
+  // configurada) -> se houver pedido, produtos+stock DE HOJE -> ack/fail ao
+  // SaaS. NUNCA vendas — ver agent/docs/sync-now.md para o desenho completo
+  // (endpoint, frequencia, autenticacao, lock, retry, comando schtasks).
+  const syncNowPollAutoBat = [
+    `@echo off`,
+    `REM SPharm.MT agent — sync-now POLL AUTO (Task Scheduler)`,
+    `REM Gerado por agent/build.mjs. Não editar manualmente.`,
+    `setlocal`,
+    ``,
+    `cd /d "%~dp0"`,
+    `if not exist agent.config.json (`,
+    `  echo ERRO: agent.config.json nao encontrado em %~dp0.`,
+    `  exit /b 1`,
+    `)`,
+    `if not exist node.exe (`,
+    `  echo ERRO: node.exe nao encontrado em %~dp0.`,
+    `  exit /b 1`,
+    `)`,
+    `if not exist logs mkdir logs`,
+    ``,
+    `REM Data YYYY-MM-DD via node (sem dependencia de locale)`,
+    `for /f "tokens=*" %%I in ('node.exe -e "process.stdout.write(new Date().toISOString().slice(0,10))"') do set "TODAY=%%I"`,
+    `set "LOGFILE=logs\\sync-now-%TODAY%.log"`,
+    ``,
+    `echo. >> "%LOGFILE%"`,
+    `echo === [%DATE% %TIME%] sync-now-poll-auto START === >> "%LOGFILE%"`,
+    `node.exe agent.cjs sync-now >> "%LOGFILE%" 2>&1`,
+    `set EXIT=%ERRORLEVEL%`,
+    `echo === [%DATE% %TIME%] sync-now-poll-auto END (exit=%EXIT%) === >> "%LOGFILE%"`,
+    ``,
+    `if not "%EXIT%"=="0" (`,
+    `  echo ERROR: sync-now retornou %EXIT% — ver %LOGFILE%`,
+    `)`,
+    `endlocal & exit /b %EXIT%`,
+    ``,
+  ].join("\r\n");
+  fs.writeFileSync(
+    path.join(DIST_ROOT, "run-sync-now-poll-auto.bat"),
+    syncNowPollAutoBat,
+    "utf8"
+  );
+
   // bootstrap-upload — wrapper interactivo com CONFIRMAÇÃO explícita,
   // já que este comando ESCREVE para a SaaS (idempotente, mas real)
   const bootstrapUploadBat = [
@@ -2137,6 +2182,7 @@ function writeReadme() {
     `  run-test-order-write.bat        Smoke test de INSERT de encomenda. DRY-RUN default; opcao 2 = COMMIT.`,
     `  run-export-orders-auto.bat      Task Scheduler: 1 ciclo de export-orders. Log em logs\\export-orders-*.log.`,
     `  run-export-orders-once.bat      Execucao manual interactiva (pause no fim).`,
+    `  run-sync-now-poll-auto.bat      Task Scheduler (2/2 min): poll de sync-now. Log em logs\\sync-now-*.log. Ver agent/docs/sync-now.md.`,
     `  run-health.bat                  Diagnostico verboso`,
     `  INSTALL_WINDOWS.md              Guia passo a passo`,
     `  SECURITY.md                     Checklist de seguranca`,
