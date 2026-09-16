@@ -4,17 +4,32 @@
  * Orquestrador autónomo do ciclo operacional diário:
  *
  *    1. compute `--date` = ontem se não dado (Europe/Lisbon)
- *    2. acquire lockfile (run/pipeline.lock) — abort se já corre
- *    3. correr daily-sync (lê ERP → POSTa staging)
- *    4. correr aggregate-month server-side (chama API SaaS)
- *    5. validar safety conditions
- *    6. POST /api/admin/pipeline/record com status final
- *    7. release lockfile
- *    8. imprimir RESUMO operacional + escrever logs estruturados
+ *    2. resolver farmaciaId no SaaS (ANTES do lock — ver nota abaixo)
+ *    3. acquire lockfile (run/pipeline.lock) — abort se já corre
+ *    4. correr daily-sync (lê ERP → POSTa staging), âmbito "hoje"
+ *    5. correr fornecedores/compras/devoluções/movimentos
+ *    6. refresh operacional (2026-09): re-ler TODO o catálogo activo
+ *       (produtos+stock, sem filtro de dia) — fecha a lacuna do passo 4,
+ *       que só relê um produto que vendeu/comprou/moveu NESSE dia. Ver
+ *       `runOperationalRefresh` em `daily-sync-runner.ts`.
+ *    7. correr aggregate-month server-side (chama API SaaS)
+ *    8. validar safety conditions
+ *    9. POST /api/admin/pipeline/record com status final
+ *   10. release lockfile
+ *   11. imprimir RESUMO operacional + escrever logs estruturados
+ *
+ * Ordem farmaciaId→lock (2026-09): antes, o lock era tentado primeiro, e
+ * um lock ocupado abortava com `farmaciaId=""` — o `finally` só regista
+ * `PipelineRun` `if (farmaciaId)`, por isso esse abort NUNCA chegava ao
+ * SaaS (só ao log local). Resolver `farmaciaId` primeiro (é só uma
+ * chamada HTTP de leitura, não toca no lock nem no ERP) garante que
+ * QUALQUER abort — incluindo por lock ocupado — fica auditável em
+ * `PipelineRun`, com `status="ABORTED"` e o motivo exacto.
  *
  * Logs locais (em `logs/`):
  *    · pipeline-YYYY-MM-DD.log    — resumo orquestrador
- *    · daily-sync-YYYY-MM-DD.log  — stdout do passo daily-sync
+ *    · daily-sync-YYYY-MM-DD.log  — stdout dos passos daily-sync e
+ *      refresh operacional (partilham o mesmo ficheiro)
  *    · aggregate-YYYY-MM.log      — resposta do aggregate-month
  *
  * Safety aborts (ver `lib/aggregate/vendamensal.ts` para os 3 server-side):
@@ -24,7 +39,8 @@
  *    · Plus client-side: lockfile presente, tenant não resolvível.
  *
  * Idempotente: re-correr o mesmo --date é seguro (daily-sync upserts via
- * unique constraints; aggregate delete-then-insert scoped).
+ * unique constraints; aggregate delete-then-insert scoped). O refresh
+ * operacional é idempotente por construção — não tem "--date" nenhum.
  */
 
 import { parseArgs } from "node:util";
@@ -36,7 +52,12 @@ import { loadConfig, type AgentConfig } from "../config.js";
 import { withPool } from "../sql-client.js";
 import { SaasClient, SaasApiError, type PipelineAggregateResponse } from "../http-client.js";
 import { parseDateArg, tableExists, listColumns } from "./probe-helpers.js";
-import { runPipelineForDay, type PipelineRunCounts } from "./daily-sync-runner.js";
+import {
+  runPipelineForDay,
+  runOperationalRefresh,
+  type PipelineRunCounts,
+  type OperationalRefreshCounts,
+} from "./daily-sync-runner.js";
 import { avaliarSaudeVendas, type VeredictoVendas } from "../saude-vendas.js";
 import { ontemNaFarmacia } from "../janela.js";
 import { janelaConsulta, planearCatchUp } from "../catch-up.js";
@@ -682,6 +703,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   let dailySyncCounts: PipelineRunCounts | null = null;
   let saudeVendas: VeredictoVendas | null = null;
   let aggregateResp: PipelineAggregateResponse | null = null;
+  let refreshOperacional: OperationalRefreshCounts | null = null;
 
   pipelineLog.raw(DOUBLE_RULE);
   pipelineLog.raw(`daily-pipeline — autonomous run`);
@@ -710,19 +732,29 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
   let errorMessage: string | undefined;
   let farmaciaId: string = "";
 
-  try {
-    // Lock acquire
-    try {
-      await acquireLock(args.force === true, "daily-pipeline", parsedDate);
-      lockAcquired = true;
-    } catch (err) {
-      pipelineStatus = "ABORTED";
-      errorMessage = err instanceof Error ? err.message : String(err);
-      pipelineLog.log(`✗ ABORTED [lock]: ${errorMessage}`);
-      return 1;
-    }
+  const client = new SaasClient(cfg);
 
-    const client = new SaasClient(cfg);
+  try {
+    // Resolver farmaciaId ANTES do lock — de propósito, e na ordem
+    // inversa da original.
+    //
+    // Antes (2026-09), o lock era tentado primeiro: se estivesse
+    // ocupado (`sync-now`/`full-sync`/outra corrida presa), o pipeline
+    // devolvia `return 1` com `farmaciaId` ainda `""`, e o bloco
+    // `finally` só regista `PipelineRun` `if (farmaciaId)` — um abort
+    // por lock ocupado NUNCA chegava ao SaaS. Ficava só no log local
+    // (`logs/pipeline-YYYY-MM-DD.log`) e, quando muito, num ping a
+    // Healthchecks.io — invisível em `/admin/pipeline`, e sem distinção
+    // de "esta farmácia não sincronizou" vs. "esta farmácia sincronizou
+    // mas encontrou um lock ocupado, que é um sintoma operacional
+    // diferente (ex.: `sync-now` a demorar, ou um lock stale)".
+    //
+    // `resolveFarmaciaId` é só uma chamada HTTP de leitura ao SaaS — não
+    // toca no ERP nem no lockfile, por isso não há razão nenhuma para a
+    // fazer depois do lock. Resolvendo-a primeiro, `farmaciaId` já está
+    // preenchido quando (e se) o lock falhar, e o `finally` grava o
+    // `PipelineRun` com `status="ABORTED"` e o motivo exacto — como
+    // qualquer outra falha.
     try {
       farmaciaId = await resolveFarmaciaId(client, cfg.farmacia);
     } catch (err) {
@@ -733,6 +765,18 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
     }
     pipelineLog.log(`Farmácia resolved : ${farmaciaId}`);
     pipelineLog.log("");
+
+    // Lock acquire
+    try {
+      await acquireLock(args.force === true, "daily-pipeline", parsedDate);
+      lockAcquired = true;
+    } catch (err) {
+      pipelineStatus = "ABORTED";
+      errorMessage = err instanceof Error ? err.message : String(err);
+      steps.push({ name: "lock", status: "ERROR", durationMs: 0, message: errorMessage });
+      pipelineLog.log(`✗ ABORTED [lock]: ${errorMessage}`);
+      return 1;
+    }
 
     // 1) daily-sync
     const tDailySync = Date.now();
@@ -814,6 +858,55 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
         errorMessage = errorMessage ?? `${p.label} falhou (exit ${rc})`;
         pipelineLog.log(`✗ ${p.label} ERROR (exit ${rc}) — repetível com o mesmo --date`);
       }
+    }
+
+    // 1c) Refresh operacional — catálogo inteiro, sem filtro de dia.
+    //
+    // Fecha a lacuna do `daily-sync` (Passo 1): produtos sem
+    // venda/compra/movimento NESSE dia nunca voltam a entrar no filtro
+    // de `scope: "date"`, e o seu pmc/puc/stock em `ProdutoFarmacia`
+    // fica congelado indefinidamente — mesmo que o ERP tenha mudado
+    // entretanto. Corre sempre, mesmo com `--skip-aggregate` (é
+    // independente da agregação de vendas). Uma falha aqui é PARTIAL,
+    // nunca ERROR/ABORTED: produtos, stock e vendas do dia já foram
+    // gravados correctamente por cima — só o catálogo INTEIRO é que fica
+    // por refrescar até à corrida seguinte (idempotente, repete-se
+    // sozinho). Ver `runOperationalRefresh` em `daily-sync-runner.ts`.
+    {
+      const t0 = Date.now();
+      pipelineLog.raw(RULE);
+      pipelineLog.log(`▶ Refresh operacional (catálogo inteiro) ${parsedDate}`);
+      pipelineLog.raw(RULE);
+      try {
+        refreshOperacional = await withPool(cfg, async (pool) => {
+          return runOperationalRefresh({
+            pool,
+            client,
+            farmaciaId,
+            schemaProbes: { tableExists, listColumns },
+            logger: dailySyncLog,
+          });
+        });
+        const dur = Date.now() - t0;
+        steps.push({ name: "refresh-operacional", status: "OK", durationMs: dur });
+        pipelineLog.log(
+          `  produtos read=${refreshOperacional.productsRead} upserted=${refreshOperacional.productsUpserted} errors=${refreshOperacional.productsErrors}`,
+        );
+        pipelineLog.log(
+          refreshOperacional.stockSaltado
+            ? `  stock: saltado (sem dbo.StocksMov)`
+            : `  stock    read=${refreshOperacional.stockRead} upserted=${refreshOperacional.stockUpserted} errors=${refreshOperacional.stockErrors}`,
+        );
+        pipelineLog.log(`  refresh operacional OK em ${fmtDuration(dur)}`);
+      } catch (err) {
+        const dur = Date.now() - t0;
+        const msg = err instanceof Error ? err.message : String(err);
+        steps.push({ name: "refresh-operacional", status: "ERROR", durationMs: dur, message: msg });
+        if (pipelineStatus === "OK") pipelineStatus = "PARTIAL";
+        errorMessage = errorMessage ?? `refresh-operacional falhou: ${msg}`;
+        pipelineLog.log(`✗ refresh-operacional ERROR: ${msg} — repetível na corrida seguinte`);
+      }
+      pipelineLog.log("");
     }
 
     // 2) aggregate-month (skippable)
@@ -904,6 +997,16 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
       pipelineLog.log(`Sales lines synced: ${dailySyncCounts.salesUpserted}`);
       pipelineLog.raw("");
     }
+    if (refreshOperacional) {
+      pipelineLog.log(`Refresh operacional (catálogo inteiro):`);
+      pipelineLog.log(`  products upserted: ${refreshOperacional.productsUpserted}`);
+      pipelineLog.log(
+        refreshOperacional.stockSaltado
+          ? `  stock: saltado (sem StocksMov)`
+          : `  stock upserted: ${refreshOperacional.stockUpserted}`,
+      );
+      pipelineLog.raw("");
+    }
     if (aggregateResp) {
       pipelineLog.log(`VendaMensal:`);
       pipelineLog.log(`  rows inserted: ${aggregateResp.rowsInserted}`);
@@ -930,6 +1033,7 @@ async function correrDiaCompleto(parsedDate: string, args: Args): Promise<number
           aggregateMonth: month,
           steps,
           dailySync: dailySyncCounts ?? undefined,
+          refreshOperacional: refreshOperacional ?? undefined,
           // O veredicto viaja para o SaaS com os tipos por declarar lá
           // dentro. É o que faz a diferença entre "salesSkipped=1117" —
           // que não diz o que fazer — e "ATENDIMENTO_DETALHE:77×1090",

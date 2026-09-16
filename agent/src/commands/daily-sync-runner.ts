@@ -269,30 +269,56 @@ async function detectCapabilities(pool: SqlPool, probes: SchemaProbeAPI): Promis
  * query gerada. A prova executável continua a ser o `daily-sync-dry-run`
  * contra o ERP.
  */
-export function buildProductsSql(caps: SchemaCapabilities): string {
-  const extraDateOr = caps.hasDataActualiz
-    ? "\n        OR CAST(s.[Data_Actualiz] AS DATE) = @date"
-    : "";
-  // O movimento do dia. Só existe se o ERP tiver a tabela e a coluna.
-  const moveuNoDia =
-    caps.hasStocksMov && caps.stocksMovDateCol
-      ? `EXISTS (
+/**
+ * `scope: "date"` (default) — o catálogo do DIA (ver o comentário longo
+ * acima): só produtos activos nessa janela, ou retirados com movimento
+ * nesse dia. É o que `daily-sync`/`daily-pipeline` (passo 1) e
+ * `sync-now` sempre usaram, e continua a ser o caminho de reacção
+ * IMEDIATA a uma venda/compra.
+ *
+ * `scope: "full"` (2026-09) — o REFRESH OPERACIONAL diário: todo o
+ * catálogo activo (`Retirado = 0`), sem nenhum filtro de data. Existe
+ * porque `scope: "date"` tem um limite estrutural que o "dia" nunca
+ * resolve sozinho: um produto que deixa de vender/comprar não volta a
+ * entrar no filtro, e o seu `pmc`/`puc`/stock em `ProdutoFarmacia` fica
+ * congelado indefinidamente — mesmo que o valor no ERP tenha mudado
+ * entretanto (caso real: CNP 8322628, Farmácia Segurado, PMC preso a
+ * 147,42 € durante 12 dias por falta de venda/compra nesse período).
+ * `@date` não entra nesta cláusula — não há "hoje" nenhum a comparar.
+ * Retirados ficam de fora aqui de propósito: ao contrário do `scope:
+ * "date"` (onde uma devolução tardia de um artigo retirado tinha de
+ * entrar para não bloquear o aggregate-month), este refresh só existe
+ * para manter fresco o que continua à venda.
+ */
+export function buildProductsSql(caps: SchemaCapabilities, scope: "date" | "full" = "date"): string {
+  let ambito: string;
+  if (scope === "full") {
+    ambito = "s.[Retirado] = 0";
+  } else {
+    const extraDateOr = caps.hasDataActualiz
+      ? "\n        OR CAST(s.[Data_Actualiz] AS DATE) = @date"
+      : "";
+    // O movimento do dia. Só existe se o ERP tiver a tabela e a coluna.
+    const moveuNoDia =
+      caps.hasStocksMov && caps.stocksMovDateCol
+        ? `EXISTS (
           SELECT 1 FROM [dbo].[StocksMov] sm
           WHERE sm.CodigoID = s.CodigoID
             AND CAST(sm.[${caps.stocksMovDateCol}] AS DATE) = @date
         )`
-      : null;
-  const activoNaJanela = `s.[Retirado] = 0
+        : null;
+    const activoNaJanela = `s.[Retirado] = 0
         AND (
           CAST(s.[Data Ultima Venda] AS DATE) = @date
           OR CAST(s.[Data Ultima Compra] AS DATE) = @date${extraDateOr}
         )`;
-  const ambito = moveuNoDia
-    ? `(
+    ambito = moveuNoDia
+      ? `(
         ${activoNaJanela}
       )
       OR ${moveuNoDia}`
-    : activoNaJanela;
+      : activoNaJanela;
+  }
   // rev92 — mesmo catálogo regulamentar que o onboarding já lê
   // (`bootstrap-upload.ts` via `discoverCatalogPlan`). `caps.catalogPlan`
   // vem de `detectCapabilities`; ausente (ex.: testes que constroem
@@ -343,13 +369,29 @@ export function buildProductsSql(caps: SchemaCapabilities): string {
  * inspecção estática sem duplicar SQL: o botão "Sincronizar agora" não
  * escreve esta query — chama `runPipelineForDay({ scope: "products-stock" })`,
  * que a usa internamente. Exportar torna essa reutilização verificável.
+ *
+ * `scope: "full"` (2026-09) — mesmo raciocínio de `buildProductsSql`: o
+ * refresh operacional lê o stock de TODO o catálogo activo, sem exigir
+ * movimento nesse dia. Como não depende de `StocksMov` para decidir o
+ * âmbito, deixa de EXIGIR essa tabela — uma farmácia sem `StocksMov`
+ * ganha, pela primeira vez, alguma frescura de stock (antes tinha
+ * nenhuma, porque `scope: "date"` lança sem ela).
  */
-export function buildStockSql(caps: SchemaCapabilities): string {
-  if (!caps.hasStocksMov || !caps.stocksMovDateCol) {
+export function buildStockSql(caps: SchemaCapabilities, scope: "date" | "full" = "date"): string {
+  if (scope === "date" && (!caps.hasStocksMov || !caps.stocksMovDateCol)) {
     throw new Error(
       "dbo.StocksMov não disponível — sem fonte de incremental para stock."
     );
   }
+  const movimentoNoDia =
+    scope === "full"
+      ? ""
+      : `AND EXISTS (
+          SELECT 1
+          FROM [dbo].[StocksMov] sm
+          WHERE sm.CodigoID = sub_ars.CodigoID
+            AND CAST(sm.[DataMov] AS DATE) = @date
+        )`;
   return `
     SELECT
       ars.CodigoID                AS externalProductId,
@@ -367,12 +409,7 @@ export function buildStockSql(caps: SchemaCapabilities): string {
       WHERE s.[Retirado] = 0
         AND s.[Processa_Stocks] <> 0
         AND sub_ars.CodigoID > @lastId
-        AND EXISTS (
-          SELECT 1
-          FROM [dbo].[StocksMov] sm
-          WHERE sm.CodigoID = sub_ars.CodigoID
-            AND CAST(sm.[DataMov] AS DATE) = @date
-        )
+        ${movimentoNoDia}
       ORDER BY sub_ars.CodigoID
     ) batch_codigos ON batch_codigos.CodigoID = ars.CodigoID
     JOIN [dbo].[Stocks] s ON s.CodigoID = ars.CodigoID
@@ -442,12 +479,17 @@ async function pipelineProducts(
   counts: PipelineRunCounts,
   logger: DailySyncLogger,
   envio: Envio,
+  scope: "date" | "full" = "date",
 ): Promise<void> {
-  const sqlText = buildProductsSql(caps);
+  const sqlText = buildProductsSql(caps, scope);
   let lastId = -1;
   let batches = 0;
   logger.raw(DOUBLE_RULE);
-  logger.log(`▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})`);
+  logger.log(
+    scope === "full"
+      ? `▶ Refresh operacional — PRODUTOS (batch=${PRODUCTS_BATCH}, âmbito: catálogo inteiro)`
+      : `▶ Pipeline 1: PRODUTOS (batch=${PRODUCTS_BATCH})`,
+  );
   logger.raw(DOUBLE_RULE);
 
   while (true) {
@@ -518,12 +560,17 @@ async function pipelineStock(
   counts: PipelineRunCounts,
   logger: DailySyncLogger,
   envio: Envio,
+  scope: "date" | "full" = "date",
 ): Promise<void> {
-  const sqlText = buildStockSql(caps);
+  const sqlText = buildStockSql(caps, scope);
   let lastId = -1;
   let batches = 0;
   logger.raw(DOUBLE_RULE);
-  logger.log(`▶ Pipeline 2: STOCK (batch=${STOCK_BATCH}, filtro: StocksMov.DataMov=${date})`);
+  logger.log(
+    scope === "full"
+      ? `▶ Refresh operacional — STOCK (batch=${STOCK_BATCH}, âmbito: catálogo inteiro)`
+      : `▶ Pipeline 2: STOCK (batch=${STOCK_BATCH}, filtro: StocksMov.DataMov=${date})`,
+  );
   logger.raw(DOUBLE_RULE);
 
   while (true) {
@@ -835,4 +882,112 @@ export async function runPipelineForDay(opts: {
     logger.log("▶ Pipeline 3: SALES-LINES — saltado (scope=products-stock, ver sync-now)");
   }
   return counts;
+}
+
+/**
+ * Contagens do refresh operacional — só produtos/stock, nunca vendas
+ * (não é o que este passo existe para fazer).
+ */
+export type OperationalRefreshCounts = {
+  productsRead: number;
+  productsUpserted: number;
+  productsSkipped: number;
+  productsErrors: number;
+  fabricantesAlterados: number;
+  stockRead: number;
+  stockUpserted: number;
+  stockErrors: number;
+  /** `true` quando o stock foi saltado por falta de `StocksMov` no ERP. */
+  stockSaltado: boolean;
+};
+
+/**
+ * Refresh operacional diário (2026-09) — o segundo passo que fecha a
+ * lacuna estrutural do `scope: "date"`.
+ *
+ * ── O problema que isto resolve ───────────────────────────────────────
+ *
+ * O `daily-sync`/`daily-pipeline` (Passo 1, `scope: "date"`) só relê um
+ * produto se ele vendeu, comprou, ou teve movimento NESSE dia
+ * específico. Um produto de rotação lenta pode ficar semanas ou meses
+ * sem bater nesse filtro — e enquanto isso, `ProdutoFarmacia.pmc`/`puc`/
+ * stock ficam CONGELADOS no valor da última vez que bateu, por mais que
+ * o ERP tenha entretanto mudado. Caso real que motivou isto: CNP
+ * 8322628, Farmácia Segurado, `pmc` preso em 147,42 € durante 12 dias
+ * (a última venda/compra desse artigo) — o "Sincronizar agora" também
+ * não teria resolvido, porque reutiliza a MESMA query `scope: "date"`.
+ *
+ * ── O que isto faz, e o que NÃO faz ───────────────────────────────────
+ *
+ * Relê TODO o catálogo activo (sem filtro de dia) e reenvia-o à MESMA
+ * query/endpoint/upsert do `daily-sync` — não é um mecanismo paralelo,
+ * é a MESMA `buildProductsSql`/`buildStockSql` com `scope: "full"`. Não
+ * toca em vendas (`IngestVendaLinhaRaw`/`VendaMensal`) — é uma correcção
+ * de FRESCURA de custo/stock, não um re-processamento de histórico de
+ * vendas. Não é "full-sync": não refaz onboarding, não pede
+ * `--create-db`, não altera nenhuma decisão de negócio — é o mesmo
+ * pipeline de produtos/stock de sempre, só com um `WHERE` mais largo.
+ *
+ * Corre DEPOIS do pipeline normal (Passo 1 + compras/devoluções/
+ * movimentos/aggregate-month), dentro do MESMO lock — não introduz
+ * concorrência nova, só mais um passo sequencial. Uma falha aqui não
+ * aborta o dia: os passos anteriores já gravaram correctamente, e o
+ * dia mantém-se PARTIAL/OK conforme o resto — ver `daily-pipeline.ts`.
+ *
+ * Idempotente como o resto do daily-sync: reenviar o mesmo produto com
+ * o mesmo valor é um upsert sem efeito.
+ */
+export async function runOperationalRefresh(opts: {
+  pool: SqlPool;
+  client: SaasClient | null;
+  farmaciaId: string;
+  schemaProbes: SchemaProbeAPI;
+  logger: DailySyncLogger;
+  dryRun?: boolean;
+  amostras?: Amostras;
+}): Promise<OperationalRefreshCounts> {
+  const { pool, client, farmaciaId, schemaProbes, logger } = opts;
+  const envio: Envio = { dryRun: opts.dryRun === true, amostras: opts.amostras };
+  if (!envio.dryRun && !client) {
+    throw new Error("runOperationalRefresh: sem SaasClient e sem dryRun — nao ha para onde escrever.");
+  }
+  const counts: PipelineRunCounts = {
+    productsRead: 0, productsUpserted: 0, productsSkipped: 0, productsErrors: 0,
+    fabricantesAlterados: 0,
+    stockRead: 0, stockUpserted: 0, stockErrors: 0,
+    salesRead: 0, salesUpserted: 0, salesSkipped: 0, salesErrors: 0,
+    salesNonStockServices: 0, salesOperationalOrphans: 0,
+    salesTiposPorClassificar: [],
+  };
+  const caps = await detectCapabilities(pool, schemaProbes);
+  logger.raw(DOUBLE_RULE);
+  logger.log("▶ Refresh operacional — catálogo inteiro (sem filtro de actividade do dia)");
+  logger.raw(DOUBLE_RULE);
+
+  // `date` não entra na query de scope="full" (ver buildProductsSql) —
+  // passa-se uma string qualquer só para satisfazer a assinatura
+  // partilhada com o pipeline de scope="date".
+  await pipelineProducts(pool, caps, client, farmaciaId, "", counts, logger, envio, "full");
+
+  let stockSaltado = false;
+  if (caps.hasStocksMov) {
+    logger.raw("");
+    await pipelineStock(pool, caps, client, farmaciaId, "", counts, logger, envio, "full");
+  } else {
+    stockSaltado = true;
+    logger.raw("");
+    logger.log("  Stock: saltado — sem dbo.StocksMov detectado nesta instalação.");
+  }
+
+  return {
+    productsRead: counts.productsRead,
+    productsUpserted: counts.productsUpserted,
+    productsSkipped: counts.productsSkipped,
+    productsErrors: counts.productsErrors,
+    fabricantesAlterados: counts.fabricantesAlterados,
+    stockRead: counts.stockRead,
+    stockUpserted: counts.stockUpserted,
+    stockErrors: counts.stockErrors,
+    stockSaltado,
+  };
 }

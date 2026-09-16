@@ -69,9 +69,27 @@ const NODE_SHA = null; // opcional: SHA256SUMS.txt da Node release; null = sem c
 // de espera), fail imediato se o lock estiver ocupado na reclamação, e
 // timeout do cliente HTTP alinhado com `waitSeconds`. Latência
 // pior-caso passa de ~2 min a ~7-11s (ver agent/docs/sync-now.md secção
-// 2). NÃO empacotado nem publicado por este bloco — só o contador
-// local avançou; a tarefa agendada do Windows continua por instalar.
-const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "94";
+// 2). Empacotado em dist-agent/spharmmt-agent-base-rev94.zip (não
+// publicado no VPS).
+// rev95 — Refresh operacional diário (fecha a lacuna do `daily-sync`
+// `scope: "date"`, que só relê um produto se vendeu/comprou/moveu NESSE
+// dia — um produto parado fica com pmc/puc/stock CONGELADOS
+// indefinidamente, mesmo que o ERP mude entretanto; caso real: CNP
+// 8322628, Farmácia Segurado, pmc preso a 147,42 € durante 12 dias).
+// `buildProductsSql`/`buildStockSql` ganham `scope: "date" | "full"` —
+// `"full"` larga o filtro de dia e relê TODO o catálogo activo
+// (Retirado=0), reenviando à MESMA query/endpoint/upsert de sempre.
+// Novo passo `runOperationalRefresh` (daily-sync-runner.ts), corrido
+// pelo `daily-pipeline` depois de fornecedores/compras/devoluções/
+// movimentos — dentro do MESMO lock, sem concorrência nova; uma falha
+// aqui é PARTIAL, nunca aborta o dia. Corrige também a lacuna do lock:
+// `daily-pipeline.ts` resolvia `farmaciaId` DEPOIS de tentar o lock, e
+// um abort por lock ocupado ficava invisível em `PipelineRun` (só no
+// log local) — a ordem inverteu-se, e agora QUALQUER abort de lock fica
+// auditável no SaaS com status="ABORTED" e o motivo exacto. NÃO
+// empacotado nem publicado por este bloco — só o contador local
+// avançou.
+const AGENT_REV = process.env.AGENT_PACKAGE_REV ?? "95";
 
 // ── Endpoint SaaS ────────────────────────────────────────────────────
 //
