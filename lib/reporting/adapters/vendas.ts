@@ -71,6 +71,21 @@ const MONTH_LABELS_PT = [
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
 ];
 
+/**
+ * Correcção (2026-09): "Farmácia Segurado" quebrava em duas linhas
+ * dentro da coluna Farmácia (estreita, alinhada à esquerda), engordando
+ * TODAS as linhas do relatório — não só a farmácia, o artigo inteiro. O
+ * nome completo é sempre o dado real; isto é só a APRESENTAÇÃO no
+ * HTML/PDF, via `ReportColumn.displayKey` (ver `descricaoNota` acima
+ * para o mesmo princípio aplicado a PVP/Custo). O prefixo é removido só
+ * se existir — uma farmácia sem ele (ex.: fixtures de teste "Farmácia
+ * A") fica intocada.
+ */
+const PREFIXO_FARMACIA = /^Farm[aá]cia\s+/i;
+function nomeFarmaciaCurto(nome: string): string {
+  return nome.replace(PREFIXO_FARMACIA, "");
+}
+
 function bucketColumnKey(b: { ano: number; mes: number }): string {
   // Chave estável "m_YYYYMM" — segura como property name e ordenável.
   return `m_${b.ano}${String(b.mes).padStart(2, "0")}`;
@@ -152,7 +167,13 @@ export type VendasAdapterFilters = {
 const BASE_WIDTH_FIXED_COLS = {
   codigo: 6,
   descricao: 20,
-  farmacia: 8,
+  // Correcção (2026-09): a coluna Farmácia é o que a linha TOTAL ARTIGO
+  // usa para o próprio rótulo (bold, 12 caracteres — mais largo que
+  // qualquer nome de farmácia sem o prefixo "Farmácia "). A 8% ficava
+  // demasiado estreita a 15 meses (fixedScale reduzia-a mais ainda) e
+  // "TOTAL ARTIGO" cortava para "TOTAL AR…" — legível a menos, não a
+  // mais, exactamente o que não se queria ao encolher a linha.
+  farmacia: 11,
   totalVendas: 6,
   existencia: 5,
   valorVendas: 8,
@@ -255,6 +276,10 @@ function buildColumns(
     {
       key: "farmacia", label: "Farmácia", format: "text",
       width: w(BASE_WIDTH_FIXED_COLS.farmacia),
+      // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação
+      // (HTML/PDF/print). Excel continua a ler `farmacia` (nome
+      // completo) directamente, porque não passa por `displayKey`.
+      displayKey: "farmaciaCurta",
     },
     ...monthColumns,
     {
@@ -436,7 +461,12 @@ export function buildVendasReport(input: {
       totalVendas: r.totalVendas,
       valorBruto: r.valorBruto ?? 0,
       existencia: r.existencia,
+      // `farmacia` é o nome REAL, intocado — usado por Excel, ordenação,
+      // agrupamento. `farmaciaCurta` é só a apresentação HTML/PDF (ver
+      // `displayKey` em buildColumns). "TOTAL ARTIGO" não tem o prefixo
+      // "Farmácia " — nomeFarmaciaCurto() não lhe mexe.
       farmacia: r.farmacia,
+      farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
       [ROW_KIND_KEY]: kind,
     };
     if (grupoId !== undefined) base[GROUP_KEY] = grupoId;
@@ -461,7 +491,12 @@ export function buildVendasReport(input: {
   // "solta" nunca ganha rowspan — ver `agruparPorGroupKey`).
   const hierarquico = input.filters.agruparPor === "artigo";
   const rowsForReport: ReportRow[] = hierarquico
-    ? agruparPorArtigo(input.rows, input.buckets).flatMap((g) => {
+    // `input.universe.farmacias` é a ordem "já definida/recebida pelo
+    // relatório" (alfabética, deduplicada — ver vendas-client.tsx) —
+    // é o que garante que a mesma farmácia aparece sempre na mesma
+    // posição em TODOS os artigos, nunca pela ordem incidental das
+    // linhas de venda/stock. Ver compararPorOrdemFarmacia.
+    ? agruparPorArtigo(input.rows, input.buckets, input.universe.farmacias).flatMap((g) => {
         // O GRUPO VISUAL inclui a linha TOTAL ARTIGO (quando existe): é
         // assim que a referência mostra o bloco do artigo — CNP/Descrição
         // vertical-centrados cobrindo as farmácias E o total, com o total

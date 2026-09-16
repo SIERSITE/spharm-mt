@@ -118,8 +118,13 @@ console.log("\n=== A · agrupamento por artigo preserva o detalhe e soma o total
 
   const zolpidem = grupos.find((g) => g.codigo === "5647904")!;
   eq(zolpidem.detalhes.length, 2, "Zolpidem: duas linhas de detalhe (uma por farmácia)");
-  eq(zolpidem.detalhes.map((d) => d.farmacia), ["Farmácia Silveirense", "Farmácia Segurado"], "…as duas farmácias, pela ordem de entrada");
-  eq(zolpidem.detalhes.map((d) => d.totalVendas), [557, 443], "…com 557 e 443 unidades");
+  // Correcção (2026-09): já não é "pela ordem de entrada" — ZOLPIDEM_SILV
+  // entra PRIMEIRO em `LINHAS` (linha 106), mas sem uma `ordemFarmacias`
+  // explícita (não passada aqui), a ordem estável por omissão é
+  // alfabética ("Segurado" < "Silveirense") — nunca a ordem incidental
+  // de chegada. Ver compararPorOrdemFarmacia em vendas-agrupamento.ts.
+  eq(zolpidem.detalhes.map((d) => d.farmacia), ["Farmácia Segurado", "Farmácia Silveirense"], "…as duas farmácias, em ordem alfabética estável (não a ordem de entrada)");
+  eq(zolpidem.detalhes.map((d) => d.totalVendas), [443, 557], "…443 (Segurado) e 557 (Silveirense), na mesma ordem");
   eq(zolpidem.total.totalVendas, 1000, "…e TOTAL ARTIGO = 1000");
   eq(zolpidem.total.farmacia, ROTULO_TOTAL_ARTIGO, "…a linha de total identifica-se como TOTAL ARTIGO");
   eq(zolpidem.total.existencia, 86, "…stock somado = 51 + 35 = 86");

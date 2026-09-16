@@ -231,6 +231,11 @@ function numericValue(v: ReportCell): number | null {
   return null;
 }
 
+/** O valor efectivamente desenhado — `displayKey` substitui `key` só para apresentação. */
+function effectiveCellValue(row: ReportRow, col: ReportColumn): ReportCell {
+  return col.displayKey ? row[col.displayKey] : row[col.key];
+}
+
 /** Classe de tom (ver `ReportColumn.toneWhenZero`/`toneWhenPositive`), ou "". */
 function cellToneClass(value: ReportCell, col: ReportColumn): string {
   const n = numericValue(value);
@@ -240,9 +245,9 @@ function cellToneClass(value: ReportCell, col: ReportColumn): string {
   return "";
 }
 
-/** Texto da célula — aplica `zeroAsDash` antes do formatador normal. */
+/** Texto da célula — lê `displayKey` quando existe, aplica `zeroAsDash` antes do formatador normal. */
 function cellText(row: ReportRow, col: ReportColumn): string {
-  const raw = row[col.key];
+  const raw = effectiveCellValue(row, col);
   if (col.zeroAsDash) {
     const n = numericValue(raw);
     if (n === 0) return "–";
@@ -303,7 +308,7 @@ function renderTable(report: Report): string {
           return "";
         }
         const style = alignStyle(defaultAlignFor(c));
-        const tone = cellToneClass(row[c.key], c);
+        const tone = cellToneClass(effectiveCellValue(row, c), c);
         const classAttr = tone ? ` class="${tone}"` : "";
         const rowspanAttr = c.spanGroup && grupo.length > 1 && grupo.isFirst ? ` rowspan="${grupo.length}"` : "";
         const principal = escapeHtml(cellText(row, c));
@@ -643,6 +648,14 @@ const STYLES = `
     border-top: 1px solid #b7c4d4;
     border-bottom: 1px solid #b7c4d4;
     font-weight: 700;
+    /* Correcção (2026-09): "TOTAL ARTIGO" vive na coluna Farmácia, que é
+       alinhada à esquerda — e uma célula alinhada à esquerda quebra
+       linha por defeito (ver a regra tbody td[style*="text-align:left"]
+       acima), engordando a linha inteira para caber "TOTAL" numa linha e
+       "ARTIGO" noutra. Nunca quebra aqui — a largura já chega para o
+       texto numa linha só, e overflow:hidden/text-overflow:ellipsis
+       (herdados de tbody td) continuam a proteger o caso extremo. */
+    white-space: nowrap;
   }
   .page.density-compact tbody tr.subtotal-row td:first-child { border-left: 3px solid #475569; }
   .page.density-compact tfoot td {
@@ -650,8 +663,15 @@ const STYLES = `
     color: #1e293b !important;
     border-top: 2px solid #94a3b8;
     border-bottom: none;
-    padding: 5px 5px;
-    font-size: 9.5px;
+    /* Quase a altura de uma linha normal (tbody td tem 2.5px de
+       padding vertical) — era uma faixa alta (5px + "TOTAL GERAL" a
+       quebrar em duas linhas pela mesma razão do subtotal, acima).
+       font-size herdado da tabela (cozy/tight/ultratight) em vez de um
+       valor fixo, que ficava desproporcionalmente grande nas
+       densidades mais apertadas. */
+    padding: 3px 5px;
+    font-size: inherit;
+    white-space: nowrap;
   }
 
   /* Sublinha discreta sob uma célula (ReportColumn.noteKey) — ex.:

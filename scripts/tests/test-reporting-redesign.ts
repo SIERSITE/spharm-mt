@@ -415,6 +415,178 @@ console.log("\n=== G6. Excel continua com PVP/Custo como colunas — não perde 
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// I. ReportColumn.displayKey — apresentação sem tocar no dado real
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n=== I. displayKey — HTML mostra o nome curto, Excel mantém o nome completo ===");
+{
+  const cols: ReportColumn[] = [{ key: "farmacia", label: "Farmácia", displayKey: "farmaciaCurta" }];
+  const rows: ReportRow[] = [{ farmacia: "Farmácia Segurado", farmaciaCurta: "Segurado" }];
+  const rel = relatorioBase(cols, rows);
+  const html = renderReportHtml(rel);
+  const bodyHtmlI = html.slice(html.indexOf("<body>"));
+  ok("HTML mostra o nome curto (\"Segurado\")", bodyHtmlI.includes(">Segurado<"));
+  ok("HTML NÃO mostra o prefixo \"Farmácia \"", !bodyHtmlI.includes("Farmácia Segurado"));
+
+  const wb = buildReportWorkbook(rel);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
+  // `.includes()` faz igualdade exacta — a célula é "Farmácia Segurado"
+  // por inteiro, não "Segurado" isolado, por isso a procura tem de ser
+  // por substring.
+  const linhaDados = aoa.find(
+    (r) => Array.isArray(r) && r.some((cel) => typeof cel === "string" && cel.includes("Farmácia Segurado")),
+  );
+  ok(
+    "Excel continua com o nome COMPLETO (\"Farmácia Segurado\") — displayKey não o afecta",
+    !!linhaDados,
+    JSON.stringify(aoa),
+  );
+}
+
+console.log("\n=== I2. Vendas: coluna Farmácia sem \"Farmácia \" no HTML, presente no Excel ===");
+{
+  const buckets3 = meses(3);
+  const rows = [
+    linhaVendas({ buckets: buckets3, codigo: "8000001", descricao: "Produto A", farmacia: "Farmácia Segurado", existencia: 1, ...comVendaEm(buckets3, 0, 1, 10) }),
+    linhaVendas({ buckets: buckets3, codigo: "8000001", descricao: "Produto A", farmacia: "Farmácia Silveirense", existencia: 0 }),
+  ];
+  const rel = buildVendasReport({
+    rows, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: ["Farmácia Segurado", "Farmácia Silveirense"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const html = renderReportHtml(rel);
+  const bodyHtmlI2 = html.slice(html.indexOf("<body>"));
+  ok("HTML mostra \"Segurado\" e \"Silveirense\", sem o prefixo", bodyHtmlI2.includes(">Segurado<") && bodyHtmlI2.includes(">Silveirense<"));
+  ok("…e nunca \"Farmácia Segurado\"/\"Farmácia Silveirense\" no corpo", !bodyHtmlI2.includes("Farmácia Segurado") && !bodyHtmlI2.includes("Farmácia Silveirense"));
+
+  const wb = buildReportWorkbook(rel);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
+  const temNomeCompleto = aoa.some((r) => Array.isArray(r) && r.includes("Farmácia Segurado"));
+  ok("Excel continua com o nome completo da farmácia", temNomeCompleto);
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// J. TOTAL ARTIGO / TOTAL GERAL compactos — nunca quebram a duas linhas
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n=== J. Totais compactos — sem quebra de linha, altura próxima do normal ===");
+{
+  const src = readFileSync("lib/reporting/report-html.ts", "utf8");
+  const subtotalCompacto = src.slice(
+    src.indexOf(".page.density-compact tbody tr.subtotal-row td {"),
+    src.indexOf("}", src.indexOf(".page.density-compact tbody tr.subtotal-row td {")),
+  );
+  ok("regra compacta do TOTAL ARTIGO força nowrap (nunca quebra \"TOTAL\"/\"ARTIGO\")", /white-space:\s*nowrap/.test(subtotalCompacto));
+
+  const tfootCompacto = src.slice(
+    src.indexOf(".page.density-compact tfoot td {"),
+    src.indexOf("}", src.indexOf(".page.density-compact tfoot td {")),
+  );
+  ok("regra compacta do TOTAL GERAL força nowrap", /white-space:\s*nowrap/.test(tfootCompacto));
+  ok(
+    "padding do TOTAL GERAL ficou próximo de uma linha normal (≤3.5px, era 5px)",
+    /padding:\s*([0-3](\.\d+)?)px/.test(tfootCompacto),
+    tfootCompacto,
+  );
+  ok(
+    "font-size do TOTAL GERAL passou a herdar da tabela (não fica desproporcional em densidades apertadas)",
+    /font-size:\s*inherit/.test(tfootCompacto),
+  );
+}
+{
+  // Ponta-a-ponta: com colunas estreitas (muitos meses), "TOTAL ARTIGO"
+  // e "TOTAL GERAL" continuam inteiros — nunca "TOTAL" e "ARTIGO" em
+  // <br/> ou em linhas separadas dentro da célula.
+  const buckets15 = meses(15);
+  const rows = [
+    linhaVendas({ buckets: buckets15, codigo: "9000001", descricao: "Produto", farmacia: "Farmácia A", existencia: 1, ...comVendaEm(buckets15, 0, 1, 10) }),
+    linhaVendas({ buckets: buckets15, codigo: "9000001", descricao: "Produto", farmacia: "Farmácia B", existencia: 0 }),
+  ];
+  const rel = buildVendasReport({
+    rows, buckets: buckets15, filters: { agruparPor: "artigo" },
+    universe: { farmacias: ["Farmácia A", "Farmácia B"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const html = renderReportHtml(rel);
+  const bodyHtmlJ = html.slice(html.indexOf("<body>"));
+  ok("\"TOTAL ARTIGO\" continua inteiro, nunca partido em <br/>", bodyHtmlJ.includes(">TOTAL ARTIGO<") || bodyHtmlJ.includes("TOTAL ARTIGO</strong>"));
+  ok("\"TOTAL GERAL\" continua inteiro", bodyHtmlJ.includes("TOTAL GERAL</strong>"));
+  ok("nenhum dos dois foi partido por um <br/> a meio (\"TOTAL<br/>ARTIGO\"/\"TOTAL<br/>GERAL\")", !bodyHtmlJ.includes("TOTAL<br/>ARTIGO") && !bodyHtmlJ.includes("TOTAL<br/>GERAL"));
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// K. Ordem estável das farmácias — igual em TODOS os artigos
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n=== K. Ordem das farmácias — estável e igual em todos os artigos ===");
+{
+  const buckets3 = meses(3);
+  // Insercao DELIBERADAMENTE trocada entre artigos — é exactamente o
+  // bug relatado: um artigo com Segurado primeiro, outro com
+  // Silveirense primeiro.
+  const rows = [
+    linhaVendas({ buckets: buckets3, codigo: "A001", descricao: "Artigo A", farmacia: "Farmácia Silveirense", existencia: 1, ...comVendaEm(buckets3, 0, 1, 10) }),
+    linhaVendas({ buckets: buckets3, codigo: "A001", descricao: "Artigo A", farmacia: "Farmácia Segurado", existencia: 2, ...comVendaEm(buckets3, 1, 1, 10) }),
+    linhaVendas({ buckets: buckets3, codigo: "B002", descricao: "Artigo B", farmacia: "Farmácia Segurado", existencia: 3, ...comVendaEm(buckets3, 0, 2, 5) }),
+    linhaVendas({ buckets: buckets3, codigo: "B002", descricao: "Artigo B", farmacia: "Farmácia Silveirense", existencia: 0, ...comVendaEm(buckets3, 2, 1, 5) }),
+  ];
+  const rel = buildVendasReport({
+    rows, buckets: buckets3, filters: { agruparPor: "artigo" },
+    // A ordem "já definida/recebida pelo relatório" — Segurado antes de
+    // Silveirense, deliberadamente diferente da ordem de inserção acima
+    // em ambos os artigos, para provar que é ELA que manda.
+    universe: { farmacias: ["Farmácia Segurado", "Farmácia Silveirense"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const linhasA = rel.rows.filter((r) => r.codigo === "A001" || r[GROUP_KEY] === "A001");
+  const linhasB = rel.rows.filter((r) => r.codigo === "B002" || r[GROUP_KEY] === "B002");
+  const farmaciasA = linhasA.filter((r) => r.farmacia !== "TOTAL ARTIGO").map((r) => r.farmacia);
+  const farmaciasB = linhasB.filter((r) => r.farmacia !== "TOTAL ARTIGO").map((r) => r.farmacia);
+  eq("Artigo A: Segurado antes de Silveirense (apesar de Silveirense ter entrado primeiro)", farmaciasA.join(","), "Farmácia Segurado,Farmácia Silveirense");
+  eq("Artigo B: MESMA ordem (Segurado antes de Silveirense) — igual à do Artigo A", farmaciasB.join(","), "Farmácia Segurado,Farmácia Silveirense");
+}
+{
+  // Sem ordem explícita (universe.farmacias vazio) → cai em alfabética.
+  const buckets3 = meses(3);
+  const rows = [
+    linhaVendas({ buckets: buckets3, codigo: "C003", descricao: "Artigo C", farmacia: "Farmácia Zulu", existencia: 1, ...comVendaEm(buckets3, 0, 1, 10) }),
+    linhaVendas({ buckets: buckets3, codigo: "C003", descricao: "Artigo C", farmacia: "Farmácia Alfa", existencia: 0 }),
+  ];
+  const rel = buildVendasReport({
+    rows, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const farmaciasC = rel.rows.filter((r) => r.farmacia !== "TOTAL ARTIGO").map((r) => r.farmacia);
+  eq(
+    "sem ordem explícita, cai em alfabética (\"Alfa\" antes de \"Zulu\", nunca a ordem de entrada)",
+    farmaciasC.join(","),
+    "Farmácia Alfa,Farmácia Zulu",
+  );
+}
+{
+  // Um artigo sem dados numa farmácia não desalinha a ordem das
+  // restantes — só omite a que falta.
+  const buckets3 = meses(3);
+  const rows = [
+    linhaVendas({ buckets: buckets3, codigo: "D004", descricao: "Artigo D", farmacia: "Farmácia Segurado", existencia: 1, ...comVendaEm(buckets3, 0, 1, 10) }),
+    // "Farmácia Central" nunca aparece para este artigo — só Segurado e Silveirense.
+    linhaVendas({ buckets: buckets3, codigo: "D004", descricao: "Artigo D", farmacia: "Farmácia Silveirense", existencia: 0 }),
+  ];
+  const rel = buildVendasReport({
+    rows, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: ["Farmácia Segurado", "Farmácia Central", "Farmácia Silveirense"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const farmaciasD = rel.rows.filter((r) => r.farmacia !== "TOTAL ARTIGO").map((r) => r.farmacia);
+  eq(
+    "Farmácia Central (sem dados neste artigo) é omitida sem alterar a ordem das restantes",
+    farmaciasD.join(","),
+    "Farmácia Segurado,Farmácia Silveirense",
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // H. report-pdf-server.ts — paginação via puppeteer headerTemplate
 // ═════════════════════════════════════════════════════════════════════
 console.log("\n=== H. report-pdf-server.ts pede paginação ao Chromium ===");

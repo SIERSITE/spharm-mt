@@ -57,7 +57,11 @@ export type LinhaAgrupavel = {
 export type GrupoArtigo<T extends LinhaAgrupavel> = {
   codigo: string;
   descricao: string;
-  /** Uma linha por farmácia, na ordem em que entraram. */
+  /**
+   * Uma linha por farmácia, em ordem ESTÁVEL (ver `compararPorOrdemFarmacia`
+   * em `agruparPorArtigo`) — nunca a ordem em que as linhas de entrada
+   * chegaram.
+   */
   detalhes: T[];
   /** A linha `TOTAL ARTIGO`. Soma dos detalhes, e nada mais. */
   total: {
@@ -80,10 +84,53 @@ export type GrupoArtigo<T extends LinhaAgrupavel> = {
 export const ROTULO_TOTAL_ARTIGO = "TOTAL ARTIGO" as const;
 
 /**
+ * Compara duas linhas pela farmácia, para uma ordem ESTÁVEL e igual em
+ * todos os artigos do relatório.
+ *
+ * Correcção (2026-09): sem isto, a ordem das farmácias DENTRO de cada
+ * artigo dependia de qual farmácia tinha chegado primeiro nas linhas de
+ * entrada — uma incidental da query SQL (`GROUP BY produtoId,
+ * farmaciaId`, sem ORDER BY nenhum garantido para essa combinação), não
+ * uma escolha. Um artigo mostrava "Segurado, Silveirense" e o seguinte
+ * "Silveirense, Segurado", tornando a leitura caótica.
+ *
+ *   · `ordemFarmacias` (quando existe) é a ordem AUTORITATIVA — hoje,
+ *     `input.universe.farmacias` do adapter de Vendas, que já vem
+ *     alfabética (`localeCompare("pt-PT")`) e deduplicada de
+ *     `vendas-client.tsx`. É "a ordem já definida/recebida pelo
+ *     relatório", não inventada aqui.
+ *   · Sem ela (chamador não a passou), cai em ordenação alfabética
+ *     directa pelo nome da farmácia — nunca na ordem de chegada.
+ *   · Uma farmácia ausente de `ordemFarmacias` (não devia acontecer,
+ *     mas nunca se assume que não pode) fica ORDENADA DEPOIS das que lá
+ *     estão, e entre si por ordem alfabética — nunca desaparece nem
+ *     rebenta.
+ */
+function compararPorOrdemFarmacia(
+  ordemFarmacias: readonly string[] | undefined,
+): (a: { farmacia: string }, b: { farmacia: string }) => number {
+  const indice = new Map((ordemFarmacias ?? []).map((nome, i) => [nome, i]));
+  return (a, b) => {
+    const ia = indice.get(a.farmacia);
+    const ib = indice.get(b.farmacia);
+    if (ia !== undefined && ib !== undefined) return ia - ib;
+    if (ia !== undefined) return -1;
+    if (ib !== undefined) return 1;
+    return a.farmacia.localeCompare(b.farmacia, "pt-PT");
+  };
+}
+
+/**
  * Agrupa por `codigo` preservando o detalhe por farmácia.
  *
- * A ordem dos grupos é a de primeira aparição — quem chama já ordenou as
- * linhas como o utilizador pediu, e reordenar aqui desfazia essa escolha.
+ * A ordem dos grupos (que ARTIGOS aparecem primeiro) é a de primeira
+ * aparição — quem chama já ordenou as linhas como o utilizador pediu
+ * (por vendas, por CNP, ...), e reordenar aqui desfazia essa escolha.
+ *
+ * A ordem das FARMÁCIAS dentro de cada artigo é outra questão — ver
+ * `compararPorOrdemFarmacia` acima. Independente da ordem dos grupos: um
+ * artigo pode ter mais vendas e aparecer primeiro, mas as suas
+ * sublinhas de farmácia seguem sempre a mesma ordem estável.
  *
  * `buckets` fixa a ordem e o conjunto dos meses. Sem ele, dois produtos
  * com históricos diferentes produziam somas desalinhadas: a posição `i`
@@ -92,6 +139,7 @@ export const ROTULO_TOTAL_ARTIGO = "TOTAL ARTIGO" as const;
 export function agruparPorArtigo<T extends LinhaAgrupavel>(
   linhas: readonly T[],
   buckets: readonly { ano: number; mes: number }[],
+  ordemFarmacias?: readonly string[],
 ): GrupoArtigo<T>[] {
   const porCodigo = new Map<string, T[]>();
   for (const linha of linhas) {
@@ -100,8 +148,12 @@ export function agruparPorArtigo<T extends LinhaAgrupavel>(
     else porCodigo.set(linha.codigo, [linha]);
   }
 
+  const comparar = compararPorOrdemFarmacia(ordemFarmacias);
+
   const grupos: GrupoArtigo<T>[] = [];
-  for (const [codigo, detalhes] of porCodigo) {
+  for (const [codigo, detalhesBrutos] of porCodigo) {
+    // Ordem ESTÁVEL das farmácias — nunca a ordem incidental de chegada.
+    const detalhes = [...detalhesBrutos].sort(comparar);
     const primeiro = detalhes[0];
     // Soma posição-a-posição quando os buckets vêm alinhados (é o caso
     // do loader), com fallback por (ano,mes) para não somar Janeiro com

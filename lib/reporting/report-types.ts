@@ -66,6 +66,15 @@ export type ReportColumn = {
    */
   noteKey?: string;
   /**
+   * Mostra, em HTML/PDF/print, o valor de OUTRA chave da mesma linha em
+   * vez de `key` — o dado real (Excel, totais, ordenação) continua a
+   * vir de `key`, intocado. Para apresentação pura, quando o texto
+   * completo é o dado certo mas o texto CURTO é o que se quer ver (ex.:
+   * "Farmácia Segurado" → "Segurado" na coluna Farmácia — o nome
+   * completo continua em `key` para quem precisar dele).
+   */
+  displayKey?: string;
+  /**
    * Um valor numérico exactamente 0 mostra "–" em vez de "0" — HTML/PDF
    * apenas (Excel mantém o zero real, é uma folha de cálculo). Útil para
    * colunas onde "não houve nada aqui" lê melhor que uma parede de

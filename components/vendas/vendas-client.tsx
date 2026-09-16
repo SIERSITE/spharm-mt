@@ -500,7 +500,11 @@ export function VendasClient({
     });
     if (agruparPor !== "artigo") return rowsOrdenadas.map(detalhe);
 
-    return agruparPorArtigo(rowsOrdenadas, buckets).flatMap((g) => {
+    // `farmacias` (alfabética, deduplicada — ver acima) é a ordem
+    // estável: sem isto, a mesma farmácia podia aparecer em posições
+    // diferentes de artigo para artigo, consoante a ordem incidental
+    // das linhas devolvidas pelo servidor.
+    return agruparPorArtigo(rowsOrdenadas, buckets, farmacias).flatMap((g) => {
       const linhas = g.detalhes.map(detalhe);
       // Um artigo numa farmácia só não leva total: era uma cópia da
       // linha de cima.
@@ -516,7 +520,7 @@ export function VendasClient({
       };
       return [...linhas, { row: total, subtotal: true, key: `t-${g.codigo}` }];
     });
-  }, [rowsOrdenadas, agruparPor, buckets]);
+  }, [rowsOrdenadas, agruparPor, buckets, farmacias]);
 
   const resumo = useMemo(() => {
     // Valor gravado no ledger, não `totalVendas × pvp`. O `pvp` vem de
