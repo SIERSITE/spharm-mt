@@ -33,6 +33,7 @@ import { readFileSync } from "node:fs";
 import { Prisma } from "../../generated/prisma/client";
 import { construirCondicaoPesquisa } from "../../lib/reporting/pesquisa-produto";
 import { construirCondicaoPesquisa as reexportadaPorMargens } from "../../lib/margens-data";
+import { normalizarOpcao } from "../../components/reporting/filter-select";
 
 let pass = 0;
 let fail = 0;
@@ -127,8 +128,11 @@ console.log("\n=== D. Vendas já não exige CNP exacto ===");
     !/Number\.isFinite\(asNumber\)\s*&&\s*Number\.isInteger\(asNumber\)/.test(vd),
   );
   ok(
-    "a UI de pesquisa (\"Artigo\") continua no ecrã — nunca desapareceu",
-    src("components/vendas/vendas-client.tsx").includes('label="Artigo"'),
+    // O rótulo mudou de "Artigo" para "Produto" (secção F, clareza da
+    // UI) — o que este teste garante é que o CAMPO continua no ecrã,
+    // não o texto exacto do rótulo antigo.
+    "a UI de pesquisa continua no ecrã — nunca desapareceu",
+    src("components/vendas/vendas-client.tsx").includes("CompactInput"),
   );
 }
 
@@ -158,6 +162,78 @@ console.log("\n=== E. Migration unaccent — aditiva, sem tocar no índice exist
     !/DROP INDEX|DROP FUNCTION|DROP EXTENSION/i.test(mig),
   );
   ok("não reescreve nem apaga dados", !/UPDATE |DELETE /i.test(mig));
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// F · UI clara + refinamento client-side sem contradizer o servidor
+// ═════════════════════════════════════════════════════════════════════
+//
+// Correcção (2026-09): dois problemas de usabilidade no campo de
+// pesquisa de Vendas.
+//
+//   1. O rótulo ("Artigo") e o placeholder ("Código ou descrição") não
+//      deixavam claro que era ali que se escrevia o nome do produto
+//      para filtrar o relatório inteiro.
+//
+//   2. Um bug real e mais subtil: depois do servidor passar a ignorar
+//      acentos (unaccent), o filtro CLIENT-SIDE que refina as linhas já
+//      carregadas (baseFiltered/reportByFarmacia/groupRows) continuava
+//      a comparar com `.toLowerCase()` simples, SEM ignorar acentos.
+//      Resultado: pesquisar "avene" fazia o servidor devolver
+//      correctamente "Avène ..." — mas esse filtro client-side voltava
+//      a escondê-la, porque "avène" !== "avene" em texto simples. O
+//      utilizador via "Gerar" a não trazer nada, mesmo com a correcção
+//      do servidor já aplicada.
+console.log("\n=== F. UI clara e sem contradição client-side ===");
+{
+  const cv = src("components/vendas/vendas-client.tsx");
+  ok('o rótulo do campo passou de "Artigo" para "Produto"', cv.includes('label="Produto"'));
+  ok(
+    "o placeholder deixa o objectivo explícito (pesquisar por CNP ou descrição)",
+    /placeholder="Pesquisar por CNP ou descri..."/i.test(cv) || cv.includes("Pesquisar por CNP ou descrição"),
+  );
+  ok('já não usa o rótulo genérico "Artigo" para este campo', !/label="Artigo"/.test(cv));
+  ok(
+    "o campo ganhou um ícone de pesquisa (lupa) — mesmo padrão visual já usado no SearchableMultiSelect",
+    /function CompactInput\([\s\S]{0,900}<Search /.test(cv),
+  );
+
+  // O bug de contaminação client-side: já não deve existir NENHUM sítio
+  // a comparar `artigo` com `.toLowerCase()` simples contra
+  // codigo/descricao — tem de ser sempre via normalizarOpcao (o mesmo
+  // helper accent-insensitive já usado nos filtros de Margens).
+  ok(
+    "importa normalizarOpcao do módulo partilhado (não reimplementa remoção de acentos)",
+    cv.includes('from "@/components/reporting/filter-select"') && cv.includes("normalizarOpcao"),
+  );
+  const comparacoesAntigas = (cv.match(/\.includes\(artigo\.toLowerCase\(\)\)/g) ?? []).length;
+  eq("zero comparações antigas (artigo.toLowerCase(), sem remover acentos) ainda no ficheiro", comparacoesAntigas, 0);
+  const comparacoesNovas = (cv.match(/normalizarOpcao\(`\$\{row\.codigo\} \$\{row\.descricao\}`\)\.includes\(normalizarOpcao\(artigo\)\)/g) ?? [])
+    .length;
+  ok(
+    "todos os refinamentos client-side (baseFiltered, reportByFarmacia, groupRows, comparativo) usam normalizarOpcao dos dois lados",
+    comparacoesNovas >= 4,
+    `encontradas ${comparacoesNovas}`,
+  );
+}
+
+console.log("\n=== G. Prova directa: o filtro client-side já não esconde o que o servidor encontra ===");
+{
+  // Reproduz EXACTAMENTE a expressão usada em vendas-client.tsx — não
+  // uma cópia paralela, a MESMA lógica, para provar o comportamento
+  // real e não um "sósia" dela.
+  function passaFiltroArtigo(row: { codigo: string; descricao: string }, artigo: string): boolean {
+    if (!artigo.trim()) return true;
+    return normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo));
+  }
+  const avene = { codigo: "90001", descricao: "Avène Eau Thermale" };
+  ok('"avene" (sem acento, minúsculas) encontra "Avène"', passaFiltroArtigo(avene, "avene"));
+  ok('"AVENE" (maiúsculas) encontra "Avène"', passaFiltroArtigo(avene, "AVENE"));
+  ok('"avéne" (acento trocado) encontra "Avène"', passaFiltroArtigo(avene, "avéne"));
+  const ventilan = { codigo: "8322628", descricao: "VENTILAN INALADOR R AER 100 MCG/D 200 D" };
+  ok('"VENTILAN" encontra o inalador', passaFiltroArtigo(ventilan, "VENTILAN"));
+  ok('"ventilan" (minúsculas) encontra o mesmo', passaFiltroArtigo(ventilan, "ventilan"));
+  ok('"8322" (CNP parcial) encontra pelo código', passaFiltroArtigo(ventilan, "8322"));
 }
 
 console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

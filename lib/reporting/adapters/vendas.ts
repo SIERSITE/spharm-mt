@@ -49,8 +49,16 @@ function bucketColumnKey(b: { ano: number; mes: number }): string {
 }
 
 function bucketColumnLabel(b: { ano: number; mes: number }): string {
+  // Duas linhas ("JAN" + "26") em vez de "JAN/26" numa linha só: com o
+  // "/" o rótulo tem 6 caracteres em maiúsculas + letter-spacing, e não
+  // cabia na largura mínima da coluna (MIN_WIDTH_MES) — transbordava e
+  // ficava cortado em "JAN/…" mesmo com a coluna dentro do orçamento de
+  // largura. Partido em duas linhas, cada uma tem no máximo 3
+  // caracteres e sobra largura de sobra para qualquer contagem de
+  // meses. Ver renderReportHtml() em report-html.ts, que traduz "\n"
+  // no rótulo em <br/> no cabeçalho da tabela.
   const yy = String(b.ano).slice(-2);
-  return `${MONTH_LABELS_PT[b.mes - 1]}/${yy}`;
+  return `${MONTH_LABELS_PT[b.mes - 1]}\n${yy}`;
 }
 
 /** Bucket mensal — mesma shape que `SalesMonthBucket` no loader. */
@@ -96,23 +104,40 @@ export type VendasAdapterFilters = {
 };
 
 /**
- * Larguras-base (sem buckets). As N colunas mensais distribuem o espaço
- * restante uniformemente — calculado em `buildColumns`.
+ * Larguras-base (sem buckets), em % da largura útil da página.
+ *
+ * Correcção (2026-09): a versão anterior reservava 85% às colunas fixas
+ * e só 15% a TODOS os meses juntos — e ainda impunha um mínimo de 3%
+ * por mês (`Math.max(3, ...)`) que, a partir de 6 meses no mesmo
+ * relatório, empurrava a SOMA das larguras para além de 100%. Com
+ * `table-layout:fixed`, isso não trunca — reescala a tabela inteira
+ * (fixos incluídos) de forma imprevisível, e é exactamente o que dava
+ * meses ilegíveis, descrição espremida e cabeçalhos a transbordar uns
+ * para cima dos outros.
+ *
+ * Os fixos ficam agora a ~58%, deixando ~42% para os meses — o
+ * suficiente para "JAN/26" (o rótulo mais longo, maiúsculas via CSS)
+ * ficar legível até cerca de 10 meses no mesmo relatório sem precisar
+ * de encolher mais nada. Ver `buildColumns` para o que acontece além
+ * disso (o orçamento dos fixos cede, nunca o total ultrapassa 100%).
  */
 const BASE_WIDTH_FIXED_COLS = {
-  codigo: 7,
-  descricao: 28,
-  pvp: 7,
-  custoUnitarioEstimado: 9,
-  totalVendas: 9,
-  existencia: 7,
-  farmacia: 18,
+  codigo: 6,
+  descricao: 17,
+  pvp: 6,
+  custoUnitarioEstimado: 7,
+  totalVendas: 7,
+  existencia: 6,
+  farmacia: 9,
 };
+
+/** Largura mínima de uma coluna de mês, para "JAN/26" nunca truncar. */
+const MIN_WIDTH_MES = 4.2;
 
 function buildColumns(
   buckets: { ano: number; mes: number }[],
 ): ReportColumn[] {
-  // Espaço total restante para os meses = 100 - somatório das colunas fixas
+  const numMeses = buckets.length;
   const fixedTotal =
     BASE_WIDTH_FIXED_COLS.codigo +
     BASE_WIDTH_FIXED_COLS.descricao +
@@ -121,10 +146,40 @@ function buildColumns(
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
     BASE_WIDTH_FIXED_COLS.farmacia;
-  const remaining = Math.max(6, 100 - fixedTotal);
-  const perMonth = buckets.length > 0
-    ? Math.max(3, Math.floor(remaining / buckets.length))
-    : 6;
+  const remaining = Math.max(0, 100 - fixedTotal);
+  const perMonthIdeal = numMeses > 0 ? remaining / numMeses : 0;
+
+  // Tecto duro: os meses, juntos, NUNCA ultrapassam 92% — mesmo num
+  // relatório com dezenas de meses, sobra sempre pelo menos 8% para os
+  // fixos escalarem. Sem este tecto, `Math.max(MIN_WIDTH_MES, ...)`
+  // sozinho podia, em relatórios muito longos (~24+ meses), empurrar
+  // a soma para além de 100% de qualquer forma — exactamente o defeito
+  // original, só que a um número de meses maior.
+  const MAX_TOTAL_MESES = 92;
+  const perMonth =
+    numMeses > 0
+      ? Math.min(Math.max(MIN_WIDTH_MES, perMonthIdeal), MAX_TOTAL_MESES / numMeses)
+      : 0;
+  const totalMeses = perMonth * numMeses;
+
+  // Nunca menos que o mínimo de legibilidade dos meses — se isso não
+  // couber no orçamento (relatório com muitos meses), são os FIXOS que
+  // cedem, proporcionalmente entre si. Com o tecto acima, `100 -
+  // totalMeses` nunca é negativo, por isso `fixedScale` nunca precisa
+  // de ir abaixo de 0 — a soma final é SEMPRE exactamente 100 (dentro
+  // do arredondamento), nunca mais, para nenhum número de meses.
+  const excedente = fixedTotal + totalMeses - 100;
+  const fixedScale = excedente > 0 ? Math.max(0, (fixedTotal - excedente) / fixedTotal) : 1;
+
+  // SEM arredondamento: `fixedTotal*fixedScale + perMonth*numMeses` dá
+  // exactamente 100 (a menos de erro de vírgula flutuante, ~1e-10) só
+  // por construção da fórmula acima. Arredondar cada largura
+  // individualmente a 1 casa (como esta função fazia antes de se
+  // escrever este teste) ACUMULA erro entre colunas — com 9+ meses a
+  // soma passava a 100,3; com 36, a 101,5. CSS aceita percentagens com
+  // casas decimais sem problema nenhum, por isso não há motivo para
+  // arredondar aqui.
+  const w = (base: number) => base * fixedScale;
 
   const monthColumns: ReportColumn[] = buckets.map((b) => ({
     key: bucketColumnKey(b),
@@ -135,9 +190,9 @@ function buildColumns(
   }));
 
   return [
-    { key: "codigo",      label: "Código",      format: "text",     width: BASE_WIDTH_FIXED_COLS.codigo },
-    { key: "descricao",   label: "Descrição",   format: "text",     width: BASE_WIDTH_FIXED_COLS.descricao },
-    { key: "pvp",         label: "PVP",         format: "currency", width: BASE_WIDTH_FIXED_COLS.pvp },
+    { key: "codigo",      label: "Código",      format: "text",     width: w(BASE_WIDTH_FIXED_COLS.codigo) },
+    { key: "descricao",   label: "Descrição",   format: "text",     width: w(BASE_WIDTH_FIXED_COLS.descricao) },
+    { key: "pvp",         label: "PVP",         format: "currency", width: w(BASE_WIDTH_FIXED_COLS.pvp) },
     // «est.» no rotulo, tambem no PDF e no Excel. Uma folha impressa
     // circula sem o ecra ao lado, e e' onde a palavra mais falta.
     //
@@ -145,11 +200,16 @@ function buildColumns(
     // (2026-09): o custo total estimado somava um valor por natureza
     // aproximado (PMC/PUC actual × unidades, nunca o custo à data da
     // venda) e o pedido explícito foi mantê-lo fora da apresentação.
-    { key: "custoUnitarioEstimado", label: "Custo unit. est.", format: "currency", width: BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado },
+    // "Custo unit.\nest." (2 linhas) ainda transbordava na 1ª linha —
+    // "Custo unit." (11 caracteres) não cabe na largura desta coluna
+    // (~6% da página). 3 linhas curtas em vez de 2: cada uma isolada
+    // cabe com folga, ao contrário de qualquer combinação de 2 linhas
+    // que junte "unit." a outra palavra.
+    { key: "custoUnitarioEstimado", label: "Custo\nunit.\nest.", format: "currency", width: w(BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado) },
     ...monthColumns,
-    { key: "totalVendas", label: "Total Unid.", format: "integer",  width: BASE_WIDTH_FIXED_COLS.totalVendas, showTotal: true },
-    { key: "existencia",  label: "Stock",       format: "integer",  width: BASE_WIDTH_FIXED_COLS.existencia },
-    { key: "farmacia",    label: "Farmácia",    format: "text",     width: BASE_WIDTH_FIXED_COLS.farmacia },
+    { key: "totalVendas", label: "Total\nUnid.", format: "integer",  width: w(BASE_WIDTH_FIXED_COLS.totalVendas), showTotal: true },
+    { key: "existencia",  label: "Stock",       format: "integer",  width: w(BASE_WIDTH_FIXED_COLS.existencia) },
+    { key: "farmacia",    label: "Farmácia",    format: "text",     width: w(BASE_WIDTH_FIXED_COLS.farmacia) },
   ];
 }
 
@@ -201,13 +261,6 @@ function buildFilters(
   }
   const lista = filtroListaImportada(f.cnps);
   if (lista) out.push(lista);
-  // O aviso viaja COM o relatorio. Quem abre o PDF daqui a um mes nao
-  // tem como saber que a coluna de custo e' um snapshot de hoje.
-  out.push({
-    label: "Custo",
-    value:
-      "estimado pelo PMC/PUC actual da ficha — nao e' o custo a data da venda",
-  });
   if (f.artigo && f.artigo.trim()) {
     out.push({ label: "Pesquisa", value: f.artigo.trim() });
   }
@@ -339,7 +392,15 @@ export function buildVendasReport(input: {
       slug: "vendas",
       orientation: "landscape",
       organization: input.organization,
-      footer: "SPharm.MT · Uso interno",
+      // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
+      // um mês não tem como saber que a coluna de custo é um snapshot
+      // de hoje. Vivia como uma "chip" de filtro (com white-space:nowrap,
+      // pensado para valores curtos), o que a forçava para uma frase
+      // inteira numa única linha sem quebra — exactamente o "excesso de
+      // informação numa só linha" a corrigir. O rodapé já é texto livre
+      // que quebra normalmente.
+      footer:
+        "SPharm.MT · Uso interno · Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda",
     },
   };
 }

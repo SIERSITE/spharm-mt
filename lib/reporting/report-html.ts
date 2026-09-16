@@ -150,7 +150,13 @@ function renderTable(report: Report): string {
   const headerCells = cols
     .map((c) => {
       const style = alignStyle(defaultAlignFor(c));
-      return `<th style="${style}">${escapeHtml(c.label)}</th>`;
+      // Um rótulo pode trazer "\n" para pedir cabeçalho em duas linhas
+      // (ex.: meses "JAN\n26", ou "Custo unit.\nest.") — a forma mais
+      // curta de dar mais largura de leitura a cada linha sem estreitar
+      // a coluna nem cortar texto. Nenhum outro relatório usa "\n" nos
+      // rótulos, por isso isto não muda nada fora do Vendas.
+      const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
+      return `<th style="${style}">${label}</th>`;
     })
     .join("");
 
@@ -169,7 +175,7 @@ function renderTable(report: Report): string {
         })
         .join("");
       return subtotal
-        ? `<tr style="background:#f1f5f9;border-top:1px solid #cbd5e1">${tds}</tr>`
+        ? `<tr class="subtotal-row">${tds}</tr>`
         : `<tr>${tds}</tr>`;
     })
     .join("");
@@ -182,7 +188,10 @@ function renderTable(report: Report): string {
     ? `<tfoot><tr>${cols
         .map((c, i) => {
           const style = alignStyle(defaultAlignFor(c));
-          if (i === 0) return `<td style="${style}"><strong>Total</strong></td>`;
+          // "TOTAL GERAL", não "Total" — para nunca se confundir, à
+          // primeira vista, com "TOTAL ARTIGO" (o subtotal por linha,
+          // ver .subtotal-row acima) numa tabela com muitas linhas.
+          if (i === 0) return `<td style="${style}"><strong>TOTAL GERAL</strong></td>`;
           if (c.showTotal) {
             return `<td style="${style}"><strong>${escapeHtml(formatCell(totals[c.key], c.format))}</strong></td>`;
           }
@@ -314,6 +323,15 @@ const STYLES = `
     text-transform: uppercase;
     letter-spacing: 0.4px;
     white-space: nowrap;
+    line-height: 1.35;
+    /* Sem isto, um rótulo mais largo que a coluna (ex.: "Custo unit.
+       est." ou um mês "JAN/26" numa coluna estreita) TRANSBORDA
+       visualmente para cima da coluna seguinte em vez de cortar —
+       table-layout:fixed limita a largura da célula, mas não corta
+       texto sozinho. tbody td já tinha isto; thead th não tinha, e era
+       aqui que os cabeçalhos apareciam "encavalados". */
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   tbody td {
     padding: 4px 6px;
@@ -333,13 +351,25 @@ const STYLES = `
   }
   tbody tr:nth-child(even) td { background: #f9f9f9 !important; }
   tbody tr:hover td { background: #f0f0f0 !important; }
+  /* Subtotal por artigo ("TOTAL ARTIGO") — tem de se distinguir das
+     linhas de farmácia à primeira vista, mas continuar claramente mais
+     discreto do que o TOTAL GERAL (tfoot, abaixo). Barra à esquerda +
+     fundo + moldura, em vez de só um filete no topo. */
+  tbody tr.subtotal-row td {
+    background: #eef2f7 !important;
+    border-top: 1px solid #94a3b8;
+    border-bottom: 1px solid #94a3b8;
+  }
+  tbody tr.subtotal-row td:first-child {
+    border-left: 3px solid #475569;
+  }
   tfoot td {
-    padding: 6px 6px;
-    border-top: 2px solid #1a1a1a;
+    padding: 7px 6px;
+    border-top: 3px double #1a1a1a;
     border-bottom: 1px solid #1a1a1a;
-    background: #ececec !important;
+    background: #dcdfe3 !important;
     font-weight: 700;
-    font-size: 9.5px;
+    font-size: 10px;
   }
 
   .empty {

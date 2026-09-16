@@ -302,7 +302,13 @@ console.log("\nB3. Custo agregado por artigo\n");
 // O nome da coluna tem de dizer «est.» — em Vendas E em Margens.
 {
   const av = src("lib/reporting/adapters/vendas.ts");
-  check(av.includes('label: "Custo unit. est."'), "Vendas: o relatório diz «est.»");
+  // Correcção (2026-09, layout do PDF): em Vendas o rótulo passou a três
+  // linhas curtas ("Custo\nunit.\nest.") — a versão de uma linha só não
+  // cabia na largura da coluna e transbordava no PDF (ver
+  // test-vendas-pdf-layout.ts, secção G). O rótulo continua a dizer
+  // «est.», só que quebrado; Margens não tem esse aperto de largura e
+  // mantém a versão original numa linha só.
+  check(av.includes('label: "Custo\\nunit.\\nest."'), "Vendas: o relatório diz «est.» (agora em três linhas no PDF)");
   // Removido a pedido (2026-09): Vendas deixou de ter "Custo est."
   // (total) — só o unitário. Margens mantém o total, é outro relatório.
   check(!av.includes('label: "Custo est."'), "…mas já não tem o TOTAL — só o unitário");

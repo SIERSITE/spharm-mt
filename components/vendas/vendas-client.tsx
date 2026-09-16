@@ -11,6 +11,7 @@ import {
   modoEncomendaParaVendas,
 } from "@/lib/encomendas/prefill-from-vendas";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
+import { normalizarOpcao } from "@/components/reporting/filter-select";
 import {
   Eye,
   Filter,
@@ -274,9 +275,13 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        !`${row.codigo} ${row.descricao}`
-          .toLowerCase()
-          .includes(artigo.toLowerCase())
+        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // filtra sem distinguir acentos (unaccent); este refinamento
+        // client-side tinha de fazer o MESMO, senão escondia de novo
+        // uma linha que o servidor tinha correctamente encontrado
+        // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
+        // filtro descartava-a outra vez por "avène" !== "avene").
+        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
       ) {
         return false;
       }
@@ -328,9 +333,13 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        !`${row.codigo} ${row.descricao}`
-          .toLowerCase()
-          .includes(artigo.toLowerCase())
+        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // filtra sem distinguir acentos (unaccent); este refinamento
+        // client-side tinha de fazer o MESMO, senão escondia de novo
+        // uma linha que o servidor tinha correctamente encontrado
+        // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
+        // filtro descartava-a outra vez por "avène" !== "avene").
+        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
       ) {
         continue;
       }
@@ -567,9 +576,10 @@ export function VendasClient({
         }
         if (
           artigo.trim() &&
-          !`${row.codigo} ${row.descricao}`
-            .toLowerCase()
-            .includes(artigo.toLowerCase())
+          // Ver comentário equivalente em baseFiltered — normalizarOpcao
+          // (não .toLowerCase() cru) para não esconder de novo uma linha
+          // que o servidor já encontrou sem distinguir acentos.
+          !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
         ) {
           return false;
         }
@@ -626,9 +636,13 @@ export function VendasClient({
       }
       if (
         artigo.trim() &&
-        !`${row.codigo} ${row.descricao}`
-          .toLowerCase()
-          .includes(artigo.toLowerCase())
+        // normalizarOpcao (não .toLowerCase() cru) — o servidor já
+        // filtra sem distinguir acentos (unaccent); este refinamento
+        // client-side tinha de fazer o MESMO, senão escondia de novo
+        // uma linha que o servidor tinha correctamente encontrado
+        // (ex.: pesquisar "avene" trazia "Avène..." do servidor, e este
+        // filtro descartava-a outra vez por "avène" !== "avene").
+        !normalizarOpcao(`${row.codigo} ${row.descricao}`).includes(normalizarOpcao(artigo))
       ) {
         continue;
       }
@@ -834,10 +848,10 @@ export function VendasClient({
             />
 
             <CompactInput
-              label="Artigo"
+              label="Produto"
               value={artigo}
               onChange={setArtigo}
-              placeholder="Código ou descrição"
+              placeholder="Pesquisar por CNP ou descrição..."
             />
 
             <CompactDate
@@ -1812,13 +1826,21 @@ function CompactInput({
   return (
     <label className="block">
       <div className="mb-1 text-[11px] font-medium text-slate-500">{label}</div>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
-      />
+      {/* Ícone de lupa — o mesmo padrão visual de SearchableMultiSelect,
+          aqui para deixar claro que este é o campo de PESQUISA do
+          relatório (CNP ou descrição), não um filtro qualquer.
+          O utilizador não estava a perceber que era aqui que se
+          escrevia o nome do produto para filtrar. */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+        />
+      </div>
     </label>
   );
 }
