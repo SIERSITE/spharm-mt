@@ -1145,7 +1145,7 @@ export function VendasClient({
               compact
             />
             <ToggleRow
-              label="Apenas com stock"
+              label="Incluir stock sem vendas"
               checked={apenasComStock}
               onChange={setApenasComStock}
               compact
