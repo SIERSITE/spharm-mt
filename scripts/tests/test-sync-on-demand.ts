@@ -285,9 +285,18 @@ console.log("\n== H. Wiring ponta-a-ponta ==");
   check(httpClient.includes("ackSyncRequest"), "SaasClient expõe ackSyncRequest");
   check(httpClient.includes("failSyncRequest"), "SaasClient expõe failSyncRequest");
 
+  // rev94 (long-polling real) → rev95 (refresh operacional diário +
+  // observabilidade do lock, ver refresh-operacional.test.ts). O número
+  // exacto muda a cada rev; o que este teste garante é que o bloco de
+  // comentários fica por perto de "94" — prova de que a rev de
+  // long-polling não regrediu para uma anterior.
   check(
-    src("agent/build.mjs").includes('process.env.AGENT_PACKAGE_REV ?? "94"'),
-    "AGENT_REV avançou para 94 (long-polling real)",
+    src("agent/build.mjs").includes('rev94 — sync-now passa a fazer LONG-POLLING real'),
+    "AGENT_REV: o histórico de rev94 (long-polling real) continua documentado",
+  );
+  check(
+    src("agent/build.mjs").includes('process.env.AGENT_PACKAGE_REV ?? "95"'),
+    "AGENT_REV avançou para 95 (refresh operacional diário)",
   );
 
   const stockClient = src("components/stock/stock-client.tsx");
