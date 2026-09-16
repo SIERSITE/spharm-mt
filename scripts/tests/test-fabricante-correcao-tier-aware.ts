@@ -23,6 +23,19 @@
  *      `import-regulatory-record.ts` e `dedupeByLastCnp` de
  *      `correct-fabricantes-listagem.ts` — exactamente o caminho que o
  *      script de correcção usa.
+ *   9. CNP 1100921 (INTIMINA ESTERILIZADOR COPO MENSTRUAL) — caso real
+ *      investigado (2026-09): `parseRows` descartava a linha por
+ *      `cnp<=MIN_CNP` antes de a Fase 2 a ver, mesmo sendo um Produto
+ *      real já existente. Reproduz o "antes" (0 linhas processadas) e o
+ *      "depois" (`applyMinCnpFilter:false`, ficha passa a devolver
+ *      DISFAPORT DIRECTO).
+ *  10. Prova de que `correct-fabricantes-listagem.ts` lê o ficheiro DUAS
+ *      vezes com filtros diferentes — Fase 1/RegulatoryRecord mantém o
+ *      cutoff de CNP, Fase 2/fabricanteId não.
+ *  11. Verificação amostral (actualizados/bloqueados/não-encontrados/
+ *      vazios) com uma listagem sintética que mistura CNP baixos e altos
+ *      — prova que a correcção generaliza, não é um remendo só para o
+ *      1100921.
  *
  * Uso: npx tsx scripts/tests/test-fabricante-correcao-tier-aware.ts
  */
@@ -895,6 +908,181 @@ async function testAmostraDryRun(): Promise<void> {
   eq("valorNovo (canónico) bate com o actual — por isso é semAlteracao", d.valorNovo, d.valorAtual);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 9. CNP 1100921 (INTIMINA ESTERILIZADOR COPO MENSTRUAL) — reprodução e
+//    correcção do caso real
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Investigado (2026-09): o Excel de gamas do fabricante tinha CNP 1100921
+// → "DISFAPORT DIRECTO", mas a ficha do produto ficava com Fabricante
+// vazio. Causa: `parseRows` descartava a linha (cnp=1100921 <= MIN_CNP=
+// 2_000_000) ANTES de a Fase 2 (`applyAuthoritativeManufacturerCorrections`)
+// sequer a ver — nenhum tier, `validadoManualmente` ou sync ERP bloqueava
+// nada, porque o importador nunca gravava. `parseRows(..., {
+// applyMinCnpFilter: false })` é a correcção: a linha passa a chegar à
+// Fase 2, que só a aceita porque o CNP corresponde a um `Produto` real.
+
+function testCnp1100921(): void {
+  console.log("\n=== 9. CNP 1100921 — parseRows com/sem o cutoff de MIN_CNP ===");
+
+  const csv = [
+    "1100921;Autorizado;INTIMINA ESTERILIZADOR COPO MENSTRUAL;DISFAPORT DIRECTO",
+    "5000001;Autorizado;Produto A;Bayer AG",
+  ];
+  const rows = csv.map((l) => l.split(";"));
+  const mapping = { cnp: 0, estadoAim: 1, designacaoOficial: 2, titularAim: 3 } as const;
+
+  const statsComCutoff = parseRows(rows, mapping, false, null);
+  eq(
+    "com o cutoff (default, Fase 1/RegulatoryRecord): CNP 1100921 é descartado (skippedBelowMin)",
+    statsComCutoff.skippedBelowMin,
+    1,
+  );
+  ok(
+    "…e não aparece nas linhas parseadas",
+    !statsComCutoff.parsed.some((r) => r.cnp === 1100921),
+  );
+
+  const statsSemCutoff = parseRows(rows, mapping, false, null, { applyMinCnpFilter: false });
+  eq("sem o cutoff (Fase 2/fabricanteId): nada é descartado por MIN_CNP", statsSemCutoff.skippedBelowMin, 0);
+  const linha1100921 = statsSemCutoff.parsed.find((r) => r.cnp === 1100921);
+  ok("…e o CNP 1100921 aparece, com o fabricante do Excel", linha1100921?.titularAim === "DISFAPORT DIRECTO");
+}
+
+async function testCnp1100921EndToEnd(): Promise<void> {
+  console.log("\n=== 9b. CNP 1100921 — ponta-a-ponta: produto real recebe o fabricante ===");
+
+  // Produto real, já existente, sem fabricante — exactamente o sintoma
+  // relatado ("—" na ficha).
+  const produtos: ProdutoFalso[] = [
+    { id: "p-intimina", cnp: 1100921, designacao: "INTIMINA ESTERILIZADOR COPO MENSTRUAL", validadoManualmente: false, fabricante: null },
+  ];
+  const { prisma: prismaAntesDoFix } = prismaFalso(produtos, []);
+
+  // ── ANTES da correcção: a Fase 2 nem chega a ver a linha ────────────────
+  // (reproduz o bug tal como estava — parseRows com o cutoff, o único
+  // caminho que existia antes de `applyMinCnpFilter` existir).
+  const csv = ["1100921;Autorizado;INTIMINA ESTERILIZADOR COPO MENSTRUAL;DISFAPORT DIRECTO"];
+  const rows = csv.map((l) => l.split(";"));
+  const mapping = { cnp: 0, estadoAim: 1, designacaoOficial: 2, titularAim: 3 } as const;
+  const statsAntigo = parseRows(rows, mapping, false, null); // sem a opção — comportamento pré-correcção
+  const reportAntigo = await applyAuthoritativeManufacturerCorrections(
+    prismaAntesDoFix,
+    statsAntigo.parsed.map((r) => ({ cnp: r.cnp, titularAim: r.titularAim ?? null })),
+    { source: "teste_cnp_1100921_antigo", dryRun: false },
+  );
+  eq(
+    "ANTES da correcção: 0 linhas chegam à Fase 2 (a linha nunca sai do parseRows)",
+    reportAntigo.linhasProcessadas,
+    0,
+  );
+  eq("…o produto continua sem fabricante", produtos[0].fabricante, null);
+
+  // ── DEPOIS da correcção: Fase 2 usa parseRows sem o cutoff ──────────────
+  const { prisma: prismaDepoisDoFix } = prismaFalso(produtos, []);
+  const statsNovo = parseRows(rows, mapping, false, null, { applyMinCnpFilter: false });
+  const listingRows: ManufacturerListingRow[] = statsNovo.parsed.map((r) => ({ cnp: r.cnp, titularAim: r.titularAim ?? null }));
+  const reportNovo = await applyAuthoritativeManufacturerCorrections(prismaDepoisDoFix, listingRows, {
+    source: "teste_cnp_1100921_novo",
+    dryRun: false,
+  });
+
+  eq("DEPOIS da correcção: 1 linha processada", reportNovo.linhasProcessadas, 1);
+  eq("…1 produto encontrado por CNP", reportNovo.produtosEncontrados, 1);
+  eq("…1 fabricante actualizado", reportNovo.atualizados, 1);
+  const p = produtos[0];
+  eq(
+    "a ficha do produto (produto.fabricante.nomeNormalizado) devolve DISFAPORT DIRECTO",
+    p.fabricante?.nomeNormalizado,
+    "DISFAPORT DIRECTO",
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 10. correct-fabricantes-listagem.ts — a Fase 1 e a Fase 2 veem conjuntos
+//     de linhas DIFERENTES do mesmo ficheiro (dupla leitura)
+// ─────────────────────────────────────────────────────────────────────────
+
+function testDuplaLeituraFase1Fase2(): void {
+  console.log("\n=== 10. Dupla leitura do ficheiro — Fase 1 (RegulatoryRecord) vs Fase 2 (fabricanteId) ===");
+
+  const csv = [
+    "1100921;Autorizado;INTIMINA ESTERILIZADOR COPO MENSTRUAL;DISFAPORT DIRECTO", // cnp baixo, produto real
+    "5000001;Autorizado;Produto A;Bayer AG", // cnp normal
+  ];
+  const rows = csv.map((l) => l.split(";"));
+  const mapping = { cnp: 0, estadoAim: 1, designacaoOficial: 2, titularAim: 3 } as const;
+
+  const statsRegulatory = parseRows(rows, mapping, false, null);
+  const statsFabricante = parseRows(rows, mapping, false, null, { applyMinCnpFilter: false });
+  const { deduped: regDeduped } = dedupeByLastCnp(statsRegulatory.parsed);
+  const { deduped: fabDeduped } = dedupeByLastCnp(statsFabricante.parsed);
+
+  eq("Fase 1 (RegulatoryRecord): só o CNP alto entra", regDeduped.length, 1);
+  ok("…e não é o 1100921", !regDeduped.some((r) => r.cnp === 1100921));
+  eq("Fase 2 (fabricanteId): os dois CNP entram, incluindo o baixo", fabDeduped.length, 2);
+  ok("…incluindo o 1100921", fabDeduped.some((r) => r.cnp === 1100921));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 11. Verificação amostral — atualizados / bloqueados / não encontrados /
+//     vazios, generalizada além do CNP 1100921
+// ─────────────────────────────────────────────────────────────────────────
+//
+// O pedido explícito: "quantos fabricantes foram efectivamente
+// actualizados; quantos ficaram bloqueados; quantos CNP não foram
+// encontrados; quantos ficaram vazios apesar de terem fabricante no
+// Excel" — usando uma listagem sintética com CNP baixos E altos, para
+// provar que a correcção não é só para o 1100921: qualquer CNP baixo que
+// corresponda a um Produto real passa a ser corrigido da mesma forma.
+
+async function testVerificacaoAmostral(): Promise<void> {
+  console.log("\n=== 11. Verificação amostral — atualizados/bloqueados/não-encontrados/vazios ===");
+
+  const produtos: ProdutoFalso[] = [
+    // CNP baixo (≤ MIN_CNP), produto real, sem fabricante → deve actualizar
+    { id: "p-baixo-1", cnp: 900001, designacao: "Artigo parafarmácia baixo 1", validadoManualmente: false, fabricante: null },
+    { id: "p-baixo-2", cnp: 1100921, designacao: "INTIMINA ESTERILIZADOR COPO MENSTRUAL", validadoManualmente: false, fabricante: null },
+    // CNP baixo, produto real, mas validadoManualmente → bloqueado
+    { id: "p-baixo-bloqueado", cnp: 950000, designacao: "Artigo protegido", validadoManualmente: true, fabricante: { nomeNormalizado: "FABRICANTE ANTIGO" } },
+    // CNP alto normal → actualiza (caso de sempre, para contraste)
+    { id: "p-alto", cnp: 5000010, designacao: "Produto alto", validadoManualmente: false, fabricante: null },
+    // Produto real, mas a listagem trouxe o fabricante vazio para ele →
+    // fabricanteVazio só se aplica quando o Produto EXISTE (sem Produto
+    // correspondente a categoria é cnpNaoEncontrado, não esta).
+    { id: "p-vazio", cnp: 999998, designacao: "Produto sem fabricante no Excel", validadoManualmente: false, fabricante: { nomeNormalizado: "ALGUM FABRICANTE" } },
+  ];
+  const { prisma } = prismaFalso(produtos, []);
+
+  const listingRows: ManufacturerListingRow[] = [
+    { cnp: 900001, titularAim: "DISFAPORT DIRECTO" }, // actualiza
+    { cnp: 1100921, titularAim: "DISFAPORT DIRECTO" }, // actualiza (o caso relatado)
+    { cnp: 950000, titularAim: "FABRICANTE NOVO" }, // bloqueado — validadoManualmente
+    { cnp: 5000010, titularAim: "Bayer AG" }, // actualiza
+    { cnp: 999999, titularAim: "Fabricante Fantasma" }, // CNP não encontrado (sem Produto)
+    { cnp: 999998, titularAim: null }, // fabricante vazio no Excel
+  ];
+
+  const report = await applyAuthoritativeManufacturerCorrections(prisma, listingRows, {
+    source: "teste_amostra_geral",
+    dryRun: false,
+  });
+
+  eq("actualizados = 3 (900001, 1100921, 5000010)", report.atualizados, 3);
+  eq("bloqueados (conflitos) = 1 (950000, validadoManualmente)", report.conflitos, 1);
+  eq("CNP não encontrados = 1 (999999)", report.cnpNaoEncontrado, 1);
+  eq("fabricante vazio no Excel = 1 (999998)", report.fabricanteVazio, 1);
+
+  // Confirma explicitamente que os CNP baixos (não só o 1100921) foram
+  // mesmo escritos — a correcção generaliza, não é um remendo pontual.
+  const pBaixo1 = produtos.find((p) => p.id === "p-baixo-1")!;
+  const pIntimina = produtos.find((p) => p.id === "p-baixo-2")!;
+  eq("CNP 900001 (baixo, genérico) recebeu o fabricante", pBaixo1.fabricante?.nomeNormalizado, "DISFAPORT DIRECTO");
+  eq("CNP 1100921 recebeu DISFAPORT DIRECTO", pIntimina.fabricante?.nomeNormalizado, "DISFAPORT DIRECTO");
+  const pBloqueado = produtos.find((p) => p.id === "p-baixo-bloqueado")!;
+  eq("CNP 950000 (validadoManualmente) manteve o fabricante antigo", pBloqueado.fabricante?.nomeNormalizado, "FABRICANTE ANTIGO");
+}
+
 async function main() {
   testDecideManufacturerCorrection();
   testInferCurrentManufacturerTier();
@@ -907,6 +1095,10 @@ async function main() {
   testNormalizeFabricanteCanonico();
   await testNaoDuplicaFabricanteExistente();
   await testAmostraDryRun();
+  testCnp1100921();
+  await testCnp1100921EndToEnd();
+  testDuplaLeituraFase1Fase2();
+  await testVerificacaoAmostral();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);

@@ -326,18 +326,42 @@ async function runCorrecao(
     return;
   }
 
-  const stats = parseRows(rows, mapping, hasHeader, args.limit);
-  const { deduped, duplicateCount } = dedupeByLastCnp(stats.parsed);
-  const linhasInvalidas = stats.skippedNoCnp + stats.skippedBelowMin + stats.skippedNoFields;
+  // ── Duas leituras do MESMO ficheiro, com filtros diferentes ─────────────
+  //
+  // Correcção (2026-09): CNP 1100921 (INTIMINA ESTERILIZADOR COPO
+  // MENSTRUAL) tinha "DISFAPORT DIRECTO" no Excel de gamas mas ficava sem
+  // fabricante no SPharm.MT. Causa: `parseRows` descartava a linha
+  // (cnp <= MIN_CNP) ANTES de a Fase 2 (`applyAuthoritativeManufacturerCorrections`,
+  // que só corrige `Produto.fabricanteId` de produtos que já existem —
+  // essa é a guarda real, não o CNP) sequer a ver.
+  //
+  // A Fase 1 (RegulatoryRecord) continua a exigir cnp>MIN_CNP — essa
+  // tabela representa dados genuinamente regulatórios (INFARMED/CEDIME),
+  // e um CNP baixo aí é tipicamente uma taxa/acto clínico, não um produto
+  // (ver lib/catalog/cnp-catalogavel.ts). A Fase 2 usa a leitura SEM esse
+  // filtro: um CNP baixo com Produto real por trás é legítimo.
+  const statsRegulatory = parseRows(rows, mapping, hasHeader, args.limit);
+  const statsFabricante = parseRows(rows, mapping, hasHeader, args.limit, { applyMinCnpFilter: false });
 
-  console.log(`  linhas úteis parseadas: ${stats.parsed.length}`);
+  const { deduped, duplicateCount } = dedupeByLastCnp(statsRegulatory.parsed);
+  const { deduped: dedupedFabricante } = dedupeByLastCnp(statsFabricante.parsed);
+  const linhasInvalidas = statsRegulatory.skippedNoCnp + statsRegulatory.skippedBelowMin + statsRegulatory.skippedNoFields;
+  // Linhas que só a Fase 2 vê: cnp≤MIN_CNP mas correspondem a um Produto
+  // real (confirmado dentro de applyAuthoritativeManufacturerCorrections,
+  // que reporta cnpNaoEncontrado para as que não correspondem).
+  const recuperadasParaFase2 = dedupedFabricante.length - deduped.length;
+
+  console.log(`  linhas úteis parseadas (Fase 1, cnp>${MIN_CNP}): ${statsRegulatory.parsed.length}`);
   console.log(`  CNP duplicados no ficheiro (última ocorrência vence): ${duplicateCount}`);
   console.log(
     `  linhas inválidas: ${linhasInvalidas} ` +
-      `(cnp inválido=${stats.skippedNoCnp}, cnp≤${MIN_CNP}=${stats.skippedBelowMin}, sem campos úteis=${stats.skippedNoFields})`,
+      `(cnp inválido=${statsRegulatory.skippedNoCnp}, cnp≤${MIN_CNP}=${statsRegulatory.skippedBelowMin}, sem campos úteis=${statsRegulatory.skippedNoFields})`,
+  );
+  console.log(
+    `  linhas adicionais só para Fase 2 (cnp≤${MIN_CNP}, correcção de fabricante, sujeitas a existirem como Produto): ${recuperadasParaFase2}`,
   );
 
-  if (deduped.length === 0) {
+  if (deduped.length === 0 && dedupedFabricante.length === 0) {
     console.warn("\nNada para processar depois do parsing/deduplicação.");
     return;
   }
@@ -363,8 +387,12 @@ async function runCorrecao(
   );
 
   // ── Fase 2: Produto.fabricanteId (tier-aware, opt-in) ────────────────────
+  //
+  // Usa `dedupedFabricante` (sem o cutoff de CNP) — não `deduped`. A
+  // guarda contra lixo é a própria applyAuthoritativeManufacturerCorrections,
+  // que só toca produtos que já existem (cnpNaoEncontrado para os outros).
   console.log(`\n[3/4] Fase 2/2 — Produto.fabricanteId (correcção tier-aware; ${dryRun ? "simulado" : "aplicado"})...`);
-  const listingRows: ManufacturerListingRow[] = deduped.map((r) => ({
+  const listingRows: ManufacturerListingRow[] = dedupedFabricante.map((r) => ({
     cnp: r.cnp,
     titularAim: r.titularAim ?? null,
   }));

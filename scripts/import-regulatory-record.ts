@@ -9,7 +9,18 @@
  *   · Preservar não-null por defeito — uma corrida que traga `dci=null`
  *     não apaga um `dci` populado por uma corrida anterior. `--force`
  *     sobrescreve mesmo campos não-null (uso consciente).
- *   · `cnp > 2.000.000` filtrado (códigos internos ERP).
+ *   · `cnp > 2.000.000` filtrado (códigos internos ERP). Este cutoff é
+ *     específico de POVOAR `RegulatoryRecord` a partir de uma listagem
+ *     genuinamente regulatória (INFARMED/CEDIME-ANF) — não deve ser copiado
+ *     para outros importadores de fabricante sem pensar: um artigo de
+ *     parafarmácia REAL, já existente como `Produto`, pode legitimamente
+ *     ter um CNP sequencial baixo (ex.: CNP 1100921, INTIMINA ESTERILIZADOR
+ *     COPO MENSTRUAL) — esse produto não deixa de ser real só por não vir
+ *     de uma listagem INFARMED. `parseRows()` aceita `{ applyMinCnpFilter:
+ *     false }` para quem precisa de corrigir `Produto.fabricanteId` sem
+ *     este cutoff (ver `correct-fabricantes-listagem.ts`, fase 2, e
+ *     `scripts/update-fabricantes-from-xlsx.ts`, que não tem cutoff nenhum
+ *     — só a existência do Produto).
  *   · A coluna `source` é actualizada em cada upsert para a tag passada
  *     em `--source`. Identifica a fonte/import mais recente que tocou
  *     no registo.
@@ -317,7 +328,26 @@ export function parseRows(
   mapping: Partial<Record<FieldName, number>>,
   hasHeader: boolean,
   limit: number | null,
+  opts?: {
+    /**
+     * Por omissão (true), descarta linhas com `cnp <= MIN_CNP` — correcto
+     * para POVOAR RegulatoryRecord a partir de uma listagem INFARMED, onde
+     * um CNP baixo é tipicamente uma taxa/acto clínico sem identidade de
+     * produto nacional (ver lib/catalog/cnp-catalogavel.ts).
+     *
+     * `false` desliga esse filtro. Usado por
+     * `correct-fabricantes-listagem.ts` na FASE 2 (correcção de
+     * `Produto.fabricanteId`) — aí a linha só é aceite se corresponder a um
+     * `Produto` já existente (verificado dentro de
+     * `applyAuthoritativeManufacturerCorrections`, não aqui), e um artigo
+     * de parafarmácia real com CNP sequencial baixo (ex.: 1100921) é
+     * legítimo. Ver a nota "CNP 1100921" no cabeçalho deste ficheiro e em
+     * `correct-fabricantes-listagem.ts`.
+     */
+    applyMinCnpFilter?: boolean;
+  },
 ): ParseStats {
+  const applyMinCnpFilter = opts?.applyMinCnpFilter ?? true;
   const stats: ParseStats = {
     totalRead: 0,
     parsed: [],
@@ -343,7 +373,7 @@ export function parseRows(
       stats.skippedNoCnp++;
       continue;
     }
-    if (cnp <= MIN_CNP) {
+    if (applyMinCnpFilter && cnp <= MIN_CNP) {
       stats.skippedBelowMin++;
       continue;
     }

@@ -11,11 +11,32 @@
  *   col 3 = fabricante  (nome bruto)
  *
  * Regras:
- *   - Só considerar linhas com cnp > 2_000_000
- *   - Só actualizar produtos que já existam em Produto (match por cnp)
+ *   - Só actualizar produtos que já existam em Produto (match por cnp) —
+ *     essa é a ÚNICA guarda de segurança contra "lixo" no ficheiro
  *   - getOrCreateFabricante() para obter/criar o Fabricante pelo nome
  *   - Update directo de Produto.fabricanteId
  *   - Idempotente: re-correr não faz nada se o fabricante já está correcto
+ *
+ * ── Correcção (2026-09): CNP 1100921 (INTIMINA ESTERILIZADOR COPO
+ *    MENSTRUAL) ficava sem fabricante depois da importação ────────────────
+ *
+ * Este script tinha um segundo filtro, `cnp <= MIN_CNP` (2_000_000),
+ * copiado de `import-regulatory-record.ts` — lá faz sentido: esse
+ * importador povoa `RegulatoryRecord` a partir de listagens INFARMED, onde
+ * um CNP baixo é tipicamente uma taxa/acto clínico sem identidade de
+ * produto nacional (ver `lib/catalog/cnp-catalogavel.ts`). Aqui NÃO faz
+ * sentido: este script só actualiza fabricante de produtos que JÁ EXISTEM
+ * como `Produto` na base (o `produtoCnps.has(cnp)` abaixo) — um artigo de
+ * parafarmácia real com CNP sequencial baixo (ex.: 1100921) é um produto
+ * legítimo, só que mais antigo, e o Excel de gamas do fabricante trazia o
+ * valor certo (DISFAPORT DIRECTO) que nunca chegava a ser lido: a linha
+ * era descartada pelo `cnp <= MIN_CNP` ANTES de o campo Fabricante da
+ * coluna ser sequer examinado. Confirmado que nenhum outro mecanismo
+ * (tier, `validadoManualmente`, sync ERP) bloqueava ou limpava o valor —
+ * o importador simplesmente nunca chegava a gravar nada para este CNP.
+ *
+ * A guarda `produtoCnps.has(cnp)` já é suficiente: só actualiza CNPs que
+ * são produtos reais e conhecidos do catálogo desta farmácia/tenant.
  *
  * Uso:
  *   npx tsx scripts/update-fabricantes-from-xlsx.ts --dry-run
@@ -30,7 +51,6 @@ import { legacyPrisma as prisma } from "../lib/prisma";
 import { getOrCreateFabricante } from "../lib/catalog-persistence";
 
 const DEFAULT_FILE = "example_files/novo_fabricante.xlsx";
-const MIN_CNP = 2_000_000;
 const DEFAULT_BATCH = 100;
 
 // ─── Args ─────────────────────────────────────────────────────────────────────
@@ -70,7 +90,7 @@ function cleanString(raw: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
-function normalizeFabricanteNome(raw: string): string {
+export function normalizeFabricanteNome(raw: string): string {
   return stripAccents(raw).toUpperCase().replace(/\s+/g, " ").trim();
 }
 
@@ -114,18 +134,26 @@ function rowToFields(row: unknown[]): string[] {
 
 // ─── Parse ────────────────────────────────────────────────────────────────────
 
-type ParsedRow = { cnp: number; fabricanteRaw: string };
+export type ParsedRow = { cnp: number; fabricanteRaw: string };
 
-type ParseStats = {
+export type ParseStats = {
   rows: ParsedRow[];
   totalRead: number;
-  filteredByCnp: number;
   filteredNotInProduto: number;
-  withCnpAboveMin: number;
   missingFabricante: number;
 };
 
-function parseFile(filePath: string, limit: number | null, produtoCnps: Set<number>): ParseStats {
+/**
+ * `produtoCnps` é a ÚNICA guarda contra "lixo" no ficheiro — não há
+ * cutoff por magnitude de CNP aqui (ver nota no cabeçalho do ficheiro
+ * sobre o CNP 1100921). Um CNP que não corresponde a um Produto
+ * existente é ignorado de qualquer forma; um que corresponde é
+ * legítimo, seja qual for o seu valor numérico.
+ *
+ * Exportada para teste directo (scripts/tests/test-update-fabricantes-from-xlsx.ts)
+ * sem precisar de BD viva — só o parsing/filtro é exercitado aí.
+ */
+export function parseFile(filePath: string, limit: number | null, produtoCnps: Set<number>): ParseStats {
   const wb = XLSX.readFile(filePath);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 }) as unknown[][];
@@ -133,9 +161,7 @@ function parseFile(filePath: string, limit: number | null, produtoCnps: Set<numb
   const stats: ParseStats = {
     rows: [],
     totalRead: 0,
-    filteredByCnp: 0,
     filteredNotInProduto: 0,
-    withCnpAboveMin: 0,
     missingFabricante: 0,
   };
 
@@ -149,9 +175,6 @@ function parseFile(filePath: string, limit: number | null, produtoCnps: Set<numb
 
     const cnp = Math.round(Number(String(fields[0]).replace(/[^\d.-]/g, "")));
     if (!Number.isFinite(cnp) || cnp <= 0) continue;
-
-    if (cnp <= MIN_CNP) { stats.filteredByCnp++; continue; }
-    stats.withCnpAboveMin++;
 
     if (!produtoCnps.has(cnp)) { stats.filteredNotInProduto++; continue; }
 
@@ -260,11 +283,13 @@ async function main(): Promise<void> {
   console.log(`Batch    : ${args.batch}`);
   console.log();
 
-  // 1. Carregar CNPs elegíveis em Produto.
-  console.log(`A carregar CNPs de Produto com cnp > ${MIN_CNP}…`);
+  // 1. Carregar todos os CNPs existentes em Produto — sem cutoff por
+  //    magnitude. Esta é a ÚNICA guarda de elegibilidade (ver nota no
+  //    cabeçalho do ficheiro sobre o CNP 1100921, que um `cnp > MIN_CNP`
+  //    aqui excluía silenciosamente antes de a coluna Fabricante ser lida).
+  console.log(`A carregar CNPs de Produto…`);
   const tLoad = Date.now();
   const produtoRows = await prisma.produto.findMany({
-    where: { cnp: { gt: MIN_CNP } },
     select: { cnp: true },
   });
   const produtoCnpSet = new Set<number>(produtoRows.map((p) => p.cnp));
@@ -272,7 +297,7 @@ async function main(): Promise<void> {
   console.log();
 
   if (produtoCnpSet.size === 0) {
-    console.error(`Nenhum Produto com cnp > ${MIN_CNP}.`);
+    console.error(`Nenhum Produto na base.`);
     await prisma.$disconnect();
     process.exit(1);
   }
@@ -281,7 +306,6 @@ async function main(): Promise<void> {
   const parseStats = parseFile(args.file, args.limit, produtoCnpSet);
   const rows = parseStats.rows;
   console.log(`Lidas         : ${parseStats.totalRead}`);
-  console.log(`cnp <= ${MIN_CNP} : ${parseStats.filteredByCnp} descartadas`);
   console.log(`sem Produto   : ${parseStats.filteredNotInProduto} descartadas`);
   console.log(`sem fabricante: ${parseStats.missingFabricante} descartadas`);
   console.log(`a processar   : ${rows.length}`);
@@ -293,7 +317,6 @@ async function main(): Promise<void> {
     console.log("RESUMO");
     console.log(sep);
     console.log(`  Lidas ficheiro         : ${parseStats.totalRead}`);
-    console.log(`  Com cnp > ${MIN_CNP}   : ${parseStats.withCnpAboveMin}`);
     console.log(`  Elegíveis em Produto   : ${produtoCnpSet.size}`);
     console.log(`  A processar            : ${rows.length}`);
     if (u) {
@@ -334,7 +357,14 @@ async function main(): Promise<void> {
   await prisma.$disconnect();
 }
 
-main().catch((err) => {
-  console.error("\n[erro fatal]", err);
-  prisma.$disconnect().finally(() => process.exit(1));
-});
+// Guarda de entry-point: este módulo é importado por
+// `scripts/tests/test-update-fabricantes-from-xlsx.ts` para reaproveitar
+// `parseFile`/`normalizeFabricanteNome` sem BD viva nem `main()` a correr
+// (mesmo padrão de `correct-fabricantes-listagem.ts` e
+// `import-regulatory-record.ts`).
+if (/[\\/]update-fabricantes-from-xlsx\.(ts|js|mjs|cjs)$/.test(process.argv[1] ?? "")) {
+  main().catch((err) => {
+    console.error("\n[erro fatal]", err);
+    prisma.$disconnect().finally(() => process.exit(1));
+  });
+}
