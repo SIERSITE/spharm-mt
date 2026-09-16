@@ -316,16 +316,18 @@ agent não é chamado directamente (a comunicação é sempre PULL). Um
 segundo `.bat`, dedicado e mais frequente do que os anteriores, faz
 esse pull:
 
-- **`run-sync-now-poll-auto.bat`** — para Task Scheduler, a cada **2
-  minutos**. Sem prompts. GET pending (só a farmácia configurada) → se
-  houver pedido, produtos+stock DE HOJE (nunca vendas, nunca o
-  histórico inteiro) → ack/fail ao SaaS. Log em
-  `logs\sync-now-<YYYY-MM-DD>.log`.
+- **`run-sync-now-poll-auto.bat`** — para Task Scheduler, a cada **1
+  minuto** (rev94, long-polling — reduzido dos 2 minutos do desenho
+  anterior; ver justificação em `docs/sync-now.md`). Sem prompts. GET
+  pending com `waitSeconds` (o servidor mantém o pedido em espera até
+  ~18s por ciclo, até 3 ciclos) — se houver pedido, produtos+stock DE
+  HOJE (nunca vendas, nunca o histórico inteiro) → ack/fail ao SaaS.
+  Log em `logs\sync-now-<YYYY-MM-DD>.log`.
 
-Documentação completa — endpoint exacto, porquê 2 minutos, autenticação,
-lock/claim, timeout local, política de retry, e o comando `schtasks`
-exacto para instalar/actualizar a tarefa — em
-[docs/sync-now.md](docs/sync-now.md).
+Documentação completa — endpoint exacto, porquê 1 minuto (e a história
+dos 2 minutos que substituiu), autenticação, lock/claim, timeout local,
+política de retry, e o comando `schtasks` exacto para instalar/actualizar
+a tarefa — em [docs/sync-now.md](docs/sync-now.md).
 
 ### 8.3 Como parar / desinstalar
 
