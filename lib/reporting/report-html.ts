@@ -2,15 +2,47 @@
  * lib/reporting/report-html.ts
  *
  * Renderiza um Report para HTML auto-contido (doctype + inline CSS).
- * Usado por report-print.ts (iframe oculto) e poderia ser reutilizado
- * por uma futura integração server-side (ex: puppeteer).
+ * Usado por report-print.ts (iframe oculto) e report-pdf-server.ts
+ * (puppeteer, server-only).
  *
  * IMPORTANTE: estilo INLINE e sem dependências — o HTML gerado tem de
  * renderizar sozinho num iframe novo sem tailwind ou outras libs.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * REDESENHO 2026-09 — `meta.density`
+ *
+ * Duas linguagens visuais convivem no MESMO ficheiro, escolhidas por
+ * `report.meta?.density`:
+ *
+ *   · omisso/"comfortable" — o visual de sempre (cabeçalho com barra
+ *     inferior de 2px, filtros em "chips", resumo em cartões, cabeçalho
+ *     de tabela escuro). ZERO alteração de HTML/CSS para qualquer
+ *     relatório que não opte por "compact" — é a garantia de que este
+ *     redesenho não mexe em Margens/Excessos/Transferências/etc. até
+ *     serem migrados um a um, deliberadamente.
+ *   · "compact" — a linguagem nova (Vendas, 2026-09): marca discreta +
+ *     título + Pág./Gerado em num cabeçalho fino; filtros e resumo numa
+ *     faixa de uma linha, sem cartões; tabela mais densa, cores suaves
+ *     em vez de um cabeçalho preto pesado.
+ *
+ * Três mecanismos GENÉRICOS (não específicos de "compact", nem de
+ * Vendas) vivem em `renderTable()` e activam-se por dados, não por
+ * `density` — um relatório que nunca os usa fica com o HTML
+ * byte-a-byte igual ao de antes destes existirem:
+ *
+ *   · `GROUP_KEY` + `ReportColumn.spanGroup` — junta linhas contíguas
+ *     num grupo visual (hoje: um artigo = as suas farmácias + o TOTAL
+ *     ARTIGO) e desenha as colunas marcadas só na 1ª linha, com
+ *     `rowspan` a cobrir o resto. Ver report-types.ts.
+ *   · `ReportColumn.zeroAsDash` / `toneWhenZero` / `toneWhenPositive` —
+ *     formatação e realce condicional PURAMENTE DECLARATIVOS (nunca uma
+ *     função — um `Report` pode viajar em JSON, ex.: /api/reports/pdf).
+ *   · `ReportColumn.noteKey` — sublinha discreta sob uma célula, lida
+ *     doutra chave da mesma linha (nunca no Excel).
  */
 
-import type { Report, ReportAlign, ReportColumn, ReportRow } from "./report-types";
-import { ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
+import type { Report, ReportAlign, ReportCell, ReportColumn, ReportRow } from "./report-types";
+import { agruparPorGroupKey, ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
 import { formatCell, formatDateTime } from "./report-formatters";
 
 function escapeHtml(s: string): string {
@@ -42,13 +74,44 @@ function defaultAlignFor(col: ReportColumn): ReportAlign {
   }
 }
 
+function isCompact(report: Report): boolean {
+  return report.meta?.density === "compact";
+}
+
 function renderHeader(report: Report): string {
   const org = report.meta?.organization ?? "";
   const generated = formatDateTime(report.generatedAt);
-  return `
+
+  if (!isCompact(report)) {
+    return `
     <header class="report-header">
       <div class="head-main">
         ${org ? `<div class="org">${escapeHtml(org)}</div>` : ""}
+        <h1>${escapeHtml(report.title)}</h1>
+        ${report.subtitle ? `<div class="subtitle">${escapeHtml(report.subtitle)}</div>` : ""}
+      </div>
+      <div class="head-meta">
+        <div>Gerado em <strong>${escapeHtml(generated)}</strong></div>
+        <div>Moeda: EUR</div>
+      </div>
+    </header>
+  `;
+  }
+
+  // Compacto: marca discreta (produto) + nome do tenant/grupo à esquerda,
+  // título ao centro, meta à direita. "Pág. X / Y" não vive aqui — é o
+  // Chromium (via puppeteer headerTemplate, ver report-pdf-server.ts) que
+  // sabe o total de páginas; uma página HTML viva não tem "páginas".
+  return `
+    <header class="report-header compact">
+      <div class="brand">
+        <div class="brand-mark">SP</div>
+        <div class="brand-text">
+          <div class="brand-name">SPharm.MT</div>
+          ${org ? `<div class="brand-org">${escapeHtml(org)}</div>` : ""}
+        </div>
+      </div>
+      <div class="head-title">
         <h1>${escapeHtml(report.title)}</h1>
         ${report.subtitle ? `<div class="subtitle">${escapeHtml(report.subtitle)}</div>` : ""}
       </div>
@@ -62,25 +125,51 @@ function renderHeader(report: Report): string {
 
 function renderFilters(report: Report): string {
   if (!report.filtersApplied || report.filtersApplied.length === 0) return "";
-  const chips = report.filtersApplied
-    .map(
-      (f) => `
+
+  if (!isCompact(report)) {
+    const chips = report.filtersApplied
+      .map(
+        (f) => `
         <div class="chip">
           <span class="chip-label">${escapeHtml(f.label)}:</span>
           <span class="chip-value">${escapeHtml(f.value)}</span>
         </div>`
-    )
-    .join("");
-  return `
+      )
+      .join("");
+    return `
     <section class="filters">
       <div class="section-title">Filtros aplicados</div>
       <div class="chips">${chips}</div>
+    </section>
+  `;
+  }
+
+  // Compacto: uma faixa só, texto corrido com separadores finos — não
+  // "chips" com moldura/fundo. É aqui que a referência mostra "Período:
+  // ... | Farmácias: ... | Fabricante: ...".
+  const items = report.filtersApplied
+    .map(
+      (f) => `<span class="filter-item"><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(f.value)}</span>`
+    )
+    .join("");
+  return `
+    <section class="filters compact">
+      <div class="filter-line">${items}</div>
     </section>
   `;
 }
 
 function renderSummary(report: Report): string {
   if (!report.summary || report.summary.length === 0) return "";
+
+  // Compacto: o TOTAL GERAL da própria tabela já mostra unidades/valor —
+  // repeti-los em cartões era exactamente o "bloco grande no topo" que a
+  // referência não tem. Os dados continuam disponíveis em
+  // `report.summary` para quem consumir o Report directamente (Excel
+  // continua a listá-los, email idem) — só o HTML/PDF/print deixa de os
+  // desenhar aqui.
+  if (isCompact(report)) return "";
+
   const cards = report.summary
     .map(
       (s) => `
@@ -132,8 +221,38 @@ function widthToCss(width: number | undefined): string {
   return `${width}px`;
 }
 
+/** Valor numérico de uma célula, ou `null` se não for numérico. */
+function numericValue(v: ReportCell): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Classe de tom (ver `ReportColumn.toneWhenZero`/`toneWhenPositive`), ou "". */
+function cellToneClass(value: ReportCell, col: ReportColumn): string {
+  const n = numericValue(value);
+  if (n === null) return "";
+  if (n === 0 && col.toneWhenZero) return `cell-tone-${col.toneWhenZero}`;
+  if (n > 0 && col.toneWhenPositive) return `cell-tone-${col.toneWhenPositive}`;
+  return "";
+}
+
+/** Texto da célula — aplica `zeroAsDash` antes do formatador normal. */
+function cellText(row: ReportRow, col: ReportColumn): string {
+  const raw = row[col.key];
+  if (col.zeroAsDash) {
+    const n = numericValue(raw);
+    if (n === 0) return "–";
+  }
+  return formatCell(raw, col.format);
+}
+
 function renderTable(report: Report): string {
-  const cols = report.columns.filter((c) => !c.hidden);
+  const compact = isCompact(report);
+  const cols = report.columns.filter((c) => !c.hidden && !c.excelOnly);
   if (cols.length === 0 || report.rows.length === 0) {
     return `<section class="table-wrap"><div class="empty">Sem dados a apresentar.</div></section>`;
   }
@@ -153,32 +272,72 @@ function renderTable(report: Report): string {
       // Um rótulo pode trazer "\n" para pedir cabeçalho em duas linhas
       // (ex.: meses "JAN\n26", ou "Custo unit.\nest.") — a forma mais
       // curta de dar mais largura de leitura a cada linha sem estreitar
-      // a coluna nem cortar texto. Nenhum outro relatório usa "\n" nos
-      // rótulos, por isso isto não muda nada fora do Vendas.
+      // a coluna nem cortar texto.
       const label = escapeHtml(c.label).replace(/\n/g, "<br/>");
       return `<th style="${style}">${label}</th>`;
     })
     .join("");
 
-  const bodyRows = report.rows
-    .map((row) => {
-      // Linha de subtotal (ex.: "TOTAL ARTIGO") — destacada, e fora dos
-      // totais gerais. Ver ROW_KIND_KEY em report-types.
-      const subtotal = ehLinhaSubtotal(row);
-      const tds = cols
-        .map((c) => {
-          const style = alignStyle(defaultAlignFor(c));
-          const conteudo = escapeHtml(formatCell(row[c.key], c.format));
-          return subtotal
-            ? `<td style="${style}"><strong>${conteudo}</strong></td>`
-            : `<td style="${style}">${conteudo}</td>`;
+  // Grupos por GROUP_KEY (runs contíguos) — ver report-types.ts. Uma
+  // linha sem grupo (a maioria dos relatórios, hoje) forma sempre um
+  // grupo de tamanho 1: `spanGroup` nunca emite `rowspan` nesse caso, e
+  // o HTML de uma linha assim fica idêntico ao de antes deste mecanismo
+  // existir.
+  const grupos = agruparPorGroupKey(report.rows);
+  type InfoGrupo = { length: number; isFirst: boolean };
+  const grupoDoIndice = new Map<number, InfoGrupo>();
+  for (const g of grupos) {
+    for (let offset = 0; offset < g.length; offset++) {
+      grupoDoIndice.set(g.startIndex + offset, { length: g.length, isFirst: offset === 0 });
+    }
+  }
+
+  const renderRow = (row: ReportRow, idx: number): string => {
+    const subtotal = ehLinhaSubtotal(row);
+    const grupo = grupoDoIndice.get(idx) ?? { length: 1, isFirst: true };
+    const tds = cols
+      .map((c) => {
+        if (c.spanGroup && grupo.length > 1 && !grupo.isFirst) {
+          // Coberta pelo rowspan emitido na 1ª linha do grupo — uma
+          // tabela HTML válida não pode repetir esta célula.
+          return "";
+        }
+        const style = alignStyle(defaultAlignFor(c));
+        const tone = cellToneClass(row[c.key], c);
+        const classAttr = tone ? ` class="${tone}"` : "";
+        const rowspanAttr = c.spanGroup && grupo.length > 1 && grupo.isFirst ? ` rowspan="${grupo.length}"` : "";
+        const principal = escapeHtml(cellText(row, c));
+        const notaRaw = c.noteKey ? row[c.noteKey] : undefined;
+        const conteudo =
+          typeof notaRaw === "string" && notaRaw !== ""
+            ? `<div class="cell-main">${principal}</div><div class="cell-note">${escapeHtml(notaRaw)}</div>`
+            : principal;
+        return subtotal
+          ? `<td style="${style}"${rowspanAttr}${classAttr}><strong>${conteudo}</strong></td>`
+          : `<td style="${style}"${rowspanAttr}${classAttr}>${conteudo}</td>`;
+      })
+      .join("");
+    return subtotal ? `<tr class="subtotal-row">${tds}</tr>` : `<tr>${tds}</tr>`;
+  };
+
+  const linhasHtml = report.rows.map(renderRow);
+  const semGrupos = grupos.every((g) => g.groupKey === undefined);
+  const tbodyHtml = semGrupos
+    ? `<tbody>${linhasHtml.join("")}</tbody>`
+    : grupos
+        .map((g, gi) => {
+          const linhasDoGrupo: string[] = [];
+          for (let offset = 0; offset < g.length; offset++) {
+            linhasDoGrupo.push(linhasHtml[g.startIndex + offset]);
+          }
+          // Zebra POR GRUPO (não por linha) em modo compacto — um artigo
+          // com 5 farmácias é um bloco só, não cinco riscas alternadas.
+          // Também é a fronteira de "não cortar entre páginas" (ver CSS
+          // .row-group { break-inside: avoid }).
+          const alt = compact && gi % 2 === 1 ? " row-group-alt" : "";
+          return `<tbody class="row-group${alt}">${linhasDoGrupo.join("")}</tbody>`;
         })
         .join("");
-      return subtotal
-        ? `<tr class="subtotal-row">${tds}</tr>`
-        : `<tr>${tds}</tr>`;
-    })
-    .join("");
 
   // TOTAIS SOBRE O DETALHE, e não sobre `report.rows`: com os subtotais
   // dentro, cada artigo contava duas vezes.
@@ -200,12 +359,15 @@ function renderTable(report: Report): string {
         .join("")}</tr></tfoot>`
     : "";
 
+  const tableDensity = report.meta?.tableDensity;
+  const tableClass = tableDensity && tableDensity !== "cozy" ? ` class="table-density-${tableDensity}"` : "";
+
   return `
     <section class="table-wrap">
-      <table>
+      <table${tableClass}>
         <colgroup>${colgroup}</colgroup>
         <thead><tr>${headerCells}</tr></thead>
-        <tbody>${bodyRows}</tbody>
+        ${tbodyHtml}
         ${totalsRow}
       </table>
       <div class="row-count">${report.rows.length} linha${report.rows.length === 1 ? "" : "s"}</div>
@@ -215,7 +377,17 @@ function renderTable(report: Report): string {
 
 function renderFooter(report: Report): string {
   const footer = report.meta?.footer ?? "SPharm.MT";
-  return `<footer class="report-footer">${escapeHtml(footer)}</footer>`;
+  if (!isCompact(report)) {
+    return `<footer class="report-footer">${escapeHtml(footer)}</footer>`;
+  }
+  // Compacto: nota do relatório à esquerda, marca fixa à direita — a
+  // marca não é dado do relatório, é a mesma em qualquer um.
+  return `
+    <footer class="report-footer compact">
+      <span class="footer-note">${escapeHtml(footer)}</span>
+      <span class="footer-brand">SPharm.MT · www.spharm.pt</span>
+    </footer>
+  `;
 }
 
 const STYLES = `
@@ -253,7 +425,7 @@ const STYLES = `
 
   .page { padding: 8mm 6mm 10mm 6mm; width: 100%; }
 
-  /* ── Cabeçalho ── */
+  /* ── Cabeçalho (comfortable — visual de sempre) ── */
   .report-header {
     display: flex;
     justify-content: space-between;
@@ -275,13 +447,13 @@ const STYLES = `
   }
   .report-header .head-meta strong { color: #222; font-weight: 700; }
 
-  /* ── Section titles ── */
+  /* ── Section titles (comfortable) ── */
   .section-title {
     font-size: 8px; text-transform: uppercase; letter-spacing: 0.8px;
     color: #888; margin-bottom: 5px; font-weight: 700;
   }
 
-  /* ── Filtros ── */
+  /* ── Filtros (comfortable — chips) ── */
   .filters { margin-bottom: 11px; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .chip {
@@ -291,7 +463,7 @@ const STYLES = `
   .chip-label { color: #666; margin-right: 4px; }
   .chip-value { color: #111; font-weight: 600; }
 
-  /* ── Resumo ── */
+  /* ── Resumo (comfortable — cartões) ── */
   .summary { margin-bottom: 11px; }
   .summary-grid { display: flex; flex-wrap: wrap; gap: 6px; }
   .summary-card {
@@ -304,7 +476,7 @@ const STYLES = `
   }
   .summary-value { font-size: 13px; font-weight: 700; color: #111; margin-top: 1px; }
 
-  /* ── Tabela ── */
+  /* ── Tabela (base — comfortable) ── */
   .table-wrap { margin-top: 4px; width: 100%; }
   table {
     width: 100%;
@@ -387,6 +559,133 @@ const STYLES = `
     letter-spacing: 0.3px;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     LINGUAGEM COMPACTA — 2026-09, meta.density:"compact"
+     Tudo aqui escopado a .page.density-compact: zero efeito em
+     qualquer relatório que não opte por esta densidade.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .page.density-compact { font-size: 10.5px; }
+
+  /* ── Cabeçalho compacto ── */
+  .page.density-compact .report-header.compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+  .page.density-compact .report-header.compact .brand {
+    display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0;
+  }
+  .page.density-compact .brand-mark {
+    flex: 0 0 auto;
+    width: 22px; height: 22px; border-radius: 5px;
+    background: #56a889; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.2px;
+  }
+  .page.density-compact .brand-name { font-size: 9.5px; font-weight: 700; color: #18323a; letter-spacing: 0.2px; }
+  .page.density-compact .brand-org { font-size: 8px; color: #7f99a1; margin-top: 1px; }
+  .page.density-compact .head-title { flex: 1.4; min-width: 0; text-align: center; }
+  .page.density-compact .head-title h1 {
+    margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; letter-spacing: -0.2px;
+  }
+  .page.density-compact .head-title .subtitle { font-size: 9.5px; color: #64748b; margin-top: 1px; }
+  .page.density-compact .head-meta {
+    flex: 1; text-align: right; font-size: 8px; color: #94a3b8; white-space: nowrap;
+  }
+  .page.density-compact .head-meta strong { color: #475569; font-weight: 700; }
+
+  /* ── Filtros compactos — uma faixa, sem cartões ── */
+  .page.density-compact .filters.compact { margin-bottom: 6px; }
+  .page.density-compact .filter-line {
+    display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 2px;
+    font-size: 9.5px; color: #475569;
+  }
+  .page.density-compact .filter-item { white-space: nowrap; }
+  .page.density-compact .filter-item strong { color: #1e293b; font-weight: 600; }
+  .page.density-compact .filter-item:not(:last-child) {
+    padding-right: 14px; border-right: 1px solid #cbd5e1;
+  }
+
+  /* ── Tabela compacta ── */
+  .page.density-compact table {
+    font-size: 9px;
+  }
+  .page.density-compact thead th {
+    background: #eef2f7 !important;
+    color: #1e293b !important;
+    border: 1px solid #dbe3ea;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 4px 5px;
+  }
+  .page.density-compact tbody td {
+    padding: 2.5px 5px;
+    border-left: 1px solid #eef1f4;
+    border-right: 1px solid #eef1f4;
+    border-bottom: 1px solid #eef1f4;
+  }
+  /* O zebra passa a ser por GRUPO (tbody.row-group-alt), não por linha —
+     um artigo com 5 farmácias é um bloco visual só. */
+  .page.density-compact tbody tr:nth-child(even) td { background: transparent !important; }
+  .page.density-compact tbody tr:hover td { background: #f1f5f9 !important; }
+  .page.density-compact tbody.row-group-alt td { background: #f8fafc !important; }
+  .page.density-compact tbody.row-group {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .page.density-compact tbody tr.subtotal-row td {
+    background: #e9eef4 !important;
+    border-top: 1px solid #b7c4d4;
+    border-bottom: 1px solid #b7c4d4;
+    font-weight: 700;
+  }
+  .page.density-compact tbody tr.subtotal-row td:first-child { border-left: 3px solid #475569; }
+  .page.density-compact tfoot td {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+    border-top: 2px solid #94a3b8;
+    border-bottom: none;
+    padding: 5px 5px;
+    font-size: 9.5px;
+  }
+
+  /* Sublinha discreta sob uma célula (ReportColumn.noteKey) — ex.:
+     descrição do artigo + "PVP: 27,90 € | Custo: —". */
+  .page.density-compact .cell-main { line-height: 1.25; }
+  .page.density-compact .cell-note {
+    font-size: 0.82em; color: #94a3b8; margin-top: 1px; font-weight: 400;
+  }
+
+  /* Tons condicionais — ver ReportColumn.toneWhenZero/toneWhenPositive.
+     Sempre suaves: nunca um bloco cheio, cor com significado, não
+     decoração. */
+  .page.density-compact .cell-tone-danger  { background: #fdecec !important; color: #9f2b2b; }
+  .page.density-compact .cell-tone-success { background: #e8f7ee !important; color: #1f7a45; }
+  .page.density-compact .cell-tone-info    { background: #eaf2fd !important; }
+
+  /* Densidade fina por nº de colunas dinâmicas (ex.: meses de Vendas) —
+     ver report.meta.tableDensity. */
+  .page.density-compact table.table-density-tight { font-size: 8.5px; }
+  .page.density-compact table.table-density-tight thead th { font-size: 7.5px; padding: 3.5px 4px; }
+  .page.density-compact table.table-density-tight tbody td { padding: 2px 4px; }
+  .page.density-compact table.table-density-ultratight { font-size: 8px; }
+  .page.density-compact table.table-density-ultratight thead th { font-size: 7px; padding: 3px 3px; }
+  .page.density-compact table.table-density-ultratight tbody td { padding: 1.5px 3px; }
+
+  /* ── Rodapé compacto — nota à esquerda, marca fixa à direita ── */
+  .page.density-compact .report-footer.compact {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 6px; padding-top: 4px; border-top: 1px solid #e2e8f0;
+    font-size: 7.5px; color: #94a3b8; letter-spacing: 0.2px; text-align: left;
+  }
+  .page.density-compact .footer-note { max-width: 80%; }
+  .page.density-compact .footer-brand { white-space: nowrap; }
+
   @media print {
     html, body { width: 100%; }
     .page { padding: 0; }
@@ -405,6 +704,7 @@ const STYLES = `
 export function renderReportHtml(report: Report): string {
   const orientation = report.meta?.orientation === "landscape" ? "A4 landscape" : "A4 portrait";
   const styles = STYLES.replace("__ORIENTATION__", orientation);
+  const pageClass = isCompact(report) ? "page density-compact" : "page";
 
   return `<!doctype html>
 <html lang="pt-PT">
@@ -415,7 +715,7 @@ export function renderReportHtml(report: Report): string {
 <style>${styles}</style>
 </head>
 <body>
-<div class="page">
+<div class="${pageClass}">
   ${renderHeader(report)}
   ${renderFilters(report)}
   ${renderSummary(report)}

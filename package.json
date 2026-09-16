@@ -145,6 +145,7 @@
     "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts",
     "test:vendas-para-encomenda": "tsx scripts/tests/test-vendas-para-encomenda.ts",
     "test:vendas-apenas-com-stock": "tsx scripts/tests/test-vendas-apenas-com-stock.ts",
+    "test:reporting-redesign": "tsx scripts/tests/test-reporting-redesign.ts",
     "test:encomenda-grupo-decisao-linha": "tsx scripts/tests/test-encomenda-grupo-decisao-linha.ts",
     "test:eliminacao-encomenda-transferencia": "tsx scripts/tests/test-eliminacao-encomenda-transferencia.ts",
     "test:agrupar-produto": "tsx scripts/tests/test-agrupar-produto.ts",

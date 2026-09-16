@@ -14,12 +14,39 @@
  *  N colunas com chaves estáveis `m_YYYYMM` e labels "Mmm/YY". Os rows
  *  recebem o mesmo número de campos `m_YYYYMM`.
  *
- *  PVP é o único valor monetário verdadeiramente fiável: vem de
- *  ProdutoFarmacia.pvp. Mantido como currency.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * REDESENHO 2026-09: densidade + artigo como unidade visual
  *
- *  Colunas mantidas:
- *    Código, Descrição, PVP, N × mês (dinâmico), Total Unidades, Stock,
- *    Farmácia — suficiente para leitura operacional.
+ *  Vendas passa a ser o primeiro relatório a usar `meta.density:"compact"`
+ *  (report-html.ts) — cabeçalho compacto, filtros/resumo em faixa de uma
+ *  linha, tabela mais densa. Referência visual: layout tipo "extracto",
+ *  meses em duas linhas ("JUL"/"25"), farmácia como sublinha dentro do
+ *  artigo (não uma coluna por farmácia).
+ *
+ *  Duas correcções de dados que este redesenho também resolveu (eram bugs
+ *  antigos, não decisões novas):
+ *   · `custoUnitarioEstimado` estava DECLARADO como coluna mas nunca era
+ *     lido do input — `paraReportRow` não tinha o campo no seu tipo, por
+ *     isso a coluna aparecia sempre vazia ("—"), silenciosamente.
+ *   · Não existia NENHUMA coluna de valor de vendas (`valorBruto`, já
+ *     calculado por `lib/vendas-data.ts` e já somado correctamente por
+ *     `agruparPorArtigo` no TOTAL ARTIGO) — o relatório omitia o valor em
+ *     euros por completo.
+ *  Ambos os campos já existiam nos dados do loader; só não chegavam ao
+ *  Report. Corrigido lendo-os em `paraReportRow`, sem tocar em
+ *  lib/vendas-data.ts nem em lib/reporting/vendas-agrupamento.ts.
+ *
+ *  PVP e Custo unit. est. deixam de ser colunas visíveis no HTML/PDF —
+ *  passam a viver como sublinha discreta sob a Descrição (ver
+ *  `ReportColumn.noteKey` em report-types.ts), exactamente como na
+ *  referência. Continuam colunas verdadeiras no Excel (`excelOnly:true`)
+ *  — quem abre a folha de cálculo continua a poder ordenar/filtrar por
+ *  PVP e Custo como sempre.
+ *
+ *  Colunas HTML/PDF (nesta ordem): Código, Descrição (+ sublinha PVP|
+ *  Custo), Farmácia, N × mês, Total Unid., Stock, Valor Vendas.
+ *  Colunas Excel: as mesmas, mais PVP e Custo unit. est. (a seguir a
+ *  Descrição, tal como sempre estiveram).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -30,7 +57,8 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
-import { ROW_KIND_KEY } from "../report-types";
+import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
+import { formatCurrency } from "../report-formatters";
 import { filtroListaImportada } from "../filters-shared";
 import {
   agruparPorArtigo,
@@ -72,9 +100,13 @@ export type VendasAdapterRow = {
   codigo: string;
   descricao: string;
   pvp: number;
+  /** `null` = desconhecido (nunca 0 — ver custoDaFarmacia). */
+  custoUnitarioEstimado?: number | null;
   /** Buckets na mesma ordem que `buckets` passado a `buildVendasReport`. */
   meses: VendasAdapterMonthBucket[];
   totalVendas: number;
+  /** Valor bruto assinado da janela — ver SalesReportRow.valorBruto. */
+  valorBruto?: number;
   existencia: number;
   /** Alias legado — pode estar ausente, recomputamos a partir de `totalVendas`. */
   unidadesVendidas?: number;
@@ -104,35 +136,42 @@ export type VendasAdapterFilters = {
 };
 
 /**
- * Larguras-base (sem buckets), em % da largura útil da página.
+ * Larguras-base (sem buckets), em % da largura útil da página — só das
+ * colunas VISÍVEIS no HTML/PDF. PVP e Custo unit. est. não entram aqui:
+ * são `excelOnly` (ver `buildColumns`), não ocupam largura nenhuma na
+ * tabela impressa — o espaço que libertaram foi para a Descrição (que
+ * agora leva a sublinha PVP|Custo) e para os meses.
  *
- * Correcção (2026-09): a versão anterior reservava 85% às colunas fixas
- * e só 15% a TODOS os meses juntos — e ainda impunha um mínimo de 3%
- * por mês (`Math.max(3, ...)`) que, a partir de 6 meses no mesmo
- * relatório, empurrava a SOMA das larguras para além de 100%. Com
- * `table-layout:fixed`, isso não trunca — reescala a tabela inteira
- * (fixos incluídos) de forma imprevisível, e é exactamente o que dava
- * meses ilegíveis, descrição espremida e cabeçalhos a transbordar uns
- * para cima dos outros.
- *
- * Os fixos ficam agora a ~58%, deixando ~42% para os meses — o
- * suficiente para "JAN/26" (o rótulo mais longo, maiúsculas via CSS)
- * ficar legível até cerca de 10 meses no mesmo relatório sem precisar
- * de encolher mais nada. Ver `buildColumns` para o que acontece além
- * disso (o orçamento dos fixos cede, nunca o total ultrapassa 100%).
+ * Correcção (2026-09, redesenho): Farmácia moved para logo a seguir à
+ * Descrição (era a última coluna) — é onde a referência visual a põe, e
+ * faz mais sentido ler "este artigo, nesta farmácia" antes dos números
+ * mês-a-mês. `codigo`/`descricao` só desenham na 1ª linha de cada artigo
+ * (rowspan — ver `spanGroup` em report-types.ts), por isso a largura de
+ * Descrição não compete com o número de farmácias do grupo.
  */
 const BASE_WIDTH_FIXED_COLS = {
   codigo: 6,
-  descricao: 17,
-  pvp: 6,
-  custoUnitarioEstimado: 7,
-  totalVendas: 7,
-  existencia: 6,
-  farmacia: 9,
+  descricao: 20,
+  farmacia: 8,
+  totalVendas: 6,
+  existencia: 5,
+  valorVendas: 8,
 };
 
-/** Largura mínima de uma coluna de mês, para "JAN/26" nunca truncar. */
+/** Largura mínima de uma coluna de mês, para "JUL"/"25" nunca truncar. */
 const MIN_WIDTH_MES = 4.2;
+
+/**
+ * Densidade fina da tabela (report.meta.tableDensity) — só relevante
+ * para relatórios com nº de colunas dinâmico (hoje, só Vendas). Mais
+ * meses no mesmo relatório = fonte/padding ligeiramente menores, nunca
+ * a ponto de cortar texto (ver report-html.ts, secção `.table-density-*`).
+ */
+function tableDensityFor(numMeses: number): "cozy" | "tight" | "ultratight" {
+  if (numMeses <= 6) return "cozy";
+  if (numMeses <= 10) return "tight";
+  return "ultratight";
+}
 
 function buildColumns(
   buckets: { ano: number; mes: number }[],
@@ -141,20 +180,18 @@ function buildColumns(
   const fixedTotal =
     BASE_WIDTH_FIXED_COLS.codigo +
     BASE_WIDTH_FIXED_COLS.descricao +
-    BASE_WIDTH_FIXED_COLS.pvp +
-    BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
+    BASE_WIDTH_FIXED_COLS.farmacia +
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
-    BASE_WIDTH_FIXED_COLS.farmacia;
+    BASE_WIDTH_FIXED_COLS.valorVendas;
   const remaining = Math.max(0, 100 - fixedTotal);
   const perMonthIdeal = numMeses > 0 ? remaining / numMeses : 0;
 
   // Tecto duro: os meses, juntos, NUNCA ultrapassam 92% — mesmo num
   // relatório com dezenas de meses, sobra sempre pelo menos 8% para os
   // fixos escalarem. Sem este tecto, `Math.max(MIN_WIDTH_MES, ...)`
-  // sozinho podia, em relatórios muito longos (~24+ meses), empurrar
-  // a soma para além de 100% de qualquer forma — exactamente o defeito
-  // original, só que a um número de meses maior.
+  // sozinho podia, em relatórios muito longos, empurrar a soma para além
+  // de 100% de qualquer forma.
   const MAX_TOTAL_MESES = 92;
   const perMonth =
     numMeses > 0
@@ -171,14 +208,8 @@ function buildColumns(
   const excedente = fixedTotal + totalMeses - 100;
   const fixedScale = excedente > 0 ? Math.max(0, (fixedTotal - excedente) / fixedTotal) : 1;
 
-  // SEM arredondamento: `fixedTotal*fixedScale + perMonth*numMeses` dá
-  // exactamente 100 (a menos de erro de vírgula flutuante, ~1e-10) só
-  // por construção da fórmula acima. Arredondar cada largura
-  // individualmente a 1 casa (como esta função fazia antes de se
-  // escrever este teste) ACUMULA erro entre colunas — com 9+ meses a
-  // soma passava a 100,3; com 36, a 101,5. CSS aceita percentagens com
-  // casas decimais sem problema nenhum, por isso não há motivo para
-  // arredondar aqui.
+  // SEM arredondamento — ver nota histórica no teste (test-vendas-pdf-layout.ts):
+  // arredondar cada largura individualmente acumula erro entre colunas.
   const w = (base: number) => base * fixedScale;
 
   const monthColumns: ReportColumn[] = buckets.map((b) => ({
@@ -187,29 +218,62 @@ function buildColumns(
     format: "integer" as const,
     width: perMonth,
     showTotal: true,
+    // Meses sem venda leem melhor como "–" do que como uma parede de
+    // zeros — e um mês COM venda ganha um realce muito suave (ver
+    // .cell-tone-info em report-html.ts), para o olho encontrar
+    // rapidamente onde é que o artigo se moveu.
+    zeroAsDash: true,
+    toneWhenPositive: "info",
   }));
 
   return [
-    { key: "codigo",      label: "Código",      format: "text",     width: w(BASE_WIDTH_FIXED_COLS.codigo) },
-    { key: "descricao",   label: "Descrição",   format: "text",     width: w(BASE_WIDTH_FIXED_COLS.descricao) },
-    { key: "pvp",         label: "PVP",         format: "currency", width: w(BASE_WIDTH_FIXED_COLS.pvp) },
-    // «est.» no rotulo, tambem no PDF e no Excel. Uma folha impressa
-    // circula sem o ecra ao lado, e e' onde a palavra mais falta.
-    //
-    // Só o unitário — sem "Custo est." (total). Removido a pedido
-    // (2026-09): o custo total estimado somava um valor por natureza
-    // aproximado (PMC/PUC actual × unidades, nunca o custo à data da
-    // venda) e o pedido explícito foi mantê-lo fora da apresentação.
-    // "Custo unit.\nest." (2 linhas) ainda transbordava na 1ª linha —
-    // "Custo unit." (11 caracteres) não cabe na largura desta coluna
-    // (~6% da página). 3 linhas curtas em vez de 2: cada uma isolada
-    // cabe com folga, ao contrário de qualquer combinação de 2 linhas
-    // que junte "unit." a outra palavra.
-    { key: "custoUnitarioEstimado", label: "Custo\nunit.\nest.", format: "currency", width: w(BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado) },
+    {
+      key: "codigo", label: "CNP", format: "text",
+      width: w(BASE_WIDTH_FIXED_COLS.codigo),
+      // Só desenha na 1ª linha de cada artigo — as sublinhas por
+      // farmácia (e a linha TOTAL ARTIGO) ficam cobertas pelo rowspan.
+      // Ver GROUP_KEY, atribuído por artigo em `buildVendasReport`.
+      spanGroup: true,
+    },
+    {
+      key: "descricao", label: "Descrição", format: "text",
+      width: w(BASE_WIDTH_FIXED_COLS.descricao),
+      spanGroup: true,
+      // Sublinha PVP | Custo, só em HTML/PDF — ver `descricaoNota` em
+      // `paraReportRow`. O Excel continua com PVP/Custo como colunas
+      // próprias (abaixo, `excelOnly`), não como texto dentro da célula.
+      noteKey: "descricaoNota",
+    },
+    // PVP e Custo unit. est. — só Excel. Largura nominal (o Excel deriva
+    // a largura real do comprimento do rótulo quando ≤100, ver
+    // report-excel-buffer.ts); no HTML/PDF nunca são desenhadas.
+    { key: "pvp", label: "PVP", format: "currency", width: 6, excelOnly: true },
+    {
+      key: "custoUnitarioEstimado", label: "Custo unit. est.", format: "currency",
+      width: 8, excelOnly: true,
+    },
+    {
+      key: "farmacia", label: "Farmácia", format: "text",
+      width: w(BASE_WIDTH_FIXED_COLS.farmacia),
+    },
     ...monthColumns,
-    { key: "totalVendas", label: "Total\nUnid.", format: "integer",  width: w(BASE_WIDTH_FIXED_COLS.totalVendas), showTotal: true },
-    { key: "existencia",  label: "Stock",       format: "integer",  width: w(BASE_WIDTH_FIXED_COLS.existencia) },
-    { key: "farmacia",    label: "Farmácia",    format: "text",     width: w(BASE_WIDTH_FIXED_COLS.farmacia) },
+    {
+      key: "totalVendas", label: "Total\nUnid.", format: "integer",
+      width: w(BASE_WIDTH_FIXED_COLS.totalVendas), showTotal: true,
+    },
+    {
+      key: "existencia", label: "Stock", format: "integer",
+      width: w(BASE_WIDTH_FIXED_COLS.existencia),
+      // Stock a zero é um sinal operacional (ruptura); stock positivo é
+      // o estado normal — ambos com um destaque discreto, nunca um
+      // bloco grande. Ver .cell-tone-danger/.cell-tone-success.
+      toneWhenZero: "danger",
+      toneWhenPositive: "success",
+    },
+    {
+      key: "valorBruto", label: "Valor Vendas\n(s/IVA)", format: "currency",
+      width: w(BASE_WIDTH_FIXED_COLS.valorVendas), showTotal: true,
+    },
   ];
 }
 
@@ -267,7 +331,7 @@ function buildFilters(
   if (f.agruparPor) out.push({ label: "Agrupar por", value: f.agruparPor });
   if (f.ordenarPor) out.push({ label: "Ordenar por", value: f.ordenarPor });
   if (f.apenasComVendas) out.push({ label: "Apenas com vendas", value: "Sim" });
-  if (f.apenasComStock)  out.push({ label: "Apenas com stock",  value: "Sim" });
+  if (f.apenasComStock)  out.push({ label: "Incluir stock sem vendas", value: "Sim" });
 
   return out;
 }
@@ -280,8 +344,14 @@ function buildFilters(
  * garante que uma linha "TOTAL ARTIGO" não soma unidades duas vezes.
  *
  * "Linhas" e "Referências únicas" respondem a perguntas diferentes, e é
- * por isso que são dois cartões: o mesmo CNP em duas farmácias são duas
+ * por isso que são dois itens: o mesmo CNP em duas farmácias são duas
  * linhas de detalhe e UMA referência.
+ *
+ * Continua a existir e a ser calculado — só deixa de aparecer como
+ * cartões no HTML/PDF compacto (renderSummary devolve "" quando
+ * `meta.density==="compact"`, ver report-html.ts); o TOTAL GERAL da
+ * tabela já mostra as unidades e o valor. Excel/email continuam a
+ * receber estes 4 itens tal como sempre.
  */
 function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   let totalUnidades = 0;
@@ -297,6 +367,13 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
     { label: "Unidades vendidas",  value: totalUnidades,     format: "integer" },
     { label: "Valor PVP estimado", value: valorEstimadoPvp,  format: "currency" },
   ];
+}
+
+/** "PVP: 27,90 € | Custo: —" — a sublinha da Descrição. `null`/undefined → "—". */
+function notaPvpCusto(pvp: number | null | undefined, custo: number | null | undefined): string {
+  const pvpTxt = typeof pvp === "number" ? formatCurrency(pvp) : "—";
+  const custoTxt = typeof custo === "number" ? formatCurrency(custo) : "—";
+  return `PVP: ${pvpTxt} | Custo: ${custoTxt}`;
 }
 
 export function buildVendasReport(input: {
@@ -327,25 +404,42 @@ export function buildVendasReport(input: {
     r: {
       codigo: string;
       descricao: string;
-      pvp?: number;
+      pvp?: number | null;
+      /** Correcção 2026-09: existia na coluna, nunca era lido aqui. */
+      custoUnitarioEstimado?: number | null;
       totalVendas: number;
+      /** Correcção 2026-09: não existia coluna nenhuma para isto. */
+      valorBruto?: number;
       existencia: number;
       farmacia: string;
       meses: { ano: number; mes: number; quantidade: number }[];
     },
     kind: "detalhe" | "subtotal",
+    grupoId: string | undefined,
   ): ReportRow => {
+    const pvp = kind === "subtotal" ? null : (r.pvp ?? 0);
+    // Custo unitário: idem PVP — um "custo médio entre farmácias" não é
+    // uma pergunta com resposta única, por isso a linha TOTAL ARTIGO não
+    // o mostra na sublinha (fica coberta pelo rowspan de qualquer forma).
+    const custo = kind === "subtotal" ? null : (r.custoUnitarioEstimado ?? null);
     const base: ReportRow = {
       codigo: r.codigo,
       descricao: r.descricao,
       // O PVP é da prateleira de UMA farmácia; somá-lo entre farmácias
       // não significa nada. Na linha de total fica vazio.
-      pvp: kind === "subtotal" ? null : (r.pvp ?? 0),
+      pvp,
+      custoUnitarioEstimado: custo,
+      // Sublinha visível só em HTML/PDF (ver noteKey em buildColumns).
+      // Vazia no TOTAL ARTIGO — essa célula está coberta pelo rowspan
+      // da 1ª linha do grupo, nunca chega a desenhar-se.
+      descricaoNota: kind === "subtotal" ? "" : notaPvpCusto(pvp, custo),
       totalVendas: r.totalVendas,
+      valorBruto: r.valorBruto ?? 0,
       existencia: r.existencia,
       farmacia: r.farmacia,
       [ROW_KIND_KEY]: kind,
     };
+    if (grupoId !== undefined) base[GROUP_KEY] = grupoId;
     // Indexação por posição (segura porque o loader devolve `meses` na
     // mesma ordem de `buckets`); fallback por (ano,mes) match se faltar.
     input.buckets.forEach((b, i) => {
@@ -363,22 +457,29 @@ export function buildVendasReport(input: {
   //
   // Só quando o utilizador pediu "Artigo". Nos outros agrupamentos o
   // relatório fica exactamente como estava — incluindo "Farmácia", onde
-  // não se introduzem subtotais por artigo.
+  // não se introduzem subtotais por artigo NEM `GROUP_KEY` (uma linha
+  // "solta" nunca ganha rowspan — ver `agruparPorGroupKey`).
   const hierarquico = input.filters.agruparPor === "artigo";
   const rowsForReport: ReportRow[] = hierarquico
     ? agruparPorArtigo(input.rows, input.buckets).flatMap((g) => {
-        const detalhes = g.detalhes.map((d) => paraReportRow(d, "detalhe"));
+        // O GRUPO VISUAL inclui a linha TOTAL ARTIGO (quando existe): é
+        // assim que a referência mostra o bloco do artigo — CNP/Descrição
+        // vertical-centrados cobrindo as farmácias E o total, com o total
+        // a distinguir-se só pelo próprio estilo de `.subtotal-row`.
+        const detalhes = g.detalhes.map((d) => paraReportRow(d, "detalhe", g.codigo));
         // Um artigo numa farmácia só não leva linha de total: seria uma
         // cópia da linha acima.
         if (!grupoPrecisaDeTotal(g)) return detalhes;
-        return [...detalhes, paraReportRow(g.total, "subtotal")];
+        return [...detalhes, paraReportRow(g.total, "subtotal", g.codigo)];
       })
-    : input.rows.map((r) => paraReportRow(r, "detalhe"));
+    : input.rows.map((r) => paraReportRow(r, "detalhe", undefined));
 
   const subtitle =
     input.filters.dataInicio && input.filters.dataFim
       ? `Período ${input.filters.dataInicio} a ${input.filters.dataFim}`
       : undefined;
+
+  const numMeses = input.buckets.length;
 
   return {
     title: "Relatório de Vendas",
@@ -392,15 +493,16 @@ export function buildVendasReport(input: {
       slug: "vendas",
       orientation: "landscape",
       organization: input.organization,
+      // Primeiro relatório a adoptar a linguagem visual compacta — ver
+      // report-html.ts. Os restantes ficam no default ("comfortable")
+      // até serem validados e migrados um a um.
+      density: "compact",
+      tableDensity: tableDensityFor(numMeses),
       // O aviso do custo viaja COM o relatório — quem abre o PDF daqui a
       // um mês não tem como saber que a coluna de custo é um snapshot
-      // de hoje. Vivia como uma "chip" de filtro (com white-space:nowrap,
-      // pensado para valores curtos), o que a forçava para uma frase
-      // inteira numa única linha sem quebra — exactamente o "excesso de
-      // informação numa só linha" a corrigir. O rodapé já é texto livre
-      // que quebra normalmente.
+      // de hoje. O rodapé é texto livre que quebra normalmente.
       footer:
-        "SPharm.MT · Uso interno · Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda",
+        "Stock actual à data de geração do relatório. Custo unit. est. pelo PMC/PUC actual da ficha — não é o custo à data da venda. Valor de vendas sem IVA.",
     },
   };
 }

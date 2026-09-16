@@ -207,6 +207,22 @@ export async function buildReportPdfBuffer(report: Report): Promise<PdfResult> {
         bottom: "10mm",
         left: "8mm",
       },
+      // "Pág. X / Y" discreto, no canto superior direito — a referência
+      // visual do relatório redesenhado (2026-09) traz isto, e só o
+      // Chromium consegue calcular o número TOTAL de páginas: não há
+      // forma de o fazer só com CSS de conteúdo (`@page` não expõe
+      // `counter(pages)` no motor de impressão do Chromium). O
+      // `headerTemplate` vive na margem superior — não sobrepõe o
+      // cabeçalho do próprio relatório, que começa depois da margem.
+      displayHeaderFooter: true,
+      headerTemplate: `
+        <div style="width:100%; font-size:7px; color:#94a3b8; padding:2mm 8mm 0 8mm;
+                    display:flex; justify-content:flex-end;
+                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+          Pág. <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>
+      `,
+      footerTemplate: `<div></div>`,
     });
 
     // puppeteer devolve Uint8Array em versões recentes — normalizar para Buffer

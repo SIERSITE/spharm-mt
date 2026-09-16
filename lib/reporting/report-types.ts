@@ -25,6 +25,16 @@ export type ReportFormat =
 
 export type ReportAlign = "left" | "right" | "center";
 
+/**
+ * Vocabulário fixo de "tons" para realce condicional de célula — nunca
+ * uma função: o `Report` viaja por vezes em JSON (ex.: `/api/reports/pdf`
+ * recebe-o serializado), e uma função não sobrevive a esse round-trip.
+ * `success`/`danger` são para stock (com/sem); `info` é o realce suave de
+ * "houve movimento aqui" (ex.: um mês com venda). Ver `renderTable` em
+ * report-html.ts.
+ */
+export type ReportCellTone = "success" | "danger" | "info";
+
 export type ReportColumn = {
   /** Chave na linha (row[key]) */
   key: string;
@@ -39,6 +49,42 @@ export type ReportColumn = {
   hidden?: boolean;
   /** Total agregado desta coluna no footer da tabela */
   showTotal?: boolean;
+  /**
+   * Só existe no Excel — nunca desenhada em HTML/PDF/print. Para dados
+   * que continuam úteis numa folha de cálculo (filtrar, ordenar) mas que
+   * o layout compacto já mostra de outra forma (ex.: PVP/Custo dobrados
+   * para uma sublinha da Descrição — ver `noteKey`). Nunca `hidden`
+   * também: `hidden` esconde de TUDO, incluindo Excel.
+   */
+  excelOnly?: boolean;
+  /**
+   * Sublinha discreta sob esta célula, só em HTML/PDF/print — nunca no
+   * Excel, que fica com o valor plano da coluna. Aponta para OUTRA
+   * chave da MESMA linha cujo valor (já formatado como texto pelo
+   * adapter) vira a sublinha — ex.: Descrição + "PVP: 27,90 € | Custo:
+   * —" por baixo, em vez de duas colunas próprias.
+   */
+  noteKey?: string;
+  /**
+   * Um valor numérico exactamente 0 mostra "–" em vez de "0" — HTML/PDF
+   * apenas (Excel mantém o zero real, é uma folha de cálculo). Útil para
+   * colunas onde "não houve nada aqui" lê melhor que uma parede de
+   * zeros (ex.: meses sem venda).
+   */
+  zeroAsDash?: boolean;
+  /** Tom da célula quando o valor numérico é exactamente 0. */
+  toneWhenZero?: ReportCellTone;
+  /** Tom da célula quando o valor numérico é > 0. */
+  toneWhenPositive?: ReportCellTone;
+  /**
+   * Agrupa visualmente esta coluna por `GROUP_KEY` (ver abaixo): a
+   * célula só é desenhada na primeira linha de cada grupo, com
+   * `rowspan` a cobrir as restantes — nunca repete o valor. Fora do
+   * HTML/PDF (Excel, ecrã) o valor continua presente em TODAS as
+   * linhas, sem agrupamento — cada saída decide por si como usar
+   * `GROUP_KEY`.
+   */
+  spanGroup?: boolean;
 };
 
 export type ReportCell = string | number | null | undefined | Date | boolean;
@@ -76,6 +122,50 @@ export function linhasDeDetalhe(rows: readonly ReportRow[]): ReportRow[] {
   return rows.filter((r) => !ehLinhaSubtotal(r));
 }
 
+/**
+ * Chave RESERVADA numa linha: liga linhas CONTÍGUAS num grupo visual —
+ * hoje, "um artigo": as suas linhas por farmácia + a linha TOTAL ARTIGO.
+ *
+ * Vive aqui (report-types, não vendas-agrupamento) porque é um mecanismo
+ * genérico do sistema de reporting, não específico de Vendas — qualquer
+ * relatório futuro com "registo-pai + N sublinhas" pode reutilizá-lo.
+ *
+ * Regras:
+ *   · Linhas com o MESMO valor de `GROUP_KEY` têm de ser CONTÍGUAS no
+ *     array `rows` — o renderer detecta grupos por runs consecutivos,
+ *     não por agrupamento global (não reordena nada).
+ *   · Ausente (undefined) = a linha não pertence a nenhum grupo — é o
+ *     comportamento de sempre, sem qualquer `rowspan`. Um relatório que
+ *     nunca define `GROUP_KEY` não muda nada visualmente.
+ *   · Só colunas com `spanGroup: true` são afectadas — ver `ReportColumn`.
+ */
+export const GROUP_KEY = "__group" as const;
+
+/**
+ * Divide `rows` em runs contíguos pelo valor de `GROUP_KEY`.
+ *
+ * Uma linha sem `GROUP_KEY` forma sempre um grupo de tamanho 1 — nunca
+ * se junta a nada, mesmo que a linha vizinha também não tenha (evita
+ * agrupar acidentalmente duas linhas "sem grupo" só porque calham a
+ * seguir uma à outra).
+ */
+export function agruparPorGroupKey(
+  rows: readonly ReportRow[],
+): { startIndex: number; length: number; groupKey: ReportCell }[] {
+  const grupos: { startIndex: number; length: number; groupKey: ReportCell }[] = [];
+  let i = 0;
+  while (i < rows.length) {
+    const chave = rows[i][GROUP_KEY];
+    let fim = i + 1;
+    if (chave !== undefined) {
+      while (fim < rows.length && rows[fim][GROUP_KEY] === chave) fim++;
+    }
+    grupos.push({ startIndex: i, length: fim - i, groupKey: chave });
+    i = fim;
+  }
+  return grupos;
+}
+
 export type ReportSummaryItem = {
   label: string;
   value: ReportCell;
@@ -96,6 +186,31 @@ export type ReportMeta = {
   footer?: string;
   /** Nome da empresa/farmácia no cabeçalho */
   organization?: string;
+  /**
+   * Linguagem visual do relatório em HTML/PDF/print — nunca no Excel
+   * (que é sempre uma folha plana, sem cabeçalho/cartões nenhuns).
+   *
+   *   · omisso/"comfortable" — o visual de sempre, ZERO mudança para
+   *     qualquer relatório que não opte explicitamente por "compact".
+   *   · "compact" — cabeçalho compacto (marca pequena + título + Pág./
+   *     Gerado em), filtros e resumo em faixa de uma linha (sem
+   *     cartões), tabela mais densa. Introduzido para Vendas (2026-09);
+   *     outros relatórios adoptam quando fizer sentido para a estrutura
+   *     dos seus dados — nunca por imposição.
+   */
+  density?: "comfortable" | "compact";
+  /**
+   * Escala fina de fonte/padding da TABELA — independente de `density`,
+   * porque só faz sentido para relatórios com um número de colunas
+   * dinâmico (hoje: os meses de Vendas). Um relatório com poucas
+   * colunas fixas nunca precisa disto.
+   *
+   *   · omisso/"cozy"   — fonte/padding actuais.
+   *   · "tight"         — ligeiramente mais compacto (ex.: 7-10 meses).
+   *   · "ultratight"    — o mais compacto (ex.: 11-15 meses) — ainda
+   *     legível, nunca a ponto de cortar texto.
+   */
+  tableDensity?: "cozy" | "tight" | "ultratight";
 };
 
 /**

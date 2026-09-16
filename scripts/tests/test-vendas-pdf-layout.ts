@@ -73,6 +73,15 @@ function buckets(n: number): { ano: number; mes: number }[] {
 // A. A soma das larguras nunca ultrapassa 100, para qualquer nº de meses
 // ─────────────────────────────────────────────────────────────────────────
 
+// Correcção (2026-09, redesenho): PVP e Custo unit. est. passaram a
+// `excelOnly:true` (dobrados para uma sublinha da Descrição no HTML/PDF
+// — ver ReportColumn.noteKey) — a largura que ainda carregam serve só
+// para o Excel dimensionar a coluna, não faz parte do orçamento visual
+// da tabela. O invariante "soma ≤ 100" só faz sentido sobre as colunas
+// que `renderTable()` desenha de facto.
+const colunasVisiveis = (cols: ReturnType<typeof buildVendasReport>["columns"]) =>
+  cols.filter((c) => !c.hidden && !c.excelOnly);
+
 console.log("\n=== A. buildColumns: a tabela nunca \"esmaga\" — soma ≤ 100 sempre ===");
 for (const n of [0, 1, 3, 6, 9, 10, 12, 18, 24, 36]) {
   const rel = buildVendasReport({
@@ -82,11 +91,11 @@ for (const n of [0, 1, 3, 6, 9, 10, 12, 18, 24, 36]) {
     universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
     organization: "Grupo",
   });
-  const somaLarguras = rel.columns.reduce((s, c) => s + (c.width ?? 0), 0);
+  const somaLarguras = colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0);
   ok(
-    `${n} meses: soma das larguras ≤ 100 (obtido ${somaLarguras.toFixed(1)})`,
+    `${n} meses: soma das larguras visíveis ≤ 100 (obtido ${somaLarguras.toFixed(1)})`,
     somaLarguras <= 100 + 0.05, // folga de arredondamento
-    `colunas: ${JSON.stringify(rel.columns.map((c) => c.width))}`,
+    `colunas: ${JSON.stringify(colunasVisiveis(rel.columns).map((c) => c.width))}`,
   );
 }
 
@@ -120,9 +129,9 @@ console.log("\n=== C. As colunas fixas nunca desaparecem, mesmo em relatórios m
     universe: { farmacias: [], fornecedores: [], fabricantes: [], categorias: [] },
     organization: "Grupo",
   });
-  const fixas = rel.columns.filter((c) => !c.key.startsWith("m_"));
+  const fixas = colunasVisiveis(rel.columns).filter((c) => !c.key.startsWith("m_"));
   ok("mesmo com 36 meses, nenhuma coluna fixa fica com largura 0 ou negativa", fixas.every((c) => (c.width ?? 0) > 0));
-  const somaLarguras = rel.columns.reduce((s, c) => s + (c.width ?? 0), 0);
+  const somaLarguras = colunasVisiveis(rel.columns).reduce((s, c) => s + (c.width ?? 0), 0);
   ok("…e a soma continua ≤ 100", somaLarguras <= 100.05, `${somaLarguras}`);
 }
 
@@ -236,12 +245,15 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     mesesCols.every((c) => c.label.split("\n").every((linha) => linha.length <= 3)),
   );
 
+  // Correcção (2026-09, redesenho): Custo unit. est. deixou de ser uma
+  // coluna do HTML/PDF — passou a `excelOnly` (dobrada para a sublinha
+  // da Descrição, ver noteKey) — por isso já não precisa do truque de 3
+  // linhas: esse existia só para caber numa coluna estreita que já não
+  // existe no HTML. O rótulo volta a ser uma frase normal (é isso que o
+  // Excel mostra na sua própria coluna).
   const custo = rel.columns.find((c) => c.key === "custoUnitarioEstimado");
-  eq("\"Custo unit. est.\" partido em três linhas curtas (2 linhas ainda transbordava)", custo?.label, "Custo\nunit.\nest.");
-  ok(
-    "…e nenhuma das três linhas passa de 5 caracteres",
-    (custo?.label ?? "").split("\n").every((linha) => linha.length <= 5),
-  );
+  ok("Custo unit. est. é excelOnly — não desenha no HTML/PDF", custo?.excelOnly === true);
+  eq("…e o rótulo volta a ser uma frase normal (só interessa ao Excel)", custo?.label, "Custo unit. est.");
 
   const totalUnid = rel.columns.find((c) => c.key === "totalVendas");
   eq("\"Total Unid.\" também partido em duas linhas", totalUnid?.label, "Total\nUnid.");
@@ -249,16 +261,16 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
   const html = renderReportHtml(rel);
   ok(
     "o HTML gerado traduz \"\\n\" do rótulo em <br/> dentro do cabeçalho",
-    html.includes("Jan<br/>26") && html.includes("Custo<br/>unit.<br/>est.") && html.includes("Total<br/>Unid."),
+    html.includes("Jan<br/>26") && html.includes("Total<br/>Unid."),
   );
-  // O rodapé continua a usar a frase "Custo unit. est." por extenso (é
-  // texto livre, não um cabeçalho de coluna) — a verificação de "já não
-  // existe o formato antigo" tem de olhar só para o <thead>, não para a
-  // página toda.
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
   ok(
     "…e o <thead> já não tem o formato antigo de uma linha só \"Jan/26\"",
-    !theadHtml.includes("Jan/26") && !theadHtml.includes("Custo unit. est.") && !theadHtml.includes("Total Unid."),
+    !theadHtml.includes("Jan/26") && !theadHtml.includes("Total Unid."),
+  );
+  ok(
+    "…nem a coluna Custo unit. est. (é excelOnly agora)",
+    !theadHtml.includes("Custo"),
   );
 }
 
