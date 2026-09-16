@@ -187,13 +187,28 @@ export type TogglesRapidosVendas = {
   apenasComStock: boolean;
 };
 
-/** `true` se a linha sobrevive aos toggles rápidos activos. */
+/**
+ * `true` se a linha sobrevive aos toggles rápidos activos.
+ *
+ * Correcção (2026-09): "Apenas com stock" ALARGA o universo do relatório
+ * (`lib/vendas-data.ts` já traz produtos sem venda mas com stock, em
+ * união — ver `getVendasData`) — não é mais um filtro que ESTREITA.
+ * A condição é `vendasNoPeriodo > 0 OR stockAtual > 0`, nunca `AND`.
+ *
+ * Por isso, quando `apenasComStock` está activo, `apenasComVendas` NÃO
+ * pode voltar a excluir a linha que só está aqui por causa do stock —
+ * seria desfazer o alargamento que o próprio loader já fez. Os dois
+ * toggles deixam de ser independentes nesse sentido: "com stock" manda
+ * quando os dois estão ligados.
+ */
 export function passaTogglesRapidosVendas(
   linha: Pick<LinhaAgrupavel, "totalVendas" | "existencia">,
   toggles: TogglesRapidosVendas,
 ): boolean {
+  if (toggles.apenasComStock) {
+    return linha.totalVendas > 0 || linha.existencia > 0;
+  }
   if (toggles.apenasComVendas && linha.totalVendas === 0) return false;
-  if (toggles.apenasComStock && linha.existencia <= 0) return false;
   return true;
 }
 

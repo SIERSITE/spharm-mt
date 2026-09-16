@@ -36,6 +36,7 @@ import {
   codigosVisiveisVendas,
   contarReferenciasUnicas,
   grupoPrecisaDeTotal,
+  passaTogglesRapidosVendas,
 } from "@/lib/reporting/vendas-agrupamento";
 import {
   formatFarmaciaHeader,
@@ -291,9 +292,7 @@ export function VendasClient({
       ) {
         return false;
       }
-      if (apenasComVendas && row.totalVendas === 0) return false;
-      if (apenasComStock && row.existencia <= 0) return false;
-      return true;
+      return passaTogglesRapidosVendas(row, { apenasComVendas, apenasComStock });
     });
   }, [
     fornecedoresSelecionados,
@@ -420,11 +419,9 @@ export function VendasClient({
       },
     );
 
-    return aggregated.filter((row) => {
-      if (apenasComVendas && row.totalVendas === 0) return false;
-      if (apenasComStock && row.existencia <= 0) return false;
-      return true;
-    });
+    return aggregated.filter((row) =>
+      passaTogglesRapidosVendas(row, { apenasComVendas, apenasComStock }),
+    );
   }, [
     fornecedoresSelecionados,
     fabricantesSelecionados,
@@ -589,9 +586,7 @@ export function VendasClient({
         ) {
           return false;
         }
-        if (apenasComVendas && row.totalVendas === 0) return false;
-        if (apenasComStock && row.existencia <= 0) return false;
-        return true;
+        return passaTogglesRapidosVendas(row, { apenasComVendas, apenasComStock });
       })
       .sort((a, b) =>
         a.codigo === b.codigo
@@ -652,8 +647,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (apenasComVendas && row.totalVendas === 0) continue;
-      if (apenasComStock && row.existencia <= 0) continue;
+      if (!passaTogglesRapidosVendas(row, { apenasComVendas, apenasComStock })) continue;
 
       if (!grouped.has(row.farmacia)) grouped.set(row.farmacia, []);
       grouped.get(row.farmacia)!.push(row);
@@ -741,6 +735,13 @@ export function VendasClient({
           // "não disse nada" — que voltaria ao default ON.
           incluirCredito,
           incluirTransferencias,
+          // `apenasComStock` alarga o UNIVERSO (união com stock actual —
+          // ver getVendasData), por isso tem de ir ao servidor: um
+          // produto sem venda no período nunca chega ao browser sem
+          // isto, e nenhum toggle client-side o pode conjurar depois.
+          // `apenasComVendas` continua só client-side — nunca precisou
+          // de reduzir o universo, só de esconder linhas já recebidas.
+          apenasComStock,
         });
         setRows(result.rows);
         setPeriodHeader(result.period);
@@ -1148,6 +1149,7 @@ export function VendasClient({
               checked={apenasComStock}
               onChange={setApenasComStock}
               compact
+              title="Alarga o relatório a produtos com stock actual, mesmo sem vendas no período. Clique em Gerar para aplicar."
             />
             <ToggleRow
               label="Incluir totais"
@@ -1959,14 +1961,18 @@ function ToggleRow({
   checked,
   onChange,
   compact = false,
+  title,
 }: {
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
   compact?: boolean;
+  /** Tooltip nativo — usado quando o toggle só faz efeito ao clicar "Gerar". */
+  title?: string;
 }) {
   return (
     <label
+      title={title}
       className={
         compact
           ? "flex items-center gap-2.5"

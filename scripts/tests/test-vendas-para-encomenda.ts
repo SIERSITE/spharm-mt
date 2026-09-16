@@ -345,7 +345,7 @@ console.log("\nF. As pontas estão ligadas\n");
 // que fica efectivamente no ecrã depois desses toggles. A ponte é
 // `codigosVisiveisVendas` (`lib/reporting/vendas-agrupamento.ts`), que
 // `vendas-client` chama sobre `currentRows` (a mesma fonte da tabela).
-console.log("\nG. Universo pós-toggles (o cenário 300 → 120)\n");
+console.log("\nG. Universo pós-toggles\n");
 
 function linha(codigo: string, opts: Partial<LinhaAgrupavel> = {}): LinhaAgrupavel {
   return {
@@ -359,30 +359,59 @@ function linha(codigo: string, opts: Partial<LinhaAgrupavel> = {}): LinhaAgrupav
   };
 }
 
-{
-  // Relatório bruto: 300 artigos. 150 têm vendas > 0; dessas, as
-  // primeiras 120 também têm stock > 0. Com "Apenas com vendas" e
-  // "Apenas com stock" ambos activos — os defaults do relatório — só
-  // essas 120 sobrevivem.
-  const relatorioBruto: LinhaAgrupavel[] = Array.from({ length: 300 }, (_, i) => {
+// Correcção (2026-09): "Apenas com stock" deixou de ser um filtro que
+// ESTREITA o universo (`vendas>0 AND stock>0`) para ser uma UNIÃO que o
+// ALARGA (`vendas>0 OR stock>0`) — ver `passaTogglesRapidosVendas` em
+// lib/reporting/vendas-agrupamento.ts. O fixture abaixo tem as quatro
+// combinações da regra pedida (A/B/C/D), 100 códigos cada:
+//   [0,100)   A: vendas=10, stock=5  → sempre visível
+//   [100,200) B: vendas=10, stock=0  → sempre visível (tem venda)
+//   [200,300) C: vendas=0,  stock=5  → só visível com "Apenas com stock"
+//   [300,400) D: vendas=0,  stock=0  → nunca visível
+function relatorioMisto(): LinhaAgrupavel[] {
+  return Array.from({ length: 400 }, (_, i) => {
     const codigo = String(i + 1);
-    const totalVendas = i < 150 ? 10 : 0;
-    const existencia = i < 120 ? 5 : 0;
+    const totalVendas = i < 200 ? 10 : 0; // A ou B
+    const existencia = i < 100 || (i >= 200 && i < 300) ? 5 : 0; // A ou C
     return linha(codigo, { totalVendas, existencia });
   });
+}
 
-  eq(relatorioBruto.length, 300, "relatório bruto tem 300 linhas");
+{
+  // Defaults do relatório: "Apenas com vendas" ON, "Apenas com stock" OFF
+  // — comportamento de sempre, inalterado por esta correcção. C (só
+  // stock) fica de fora; A e B (300 total) ficam visíveis.
+  const relatorioBruto = relatorioMisto();
+  eq(relatorioBruto.length, 400, "relatório bruto tem 400 linhas (A+B+C+D)");
 
+  const visiveis = codigosVisiveisVendas(relatorioBruto, {
+    apenasComVendas: true,
+    apenasComStock: false,
+  });
+  eq(visiveis.length, 200, "só 'Apenas com vendas': A+B (200) — C e D ficam de fora");
+  eq(
+    [...visiveis].sort((a, b) => Number(a) - Number(b)),
+    Array.from({ length: 200 }, (_, i) => String(i + 1)),
+    "…exactamente os códigos 1-200 (A e B)",
+  );
+}
+
+{
+  // "Apenas com stock" ligado (com "Apenas com vendas" também ligado,
+  // que é o default do ecrã) — a UNIÃO pedida: A+B+C (300), nunca D.
+  // Isto é o cenário que estava errado antes da correcção: C tinha de
+  // aparecer e não aparecia.
+  const relatorioBruto = relatorioMisto();
   const visiveis = codigosVisiveisVendas(relatorioBruto, {
     apenasComVendas: true,
     apenasComStock: true,
   });
 
-  eq(visiveis.length, 120, "depois dos toggles restam exactamente 120 linhas visíveis");
+  eq(visiveis.length, 300, "com 'Apenas com stock' ligado: A+B+C (300) — só D fica de fora");
   eq(
     [...visiveis].sort((a, b) => Number(a) - Number(b)),
-    Array.from({ length: 120 }, (_, i) => String(i + 1)),
-    "…e são exactamente as 120 com vendas E stock — nem mais, nem menos",
+    Array.from({ length: 300 }, (_, i) => String(i + 1)),
+    "…exactamente os códigos 1-300 (A, B e C) — D (301-400) continua ausente",
   );
 
   const resultado = buildEncomendaPrefillFromVendas({
@@ -395,32 +424,35 @@ function linha(codigo: string, opts: Partial<LinhaAgrupavel> = {}): LinhaAgrupav
     targetCoverageDays: 15,
   });
 
-  check(resultado.ok, "a encomenda constrói-se a partir do universo pós-toggles");
+  check(resultado.ok, "a encomenda constrói-se a partir do universo pós-toggles (A+B+C)");
   if (resultado.ok) {
-    eq(resultado.payload.cnps.length, 120, "o payload leva exactamente 120 CNP");
-    eq(
-      [...resultado.payload.cnps].sort((a, b) => a - b),
-      Array.from({ length: 120 }, (_, i) => i + 1),
-      "…exactamente os 120 esperados, nem um a mais nem um a menos",
-    );
+    eq(resultado.payload.cnps.length, 300, "o payload leva exactamente 300 CNP");
   }
 }
 
 {
-  // Sem toggles activos, as 300 linhas ficam todas visíveis — confirma
-  // que a redução para 120 vem mesmo dos toggles, não de um filtro
-  // escondido em `codigosVisiveisVendas`.
-  const relatorioBruto: LinhaAgrupavel[] = Array.from({ length: 300 }, (_, i) => {
-    const codigo = String(i + 1);
-    const totalVendas = i < 150 ? 10 : 0;
-    const existencia = i < 120 ? 5 : 0;
-    return linha(codigo, { totalVendas, existencia });
+  // "Apenas com stock" ligado SOZINHO ("Apenas com vendas" desligado) —
+  // "com stock" continua a mandar: mesma união A+B+C, D fora. Prova que
+  // os dois toggles deixam de ser independentes quando "com stock" está
+  // ligado (ver comentário em passaTogglesRapidosVendas).
+  const relatorioBruto = relatorioMisto();
+  const visiveis = codigosVisiveisVendas(relatorioBruto, {
+    apenasComVendas: false,
+    apenasComStock: true,
   });
+  eq(visiveis.length, 300, "'Apenas com stock' sozinho também dá A+B+C (300)");
+}
+
+{
+  // Sem toggles activos, as 400 linhas ficam todas visíveis — confirma
+  // que qualquer redução vem mesmo dos toggles, não de um filtro
+  // escondido em `codigosVisiveisVendas`.
+  const relatorioBruto = relatorioMisto();
   const semToggles = codigosVisiveisVendas(relatorioBruto, {
     apenasComVendas: false,
     apenasComStock: false,
   });
-  eq(semToggles.length, 300, "sem toggles activos, as 300 linhas ficam todas visíveis");
+  eq(semToggles.length, 400, "sem toggles activos, as 400 linhas ficam todas visíveis");
 }
 
 console.log("\nH. Linha sintética de totais nunca entra na encomenda\n");

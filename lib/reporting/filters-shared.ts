@@ -100,6 +100,24 @@ export type SharedReportFilters = {
    * utilizáveis, portanto não estão por classificar.
    */
   apenasSemClassif?: boolean;
+  /**
+   * Alarga o universo do relatório de Vendas para incluir também
+   * produtos SEM vendas no período mas com stock actual > 0 — uma
+   * UNIÃO, nunca um filtro por cima do universo de vendas.
+   *
+   * Semântica ao ligar: `vendasNoPeriodo > 0 OR stockAtual > 0`, nunca
+   * `AND`. Um produto que entra só por ter stock aparece com
+   * meses/total de vendas a ZERO (nunca inventados) e o
+   * stock/PVP/custo/fabricante reais, como qualquer outra linha. Ver
+   * `lib/vendas-data.ts::getVendasData`.
+   *
+   * Desligado (default/omisso): comportamento inalterado — só produtos
+   * com vendas no período, exactamente como antes desta opção existir.
+   *
+   * Específico de Vendas (como `apenasSemClassif` — ver comentário no
+   * topo deste ficheiro sobre loaders estenderem o tipo partilhado).
+   */
+  apenasComStock?: boolean;
 };
 
 /**

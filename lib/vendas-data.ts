@@ -31,13 +31,34 @@
  *
  * Filtros suportados (canónicos via `SharedReportFilters`):
  *   farmaciaNomes, from, to, categorias, subcategorias, utilizacoes,
- *   fabricantes, distribuidores, pesquisa, apenasSemClassif.
+ *   fabricantes, distribuidores, pesquisa, apenasSemClassif, apenasComStock.
  *
  * Pré-filtros de produto correm SQL-side antes do pivot — mesma estratégia de
  * Margens, para não puxar produtos que vão ser descartados a seguir.
+ *
+ * ─── `apenasComStock`: união com ProdutoFarmacia, não filtro (2026-09) ──────
+ *
+ * O universo desta função nasce SEMPRE do ledger de vendas (`VendaMensal`/
+ * `IngestVendaLinhaRaw`) — um produto sem qualquer venda líquida no período
+ * nunca chega a `aggRows`, `HAVING <> 0` obriga a isso. Um filtro aplicado
+ * DEPOIS (`existencia > 0`) só consegue ESTREITAR esse universo — nunca
+ * alargá-lo — e foi exactamente isso que a página fazia client-side antes
+ * desta correcção: "Apenas com stock" comportava-se como
+ * `vendas > 0 AND stock > 0`, quando o pedido sempre foi
+ * `vendas > 0 OR stock > 0`.
+ *
+ * A correcção tem de ser aqui, na origem do universo: quando
+ * `apenasComStock` está activo, além dos pares (produto, farmácia) que já
+ * vieram do ledger, procura-se em `ProdutoFarmacia` os pares com
+ * `stockAtual > 0` que NÃO têm venda no período — respeitando os mesmos
+ * pré-filtros de produto (categoria/fabricante/pesquisa/catálogo) e o mesmo
+ * filtro de farmácia/distribuidor — e sintetiza-se uma linha para cada um,
+ * com `meses`/`totalVendas` a ZERO (nunca inventados) e o resto dos campos
+ * (PVP, custo, descrição, fabricante, farmácia) preenchidos a partir de
+ * `Produto`/`ProdutoFarmacia`, exactamente como qualquer outra linha.
  */
 import { getPrisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { resolverPar } from "@/lib/categoria-resolver";
 import { custoDaFarmacia, valorizar } from "@/lib/produtos/custo-farmacia";
 import {
@@ -182,9 +203,17 @@ function toF(v: unknown): number {
 }
 
 export async function getVendasData(
-  filters: SharedReportFilters = {}
+  filters: SharedReportFilters = {},
+  /**
+   * Injecção opcional de `PrismaClient` — mesmo padrão de
+   * `applyAuthoritativeManufacturerCorrections` em `lib/catalog-persistence.ts`.
+   * Nunca usado em produção (o singleton do tenant é sempre o caminho
+   * real); existe para os testes conseguirem exercitar esta função com
+   * um Prisma falso, sem BD viva. Ver `scripts/tests/test-vendas-apenas-com-stock.ts`.
+   */
+  prismaOverride?: PrismaClient,
 ): Promise<SalesReportResult> {
-  const prisma = await getPrisma();
+  const prisma = prismaOverride ?? (await getPrisma());
 
   // ── Janela: dias civis, ambas as pontas inclusivas ──────────────────
   const janela = normalizarJanela(filters.from, filters.to);
@@ -381,7 +410,13 @@ export async function getVendasData(
   ]);
   const aggRows = partes.flat();
 
-  if (aggRows.length === 0) return { period, rows: [] };
+  // Com `apenasComStock` activo, um universo vazio de VENDAS não implica
+  // um relatório vazio — pode haver produtos só com stock. O corte cedo
+  // fica reservado ao caso normal (sem essa opção), onde continua a
+  // significar exactamente o que sempre significou.
+  if (aggRows.length === 0 && !filters.apenasComStock) {
+    return { period, rows: [] };
+  }
 
   // ── Agrupa por (produtoId, farmaciaId) e indexa cada mês ──────────
   type Acc = {
@@ -520,6 +555,118 @@ export async function getVendasData(
       farmacia: farmaciaNome,
       grupo,
     });
+  }
+
+  // ── `apenasComStock`: UNIÃO com produtos só de stock (sem venda) ─────
+  //
+  // Mesmos pré-filtros de produto (`produtoIdFilter`) e as mesmas
+  // farmácias/distribuidor de `pfWhere` — nunca um universo à parte.
+  // Só entram pares (produto, farmácia) que `accByKey` ainda não tem:
+  // um par com venda já ganhou a sua linha real no loop acima, e não
+  // pode duplicar-se aqui com uma cópia "sem vendas".
+  if (filters.apenasComStock) {
+    const stockWhere: Prisma.ProdutoFarmaciaWhereInput = {
+      farmaciaId: { in: farmaciaIds },
+      stockAtual: { gt: 0 },
+      ...(produtoIdFilter ? { produtoId: { in: produtoIdFilter } } : {}),
+    };
+    if (filters.distribuidores && filters.distribuidores.length > 0) {
+      stockWhere.fornecedorOrigem = { in: filters.distribuidores };
+    }
+    const stockPfRecords = await prisma.produtoFarmacia.findMany({
+      where: stockWhere,
+      select: {
+        produtoId: true,
+        farmaciaId: true,
+        stockAtual: true,
+        pvp: true,
+        pmc: true,
+        puc: true,
+        fornecedorOrigem: true,
+      },
+    });
+    const stockOnly = stockPfRecords.filter(
+      (r) => !accByKey.has(`${r.produtoId}:${r.farmaciaId}`),
+    );
+
+    if (stockOnly.length > 0) {
+      // Metadata do produto para os que ainda não vieram na primeira
+      // ida (produtos sem qualquer venda no período não estavam em
+      // `produtoIds`, que nasce de `accByKey`).
+      const idsEmFalta = [...new Set(stockOnly.map((r) => r.produtoId))].filter(
+        (id) => !produtoById.has(id),
+      );
+      if (idsEmFalta.length > 0) {
+        const maisProdutos = await prisma.produto.findMany({
+          where: { id: { in: idsEmFalta } },
+          select: {
+            id: true,
+            cnp: true,
+            designacao: true,
+            fabricante: { select: { nomeNormalizado: true } },
+            classificacaoNivel1: { select: { nome: true } },
+            classificacaoNivel2: { select: { nome: true } },
+            utilizacoes: { select: { utilizacao: { select: { slug: true } } } },
+          },
+        });
+        for (const p of maisProdutos) produtoById.set(p.id, p);
+      }
+
+      for (const pf of stockOnly) {
+        const produto = produtoById.get(pf.produtoId);
+        if (!produto) continue;
+        const farmaciaNome = farmaciaNameById.get(pf.farmaciaId) ?? "—";
+
+        // Sem venda no período — os meses ficam a zero por CONSTRUÇÃO,
+        // nunca inventados: não há `acc`/`byBucket` nenhum para este
+        // par, por isso não há nada a somar.
+        const meses: SalesMonthBucket[] = buckets.map((b) => ({
+          ano: b.ano,
+          mes: b.mes,
+          quantidade: 0,
+        }));
+        const totalVendas = 0;
+
+        const pvp = toF(pf.pvp ?? pf.pmc ?? 0);
+        const existencia = Math.round(toF(pf.stockAtual ?? 0));
+        const custoUnitarioEstimado = custoDaFarmacia(
+          pf.pmc != null ? Number(pf.pmc) : null,
+          pf.puc != null ? Number(pf.puc) : null,
+        ).valor;
+        // Mesma fórmula da linha com vendas — `valorizar(0, custo)` dá
+        // 0 quando o custo é conhecido e `null` quando não é, sem
+        // nenhum caso especial para "linha só de stock".
+        const custoEstimado = valorizar(totalVendas, custoUnitarioEstimado);
+
+        const { categoria, subcategoria } = resolverPar({
+          classificacaoNivel1: produto.classificacaoNivel1,
+          classificacaoNivel2: produto.classificacaoNivel2,
+        });
+        const grupo = subcategoria || categoria;
+        const fornecedor = pf.fornecedorOrigem ?? "";
+        const fabricante = produto.fabricante?.nomeNormalizado ?? "";
+
+        rows.push({
+          codigo: String(produto.cnp),
+          descricao: produto.designacao,
+          pvp,
+          meses,
+          totalVendas,
+          valorBruto: 0,
+          existencia,
+          custoUnitarioEstimado,
+          custoEstimado,
+          unidadesVendidas: totalVendas,
+          fornecedor,
+          fabricante,
+          categoria,
+          subcategoria,
+          utilizacoes: produto.utilizacoes.map((u) => u.utilizacao.slug),
+          farmacia: farmaciaNome,
+          grupo,
+        });
+      }
+    }
   }
 
   // Ordenação default: mais vendidos primeiro. UI pode reordenar.
