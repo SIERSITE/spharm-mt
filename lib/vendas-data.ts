@@ -56,6 +56,31 @@
  * com `meses`/`totalVendas` a ZERO (nunca inventados) e o resto dos campos
  * (PVP, custo, descrição, fabricante, farmácia) preenchidos a partir de
  * `Produto`/`ProdutoFarmacia`, exactamente como qualquer outra linha.
+ *
+ * ─── `incluirManutencao`: soma aditiva de VendaManutencaoCelula (2026-09) ────
+ *
+ * Desligado (default): comportamento IDÊNTICO a antes desta opção existir —
+ * `quantidade`/`valorBruto` são exclusivamente do ledger real. Ligado: soma-se
+ * a quantidade de `VendaManutencaoCelula` (só `VendaManutencao.estado ===
+ * "ATIVA"`, nunca anuladas) ao mesmo `(produtoId, farmaciaId, ano, mes)` do
+ * acumulador — a MESMA chave que o ledger já usa, por isso o merge é uma soma
+ * trivial, nunca um caminho de código à parte para `meses`/TOTAL ARTIGO/TOTAL
+ * GERAL a jusante (agrupamento, PDF, Excel): tudo o que já soma quantidade
+ * continua cego a se essa unidade é real ou de manutenção.
+ *
+ * O valor bruto da manutenção NUNCA usa o PVP de HOJE — usa o
+ * `VendaManutencaoFarmacia.pvpReferencia` snapshot, capturado na criação da
+ * manutenção (ver lib/vendas-manutencao-data.ts) — a mesma disciplina que já
+ * rege `valorBruto` do ledger real (nunca `totalVendas × pvp actual`, ver a
+ * nota em `SalesReportRow.valorBruto`).
+ *
+ * Auditoria (secção 8 do pedido): `quantidadeManutencao`/`valorBrutoManutencao`
+ * em cada `SalesReportRow` preservam a contribuição da manutenção À PARTE —
+ * nunca só o total combinado — mesmo que o PDF actual só mostre o combinado.
+ *
+ * `VendaManutencaoCelula`/`VendaManutencao`/`VendaManutencaoFarmacia` NUNCA
+ * entram em nenhum outro cálculo deste ficheiro (peso, custo, etc.) — só
+ * nesta soma aditiva, gated por `filters.incluirManutencao`.
  */
 import { getPrisma } from "@/lib/prisma";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
@@ -110,6 +135,17 @@ export type SalesReportRow = {
    * na Silveirense dava 98 952,93 € onde o ledger tem 98 829,51 €.
    */
   valorBruto: number;
+  /**
+   * Quantidade vinda de Manutenção de Vendas, JÁ incluída em `totalVendas`/
+   * `meses` quando `filters.incluirManutencao` está activo — nunca um total
+   * à parte. `0` sempre que o filtro está desligado ou não há manutenção
+   * activa para este par (produto, farmácia). Existe para auditoria (secção
+   * 8 do pedido: "tecnicamente possível distinguir valor real de valor
+   * proveniente de manutenção") — o PDF actual não a desenha como coluna.
+   */
+  quantidadeManutencao: number;
+  /** Mesma disciplina de `quantidadeManutencao`, para `valorBruto`. */
+  valorBrutoManutencao: number;
   existencia: number;
   /**
    * Custo unitário ESTIMADO, sem IVA. `null` quando desconhecido.
@@ -425,20 +461,32 @@ export async function getVendasData(
     byBucket: Map<string, number>;
     total: number;
     valorBruto: number;
+    // Contribuição de Manutenção de Vendas — SEMPRE somada à parte (nunca
+    // misturada com `byBucket`/`total`/`valorBruto` acima), só combinada
+    // com o real no momento de construir `SalesReportRow` (e só quando
+    // `filters.incluirManutencao` está activo). Ver a nota grande no topo
+    // do ficheiro.
+    manutencaoByBucket: Map<string, number>;
+    manutencaoTotal: number;
+    manutencaoValorBruto: number;
   };
   const bucketKey = (ano: number, mes: number) => `${ano}-${mes}`;
   const accByKey = new Map<string, Acc>();
+  const novoAcc = (produtoId: string, farmaciaId: string): Acc => ({
+    produtoId,
+    farmaciaId,
+    byBucket: new Map(),
+    total: 0,
+    valorBruto: 0,
+    manutencaoByBucket: new Map(),
+    manutencaoTotal: 0,
+    manutencaoValorBruto: 0,
+  });
   for (const r of aggRows) {
     const key = `${r.produtoId}:${r.farmaciaId}`;
     let acc = accByKey.get(key);
     if (!acc) {
-      acc = {
-        produtoId: r.produtoId,
-        farmaciaId: r.farmaciaId,
-        byBucket: new Map(),
-        total: 0,
-        valorBruto: 0,
-      };
+      acc = novoAcc(r.produtoId, r.farmaciaId);
       accByKey.set(key, acc);
     }
     const q = Math.round(toF(r.quantidade));
@@ -448,6 +496,66 @@ export async function getVendasData(
     acc.byBucket.set(bk, (acc.byBucket.get(bk) ?? 0) + q);
     acc.total += q;
     acc.valorBruto += toF(r.valorBruto);
+  }
+
+  // ── `incluirManutencao`: soma aditiva de VendaManutencaoCelula ──────
+  //
+  // Gated — desligado por omissão, comportamento idêntico a antes desta
+  // opção existir (ver a nota grande no topo do ficheiro). Mesma chave
+  // `(produtoId, farmaciaId, ano, mes)` do ledger real; um par sem
+  // nenhuma venda no período mas com manutenção ganha aqui a sua
+  // primeira entrada em `accByKey` — nunca fica de fora só por não ter
+  // venda real (mesmo princípio de `apenasComStock`, mais abaixo).
+  if (filters.incluirManutencao) {
+    const minIdx = buckets[0].ano * 12 + buckets[0].mes;
+    const maxIdx = buckets[buckets.length - 1].ano * 12 + buckets[buckets.length - 1].mes;
+    type ManutencaoRow = {
+      produtoId: string;
+      farmaciaId: string;
+      ano: number;
+      mes: number;
+      quantidade: unknown;
+      pvpReferencia: unknown;
+    };
+    const manutencaoRows = await prisma.$queryRaw<ManutencaoRow[]>(Prisma.sql`
+      SELECT
+        vm."produtoId"     AS "produtoId",
+        vmc."farmaciaId"   AS "farmaciaId",
+        vmc.ano,
+        vmc.mes,
+        vmc.quantidade     AS quantidade,
+        vmf."pvpReferencia" AS "pvpReferencia"
+      FROM "VendaManutencaoCelula" vmc
+      JOIN "VendaManutencao" vm ON vm.id = vmc."manutencaoId"
+      LEFT JOIN "VendaManutencaoFarmacia" vmf
+        ON vmf."manutencaoId" = vmc."manutencaoId" AND vmf."farmaciaId" = vmc."farmaciaId"
+      WHERE vm.estado = 'ATIVA'
+        AND vmc."farmaciaId" = ANY(${farmaciaIds})
+        AND (vmc.ano * 12 + vmc.mes) BETWEEN ${minIdx} AND ${maxIdx}
+        ${
+          produtoIdFilter
+            ? Prisma.sql`AND vm."produtoId" = ANY(${produtoIdFilter})`
+            : Prisma.empty
+        }
+    `);
+    for (const r of manutencaoRows) {
+      const key = `${r.produtoId}:${r.farmaciaId}`;
+      let acc = accByKey.get(key);
+      if (!acc) {
+        acc = novoAcc(r.produtoId, r.farmaciaId);
+        accByKey.set(key, acc);
+      }
+      const q = Math.round(toF(r.quantidade));
+      const bk = bucketKey(r.ano, r.mes);
+      acc.manutencaoByBucket.set(bk, (acc.manutencaoByBucket.get(bk) ?? 0) + q);
+      acc.manutencaoTotal += q;
+      // Nunca o PVP de hoje — só o snapshot de referência, capturado na
+      // criação da manutenção. `valorizar` devolve `null` quando o PVP é
+      // desconhecido; tratado como 0 aqui (a quantidade já contou acima,
+      // e inventar um valor seria pior do que não somar nenhum).
+      const pvpReferencia = r.pvpReferencia === null ? null : toF(r.pvpReferencia);
+      acc.manutencaoValorBruto += valorizar(q, pvpReferencia) ?? 0;
+    }
   }
 
   // ── Metadata do produto (canónica) + ProdutoFarmacia (PVP/stock/origem)
@@ -506,12 +614,18 @@ export async function getVendasData(
     if (distribuidorFilterActive && !pf) continue;
     const farmaciaNome = farmaciaNameById.get(acc.farmaciaId) ?? "—";
 
-    const meses: SalesMonthBucket[] = buckets.map((b) => ({
-      ano: b.ano,
-      mes: b.mes,
-      quantidade: acc.byBucket.get(bucketKey(b.ano, b.mes)) ?? 0,
-    }));
+    // `filters.incluirManutencao` desligado (default): `acc.manutencao*`
+    // nunca foi populado (fica a 0/vazio), por isso isto é bit-a-bit o
+    // que já era antes desta opção existir — nenhum caso especial.
+    const meses: SalesMonthBucket[] = buckets.map((b) => {
+      const bk = bucketKey(b.ano, b.mes);
+      const real = acc.byBucket.get(bk) ?? 0;
+      const manutencao = filters.incluirManutencao ? (acc.manutencaoByBucket.get(bk) ?? 0) : 0;
+      return { ano: b.ano, mes: b.mes, quantidade: real + manutencao };
+    });
     const totalVendas = meses.reduce((s, m) => s + m.quantidade, 0);
+    const quantidadeManutencao = filters.incluirManutencao ? acc.manutencaoTotal : 0;
+    const valorBrutoManutencao = filters.incluirManutencao ? acc.manutencaoValorBruto : 0;
 
     const pvp = toF(pf?.pvp ?? pf?.pmc ?? 0);
     const existencia = Math.round(toF(pf?.stockAtual ?? 0));
@@ -542,7 +656,9 @@ export async function getVendasData(
       pvp,
       meses,
       totalVendas,
-      valorBruto: acc.valorBruto,
+      valorBruto: acc.valorBruto + valorBrutoManutencao,
+      quantidadeManutencao,
+      valorBrutoManutencao,
       existencia,
       custoUnitarioEstimado,
       custoEstimado,
@@ -653,6 +769,12 @@ export async function getVendasData(
           meses,
           totalVendas,
           valorBruto: 0,
+          // Este par nunca teve venda real NEM manutenção — se tivesse
+          // manutenção, o merge acima já lhe teria dado uma entrada em
+          // `accByKey`, e o filtro `!accByKey.has(...)` (mais abaixo,
+          // antes deste loop) tinha-o excluído daqui.
+          quantidadeManutencao: 0,
+          valorBrutoManutencao: 0,
           existencia,
           custoUnitarioEstimado,
           custoEstimado,

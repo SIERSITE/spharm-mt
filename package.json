@@ -148,6 +148,7 @@
     "test:reporting-redesign": "tsx scripts/tests/test-reporting-redesign.ts",
     "test:reporting-uniformizacao": "tsx scripts/tests/test-reporting-uniformizacao.ts",
     "test:vendas-manutencao": "tsx scripts/tests/test-vendas-manutencao.ts",
+    "test:vendas-incluir-manutencao": "tsx scripts/tests/test-vendas-incluir-manutencao.ts",
     "test:encomenda-grupo-decisao-linha": "tsx scripts/tests/test-encomenda-grupo-decisao-linha.ts",
     "test:eliminacao-encomenda-transferencia": "tsx scripts/tests/test-eliminacao-encomenda-transferencia.ts",
     "test:agrupar-produto": "tsx scripts/tests/test-agrupar-produto.ts",

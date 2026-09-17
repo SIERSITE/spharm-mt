@@ -18,6 +18,13 @@ import type * as Prisma from "../internal/prismaNamespace"
  * Granularidade idêntica a `VendaMensal`, propositadamente — é o que
  * torna o merge no loader de Vendas uma soma trivial pela mesma chave
  * `(produtoId via manutencao, farmaciaId, ano, mes)`.
+ * 
+ * Só a QUANTIDADE — nunca um valor monetário próprio. O valor bruto
+ * desta célula é SEMPRE `quantidade × VendaManutencaoFarmacia.pvpReferencia`
+ * (da mesma farmácia, na mesma manutenção), calculado on-the-fly com o
+ * mesmo helper `valorizar()` que todo o resto do SPharm.MT já usa —
+ * nunca guardado aqui em duplicado. Ver a nota grande em
+ * `VendaManutencaoFarmacia` sobre porquê.
  */
 export type VendaManutencaoCelulaModel = runtime.Types.Result.DefaultSelection<Prisma.$VendaManutencaoCelulaPayload>
 
@@ -32,13 +39,13 @@ export type AggregateVendaManutencaoCelula = {
 export type VendaManutencaoCelulaAvgAggregateOutputType = {
   ano: number | null
   mes: number | null
-  quantidade: runtime.Decimal | null
+  quantidade: number | null
 }
 
 export type VendaManutencaoCelulaSumAggregateOutputType = {
   ano: number | null
   mes: number | null
-  quantidade: runtime.Decimal | null
+  quantidade: number | null
 }
 
 export type VendaManutencaoCelulaMinAggregateOutputType = {
@@ -47,7 +54,7 @@ export type VendaManutencaoCelulaMinAggregateOutputType = {
   farmaciaId: string | null
   ano: number | null
   mes: number | null
-  quantidade: runtime.Decimal | null
+  quantidade: number | null
 }
 
 export type VendaManutencaoCelulaMaxAggregateOutputType = {
@@ -56,7 +63,7 @@ export type VendaManutencaoCelulaMaxAggregateOutputType = {
   farmaciaId: string | null
   ano: number | null
   mes: number | null
-  quantidade: runtime.Decimal | null
+  quantidade: number | null
 }
 
 export type VendaManutencaoCelulaCountAggregateOutputType = {
@@ -202,7 +209,7 @@ export type VendaManutencaoCelulaGroupByOutputType = {
   farmaciaId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal
+  quantidade: number
   _count: VendaManutencaoCelulaCountAggregateOutputType | null
   _avg: VendaManutencaoCelulaAvgAggregateOutputType | null
   _sum: VendaManutencaoCelulaSumAggregateOutputType | null
@@ -234,7 +241,7 @@ export type VendaManutencaoCelulaWhereInput = {
   farmaciaId?: Prisma.StringFilter<"VendaManutencaoCelula"> | string
   ano?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
   mes?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
-  quantidade?: Prisma.DecimalFilter<"VendaManutencaoCelula"> | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
   manutencao?: Prisma.XOR<Prisma.VendaManutencaoScalarRelationFilter, Prisma.VendaManutencaoWhereInput>
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
 }
@@ -260,7 +267,7 @@ export type VendaManutencaoCelulaWhereUniqueInput = Prisma.AtLeast<{
   farmaciaId?: Prisma.StringFilter<"VendaManutencaoCelula"> | string
   ano?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
   mes?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
-  quantidade?: Prisma.DecimalFilter<"VendaManutencaoCelula"> | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
   manutencao?: Prisma.XOR<Prisma.VendaManutencaoScalarRelationFilter, Prisma.VendaManutencaoWhereInput>
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
 }, "id" | "manutencaoId_farmaciaId_ano_mes">
@@ -288,14 +295,14 @@ export type VendaManutencaoCelulaScalarWhereWithAggregatesInput = {
   farmaciaId?: Prisma.StringWithAggregatesFilter<"VendaManutencaoCelula"> | string
   ano?: Prisma.IntWithAggregatesFilter<"VendaManutencaoCelula"> | number
   mes?: Prisma.IntWithAggregatesFilter<"VendaManutencaoCelula"> | number
-  quantidade?: Prisma.DecimalWithAggregatesFilter<"VendaManutencaoCelula"> | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntWithAggregatesFilter<"VendaManutencaoCelula"> | number
 }
 
 export type VendaManutencaoCelulaCreateInput = {
   id?: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
   manutencao: Prisma.VendaManutencaoCreateNestedOneWithoutCelulasInput
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendaManutencaoCelulasInput
 }
@@ -306,14 +313,14 @@ export type VendaManutencaoCelulaUncheckedCreateInput = {
   farmaciaId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
   manutencao?: Prisma.VendaManutencaoUpdateOneRequiredWithoutCelulasNestedInput
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendaManutencaoCelulasNestedInput
 }
@@ -324,7 +331,7 @@ export type VendaManutencaoCelulaUncheckedUpdateInput = {
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaCreateManyInput = {
@@ -333,14 +340,14 @@ export type VendaManutencaoCelulaCreateManyInput = {
   farmaciaId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaUncheckedUpdateManyInput = {
@@ -349,7 +356,7 @@ export type VendaManutencaoCelulaUncheckedUpdateManyInput = {
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaListRelationFilter = {
@@ -496,7 +503,7 @@ export type VendaManutencaoCelulaCreateWithoutFarmaciaInput = {
   id?: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
   manutencao: Prisma.VendaManutencaoCreateNestedOneWithoutCelulasInput
 }
 
@@ -505,7 +512,7 @@ export type VendaManutencaoCelulaUncheckedCreateWithoutFarmaciaInput = {
   manutencaoId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaCreateOrConnectWithoutFarmaciaInput = {
@@ -543,14 +550,14 @@ export type VendaManutencaoCelulaScalarWhereInput = {
   farmaciaId?: Prisma.StringFilter<"VendaManutencaoCelula"> | string
   ano?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
   mes?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
-  quantidade?: Prisma.DecimalFilter<"VendaManutencaoCelula"> | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFilter<"VendaManutencaoCelula"> | number
 }
 
 export type VendaManutencaoCelulaCreateWithoutManutencaoInput = {
   id?: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutVendaManutencaoCelulasInput
 }
 
@@ -559,7 +566,7 @@ export type VendaManutencaoCelulaUncheckedCreateWithoutManutencaoInput = {
   farmaciaId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaCreateOrConnectWithoutManutencaoInput = {
@@ -593,14 +600,14 @@ export type VendaManutencaoCelulaCreateManyFarmaciaInput = {
   manutencaoId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaUpdateWithoutFarmaciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
   manutencao?: Prisma.VendaManutencaoUpdateOneRequiredWithoutCelulasNestedInput
 }
 
@@ -609,7 +616,7 @@ export type VendaManutencaoCelulaUncheckedUpdateWithoutFarmaciaInput = {
   manutencaoId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaInput = {
@@ -617,7 +624,7 @@ export type VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaInput = {
   manutencaoId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaCreateManyManutencaoInput = {
@@ -625,14 +632,14 @@ export type VendaManutencaoCelulaCreateManyManutencaoInput = {
   farmaciaId: string
   ano: number
   mes: number
-  quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade: number
 }
 
 export type VendaManutencaoCelulaUpdateWithoutManutencaoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutVendaManutencaoCelulasNestedInput
 }
 
@@ -641,7 +648,7 @@ export type VendaManutencaoCelulaUncheckedUpdateWithoutManutencaoInput = {
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type VendaManutencaoCelulaUncheckedUpdateManyWithoutManutencaoInput = {
@@ -649,7 +656,7 @@ export type VendaManutencaoCelulaUncheckedUpdateManyWithoutManutencaoInput = {
   farmaciaId?: Prisma.StringFieldUpdateOperationsInput | string
   ano?: Prisma.IntFieldUpdateOperationsInput | number
   mes?: Prisma.IntFieldUpdateOperationsInput | number
-  quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  quantidade?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 
@@ -722,10 +729,7 @@ export type $VendaManutencaoCelulaPayload<ExtArgs extends runtime.Types.Extensio
     farmaciaId: string
     ano: number
     mes: number
-    /**
-     * Mesmo domínio de `VendaManutencao.quantidadeTotal` — ver ali.
-     */
-    quantidade: runtime.Decimal
+    quantidade: number
   }, ExtArgs["result"]["vendaManutencaoCelula"]>
   composites: {}
 }
@@ -1156,7 +1160,7 @@ export interface VendaManutencaoCelulaFieldRefs {
   readonly farmaciaId: Prisma.FieldRef<"VendaManutencaoCelula", 'String'>
   readonly ano: Prisma.FieldRef<"VendaManutencaoCelula", 'Int'>
   readonly mes: Prisma.FieldRef<"VendaManutencaoCelula", 'Int'>
-  readonly quantidade: Prisma.FieldRef<"VendaManutencaoCelula", 'Decimal'>
+  readonly quantidade: Prisma.FieldRef<"VendaManutencaoCelula", 'Int'>
 }
     
 

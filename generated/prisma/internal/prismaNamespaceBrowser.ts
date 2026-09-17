@@ -79,6 +79,7 @@ export const ModelName = {
   VendaMensal: 'VendaMensal',
   VendaManutencao: 'VendaManutencao',
   VendaManutencaoCelula: 'VendaManutencaoCelula',
+  VendaManutencaoFarmacia: 'VendaManutencaoFarmacia',
   Compra: 'Compra',
   Devolucao: 'Devolucao',
   HistoricoStock: 'HistoricoStock',
@@ -632,6 +633,16 @@ export const VendaManutencaoCelulaScalarFieldEnum = {
 } as const
 
 export type VendaManutencaoCelulaScalarFieldEnum = (typeof VendaManutencaoCelulaScalarFieldEnum)[keyof typeof VendaManutencaoCelulaScalarFieldEnum]
+
+
+export const VendaManutencaoFarmaciaScalarFieldEnum = {
+  id: 'id',
+  manutencaoId: 'manutencaoId',
+  farmaciaId: 'farmaciaId',
+  pvpReferencia: 'pvpReferencia'
+} as const
+
+export type VendaManutencaoFarmaciaScalarFieldEnum = (typeof VendaManutencaoFarmaciaScalarFieldEnum)[keyof typeof VendaManutencaoFarmaciaScalarFieldEnum]
 
 
 export const CompraScalarFieldEnum = {

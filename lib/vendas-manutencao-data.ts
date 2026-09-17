@@ -2,27 +2,40 @@
  * lib/vendas-manutencao-data.ts
  *
  * Camada de dados da Manutenção de Vendas — a ÚNICA peça deste módulo
- * que fala com o Prisma. A lógica de peso/distribuição/validação vive
- * em `lib/vendas-manutencao/*.ts`, pura e sem BD (ver
+ * que fala com o Prisma. A lógica de peso/distribuição/validação/
+ * valorização vive em `lib/vendas-manutencao/*.ts`, pura e sem BD (ver
  * scripts/tests/test-vendas-manutencao.ts).
  *
  * ── Isolamento do ledger real ─────────────────────────────────────────
  *
- * `VendaManutencao`/`VendaManutencaoCelula` nunca são lidas por
- * `lib/vendas-data.ts` nem por qualquer cálculo de peso histórico — a
- * única leitura de `VendaMensal` feita aqui é a de `pesoHistoricoPorFarmacia`,
- * e essa nunca toca nas tabelas de manutenção. É a garantia estrutural
- * da secção 1.2 do pedido ("as próprias vendas introduzidas através
- * desta manutenção nunca podem entrar no cálculo de peso histórico de
- * futuras manutenções").
+ * `VendaManutencao*` nunca são lidas por nenhum cálculo de peso
+ * histórico — a única leitura de `VendaMensal` feita aqui é a de
+ * `pesoHistoricoPorFarmacia`, e essa nunca toca nas tabelas de
+ * manutenção. É a garantia estrutural da secção 1.2 do pedido ("as
+ * próprias vendas introduzidas através desta manutenção nunca podem
+ * entrar no cálculo de peso histórico de futuras manutenções").
  *
- * A integração no MAPA de Vendas (ler estas tabelas a partir de
- * `lib/vendas-data.ts`) está deliberadamente FORA deste ficheiro —
- * pendente da decisão sobre valorização monetária (ver a análise à
- * parte). Este módulo só cobre a criação/edição/consulta da manutenção
- * em si.
+ * ── PVP de referência: capturado UMA vez, nunca no recálculo ─────────
+ *
+ * `obterPvpReferenciaAtual` (lê `ProdutoFarmacia.pvp` de HOJE) só é
+ * chamada por `gerarPropostaCompleta` — o caminho de CRIAÇÃO. O
+ * caminho de RECÁLCULO (`calcularDistribuicaoQuantidades`) nunca lê
+ * `ProdutoFarmacia`: recebe os `VendaManutencaoFarmacia.pvpReferencia`
+ * já persistidos como dado de entrada e não os toca. É a garantia
+ * estrutural da secção 5 do pedido ("recalcular apenas a distribuição
+ * → manter o PVP de referência original... nunca acontecer
+ * silenciosamente").
+ *
+ * ── Testabilidade ─────────────────────────────────────────────────────
+ *
+ * Sem `import "server-only"` de propósito — mesma convenção de
+ * `lib/vendas-data.ts`/`lib/margens-data.ts`: um `*-data.ts` cujo único
+ * IO é Prisma fica testável via `tsx` com um Prisma falso (ver
+ * scripts/tests/test-vendas-manutencao.ts), sem depender do shim que só
+ * o pipeline do Next resolve. As guardas reais (sessão, permissão)
+ * vivem nas server actions que chamam isto (app/vendas/manutencao/actions.ts),
+ * nunca aqui.
  */
-import "server-only";
 import type { PrismaClient, Prisma } from "@/generated/prisma/client";
 import {
   calcularPesosFarmacia,
@@ -34,9 +47,11 @@ import type {
   AvisoSemHistorico,
   CelulaManutencao,
   EstadoManutencao,
+  FarmaciaComPvpReferencia,
   ManutencaoDetalhe,
   ManutencaoResumo,
   OrigemDistribuicao,
+  PropostaCompleta,
   PropostaDistribuicao,
 } from "./vendas-manutencao/tipos";
 
@@ -79,11 +94,50 @@ async function pesoHistoricoPorFarmacia(
   );
 }
 
-// ─── Proposta automática (peso + distribuição pelos meses) ─────────────
+// ─── PVP de referência (leitura de ProdutoFarmacia — SÓ na criação) ────
+
+/**
+ * O PVP de HOJE de `ProdutoFarmacia`, por farmácia — snapshot a
+ * capturar na criação. `null` quando a farmácia não tem PVP válido
+ * (nunca 0 substituído em silêncio — secção 6 do pedido).
+ */
+export async function obterPvpReferenciaAtual(
+  prisma: PrismaClient,
+  produtoId: string,
+  farmacias: readonly FarmaciaRef[],
+): Promise<FarmaciaComPvpReferencia[]> {
+  const rows = await prisma.produtoFarmacia.findMany({
+    where: { produtoId, farmaciaId: { in: farmacias.map((f) => f.id) } },
+    select: { farmaciaId: true, pvp: true },
+  });
+  const pvpPorFarmacia = new Map(rows.map((r) => [r.farmaciaId, r.pvp]));
+  return farmacias.map((f) => {
+    const bruto = pvpPorFarmacia.get(f.id);
+    // Nunca 0 (nem negativo) como PVP de referência — a mesma regra de
+    // "ausente" que `custoDaFarmacia`/`utilizavel` já aplicam a PMC/PUC
+    // noutros relatórios: um 0 do ERP normalmente significa "não sei",
+    // nunca "grátis".
+    const pvp = bruto === null || bruto === undefined ? null : toF(bruto);
+    return {
+      farmaciaId: f.id,
+      farmaciaNome: f.nome,
+      pvpReferencia: pvp !== null && pvp > 0 ? pvp : null,
+    };
+  });
+}
+
+// ─── Distribuição (peso + meses) — usada na criação E no recálculo ─────
 
 export type FarmaciaRef = { id: string; nome: string };
 
-export async function gerarPropostaAutomatica(
+/**
+ * Calcula SÓ a distribuição de quantidades (peso por farmácia +
+ * repartição pelos meses) — nunca toca em PVP. Usada tanto na criação
+ * (seguida de `obterPvpReferenciaAtual`, ver `gerarPropostaCompleta`)
+ * como no recálculo de uma manutenção existente (onde o PVP de
+ * referência já persistido tem de ficar exactamente como estava).
+ */
+export async function calcularDistribuicaoQuantidades(
   prisma: PrismaClient,
   input: {
     produtoId: string;
@@ -139,6 +193,30 @@ export async function gerarPropostaAutomatica(
   return { celulas, aviso };
 }
 
+/**
+ * A proposta COMPLETA para uma manutenção NOVA — distribuição +
+ * captura fresca do PVP de referência. Nunca usada para recalcular uma
+ * manutenção existente (aí, `calcularDistribuicaoQuantidades` sozinha
+ * — ver a nota no topo do ficheiro).
+ */
+export async function gerarPropostaCompleta(
+  prisma: PrismaClient,
+  input: {
+    produtoId: string;
+    farmacias: readonly FarmaciaRef[];
+    quantidadeTotal: number;
+    numMeses: number;
+    mesInicialAno: number;
+    mesInicialMes: number;
+  },
+): Promise<PropostaCompleta> {
+  const [distribuicao, farmaciasPvp] = await Promise.all([
+    calcularDistribuicaoQuantidades(prisma, input),
+    obterPvpReferenciaAtual(prisma, input.produtoId, input.farmacias),
+  ]);
+  return { ...distribuicao, farmaciasPvp };
+}
+
 // ─── Mapeamento Prisma → tipos de domínio ──────────────────────────────
 
 type ManutencaoComRelacoes = Prisma.VendaManutencaoGetPayload<{
@@ -147,6 +225,7 @@ type ManutencaoComRelacoes = Prisma.VendaManutencaoGetPayload<{
     criadoPor: { select: { nome: true } };
     atualizadoPor: { select: { nome: true } };
     celulas: { include: { farmacia: { select: { nome: true } } } };
+    farmaciasPvp: { include: { farmacia: { select: { nome: true } } } };
   };
 }>;
 
@@ -181,6 +260,13 @@ function paraDetalhe(m: ManutencaoComRelacoes): ManutencaoDetalhe {
         quantidade: toF(c.quantidade),
       }))
       .sort((a, b) => a.ano * 12 + a.mes - (b.ano * 12 + b.mes) || a.farmaciaNome.localeCompare(b.farmaciaNome, "pt-PT")),
+    farmaciasPvp: m.farmaciasPvp
+      .map((f) => ({
+        farmaciaId: f.farmaciaId,
+        farmaciaNome: f.farmacia.nome,
+        pvpReferencia: f.pvpReferencia === null ? null : toF(f.pvpReferencia),
+      }))
+      .sort((a, b) => a.farmaciaNome.localeCompare(b.farmaciaNome, "pt-PT")),
   };
 }
 
@@ -189,6 +275,7 @@ const INCLUDE_COMPLETO = {
   criadoPor: { select: { nome: true } },
   atualizadoPor: { select: { nome: true } },
   celulas: { include: { farmacia: { select: { nome: true as const } } } },
+  farmaciasPvp: { include: { farmacia: { select: { nome: true as const } } } },
 } as const;
 
 // ─── CRUD ───────────────────────────────────────────────────────────────
@@ -216,7 +303,13 @@ export async function obterManutencao(
   return row ? paraDetalhe(row) : null;
 }
 
-/** Cria uma manutenção nova, com a distribuição já calculada (automática ou ajustada antes de confirmar). */
+/**
+ * Cria uma manutenção nova — distribuição + PVP de referência gravados
+ * juntos, na mesma transacção. É a ÚNICA operação que escreve
+ * `VendaManutencaoFarmacia`; depois de criada, esses valores nunca mais
+ * são tocados por um recálculo (só uma futura acção explícita de
+ * "actualizar preços", fora desta entrega).
+ */
 export async function criarManutencao(
   prisma: PrismaClient,
   input: {
@@ -228,6 +321,7 @@ export async function criarManutencao(
     mesInicialMes: number;
     origemDistribuicao: OrigemDistribuicao;
     celulas: readonly { farmaciaId: string; ano: number; mes: number; quantidade: number }[];
+    farmaciasPvp: readonly { farmaciaId: string; pvpReferencia: number | null }[];
     criadoPorId: string;
   },
 ): Promise<string> {
@@ -249,6 +343,12 @@ export async function criarManutencao(
           quantidade: c.quantidade,
         })),
       },
+      farmaciasPvp: {
+        create: input.farmaciasPvp.map((f) => ({
+          farmaciaId: f.farmaciaId,
+          pvpReferencia: f.pvpReferencia,
+        })),
+      },
     },
     select: { id: true },
   });
@@ -256,12 +356,16 @@ export async function criarManutencao(
 }
 
 /**
- * Substitui INTEIRAMENTE a distribuição de uma manutenção existente —
- * usado depois de um "Recalcular" explícito (secção 1.10: alterar
- * quantidade/nº meses/período inicial pode exigir uma nova proposta,
- * mas o recálculo é sempre um passo explícito dentro da manutenção,
- * nunca implícito na emissão do relatório). Volta a `origemDistribuicao:
- * "AUTOMATICA"` — é um cálculo fresco, não um ajuste manual.
+ * Substitui a DISTRIBUIÇÃO de uma manutenção existente — usado depois
+ * de um "Recalcular" explícito (secção 1.10/5: alterar quantidade/nº
+ * meses/período inicial pode exigir uma nova proposta, mas o recálculo
+ * é sempre um passo explícito, nunca implícito na emissão do
+ * relatório). Volta a `origemDistribuicao: "AUTOMATICA"` — é um
+ * cálculo fresco, não um ajuste manual.
+ *
+ * NUNCA toca em `VendaManutencaoFarmacia` — o PVP de referência
+ * original fica exactamente como estava (secção 5: "recalcular apenas
+ * a distribuição → manter o PVP de referência original").
  */
 export async function substituirDistribuicao(
   prisma: PrismaClient,
@@ -306,6 +410,13 @@ export async function substituirDistribuicao(
  * de chegar aqui. Marca `MANUAL_AJUSTADA`: a partir daqui, um cálculo
  * automático novo só volta a substituir isto com um "Recalcular"
  * explícito.
+ *
+ * NUNCA toca em `VendaManutencaoFarmacia` — o PVP de referência da
+ * célula editada continua o mesmo (secção 4: "o valor bruto dessa
+ * célula deve ser recalculado usando o mesmo PVP de referência
+ * persistido, e não o PVP actual" — como o valor bruto nunca é
+ * armazenado, mas sim recalculado a partir do PVP de referência
+ * inalterado, isto é automático).
  */
 export async function guardarCelulasAjustadas(
   prisma: PrismaClient,
@@ -339,8 +450,8 @@ export async function guardarCelulasAjustadas(
  * Anula uma manutenção — nunca DELETE físico. A partir do momento em
  * que `estado` deixa de ser `"ATIVA"`, deixa IMEDIATAMENTE de
  * contribuir para o mapa de Vendas (o filtro `estado: "ATIVA"` na
- * futura leitura do loader é suficiente; não há passo extra a fazer
- * aqui além de mudar o estado).
+ * leitura do loader é suficiente; não há passo extra a fazer aqui além
+ * de mudar o estado).
  */
 export async function anularManutencao(
   prisma: PrismaClient,

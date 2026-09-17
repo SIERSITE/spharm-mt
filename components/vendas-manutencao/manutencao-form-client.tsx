@@ -9,13 +9,18 @@
  *
  * ── O fluxo, tal como o pedido descreve ──────────────────────────────
  *
- *   parâmetros → "Calcular distribuição" → matriz proposta (editável)
- *     → ajustes manuais (opcional) → soma tem de bater → Gravar
+ *   parâmetros → "Calcular distribuição" → matriz proposta (editável,
+ *   PVP de referência capturado agora) → ajustes manuais (opcional) →
+ *   soma tem de bater E toda a farmácia com quantidade tem de ter PVP
+ *   de referência → Gravar
  *
- * Editar SÓ células → "Gravar ajustes" (guardarCelulasAjustadasAction).
- * Editar quantidade/nº meses/período inicial → a matriz actual fica
- * desactualizada (secção 1.10: nunca recalcular implicitamente) — é
- * preciso "Recalcular" explicitamente antes de voltar a poder gravar.
+ * Editar SÓ células → "Gravar ajustes" (guardarCelulasAjustadasAction),
+ * PVP de referência intocado. Editar quantidade/nº meses/período
+ * inicial → a matriz actual fica desactualizada (secção 1.10: nunca
+ * recalcular implicitamente) — é preciso "Recalcular" explicitamente
+ * antes de voltar a poder gravar, e o recálculo NUNCA toca no PVP de
+ * referência já persistido (secção 5) — só o cálculo inicial (modo
+ * criar) captura PVP fresco de `ProdutoFarmacia`.
  */
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
@@ -27,8 +32,14 @@ import {
   gerarPropostaAction,
   guardarCelulasAjustadasAction,
   guardarRecalculoAction,
+  recalcularDistribuicaoAction,
 } from "@/app/vendas/manutencao/actions";
-import type { CelulaManutencao, ManutencaoDetalhe } from "@/lib/vendas-manutencao/tipos";
+import type {
+  CelulaManutencao,
+  FarmaciaComPvpReferencia,
+  ManutencaoDetalhe,
+} from "@/lib/vendas-manutencao/tipos";
+import { calcularValorBrutoCelula } from "@/lib/vendas-manutencao/valorizacao";
 import {
   pesquisarProdutosManutencaoAction,
   type ManutencaoProdutoHit,
@@ -40,8 +51,12 @@ const MES_LABEL = [
 ];
 
 function fmtQtd(n: number): string {
-  if (Number.isInteger(n)) return String(n);
-  return n.toLocaleString("pt-PT", { maximumFractionDigits: 3 });
+  return n.toLocaleString("pt-PT", { maximumFractionDigits: 0 });
+}
+
+function fmtEur(n: number | null): string {
+  if (n === null) return "—";
+  return n.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
 /** Chave estável de célula — `${farmaciaId}:${ano}-${mes}`. */
@@ -77,6 +92,10 @@ export function ManutencaoFormClient(props: Props) {
   const [mesInicialMes, setMesInicialMes] = useState<number>(inicial?.mesInicialMes ?? HOJE.getMonth() + 1);
 
   const [celulas, setCelulas] = useState<CelulaManutencao[]>(inicial?.celulas ?? []);
+  // PVP de referência — capturado uma vez na criação, NUNCA re-obtido
+  // num recálculo (secção 5 do pedido). Em modo "editar" vem do que já
+  // está persistido e fica sempre só-leitura nesta versão.
+  const [farmaciasPvp, setFarmaciasPvp] = useState<FarmaciaComPvpReferencia[]>(inicial?.farmaciasPvp ?? []);
   const [origemAtual, setOrigemAtual] = useState<"AUTOMATICA" | "MANUAL_AJUSTADA">(
     inicial?.origemDistribuicao ?? "AUTOMATICA",
   );
@@ -104,8 +123,8 @@ export function ManutencaoFormClient(props: Props) {
     parametrosDaMatriz.mesInicialMes !== mesInicialMes;
 
   const soma = useMemo(() => celulas.reduce((s, c) => s + c.quantidade, 0), [celulas]);
-  const diferenca = Math.round((soma - quantidadeTotal) * 1000) / 1000;
-  const somaBate = Math.abs(diferenca) < 1e-6;
+  const diferenca = Math.round(soma - quantidadeTotal);
+  const somaBate = diferenca === 0;
 
   const meses = useMemo(() => {
     const out: { ano: number; mes: number }[] = [];
@@ -129,6 +148,19 @@ export function ManutencaoFormClient(props: Props) {
     return celulas.find((c) => chaveCelula(c.farmaciaId, c.ano, c.mes) === chave)?.quantidade ?? 0;
   }
 
+  function pvpDaFarmacia(farmaciaId: string): number | null {
+    return farmaciasPvp.find((f) => f.farmaciaId === farmaciaId)?.pvpReferencia ?? null;
+  }
+
+  // Secção 6 — farmácia com quantidade > 0 mas sem PVP de referência.
+  // Nunca 0 silencioso: fica sinalizada até o utilizador corrigir.
+  const farmaciasSemPvpComQuantidade = useMemo(() => {
+    const totalPorFarmacia = new Map<string, number>();
+    for (const c of celulas) totalPorFarmacia.set(c.farmaciaId, (totalPorFarmacia.get(c.farmaciaId) ?? 0) + c.quantidade);
+    const pvpPorFarmacia = new Map(farmaciasPvp.map((f) => [f.farmaciaId, f.pvpReferencia]));
+    return farmaciasNaMatriz.filter((f) => (totalPorFarmacia.get(f.id) ?? 0) > 0 && (pvpPorFarmacia.get(f.id) ?? null) === null);
+  }, [celulas, farmaciasNaMatriz, farmaciasPvp]);
+
   function editarCelula(farmaciaId: string, farmaciaNome: string, ano: number, mes: number, novoValor: number) {
     setOrigemAtual("MANUAL_AJUSTADA");
     setCelulas((prev) => {
@@ -140,6 +172,16 @@ export function ManutencaoFormClient(props: Props) {
         );
       }
       return [...prev, { farmaciaId, farmaciaNome, ano, mes, quantidade: novoValor }];
+    });
+  }
+
+  function editarPvpReferencia(farmaciaId: string, farmaciaNome: string, novoValor: string) {
+    const num = novoValor.trim() === "" ? null : Number(novoValor);
+    const valido = num !== null && Number.isFinite(num) && num > 0 ? num : null;
+    setFarmaciasPvp((prev) => {
+      const existe = prev.some((f) => f.farmaciaId === farmaciaId);
+      if (existe) return prev.map((f) => (f.farmaciaId === farmaciaId ? { ...f, pvpReferencia: valido } : f));
+      return [...prev, { farmaciaId, farmaciaNome, pvpReferencia: valido }];
     });
   }
 
@@ -155,7 +197,7 @@ export function ManutencaoFormClient(props: Props) {
     });
   }
 
-  function calcularDistribuicao() {
+  function calcularOuRecalcular() {
     if (!produto) {
       setErro("Escolhe um artigo primeiro.");
       return;
@@ -163,17 +205,22 @@ export function ManutencaoFormClient(props: Props) {
     setErro(null);
     setSucesso(null);
     startCalculo(async () => {
-      const r = await gerarPropostaAction({
-        produtoId: produto.id,
-        quantidadeTotal,
-        numMeses,
-        mesInicialAno,
-        mesInicialMes,
-      });
-      if (!r.ok) {
-        setErro(r.erro);
+      const params = { produtoId: produto.id, quantidadeTotal, numMeses, mesInicialAno, mesInicialMes };
+      if (!editando) {
+        // Criação: distribuição + PVP de referência capturado agora.
+        const r = await gerarPropostaAction(params);
+        if (!r.ok) { setErro(r.erro); return; }
+        setCelulas(r.proposta.celulas);
+        setFarmaciasPvp(r.proposta.farmaciasPvp);
+        setOrigemAtual("AUTOMATICA");
+        setParametrosDaMatriz({ quantidadeTotal, numMeses, mesInicialAno, mesInicialMes });
+        setAvisoSemHistorico(r.proposta.aviso ? r.proposta.aviso.farmaciasSemHistorico : null);
         return;
       }
+      // Edição: SÓ a distribuição — o PVP de referência (farmaciasPvp)
+      // fica exactamente como estava (secção 5 do pedido).
+      const r = await recalcularDistribuicaoAction(params);
+      if (!r.ok) { setErro(r.erro); return; }
       setCelulas(r.proposta.celulas);
       setOrigemAtual("AUTOMATICA");
       setParametrosDaMatriz({ quantidadeTotal, numMeses, mesInicialAno, mesInicialMes });
@@ -190,6 +237,10 @@ export function ManutencaoFormClient(props: Props) {
       setErro("Escolhe um artigo primeiro.");
       return;
     }
+    if (farmaciasSemPvpComQuantidade.length > 0) {
+      setErro(`Falta o PVP de referência para: ${farmaciasSemPvpComQuantidade.map((f) => f.nome).join(", ")}.`);
+      return;
+    }
     setErro(null);
     startGravar(async () => {
       if (!editando) {
@@ -202,6 +253,7 @@ export function ManutencaoFormClient(props: Props) {
           mesInicialMes,
           origemDistribuicao: origemAtual,
           celulas,
+          farmaciasPvp,
         });
         if (!r.ok) { setErro(r.erro); return; }
         window.location.href = `/vendas/manutencao/${r.id}`;
@@ -220,11 +272,13 @@ export function ManutencaoFormClient(props: Props) {
             mesInicialAno,
             mesInicialMes,
             celulas,
+            farmaciasPvp,
           })
         : await guardarCelulasAjustadasAction({
             id: props.manutencao.id,
             quantidadeTotal,
             celulas,
+            farmaciasPvp,
           });
       if (!r.ok) { setErro(r.erro); return; }
       setSucesso("Gravado.");
@@ -241,12 +295,18 @@ export function ManutencaoFormClient(props: Props) {
     });
   }
 
-  const podeGravar = celulas.length > 0 && somaBate && !parametrosMudaramDesdeCalculo && !aGravar;
+  const podeGravar =
+    celulas.length > 0 && somaBate && farmaciasSemPvpComQuantidade.length === 0 && !parametrosMudaramDesdeCalculo && !aGravar;
   const jaAnulada = editando && props.manutencao.estado === "ANULADA";
+  const valorBrutoTotal = farmaciasNaMatriz.reduce((s, f) => {
+    const totalFarmacia = meses.reduce((acc, m) => acc + celulaValor(f.id, m.ano, m.mes), 0);
+    const v = calcularValorBrutoCelula(totalFarmacia, pvpDaFarmacia(f.id));
+    return v === null ? s : s + v;
+  }, 0);
 
   return (
     <AppShell>
-      <div className="max-w-5xl space-y-4">
+      <div className="max-w-6xl space-y-4">
         <section className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <div className="text-xs font-medium text-slate-500">
@@ -339,9 +399,9 @@ export function ManutencaoFormClient(props: Props) {
               <input
                 type="number"
                 min={0}
-                step="0.001"
+                step={1}
                 value={quantidadeTotal}
-                onChange={(e) => setQuantidadeTotal(Number(e.target.value))}
+                onChange={(e) => setQuantidadeTotal(Math.round(Number(e.target.value)))}
                 disabled={jaAnulada}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] focus:border-cyan-400 focus:outline-none"
               />
@@ -352,8 +412,9 @@ export function ManutencaoFormClient(props: Props) {
                 type="number"
                 min={1}
                 max={36}
+                step={1}
                 value={numMeses}
-                onChange={(e) => setNumMeses(Number(e.target.value))}
+                onChange={(e) => setNumMeses(Math.round(Number(e.target.value)))}
                 disabled={jaAnulada}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] focus:border-cyan-400 focus:outline-none"
               />
@@ -375,8 +436,9 @@ export function ManutencaoFormClient(props: Props) {
               <span className="text-[12px] text-slate-600">Ano inicial</span>
               <input
                 type="number"
+                step={1}
                 value={mesInicialAno}
-                onChange={(e) => setMesInicialAno(Number(e.target.value))}
+                onChange={(e) => setMesInicialAno(Math.round(Number(e.target.value)))}
                 disabled={jaAnulada}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] focus:border-cyan-400 focus:outline-none"
               />
@@ -389,6 +451,7 @@ export function ManutencaoFormClient(props: Props) {
               <span>
                 Os parâmetros mudaram desde o último cálculo — a matriz abaixo está
                 desactualizada. Recalcula antes de gravar (nunca recalculamos sozinhos).
+                {editando && " O PVP de referência já gravado não é afectado."}
               </span>
             </div>
           )}
@@ -396,7 +459,7 @@ export function ManutencaoFormClient(props: Props) {
           {!jaAnulada && (
             <button
               type="button"
-              onClick={calcularDistribuicao}
+              onClick={calcularOuRecalcular}
               disabled={aCalcular || !produto}
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-[13px] font-medium text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-50"
             >
@@ -410,11 +473,26 @@ export function ManutencaoFormClient(props: Props) {
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
-              Sem histórico de vendas reais nos últimos 12 meses para{" "}
+              Sem histórico de vendas reais (naturezaVenda NORMAL) nos últimos 12 meses
+              completos para{" "}
               {avisoSemHistorico
                 .map((id) => props.farmacias.find((f) => f.id === id)?.nome ?? id)
                 .join(", ")}
               . A distribuição para {avisoSemHistorico.length === props.farmacias.length ? "estas farmácias começa em partes iguais" : "estas farmácias ficou a 0"} — ajusta manualmente conforme necessário.
+            </span>
+          </div>
+        )}
+
+        {farmaciasSemPvpComQuantidade.length > 0 && (
+          <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              Sem PVP de referência válido para{" "}
+              <strong>{farmaciasSemPvpComQuantidade.map((f) => f.nome).join(", ")}</strong>, mas
+              há quantidade atribuída. Nunca é assumido 0 como preço —{" "}
+              {editando
+                ? "esta versão não permite definir um PVP novo numa edição; remove a quantidade dessa farmácia ou aguarda uma acção futura de actualização de preços."
+                : "indica o PVP manualmente na tabela abaixo antes de gravar."}
             </span>
           </div>
         )}
@@ -427,33 +505,58 @@ export function ManutencaoFormClient(props: Props) {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2 font-medium">Farmácia</th>
+                    <th className="px-2 py-2 text-right font-medium">PVP ref.</th>
                     {meses.map((m) => (
                       <th key={`${m.ano}-${m.mes}`} className="px-2 py-2 text-right font-medium">
                         {MES_LABEL[m.mes - 1]}/{String(m.ano).slice(-2)}
                       </th>
                     ))}
                     <th className="px-3 py-2 text-right font-medium">Total</th>
+                    <th className="px-3 py-2 text-right font-medium">Valor bruto</th>
                   </tr>
                 </thead>
                 <tbody>
                   {farmaciasNaMatriz.map((f) => {
                     const totalFarmacia = meses.reduce((s, m) => s + celulaValor(f.id, m.ano, m.mes), 0);
+                    const pvpRef = pvpDaFarmacia(f.id);
+                    const semPvp = totalFarmacia > 0 && pvpRef === null;
+                    const valorBrutoFarmacia = calcularValorBrutoCelula(totalFarmacia, pvpRef);
                     return (
-                      <tr key={f.id} className="border-b border-slate-100 last:border-b-0">
+                      <tr key={f.id} className={`border-b border-slate-100 last:border-b-0 ${semPvp ? "bg-rose-50/60" : ""}`}>
                         <td className="px-3 py-1.5 font-medium text-slate-800">{f.nome}</td>
+                        <td className="px-2 py-1 text-right">
+                          {!editando ? (
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min={0}
+                              value={pvpRef ?? ""}
+                              placeholder={semPvp ? "sem PVP" : ""}
+                              onChange={(e) => editarPvpReferencia(f.id, f.nome, e.target.value)}
+                              className={`w-20 rounded-md border px-1.5 py-1 text-right text-[12px] focus:outline-none ${
+                                semPvp ? "border-rose-300 focus:border-rose-400" : "border-slate-200 focus:border-cyan-400"
+                              }`}
+                            />
+                          ) : (
+                            <span className={semPvp ? "font-medium text-rose-600" : "text-slate-700"}>
+                              {pvpRef !== null ? fmtEur(pvpRef) : "sem PVP"}
+                            </span>
+                          )}
+                        </td>
                         {meses.map((m) => (
                           <td key={`${m.ano}-${m.mes}`} className="px-1.5 py-1">
                             <input
                               type="number"
-                              step="0.001"
+                              step={1}
                               value={celulaValor(f.id, m.ano, m.mes)}
                               disabled={jaAnulada}
-                              onChange={(e) => editarCelula(f.id, f.nome, m.ano, m.mes, Number(e.target.value))}
-                              className="w-20 rounded-md border border-slate-200 px-1.5 py-1 text-right text-[12px] focus:border-cyan-400 focus:outline-none"
+                              onChange={(e) => editarCelula(f.id, f.nome, m.ano, m.mes, Math.round(Number(e.target.value)))}
+                              className="w-16 rounded-md border border-slate-200 px-1.5 py-1 text-right text-[12px] focus:border-cyan-400 focus:outline-none"
                             />
                           </td>
                         ))}
                         <td className="px-3 py-1.5 text-right font-medium text-slate-700">{fmtQtd(totalFarmacia)}</td>
+                        <td className="px-3 py-1.5 text-right text-slate-600">{fmtEur(valorBrutoFarmacia)}</td>
                       </tr>
                     );
                   })}
@@ -461,6 +564,7 @@ export function ManutencaoFormClient(props: Props) {
                 <tfoot>
                   <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-900">
                     <td className="px-3 py-2">TOTAL</td>
+                    <td className="px-2 py-2" />
                     {meses.map((m) => {
                       const totalMes = farmaciasNaMatriz.reduce((s, f) => s + celulaValor(f.id, m.ano, m.mes), 0);
                       return (
@@ -468,6 +572,7 @@ export function ManutencaoFormClient(props: Props) {
                       );
                     })}
                     <td className="px-3 py-2 text-right">{fmtQtd(soma)}</td>
+                    <td className="px-3 py-2 text-right">{fmtEur(valorBrutoTotal)}</td>
                   </tr>
                 </tfoot>
               </table>

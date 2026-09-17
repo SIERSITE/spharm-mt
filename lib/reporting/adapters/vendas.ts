@@ -160,6 +160,8 @@ export type VendasAdapterFilters = {
   ordenarPor?: string;
   apenasComVendas?: boolean;
   apenasComStock?: boolean;
+  /** Ver `SharedReportFilters.incluirManutencao`. */
+  incluirManutencao?: boolean;
   /** CNP da lista importada por ficheiro. Ver `SharedReportFilters.cnps`. */
   cnps?: number[];
 };
@@ -382,6 +384,7 @@ function buildFilters(
   if (f.ordenarPor) out.push({ label: "Ordenar por", value: f.ordenarPor });
   if (f.apenasComVendas) out.push({ label: "Apenas com vendas", value: "Sim" });
   if (f.apenasComStock)  out.push({ label: "Incluir stock sem vendas", value: "Sim" });
+  if (f.incluirManutencao) out.push({ label: "Incluir manutenção de vendas", value: "Sim" });
 
   return out;
 }

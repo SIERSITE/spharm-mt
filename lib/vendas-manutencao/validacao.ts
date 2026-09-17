@@ -35,3 +35,31 @@ export function validarSomaTotal(
   const diferenca = Math.round((soma - quantidadeTotal) * 1000) / 1000;
   return { ok: Math.abs(diferenca) < EPSILON, soma, quantidadeTotal, diferenca };
 }
+
+/**
+ * Secção 6 do pedido: nunca confirmar uma manutenção com uma farmácia
+ * que tem quantidade atribuída mas nenhum PVP de referência válido —
+ * isso gravaria, silenciosamente, um valor bruto `null`/inventado.
+ *
+ * Devolve os IDs das farmácias em falta, na ordem em que apareceram —
+ * a UI usa isto para apontar exactamente onde falta o preço, nunca só
+ * "há um problema".
+ */
+export function validarPvpReferencia(
+  celulas: readonly { farmaciaId: string; quantidade: number }[],
+  farmaciasPvp: readonly { farmaciaId: string; pvpReferencia: number | null }[],
+): { ok: boolean; farmaciasSemPvp: string[] } {
+  const pvpPorFarmacia = new Map(farmaciasPvp.map((f) => [f.farmaciaId, f.pvpReferencia]));
+  const totalPorFarmacia = new Map<string, number>();
+  for (const c of celulas) {
+    totalPorFarmacia.set(c.farmaciaId, (totalPorFarmacia.get(c.farmaciaId) ?? 0) + c.quantidade);
+  }
+
+  const farmaciasSemPvp: string[] = [];
+  for (const [farmaciaId, total] of totalPorFarmacia) {
+    if (total <= 0) continue;
+    const pvp = pvpPorFarmacia.get(farmaciaId) ?? null;
+    if (pvp === null) farmaciasSemPvp.push(farmaciaId);
+  }
+  return { ok: farmaciasSemPvp.length === 0, farmaciasSemPvp };
+}

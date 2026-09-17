@@ -327,7 +327,10 @@ export type VendaMensal = Prisma.VendaMensalModel
  * Cabeçalho de uma operação de manutenção para UM artigo: quantidade
  * total a distribuir, por quantos meses, a partir de quando. A
  * distribuição efectiva (quanto por farmácia × mês) vive em
- * `VendaManutencaoCelula` — este modelo não repete esse detalhe.
+ * `VendaManutencaoCelula`; o PVP de referência por farmácia (para
+ * valorizar essa quantidade sem inventar preço nem reprecificar no
+ * futuro) vive em `VendaManutencaoFarmacia` — este modelo não repete
+ * nenhum dos dois detalhes.
  * 
  * Por desenho, esta tabela NUNCA entra no cálculo de peso histórico de
  * farmácia de uma manutenção futura (esse cálculo lê exclusivamente
@@ -344,8 +347,59 @@ export type VendaManutencao = Prisma.VendaManutencaoModel
  * Granularidade idêntica a `VendaMensal`, propositadamente — é o que
  * torna o merge no loader de Vendas uma soma trivial pela mesma chave
  * `(produtoId via manutencao, farmaciaId, ano, mes)`.
+ * 
+ * Só a QUANTIDADE — nunca um valor monetário próprio. O valor bruto
+ * desta célula é SEMPRE `quantidade × VendaManutencaoFarmacia.pvpReferencia`
+ * (da mesma farmácia, na mesma manutenção), calculado on-the-fly com o
+ * mesmo helper `valorizar()` que todo o resto do SPharm.MT já usa —
+ * nunca guardado aqui em duplicado. Ver a nota grande em
+ * `VendaManutencaoFarmacia` sobre porquê.
  */
 export type VendaManutencaoCelula = Prisma.VendaManutencaoCelulaModel
+/**
+ * Model VendaManutencaoFarmacia
+ * O PVP de REFERÊNCIA de uma farmácia, dentro de UMA `VendaManutencao`
+ * — snapshot imutável, capturado uma única vez (na criação), nunca
+ * re-lido de `ProdutoFarmacia.pvp` depois disso.
+ * 
+ * ── Porque uma tabela à parte, e não um campo em cada célula ─────────
+ * 
+ * O PVP é por (manutenção, farmácia) — o MESMO valor para todos os
+ * meses dessa farmácia dentro desta manutenção (secção 1.2/1.3 do
+ * pedido original: a distribuição por mês nunca muda o preço, só a
+ * quantidade). Repeti-lo em cada `VendaManutencaoCelula` duplicava o
+ * mesmo número em N linhas (uma por mês) sem ganhar nada — pedido
+ * explícito para evitar essa duplicação. Aqui fica UMA linha por
+ * (manutenção, farmácia), e as células só guardam quantidade.
+ * 
+ * ── Porque um snapshot, e nunca um valor bruto pré-calculado ─────────
+ * 
+ * `pvpReferencia` é guardado; o valor bruto de cada célula é sempre
+ * RECALCULADO a partir dele (`quantidade × pvpReferencia`, arredondado
+ * a cêntimos por `valorizar()`) — nunca armazenado também. Guardar os
+ * dois arriscava divergência (uma célula editada manualmente e o
+ * "valor bruto" antigo esquecido) exactamente pela mesma razão por que
+ * `ProdutoFarmacia.custoEstimado` também nunca é armazenado: multiplicar
+ * dois números imutáveis dá sempre o mesmo resultado, e reproduzir é
+ * mais seguro do que confiar numa cópia.
+ * 
+ * ── Porque nullable ───────────────────────────────────────────────────
+ * 
+ * Uma farmácia pode não ter `ProdutoFarmacia.pvp` válido no momento da
+ * criação. Nunca se grava 0 como se fosse um preço real — fica `null`,
+ * e a UI bloqueia a confirmação enquanto essa farmácia tiver
+ * quantidade atribuída sem um PVP de referência válido (secção 6 do
+ * pedido).
+ * 
+ * ── Nunca actualizado num recálculo ───────────────────────────────────
+ * 
+ * "Recalcular distribuição" (secção 5) reconstrói só
+ * `VendaManutencaoCelula` — este modelo fica intocado. Uma futura
+ * actualização explícita do PVP de referência (fora desta entrega,
+ * deliberadamente) seria uma acção própria, nunca um efeito colateral
+ * de recalcular quantidades.
+ */
+export type VendaManutencaoFarmacia = Prisma.VendaManutencaoFarmaciaModel
 /**
  * Model Compra
  * Compras diárias agregadas por produto-dia-farmácia-fornecedor.

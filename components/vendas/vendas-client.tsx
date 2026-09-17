@@ -218,6 +218,9 @@ export function VendasClient({
   const [ordenarPor, setOrdenarPor] = useState<Ordenacao>("totalVendas");
   const [apenasComVendas, setApenasComVendas] = useState(true);
   const [apenasComStock, setApenasComStock] = useState(false);
+  // Default OFF — o mapa mostra só vendas reais enquanto o utilizador
+  // não pedir explicitamente para incluir manutenção (ver getVendasData).
+  const [incluirManutencao, setIncluirManutencao] = useState(false);
   const [incluirTotais, setIncluirTotais] = useState(true);
   const [modoVisualizacao, setModoVisualizacao] =
     useState<ModoVisualizacao>("tabela");
@@ -393,6 +396,11 @@ export function VendasClient({
           // Soma dos valores gravados, não `totalVendas × pvp`: o pvp é
           // o preço de hoje e reprecificaria o histórico.
           valorBruto: groupedRows.reduce((s, r) => s + r.valorBruto, 0),
+          // Breakdown de auditoria (secção 8) — soma da mesma forma que
+          // `valorBruto`/`totalVendas`, já incluídos neles; preservada à
+          // parte só para quem precisar de distinguir a origem.
+          quantidadeManutencao: groupedRows.reduce((s, r) => s + r.quantidadeManutencao, 0),
+          valorBrutoManutencao: groupedRows.reduce((s, r) => s + r.valorBrutoManutencao, 0),
           existencia: groupedRows.reduce((s, r) => s + r.existencia, 0),
           unidadesVendidas: totalVendas,
           // Custo agregado: soma dos custos das linhas, e o unitario
@@ -517,6 +525,12 @@ export function VendasClient({
         unidadesVendidas: g.total.unidadesVendidas,
         valorBruto: g.total.valorBruto,
         existencia: g.total.existencia,
+        // `agruparPorArtigo`/`GrupoArtigo.total` (vendas-agrupamento.ts)
+        // não soma este breakdown — nunca usado no ecrã hoje. 0 em vez
+        // de herdar o valor da 1ª farmácia via spread, que representaria
+        // mal o grupo inteiro.
+        quantidadeManutencao: 0,
+        valorBrutoManutencao: 0,
       };
       return [...linhas, { row: total, subtotal: true, key: `t-${g.codigo}` }];
     });
@@ -746,6 +760,10 @@ export function VendasClient({
           // `apenasComVendas` continua só client-side — nunca precisou
           // de reduzir o universo, só de esconder linhas já recebidas.
           apenasComStock,
+          // `incluirManutencao` soma ao ledger real (união aditiva, ver
+          // getVendasData) — mesma razão de ir ao servidor, explícito e
+          // nunca `|| undefined`.
+          incluirManutencao,
         });
         setRows(result.rows);
         setPeriodHeader(result.period);
@@ -948,6 +966,7 @@ export function VendasClient({
                       ordenarPor,
                       apenasComVendas,
                       apenasComStock,
+                      incluirManutencao,
                     },
                     universe: { farmacias, fornecedores, fabricantes, categorias },
                     organization: formatFarmaciaHeader(
@@ -1154,6 +1173,13 @@ export function VendasClient({
               onChange={setApenasComStock}
               compact
               title="Alarga o relatório a produtos com stock actual, mesmo sem vendas no período. Clique em Gerar para aplicar."
+            />
+            <ToggleRow
+              label="Incluir manutenção de vendas"
+              checked={incluirManutencao}
+              onChange={setIncluirManutencao}
+              compact
+              title="Soma ao mapa as quantidades já persistidas em Manutenção de Vendas (Vendas → Manutenção de Vendas). Desligado: só vendas reais. Clique em Gerar para aplicar."
             />
             <ToggleRow
               label="Incluir totais"

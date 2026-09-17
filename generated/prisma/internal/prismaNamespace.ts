@@ -412,6 +412,7 @@ export const ModelName = {
   VendaMensal: 'VendaMensal',
   VendaManutencao: 'VendaManutencao',
   VendaManutencaoCelula: 'VendaManutencaoCelula',
+  VendaManutencaoFarmacia: 'VendaManutencaoFarmacia',
   Compra: 'Compra',
   Devolucao: 'Devolucao',
   HistoricoStock: 'HistoricoStock',
@@ -452,7 +453,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2525,6 +2526,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.VendaManutencaoCelulaCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoCelulaCountAggregateOutputType> | number
+        }
+      }
+    }
+    VendaManutencaoFarmacia: {
+      payload: Prisma.$VendaManutencaoFarmaciaPayload<ExtArgs>
+      fields: Prisma.VendaManutencaoFarmaciaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.VendaManutencaoFarmaciaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.VendaManutencaoFarmaciaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        findFirst: {
+          args: Prisma.VendaManutencaoFarmaciaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.VendaManutencaoFarmaciaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        findMany: {
+          args: Prisma.VendaManutencaoFarmaciaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>[]
+        }
+        create: {
+          args: Prisma.VendaManutencaoFarmaciaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        createMany: {
+          args: Prisma.VendaManutencaoFarmaciaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.VendaManutencaoFarmaciaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>[]
+        }
+        delete: {
+          args: Prisma.VendaManutencaoFarmaciaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        update: {
+          args: Prisma.VendaManutencaoFarmaciaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        deleteMany: {
+          args: Prisma.VendaManutencaoFarmaciaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.VendaManutencaoFarmaciaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.VendaManutencaoFarmaciaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>[]
+        }
+        upsert: {
+          args: Prisma.VendaManutencaoFarmaciaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoFarmaciaPayload>
+        }
+        aggregate: {
+          args: Prisma.VendaManutencaoFarmaciaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateVendaManutencaoFarmacia>
+        }
+        groupBy: {
+          args: Prisma.VendaManutencaoFarmaciaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoFarmaciaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.VendaManutencaoFarmaciaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoFarmaciaCountAggregateOutputType> | number
         }
       }
     }
@@ -4929,6 +5004,16 @@ export const VendaManutencaoCelulaScalarFieldEnum = {
 export type VendaManutencaoCelulaScalarFieldEnum = (typeof VendaManutencaoCelulaScalarFieldEnum)[keyof typeof VendaManutencaoCelulaScalarFieldEnum]
 
 
+export const VendaManutencaoFarmaciaScalarFieldEnum = {
+  id: 'id',
+  manutencaoId: 'manutencaoId',
+  farmaciaId: 'farmaciaId',
+  pvpReferencia: 'pvpReferencia'
+} as const
+
+export type VendaManutencaoFarmaciaScalarFieldEnum = (typeof VendaManutencaoFarmaciaScalarFieldEnum)[keyof typeof VendaManutencaoFarmaciaScalarFieldEnum]
+
+
 export const CompraScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
@@ -6129,6 +6214,7 @@ export type GlobalOmitConfig = {
   vendaMensal?: Prisma.VendaMensalOmit
   vendaManutencao?: Prisma.VendaManutencaoOmit
   vendaManutencaoCelula?: Prisma.VendaManutencaoCelulaOmit
+  vendaManutencaoFarmacia?: Prisma.VendaManutencaoFarmaciaOmit
   compra?: Prisma.CompraOmit
   devolucao?: Prisma.DevolucaoOmit
   historicoStock?: Prisma.HistoricoStockOmit

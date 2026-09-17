@@ -24,7 +24,7 @@ function fmtMes(ano: number, mes: number): string {
 }
 
 function fmtQtd(n: number): string {
-  return Number.isInteger(n) ? String(n) : n.toLocaleString("pt-PT", { maximumFractionDigits: 3 });
+  return n.toLocaleString("pt-PT", { maximumFractionDigits: 0 });
 }
 
 const ORIGEM_LABEL: Record<ManutencaoResumo["origemDistribuicao"], string> = {

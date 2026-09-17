@@ -118,6 +118,25 @@ export type SharedReportFilters = {
    * topo deste ficheiro sobre loaders estenderem o tipo partilhado).
    */
   apenasComStock?: boolean;
+  /**
+   * Soma, ao ledger real, as quantidades já persistidas em Manutenção
+   * de Vendas (`VendaManutencaoCelula`, só manutenções `estado:"ATIVA"`)
+   * — uma UNIÃO ADITIVA, nunca uma reconstrução: a distribuição
+   * artigo×farmácia×mês já foi calculada e gravada na criação/recálculo
+   * da manutenção (ver lib/vendas-manutencao-data.ts), este filtro só
+   * decide se ela entra ou não na soma do mapa.
+   *
+   * Desligado (default/omisso): comportamento inalterado — só o ledger
+   * real, exactamente como antes desta opção existir.
+   *
+   * O valor bruto da manutenção usa sempre o PVP de REFERÊNCIA
+   * capturado na criação da manutenção — nunca o `ProdutoFarmacia.pvp`
+   * de hoje. A coluna PVP do relatório continua a mostrar o PVP actual,
+   * como sempre — este filtro não muda essa semântica.
+   *
+   * Específico de Vendas (como `apenasComStock`).
+   */
+  incluirManutencao?: boolean;
 };
 
 /**

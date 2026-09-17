@@ -7,10 +7,6 @@
  * — a mesma permissão que já governa emitir/gravar em Vendas/Encomendas
  * — porque uma manutenção altera o que o mapa de Vendas mostra, tal
  * como criar uma encomenda altera o que se propõe comprar.
- *
- * Nenhuma função aqui toca em `lib/vendas-data.ts` — a integração no
- * mapa de Vendas fica para depois da decisão sobre valorização
- * monetária (ver a análise entregue à parte).
  */
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/prisma";
@@ -19,20 +15,23 @@ import { logAudit } from "@/lib/audit";
 import { getFarmaciasInfo } from "@/lib/farmacias-info";
 import {
   anularManutencao,
+  calcularDistribuicaoQuantidades,
   criarManutencao,
-  gerarPropostaAutomatica,
+  gerarPropostaCompleta,
   guardarCelulasAjustadas,
   listarManutencoes,
   obterManutencao,
   substituirDistribuicao,
 } from "@/lib/vendas-manutencao-data";
-import { validarSomaTotal } from "@/lib/vendas-manutencao/validacao";
+import { validarPvpReferencia, validarSomaTotal } from "@/lib/vendas-manutencao/validacao";
 import type {
   CelulaManutencao,
   EstadoManutencao,
+  FarmaciaComPvpReferencia,
   ManutencaoDetalhe,
   ManutencaoResumo,
   OrigemDistribuicao,
+  PropostaCompleta,
   PropostaDistribuicao,
 } from "@/lib/vendas-manutencao/tipos";
 
@@ -67,8 +66,42 @@ function validarParametros(p: ParametrosDistribuicao): string | null {
   return null;
 }
 
-/** Calcula a proposta automática — NUNCA persiste. Ver secção 1.1/1.4 do pedido. */
+/**
+ * Calcula a proposta COMPLETA — distribuição + PVP de referência
+ * capturado agora. NUNCA persiste. Ver secção 1.1/1.4 do pedido.
+ *
+ * Só usada na CRIAÇÃO. Para recalcular uma manutenção EXISTENTE (onde
+ * o PVP de referência tem de ficar exactamente como estava — secção 5
+ * do pedido), ver `recalcularDistribuicaoAction`.
+ */
 export async function gerarPropostaAction(
+  params: ParametrosDistribuicao,
+): Promise<{ ok: true; proposta: PropostaCompleta } | { ok: false; erro: string }> {
+  await requirePermission("reports.write");
+  const erro = validarParametros(params);
+  if (erro) return { ok: false, erro };
+
+  const prisma = await getPrisma();
+  const farmacias = await getFarmaciasInfo();
+  const proposta = await gerarPropostaCompleta(prisma, {
+    produtoId: params.produtoId,
+    farmacias: farmacias.map((f) => ({ id: f.id, nome: f.nome })),
+    quantidadeTotal: params.quantidadeTotal,
+    numMeses: params.numMeses,
+    mesInicialAno: params.mesInicialAno,
+    mesInicialMes: params.mesInicialMes,
+  });
+  return { ok: true, proposta };
+}
+
+/**
+ * Recalcula SÓ a distribuição (peso + meses) de uma manutenção
+ * EXISTENTE — nunca toca no PVP de referência, que fica exactamente o
+ * já persistido em `VendaManutencaoFarmacia` (secção 5 do pedido: "para
+ * a primeira versão, mantém o PVP de referência original numa
+ * edição"). Usada pelo botão "Recalcular" do ecrã de edição.
+ */
+export async function recalcularDistribuicaoAction(
   params: ParametrosDistribuicao,
 ): Promise<{ ok: true; proposta: PropostaDistribuicao } | { ok: false; erro: string }> {
   await requirePermission("reports.write");
@@ -77,7 +110,7 @@ export async function gerarPropostaAction(
 
   const prisma = await getPrisma();
   const farmacias = await getFarmaciasInfo();
-  const proposta = await gerarPropostaAutomatica(prisma, {
+  const proposta = await calcularDistribuicaoQuantidades(prisma, {
     produtoId: params.produtoId,
     farmacias: farmacias.map((f) => ({ id: f.id, nome: f.nome })),
     quantidadeTotal: params.quantidadeTotal,
@@ -92,6 +125,7 @@ export type GravarNovaManutencaoInput = ParametrosDistribuicao & {
   cnp: number;
   origemDistribuicao: OrigemDistribuicao;
   celulas: CelulaManutencao[];
+  farmaciasPvp: FarmaciaComPvpReferencia[];
 };
 
 export async function criarManutencaoAction(
@@ -102,11 +136,24 @@ export async function criarManutencaoAction(
   const erroParametros = validarParametros(input);
   if (erroParametros) return { ok: false, erro: erroParametros };
 
-  const validacao = validarSomaTotal(input.celulas, input.quantidadeTotal);
-  if (!validacao.ok) {
+  const validacaoSoma = validarSomaTotal(input.celulas, input.quantidadeTotal);
+  if (!validacaoSoma.ok) {
     return {
       ok: false,
-      erro: `A soma das células (${validacao.soma}) não bate com a quantidade total (${validacao.quantidadeTotal}). Diferença: ${validacao.diferenca}.`,
+      erro: `A soma das células (${validacaoSoma.soma}) não bate com a quantidade total (${validacaoSoma.quantidadeTotal}). Diferença: ${validacaoSoma.diferenca}.`,
+    };
+  }
+
+  // Secção 6 — nunca gravar uma farmácia com quantidade atribuída e sem
+  // PVP de referência válido (nunca 0 como substituto silencioso).
+  const validacaoPvp = validarPvpReferencia(input.celulas, input.farmaciasPvp);
+  if (!validacaoPvp.ok) {
+    const nomes = validacaoPvp.farmaciasSemPvp
+      .map((id) => input.farmaciasPvp.find((f) => f.farmaciaId === id)?.farmaciaNome ?? id)
+      .join(", ");
+    return {
+      ok: false,
+      erro: `Falta o PVP de referência para: ${nomes}. Indica um valor antes de gravar — nunca é assumido 0.`,
     };
   }
 
@@ -125,6 +172,10 @@ export async function criarManutencaoAction(
       mes: c.mes,
       quantidade: c.quantidade,
     })),
+    farmaciasPvp: input.farmaciasPvp.map((f) => ({
+      farmaciaId: f.farmaciaId,
+      pvpReferencia: f.pvpReferencia,
+    })),
     criadoPorId: session.sub,
   });
 
@@ -138,6 +189,7 @@ export async function criarManutencaoAction(
       quantidadeTotal: input.quantidadeTotal,
       numMeses: input.numMeses,
       origemDistribuicao: input.origemDistribuicao,
+      pvpReferencia: Object.fromEntries(input.farmaciasPvp.map((f) => [f.farmaciaNome, f.pvpReferencia])),
     },
   });
 
@@ -148,12 +200,15 @@ export async function criarManutencaoAction(
 export type RecalcularEGuardarInput = ParametrosDistribuicao & {
   id: string;
   celulas: CelulaManutencao[];
+  /** Só para a validação do PVP em falta — nunca gravado por esta acção. */
+  farmaciasPvp: FarmaciaComPvpReferencia[];
 };
 
 /**
  * Persiste o resultado de um "Recalcular" explícito (secção 1.10) —
- * substitui inteiramente a distribuição anterior e volta a
- * `origemDistribuicao: "AUTOMATICA"`.
+ * substitui a distribuição anterior e volta a
+ * `origemDistribuicao: "AUTOMATICA"`. O PVP de referência (secção 5)
+ * NUNCA é tocado aqui — `substituirDistribuicao` só mexe em células.
  */
 export async function guardarRecalculoAction(
   input: RecalcularEGuardarInput,
@@ -163,11 +218,22 @@ export async function guardarRecalculoAction(
   const erroParametros = validarParametros(input);
   if (erroParametros) return { ok: false, erro: erroParametros };
 
-  const validacao = validarSomaTotal(input.celulas, input.quantidadeTotal);
-  if (!validacao.ok) {
+  const validacaoSoma = validarSomaTotal(input.celulas, input.quantidadeTotal);
+  if (!validacaoSoma.ok) {
     return {
       ok: false,
-      erro: `A soma das células (${validacao.soma}) não bate com a quantidade total (${validacao.quantidadeTotal}). Diferença: ${validacao.diferenca}.`,
+      erro: `A soma das células (${validacaoSoma.soma}) não bate com a quantidade total (${validacaoSoma.quantidadeTotal}). Diferença: ${validacaoSoma.diferenca}.`,
+    };
+  }
+
+  const validacaoPvp = validarPvpReferencia(input.celulas, input.farmaciasPvp);
+  if (!validacaoPvp.ok) {
+    const nomes = validacaoPvp.farmaciasSemPvp
+      .map((id) => input.farmaciasPvp.find((f) => f.farmaciaId === id)?.farmaciaNome ?? id)
+      .join(", ");
+    return {
+      ok: false,
+      erro: `Falta o PVP de referência para: ${nomes}. A distribuição atribui-lhes quantidade, mas não têm PVP de referência gravado.`,
     };
   }
 
@@ -200,19 +266,38 @@ export async function guardarRecalculoAction(
   return { ok: true };
 }
 
-/** Grava ajustes manuais a células — sem alterar quantidade/nº meses/período. */
+/**
+ * Grava ajustes manuais a células — sem alterar quantidade/nº meses/
+ * período. `farmaciasPvp` vem do que já está persistido (nunca
+ * editável aqui) — serve só para a validação da secção 6: uma célula
+ * editada à mão pode atribuir quantidade a uma farmácia que já não
+ * tinha PVP de referência gravado (0 na criação), e isso continua
+ * bloqueado.
+ */
 export async function guardarCelulasAjustadasAction(input: {
   id: string;
   quantidadeTotal: number;
   celulas: CelulaManutencao[];
+  farmaciasPvp: FarmaciaComPvpReferencia[];
 }): Promise<{ ok: true } | { ok: false; erro: string }> {
   const session = await requirePermission("reports.write");
 
-  const validacao = validarSomaTotal(input.celulas, input.quantidadeTotal);
-  if (!validacao.ok) {
+  const validacaoSoma = validarSomaTotal(input.celulas, input.quantidadeTotal);
+  if (!validacaoSoma.ok) {
     return {
       ok: false,
-      erro: `A soma das células (${validacao.soma}) não bate com a quantidade total (${validacao.quantidadeTotal}). Diferença: ${validacao.diferenca}.`,
+      erro: `A soma das células (${validacaoSoma.soma}) não bate com a quantidade total (${validacaoSoma.quantidadeTotal}). Diferença: ${validacaoSoma.diferenca}.`,
+    };
+  }
+
+  const validacaoPvp = validarPvpReferencia(input.celulas, input.farmaciasPvp);
+  if (!validacaoPvp.ok) {
+    const nomes = validacaoPvp.farmaciasSemPvp
+      .map((id) => input.farmaciasPvp.find((f) => f.farmaciaId === id)?.farmaciaNome ?? id)
+      .join(", ");
+    return {
+      ok: false,
+      erro: `Falta o PVP de referência para: ${nomes}. Não é possível atribuir quantidade a uma farmácia sem PVP de referência.`,
     };
   }
 
