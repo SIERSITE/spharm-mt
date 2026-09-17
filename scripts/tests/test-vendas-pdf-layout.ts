@@ -73,12 +73,12 @@ function buckets(n: number): { ano: number; mes: number }[] {
 // A. A soma das larguras nunca ultrapassa 100, para qualquer nº de meses
 // ─────────────────────────────────────────────────────────────────────────
 
-// Correcção (2026-09, redesenho): PVP e Custo unit. est. passaram a
-// `excelOnly:true` (dobrados para uma sublinha da Descrição no HTML/PDF
-// — ver ReportColumn.noteKey) — a largura que ainda carregam serve só
-// para o Excel dimensionar a coluna, não faz parte do orçamento visual
-// da tabela. O invariante "soma ≤ 100" só faz sentido sobre as colunas
-// que `renderTable()` desenha de facto.
+// `renderTable()` (report-html.ts) desenha exactamente as colunas não
+// `hidden`/`excelOnly` — hoje nenhuma coluna de Vendas usa qualquer um
+// dos dois (PVP/Custo unit. est. voltaram a ser colunas normais, por
+// farmácia — correcção 2026-09, ver adapters/vendas.ts), mas o filtro
+// fica genérico de propósito: continua correcto se algum dia voltar a
+// existir uma coluna só-Excel.
 const colunasVisiveis = (cols: ReturnType<typeof buildVendasReport>["columns"]) =>
   cols.filter((c) => !c.hidden && !c.excelOnly);
 
@@ -245,15 +245,15 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     mesesCols.every((c) => c.label.split("\n").every((linha) => linha.length <= 3)),
   );
 
-  // Correcção (2026-09, redesenho): Custo unit. est. deixou de ser uma
-  // coluna do HTML/PDF — passou a `excelOnly` (dobrada para a sublinha
-  // da Descrição, ver noteKey) — por isso já não precisa do truque de 3
-  // linhas: esse existia só para caber numa coluna estreita que já não
-  // existe no HTML. O rótulo volta a ser uma frase normal (é isso que o
-  // Excel mostra na sua própria coluna).
+  // Correcção (2026-09): Custo unit. est. voltou a ser uma coluna do
+  // HTML/PDF — por FARMÁCIA, nunca por artigo (ver a nota grande no
+  // topo de adapters/vendas.ts) — por isso o rótulo partido em duas
+  // linhas ("Custo\nunit. est.") continua a ser precisa: a coluna é
+  // estreita, junto à Farmácia, e precisa do mesmo truque de 2 linhas
+  // que "Total\nUnid." já usava.
   const custo = rel.columns.find((c) => c.key === "custoUnitarioEstimado");
-  ok("Custo unit. est. é excelOnly — não desenha no HTML/PDF", custo?.excelOnly === true);
-  eq("…e o rótulo volta a ser uma frase normal (só interessa ao Excel)", custo?.label, "Custo unit. est.");
+  ok("Custo unit. est. já NÃO é excelOnly — é uma coluna normal do HTML/PDF", custo?.excelOnly !== true);
+  eq("…e o rótulo está partido em duas linhas (coluna estreita)", custo?.label, "Custo\nunit. est.");
 
   const totalUnid = rel.columns.find((c) => c.key === "totalVendas");
   eq("\"Total Unid.\" também partido em duas linhas", totalUnid?.label, "Total\nUnid.");
@@ -269,8 +269,8 @@ console.log("\n=== G. Cabeçalhos em duas linhas — sem transbordo em \"JAN/26\
     !theadHtml.includes("Jan/26") && !theadHtml.includes("Total Unid."),
   );
   ok(
-    "…nem a coluna Custo unit. est. (é excelOnly agora)",
-    !theadHtml.includes("Custo"),
+    "e Custo unit. est. também está no <thead>, partido em duas linhas (Custo<br/>unit. est.)",
+    theadHtml.includes("Custo<br/>unit. est."),
   );
 }
 

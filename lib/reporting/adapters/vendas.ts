@@ -36,17 +36,46 @@
  *  Report. Corrigido lendo-os em `paraReportRow`, sem tocar em
  *  lib/vendas-data.ts nem em lib/reporting/vendas-agrupamento.ts.
  *
- *  PVP e Custo unit. est. deixam de ser colunas visíveis no HTML/PDF —
- *  passam a viver como sublinha discreta sob a Descrição (ver
- *  `ReportColumn.noteKey` em report-types.ts), exactamente como na
- *  referência. Continuam colunas verdadeiras no Excel (`excelOnly:true`)
- *  — quem abre a folha de cálculo continua a poder ordenar/filtrar por
- *  PVP e Custo como sempre.
+ *  PVP e Custo unit. est. deixaram de ser colunas visíveis no HTML/PDF
+ *  nesta primeira versão do redesenho — ver a correcção abaixo, que os
+ *  trouxe de volta como colunas (não como sublinha).
  *
- *  Colunas HTML/PDF (nesta ordem): Código, Descrição (+ sublinha PVP|
- *  Custo), Farmácia, N × mês, Total Unid., Stock, Valor Vendas.
- *  Colunas Excel: as mesmas, mais PVP e Custo unit. est. (a seguir a
- *  Descrição, tal como sempre estiveram).
+ *  Colunas HTML/PDF nesta primeira versão: Código, Descrição (+
+ *  sublinha PVP|Custo), Farmácia, N × mês, Total Unid., Stock, Valor
+ *  Vendas. Colunas Excel: as mesmas, mais PVP e Custo unit. est.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CORRECÇÃO 2026-09: PVP/Custo têm de ser por FARMÁCIA, nunca por artigo
+ *
+ *  A versão inicial mostrava PVP/Custo como uma sublinha ("PVP: X |
+ *  Custo: Y") presa à Descrição — mas Código/Descrição usam
+ *  `spanGroup:true` (rowspan cobrindo todas as sublinhas de farmácia de
+ *  um artigo, quando `agruparPor==="artigo"`): só a PRIMEIRA linha do
+ *  grupo desenhava essa célula, as restantes ficavam cobertas pelo
+ *  rowspan e nunca chegavam a mostrar a sua própria nota. Como cada
+ *  farmácia pode ter PVP/custo diferentes para o mesmo CNP (preço de
+ *  prateleira e custo médio de compra são por farmácia, não por
+ *  produto — ex.: Segurado PVP 6,66€/Custo 4,46€ vs. Silveirense PVP
+ *  6,50€/Custo 3,75€), isso mostrava sempre o PVP/custo da PRIMEIRA
+ *  farmácia do grupo em TODAS as sublinhas — um valor errado para
+ *  qualquer farmácia que não fosse essa.
+ *
+ *  Corrigido devolvendo PVP e Custo unit. est. a colunas VISÍVEIS no
+ *  HTML/PDF (já não `excelOnly`), estreitas, logo a seguir à Farmácia —
+ *  nenhuma das duas usa `spanGroup`: desenham em TODAS as sublinhas,
+ *  cada uma com o valor da SUA PRÓPRIA farmácia (`ProdutoFarmacia`
+ *  desse par produto×farmácia — nunca uma média, nunca o valor de
+ *  outra farmácia). O bloco comum do artigo (coberto pelo rowspan) fica
+ *  só com CNP e Descrição, que são mesmo do artigo. Na linha TOTAL
+ *  ARTIGO — que soma várias farmácias — PVP/Custo não têm resposta
+ *  única, por isso ficam "—" (nunca uma média nem um valor escolhido
+ *  arbitrariamente). Descrição encolheu de 20% para 17% de largura — já
+ *  não precisa de caber a sublinha que saiu de lá.
+ *
+ *  Colunas HTML/PDF (nesta ordem, versão actual): Código, Descrição,
+ *  Farmácia, PVP, Custo unit. est., N × mês, Total Unid., Stock, Valor
+ *  Vendas. Colunas Excel: as mesmas (mesma ordem — já não há uma ordem
+ *  "só Excel" para PVP/Custo).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -58,7 +87,6 @@ import type {
   ReportSummaryItem,
 } from "../report-types";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
-import { formatCurrency } from "../report-formatters";
 import { filtroListaImportada } from "../filters-shared";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import {
@@ -137,11 +165,10 @@ export type VendasAdapterFilters = {
 };
 
 /**
- * Larguras-base (sem buckets), em % da largura útil da página — só das
- * colunas VISÍVEIS no HTML/PDF. PVP e Custo unit. est. não entram aqui:
- * são `excelOnly` (ver `buildColumns`), não ocupam largura nenhuma na
- * tabela impressa — o espaço que libertaram foi para a Descrição (que
- * agora leva a sublinha PVP|Custo) e para os meses.
+ * Larguras-base (sem buckets), em % da largura útil da página — de
+ * TODAS as colunas visíveis no HTML/PDF, incluindo PVP/Custo unit. est.
+ * (correcção 2026-09: já não são `excelOnly` — ver a nota grande no
+ * topo do ficheiro, e `buildColumns`).
  *
  * Correcção (2026-09, redesenho): Farmácia moved para logo a seguir à
  * Descrição (era a última coluna) — é onde a referência visual a põe, e
@@ -152,7 +179,11 @@ export type VendasAdapterFilters = {
  */
 const BASE_WIDTH_FIXED_COLS = {
   codigo: 6,
-  descricao: 20,
+  // Reduzida de 20 para 17 (correcção 2026-09, PVP/Custo por farmácia):
+  // já não precisa de caber a sublinha "PVP: X | Custo: Y" — só o texto
+  // da descrição — o espaço libertado ajuda PVP/Custo (abaixo) e os
+  // meses.
+  descricao: 17,
   // Correcção (2026-09): a coluna Farmácia é o que a linha TOTAL ARTIGO
   // usa para o próprio rótulo (bold, 12 caracteres — mais largo que
   // qualquer nome de farmácia sem o prefixo "Farmácia "). A 8% ficava
@@ -160,6 +191,11 @@ const BASE_WIDTH_FIXED_COLS = {
   // "TOTAL ARTIGO" cortava para "TOTAL AR…" — legível a menos, não a
   // mais, exactamente o que não se queria ao encolher a linha.
   farmacia: 11,
+  // PVP/Custo (correcção 2026-09): voltam a ser colunas VISÍVEIS no
+  // HTML/PDF, não só no Excel — ver a nota grande no topo do ficheiro.
+  // Estreitas de propósito: são só um valor em euros por linha.
+  pvp: 6,
+  custoUnitarioEstimado: 7,
   totalVendas: 6,
   existencia: 5,
   valorVendas: 8,
@@ -188,6 +224,8 @@ function buildColumns(
     BASE_WIDTH_FIXED_COLS.codigo +
     BASE_WIDTH_FIXED_COLS.descricao +
     BASE_WIDTH_FIXED_COLS.farmacia +
+    BASE_WIDTH_FIXED_COLS.pvp +
+    BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado +
     BASE_WIDTH_FIXED_COLS.totalVendas +
     BASE_WIDTH_FIXED_COLS.existencia +
     BASE_WIDTH_FIXED_COLS.valorVendas;
@@ -246,18 +284,6 @@ function buildColumns(
       key: "descricao", label: "Descrição", format: "text",
       width: w(BASE_WIDTH_FIXED_COLS.descricao),
       spanGroup: true,
-      // Sublinha PVP | Custo, só em HTML/PDF — ver `descricaoNota` em
-      // `paraReportRow`. O Excel continua com PVP/Custo como colunas
-      // próprias (abaixo, `excelOnly`), não como texto dentro da célula.
-      noteKey: "descricaoNota",
-    },
-    // PVP e Custo unit. est. — só Excel. Largura nominal (o Excel deriva
-    // a largura real do comprimento do rótulo quando ≤100, ver
-    // report-excel-buffer.ts); no HTML/PDF nunca são desenhadas.
-    { key: "pvp", label: "PVP", format: "currency", width: 6, excelOnly: true },
-    {
-      key: "custoUnitarioEstimado", label: "Custo unit. est.", format: "currency",
-      width: 8, excelOnly: true,
     },
     {
       key: "farmacia", label: "Farmácia", format: "text",
@@ -266,6 +292,19 @@ function buildColumns(
       // (HTML/PDF/print). Excel continua a ler `farmacia` (nome
       // completo) directamente, porque não passa por `displayKey`.
       displayKey: "farmaciaCurta",
+    },
+    // PVP e Custo unit. est. (correcção 2026-09) — colunas VISÍVEIS no
+    // HTML/PDF, não só no Excel: cada farmácia pode ter um PVP/custo
+    // diferente para o MESMO artigo, e nenhuma delas usa `spanGroup` —
+    // desenham em TODAS as sublinhas, cada uma com o valor da SUA
+    // própria farmácia (nunca uma média, nunca o valor de outra). Na
+    // linha TOTAL ARTIGO (soma de farmácias) ficam "—": não há um
+    // PVP/custo único para o artigo inteiro. Ver a nota grande no topo
+    // do ficheiro.
+    { key: "pvp", label: "PVP", format: "currency", width: w(BASE_WIDTH_FIXED_COLS.pvp) },
+    {
+      key: "custoUnitarioEstimado", label: "Custo\nunit. est.", format: "currency",
+      width: w(BASE_WIDTH_FIXED_COLS.custoUnitarioEstimado),
     },
     ...monthColumns,
     {
@@ -380,13 +419,6 @@ function buildSummary(rows: VendasAdapterRow[]): ReportSummaryItem[] {
   ];
 }
 
-/** "PVP: 27,90 € | Custo: —" — a sublinha da Descrição. `null`/undefined → "—". */
-function notaPvpCusto(pvp: number | null | undefined, custo: number | null | undefined): string {
-  const pvpTxt = typeof pvp === "number" ? formatCurrency(pvp) : "—";
-  const custoTxt = typeof custo === "number" ? formatCurrency(custo) : "—";
-  return `PVP: ${pvpTxt} | Custo: ${custoTxt}`;
-}
-
 export function buildVendasReport(input: {
   rows: VendasAdapterRow[];
   /**
@@ -428,22 +460,18 @@ export function buildVendasReport(input: {
     kind: "detalhe" | "subtotal",
     grupoId: string | undefined,
   ): ReportRow => {
+    // PVP é da prateleira de UMA farmácia — nunca uma média entre
+    // farmácias. Na linha TOTAL ARTIGO (soma de farmácias) fica `null`,
+    // que o renderer pinta como "—" (ver formatCell em report-formatters).
     const pvp = kind === "subtotal" ? null : (r.pvp ?? 0);
     // Custo unitário: idem PVP — um "custo médio entre farmácias" não é
-    // uma pergunta com resposta única, por isso a linha TOTAL ARTIGO não
-    // o mostra na sublinha (fica coberta pelo rowspan de qualquer forma).
+    // uma pergunta com resposta única.
     const custo = kind === "subtotal" ? null : (r.custoUnitarioEstimado ?? null);
     const base: ReportRow = {
       codigo: r.codigo,
       descricao: r.descricao,
-      // O PVP é da prateleira de UMA farmácia; somá-lo entre farmácias
-      // não significa nada. Na linha de total fica vazio.
       pvp,
       custoUnitarioEstimado: custo,
-      // Sublinha visível só em HTML/PDF (ver noteKey em buildColumns).
-      // Vazia no TOTAL ARTIGO — essa célula está coberta pelo rowspan
-      // da 1ª linha do grupo, nunca chega a desenhar-se.
-      descricaoNota: kind === "subtotal" ? "" : notaPvpCusto(pvp, custo),
       totalVendas: r.totalVendas,
       valorBruto: r.valorBruto ?? 0,
       existencia: r.existencia,

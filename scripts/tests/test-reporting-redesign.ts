@@ -15,11 +15,12 @@
  *      Testados com Reports sintéticos, sem depender de Vendas.
  *
  *   2. A aplicação a Vendas — lib/reporting/adapters/vendas.ts com
- *      meta.density:"compact": estrutura de colunas nova (CNP,
- *      Descrição+nota, Farmácia, meses, Total Unid., Stock, Valor
- *      Vendas), PVP/Custo dobrados para Excel, custoUnitarioEstimado e
- *      valorBruto agora realmente populados (eram bugs antigos — a
- *      coluna existia mas nunca era lida).
+ *      meta.density:"compact": estrutura de colunas (CNP, Descrição,
+ *      Farmácia, PVP, Custo unit. est. — estes dois por FARMÁCIA, não
+ *      por artigo, ver secção L —, meses, Total Unid., Stock, Valor
+ *      Vendas), custoUnitarioEstimado e valorBruto agora realmente
+ *      populados (eram bugs antigos — a coluna existia mas nunca era
+ *      lida).
  *
  * Cenários obrigatórios do pedido (secção 12): 1 farmácia/3 meses,
  * 2 farmácias/12 meses, 2/15, 5/12, 5/15, descrição longa, produto só
@@ -40,6 +41,7 @@ import {
   type ReportRow,
 } from "../../lib/reporting/report-types";
 import { renderReportHtml } from "../../lib/reporting/report-html";
+import { formatCurrency } from "../../lib/reporting/report-formatters";
 import { buildReportWorkbook } from "../../lib/reporting/report-excel-buffer";
 import * as XLSX from "xlsx";
 import { buildVendasReport, type VendasAdapterRow } from "../../lib/reporting/adapters/vendas";
@@ -372,23 +374,26 @@ console.log("\n=== G5. custoUnitarioEstimado e valorBruto — bug antigo corrigi
   const linha = rel.rows[0];
   eq("custoUnitarioEstimado chega à linha do relatório", linha.custoUnitarioEstimado, 12.34);
   eq("valorBruto (Valor Vendas) chega à linha do relatório", linha.valorBruto, 40);
+  // Correcção (2026-09): PVP/Custo voltaram a ser colunas VISÍVEIS no
+  // HTML/PDF (não `excelOnly`) — ver a nota grande no topo do adaptador.
   const custoCol = rel.columns.find((c) => c.key === "custoUnitarioEstimado");
-  ok("a coluna existe e é excelOnly (Excel continua a mostrá-la)", custoCol?.excelOnly === true);
+  ok("a coluna existe e já NÃO é excelOnly (é uma coluna por farmácia)", custoCol?.excelOnly !== true);
   const valorCol = rel.columns.find((c) => c.key === "valorBruto");
   ok("existe agora uma coluna de Valor Vendas, com total", valorCol?.showTotal === true);
   const html = renderReportHtml(rel);
   // Só no <body> — "PVP:" também aparece num comentário CSS (a explicar
   // a regra .cell-note), sempre presente independentemente dos dados.
   const bodyHtmlG5 = html.slice(html.indexOf("<body>"));
-  ok("a sublinha da Descrição mostra o PVP e o Custo", bodyHtmlG5.includes("PVP:") && bodyHtmlG5.includes("Custo: 12,34"));
+  ok("o PVP aparece como coluna (não sublinha)", bodyHtmlG5.includes(">PVP<"));
+  ok("o Custo unit. est. aparece com o valor certo (12,34 €)", bodyHtmlG5.includes(`>${formatCurrency(12.34)}<`));
   ok("o Valor Vendas aparece no HTML (40,00 €)", bodyHtmlG5.includes("40,00"));
 }
 
 // ═════════════════════════════════════════════════════════════════════
-// G6. Coerência PDF/Excel — mesmas colunas base, mesma ordem, PVP/Custo
-//     continuam no Excel apesar de saírem do HTML
+// G6. Coerência PDF/Excel — mesmas colunas, mesma ordem, PVP/Custo em
+//     ambos (correcção 2026-09: já não é só-Excel, ver secção L)
 // ═════════════════════════════════════════════════════════════════════
-console.log("\n=== G6. Excel continua com PVP/Custo como colunas — não perde informação ===");
+console.log("\n=== G6. Excel e HTML/PDF mostram as mesmas colunas, na mesma ordem ===");
 {
   const buckets = meses(3);
   const rows = [
@@ -404,14 +409,16 @@ console.log("\n=== G6. Excel continua com PVP/Custo como colunas — não perde 
   const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
   const headerRow = aoa.find((r) => Array.isArray(r) && r.includes("CNP")) as (string | number)[] | undefined;
   ok("a folha tem uma linha de cabeçalho com CNP", !!headerRow);
-  ok("…e PVP continua lá (excelOnly não é hidden)", !!headerRow?.includes("PVP"));
-  ok("…e Custo unit. est. continua lá", !!headerRow?.includes("Custo unit. est."));
+  ok("…e PVP continua lá", !!headerRow?.includes("PVP"));
+  ok("…e Custo unit. est. continua lá", !!headerRow?.some((h) => typeof h === "string" && h.replace(/\s+/g, " ") === "Custo unit. est."));
   ok("…e Farmácia continua a seguir à Descrição (mesma ordem do HTML)", !!headerRow && headerRow.indexOf("Farmácia") > headerRow.indexOf("Descrição"));
+  ok("…e PVP/Custo vêm a seguir à Farmácia (mesma ordem do HTML)", !!headerRow && headerRow.indexOf("PVP") > headerRow.indexOf("Farmácia"));
   ok("…e Valor Vendas (s/IVA) está na folha", !!headerRow?.some((h) => typeof h === "string" && h.includes("Valor Vendas")));
 
   const html = renderReportHtml(rel);
   const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
-  ok("mas o HTML/PDF não desenha PVP nem Custo como colunas (foram para a sublinha)", !theadHtml.includes(">PVP<") && !theadHtml.includes("Custo"));
+  ok("o HTML/PDF TAMBÉM desenha PVP como coluna própria", theadHtml.includes(">PVP<"));
+  ok("…e Custo unit. est. também", theadHtml.includes("Custo") && theadHtml.includes("unit. est."));
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -595,6 +602,105 @@ console.log("\n=== H. report-pdf-server.ts pede paginação ao Chromium ===");
   ok("displayHeaderFooter activo", /displayHeaderFooter:\s*true/.test(src));
   ok("headerTemplate usa pageNumber/totalPages (só o Chromium sabe o total)", /pageNumber/.test(src) && /totalPages/.test(src));
   ok("page.close()/finally continuam intactos (não regrediu o launcher)", /page\.close\(\)/.test(src) && /finally/.test(src));
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// L. PVP/Custo por FARMÁCIA — nunca um valor único por artigo
+//
+// O bug relatado: com `agruparPor:"artigo"`, Código/Descrição usam
+// `spanGroup` (rowspan cobrindo todas as sublinhas de farmácia) — se
+// PVP/Custo vivessem numa coluna também `spanGroup` (ou numa sublinha
+// presa a ela), só a PRIMEIRA farmácia do grupo mostraria o seu valor;
+// as restantes ficariam com o MESMO valor, coberto pelo rowspan, apesar
+// de cada farmácia ter o seu próprio PVP/custo em `ProdutoFarmacia`.
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n=== L. PVP/Custo por farmácia — nunca um único valor por artigo ===");
+{
+  // Caso do pedido: mesmo CNP, Segurado e Silveirense com PVP/custo
+  // diferentes. Ordem de entrada é a "errada" de propósito (Silveirense
+  // primeiro) para também exercitar a ordem estável (secção K) ao mesmo
+  // tempo — Segurado continua a aparecer primeiro (universe.farmacias).
+  const buckets3 = meses(3);
+  const rows2f = [
+    linhaVendas({
+      buckets: buckets3, codigo: "8322628", descricao: "Ventilan",
+      farmacia: "Farmácia Silveirense", pvp: 6.5, custoUnitarioEstimado: 3.75,
+      existencia: 4, ...comVendaEm(buckets3, 0, 1, 6.5),
+    }),
+    linhaVendas({
+      buckets: buckets3, codigo: "8322628", descricao: "Ventilan",
+      farmacia: "Farmácia Segurado", pvp: 6.66, custoUnitarioEstimado: 4.46,
+      existencia: 2, ...comVendaEm(buckets3, 1, 1, 6.66),
+    }),
+  ];
+  const rel2f = buildVendasReport({
+    rows: rows2f, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: ["Farmácia Segurado", "Farmácia Silveirense"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const detalhes2f = rel2f.rows.filter((r) => r.farmacia !== "TOTAL ARTIGO");
+  eq("2f: Segurado primeiro (ordem estável)", detalhes2f[0].farmacia, "Farmácia Segurado");
+  eq("2f: PVP do Segurado é o SEU (6,66), não o de outra farmácia", detalhes2f[0].pvp, 6.66);
+  eq("2f: Custo do Segurado é o SEU (4,46)", detalhes2f[0].custoUnitarioEstimado, 4.46);
+  eq("2f: PVP do Silveirense é o SEU (6,5), diferente do Segurado", detalhes2f[1].pvp, 6.5);
+  eq("2f: Custo do Silveirense é o SEU (3,75), diferente do Segurado", detalhes2f[1].custoUnitarioEstimado, 3.75);
+  const totalArtigo2f = rel2f.rows.find((r) => r.farmacia === "TOTAL ARTIGO");
+  eq("2f: TOTAL ARTIGO não tem PVP (não há valor único correcto)", totalArtigo2f?.pvp, null);
+  eq("2f: TOTAL ARTIGO não tem Custo (idem)", totalArtigo2f?.custoUnitarioEstimado, null);
+
+  const html2f = renderReportHtml(rel2f);
+  const body2f = html2f.slice(html2f.indexOf("<body>"));
+  ok("PDF/HTML mostra o PVP do Segurado (6,66 €)", body2f.includes(`>${formatCurrency(6.66)}<`));
+  ok("…e o do Silveirense (6,50 €), NUNCA os dois iguais", body2f.includes(`>${formatCurrency(6.5)}<`));
+  ok("PDF/HTML mostra o custo do Segurado (4,46 €)", body2f.includes(`>${formatCurrency(4.46)}<`));
+  ok("…e o do Silveirense (3,75 €)", body2f.includes(`>${formatCurrency(3.75)}<`));
+  // A célula da 2ª sublinha (Silveirense) tem de ser uma célula própria,
+  // não coberta por rowspan — é exactamente o que o bug fazia desaparecer.
+  const linhasTr2f = body2f.match(/<tr[^>]*>.*?<\/tr>/g) ?? [];
+  const trSilveirense = linhasTr2f.find((tr) => tr.includes(">Silveirense<"));
+  ok("a linha do Silveirense tem célula PVP própria (sem rowspan a cobri-la)", !!trSilveirense && trSilveirense.includes(`>${formatCurrency(6.5)}<`));
+  // TOTAL ARTIGO mostra "—" (em dash — valor null via formatCell, não o
+  // "–" en dash de zeroAsDash) para PVP/Custo — nunca uma média, nunca
+  // em branco por acaso.
+  const trTotal2f = linhasTr2f.find((tr) => tr.includes("TOTAL ARTIGO"));
+  const numTracos = (trTotal2f?.match(/>—</g) ?? []).length;
+  ok('TOTAL ARTIGO mostra pelo menos dois "—" (PVP e Custo, sem valor único)', numTracos >= 2);
+
+  // 1 farmácia — sem grupo/rowspan, continua a mostrar o valor certo.
+  const rows1f = [
+    linhaVendas({ buckets: buckets3, codigo: "9000001", descricao: "Produto único", farmacia: "Farmácia Segurado", pvp: 9.99, custoUnitarioEstimado: 5.55, existencia: 1, ...comVendaEm(buckets3, 0, 1, 9.99) }),
+  ];
+  const rel1f = buildVendasReport({
+    rows: rows1f, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: ["Farmácia Segurado"], fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  eq("1f: PVP correcto mesmo sem grupo (uma só farmácia)", rel1f.rows[0].pvp, 9.99);
+  eq("1f: Custo correcto", rel1f.rows[0].custoUnitarioEstimado, 5.55);
+
+  // 5 farmácias — cinco PVP/custo distintos, todos têm de sobreviver.
+  const nomes5 = ["Farmácia Alfa", "Farmácia Beta", "Farmácia Gama", "Farmácia Delta", "Farmácia Épsilon"];
+  const rows5f = nomes5.map((f, i) =>
+    linhaVendas({
+      buckets: buckets3, codigo: "7000001", descricao: "Produto em 5 farmácias", farmacia: f,
+      pvp: 10 + i, custoUnitarioEstimado: 5 + i, existencia: i,
+      ...comVendaEm(buckets3, i % 3, 1, 10 + i),
+    }),
+  );
+  const rel5f = buildVendasReport({
+    rows: rows5f, buckets: buckets3, filters: { agruparPor: "artigo" },
+    universe: { farmacias: nomes5, fornecedores: [], fabricantes: [], categorias: [] },
+    organization: "Grupo Teste",
+  });
+  const detalhes5f = rel5f.rows.filter((r) => r.farmacia !== "TOTAL ARTIGO");
+  eq("5f: cinco sublinhas de detalhe", detalhes5f.length, 5);
+  eq("5f: PVPs distintos, na ordem certa (10..14)", detalhes5f.map((r) => r.pvp).join(","), "10,11,12,13,14");
+  eq("5f: Custos distintos, na ordem certa (5..9)", detalhes5f.map((r) => r.custoUnitarioEstimado).join(","), "5,6,7,8,9");
+  const html5f = renderReportHtml(rel5f);
+  const body5f = html5f.slice(html5f.indexOf("<body>"));
+  for (let i = 0; i < 5; i++) {
+    ok(`5f: PVP da farmácia ${i + 1} (${formatCurrency(10 + i)}) aparece no PDF/HTML`, body5f.includes(`>${formatCurrency(10 + i)}<`));
+  }
 }
 
 console.log(`\n${fail === 0 ? "PASSOU" : "FALHOU"} — ${pass} OK, ${fail} falhas\n`);

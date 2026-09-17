@@ -302,13 +302,13 @@ console.log("\nB3. Custo agregado por artigo\n");
 // O nome da coluna tem de dizer «est.» — em Vendas E em Margens.
 {
   const av = src("lib/reporting/adapters/vendas.ts");
-  // Correcção (2026-09, redesenho do PDF): Custo unit. est. deixou de
-  // ser uma coluna do HTML/PDF de Vendas — passou a `excelOnly:true`
-  // (dobrada para uma sublinha da Descrição, ver ReportColumn.noteKey
-  // em report-types.ts e test-vendas-pdf-layout.ts secção G). Sem a
-  // largura de coluna estreita a condicionar o rótulo, volta a ser uma
-  // frase normal numa linha só — é o que aparece na coluna do Excel.
-  check(av.includes('label: "Custo unit. est."'), "Vendas: o relatório diz «est.» (Excel; dobrado sob a Descrição no PDF)");
+  // Correcção (2026-09): Custo unit. est. é de novo uma coluna do
+  // HTML/PDF de Vendas — por FARMÁCIA, nunca por artigo (ver a nota
+  // grande no topo de adapters/vendas.ts) — estreita, junto à Farmácia,
+  // por isso o rótulo vem partido em duas linhas ("Custo\nunit. est."),
+  // igual à convenção de "Total\nUnid." (ver test-vendas-pdf-layout.ts
+  // secção G).
+  check(av.includes('label: "Custo\\nunit. est."'), "Vendas: o relatório diz «est.» (coluna própria, por farmácia, no PDF)");
   // Removido a pedido (2026-09): Vendas deixou de ter "Custo est."
   // (total) — só o unitário. Margens mantém o total, é outro relatório.
   check(!av.includes('label: "Custo est."'), "…mas já não tem o TOTAL — só o unitário");
