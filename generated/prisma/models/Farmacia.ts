@@ -249,6 +249,7 @@ export type FarmaciaWhereInput = {
   compraDocumentos?: Prisma.CompraDocumentoListRelationFilter
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawListRelationFilter
   syncRequests?: Prisma.SyncRequestListRelationFilter
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaListRelationFilter
 }
 
 export type FarmaciaOrderByWithRelationInput = {
@@ -289,6 +290,7 @@ export type FarmaciaOrderByWithRelationInput = {
   compraDocumentos?: Prisma.CompraDocumentoOrderByRelationAggregateInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawOrderByRelationAggregateInput
   syncRequests?: Prisma.SyncRequestOrderByRelationAggregateInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaOrderByRelationAggregateInput
 }
 
 export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
@@ -332,6 +334,7 @@ export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
   compraDocumentos?: Prisma.CompraDocumentoListRelationFilter
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawListRelationFilter
   syncRequests?: Prisma.SyncRequestListRelationFilter
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaListRelationFilter
 }, "id" | "nome">
 
 export type FarmaciaOrderByWithAggregationInput = {
@@ -404,6 +407,7 @@ export type FarmaciaCreateInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateInput = {
@@ -444,6 +448,7 @@ export type FarmaciaUncheckedCreateInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUpdateInput = {
@@ -484,6 +489,7 @@ export type FarmaciaUpdateInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateInput = {
@@ -524,6 +530,7 @@ export type FarmaciaUncheckedUpdateInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateManyInput = {
@@ -756,6 +763,20 @@ export type FarmaciaUpdateOneRequiredWithoutVendasMensaisNestedInput = {
   upsert?: Prisma.FarmaciaUpsertWithoutVendasMensaisInput
   connect?: Prisma.FarmaciaWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutVendasMensaisInput, Prisma.FarmaciaUpdateWithoutVendasMensaisInput>, Prisma.FarmaciaUncheckedUpdateWithoutVendasMensaisInput>
+}
+
+export type FarmaciaCreateNestedOneWithoutVendaManutencaoCelulasInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutVendaManutencaoCelulasInput
+  connect?: Prisma.FarmaciaWhereUniqueInput
+}
+
+export type FarmaciaUpdateOneRequiredWithoutVendaManutencaoCelulasNestedInput = {
+  create?: Prisma.XOR<Prisma.FarmaciaCreateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput>
+  connectOrCreate?: Prisma.FarmaciaCreateOrConnectWithoutVendaManutencaoCelulasInput
+  upsert?: Prisma.FarmaciaUpsertWithoutVendaManutencaoCelulasInput
+  connect?: Prisma.FarmaciaWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FarmaciaUpdateToOneWithWhereWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUpdateWithoutVendaManutencaoCelulasInput>, Prisma.FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput>
 }
 
 export type FarmaciaCreateNestedOneWithoutComprasInput = {
@@ -1033,6 +1054,7 @@ export type FarmaciaCreateWithoutIngestProdutoRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutIngestProdutoRunsInput = {
@@ -1072,6 +1094,7 @@ export type FarmaciaUncheckedCreateWithoutIngestProdutoRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutIngestProdutoRunsInput = {
@@ -1127,6 +1150,7 @@ export type FarmaciaUpdateWithoutIngestProdutoRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutIngestProdutoRunsInput = {
@@ -1166,6 +1190,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestProdutoRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutCompraDocumentosInput = {
@@ -1205,6 +1230,7 @@ export type FarmaciaCreateWithoutCompraDocumentosInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutCompraDocumentosInput = {
@@ -1244,6 +1270,7 @@ export type FarmaciaUncheckedCreateWithoutCompraDocumentosInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutCompraDocumentosInput = {
@@ -1299,6 +1326,7 @@ export type FarmaciaUpdateWithoutCompraDocumentosInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutCompraDocumentosInput = {
@@ -1338,6 +1366,7 @@ export type FarmaciaUncheckedUpdateWithoutCompraDocumentosInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutFornecedorErpRefsInput = {
@@ -1377,6 +1406,7 @@ export type FarmaciaCreateWithoutFornecedorErpRefsInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutFornecedorErpRefsInput = {
@@ -1416,6 +1446,7 @@ export type FarmaciaUncheckedCreateWithoutFornecedorErpRefsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutFornecedorErpRefsInput = {
@@ -1471,6 +1502,7 @@ export type FarmaciaUpdateWithoutFornecedorErpRefsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutFornecedorErpRefsInput = {
@@ -1510,6 +1542,7 @@ export type FarmaciaUncheckedUpdateWithoutFornecedorErpRefsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutEmailConfigInput = {
@@ -1549,6 +1582,7 @@ export type FarmaciaCreateWithoutEmailConfigInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutEmailConfigInput = {
@@ -1588,6 +1622,7 @@ export type FarmaciaUncheckedCreateWithoutEmailConfigInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutEmailConfigInput = {
@@ -1643,6 +1678,7 @@ export type FarmaciaUpdateWithoutEmailConfigInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutEmailConfigInput = {
@@ -1682,6 +1718,7 @@ export type FarmaciaUncheckedUpdateWithoutEmailConfigInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutUtilizadoresInput = {
@@ -1721,6 +1758,7 @@ export type FarmaciaCreateWithoutUtilizadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
@@ -1760,6 +1798,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutUtilizadoresInput = {
@@ -1815,6 +1854,7 @@ export type FarmaciaUpdateWithoutUtilizadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
@@ -1854,6 +1894,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutUtilizadoresExtraInput = {
@@ -1893,6 +1934,7 @@ export type FarmaciaCreateWithoutUtilizadoresExtraInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput = {
@@ -1932,6 +1974,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutUtilizadoresExtraInput = {
@@ -1987,6 +2030,7 @@ export type FarmaciaUpdateWithoutUtilizadoresExtraInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput = {
@@ -2026,6 +2070,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
@@ -2065,6 +2110,7 @@ export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
@@ -2104,6 +2150,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutProdutosFarmaciaInput = {
@@ -2159,6 +2206,7 @@ export type FarmaciaUpdateWithoutProdutosFarmaciaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
@@ -2198,6 +2246,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutProdutosInternosInput = {
@@ -2237,6 +2286,7 @@ export type FarmaciaCreateWithoutProdutosInternosInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
@@ -2276,6 +2326,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutProdutosInternosInput = {
@@ -2331,6 +2382,7 @@ export type FarmaciaUpdateWithoutProdutosInternosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
@@ -2370,6 +2422,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutVendasInput = {
@@ -2409,6 +2462,7 @@ export type FarmaciaCreateWithoutVendasInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutVendasInput = {
@@ -2448,6 +2502,7 @@ export type FarmaciaUncheckedCreateWithoutVendasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutVendasInput = {
@@ -2503,6 +2558,7 @@ export type FarmaciaUpdateWithoutVendasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutVendasInput = {
@@ -2542,6 +2598,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutVendasMensaisInput = {
@@ -2581,6 +2638,7 @@ export type FarmaciaCreateWithoutVendasMensaisInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
@@ -2620,6 +2678,7 @@ export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutVendasMensaisInput = {
@@ -2675,6 +2734,7 @@ export type FarmaciaUpdateWithoutVendasMensaisInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
@@ -2693,6 +2753,183 @@ export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
   vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUncheckedUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUncheckedUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUncheckedUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  transferenciasOrigem?: Prisma.TransferenciaUncheckedUpdateManyWithoutFarmaciaOrigemNestedInput
+  transferenciasDestino?: Prisma.TransferenciaUncheckedUpdateManyWithoutFarmaciaDestinoNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUncheckedUpdateOneWithoutFarmaciaNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedUpdateManyWithoutFarmaciaNestedInput
+  pipelineRuns?: Prisma.PipelineRunUncheckedUpdateManyWithoutFarmaciaNestedInput
+  fornecedorErpRefs?: Prisma.FornecedorErpRefUncheckedUpdateManyWithoutFarmaciaNestedInput
+  stagingComprasRawLines?: Prisma.StagingCompraRawLineUncheckedUpdateManyWithoutFarmaciaNestedInput
+  stagingDevolucoesFornecedorRawLines?: Prisma.StagingDevolucaoFornecedorRawLineUncheckedUpdateManyWithoutFarmaciaNestedInput
+  movimentos?: Prisma.MovimentoArtigoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedUpdateManyWithoutFarmaciaNestedInput
+  compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
+  syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaCreateWithoutVendaManutencaoCelulasInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  useMovimentosCanonical?: boolean
+  utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutFarmaciaInput
+  transferenciasOrigem?: Prisma.TransferenciaCreateNestedManyWithoutFarmaciaOrigemInput
+  transferenciasDestino?: Prisma.TransferenciaCreateNestedManyWithoutFarmaciaDestinoInput
+  lotesIngestao?: Prisma.LoteIngestaoCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigCreateNestedOneWithoutFarmaciaInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawCreateNestedManyWithoutFarmaciaInput
+  pipelineRuns?: Prisma.PipelineRunCreateNestedManyWithoutFarmaciaInput
+  fornecedorErpRefs?: Prisma.FornecedorErpRefCreateNestedManyWithoutFarmaciaInput
+  stagingComprasRawLines?: Prisma.StagingCompraRawLineCreateNestedManyWithoutFarmaciaInput
+  stagingDevolucoesFornecedorRawLines?: Prisma.StagingDevolucaoFornecedorRawLineCreateNestedManyWithoutFarmaciaInput
+  movimentos?: Prisma.MovimentoArtigoCreateNestedManyWithoutFarmaciaInput
+  ingestProdutoRuns?: Prisma.IngestProdutoRunCreateNestedManyWithoutFarmaciaInput
+  compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
+  ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
+  syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+}
+
+export type FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput = {
+  id?: string
+  nome: string
+  codigoANF?: string | null
+  morada?: string | null
+  contacto?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataAdesao?: Date | string
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  useMovimentosCanonical?: boolean
+  utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendas?: Prisma.VendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendasMensais?: Prisma.VendaMensalUncheckedCreateNestedManyWithoutFarmaciaInput
+  compras?: Prisma.CompraUncheckedCreateNestedManyWithoutFarmaciaInput
+  devolucoes?: Prisma.DevolucaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  historicoStocks?: Prisma.HistoricoStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  ajustesStock?: Prisma.AjusteStockUncheckedCreateNestedManyWithoutFarmaciaInput
+  inventarios?: Prisma.InventarioUncheckedCreateNestedManyWithoutFarmaciaInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutFarmaciaInput
+  transferenciasOrigem?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutFarmaciaOrigemInput
+  transferenciasDestino?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutFarmaciaDestinoInput
+  lotesIngestao?: Prisma.LoteIngestaoUncheckedCreateNestedManyWithoutFarmaciaInput
+  emailConfig?: Prisma.EmailConfigUncheckedCreateNestedOneWithoutFarmaciaInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUncheckedCreateNestedManyWithoutFarmaciaInput
+  pipelineRuns?: Prisma.PipelineRunUncheckedCreateNestedManyWithoutFarmaciaInput
+  fornecedorErpRefs?: Prisma.FornecedorErpRefUncheckedCreateNestedManyWithoutFarmaciaInput
+  stagingComprasRawLines?: Prisma.StagingCompraRawLineUncheckedCreateNestedManyWithoutFarmaciaInput
+  stagingDevolucoesFornecedorRawLines?: Prisma.StagingDevolucaoFornecedorRawLineUncheckedCreateNestedManyWithoutFarmaciaInput
+  movimentos?: Prisma.MovimentoArtigoUncheckedCreateNestedManyWithoutFarmaciaInput
+  ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedCreateNestedManyWithoutFarmaciaInput
+  compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
+  ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
+  syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+}
+
+export type FarmaciaCreateOrConnectWithoutVendaManutencaoCelulasInput = {
+  where: Prisma.FarmaciaWhereUniqueInput
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput>
+}
+
+export type FarmaciaUpsertWithoutVendaManutencaoCelulasInput = {
+  update: Prisma.XOR<Prisma.FarmaciaUpdateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput>
+  create: Prisma.XOR<Prisma.FarmaciaCreateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput>
+  where?: Prisma.FarmaciaWhereInput
+}
+
+export type FarmaciaUpdateToOneWithWhereWithoutVendaManutencaoCelulasInput = {
+  where?: Prisma.FarmaciaWhereInput
+  data: Prisma.XOR<Prisma.FarmaciaUpdateWithoutVendaManutencaoCelulasInput, Prisma.FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput>
+}
+
+export type FarmaciaUpdateWithoutVendaManutencaoCelulasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUpdateManyWithoutFarmaciaNestedInput
+  compras?: Prisma.CompraUpdateManyWithoutFarmaciaNestedInput
+  devolucoes?: Prisma.DevolucaoUpdateManyWithoutFarmaciaNestedInput
+  historicoStocks?: Prisma.HistoricoStockUpdateManyWithoutFarmaciaNestedInput
+  ajustesStock?: Prisma.AjusteStockUpdateManyWithoutFarmaciaNestedInput
+  inventarios?: Prisma.InventarioUpdateManyWithoutFarmaciaNestedInput
+  indicadores?: Prisma.IndicadoresProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutFarmaciaNestedInput
+  transferenciasOrigem?: Prisma.TransferenciaUpdateManyWithoutFarmaciaOrigemNestedInput
+  transferenciasDestino?: Prisma.TransferenciaUpdateManyWithoutFarmaciaDestinoNestedInput
+  lotesIngestao?: Prisma.LoteIngestaoUpdateManyWithoutFarmaciaNestedInput
+  emailConfig?: Prisma.EmailConfigUpdateOneWithoutFarmaciaNestedInput
+  ingestVendasLinhasRaw?: Prisma.IngestVendaLinhaRawUpdateManyWithoutFarmaciaNestedInput
+  pipelineRuns?: Prisma.PipelineRunUpdateManyWithoutFarmaciaNestedInput
+  fornecedorErpRefs?: Prisma.FornecedorErpRefUpdateManyWithoutFarmaciaNestedInput
+  stagingComprasRawLines?: Prisma.StagingCompraRawLineUpdateManyWithoutFarmaciaNestedInput
+  stagingDevolucoesFornecedorRawLines?: Prisma.StagingDevolucaoFornecedorRawLineUpdateManyWithoutFarmaciaNestedInput
+  movimentos?: Prisma.MovimentoArtigoUpdateManyWithoutFarmaciaNestedInput
+  ingestProdutoRuns?: Prisma.IngestProdutoRunUpdateManyWithoutFarmaciaNestedInput
+  compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
+  ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
+  syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+}
+
+export type FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
+  utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  produtosInternos?: Prisma.ProdutoInternoUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendas?: Prisma.VendaUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendasMensais?: Prisma.VendaMensalUncheckedUpdateManyWithoutFarmaciaNestedInput
   compras?: Prisma.CompraUncheckedUpdateManyWithoutFarmaciaNestedInput
   devolucoes?: Prisma.DevolucaoUncheckedUpdateManyWithoutFarmaciaNestedInput
   historicoStocks?: Prisma.HistoricoStockUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2753,6 +2990,7 @@ export type FarmaciaCreateWithoutComprasInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutComprasInput = {
@@ -2792,6 +3030,7 @@ export type FarmaciaUncheckedCreateWithoutComprasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutComprasInput = {
@@ -2847,6 +3086,7 @@ export type FarmaciaUpdateWithoutComprasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutComprasInput = {
@@ -2886,6 +3126,7 @@ export type FarmaciaUncheckedUpdateWithoutComprasInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutDevolucoesInput = {
@@ -2925,6 +3166,7 @@ export type FarmaciaCreateWithoutDevolucoesInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
@@ -2964,6 +3206,7 @@ export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutDevolucoesInput = {
@@ -3019,6 +3262,7 @@ export type FarmaciaUpdateWithoutDevolucoesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
@@ -3058,6 +3302,7 @@ export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutHistoricoStocksInput = {
@@ -3097,6 +3342,7 @@ export type FarmaciaCreateWithoutHistoricoStocksInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
@@ -3136,6 +3382,7 @@ export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutHistoricoStocksInput = {
@@ -3191,6 +3438,7 @@ export type FarmaciaUpdateWithoutHistoricoStocksInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
@@ -3230,6 +3478,7 @@ export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutAjustesStockInput = {
@@ -3269,6 +3518,7 @@ export type FarmaciaCreateWithoutAjustesStockInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
@@ -3308,6 +3558,7 @@ export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutAjustesStockInput = {
@@ -3363,6 +3614,7 @@ export type FarmaciaUpdateWithoutAjustesStockInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
@@ -3402,6 +3654,7 @@ export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutInventariosInput = {
@@ -3441,6 +3694,7 @@ export type FarmaciaCreateWithoutInventariosInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutInventariosInput = {
@@ -3480,6 +3734,7 @@ export type FarmaciaUncheckedCreateWithoutInventariosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutInventariosInput = {
@@ -3535,6 +3790,7 @@ export type FarmaciaUpdateWithoutInventariosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
@@ -3574,6 +3830,7 @@ export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutIndicadoresInput = {
@@ -3613,6 +3870,7 @@ export type FarmaciaCreateWithoutIndicadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
@@ -3652,6 +3910,7 @@ export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutIndicadoresInput = {
@@ -3707,6 +3966,7 @@ export type FarmaciaUpdateWithoutIndicadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
@@ -3746,6 +4006,7 @@ export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutListasEncomendaInput = {
@@ -3785,6 +4046,7 @@ export type FarmaciaCreateWithoutListasEncomendaInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
@@ -3824,6 +4086,7 @@ export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutListasEncomendaInput = {
@@ -3879,6 +4142,7 @@ export type FarmaciaUpdateWithoutListasEncomendaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
@@ -3918,6 +4182,7 @@ export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutTransferenciasOrigemInput = {
@@ -3957,6 +4222,7 @@ export type FarmaciaCreateWithoutTransferenciasOrigemInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutTransferenciasOrigemInput = {
@@ -3996,6 +4262,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasOrigemInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutTransferenciasOrigemInput = {
@@ -4040,6 +4307,7 @@ export type FarmaciaCreateWithoutTransferenciasDestinoInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutTransferenciasDestinoInput = {
@@ -4079,6 +4347,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasDestinoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutTransferenciasDestinoInput = {
@@ -4134,6 +4403,7 @@ export type FarmaciaUpdateWithoutTransferenciasOrigemInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutTransferenciasOrigemInput = {
@@ -4173,6 +4443,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasOrigemInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUpsertWithoutTransferenciasDestinoInput = {
@@ -4223,6 +4494,7 @@ export type FarmaciaUpdateWithoutTransferenciasDestinoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutTransferenciasDestinoInput = {
@@ -4262,6 +4534,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasDestinoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutLotesIngestaoInput = {
@@ -4301,6 +4574,7 @@ export type FarmaciaCreateWithoutLotesIngestaoInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
@@ -4340,6 +4614,7 @@ export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutLotesIngestaoInput = {
@@ -4395,6 +4670,7 @@ export type FarmaciaUpdateWithoutLotesIngestaoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
@@ -4434,6 +4710,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutIngestVendasLinhasRawInput = {
@@ -4473,6 +4750,7 @@ export type FarmaciaCreateWithoutIngestVendasLinhasRawInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutIngestVendasLinhasRawInput = {
@@ -4512,6 +4790,7 @@ export type FarmaciaUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutIngestVendasLinhasRawInput = {
@@ -4567,6 +4846,7 @@ export type FarmaciaUpdateWithoutIngestVendasLinhasRawInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
@@ -4606,6 +4886,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutStagingComprasRawLinesInput = {
@@ -4645,6 +4926,7 @@ export type FarmaciaCreateWithoutStagingComprasRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutStagingComprasRawLinesInput = {
@@ -4684,6 +4966,7 @@ export type FarmaciaUncheckedCreateWithoutStagingComprasRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutStagingComprasRawLinesInput = {
@@ -4739,6 +5022,7 @@ export type FarmaciaUpdateWithoutStagingComprasRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutStagingComprasRawLinesInput = {
@@ -4778,6 +5062,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingComprasRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutStagingDevolucoesFornecedorRawLinesInput = {
@@ -4817,6 +5102,7 @@ export type FarmaciaCreateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutStagingDevolucoesFornecedorRawLinesInput = {
@@ -4856,6 +5142,7 @@ export type FarmaciaUncheckedCreateWithoutStagingDevolucoesFornecedorRawLinesInp
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutStagingDevolucoesFornecedorRawLinesInput = {
@@ -4911,6 +5198,7 @@ export type FarmaciaUpdateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutStagingDevolucoesFornecedorRawLinesInput = {
@@ -4950,6 +5238,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingDevolucoesFornecedorRawLinesInp
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutPipelineRunsInput = {
@@ -4989,6 +5278,7 @@ export type FarmaciaCreateWithoutPipelineRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutPipelineRunsInput = {
@@ -5028,6 +5318,7 @@ export type FarmaciaUncheckedCreateWithoutPipelineRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutPipelineRunsInput = {
@@ -5083,6 +5374,7 @@ export type FarmaciaUpdateWithoutPipelineRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutPipelineRunsInput = {
@@ -5122,6 +5414,7 @@ export type FarmaciaUncheckedUpdateWithoutPipelineRunsInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutSyncRequestsInput = {
@@ -5161,6 +5454,7 @@ export type FarmaciaCreateWithoutSyncRequestsInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunCreateNestedManyWithoutFarmaciaInput
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutSyncRequestsInput = {
@@ -5200,6 +5494,7 @@ export type FarmaciaUncheckedCreateWithoutSyncRequestsInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedCreateNestedManyWithoutFarmaciaInput
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutSyncRequestsInput = {
@@ -5255,6 +5550,7 @@ export type FarmaciaUpdateWithoutSyncRequestsInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUpdateManyWithoutFarmaciaNestedInput
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutSyncRequestsInput = {
@@ -5294,6 +5590,7 @@ export type FarmaciaUncheckedUpdateWithoutSyncRequestsInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedUpdateManyWithoutFarmaciaNestedInput
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutMovimentosInput = {
@@ -5333,6 +5630,7 @@ export type FarmaciaCreateWithoutMovimentosInput = {
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutMovimentosInput = {
@@ -5372,6 +5670,7 @@ export type FarmaciaUncheckedCreateWithoutMovimentosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutMovimentosInput = {
@@ -5427,6 +5726,7 @@ export type FarmaciaUpdateWithoutMovimentosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutMovimentosInput = {
@@ -5466,6 +5766,7 @@ export type FarmaciaUncheckedUpdateWithoutMovimentosInput = {
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   ingestStocksMovRaw?: Prisma.IngestStocksMovRawUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaCreateWithoutIngestStocksMovRawInput = {
@@ -5505,6 +5806,7 @@ export type FarmaciaCreateWithoutIngestStocksMovRawInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunCreateNestedManyWithoutFarmaciaInput
   compraDocumentos?: Prisma.CompraDocumentoCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaUncheckedCreateWithoutIngestStocksMovRawInput = {
@@ -5544,6 +5846,7 @@ export type FarmaciaUncheckedCreateWithoutIngestStocksMovRawInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedCreateNestedManyWithoutFarmaciaInput
   compraDocumentos?: Prisma.CompraDocumentoUncheckedCreateNestedManyWithoutFarmaciaInput
   syncRequests?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutFarmaciaInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedCreateNestedManyWithoutFarmaciaInput
 }
 
 export type FarmaciaCreateOrConnectWithoutIngestStocksMovRawInput = {
@@ -5599,6 +5902,7 @@ export type FarmaciaUpdateWithoutIngestStocksMovRawInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUpdateManyWithoutFarmaciaNestedInput
   compraDocumentos?: Prisma.CompraDocumentoUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUpdateManyWithoutFarmaciaNestedInput
 }
 
 export type FarmaciaUncheckedUpdateWithoutIngestStocksMovRawInput = {
@@ -5638,6 +5942,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestStocksMovRawInput = {
   ingestProdutoRuns?: Prisma.IngestProdutoRunUncheckedUpdateManyWithoutFarmaciaNestedInput
   compraDocumentos?: Prisma.CompraDocumentoUncheckedUpdateManyWithoutFarmaciaNestedInput
   syncRequests?: Prisma.SyncRequestUncheckedUpdateManyWithoutFarmaciaNestedInput
+  vendaManutencaoCelulas?: Prisma.VendaManutencaoCelulaUncheckedUpdateManyWithoutFarmaciaNestedInput
 }
 
 
@@ -5672,6 +5977,7 @@ export type FarmaciaCountOutputType = {
   compraDocumentos: number
   ingestStocksMovRaw: number
   syncRequests: number
+  vendaManutencaoCelulas: number
 }
 
 export type FarmaciaCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -5701,6 +6007,7 @@ export type FarmaciaCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensio
   compraDocumentos?: boolean | FarmaciaCountOutputTypeCountCompraDocumentosArgs
   ingestStocksMovRaw?: boolean | FarmaciaCountOutputTypeCountIngestStocksMovRawArgs
   syncRequests?: boolean | FarmaciaCountOutputTypeCountSyncRequestsArgs
+  vendaManutencaoCelulas?: boolean | FarmaciaCountOutputTypeCountVendaManutencaoCelulasArgs
 }
 
 /**
@@ -5895,6 +6202,13 @@ export type FarmaciaCountOutputTypeCountSyncRequestsArgs<ExtArgs extends runtime
   where?: Prisma.SyncRequestWhereInput
 }
 
+/**
+ * FarmaciaCountOutputType without action
+ */
+export type FarmaciaCountOutputTypeCountVendaManutencaoCelulasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.VendaManutencaoCelulaWhereInput
+}
+
 
 export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -5934,6 +6248,7 @@ export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   compraDocumentos?: boolean | Prisma.Farmacia$compraDocumentosArgs<ExtArgs>
   ingestStocksMovRaw?: boolean | Prisma.Farmacia$ingestStocksMovRawArgs<ExtArgs>
   syncRequests?: boolean | Prisma.Farmacia$syncRequestsArgs<ExtArgs>
+  vendaManutencaoCelulas?: boolean | Prisma.Farmacia$vendaManutencaoCelulasArgs<ExtArgs>
   _count?: boolean | Prisma.FarmaciaCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["farmacia"]>
 
@@ -6005,6 +6320,7 @@ export type FarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArg
   compraDocumentos?: boolean | Prisma.Farmacia$compraDocumentosArgs<ExtArgs>
   ingestStocksMovRaw?: boolean | Prisma.Farmacia$ingestStocksMovRawArgs<ExtArgs>
   syncRequests?: boolean | Prisma.Farmacia$syncRequestsArgs<ExtArgs>
+  vendaManutencaoCelulas?: boolean | Prisma.Farmacia$vendaManutencaoCelulasArgs<ExtArgs>
   _count?: boolean | Prisma.FarmaciaCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type FarmaciaIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -6040,6 +6356,7 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     compraDocumentos: Prisma.$CompraDocumentoPayload<ExtArgs>[]
     ingestStocksMovRaw: Prisma.$IngestStocksMovRawPayload<ExtArgs>[]
     syncRequests: Prisma.$SyncRequestPayload<ExtArgs>[]
+    vendaManutencaoCelulas: Prisma.$VendaManutencaoCelulaPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -6488,6 +6805,7 @@ export interface Prisma__FarmaciaClient<T, Null = never, ExtArgs extends runtime
   compraDocumentos<T extends Prisma.Farmacia$compraDocumentosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$compraDocumentosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CompraDocumentoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   ingestStocksMovRaw<T extends Prisma.Farmacia$ingestStocksMovRawArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$ingestStocksMovRawArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$IngestStocksMovRawPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   syncRequests<T extends Prisma.Farmacia$syncRequestsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$syncRequestsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SyncRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  vendaManutencaoCelulas<T extends Prisma.Farmacia$vendaManutencaoCelulasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Farmacia$vendaManutencaoCelulasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendaManutencaoCelulaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -7560,6 +7878,30 @@ export type Farmacia$syncRequestsArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.SyncRequestScalarFieldEnum | Prisma.SyncRequestScalarFieldEnum[]
+}
+
+/**
+ * Farmacia.vendaManutencaoCelulas
+ */
+export type Farmacia$vendaManutencaoCelulasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the VendaManutencaoCelula
+   */
+  select?: Prisma.VendaManutencaoCelulaSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the VendaManutencaoCelula
+   */
+  omit?: Prisma.VendaManutencaoCelulaOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.VendaManutencaoCelulaInclude<ExtArgs> | null
+  where?: Prisma.VendaManutencaoCelulaWhereInput
+  orderBy?: Prisma.VendaManutencaoCelulaOrderByWithRelationInput | Prisma.VendaManutencaoCelulaOrderByWithRelationInput[]
+  cursor?: Prisma.VendaManutencaoCelulaWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.VendaManutencaoCelulaScalarFieldEnum | Prisma.VendaManutencaoCelulaScalarFieldEnum[]
 }
 
 /**

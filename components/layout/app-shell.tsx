@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Percent,
   KeyRound,
+  Wrench,
 } from "lucide-react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
@@ -55,6 +56,7 @@ const navigation: NavGroup[] = [
     section: "RELATÓRIOS",
     items: [
       { label: "Vendas", href: "/vendas", icon: FileText },
+      { label: "Manutenção de Vendas", href: "/vendas/manutencao", icon: Wrench },
       { label: "Inventário", href: "/relatorios/inventario", icon: Boxes },
       { label: "Margens", href: "/relatorios/margens", icon: Percent },
     ],

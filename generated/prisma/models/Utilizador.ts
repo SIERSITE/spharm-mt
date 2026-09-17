@@ -236,6 +236,8 @@ export type UtilizadorWhereInput = {
   transferencias?: Prisma.TransferenciaListRelationFilter
   auditoria?: Prisma.AuditLogListRelationFilter
   syncRequestsPedidos?: Prisma.SyncRequestListRelationFilter
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoListRelationFilter
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoListRelationFilter
 }
 
 export type UtilizadorOrderByWithRelationInput = {
@@ -256,6 +258,8 @@ export type UtilizadorOrderByWithRelationInput = {
   transferencias?: Prisma.TransferenciaOrderByRelationAggregateInput
   auditoria?: Prisma.AuditLogOrderByRelationAggregateInput
   syncRequestsPedidos?: Prisma.SyncRequestOrderByRelationAggregateInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoOrderByRelationAggregateInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoOrderByRelationAggregateInput
 }
 
 export type UtilizadorWhereUniqueInput = Prisma.AtLeast<{
@@ -279,6 +283,8 @@ export type UtilizadorWhereUniqueInput = Prisma.AtLeast<{
   transferencias?: Prisma.TransferenciaListRelationFilter
   auditoria?: Prisma.AuditLogListRelationFilter
   syncRequestsPedidos?: Prisma.SyncRequestListRelationFilter
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoListRelationFilter
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoListRelationFilter
 }, "id" | "email">
 
 export type UtilizadorOrderByWithAggregationInput = {
@@ -332,6 +338,8 @@ export type UtilizadorCreateInput = {
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateInput = {
@@ -351,6 +359,8 @@ export type UtilizadorUncheckedCreateInput = {
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUpdateInput = {
@@ -370,6 +380,8 @@ export type UtilizadorUpdateInput = {
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateInput = {
@@ -389,6 +401,8 @@ export type UtilizadorUncheckedUpdateInput = {
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorCreateManyInput = {
@@ -570,6 +584,36 @@ export type UtilizadorUpdateOneWithoutAuditoriaNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UtilizadorUpdateToOneWithWhereWithoutAuditoriaInput, Prisma.UtilizadorUpdateWithoutAuditoriaInput>, Prisma.UtilizadorUncheckedUpdateWithoutAuditoriaInput>
 }
 
+export type UtilizadorCreateNestedOneWithoutVendaManutencoesCriadasInput = {
+  create?: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesCriadasInput>
+  connectOrCreate?: Prisma.UtilizadorCreateOrConnectWithoutVendaManutencoesCriadasInput
+  connect?: Prisma.UtilizadorWhereUniqueInput
+}
+
+export type UtilizadorCreateNestedOneWithoutVendaManutencoesEditadasInput = {
+  create?: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesEditadasInput>
+  connectOrCreate?: Prisma.UtilizadorCreateOrConnectWithoutVendaManutencoesEditadasInput
+  connect?: Prisma.UtilizadorWhereUniqueInput
+}
+
+export type UtilizadorUpdateOneRequiredWithoutVendaManutencoesCriadasNestedInput = {
+  create?: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesCriadasInput>
+  connectOrCreate?: Prisma.UtilizadorCreateOrConnectWithoutVendaManutencoesCriadasInput
+  upsert?: Prisma.UtilizadorUpsertWithoutVendaManutencoesCriadasInput
+  connect?: Prisma.UtilizadorWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UtilizadorUpdateToOneWithWhereWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUpdateWithoutVendaManutencoesCriadasInput>, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesCriadasInput>
+}
+
+export type UtilizadorUpdateOneWithoutVendaManutencoesEditadasNestedInput = {
+  create?: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesEditadasInput>
+  connectOrCreate?: Prisma.UtilizadorCreateOrConnectWithoutVendaManutencoesEditadasInput
+  upsert?: Prisma.UtilizadorUpsertWithoutVendaManutencoesEditadasInput
+  disconnect?: Prisma.UtilizadorWhereInput | boolean
+  delete?: Prisma.UtilizadorWhereInput | boolean
+  connect?: Prisma.UtilizadorWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UtilizadorUpdateToOneWithWhereWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUpdateWithoutVendaManutencoesEditadasInput>, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesEditadasInput>
+}
+
 export type UtilizadorCreateNestedOneWithoutListasEncomendaInput = {
   create?: Prisma.XOR<Prisma.UtilizadorCreateWithoutListasEncomendaInput, Prisma.UtilizadorUncheckedCreateWithoutListasEncomendaInput>
   connectOrCreate?: Prisma.UtilizadorCreateOrConnectWithoutListasEncomendaInput
@@ -628,6 +672,8 @@ export type UtilizadorCreateWithoutFarmaciaInput = {
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutFarmaciaInput = {
@@ -646,6 +692,8 @@ export type UtilizadorUncheckedCreateWithoutFarmaciaInput = {
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutFarmaciaInput = {
@@ -707,6 +755,8 @@ export type UtilizadorCreateWithoutFarmaciasInput = {
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutFarmaciasInput = {
@@ -725,6 +775,8 @@ export type UtilizadorUncheckedCreateWithoutFarmaciasInput = {
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutFarmaciasInput = {
@@ -759,6 +811,8 @@ export type UtilizadorUpdateWithoutFarmaciasInput = {
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutFarmaciasInput = {
@@ -777,6 +831,8 @@ export type UtilizadorUncheckedUpdateWithoutFarmaciasInput = {
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorCreateWithoutAuditoriaInput = {
@@ -795,6 +851,8 @@ export type UtilizadorCreateWithoutAuditoriaInput = {
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutCriadoPorInput
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutAuditoriaInput = {
@@ -813,6 +871,8 @@ export type UtilizadorUncheckedCreateWithoutAuditoriaInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutCriadoPorInput
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutAuditoriaInput = {
@@ -847,6 +907,8 @@ export type UtilizadorUpdateWithoutAuditoriaInput = {
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutCriadoPorNestedInput
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutAuditoriaInput = {
@@ -865,6 +927,200 @@ export type UtilizadorUncheckedUpdateWithoutAuditoriaInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutCriadoPorNestedInput
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
+}
+
+export type UtilizadorCreateWithoutVendaManutencoesCriadasInput = {
+  id?: string
+  email: string
+  nome: string
+  perfil: $Enums.UtilizadorPerfil
+  estado?: $Enums.EntidadeEstado
+  passwordHash?: string | null
+  mustChangePassword?: boolean
+  ultimoLogin?: Date | string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  farmacia?: Prisma.FarmaciaCreateNestedOneWithoutUtilizadoresInput
+  farmacias?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutUtilizadorInput
+  listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutCriadoPorInput
+  transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
+  auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
+  syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
+}
+
+export type UtilizadorUncheckedCreateWithoutVendaManutencoesCriadasInput = {
+  id?: string
+  email: string
+  nome: string
+  perfil: $Enums.UtilizadorPerfil
+  farmaciaId?: string | null
+  estado?: $Enums.EntidadeEstado
+  passwordHash?: string | null
+  mustChangePassword?: boolean
+  ultimoLogin?: Date | string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  farmacias?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutUtilizadorInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutCriadoPorInput
+  transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
+  auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
+  syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
+}
+
+export type UtilizadorCreateOrConnectWithoutVendaManutencoesCriadasInput = {
+  where: Prisma.UtilizadorWhereUniqueInput
+  create: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesCriadasInput>
+}
+
+export type UtilizadorCreateWithoutVendaManutencoesEditadasInput = {
+  id?: string
+  email: string
+  nome: string
+  perfil: $Enums.UtilizadorPerfil
+  estado?: $Enums.EntidadeEstado
+  passwordHash?: string | null
+  mustChangePassword?: boolean
+  ultimoLogin?: Date | string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  farmacia?: Prisma.FarmaciaCreateNestedOneWithoutUtilizadoresInput
+  farmacias?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutUtilizadorInput
+  listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutCriadoPorInput
+  transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
+  auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
+  syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+}
+
+export type UtilizadorUncheckedCreateWithoutVendaManutencoesEditadasInput = {
+  id?: string
+  email: string
+  nome: string
+  perfil: $Enums.UtilizadorPerfil
+  farmaciaId?: string | null
+  estado?: $Enums.EntidadeEstado
+  passwordHash?: string | null
+  mustChangePassword?: boolean
+  ultimoLogin?: Date | string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  farmacias?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutUtilizadorInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutCriadoPorInput
+  transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
+  auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
+  syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+}
+
+export type UtilizadorCreateOrConnectWithoutVendaManutencoesEditadasInput = {
+  where: Prisma.UtilizadorWhereUniqueInput
+  create: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesEditadasInput>
+}
+
+export type UtilizadorUpsertWithoutVendaManutencoesCriadasInput = {
+  update: Prisma.XOR<Prisma.UtilizadorUpdateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesCriadasInput>
+  create: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesCriadasInput>
+  where?: Prisma.UtilizadorWhereInput
+}
+
+export type UtilizadorUpdateToOneWithWhereWithoutVendaManutencoesCriadasInput = {
+  where?: Prisma.UtilizadorWhereInput
+  data: Prisma.XOR<Prisma.UtilizadorUpdateWithoutVendaManutencoesCriadasInput, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesCriadasInput>
+}
+
+export type UtilizadorUpdateWithoutVendaManutencoesCriadasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  perfil?: Prisma.EnumUtilizadorPerfilFieldUpdateOperationsInput | $Enums.UtilizadorPerfil
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mustChangePassword?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ultimoLogin?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  farmacia?: Prisma.FarmaciaUpdateOneWithoutUtilizadoresNestedInput
+  farmacias?: Prisma.UtilizadorFarmaciaUpdateManyWithoutUtilizadorNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutCriadoPorNestedInput
+  transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
+  auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
+  syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
+}
+
+export type UtilizadorUncheckedUpdateWithoutVendaManutencoesCriadasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  perfil?: Prisma.EnumUtilizadorPerfilFieldUpdateOperationsInput | $Enums.UtilizadorPerfil
+  farmaciaId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mustChangePassword?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ultimoLogin?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  farmacias?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutUtilizadorNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutCriadoPorNestedInput
+  transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
+  auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
+  syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
+}
+
+export type UtilizadorUpsertWithoutVendaManutencoesEditadasInput = {
+  update: Prisma.XOR<Prisma.UtilizadorUpdateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesEditadasInput>
+  create: Prisma.XOR<Prisma.UtilizadorCreateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedCreateWithoutVendaManutencoesEditadasInput>
+  where?: Prisma.UtilizadorWhereInput
+}
+
+export type UtilizadorUpdateToOneWithWhereWithoutVendaManutencoesEditadasInput = {
+  where?: Prisma.UtilizadorWhereInput
+  data: Prisma.XOR<Prisma.UtilizadorUpdateWithoutVendaManutencoesEditadasInput, Prisma.UtilizadorUncheckedUpdateWithoutVendaManutencoesEditadasInput>
+}
+
+export type UtilizadorUpdateWithoutVendaManutencoesEditadasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  perfil?: Prisma.EnumUtilizadorPerfilFieldUpdateOperationsInput | $Enums.UtilizadorPerfil
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mustChangePassword?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ultimoLogin?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  farmacia?: Prisma.FarmaciaUpdateOneWithoutUtilizadoresNestedInput
+  farmacias?: Prisma.UtilizadorFarmaciaUpdateManyWithoutUtilizadorNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutCriadoPorNestedInput
+  transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
+  auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
+  syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+}
+
+export type UtilizadorUncheckedUpdateWithoutVendaManutencoesEditadasInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  nome?: Prisma.StringFieldUpdateOperationsInput | string
+  perfil?: Prisma.EnumUtilizadorPerfilFieldUpdateOperationsInput | $Enums.UtilizadorPerfil
+  farmaciaId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  passwordHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  mustChangePassword?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ultimoLogin?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  farmacias?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutUtilizadorNestedInput
+  listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutCriadoPorNestedInput
+  transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
+  auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
+  syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
 }
 
 export type UtilizadorCreateWithoutListasEncomendaInput = {
@@ -883,6 +1139,8 @@ export type UtilizadorCreateWithoutListasEncomendaInput = {
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutListasEncomendaInput = {
@@ -901,6 +1159,8 @@ export type UtilizadorUncheckedCreateWithoutListasEncomendaInput = {
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutListasEncomendaInput = {
@@ -935,6 +1195,8 @@ export type UtilizadorUpdateWithoutListasEncomendaInput = {
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutListasEncomendaInput = {
@@ -953,6 +1215,8 @@ export type UtilizadorUncheckedUpdateWithoutListasEncomendaInput = {
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorCreateWithoutTransferenciasInput = {
@@ -971,6 +1235,8 @@ export type UtilizadorCreateWithoutTransferenciasInput = {
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutTransferenciasInput = {
@@ -989,6 +1255,8 @@ export type UtilizadorUncheckedCreateWithoutTransferenciasInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedCreateNestedManyWithoutRequestedByInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutTransferenciasInput = {
@@ -1023,6 +1291,8 @@ export type UtilizadorUpdateWithoutTransferenciasInput = {
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutTransferenciasInput = {
@@ -1041,6 +1311,8 @@ export type UtilizadorUncheckedUpdateWithoutTransferenciasInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorCreateWithoutSyncRequestsPedidosInput = {
@@ -1059,6 +1331,8 @@ export type UtilizadorCreateWithoutSyncRequestsPedidosInput = {
   listasEncomenda?: Prisma.ListaEncomendaCreateNestedManyWithoutCriadoPorInput
   transferencias?: Prisma.TransferenciaCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogCreateNestedManyWithoutActorInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorUncheckedCreateWithoutSyncRequestsPedidosInput = {
@@ -1077,6 +1351,8 @@ export type UtilizadorUncheckedCreateWithoutSyncRequestsPedidosInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedCreateNestedManyWithoutCriadoPorInput
   transferencias?: Prisma.TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput
   auditoria?: Prisma.AuditLogUncheckedCreateNestedManyWithoutActorInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutCriadoPorInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedCreateNestedManyWithoutAtualizadoPorInput
 }
 
 export type UtilizadorCreateOrConnectWithoutSyncRequestsPedidosInput = {
@@ -1111,6 +1387,8 @@ export type UtilizadorUpdateWithoutSyncRequestsPedidosInput = {
   listasEncomenda?: Prisma.ListaEncomendaUpdateManyWithoutCriadoPorNestedInput
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutSyncRequestsPedidosInput = {
@@ -1129,6 +1407,8 @@ export type UtilizadorUncheckedUpdateWithoutSyncRequestsPedidosInput = {
   listasEncomenda?: Prisma.ListaEncomendaUncheckedUpdateManyWithoutCriadoPorNestedInput
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorCreateManyFarmaciaInput = {
@@ -1160,6 +1440,8 @@ export type UtilizadorUpdateWithoutFarmaciaInput = {
   transferencias?: Prisma.TransferenciaUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateWithoutFarmaciaInput = {
@@ -1178,6 +1460,8 @@ export type UtilizadorUncheckedUpdateWithoutFarmaciaInput = {
   transferencias?: Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput
   auditoria?: Prisma.AuditLogUncheckedUpdateManyWithoutActorNestedInput
   syncRequestsPedidos?: Prisma.SyncRequestUncheckedUpdateManyWithoutRequestedByNestedInput
+  vendaManutencoesCriadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutCriadoPorNestedInput
+  vendaManutencoesEditadas?: Prisma.VendaManutencaoUncheckedUpdateManyWithoutAtualizadoPorNestedInput
 }
 
 export type UtilizadorUncheckedUpdateManyWithoutFarmaciaInput = {
@@ -1204,6 +1488,8 @@ export type UtilizadorCountOutputType = {
   transferencias: number
   auditoria: number
   syncRequestsPedidos: number
+  vendaManutencoesCriadas: number
+  vendaManutencoesEditadas: number
 }
 
 export type UtilizadorCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1212,6 +1498,8 @@ export type UtilizadorCountOutputTypeSelect<ExtArgs extends runtime.Types.Extens
   transferencias?: boolean | UtilizadorCountOutputTypeCountTransferenciasArgs
   auditoria?: boolean | UtilizadorCountOutputTypeCountAuditoriaArgs
   syncRequestsPedidos?: boolean | UtilizadorCountOutputTypeCountSyncRequestsPedidosArgs
+  vendaManutencoesCriadas?: boolean | UtilizadorCountOutputTypeCountVendaManutencoesCriadasArgs
+  vendaManutencoesEditadas?: boolean | UtilizadorCountOutputTypeCountVendaManutencoesEditadasArgs
 }
 
 /**
@@ -1259,6 +1547,20 @@ export type UtilizadorCountOutputTypeCountSyncRequestsPedidosArgs<ExtArgs extend
   where?: Prisma.SyncRequestWhereInput
 }
 
+/**
+ * UtilizadorCountOutputType without action
+ */
+export type UtilizadorCountOutputTypeCountVendaManutencoesCriadasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.VendaManutencaoWhereInput
+}
+
+/**
+ * UtilizadorCountOutputType without action
+ */
+export type UtilizadorCountOutputTypeCountVendaManutencoesEditadasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.VendaManutencaoWhereInput
+}
+
 
 export type UtilizadorSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1278,6 +1580,8 @@ export type UtilizadorSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
   transferencias?: boolean | Prisma.Utilizador$transferenciasArgs<ExtArgs>
   auditoria?: boolean | Prisma.Utilizador$auditoriaArgs<ExtArgs>
   syncRequestsPedidos?: boolean | Prisma.Utilizador$syncRequestsPedidosArgs<ExtArgs>
+  vendaManutencoesCriadas?: boolean | Prisma.Utilizador$vendaManutencoesCriadasArgs<ExtArgs>
+  vendaManutencoesEditadas?: boolean | Prisma.Utilizador$vendaManutencoesEditadasArgs<ExtArgs>
   _count?: boolean | Prisma.UtilizadorCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["utilizador"]>
 
@@ -1333,6 +1637,8 @@ export type UtilizadorInclude<ExtArgs extends runtime.Types.Extensions.InternalA
   transferencias?: boolean | Prisma.Utilizador$transferenciasArgs<ExtArgs>
   auditoria?: boolean | Prisma.Utilizador$auditoriaArgs<ExtArgs>
   syncRequestsPedidos?: boolean | Prisma.Utilizador$syncRequestsPedidosArgs<ExtArgs>
+  vendaManutencoesCriadas?: boolean | Prisma.Utilizador$vendaManutencoesCriadasArgs<ExtArgs>
+  vendaManutencoesEditadas?: boolean | Prisma.Utilizador$vendaManutencoesEditadasArgs<ExtArgs>
   _count?: boolean | Prisma.UtilizadorCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UtilizadorIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1354,6 +1660,8 @@ export type $UtilizadorPayload<ExtArgs extends runtime.Types.Extensions.Internal
      * Pedidos de "Sincronizar agora" feitos por este utilizador.
      */
     syncRequestsPedidos: Prisma.$SyncRequestPayload<ExtArgs>[]
+    vendaManutencoesCriadas: Prisma.$VendaManutencaoPayload<ExtArgs>[]
+    vendaManutencoesEditadas: Prisma.$VendaManutencaoPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1776,6 +2084,8 @@ export interface Prisma__UtilizadorClient<T, Null = never, ExtArgs extends runti
   transferencias<T extends Prisma.Utilizador$transferenciasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Utilizador$transferenciasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$TransferenciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   auditoria<T extends Prisma.Utilizador$auditoriaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Utilizador$auditoriaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AuditLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   syncRequestsPedidos<T extends Prisma.Utilizador$syncRequestsPedidosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Utilizador$syncRequestsPedidosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SyncRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  vendaManutencoesCriadas<T extends Prisma.Utilizador$vendaManutencoesCriadasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Utilizador$vendaManutencoesCriadasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendaManutencaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  vendaManutencoesEditadas<T extends Prisma.Utilizador$vendaManutencoesEditadasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Utilizador$vendaManutencoesEditadasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VendaManutencaoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2353,6 +2663,54 @@ export type Utilizador$syncRequestsPedidosArgs<ExtArgs extends runtime.Types.Ext
   take?: number
   skip?: number
   distinct?: Prisma.SyncRequestScalarFieldEnum | Prisma.SyncRequestScalarFieldEnum[]
+}
+
+/**
+ * Utilizador.vendaManutencoesCriadas
+ */
+export type Utilizador$vendaManutencoesCriadasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the VendaManutencao
+   */
+  select?: Prisma.VendaManutencaoSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the VendaManutencao
+   */
+  omit?: Prisma.VendaManutencaoOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.VendaManutencaoInclude<ExtArgs> | null
+  where?: Prisma.VendaManutencaoWhereInput
+  orderBy?: Prisma.VendaManutencaoOrderByWithRelationInput | Prisma.VendaManutencaoOrderByWithRelationInput[]
+  cursor?: Prisma.VendaManutencaoWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.VendaManutencaoScalarFieldEnum | Prisma.VendaManutencaoScalarFieldEnum[]
+}
+
+/**
+ * Utilizador.vendaManutencoesEditadas
+ */
+export type Utilizador$vendaManutencoesEditadasArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the VendaManutencao
+   */
+  select?: Prisma.VendaManutencaoSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the VendaManutencao
+   */
+  omit?: Prisma.VendaManutencaoOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.VendaManutencaoInclude<ExtArgs> | null
+  where?: Prisma.VendaManutencaoWhereInput
+  orderBy?: Prisma.VendaManutencaoOrderByWithRelationInput | Prisma.VendaManutencaoOrderByWithRelationInput[]
+  cursor?: Prisma.VendaManutencaoWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.VendaManutencaoScalarFieldEnum | Prisma.VendaManutencaoScalarFieldEnum[]
 }
 
 /**

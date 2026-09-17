@@ -556,5 +556,54 @@ console.log("\nK · Inventário Por Produto — bloco por artigo, farmácias em 
   check(body.includes(`>${formatCurrency(6.5)}<`), "K13: PVP do Silveirense (6,50 €) também, distinto");
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// L · Margens Por Produto — correcção visual: Categoria vira sublinha
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nL · Margens Por Produto — Categoria como sublinha (correcção visual 2026-09)");
+{
+  const linhaLonga = (over: Partial<MargemRow>): MargemRow => ({
+    cnp: 1, designacao: "Acarbose Generis 100 mg 50 comprimidos revestidos por película",
+    categoria: "Medicamentos Não Sujeitos a Receita Médica", grupo: null,
+    farmaciaId: "f1", farmacia: "Farmácia Segurado", fabricante: "Fabricante Teste",
+    qtdVendida: 10, valorVendido: 66.6, pvpUnitario: 6.66, custoUnitario: 4.46,
+    valorVendidoSemIva: 54.15, taxaIva: 23, custoUnitarioBase: 4.46, custoEstimado: 44.6,
+    margemEur: 9.55, margemPct: 17.6, coberturaCusto: 1, estado: "FIAVEL",
+    ...over,
+  });
+  const rel = buildMargensProdutoReport({
+    rows: [linhaLonga({})],
+    filters: {},
+    universe: { farmacias: UNIVERSE_2, categorias: [], fabricantes: [], distribuidores: [] },
+    organization: "Grupo",
+  });
+
+  const colCategoria = rel.columns.find((c) => c.key === "categoria");
+  check(colCategoria?.excelOnly === true, "L1: Categoria já não desenha no HTML/PDF — só existe no Excel");
+  const colDesc = rel.columns.find((c) => c.key === "designacao");
+  eq(colDesc?.noteKey, "categoriaNota", "L2: Descrição usa noteKey para mostrar a categoria por baixo");
+  check((colDesc?.width ?? 0) > 20, "L3: Descrição ganhou largura (>20%, era ~15%)");
+  const colFarmacia = rel.columns.find((c) => c.key === "farmacia");
+  check((colFarmacia?.width ?? 0) >= 9, "L4: Farmácia com largura decente (≥9%, nunca esmagada por métricas)");
+
+  const soma = rel.columns
+    .filter((c) => !c.hidden && !c.excelOnly)
+    .reduce((s, c) => s + (c.width ?? 0), 0);
+  eq(Math.round(soma * 1000) / 1000, 100, "L5: larguras visíveis continuam a somar exactamente 100");
+
+  const html = renderReportHtml(rel);
+  const body = html.slice(html.indexOf("<body>"));
+  check(body.includes(">Medicamentos Não Sujeitos a Receita Médica<"), "L6: a categoria longa aparece por inteiro, como sublinha");
+  const theadHtml = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
+  check(!theadHtml.includes(">Categoria<"), "L7: já não há coluna própria 'Categoria' no cabeçalho do HTML/PDF");
+
+  // A categoria nunca pode quebrar dentro de uma palavra — nenhuma
+  // palavra da categoria mais longa usada nesta suite ultrapassa o que
+  // cabe numa coluna de ~24% (a antiga, de ~8%, é que partia palavras).
+  const maiorPalavra = "Medicamentos Não Sujeitos a Receita Médica"
+    .split(" ")
+    .reduce((a, b) => (b.length > a.length ? b : a), "");
+  check(body.includes(maiorPalavra), "L8: a maior palavra da categoria aparece inteira, nunca partida a meio");
+}
+
 console.log(`\n${ok} ok, ${ko} falhas`);
 process.exit(ko === 0 ? 0 : 1);

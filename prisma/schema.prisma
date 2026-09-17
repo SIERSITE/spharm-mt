@@ -415,6 +415,7 @@ model Produto {
   enrichmentSourceLogs  EnrichmentSourceLog[]
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
   movimentos            MovimentoArtigo[]
+  vendaManutencoes      VendaManutencao[]
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -1007,6 +1008,7 @@ model Farmacia {
   compraDocumentos                    CompraDocumento[]
   ingestStocksMovRaw                  IngestStocksMovRaw[]
   syncRequests                        SyncRequest[]
+  vendaManutencaoCelulas              VendaManutencaoCelula[]
 
   /// OBSOLETA desde 2026-08-18 — já NÃO escolhe fonte nenhuma.
   ///
@@ -1068,13 +1070,15 @@ model Utilizador {
   dataCriacao        DateTime         @default(now())
   dataAtualizacao    DateTime         @updatedAt
 
-  farmacia            Farmacia?            @relation(fields: [farmaciaId], references: [id])
-  farmacias           UtilizadorFarmacia[]
-  listasEncomenda     ListaEncomenda[]
-  transferencias      Transferencia[]
-  auditoria           AuditLog[]           @relation("AuditLogActor")
+  farmacia                 Farmacia?            @relation(fields: [farmaciaId], references: [id])
+  farmacias                UtilizadorFarmacia[]
+  listasEncomenda          ListaEncomenda[]
+  transferencias           Transferencia[]
+  auditoria                AuditLog[]           @relation("AuditLogActor")
   /// Pedidos de "Sincronizar agora" feitos por este utilizador.
-  syncRequestsPedidos SyncRequest[]
+  syncRequestsPedidos      SyncRequest[]
+  vendaManutencoesCriadas  VendaManutencao[]    @relation("VendaManutencaoCriador")
+  vendaManutencoesEditadas VendaManutencao[]    @relation("VendaManutencaoEditor")
 }
 
 /// Associação N:N utilizador → farmácias para perfis com acesso a
@@ -1363,6 +1367,84 @@ model VendaMensal {
   @@index([produtoId, ano, mes])
   @@index([origemAgregacao])
   @@index([farmaciaId, ano, mes, naturezaVenda])
+}
+
+/// Manutenção de Vendas — quantidades adicionais injectadas manualmente
+/// no mapa de Vendas, separadas por completo do ledger real
+/// (`VendaMensal`/`IngestVendaLinhaRaw`). NUNCA escrita por nenhum
+/// caminho de ingestão do ERP.
+///
+/// Cabeçalho de uma operação de manutenção para UM artigo: quantidade
+/// total a distribuir, por quantos meses, a partir de quando. A
+/// distribuição efectiva (quanto por farmácia × mês) vive em
+/// `VendaManutencaoCelula` — este modelo não repete esse detalhe.
+///
+/// Por desenho, esta tabela NUNCA entra no cálculo de peso histórico de
+/// farmácia de uma manutenção futura (esse cálculo lê exclusivamente
+/// `VendaMensal`) — precisamente por viver numa tabela própria.
+///
+/// Isolamento por tenant: estrutural (uma BD por tenant, ver
+/// `lib/tenant-registry.ts`) — sem campo `tenantId`, como o resto do
+/// schema.
+model VendaManutencao {
+  id        String @id @default(cuid())
+  produtoId String
+  /// CNP snapshot — sobrevive a uma eventual alteração de `Produto`,
+  /// e é o que a UI/auditoria mostra sem precisar de JOIN.
+  cnp       Int
+
+  /// Quantidade TOTAL a distribuir por farmácias × meses. Mesmo domínio
+  /// de `VendaMensal.quantidade`/`quantidadeLiquida` — Decimal(14,3), não
+  /// Int: o ledger real admite fracções e esta funcionalidade não lhe
+  /// impõe uma restrição que o próprio ledger não tem.
+  quantidadeTotal Decimal @db.Decimal(14, 3)
+  numMeses        Int
+  /// Mês de início da distribuição (ano civil + mês 1-12) — não um
+  /// `DateTime`: só interessa o par (ano, mês), nunca um dia.
+  mesInicialAno   Int
+  mesInicialMes   Int
+
+  /// AUTOMATICA — resultado intacto do cálculo (peso + distribuição).
+  /// MANUAL_AJUSTADA — pelo menos uma célula foi editada à mão depois do
+  /// cálculo automático. Volta a AUTOMATICA só com um recálculo explícito.
+  origemDistribuicao String @default("AUTOMATICA")
+  /// ATIVA | ANULADA. Nunca DELETE físico — uma manutenção anulada
+  /// deixa IMEDIATAMENTE de contribuir para o mapa de Vendas (o merge
+  /// no loader filtra `estado: "ATIVA"`), mas fica para auditoria.
+  estado             String @default("ATIVA")
+
+  criadoPorId     String
+  atualizadoPorId String?
+  dataCriacao     DateTime @default(now())
+  dataAtualizacao DateTime @updatedAt
+
+  produto       Produto                 @relation(fields: [produtoId], references: [id])
+  criadoPor     Utilizador              @relation("VendaManutencaoCriador", fields: [criadoPorId], references: [id])
+  atualizadoPor Utilizador?             @relation("VendaManutencaoEditor", fields: [atualizadoPorId], references: [id])
+  celulas       VendaManutencaoCelula[]
+
+  @@index([produtoId])
+  @@index([estado])
+}
+
+/// Uma célula da matriz farmácia × mês de uma `VendaManutencao`.
+/// Granularidade idêntica a `VendaMensal`, propositadamente — é o que
+/// torna o merge no loader de Vendas uma soma trivial pela mesma chave
+/// `(produtoId via manutencao, farmaciaId, ano, mes)`.
+model VendaManutencaoCelula {
+  id           String  @id @default(cuid())
+  manutencaoId String
+  farmaciaId   String
+  ano          Int
+  mes          Int
+  /// Mesmo domínio de `VendaManutencao.quantidadeTotal` — ver ali.
+  quantidade   Decimal @db.Decimal(14, 3)
+
+  manutencao VendaManutencao @relation(fields: [manutencaoId], references: [id], onDelete: Cascade)
+  farmacia   Farmacia        @relation(fields: [farmaciaId], references: [id])
+
+  @@unique([manutencaoId, farmaciaId, ano, mes])
+  @@index([farmaciaId, ano, mes])
 }
 
 /// Compras diárias agregadas por produto-dia-farmácia-fornecedor.

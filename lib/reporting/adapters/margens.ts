@@ -58,20 +58,21 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
 // Por produto, na ordem de leitura pedida:
 //   preço unitário → custo unitário → margem resultante
 //
-// Larguras "editoriais" (somavam 108 antes da uniformização, 2026-09 —
-// transbordava a página impressa; `normalizarLargura` corrige a soma
-// para 100 preservando as proporções relativas, ver column-widths.ts):
-// CNP 5 · Descrição 16 · Categoria 8 · Farmácia 8 · Qtd 4 ·
-// PVP un. 7 · Vend c/IVA 8 · IVA% 4 · Vend s/IVA 8 · Custo un. 7 ·
-// Custo 8 · Margem € 8 · Margem % 6 · Cobert. 5 · Estado 6.
-//
-// PVP un. e Custo un. NÃO levam `showTotal`: somar preços unitários de
-// artigos diferentes dá um número sem significado nenhum.
+// Larguras (correcção visual 2026-09: o bloco por artigo tinha ficado
+// demasiado comprimido — Categoria estreita quebrava palavras
+// ["MEDICAMENTO"/"S"] e a Descrição não tinha espaço). `Categoria`
+// deixou de ser coluna autónoma no PDF/HTML — passou a sublinha da
+// Descrição (`noteKey`, ver abaixo), o mesmo mecanismo que Vendas já
+// usa para outra informação secundária. O espaço libertado foi todo
+// para Descrição (~16%→~24%) e Farmácia (~8%→~9,5%); as colunas
+// numéricas encolheram ligeiramente — nenhuma delas precisa de mais do
+// que o número que mostra. `normalizarLargura` corrige a soma para 100
+// preservando estas proporções (ver column-widths.ts).
 const MARGENS_PRODUTO_BASE_WIDTHS = {
-  cnp: 5, designacao: 16, categoria: 8, farmacia: 8, qtdVendida: 4,
-  pvpUnitario: 7, valorVendido: 8, taxaIva: 4, valorVendidoSemIva: 8,
-  custoUnitario: 7, custoEstimado: 8, margemEur: 8, margemPct: 6,
-  coberturaPct: 5, estado: 6,
+  cnp: 5, designacao: 24, farmacia: 9.5, qtdVendida: 3.5,
+  pvpUnitario: 5.7, valorVendido: 6.7, taxaIva: 3.3, valorVendidoSemIva: 6.7,
+  custoUnitario: 5.7, custoEstimado: 6.7, margemEur: 6.7, margemPct: 4.8,
+  coberturaPct: 4.8, estado: 6.2,
 };
 const MPW = normalizarLargura(MARGENS_PRODUTO_BASE_WIDTHS);
 
@@ -83,8 +84,18 @@ const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
     // farmácia + o TOTAL ARTIGO. Ver GROUP_KEY em buildMargensProdutoReport.
     spanGroup: true,
   },
-  { key: "designacao",         label: "Descrição",    format: "text",     width: MPW.designacao, spanGroup: true },
-  { key: "categoria",          label: "Categoria",    format: "text",     width: MPW.categoria },
+  {
+    key: "designacao",         label: "Descrição",    format: "text",     width: MPW.designacao, spanGroup: true,
+    // Categoria como sublinha discreta — nunca uma coluna estreita a
+    // partir palavras ("MEDICAMENTOS" não cabia em ~8%). Uma vez por
+    // bloco (a categoria é do PRODUTO, não da farmácia), coberta pelo
+    // mesmo rowspan de CNP/Descrição.
+    noteKey: "categoriaNota",
+  },
+  // Categoria continua uma coluna verdadeira no Excel — só sai do
+  // HTML/PDF (ver noteKey acima). Largura nominal, o Excel deriva a
+  // sua própria a partir do rótulo (ver report-excel-buffer.ts).
+  { key: "categoria",          label: "Categoria",    format: "text",     width: 10, excelOnly: true },
   {
     key: "farmacia",           label: "Farmácia",     format: "text",     width: MPW.farmacia,
     // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação
@@ -189,6 +200,9 @@ export function buildMargensProdutoReport(input: {
     cnp: String(r.cnp),
     designacao: r.designacao,
     categoria: r.categoria ?? "—",
+    // Sublinha da Descrição — vazia quando não há categoria, para o
+    // renderer nunca desenhar um "cell-note" vazio.
+    categoriaNota: r.categoria ?? "",
     farmacia: r.farmacia,
     farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     qtdVendida: r.qtdVendida,
@@ -241,6 +255,7 @@ export function buildMargensProdutoReport(input: {
       cnp: primeiro.cnp,
       designacao: primeiro.designacao,
       categoria: primeiro.categoria,
+      categoriaNota: "",
       farmacia: "TOTAL ARTIGO",
       farmaciaCurta: nomeFarmaciaCurto("TOTAL ARTIGO"),
       qtdVendida: qtdTotal,

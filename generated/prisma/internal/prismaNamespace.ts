@@ -410,6 +410,8 @@ export const ModelName = {
   ProdutoInterno: 'ProdutoInterno',
   Venda: 'Venda',
   VendaMensal: 'VendaMensal',
+  VendaManutencao: 'VendaManutencao',
+  VendaManutencaoCelula: 'VendaManutencaoCelula',
   Compra: 'Compra',
   Devolucao: 'Devolucao',
   HistoricoStock: 'HistoricoStock',
@@ -450,7 +452,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2375,6 +2377,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.VendaMensalCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.VendaMensalCountAggregateOutputType> | number
+        }
+      }
+    }
+    VendaManutencao: {
+      payload: Prisma.$VendaManutencaoPayload<ExtArgs>
+      fields: Prisma.VendaManutencaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.VendaManutencaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.VendaManutencaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        findFirst: {
+          args: Prisma.VendaManutencaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.VendaManutencaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        findMany: {
+          args: Prisma.VendaManutencaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>[]
+        }
+        create: {
+          args: Prisma.VendaManutencaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        createMany: {
+          args: Prisma.VendaManutencaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.VendaManutencaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>[]
+        }
+        delete: {
+          args: Prisma.VendaManutencaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        update: {
+          args: Prisma.VendaManutencaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.VendaManutencaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.VendaManutencaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.VendaManutencaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.VendaManutencaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoPayload>
+        }
+        aggregate: {
+          args: Prisma.VendaManutencaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateVendaManutencao>
+        }
+        groupBy: {
+          args: Prisma.VendaManutencaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.VendaManutencaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    VendaManutencaoCelula: {
+      payload: Prisma.$VendaManutencaoCelulaPayload<ExtArgs>
+      fields: Prisma.VendaManutencaoCelulaFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.VendaManutencaoCelulaFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.VendaManutencaoCelulaFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        findFirst: {
+          args: Prisma.VendaManutencaoCelulaFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.VendaManutencaoCelulaFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        findMany: {
+          args: Prisma.VendaManutencaoCelulaFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>[]
+        }
+        create: {
+          args: Prisma.VendaManutencaoCelulaCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        createMany: {
+          args: Prisma.VendaManutencaoCelulaCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.VendaManutencaoCelulaCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>[]
+        }
+        delete: {
+          args: Prisma.VendaManutencaoCelulaDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        update: {
+          args: Prisma.VendaManutencaoCelulaUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        deleteMany: {
+          args: Prisma.VendaManutencaoCelulaDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.VendaManutencaoCelulaUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.VendaManutencaoCelulaUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>[]
+        }
+        upsert: {
+          args: Prisma.VendaManutencaoCelulaUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$VendaManutencaoCelulaPayload>
+        }
+        aggregate: {
+          args: Prisma.VendaManutencaoCelulaAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateVendaManutencaoCelula>
+        }
+        groupBy: {
+          args: Prisma.VendaManutencaoCelulaGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoCelulaGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.VendaManutencaoCelulaCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.VendaManutencaoCelulaCountAggregateOutputType> | number
         }
       }
     }
@@ -4748,6 +4898,37 @@ export const VendaMensalScalarFieldEnum = {
 export type VendaMensalScalarFieldEnum = (typeof VendaMensalScalarFieldEnum)[keyof typeof VendaMensalScalarFieldEnum]
 
 
+export const VendaManutencaoScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  cnp: 'cnp',
+  quantidadeTotal: 'quantidadeTotal',
+  numMeses: 'numMeses',
+  mesInicialAno: 'mesInicialAno',
+  mesInicialMes: 'mesInicialMes',
+  origemDistribuicao: 'origemDistribuicao',
+  estado: 'estado',
+  criadoPorId: 'criadoPorId',
+  atualizadoPorId: 'atualizadoPorId',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type VendaManutencaoScalarFieldEnum = (typeof VendaManutencaoScalarFieldEnum)[keyof typeof VendaManutencaoScalarFieldEnum]
+
+
+export const VendaManutencaoCelulaScalarFieldEnum = {
+  id: 'id',
+  manutencaoId: 'manutencaoId',
+  farmaciaId: 'farmaciaId',
+  ano: 'ano',
+  mes: 'mes',
+  quantidade: 'quantidade'
+} as const
+
+export type VendaManutencaoCelulaScalarFieldEnum = (typeof VendaManutencaoCelulaScalarFieldEnum)[keyof typeof VendaManutencaoCelulaScalarFieldEnum]
+
+
 export const CompraScalarFieldEnum = {
   id: 'id',
   farmaciaId: 'farmaciaId',
@@ -5946,6 +6127,8 @@ export type GlobalOmitConfig = {
   produtoInterno?: Prisma.ProdutoInternoOmit
   venda?: Prisma.VendaOmit
   vendaMensal?: Prisma.VendaMensalOmit
+  vendaManutencao?: Prisma.VendaManutencaoOmit
+  vendaManutencaoCelula?: Prisma.VendaManutencaoCelulaOmit
   compra?: Prisma.CompraOmit
   devolucao?: Prisma.DevolucaoOmit
   historicoStock?: Prisma.HistoricoStockOmit

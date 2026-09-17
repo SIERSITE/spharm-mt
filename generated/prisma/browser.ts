@@ -294,6 +294,35 @@ export type Venda = Prisma.VendaModel
  */
 export type VendaMensal = Prisma.VendaMensalModel
 /**
+ * Model VendaManutencao
+ * Manutenção de Vendas — quantidades adicionais injectadas manualmente
+ * no mapa de Vendas, separadas por completo do ledger real
+ * (`VendaMensal`/`IngestVendaLinhaRaw`). NUNCA escrita por nenhum
+ * caminho de ingestão do ERP.
+ * 
+ * Cabeçalho de uma operação de manutenção para UM artigo: quantidade
+ * total a distribuir, por quantos meses, a partir de quando. A
+ * distribuição efectiva (quanto por farmácia × mês) vive em
+ * `VendaManutencaoCelula` — este modelo não repete esse detalhe.
+ * 
+ * Por desenho, esta tabela NUNCA entra no cálculo de peso histórico de
+ * farmácia de uma manutenção futura (esse cálculo lê exclusivamente
+ * `VendaMensal`) — precisamente por viver numa tabela própria.
+ * 
+ * Isolamento por tenant: estrutural (uma BD por tenant, ver
+ * `lib/tenant-registry.ts`) — sem campo `tenantId`, como o resto do
+ * schema.
+ */
+export type VendaManutencao = Prisma.VendaManutencaoModel
+/**
+ * Model VendaManutencaoCelula
+ * Uma célula da matriz farmácia × mês de uma `VendaManutencao`.
+ * Granularidade idêntica a `VendaMensal`, propositadamente — é o que
+ * torna o merge no loader de Vendas uma soma trivial pela mesma chave
+ * `(produtoId via manutencao, farmaciaId, ano, mes)`.
+ */
+export type VendaManutencaoCelula = Prisma.VendaManutencaoCelulaModel
+/**
  * Model Compra
  * Compras diárias agregadas por produto-dia-farmácia-fornecedor.
  * 
