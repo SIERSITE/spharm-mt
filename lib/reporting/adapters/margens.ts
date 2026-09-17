@@ -19,6 +19,7 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import type {
   MargemRow,
   MargensAgg,
@@ -28,6 +29,7 @@ import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
 import { normalizarLargura } from "../column-widths";
+import { agruparLinhasPorArtigo, grupoArtigoPrecisaDeTotal } from "../agrupamento-artigo";
 
 /**
  * As dimensoes em que Margens agrega — o modo "so' totalizadores".
@@ -74,8 +76,14 @@ const MARGENS_PRODUTO_BASE_WIDTHS = {
 const MPW = normalizarLargura(MARGENS_PRODUTO_BASE_WIDTHS);
 
 const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
-  { key: "cnp",                label: "CNP",          format: "text",     width: MPW.cnp },
-  { key: "designacao",         label: "Descrição",    format: "text",     width: MPW.designacao },
+  {
+    key: "cnp",                label: "CNP",          format: "text",     width: MPW.cnp,
+    // Bloco por artigo (uniformização 2026-09, referência: Vendas) — só
+    // desenha na 1ª linha do artigo, rowspan cobre as sublinhas de
+    // farmácia + o TOTAL ARTIGO. Ver GROUP_KEY em buildMargensProdutoReport.
+    spanGroup: true,
+  },
+  { key: "designacao",         label: "Descrição",    format: "text",     width: MPW.designacao, spanGroup: true },
   { key: "categoria",          label: "Categoria",    format: "text",     width: MPW.categoria },
   {
     key: "farmacia",           label: "Farmácia",     format: "text",     width: MPW.farmacia,
@@ -167,7 +175,17 @@ export function buildMargensProdutoReport(input: {
   };
   organization: string;
 }): Report {
-  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
+  // ── BLOCO POR ARTIGO (uniformização 2026-09, referência: Vendas) ────
+  //
+  // Uma linha por (produto, farmácia) — o mesmo CNP pode aparecer uma
+  // vez por farmácia seleccionada. Agrupar por CNP e ordenar as
+  // farmácias de forma ESTÁVEL dentro de cada grupo garante que "o
+  // mesmo artigo nas duas farmácias fica com as duas linhas juntas",
+  // sempre na mesma ordem entre artigos — nunca a ordem incidental da
+  // query. A ordem dos ARTIGOS (que grupo aparece primeiro) é a de 1ª
+  // aparição em `input.rows` — quem chama já ordenou como quis (por
+  // designação, CNP, ...) e não se mexe nisso aqui.
+  const paraLinhaDetalhe = (r: MargemRow): ReportRow => ({
     cnp: String(r.cnp),
     designacao: r.designacao,
     categoria: r.categoria ?? "—",
@@ -176,6 +194,8 @@ export function buildMargensProdutoReport(input: {
     qtdVendida: r.qtdVendida,
     // `null` e não 0: com quantidade 0 não há preço unitário nenhum, e
     // "0,00 €" leria-se como grátis. O renderer pinta null como "—".
+    // PVP/custo são SEMPRE por esta farmácia — nunca uma média entre
+    // farmácias (ver o TOTAL ARTIGO, abaixo, que os deixa em branco).
     pvpUnitario: r.pvpUnitario,
     valorVendido: r.valorVendido,
     taxaIva: r.taxaIva === null ? "—" : `${r.taxaIva}%`,
@@ -186,7 +206,59 @@ export function buildMargensProdutoReport(input: {
     margemPct: pct(r.margemPct),
     coberturaPct: pct(r.coberturaCusto * 100),
     estado: MARGEM_LABEL[r.estado],
-  }));
+    [ROW_KIND_KEY]: "detalhe",
+  });
+
+  const grupos = agruparLinhasPorArtigo(input.rows, {
+    getCodigo: (r) => String(r.cnp),
+    getFarmacia: (r) => r.farmacia,
+    ordemFarmacias: input.universe.farmacias,
+  });
+
+  const rowsForReport: ReportRow[] = grupos.flatMap((g) => {
+    const detalhes = g.detalhes.map(paraLinhaDetalhe);
+    for (const linha of detalhes) linha[GROUP_KEY] = g.codigo;
+    // Um artigo numa única farmácia não ganha TOTAL ARTIGO — seria uma
+    // cópia exacta da linha de detalhe.
+    if (!grupoArtigoPrecisaDeTotal(g)) return detalhes;
+
+    // TOTAL ARTIGO — soma o que é somável (quantidades, valores em
+    // euros), recalcula a margem % a partir das somas (é a mesma conta
+    // do resumo global do relatório, não uma média simples), e deixa
+    // "—" tudo o resto: PVP/Custo unitário são por FARMÁCIA (nunca um
+    // valor único para o artigo — regra dura desta uniformização), e
+    // Taxa IVA/Cobertura/Estado também podem divergir entre farmácias.
+    const primeiro = detalhes[0];
+    const somaNum = (chave: string) => detalhes.reduce((s, l) => s + (typeof l[chave] === "number" ? (l[chave] as number) : 0), 0);
+    const qtdTotal = somaNum("qtdVendida");
+    const valorVendidoTotal = somaNum("valorVendido");
+    const valorSemIvaTotal = somaNum("valorVendidoSemIva");
+    const custoTotal = somaNum("custoEstimado");
+    const margemTotal = somaNum("margemEur");
+    const margemPctTotal = valorSemIvaTotal > 0 ? Math.round((margemTotal / valorSemIvaTotal) * 1000) / 10 : null;
+
+    const total: ReportRow = {
+      cnp: primeiro.cnp,
+      designacao: primeiro.designacao,
+      categoria: primeiro.categoria,
+      farmacia: "TOTAL ARTIGO",
+      farmaciaCurta: nomeFarmaciaCurto("TOTAL ARTIGO"),
+      qtdVendida: qtdTotal,
+      pvpUnitario: null,
+      valorVendido: valorVendidoTotal,
+      taxaIva: null,
+      valorVendidoSemIva: valorSemIvaTotal,
+      custoUnitario: null,
+      custoEstimado: custoTotal,
+      margemEur: margemTotal,
+      margemPct: pct(margemPctTotal),
+      coberturaPct: null,
+      estado: null,
+      [GROUP_KEY]: g.codigo,
+      [ROW_KIND_KEY]: "subtotal",
+    };
+    return [...detalhes, total];
+  });
 
   // KPIs globais — separar plano fiscal: total vendido c/IVA inclui
   // tudo; total s/IVA, custo, margem só sobre linhas com IVA + custo.

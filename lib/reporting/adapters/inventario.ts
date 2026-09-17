@@ -26,8 +26,10 @@ import type {
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
+import { agruparLinhasPorArtigo, grupoArtigoPrecisaDeTotal } from "../agrupamento-artigo";
 
 const ESTADO_LABEL: Record<EstadoInventario, string> = {
   NORMAL: "Normal",
@@ -43,8 +45,14 @@ const ESTADO_LABEL: Record<EstadoInventario, string> = {
 //   Stock 5 · Mín 4 · PMC 5 · PVP 5 · IVA% 4 ·
 //   Val s/IVA 7 · IVA € 5 · Val c/IVA 7 · Cobert. 5 · Estado 5 · Últ.venda 7  = 100
 const INVENTARIO_COLUMNS: ReportColumn[] = [
-  { key: "cnp",              label: "CNP",            format: "text",     width: 5 },
-  { key: "designacao",       label: "Descrição",      format: "text",     width: 18 },
+  {
+    key: "cnp",              label: "CNP",            format: "text",     width: 5,
+    // Bloco por artigo (uniformização 2026-09, referência: Vendas) — só
+    // desenha na 1ª linha do artigo, rowspan cobre as sublinhas de
+    // farmácia + o TOTAL ARTIGO. Ver GROUP_KEY em buildInventarioReport.
+    spanGroup: true,
+  },
+  { key: "designacao",       label: "Descrição",      format: "text",     width: 18, spanGroup: true },
   { key: "categoria",        label: "Categoria",      format: "text",     width: 9 },
   {
     key: "farmacia",         label: "Farmácia",       format: "text",     width: 9,
@@ -136,7 +144,16 @@ export function buildInventarioReport(input: {
   };
   organization: string;
 }): Report {
-  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
+  // ── BLOCO POR ARTIGO (uniformização 2026-09, referência: Vendas) ────
+  //
+  // Uma linha por (produto, farmácia) — agrupar por CNP e ordenar as
+  // farmácias de forma ESTÁVEL dentro de cada grupo garante que "o
+  // mesmo artigo nas duas farmácias fica com as duas linhas juntas",
+  // sempre na mesma ordem entre artigos. A ordem dos ARTIGOS é a de 1ª
+  // aparição em `input.rows` — mesma ordem que o utilizador já viu no
+  // ecrã (ver o comentário em inventario-client.tsx: "as MESMAS linhas
+  // que estão no ecrã, na MESMA ordem").
+  const paraLinhaDetalhe = (r: InventarioRow): ReportRow => ({
     cnp: String(r.cnp),
     designacao: r.designacao,
     categoria: r.categoria ?? "—",
@@ -144,6 +161,8 @@ export function buildInventarioReport(input: {
     farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     stockAtual: r.stockAtual ?? 0,
     stockMinimo: r.stockMinimo ?? 0,
+    // PMC/PVP são SEMPRE por esta farmácia — nunca um valor único entre
+    // farmácias (ver o TOTAL ARTIGO, abaixo, que os deixa em branco).
     pmc: r.pmc ?? 0,
     pvp: r.pvp ?? 0,
     taxaIva: r.taxaIva === null ? "—" : `${r.taxaIva}%`,
@@ -153,7 +172,51 @@ export function buildInventarioReport(input: {
     dataUltimaVenda: fmtDay(r.dataUltimaVenda),
     coberturaDias: r.coberturaDias ?? 0,
     estado: ESTADO_LABEL[r.estado],
-  }));
+    [ROW_KIND_KEY]: "detalhe",
+  });
+
+  const grupos = agruparLinhasPorArtigo(input.rows, {
+    getCodigo: (r) => String(r.cnp),
+    getFarmacia: (r) => r.farmacia,
+    ordemFarmacias: input.universe.farmacias,
+  });
+
+  const rowsForReport: ReportRow[] = grupos.flatMap((g) => {
+    const detalhes = g.detalhes.map(paraLinhaDetalhe);
+    for (const linha of detalhes) linha[GROUP_KEY] = g.codigo;
+    // Um artigo numa única farmácia não ganha TOTAL ARTIGO — seria uma
+    // cópia exacta da linha de detalhe.
+    if (!grupoArtigoPrecisaDeTotal(g)) return detalhes;
+
+    // TOTAL ARTIGO — soma só o que é somável (stock e valores em
+    // euros, exactamente as colunas com `showTotal`), e deixa "—" o
+    // resto: PMC/PVP são por FARMÁCIA (regra dura desta uniformização
+    // — nunca um valor único para o artigo), IVA%/Cobertura/Estado/
+    // Últ. venda também podem divergir entre farmácias.
+    const primeiro = detalhes[0];
+    const somaNum = (chave: string) => detalhes.reduce((s, l) => s + (typeof l[chave] === "number" ? (l[chave] as number) : 0), 0);
+    const total: ReportRow = {
+      cnp: primeiro.cnp,
+      designacao: primeiro.designacao,
+      categoria: primeiro.categoria,
+      farmacia: "TOTAL ARTIGO",
+      farmaciaCurta: nomeFarmaciaCurto("TOTAL ARTIGO"),
+      stockAtual: somaNum("stockAtual"),
+      stockMinimo: null,
+      pmc: null,
+      pvp: null,
+      taxaIva: null,
+      valorStock: somaNum("valorStock"),
+      valorIva: somaNum("valorIva"),
+      valorStockComIva: somaNum("valorStockComIva"),
+      dataUltimaVenda: null,
+      coberturaDias: null,
+      estado: null,
+      [GROUP_KEY]: g.codigo,
+      [ROW_KIND_KEY]: "subtotal",
+    };
+    return [...detalhes, total];
+  });
 
   // Summary: KPIs operacionais que deixam claro o plano fiscal.
   const counts: Record<EstadoInventario, number> = {

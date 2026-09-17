@@ -14,13 +14,20 @@
  * `lib/reporting/farmacia-nome.ts`, `ordenacao-farmacias.ts` e
  * `column-widths.ts`.
  *
+ * Secções I/J (2ª fase, mesma data): o "bloco por artigo" de Vendas
+ * (GROUP_KEY+spanGroup, sublinhas por farmácia, TOTAL ARTIGO) aplicado
+ * a Margens Por Produto e Inventário Por Produto, via o mecanismo
+ * genérico `lib/reporting/agrupamento-artigo.ts`.
+ *
  * Puro: sem base de dados, sem rede. Corre com: npx tsx scripts/tests/test-reporting-uniformizacao.ts
  */
 import { nomeFarmaciaCurto } from "../../lib/reporting/farmacia-nome";
 import { compararPorNomeFarmacia, ordenarPorFarmacia } from "../../lib/reporting/ordenacao-farmacias";
 import { normalizarLargura } from "../../lib/reporting/column-widths";
+import { agruparLinhasPorArtigo, grupoArtigoPrecisaDeTotal } from "../../lib/reporting/agrupamento-artigo";
 import { renderReportHtml } from "../../lib/reporting/report-html";
-import type { ReportColumn } from "../../lib/reporting/report-types";
+import { formatCurrency } from "../../lib/reporting/report-formatters";
+import { GROUP_KEY, ROW_KIND_KEY, type ReportColumn } from "../../lib/reporting/report-types";
 import { buildMargensProdutoReport, buildMargensAggReport } from "../../lib/reporting/adapters/margens";
 import {
   buildInventarioReport,
@@ -408,6 +415,145 @@ console.log("\nH · HTML renderizado");
   const htmlM = renderReportHtml(relMargens);
   check(htmlM.includes('class="page density-compact"'), "H4: Margens Por Produto também renderiza compacto");
   check(htmlM.slice(htmlM.indexOf("<body>")).includes(">Silveirense<"), "H5: nome curto no corpo de Margens");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// I · agrupamento-artigo.ts — o mecanismo genérico, isolado
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nI · agrupamento-artigo.ts (mecanismo genérico)");
+{
+  const linhas = [
+    { codigo: "A", farmacia: "Farmácia Silveirense", v: 1 },
+    { codigo: "B", farmacia: "Farmácia Segurado", v: 2 },
+    { codigo: "A", farmacia: "Farmácia Segurado", v: 3 },
+  ];
+  const grupos = agruparLinhasPorArtigo(linhas, {
+    getCodigo: (l) => l.codigo,
+    getFarmacia: (l) => l.farmacia,
+    ordemFarmacias: UNIVERSE_2, // ["Farmácia Segurado", "Farmácia Silveirense"]
+  });
+  eq(grupos.map((g) => g.codigo), ["A", "B"], "I1: ordem dos GRUPOS é a de 1ª aparição (A antes de B)");
+  eq(grupos[0].detalhes.map((d) => d.farmacia), ["Farmácia Segurado", "Farmácia Silveirense"], "I2: farmácias DENTRO do grupo A na ordem estável, não a de chegada");
+  check(grupoArtigoPrecisaDeTotal(grupos[0]), "I3: grupo A (2 farmácias) precisa de TOTAL ARTIGO");
+  check(!grupoArtigoPrecisaDeTotal(grupos[1]), "I4: grupo B (1 farmácia) NÃO precisa de TOTAL ARTIGO");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// J · Bloco por artigo — Margens Por Produto (referência: Vendas)
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nJ · Margens Por Produto — bloco por artigo, farmácias em ordem estável");
+{
+  const linha = (over: Partial<MargemRow>): MargemRow => ({
+    cnp: 8322628, designacao: "Ventilan", categoria: "Respiratório", grupo: null,
+    farmaciaId: "f1", farmacia: "Farmácia Segurado", fabricante: "Fabricante Teste",
+    qtdVendida: 10, valorVendido: 66.6, pvpUnitario: 6.66, custoUnitario: 4.46,
+    valorVendidoSemIva: 54.15, taxaIva: 23, custoUnitarioBase: 4.46, custoEstimado: 44.6,
+    margemEur: 9.55, margemPct: 17.6, coberturaCusto: 1, estado: "FIAVEL",
+    ...over,
+  });
+  // Ordem de chegada TROCADA face ao universo — Silveirense primeiro na
+  // origem, Segurado primeiro no universo — para provar que é a ordem
+  // ESTÁVEL que manda, nunca a de chegada.
+  const rows = [
+    linha({ farmacia: "Farmácia Silveirense", pvpUnitario: 6.5, custoUnitario: 3.75, qtdVendida: 5, valorVendido: 32.5, valorVendidoSemIva: 26.42, custoEstimado: 18.75, margemEur: 7.67 }),
+    linha({ farmacia: "Farmácia Segurado" }),
+  ];
+  const rel = buildMargensProdutoReport({
+    rows,
+    filters: {},
+    universe: { farmacias: UNIVERSE_2, categorias: [], fabricantes: [], distribuidores: [] },
+    organization: "Grupo",
+  });
+
+  eq(rel.rows.length, 3, "J1: 2 detalhes + 1 TOTAL ARTIGO");
+  eq(rel.rows.map((r) => r.farmacia), ["Farmácia Segurado", "Farmácia Silveirense", "TOTAL ARTIGO"], "J2: Segurado primeiro (ordem estável do universo), depois Silveirense, TOTAL ARTIGO no fim");
+  eq(rel.rows[0][GROUP_KEY], rel.rows[1][GROUP_KEY], "J3: as duas sublinhas partilham o mesmo GROUP_KEY");
+  eq(rel.rows[2][GROUP_KEY], rel.rows[0][GROUP_KEY], "J4: o TOTAL ARTIGO está no MESMO grupo (é coberto pelo mesmo rowspan)");
+  eq(rel.rows[0][ROW_KIND_KEY], "detalhe", "J5: sublinhas marcadas como detalhe");
+  eq(rel.rows[2][ROW_KIND_KEY], "subtotal", "J6: TOTAL ARTIGO marcado como subtotal (nunca conta 2x no TOTAL GERAL)");
+
+  // PVP/Custo: cada sublinha o SEU, TOTAL ARTIGO sem nenhum (nunca um
+  // valor único/médio para o artigo).
+  eq(rel.rows[0].pvpUnitario, 6.66, "J7: PVP do Segurado é o SEU");
+  eq(rel.rows[1].pvpUnitario, 6.5, "J8: PVP do Silveirense é o SEU, diferente");
+  eq(rel.rows[2].pvpUnitario, null, "J9: TOTAL ARTIGO sem PVP (nunca um valor único)");
+  eq(rel.rows[2].custoUnitario, null, "J10: TOTAL ARTIGO sem Custo unit. (idem)");
+
+  // Somas — só o que é somável.
+  eq(rel.rows[2].qtdVendida, 15, "J11: TOTAL ARTIGO soma a quantidade (10+5)");
+  eq(rel.rows[2].valorVendido, 99.1, "J12: …e o valor vendido c/IVA (66,6+32,5)");
+  eq(rel.rows[2].margemEur, 17.22, "J13: …e a margem € (9,55+7,67)");
+
+  // O bloco COMUM (spanGroup) fica só com CNP+Descrição.
+  const colCnp = rel.columns.find((c) => c.key === "cnp");
+  const colDesc = rel.columns.find((c) => c.key === "designacao");
+  const colCategoria = rel.columns.find((c) => c.key === "categoria");
+  check(colCnp?.spanGroup === true, "J14: CNP é spanGroup");
+  check(colDesc?.spanGroup === true, "J15: Descrição é spanGroup");
+  check(colCategoria?.spanGroup !== true, "J16: Categoria NÃO é spanGroup (só CNP+Descrição, como em Vendas)");
+
+  const html = renderReportHtml(rel);
+  const body = html.slice(html.indexOf("<body>"));
+  check(body.includes('rowspan="3"'), "J17: rowspan=\"3\" cobre as 2 sublinhas + o TOTAL ARTIGO");
+  check(body.includes(`>${formatCurrency(6.66)}<`), "J18: PVP do Segurado (6,66 €) aparece no PDF/HTML");
+  check(body.includes(`>${formatCurrency(6.5)}<`), "J19: PVP do Silveirense (6,50 €) também, distinto");
+  check(body.includes("TOTAL ARTIGO"), "J20: TOTAL ARTIGO aparece");
+
+  // Uma só farmácia — sem TOTAL ARTIGO, sem rowspan.
+  const rel1f = buildMargensProdutoReport({
+    rows: [linha({})],
+    filters: {},
+    universe: { farmacias: UNIVERSE_2, categorias: [], fabricantes: [], distribuidores: [] },
+    organization: "Grupo",
+  });
+  eq(rel1f.rows.length, 1, "J21: 1 farmácia — sem TOTAL ARTIGO");
+  const bodyM1f = renderReportHtml(rel1f);
+  check(!bodyM1f.slice(bodyM1f.indexOf("<body>")).includes("rowspan"), "J22: sem rowspan (grupo de tamanho 1)");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// K · Bloco por artigo — Inventário Por Produto (referência: Vendas)
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nK · Inventário Por Produto — bloco por artigo, farmácias em ordem estável");
+{
+  const linha = (over: Partial<InventarioRow>): InventarioRow => ({
+    cnp: 8322628, designacao: "Ventilan", categoria: "Respiratório", grupo: null,
+    farmaciaId: "f1", farmacia: "Farmácia Segurado",
+    stockAtual: 10, stockMinimo: 2, pmc: 4.46, puc: 4.46, pvp: 6.66,
+    custoUnitario: 4.46, taxaIva: 23, valorStock: 44.6, valorIva: 10.26,
+    valorStockComIva: 54.86, dataUltimaVenda: null, dataUltimaCompra: null,
+    diasSemVenda: null, vendas90d: 0, vendaMediaDia90d: 0, coberturaDias: 30,
+    estado: "NORMAL",
+    ...over,
+  });
+  const rows = [
+    linha({ farmacia: "Farmácia Silveirense", pmc: 3.75, pvp: 6.5, stockAtual: 4, valorStock: 15, valorIva: 3.45, valorStockComIva: 18.45 }),
+    linha({ farmacia: "Farmácia Segurado" }),
+  ];
+  const rel = buildInventarioReport({
+    rows,
+    filters: {},
+    universe: { farmacias: UNIVERSE_2, categorias: [], fabricantes: [], distribuidores: [] },
+    organization: "Grupo",
+  });
+
+  eq(rel.rows.length, 3, "K1: 2 detalhes + 1 TOTAL ARTIGO");
+  eq(rel.rows.map((r) => r.farmacia), ["Farmácia Segurado", "Farmácia Silveirense", "TOTAL ARTIGO"], "K2: ordem estável do universo, TOTAL ARTIGO no fim");
+  eq(rel.rows[0][GROUP_KEY], rel.rows[2][GROUP_KEY], "K3: detalhes e TOTAL ARTIGO partilham o mesmo grupo/rowspan");
+  eq(rel.rows[2][ROW_KIND_KEY], "subtotal", "K4: TOTAL ARTIGO marcado como subtotal");
+
+  eq(rel.rows[0].pvp, 6.66, "K5: PVP do Segurado é o SEU");
+  eq(rel.rows[1].pvp, 6.5, "K6: PVP do Silveirense é o SEU, diferente");
+  eq(rel.rows[2].pvp, null, "K7: TOTAL ARTIGO sem PVP (nunca um valor único)");
+  eq(rel.rows[2].pmc, null, "K8: TOTAL ARTIGO sem PMC (idem, é o «custo» aqui)");
+  eq(rel.rows[2].stockAtual, 14, "K9: TOTAL ARTIGO soma o stock (10+4)");
+  eq(rel.rows[2].valorStockComIva, 73.31, "K10: …e o valor c/IVA (54,86+18,45)");
+
+  const html = renderReportHtml(rel);
+  const body = html.slice(html.indexOf("<body>"));
+  check(body.includes('rowspan="3"'), "K11: rowspan=\"3\" cobre as 2 sublinhas + o TOTAL ARTIGO");
+  check(body.includes(`>${formatCurrency(6.66)}<`), "K12: PVP do Segurado (6,66 €) no PDF/HTML");
+  check(body.includes(`>${formatCurrency(6.5)}<`), "K13: PVP do Silveirense (6,50 €) também, distinto");
 }
 
 console.log(`\n${ok} ok, ${ko} falhas`);
