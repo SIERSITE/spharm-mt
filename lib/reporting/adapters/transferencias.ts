@@ -12,6 +12,8 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { normalizarLargura } from "../column-widths";
 
 export type TransferenciasAdapterRow = {
   cnp: string;
@@ -49,23 +51,43 @@ export type TransferenciasAdapterFilters = {
   quantidadeMinima?: string;
 };
 
+// Larguras editoriais somavam 254 antes da uniformização (2026-09) —
+// transbordava severamente a página impressa (`table-layout:fixed` não
+// encolhe colunas cuja soma excede 100%, ver column-widths.ts).
+// `normalizarLargura` corrige a soma para 100 preservando as proporções
+// relativas escolhidas originalmente (Produto/Observação continuam as
+// colunas mais largas, CNP/Prioridade as mais estreitas).
+const TRANSFERENCIAS_BASE_WIDTHS = {
+  cnp: 12, produto: 36, farmaciaOrigem: 20, farmaciaDestino: 20,
+  stockOrigem: 10, stockDestino: 10, coberturaOrigem: 10, coberturaDestino: 10,
+  excessoOrigem: 10, necessidadeDestino: 10, quantidadeSugerida: 12,
+  prioridade: 12, fornecedor: 18, fabricante: 18, categoria: 18, observacao: 28,
+};
+const TW = normalizarLargura(TRANSFERENCIAS_BASE_WIDTHS);
+
 const TRANSFERENCIAS_COLUMNS: ReportColumn[] = [
-  { key: "cnp",                label: "CNP",            format: "text",    width: 12 },
-  { key: "produto",            label: "Produto",        format: "text",    width: 36 },
-  { key: "farmaciaOrigem",     label: "Origem",         format: "text",    width: 20 },
-  { key: "farmaciaDestino",    label: "Destino",        format: "text",    width: 20 },
-  { key: "stockOrigem",        label: "Stock Origem",   format: "integer", width: 10 },
-  { key: "stockDestino",       label: "Stock Destino",  format: "integer", width: 10 },
-  { key: "coberturaOrigem",    label: "Cob. Origem",    format: "integer", width: 10 },
-  { key: "coberturaDestino",   label: "Cob. Destino",   format: "integer", width: 10 },
-  { key: "excessoOrigem",      label: "Excesso",        format: "integer", width: 10, showTotal: true },
-  { key: "necessidadeDestino", label: "Necessidade",    format: "integer", width: 10, showTotal: true },
-  { key: "quantidadeSugerida", label: "Qtd. Sugerida",  format: "integer", width: 12, showTotal: true },
-  { key: "prioridade",         label: "Prioridade",     format: "text",    width: 12 },
-  { key: "fornecedor",         label: "Fornecedor",     format: "text",    width: 18 },
-  { key: "fabricante",         label: "Fabricante",     format: "text",    width: 18 },
-  { key: "categoria",          label: "Categoria",      format: "text",    width: 18 },
-  { key: "observacao",         label: "Observação",     format: "text",    width: 28 },
+  { key: "cnp",                label: "CNP",            format: "text",    width: TW.cnp },
+  { key: "produto",            label: "Produto",        format: "text",    width: TW.produto },
+  {
+    key: "farmaciaOrigem",     label: "Origem",         format: "text",    width: TW.farmaciaOrigem,
+    displayKey: "farmaciaOrigemCurta",
+  },
+  {
+    key: "farmaciaDestino",    label: "Destino",        format: "text",    width: TW.farmaciaDestino,
+    displayKey: "farmaciaDestinoCurta",
+  },
+  { key: "stockOrigem",        label: "Stock Origem",   format: "integer", width: TW.stockOrigem },
+  { key: "stockDestino",       label: "Stock Destino",  format: "integer", width: TW.stockDestino },
+  { key: "coberturaOrigem",    label: "Cob. Origem",    format: "integer", width: TW.coberturaOrigem },
+  { key: "coberturaDestino",   label: "Cob. Destino",   format: "integer", width: TW.coberturaDestino },
+  { key: "excessoOrigem",      label: "Excesso",        format: "integer", width: TW.excessoOrigem, showTotal: true },
+  { key: "necessidadeDestino", label: "Necessidade",    format: "integer", width: TW.necessidadeDestino, showTotal: true },
+  { key: "quantidadeSugerida", label: "Qtd. Sugerida",  format: "integer", width: TW.quantidadeSugerida, showTotal: true },
+  { key: "prioridade",         label: "Prioridade",     format: "text",    width: TW.prioridade },
+  { key: "fornecedor",         label: "Fornecedor",     format: "text",    width: TW.fornecedor },
+  { key: "fabricante",         label: "Fabricante",     format: "text",    width: TW.fabricante },
+  { key: "categoria",          label: "Categoria",      format: "text",    width: TW.categoria },
+  { key: "observacao",         label: "Observação",     format: "text",    width: TW.observacao },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas = "Todas"): string {
@@ -171,11 +193,16 @@ export function buildTransferenciasReport(input: {
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
     columns: TRANSFERENCIAS_COLUMNS,
-    rows: input.rows.map((r) => ({ ...r })) as ReportRow[],
+    rows: input.rows.map((r) => ({
+      ...r,
+      farmaciaOrigemCurta: nomeFarmaciaCurto(r.farmaciaOrigem),
+      farmaciaDestinoCurta: nomeFarmaciaCurto(r.farmaciaDestino),
+    })) as ReportRow[],
     meta: {
       slug: "transferencias",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Uso interno",
     },
   };

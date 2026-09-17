@@ -25,6 +25,9 @@ import type {
   EstadoMargem,
 } from "@/lib/margens-data";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { ordenarPorFarmacia } from "../ordenacao-farmacias";
+import { normalizarLargura } from "../column-widths";
 
 /**
  * As dimensoes em que Margens agrega — o modo "so' totalizadores".
@@ -53,28 +56,45 @@ const MARGEM_LABEL: Record<EstadoMargem, string> = {
 // Por produto, na ordem de leitura pedida:
 //   preço unitário → custo unitário → margem resultante
 //
+// Larguras "editoriais" (somavam 108 antes da uniformização, 2026-09 —
+// transbordava a página impressa; `normalizarLargura` corrige a soma
+// para 100 preservando as proporções relativas, ver column-widths.ts):
 // CNP 5 · Descrição 16 · Categoria 8 · Farmácia 8 · Qtd 4 ·
 // PVP un. 7 · Vend c/IVA 8 · IVA% 4 · Vend s/IVA 8 · Custo un. 7 ·
-// Custo 8 · Margem € 8 · Margem % 6 · Cobert. 5 · Estado 6 = 108
+// Custo 8 · Margem € 8 · Margem % 6 · Cobert. 5 · Estado 6.
 //
 // PVP un. e Custo un. NÃO levam `showTotal`: somar preços unitários de
 // artigos diferentes dá um número sem significado nenhum.
+const MARGENS_PRODUTO_BASE_WIDTHS = {
+  cnp: 5, designacao: 16, categoria: 8, farmacia: 8, qtdVendida: 4,
+  pvpUnitario: 7, valorVendido: 8, taxaIva: 4, valorVendidoSemIva: 8,
+  custoUnitario: 7, custoEstimado: 8, margemEur: 8, margemPct: 6,
+  coberturaPct: 5, estado: 6,
+};
+const MPW = normalizarLargura(MARGENS_PRODUTO_BASE_WIDTHS);
+
 const MARGENS_PRODUTO_COLUMNS: ReportColumn[] = [
-  { key: "cnp",                label: "CNP",          format: "text",     width: 5 },
-  { key: "designacao",         label: "Descrição",    format: "text",     width: 16 },
-  { key: "categoria",          label: "Categoria",    format: "text",     width: 8 },
-  { key: "farmacia",           label: "Farmácia",     format: "text",     width: 8 },
-  { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 4,  showTotal: true },
-  { key: "pvpUnitario",        label: "PVP unit.",    format: "currency", width: 7 },
-  { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 8,  showTotal: true },
-  { key: "taxaIva",            label: "IVA %",        format: "text",     width: 4 },
-  { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 8,  showTotal: true },
-  { key: "custoUnitario",      label: "Custo unit. est.",  format: "currency", width: 7 },
-  { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 8,  showTotal: true },
-  { key: "margemEur",          label: "Margem €",     format: "currency", width: 8,  showTotal: true },
-  { key: "margemPct",          label: "Margem %",     format: "text",     width: 6 },
-  { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 5 },
-  { key: "estado",             label: "Estado",       format: "text",     width: 6 },
+  { key: "cnp",                label: "CNP",          format: "text",     width: MPW.cnp },
+  { key: "designacao",         label: "Descrição",    format: "text",     width: MPW.designacao },
+  { key: "categoria",          label: "Categoria",    format: "text",     width: MPW.categoria },
+  {
+    key: "farmacia",           label: "Farmácia",     format: "text",     width: MPW.farmacia,
+    // Mostra "Segurado", não "Farmácia Segurado" — só na apresentação
+    // (HTML/PDF/print). Excel continua a ler `farmacia` (nome completo)
+    // directamente, porque não passa por `displayKey`.
+    displayKey: "farmaciaCurta",
+  },
+  { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: MPW.qtdVendida,  showTotal: true },
+  { key: "pvpUnitario",        label: "PVP unit.",    format: "currency", width: MPW.pvpUnitario },
+  { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: MPW.valorVendido,  showTotal: true },
+  { key: "taxaIva",            label: "IVA %",        format: "text",     width: MPW.taxaIva },
+  { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: MPW.valorVendidoSemIva,  showTotal: true },
+  { key: "custoUnitario",      label: "Custo unit. est.",  format: "currency", width: MPW.custoUnitario },
+  { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: MPW.custoEstimado,  showTotal: true },
+  { key: "margemEur",          label: "Margem €",     format: "currency", width: MPW.margemEur,  showTotal: true },
+  { key: "margemPct",          label: "Margem %",     format: "text",     width: MPW.margemPct },
+  { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: MPW.coberturaPct },
+  { key: "estado",             label: "Estado",       format: "text",     width: MPW.estado },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas: string): string {
@@ -152,6 +172,7 @@ export function buildMargensProdutoReport(input: {
     designacao: r.designacao,
     categoria: r.categoria ?? "—",
     farmacia: r.farmacia,
+    farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     qtdVendida: r.qtdVendida,
     // `null` e não 0: com quantidade 0 não há preço unitário nenhum, e
     // "0,00 €" leria-se como grátis. O renderer pinta null como "—".
@@ -218,12 +239,23 @@ export function buildMargensProdutoReport(input: {
       slug: "margens-produto",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Margens operacional",
     },
   };
 }
 
 // ── Agregação genérica (Por Categoria / Por Farmácia) ─────────────
+
+// Larguras editoriais somavam 90 (sobrava página — não transbordava,
+// mas ficava por preencher); normalizado para 100 pela mesma via que
+// Margens Por Produto/Transferências/Excessos/Encomendas, ver
+// column-widths.ts.
+const MARGENS_AGG_BASE_WIDTHS = {
+  label: 19, qtdVendida: 7, valorVendido: 11, valorVendidoSemIva: 11,
+  custoEstimado: 11, margemEur: 10, margemPct: 7, coberturaPct: 7, estado: 7,
+};
+const MAW = normalizarLargura(MARGENS_AGG_BASE_WIDTHS);
 
 export function buildMargensAggReport(input: {
   rows: MargensAgg[];
@@ -238,20 +270,40 @@ export function buildMargensAggReport(input: {
   groupBy: DimensaoAgregada;
 }): Report {
   const headerLabel = HEADER_POR_DIMENSAO[input.groupBy];
+  // Só "Por Farmácia" tem uma ordem estável definida pelo universo do
+  // relatório — categoria/grupo/fabricante não têm essa noção (o pedido
+  // do utilizador é especificamente sobre a ordem das FARMÁCIAS, ver
+  // ordenacao-farmacias.ts). Sem isto, esta vista mostrava as farmácias
+  // na ordem incidental em que `porFarmacia` saiu da agregação SQL — não
+  // dependente da query, apenas por coincidência a mesma ordem entre
+  // gerações.
+  const rowsOrdenadas =
+    input.groupBy === "farmacia"
+      ? ordenarPorFarmacia(input.rows, (r) => r.label, input.universe.farmacias)
+      : input.rows;
+
+  const isFarmacia = input.groupBy === "farmacia";
   const columns: ReportColumn[] = [
-    { key: "label",              label: headerLabel,    format: "text",     width: 19 },
-    { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: 7,  showTotal: true },
-    { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: 11, showTotal: true },
-    { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: 11, showTotal: true },
-    { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: 11, showTotal: true },
-    { key: "margemEur",          label: "Margem €",     format: "currency", width: 10, showTotal: true },
-    { key: "margemPct",          label: "Margem %",     format: "text",     width: 7 },
-    { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: 7 },
-    { key: "estado",             label: "Estado",       format: "text",     width: 7 },
+    {
+      key: "label",              label: headerLabel,    format: "text",     width: MAW.label,
+      // Mostra "Segurado", não "Farmácia Segurado" — só quando esta
+      // agregação É por farmácia. Nas restantes dimensões `label` já é
+      // o nome curto certo (categoria/grupo/fabricante).
+      ...(isFarmacia ? { displayKey: "labelCurta" } : {}),
+    },
+    { key: "qtdVendida",         label: "Qtd",          format: "integer",  width: MAW.qtdVendida,  showTotal: true },
+    { key: "valorVendido",       label: "Vendas c/IVA", format: "currency", width: MAW.valorVendido, showTotal: true },
+    { key: "valorVendidoSemIva", label: "Vendas s/IVA", format: "currency", width: MAW.valorVendidoSemIva, showTotal: true },
+    { key: "custoEstimado",      label: "Custo est.",   format: "currency", width: MAW.custoEstimado, showTotal: true },
+    { key: "margemEur",          label: "Margem €",     format: "currency", width: MAW.margemEur,  showTotal: true },
+    { key: "margemPct",          label: "Margem %",     format: "text",     width: MAW.margemPct },
+    { key: "coberturaPct",       label: "Cobert.",      format: "text",     width: MAW.coberturaPct },
+    { key: "estado",             label: "Estado",       format: "text",     width: MAW.estado },
   ];
 
-  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
+  const rowsForReport: ReportRow[] = rowsOrdenadas.map((r) => ({
     label: r.label,
+    labelCurta: isFarmacia ? nomeFarmaciaCurto(r.label) : r.label,
     qtdVendida: r.qtdVendida,
     valorVendido: r.valorVendido,
     valorVendidoSemIva: r.valorVendidoSemIva,
@@ -302,6 +354,7 @@ export function buildMargensAggReport(input: {
       slug: slugByGroup[input.groupBy],
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Margens executivo",
     },
   };

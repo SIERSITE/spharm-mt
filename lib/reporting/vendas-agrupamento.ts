@@ -35,6 +35,7 @@
  * todos os totais gerais (ver `linhasDeDetalhe` em report-types).
  */
 import { agregarCusto } from "@/lib/produtos/custo-farmacia";
+import { compararPorNomeFarmacia } from "./ordenacao-farmacias";
 
 /** Um bucket mensal — mesma shape do loader (`SalesMonthBucket`). */
 export type BucketMes = { ano: number; mes: number; quantidade: number };
@@ -94,30 +95,16 @@ export const ROTULO_TOTAL_ARTIGO = "TOTAL ARTIGO" as const;
  * uma escolha. Um artigo mostrava "Segurado, Silveirense" e o seguinte
  * "Silveirense, Segurado", tornando a leitura caótica.
  *
- *   · `ordemFarmacias` (quando existe) é a ordem AUTORITATIVA — hoje,
- *     `input.universe.farmacias` do adapter de Vendas, que já vem
- *     alfabética (`localeCompare("pt-PT")`) e deduplicada de
- *     `vendas-client.tsx`. É "a ordem já definida/recebida pelo
- *     relatório", não inventada aqui.
- *   · Sem ela (chamador não a passou), cai em ordenação alfabética
- *     directa pelo nome da farmácia — nunca na ordem de chegada.
- *   · Uma farmácia ausente de `ordemFarmacias` (não devia acontecer,
- *     mas nunca se assume que não pode) fica ORDENADA DEPOIS das que lá
- *     estão, e entre si por ordem alfabética — nunca desaparece nem
- *     rebenta.
+ * A regra em si (autoritativa vs. fallback alfabético) foi extraída para
+ * `ordenacao-farmacias.ts` na uniformização (2026-09) — partilhada agora
+ * por Margens/Inventário Por Farmácia. Isto é só o adaptador para o shape
+ * `{ farmacia: string }` que este módulo usa.
  */
 function compararPorOrdemFarmacia(
   ordemFarmacias: readonly string[] | undefined,
 ): (a: { farmacia: string }, b: { farmacia: string }) => number {
-  const indice = new Map((ordemFarmacias ?? []).map((nome, i) => [nome, i]));
-  return (a, b) => {
-    const ia = indice.get(a.farmacia);
-    const ib = indice.get(b.farmacia);
-    if (ia !== undefined && ib !== undefined) return ia - ib;
-    if (ia !== undefined) return -1;
-    if (ib !== undefined) return 1;
-    return a.farmacia.localeCompare(b.farmacia, "pt-PT");
-  };
+  const comparar = compararPorNomeFarmacia(ordemFarmacias);
+  return (a, b) => comparar(a.farmacia, b.farmacia);
 }
 
 /**

@@ -898,7 +898,8 @@ console.log("\nM · Vendas 6M e Média/mês");
   check(adaptador.includes('key: "vendas6M"'), "H: coluna Vendas 6M no adaptador");
   check(adaptador.includes('key: "mediaMensal6M"'), "H: coluna Méd./mês no adaptador");
   check(
-    adaptador.includes('{ key: "mediaMensal6M",      label: "Méd./mês",      format: "decimal1", width: 9 },'),
+    /key: "mediaMensal6M",\s*label: "Méd\.\/mês",\s*format: "decimal1"/.test(adaptador) &&
+      !/key: "mediaMensal6M",[^}]*showTotal/.test(adaptador),
     "H: Méd./mês com uma casa decimal e SEM total",
   );
   check(

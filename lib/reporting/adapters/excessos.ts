@@ -16,6 +16,8 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { normalizarLargura } from "../column-widths";
 
 export type ExcessosAdapterRow = {
   cnp: string;
@@ -65,24 +67,41 @@ export type ExcessosAdapterFilters = {
 // `Méd./mês` NÃO leva `showTotal`: somar médias mensais de artigos
 // diferentes dá um número sem significado. `Vendas 6M` leva, porque a
 // soma de unidades vendidas é uma quantidade real.
+// Larguras editoriais somavam 212 antes da uniformização (2026-09) —
+// transbordava a página impressa. Normalizado para 100 (ver
+// column-widths.ts), proporções relativas preservadas.
+const EXCESSOS_BASE_WIDTHS = {
+  cnp: 11, produto: 30, farmaciaOrigem: 16, stockOrigem: 8, vendas6M: 10,
+  mediaMensal6M: 9, coberturaOrigem: 11, excessoOrigem: 9, farmaciaDestino: 16,
+  stockDestino: 8, coberturaDestino: 11, necessidadeDestino: 9,
+  quantidadeSugerida: 8, prioridade: 11, fornecedor: 15, fabricante: 15, categoria: 15,
+};
+const EW = normalizarLargura(EXCESSOS_BASE_WIDTHS);
+
 const EXCESSOS_COLUMNS: ReportColumn[] = [
-  { key: "cnp",                label: "CNP",           format: "text",    width: 11 },
-  { key: "produto",            label: "Produto",       format: "text",    width: 30 },
-  { key: "farmaciaOrigem",     label: "Farmácia",      format: "text",    width: 16 },
-  { key: "stockOrigem",        label: "St. O.",        format: "integer", width: 8 },
-  { key: "vendas6M",           label: "Vendas 6M",     format: "integer", width: 10, showTotal: true },
-  { key: "mediaMensal6M",      label: "Méd./mês",      format: "decimal1", width: 9 },
-  { key: "coberturaOrigem",    label: "Cob. O. (d)",   format: "integer", width: 11 },
-  { key: "excessoOrigem",      label: "Excesso",       format: "integer", width: 9,  showTotal: true },
-  { key: "farmaciaDestino",    label: "Destino poss.", format: "text",    width: 16 },
-  { key: "stockDestino",       label: "St. D.",        format: "integer", width: 8 },
-  { key: "coberturaDestino",   label: "Cob. D. (d)",   format: "integer", width: 11 },
-  { key: "necessidadeDestino", label: "Necess.",       format: "integer", width: 9 },
-  { key: "quantidadeSugerida", label: "Sug.",          format: "integer", width: 8,  showTotal: true },
-  { key: "prioridade",         label: "Prioridade",    format: "text",    width: 11 },
-  { key: "fornecedor",         label: "Fornecedor",    format: "text",    width: 15 },
-  { key: "fabricante",         label: "Fabricante",    format: "text",    width: 15 },
-  { key: "categoria",          label: "Categoria",     format: "text",    width: 15 },
+  { key: "cnp",                label: "CNP",           format: "text",    width: EW.cnp },
+  { key: "produto",            label: "Produto",       format: "text",    width: EW.produto },
+  {
+    key: "farmaciaOrigem",     label: "Farmácia",      format: "text",    width: EW.farmaciaOrigem,
+    displayKey: "farmaciaOrigemCurta",
+  },
+  { key: "stockOrigem",        label: "St. O.",        format: "integer", width: EW.stockOrigem },
+  { key: "vendas6M",           label: "Vendas 6M",     format: "integer", width: EW.vendas6M, showTotal: true },
+  { key: "mediaMensal6M",      label: "Méd./mês",      format: "decimal1", width: EW.mediaMensal6M },
+  { key: "coberturaOrigem",    label: "Cob. O. (d)",   format: "integer", width: EW.coberturaOrigem },
+  { key: "excessoOrigem",      label: "Excesso",       format: "integer", width: EW.excessoOrigem, showTotal: true },
+  {
+    key: "farmaciaDestino",    label: "Destino poss.", format: "text",    width: EW.farmaciaDestino,
+    displayKey: "farmaciaDestinoCurta",
+  },
+  { key: "stockDestino",       label: "St. D.",        format: "integer", width: EW.stockDestino },
+  { key: "coberturaDestino",   label: "Cob. D. (d)",   format: "integer", width: EW.coberturaDestino },
+  { key: "necessidadeDestino", label: "Necess.",       format: "integer", width: EW.necessidadeDestino },
+  { key: "quantidadeSugerida", label: "Sug.",          format: "integer", width: EW.quantidadeSugerida, showTotal: true },
+  { key: "prioridade",         label: "Prioridade",    format: "text",    width: EW.prioridade },
+  { key: "fornecedor",         label: "Fornecedor",    format: "text",    width: EW.fornecedor },
+  { key: "fabricante",         label: "Fabricante",    format: "text",    width: EW.fabricante },
+  { key: "categoria",          label: "Categoria",     format: "text",    width: EW.categoria },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas = "Todas"): string {
@@ -184,11 +203,16 @@ export function buildExcessosReport(input: {
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
     columns: EXCESSOS_COLUMNS,
-    rows: input.rows.map((r) => ({ ...r })) as ReportRow[],
+    rows: input.rows.map((r) => ({
+      ...r,
+      farmaciaOrigemCurta: nomeFarmaciaCurto(r.farmaciaOrigem),
+      farmaciaDestinoCurta: nomeFarmaciaCurto(r.farmaciaDestino),
+    })) as ReportRow[],
     meta: {
       slug: "excessos",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Uso interno",
     },
   };

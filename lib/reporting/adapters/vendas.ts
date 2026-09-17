@@ -60,6 +60,7 @@ import type {
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { formatCurrency } from "../report-formatters";
 import { filtroListaImportada } from "../filters-shared";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
 import {
   agruparPorArtigo,
   contarReferenciasUnicas,
@@ -70,21 +71,6 @@ const MONTH_LABELS_PT = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
   "Jul", "Ago", "Set", "Out", "Nov", "Dez",
 ];
-
-/**
- * Correcção (2026-09): "Farmácia Segurado" quebrava em duas linhas
- * dentro da coluna Farmácia (estreita, alinhada à esquerda), engordando
- * TODAS as linhas do relatório — não só a farmácia, o artigo inteiro. O
- * nome completo é sempre o dado real; isto é só a APRESENTAÇÃO no
- * HTML/PDF, via `ReportColumn.displayKey` (ver `descricaoNota` acima
- * para o mesmo princípio aplicado a PVP/Custo). O prefixo é removido só
- * se existir — uma farmácia sem ele (ex.: fixtures de teste "Farmácia
- * A") fica intocada.
- */
-const PREFIXO_FARMACIA = /^Farm[aá]cia\s+/i;
-function nomeFarmaciaCurto(nome: string): string {
-  return nome.replace(PREFIXO_FARMACIA, "");
-}
 
 function bucketColumnKey(b: { ano: number; mes: number }): string {
   // Chave estável "m_YYYYMM" — segura como property name e ordenável.

@@ -13,6 +13,8 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { normalizarLargura } from "../column-widths";
 
 // Shape alinhado com lib/devolucoes-data.ts. Campos derivados de origens
 // não fiáveis (stock no momento da devolução, validade, observações
@@ -41,16 +43,35 @@ export type DevolucoesAdapterFilters = {
   dateTo?: string;
 };
 
+// Larguras editoriais — normalizadas para 100 (ver column-widths.ts) para
+// sobrar espaço à coluna "Motivo" acrescentada na uniformização (2026-09,
+// ver nota abaixo).
+const DEVOLUCOES_BASE_WIDTHS = {
+  data: 9, fornecedor: 13, cnp: 8, produto: 21, fabricante: 11,
+  categoria: 11, farmacia: 11, quantidade: 4, valor: 4, motivo: 8,
+};
+const DW = normalizarLargura(DEVOLUCOES_BASE_WIDTHS);
+
 const DEVOLUCOES_COLUMNS: ReportColumn[] = [
-  { key: "data",       label: "Data",        format: "text",     width: 9 },
-  { key: "fornecedor", label: "Fornecedor",  format: "text",     width: 14 },
-  { key: "cnp",        label: "CNP",         format: "text",     width: 9 },
-  { key: "produto",    label: "Produto",     format: "text",     width: 24 },
-  { key: "fabricante", label: "Fabricante",  format: "text",     width: 12 },
-  { key: "categoria",  label: "Categoria",   format: "text",     width: 12 },
-  { key: "farmacia",   label: "Farmácia",    format: "text",     width: 12 },
-  { key: "quantidade", label: "Qtd.",        format: "integer",  width: 4, showTotal: true },
-  { key: "valor",      label: "Valor",       format: "currency", width: 4, showTotal: true },
+  { key: "data",       label: "Data",        format: "text",     width: DW.data },
+  { key: "fornecedor", label: "Fornecedor",  format: "text",     width: DW.fornecedor },
+  { key: "cnp",        label: "CNP",         format: "text",     width: DW.cnp },
+  { key: "produto",    label: "Produto",     format: "text",     width: DW.produto },
+  { key: "fabricante", label: "Fabricante",  format: "text",     width: DW.fabricante },
+  { key: "categoria",  label: "Categoria",   format: "text",     width: DW.categoria },
+  {
+    key: "farmacia",   label: "Farmácia",    format: "text",     width: DW.farmacia,
+    displayKey: "farmaciaCurta",
+  },
+  { key: "quantidade", label: "Qtd.",        format: "integer",  width: DW.quantidade, showTotal: true },
+  { key: "valor",      label: "Valor",       format: "currency", width: DW.valor, showTotal: true },
+  // Correcção (2026-09, uniformização): `DevolucoesAdapterRow.motivo` já
+  // existia — populado de `Devolucao.motivo` (lib/devolucoes-data.ts) e
+  // passado pelo client — mas nenhuma coluna o desenhava. Mesmo defeito
+  // já corrigido em Vendas (`custoUnitarioEstimado`, 2026-09): um campo
+  // declarado no tipo e alimentado com dados reais, silenciosamente
+  // invisível.
+  { key: "motivo",     label: "Motivo",      format: "text",     width: DW.motivo },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas = "Todas"): string {
@@ -136,11 +157,15 @@ export function buildDevolucoesReport(input: {
     filtersApplied: buildFilters(input.filters, input.universe),
     summary: buildSummary(input.rows),
     columns: DEVOLUCOES_COLUMNS,
-    rows: input.rows.map((r) => ({ ...r })) as ReportRow[],
+    rows: input.rows.map((r) => ({
+      ...r,
+      farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
+    })) as ReportRow[],
     meta: {
       slug: "devolucoes",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Uso interno",
     },
   };

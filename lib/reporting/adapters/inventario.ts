@@ -26,6 +26,8 @@ import type {
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { nomeFarmaciaCurto } from "../farmacia-nome";
+import { ordenarPorFarmacia } from "../ordenacao-farmacias";
 
 const ESTADO_LABEL: Record<EstadoInventario, string> = {
   NORMAL: "Normal",
@@ -44,7 +46,11 @@ const INVENTARIO_COLUMNS: ReportColumn[] = [
   { key: "cnp",              label: "CNP",            format: "text",     width: 5 },
   { key: "designacao",       label: "Descrição",      format: "text",     width: 18 },
   { key: "categoria",        label: "Categoria",      format: "text",     width: 9 },
-  { key: "farmacia",         label: "Farmácia",       format: "text",     width: 9 },
+  {
+    key: "farmacia",         label: "Farmácia",       format: "text",     width: 9,
+    // "Segurado", não "Farmácia Segurado" — só na apresentação.
+    displayKey: "farmaciaCurta",
+  },
   { key: "stockAtual",       label: "Stock",          format: "integer",  width: 5,  showTotal: true },
   { key: "stockMinimo",      label: "Mín.",           format: "integer",  width: 4 },
   { key: "pmc",              label: "PMC",            format: "currency", width: 5 },
@@ -135,6 +141,7 @@ export function buildInventarioReport(input: {
     designacao: r.designacao,
     categoria: r.categoria ?? "—",
     farmacia: r.farmacia,
+    farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     stockAtual: r.stockAtual ?? 0,
     stockMinimo: r.stockMinimo ?? 0,
     pmc: r.pmc ?? 0,
@@ -195,6 +202,7 @@ export function buildInventarioReport(input: {
       slug: "inventario",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Inventário operacional",
     },
   };
@@ -207,7 +215,10 @@ export function buildInventarioReport(input: {
 // Não há "cobertura" agregada porque é nonsense matemático na soma.
 
 const INVENTARIO_FARM_COLUMNS: ReportColumn[] = [
-  { key: "farmacia",         label: "Farmácia",     format: "text",     width: 18 },
+  {
+    key: "farmacia",         label: "Farmácia",     format: "text",     width: 18,
+    displayKey: "farmaciaCurta",
+  },
   { key: "numProdutos",      label: "Produtos",     format: "integer",  width: 8,  showTotal: true },
   { key: "stockTotal",       label: "Stock total",  format: "integer",  width: 10, showTotal: true },
   { key: "valorStockSemIva", label: "Val. s/IVA",   format: "currency", width: 11, showTotal: true },
@@ -231,8 +242,13 @@ export function buildInventarioPorFarmaciaReport(input: {
   };
   organization: string;
 }): Report {
-  const rowsForReport: ReportRow[] = input.rows.map((r) => ({
+  // Ordem estável — nunca a ordem incidental em que a agregação SQL
+  // devolveu `porFarmacia`. Ver ordenacao-farmacias.ts.
+  const rowsOrdenadas = ordenarPorFarmacia(input.rows, (r) => r.farmacia, input.universe.farmacias);
+
+  const rowsForReport: ReportRow[] = rowsOrdenadas.map((r) => ({
     farmacia: r.farmacia,
+    farmaciaCurta: nomeFarmaciaCurto(r.farmacia),
     numProdutos: r.numProdutos,
     stockTotal: r.stockTotal,
     valorStockSemIva: r.valorStockSemIva,
@@ -276,6 +292,7 @@ export function buildInventarioPorFarmaciaReport(input: {
       slug: "inventario-por-farmacia",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Inventário executivo",
     },
   };
@@ -356,6 +373,7 @@ export function buildInventarioPorGrupoReport(input: {
       slug: "inventario-por-grupo",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Inventário executivo",
     },
   };
@@ -434,6 +452,7 @@ export function buildInventarioPorIvaReport(input: {
       slug: "inventario-por-iva",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Inventário fiscal",
     },
   };

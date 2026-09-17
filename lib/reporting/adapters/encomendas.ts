@@ -21,6 +21,7 @@ import type {
   ReportRow,
   ReportSummaryItem,
 } from "../report-types";
+import { normalizarLargura } from "../column-widths";
 
 export type EncomendasAdapterRow = {
   cnp: string;
@@ -46,17 +47,27 @@ export type EncomendasAdapterFilters = {
   apenasCriticos?: boolean;
 };
 
+// Larguras editoriais somavam 178 antes da uniformização (2026-09) —
+// transbordava a página impressa. Normalizado para 100 (ver
+// column-widths.ts), proporções relativas preservadas.
+const ENCOMENDAS_BASE_WIDTHS = {
+  cnp: 12, produto: 40, fornecedor: 22, fabricante: 20, categoria: 20,
+  stockGrupo: 12, sugestaoGrupo: 12, encomendarGrupo: 14, valorEstimado: 14,
+  prioridade: 12,
+};
+const ECW = normalizarLargura(ENCOMENDAS_BASE_WIDTHS);
+
 const ENCOMENDAS_COLUMNS: ReportColumn[] = [
-  { key: "cnp",             label: "CNP",             format: "text",     width: 12 },
-  { key: "produto",         label: "Produto",         format: "text",     width: 40 },
-  { key: "fornecedor",      label: "Fornecedor",      format: "text",     width: 22 },
-  { key: "fabricante",      label: "Fabricante",      format: "text",     width: 20 },
-  { key: "categoria",       label: "Categoria",       format: "text",     width: 20 },
-  { key: "stockGrupo",      label: "Stock Grupo",     format: "integer",  width: 12 },
-  { key: "sugestaoGrupo",   label: "Sugestão",        format: "integer",  width: 12, showTotal: true },
-  { key: "encomendarGrupo", label: "A Encomendar",    format: "integer",  width: 14, showTotal: true },
-  { key: "valorEstimado",   label: "Valor Estimado",  format: "currency", width: 14, showTotal: true },
-  { key: "prioridade",      label: "Prioridade",      format: "text",     width: 12 },
+  { key: "cnp",             label: "CNP",             format: "text",     width: ECW.cnp },
+  { key: "produto",         label: "Produto",         format: "text",     width: ECW.produto },
+  { key: "fornecedor",      label: "Fornecedor",      format: "text",     width: ECW.fornecedor },
+  { key: "fabricante",      label: "Fabricante",      format: "text",     width: ECW.fabricante },
+  { key: "categoria",       label: "Categoria",       format: "text",     width: ECW.categoria },
+  { key: "stockGrupo",      label: "Stock Grupo",     format: "integer",  width: ECW.stockGrupo },
+  { key: "sugestaoGrupo",   label: "Sugestão",        format: "integer",  width: ECW.sugestaoGrupo, showTotal: true },
+  { key: "encomendarGrupo", label: "A Encomendar",    format: "integer",  width: ECW.encomendarGrupo, showTotal: true },
+  { key: "valorEstimado",   label: "Valor Estimado",  format: "currency", width: ECW.valorEstimado, showTotal: true },
+  { key: "prioridade",      label: "Prioridade",      format: "text",     width: ECW.prioridade },
 ];
 
 function joinList(list: string[] | undefined, total: number, labelTodas = "Todas"): string {
@@ -149,6 +160,7 @@ export function buildEncomendasReport(input: {
       slug: "encomendas",
       orientation: "landscape",
       organization: input.organization,
+      density: "compact",
       footer: "SPharm.MT · Uso interno",
     },
   };
