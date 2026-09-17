@@ -91,22 +91,38 @@ export function gerarMesesConsecutivos(
 }
 
 /**
- * Reparte a quantidade de UMA farmácia pelos `numMeses` a partir do mês
- * inicial — sempre em partes IGUAIS entre meses (ver secção 1.3 do
- * pedido: "depois de determinada a parte de cada farmácia, essa
- * quantidade deve ser distribuída pelo número de meses indicado" — sem
- * peso nenhum entre meses, ao contrário da distribuição por farmácia).
+ * Reparte a quantidade de UMA farmácia pelos meses-alvo, segundo o PESO
+ * de cada mês — nunca partes iguais escondidas aqui dentro.
+ *
+ * ── Correcção de um bug ──────────────────────────────────────────────
+ *
+ * Esta função tinha, até aqui, `numMeses`/`anoInicial`/`mesInicial` como
+ * parâmetros e distribuía sempre em partes IGUAIS entre eles
+ * (`peso: 1` fixo para todos) — o que produzia, p.ex., 500 unidades em
+ * 5 meses como 100/100/100/100/100 mesmo quando o histórico do artigo
+ * mostrava claramente mais vendas em Dezembro do que em Setembro. Essa
+ * distribuição plana NUNCA foi a intenção (ver a secção 1.3 do pedido
+ * original: "distribuída pelo número de meses indicado" não queria
+ * dizer "em partes iguais", queria dizer "ao longo desses meses",
+ * respeitando o padrão sazonal de cada um) — era apenas o que a
+ * primeira versão implementou por engano, ao tratar o mês do mesmo
+ * jeito que o resto (secção 1.3) tratava farmácias sem histórico.
+ *
+ * Agora esta função é puramente mecânica — reparte pelo peso que já lhe
+ * é dado — e quem decide o peso de cada mês é
+ * `peso.ts::calcularPesosMensais` (perfil sazonal do artigo, com
+ * fallback farmácia → global → partes iguais só como último recurso).
+ * Mesma separação de responsabilidades que `distribuirPorMaiorResto`
+ * já tem para farmácias: esta função nunca calcula peso nenhum, só
+ * reparte um total pelo peso que recebe.
  */
 export function distribuirPorMeses(
   quantidade: number,
-  anoInicial: number,
-  mesInicial: number,
-  numMeses: number,
+  meses: readonly (MesCivil & { peso: number })[],
 ): (MesCivil & { quantidade: number })[] {
-  const meses = gerarMesesConsecutivos(anoInicial, mesInicial, numMeses);
   const distribuido = distribuirPorMaiorResto(
     quantidade,
-    meses.map((_, i) => ({ chave: i, peso: 1 })),
+    meses.map((m, i) => ({ chave: i, peso: m.peso })),
   );
-  return meses.map((m, i) => ({ ...m, quantidade: distribuido[i].quantidade }));
+  return meses.map((m, i) => ({ ano: m.ano, mes: m.mes, quantidade: distribuido[i].quantidade }));
 }

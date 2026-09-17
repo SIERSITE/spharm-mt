@@ -24,7 +24,7 @@
  */
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, Ban, Loader2, RefreshCw, Save } from "lucide-react";
+import { AlertTriangle, Ban, Loader2, RefreshCw, Save, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import {
   anularManutencaoAction,
@@ -38,6 +38,8 @@ import type {
   CelulaManutencao,
   FarmaciaComPvpReferencia,
   ManutencaoDetalhe,
+  PesoFarmaciaExibicao,
+  PesosMensaisPorFarmacia,
 } from "@/lib/vendas-manutencao/tipos";
 import { calcularValorBrutoCelula } from "@/lib/vendas-manutencao/valorizacao";
 import {
@@ -57,6 +59,18 @@ function fmtQtd(n: number): string {
 function fmtEur(n: number | null): string {
   if (n === null) return "—";
   return n.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+}
+
+function fmtPct(fracao: number): string {
+  return (fracao * 100).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
+}
+
+function origemPesoMensalLabel(origem: "FARMACIA" | "GLOBAL" | "NEUTRO"): string {
+  switch (origem) {
+    case "FARMACIA": return "perfil histórico desta farmácia";
+    case "GLOBAL": return "perfil histórico global do artigo (sem amostra própria)";
+    case "NEUTRO": return "sem histórico mensal — partes iguais";
+  }
 }
 
 /** Chave estável de célula — `${farmaciaId}:${ano}-${mes}`. */
@@ -100,6 +114,14 @@ export function ManutencaoFormClient(props: Props) {
     inicial?.origemDistribuicao ?? "AUTOMATICA",
   );
   const [avisoSemHistorico, setAvisoSemHistorico] = useState<string[] | null>(null);
+  // Transparência da última proposta AUTOMÁTICA (secção 4/5 do pedido) —
+  // de onde vieram os pesos que decidiram a distribuição. Só existe
+  // depois de um "Calcular"/"Recalcular pelo histórico" nesta sessão —
+  // uma manutenção existente carregada sem recalcular ainda não tem
+  // esta informação (fica sem a tabela, nunca com dados inventados).
+  const [pesosFarmacia, setPesosFarmacia] = useState<PesoFarmaciaExibicao[]>([]);
+  const [pesosMensais, setPesosMensais] = useState<PesosMensaisPorFarmacia[]>([]);
+  const [confirmarCancelamento, setConfirmarCancelamento] = useState(false);
   // A matriz foi calculada/carregada para ESTES parâmetros — se o
   // utilizador mudar quantidade/nºmeses/período, fica desactualizada.
   const [parametrosDaMatriz, setParametrosDaMatriz] = useState(
@@ -121,6 +143,20 @@ export function ManutencaoFormClient(props: Props) {
     parametrosDaMatriz.numMeses !== numMeses ||
     parametrosDaMatriz.mesInicialAno !== mesInicialAno ||
     parametrosDaMatriz.mesInicialMes !== mesInicialMes;
+
+  // "Cancelar" (secção 8 do pedido) só pergunta antes de sair quando há
+  // realmente algo por perder: uma proposta calculada/editada que ainda
+  // não foi gravada. Um formulário virgem (create) ou uma edição que
+  // não mexeu em nada (matriz igual à carregada, parâmetros iguais)
+  // sai directo, sem confirmação nenhuma — a mesma distinção que
+  // `parametrosMudaramDesdeCalculo` já faz para bloquear o "Gravar".
+  const haAlteracoesPorGuardar = useMemo(() => {
+    if (celulas.length === 0) return false;
+    if (!editando) return true;
+    const celulasMudaram = JSON.stringify(celulas) !== JSON.stringify(inicial?.celulas ?? []);
+    return celulasMudaram || parametrosMudaramDesdeCalculo;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [celulas, editando, parametrosMudaramDesdeCalculo]);
 
   const soma = useMemo(() => celulas.reduce((s, c) => s + c.quantidade, 0), [celulas]);
   const diferenca = Math.round(soma - quantidadeTotal);
@@ -150,6 +186,15 @@ export function ManutencaoFormClient(props: Props) {
 
   function pvpDaFarmacia(farmaciaId: string): number | null {
     return farmaciasPvp.find((f) => f.farmaciaId === farmaciaId)?.pvpReferencia ?? null;
+  }
+
+  /** Peso mensal aplicado a UMA célula, para a tooltip — `null` se não houver proposta calculada nesta sessão. */
+  function pesoMensalCelula(farmaciaId: string, ano: number, mes: number): { peso: number; origem: "FARMACIA" | "GLOBAL" | "NEUTRO" } | null {
+    const doFarmacia = pesosMensais.find((p) => p.farmaciaId === farmaciaId);
+    if (!doFarmacia) return null;
+    const doMes = doFarmacia.pesos.find((p) => p.ano === ano && p.mes === mes);
+    if (!doMes) return null;
+    return { peso: doMes.peso, origem: doFarmacia.origem };
   }
 
   // Secção 6 — farmácia com quantidade > 0 mas sem PVP de referência.
@@ -215,17 +260,32 @@ export function ManutencaoFormClient(props: Props) {
         setOrigemAtual("AUTOMATICA");
         setParametrosDaMatriz({ quantidadeTotal, numMeses, mesInicialAno, mesInicialMes });
         setAvisoSemHistorico(r.proposta.aviso ? r.proposta.aviso.farmaciasSemHistorico : null);
+        setPesosFarmacia(r.proposta.pesosFarmacia);
+        setPesosMensais(r.proposta.pesosMensais);
         return;
       }
-      // Edição: SÓ a distribuição — o PVP de referência (farmaciasPvp)
-      // fica exactamente como estava (secção 5 do pedido).
+      // Edição — "Recalcular pelo histórico": reconstrói a proposta do
+      // ZERO a partir do histórico (nunca lê a matriz anterior, mesmo
+      // que tenha sido ajustada à mão — secção 7 do pedido). SÓ a
+      // distribuição muda: o PVP de referência (farmaciasPvp) fica
+      // exactamente como estava (secção 5 do pedido).
       const r = await recalcularDistribuicaoAction(params);
       if (!r.ok) { setErro(r.erro); return; }
       setCelulas(r.proposta.celulas);
       setOrigemAtual("AUTOMATICA");
       setParametrosDaMatriz({ quantidadeTotal, numMeses, mesInicialAno, mesInicialMes });
       setAvisoSemHistorico(r.proposta.aviso ? r.proposta.aviso.farmaciasSemHistorico : null);
+      setPesosFarmacia(r.proposta.pesosFarmacia);
+      setPesosMensais(r.proposta.pesosMensais);
     });
+  }
+
+  function cancelar() {
+    if (haAlteracoesPorGuardar) {
+      setConfirmarCancelamento(true);
+      return;
+    }
+    window.location.href = "/vendas/manutencao";
   }
 
   function gravar() {
@@ -464,7 +524,7 @@ export function ManutencaoFormClient(props: Props) {
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-[13px] font-medium text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-50"
             >
               {aCalcular ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
-              {celulas.length === 0 ? "Calcular distribuição" : "Recalcular distribuição"}
+              {celulas.length === 0 ? "Calcular distribuição" : "Recalcular pelo histórico"}
             </button>
           )}
         </section>
@@ -495,6 +555,52 @@ export function ManutencaoFormClient(props: Props) {
                 : "indica o PVP manualmente na tabela abaixo antes de gravar."}
             </span>
           </div>
+        )}
+
+        {/* ── Transparência do peso histórico (secção 4/5 do pedido) ──
+            Discreto de propósito — um <details> fechado por omissão,
+            só para quando o utilizador quer perceber PORQUE a proposta
+            saiu assim antes de gravar. Só existe depois de um
+            "Calcular"/"Recalcular pelo histórico" nesta sessão. */}
+        {pesosFarmacia.length > 0 && (
+          <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <summary className="cursor-pointer text-[13px] font-medium text-slate-700">
+              Como foi calculada esta distribuição?
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  Peso histórico por farmácia (últimos 12 meses completos, vendas normais)
+                </div>
+                <table className="mt-1.5 w-full max-w-md text-[12px]">
+                  <thead>
+                    <tr className="text-left text-slate-500">
+                      <th className="py-1 font-medium">Farmácia</th>
+                      <th className="py-1 text-right font-medium">Peso hist.</th>
+                      <th className="py-1 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pesosFarmacia.map((p) => {
+                      const total = celulas.filter((c) => c.farmaciaId === p.farmaciaId).reduce((s, c) => s + c.quantidade, 0);
+                      return (
+                        <tr key={p.farmaciaId} className="border-t border-slate-100">
+                          <td className="py-1 text-slate-700">{p.farmaciaNome}</td>
+                          <td className="py-1 text-right text-slate-700">{p.temHistorico ? fmtPct(p.peso) : "sem histórico"}</td>
+                          <td className="py-1 text-right font-medium text-slate-900">{fmtQtd(total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-[12px] text-slate-500">
+                Peso mensal: cada célula da matriz abaixo mostra, ao passar o rato, a
+                percentagem aplicada e a origem (perfil desta farmácia, perfil global do
+                artigo, ou sem histórico).
+              </div>
+            </div>
+          </details>
         )}
 
         {/* ── Matriz farmácia × mês ── */}
@@ -543,18 +649,22 @@ export function ManutencaoFormClient(props: Props) {
                             </span>
                           )}
                         </td>
-                        {meses.map((m) => (
-                          <td key={`${m.ano}-${m.mes}`} className="px-1.5 py-1">
-                            <input
-                              type="number"
-                              step={1}
-                              value={celulaValor(f.id, m.ano, m.mes)}
-                              disabled={jaAnulada}
-                              onChange={(e) => editarCelula(f.id, f.nome, m.ano, m.mes, Math.round(Number(e.target.value)))}
-                              className="w-16 rounded-md border border-slate-200 px-1.5 py-1 text-right text-[12px] focus:border-cyan-400 focus:outline-none"
-                            />
-                          </td>
-                        ))}
+                        {meses.map((m) => {
+                          const pesoMes = pesoMensalCelula(f.id, m.ano, m.mes);
+                          return (
+                            <td key={`${m.ano}-${m.mes}`} className="px-1.5 py-1">
+                              <input
+                                type="number"
+                                step={1}
+                                value={celulaValor(f.id, m.ano, m.mes)}
+                                disabled={jaAnulada}
+                                onChange={(e) => editarCelula(f.id, f.nome, m.ano, m.mes, Math.round(Number(e.target.value)))}
+                                title={pesoMes ? `Peso histórico aplicado: ${fmtPct(pesoMes.peso)} (${origemPesoMensalLabel(pesoMes.origem)})` : undefined}
+                                className="w-16 rounded-md border border-slate-200 px-1.5 py-1 text-right text-[12px] focus:border-cyan-400 focus:outline-none"
+                              />
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-1.5 text-right font-medium text-slate-700">{fmtQtd(totalFarmacia)}</td>
                         <td className="px-3 py-1.5 text-right text-slate-600">{fmtEur(valorBrutoFarmacia)}</td>
                       </tr>
@@ -588,20 +698,58 @@ export function ManutencaoFormClient(props: Props) {
           </section>
         )}
 
-        {!jaAnulada && celulas.length > 0 && (
-          <div className="flex justify-end">
+        {!jaAnulada && (
+          <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={gravar}
-              disabled={!podeGravar}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={cancelar}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-600 transition hover:bg-slate-50"
             >
-              {aGravar ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
-              Gravar
+              <X className="h-4 w-4" aria-hidden />
+              Cancelar
             </button>
+            {celulas.length > 0 && (
+              <button
+                type="button"
+                onClick={gravar}
+                disabled={!podeGravar}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-600 px-4 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {aGravar ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
+                Gravar
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {confirmarCancelamento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h2 className="text-[15px] font-semibold text-slate-900">Descartar alterações?</h2>
+            <p className="mt-2 text-[13px] text-slate-600">
+              Há uma distribuição calculada ou ajustada que ainda não foi gravada. Sair agora
+              perde-a — nada é gravado.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmarCancelamento(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-[13px] text-slate-600 hover:bg-slate-50"
+              >
+                Continuar a editar
+              </button>
+              <button
+                type="button"
+                onClick={() => { window.location.href = "/vendas/manutencao"; }}
+                className="rounded-lg bg-rose-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-rose-700"
+              >
+                Descartar e sair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmarAnulacao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">

@@ -39,10 +39,17 @@
 import type { PrismaClient, Prisma } from "@/generated/prisma/client";
 import {
   calcularPesosFarmacia,
+  calcularPesosMensais,
   janelaHistoricaDozeMeses,
+  janelaHistoricaMeses,
+  type QtyPorMesCivil,
   type ResultadoPesos,
 } from "./vendas-manutencao/peso";
-import { distribuirPorMaiorResto, distribuirPorMeses } from "./vendas-manutencao/distribuicao";
+import {
+  distribuirPorMaiorResto,
+  distribuirPorMeses,
+  gerarMesesConsecutivos,
+} from "./vendas-manutencao/distribuicao";
 import type {
   AvisoSemHistorico,
   CelulaManutencao,
@@ -51,6 +58,8 @@ import type {
   ManutencaoDetalhe,
   ManutencaoResumo,
   OrigemDistribuicao,
+  PesoFarmaciaExibicao,
+  PesosMensaisPorFarmacia,
   PropostaCompleta,
   PropostaDistribuicao,
 } from "./vendas-manutencao/tipos";
@@ -92,6 +101,78 @@ async function pesoHistoricoPorFarmacia(
     linhas.map((l) => ({ farmaciaId: l.farmaciaId, qty: toF(l.qty) })),
     farmaciaIds,
   );
+}
+
+// ─── Peso mensal / sazonalidade (leitura de VendaMensal — idem) ────────
+//
+// A janela de sazonalidade é mais LARGA que a de peso-por-farmácia
+// (36 meses em vez de 12) — precisamos de vários anos da MESMA época do
+// ano para distinguir "este artigo vende mais em Dezembro" de "houve um
+// Dezembro anómalo". Continua "12 meses completos anteriores ao mês de
+// referência" no espírito (nunca inclui o próprio mês de referência,
+// nunca varia com a data corrente do servidor) — só o comprimento muda.
+//
+// Não há BD viva neste ambiente para calibrar este número contra dados
+// reais (ver a nota em peso.ts sobre `MIN_MESES_DISTINTOS_PARA_PERFIL`)
+// — 36 meses é um compromisso deliberado: curto o suficiente para não
+// arrastar um padrão de vendas de há 6 anos que já não existe, longo o
+// suficiente para dar 2-3 amostras de cada mês civil.
+const JANELA_SAZONALIDADE_MESES = 36;
+
+type LinhaPesoMensalPorFarmacia = { farmaciaId: string; mes: number; qty: unknown };
+type LinhaPesoMensalGlobal = { mes: number; qty: unknown };
+
+/**
+ * Perfil mensal histórico do artigo — por FARMÁCIA (âmbito da
+ * manutenção) e GLOBAL (todas as farmácias do tenant, de propósito: é
+ * o fallback com a maior amostra possível, exactamente para quando o
+ * histórico específico da farmácia não chega — secção 3.b do pedido).
+ *
+ * Duas queries, não uma por farmácia — o custo é constante
+ * independentemente de quantas farmácias estejam no âmbito.
+ */
+async function pesoHistoricoMensal(
+  prisma: PrismaClient,
+  produtoId: string,
+  farmaciaIds: readonly string[],
+  anoRef: number,
+  mesRef: number,
+): Promise<{ porFarmacia: Map<string, QtyPorMesCivil[]>; global: QtyPorMesCivil[] }> {
+  const janela = janelaHistoricaMeses(anoRef, mesRef, JANELA_SAZONALIDADE_MESES);
+  const startYM = janela.inicio.ano * 100 + janela.inicio.mes;
+  const endYM = janela.fim.ano * 100 + janela.fim.mes;
+
+  const [linhasFarmacia, linhasGlobal] = await Promise.all([
+    prisma.$queryRaw<LinhaPesoMensalPorFarmacia[]>`
+      SELECT vm."farmaciaId" AS "farmaciaId", vm.mes AS mes,
+             GREATEST(SUM(COALESCE(vm."quantidadeLiquida", vm.quantidade)), 0)::float AS qty
+      FROM "VendaMensal" vm
+      WHERE vm."produtoId" = ${produtoId}
+        AND vm."farmaciaId" = ANY(${farmaciaIds})
+        AND vm."naturezaVenda" = 'NORMAL'
+        AND (vm.ano * 100 + vm.mes) BETWEEN ${startYM} AND ${endYM}
+      GROUP BY vm."farmaciaId", vm.mes
+    `,
+    prisma.$queryRaw<LinhaPesoMensalGlobal[]>`
+      SELECT vm.mes AS mes,
+             GREATEST(SUM(COALESCE(vm."quantidadeLiquida", vm.quantidade)), 0)::float AS qty
+      FROM "VendaMensal" vm
+      WHERE vm."produtoId" = ${produtoId}
+        AND vm."naturezaVenda" = 'NORMAL'
+        AND (vm.ano * 100 + vm.mes) BETWEEN ${startYM} AND ${endYM}
+      GROUP BY vm.mes
+    `,
+  ]);
+
+  const porFarmacia = new Map<string, QtyPorMesCivil[]>();
+  for (const id of farmaciaIds) porFarmacia.set(id, []);
+  for (const l of linhasFarmacia) {
+    const lista = porFarmacia.get(l.farmaciaId) ?? [];
+    lista.push({ mes: l.mes, qty: toF(l.qty) });
+    porFarmacia.set(l.farmaciaId, lista);
+  }
+  const global = linhasGlobal.map((l) => ({ mes: l.mes, qty: toF(l.qty) }));
+  return { porFarmacia, global };
 }
 
 // ─── PVP de referência (leitura de ProdutoFarmacia — SÓ na criação) ────
@@ -149,13 +230,10 @@ export async function calcularDistribuicaoQuantidades(
   },
 ): Promise<PropostaDistribuicao> {
   const farmaciaIds = input.farmacias.map((f) => f.id);
-  const { pesos, semHistoricoNenhum } = await pesoHistoricoPorFarmacia(
-    prisma,
-    input.produtoId,
-    farmaciaIds,
-    input.mesInicialAno,
-    input.mesInicialMes,
-  );
+  const [{ pesos, semHistoricoNenhum }, perfilMensal] = await Promise.all([
+    pesoHistoricoPorFarmacia(prisma, input.produtoId, farmaciaIds, input.mesInicialAno, input.mesInicialMes),
+    pesoHistoricoMensal(prisma, input.produtoId, farmaciaIds, input.mesInicialAno, input.mesInicialMes),
+  ]);
 
   const nomeById = new Map(input.farmacias.map((f) => [f.id, f.nome]));
   const farmaciasSemHistorico = pesos.filter((p) => !p.temHistorico).map((p) => p.farmaciaId);
@@ -168,13 +246,20 @@ export async function calcularDistribuicaoQuantidades(
     ? distribuirPorMaiorResto(input.quantidadeTotal, pesos.map((p) => ({ chave: p.farmaciaId, peso: 1 })))
     : distribuirPorMaiorResto(input.quantidadeTotal, pesos.map((p) => ({ chave: p.farmaciaId, peso: p.peso })));
 
+  // Secção 1.3 (corrigida) / 3 — a quantidade de CADA farmácia é
+  // distribuída pelos meses segundo o PERFIL SAZONAL do artigo, nunca
+  // em partes iguais: farmácia-específico quando há amostra suficiente,
+  // senão o perfil global do artigo, senão (só então) partes iguais.
+  const mesesAlvo = gerarMesesConsecutivos(input.mesInicialAno, input.mesInicialMes, input.numMeses);
+  const pesosMensais: PesosMensaisPorFarmacia[] = [];
+
   const celulas: CelulaManutencao[] = porFarmacia.flatMap((parte) => {
-    const porMes = distribuirPorMeses(
-      parte.quantidade,
-      input.mesInicialAno,
-      input.mesInicialMes,
-      input.numMeses,
-    );
+    const historicoFarmacia = perfilMensal.porFarmacia.get(parte.chave) ?? [];
+    const { pesos: pesosDosMeses, origem } = calcularPesosMensais(historicoFarmacia, perfilMensal.global, mesesAlvo);
+    pesosMensais.push({ farmaciaId: parte.chave, origem, pesos: pesosDosMeses });
+
+    const mesesComPeso = mesesAlvo.map((m, i) => ({ ...m, peso: pesosDosMeses[i].peso }));
+    const porMes = distribuirPorMeses(parte.quantidade, mesesComPeso);
     return porMes.map((m) => ({
       farmaciaId: parte.chave,
       farmaciaNome: nomeById.get(parte.chave) ?? "—",
@@ -184,13 +269,20 @@ export async function calcularDistribuicaoQuantidades(
     }));
   });
 
+  const pesosFarmacia: PesoFarmaciaExibicao[] = pesos.map((p) => ({
+    farmaciaId: p.farmaciaId,
+    farmaciaNome: nomeById.get(p.farmaciaId) ?? "—",
+    peso: p.peso,
+    temHistorico: p.temHistorico,
+  }));
+
   const aviso: AvisoSemHistorico | null = semHistoricoNenhum
     ? { tipo: "SEM_HISTORICO_NENHUM", farmaciasSemHistorico }
     : farmaciasSemHistorico.length > 0
       ? { tipo: "SEM_HISTORICO_PARCIAL", farmaciasSemHistorico }
       : null;
 
-  return { celulas, aviso };
+  return { celulas, aviso, pesosFarmacia, pesosMensais };
 }
 
 /**

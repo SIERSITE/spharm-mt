@@ -65,10 +65,46 @@ export type AvisoSemHistorico = {
   farmaciasSemHistorico: string[];
 };
 
+/**
+ * Transparência do peso histórico de FARMÁCIA usado numa proposta — de
+ * onde vieram as percentagens que decidiram "esta farmácia leva X% da
+ * quantidade total" (ver a tabela "Farmácia · Peso hist. · Total" na
+ * UI). Nunca persistido — é sempre recalculado junto com a proposta,
+ * exactamente para nunca ficar dessincronizado dela.
+ */
+export type PesoFarmaciaExibicao = {
+  farmaciaId: string;
+  farmaciaNome: string;
+  /** Fracção 0..1 do total histórico usada para repartir a quantidade total. */
+  peso: number;
+  temHistorico: boolean;
+};
+
+/** De onde veio o peso mensal efectivamente aplicado a UMA farmácia — nunca uma caixa preta. */
+export type OrigemPesoMensal = "FARMACIA" | "GLOBAL" | "NEUTRO";
+
+export type PesoMesExibicao = {
+  ano: number;
+  mes: number;
+  /** Fracção 0..1 entre os meses DESTA farmácia (soma 1 dentro da mesma farmácia). */
+  peso: number;
+};
+
+/** O perfil mensal aplicado a UMA farmácia — a mesma farmácia pode usar uma origem diferente da farmácia ao lado (uma tem perfil próprio, outra cai para o global). */
+export type PesosMensaisPorFarmacia = {
+  farmaciaId: string;
+  origem: OrigemPesoMensal;
+  pesos: PesoMesExibicao[];
+};
+
 /** Resultado de calcular SÓ a distribuição (peso + meses) — nunca inclui PVP. */
 export type PropostaDistribuicao = {
   celulas: CelulaManutencao[];
   aviso: AvisoSemHistorico | null;
+  /** Transparência do peso por farmácia usado nesta proposta. */
+  pesosFarmacia: PesoFarmaciaExibicao[];
+  /** Transparência do peso mensal aplicado a cada farmácia desta proposta. */
+  pesosMensais: PesosMensaisPorFarmacia[];
 };
 
 /** Resultado de uma proposta completa NOVA — distribuição + PVP capturado agora. */
