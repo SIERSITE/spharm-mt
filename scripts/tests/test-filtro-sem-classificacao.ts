@@ -204,17 +204,24 @@ console.log("\nB · os loaders usam o helper, e só o helper");
 console.log("\nC · o rótulo diz a verdade");
 {
   const ui = readFileSync("components/reporting/report-filters-bar.tsx", "utf8");
+  // O rótulo passou a ser a prop `label` de `<ToggleRow>` (uniformização
+  // do padrão de filtros do Vendas — ver o comentário no topo deste
+  // ficheiro) em vez de texto `<span>` literal — a checagem acompanha
+  // essa mudança de forma, nunca a intenção: o texto RENDERIZADO tem de
+  // continuar a ser exactamente "Apenas produtos sem classificação".
   check(
-    ui.includes("Apenas produtos sem classificação<"),
+    ui.includes('label="Apenas produtos sem classificação"'),
     "o rótulo é «Apenas produtos sem classificação»",
   );
   // A promessa antiga: "canónica" passou a ser um recorte diferente no dia
   // em que passou a existir PROVISORIA, e o rótulo prometia incluí-las.
   //
-  // A verificação olha para o que é RENDERIZADO, não para o ficheiro: o
-  // comentário que explica a mudança cita necessariamente o texto antigo,
-  // e uma procura no ficheiro inteiro acusava-o como se fosse o rótulo.
-  const rotulos = [...ui.matchAll(/<span>([^<]*)<\/span>/g)].map((m) => m[1]);
+  // A verificação olha para o que é RENDERIZADO (as props `label="..."`
+  // deste ficheiro, que `ToggleRow`/`FilterSelect` mostram tal como
+  // vêm), não para o ficheiro inteiro: o comentário que explica a
+  // mudança cita necessariamente o texto antigo, e uma procura no
+  // ficheiro inteiro acusava-o como se fosse o rótulo.
+  const rotulos = [...ui.matchAll(/label="([^"]*)"/g)].map((m) => m[1]);
   check(
     !rotulos.some((r) => /sem classifica..o can.nica/i.test(r)),
     "…e nenhum rótulo visível diz «canónica» — seria uma promessa por cumprir",

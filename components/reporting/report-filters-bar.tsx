@@ -9,27 +9,54 @@
  * relatório decide quando disparar o loader (alguns são lazy, outros
  * podem ser auto-refresh).
  *
+ * ── Uniformização com o padrão do Vendas ──────────────────────────────
+ *
+ * Até aqui, os multi-selects (farmácia/categoria/subcategoria/
+ * utilização/fabricante/distribuidor) + o importador de CNP + os
+ * toggles de classificação/natureza ficavam TODOS sempre visíveis, de
+ * uma vez — o oposto do padrão do Vendas (linha de topo sempre visível,
+ * filtros avançados atrás de um botão "Filtros" com contador, filtros
+ * rápidos numa faixa à parte). Como o Vendas foi escolhido como
+ * referência de UX para os três relatórios, este componente passou a
+ * seguir a mesma disposição:
+ *
+ *   · linha de topo — pesquisa, Desde/Até (quando não `hideDates`), o
+ *     botão `FiltrosToggleButton` (contador de `contarFiltrosAtivos`) e
+ *     `LimparFiltrosButton` — sempre visíveis;
+ *   · painel avançado — importador de CNP + os 6 multi-selects + chips
+ *     das selecções activas — só quando o painel está aberto;
+ *   · faixa de filtros rápidos — "Apenas produtos sem classificação" e
+ *     (quando `mostrarNaturezas`) crédito/transferências — sempre
+ *     visível, como no Vendas.
+ *
+ * A LÓGICA de filtragem não mudou nada: mesmo `value`/`onChange`,
+ * mesmos campos, mesmo `SharedReportFilters` — só a disposição.
+ *
  * Reaproveita:
  *   · `<FilterSelect>` para os multi-selects (chevron + checkboxes)
+ *   · `SearchableMultiSelect`/`FilterPill`/`ToggleRow`/
+ *     `FiltrosToggleButton`/`LimparFiltrosButton` do Vendas
+ *     (components/reporting/filter-panel.tsx)
+ *   · `contarFiltrosAtivos`/`limparFiltrosPreservandoData` — a MESMA
+ *     regra usada pelo Vendas (lib/reporting/filters-shared.ts)
  *   · `SharedReportFilters` como tipo do estado
  *   · `ReportFilterOptions` como universo de opções
- *
- * Conteúdo idêntico ao bloco hard-coded dos clients existentes —
- * search (icon lupa), Desde, Até, depois 4 multi-selects (farmácia,
- * categoria, fabricante, distribuidor). A flag `apenasSemClassif`
- * aparece como toggle inline quando `options.semClassificacao=true`.
  *
  * Props ocultas opcionais:
  *   · hideDates    — Inventário "stock actual" não tem período
  *   · hidePeriodLabel — quem queira sobrepor o título acima das datas
  */
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { FilterSelect } from "./filter-select";
+import { FilterPill, FiltrosToggleButton, LimparFiltrosButton, ToggleRow } from "./filter-panel";
 import { ImportListaCodigos } from "./import-lista-codigos";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
-import type {
-  ReportFilterOptions,
-  SharedReportFilters,
+import {
+  contarFiltrosAtivos,
+  limparFiltrosPreservandoData,
+  type ReportFilterOptions,
+  type SharedReportFilters,
 } from "@/lib/reporting/filters-shared";
 import {
   DEFAULT_INCLUIR_CREDITO,
@@ -74,7 +101,22 @@ export function ReportFiltersBar({
   lista = null,
   onListaChange,
 }: Props) {
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const patch = (delta: Partial<SharedReportFilters>) => onChange({ ...value, ...delta });
+  const filtrosAtivosCount = contarFiltrosAtivos(value);
+
+  /**
+   * "Limpar filtros" — mesma regra e alcance definidos em
+   * `limparFiltrosPreservandoData` (mantém `from`/`to`, repõe o resto).
+   * A lista importada é um caso à parte: vive em `lista`/`onListaChange`
+   * (estado do PAI, não de `value`), por isso é limpa aqui explicitamente
+   * junto com o resto — nunca fica um "437 produtos" esquecido no
+   * cabeçalho depois de "Limpar filtros".
+   */
+  const limpar = () => {
+    onListaChange?.(null);
+    onChange(limparFiltrosPreservandoData(value));
+  };
 
   /**
    * A lista e o filtro movem-se JUNTOS, num único `onChange` de cada
@@ -108,12 +150,14 @@ export function ReportFiltersBar({
 
   return (
     <section className="rounded-[16px] border border-slate-200/60 bg-white/72 p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.045)]">
-      {/* Linha 1: search + datas (datas escondidas em snapshot mode) */}
+      {/* Linha de topo: search + datas (datas escondidas em snapshot
+          mode) + o botão "Filtros" (com contador) + "Limpar filtros" —
+          sempre visíveis, mesmo padrão do Vendas. */}
       <div
         className={
           hideDates
-            ? "grid gap-3 md:grid-cols-1"
-            : "grid gap-3 md:grid-cols-[1.5fr_160px_160px]"
+            ? "grid gap-3 md:grid-cols-[1fr_auto_auto]"
+            : "grid gap-3 md:grid-cols-[1.5fr_160px_160px_auto_auto]"
         }
       >
         <div className="relative">
@@ -144,115 +188,148 @@ export function ReportFiltersBar({
             />
           </>
         )}
+        <FiltrosToggleButton
+          aberto={filtrosAbertos}
+          onToggle={() => setFiltrosAbertos((prev) => !prev)}
+          contagem={filtrosAtivosCount}
+        />
+        <LimparFiltrosButton onClick={limpar} />
       </div>
 
-      {/* Lista importada por ficheiro. Fica logo abaixo da pesquisa
-          porque é a mesma pergunta — "que artigos?" — feita com um
-          ficheiro em vez de com uma caixa de texto. Combina-se com tudo
-          o que vem a seguir por E lógico. */}
-      {onListaChange && (
-        <div className="mt-3">
-          <ImportListaCodigos lista={lista} onChange={aplicarLista} />
+      {/* ── Painel avançado — só quando aberto ── */}
+      {filtrosAbertos && (
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+          {/* Lista importada por ficheiro. Fica logo no topo do painel
+              porque é a mesma pergunta — "que artigos?" — feita com um
+              ficheiro em vez de com uma caixa de texto. Combina-se com
+              tudo o resto por E lógico. */}
+          {onListaChange && (
+            <div className="mb-3">
+              <ImportListaCodigos lista={lista} onChange={aplicarLista} />
+            </div>
+          )}
+
+          {/* Catálogo — farmácia, os DOIS níveis, e utilização.
+              Categoria e subcategoria são selects separados de
+              propósito: são níveis diferentes, e tratá-los como um só
+              foi o defeito que isto corrige. */}
+          <div className="grid gap-3 md:grid-cols-4">
+            <FilterSelect
+              label="Farmácia"
+              options={options.farmacias}
+              selected={value.farmaciaNomes ?? []}
+              onChange={(v) => patch({ farmaciaNomes: v })}
+            />
+            <FilterSelect
+              label="Categoria"
+              options={options.categorias}
+              selected={value.categorias ?? []}
+              onChange={(v) => patch({ categorias: v })}
+            />
+            <FilterSelect
+              label="Subcategoria"
+              options={subcategoriasVisiveis}
+              selected={value.subcategorias ?? []}
+              onChange={(v) => patch({ subcategorias: v })}
+            />
+            <FilterSelect
+              label="Utilização"
+              options={utilizacaoNomes}
+              selected={(value.utilizacoes ?? []).map((s) => nomePorSlug.get(s) ?? s)}
+              onChange={(nomes) =>
+                patch({ utilizacoes: nomes.map((n) => slugPorNome.get(n) ?? n) })
+              }
+            />
+          </div>
+
+          {/* Proveniência comercial. */}
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <FilterSelect
+              label="Fabricante"
+              options={options.fabricantes}
+              selected={value.fabricantes ?? []}
+              onChange={(v) => patch({ fabricantes: v })}
+            />
+            <FilterSelect
+              label="Distribuidor"
+              options={options.distribuidores}
+              selected={value.distribuidores ?? []}
+              onChange={(v) => patch({ distribuidores: v })}
+            />
+          </div>
+
+          {/* Chips das selecções activas — mesmo padrão do Vendas, para
+              ver de relance o que está a restringir o relatório sem ter
+              de reabrir cada multi-select. */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(value.farmaciaNomes ?? []).map((item) => (
+              <FilterPill key={`farmacia-${item}`} label={item} onRemove={() => patch({ farmaciaNomes: (value.farmaciaNomes ?? []).filter((v) => v !== item) })} />
+            ))}
+            {(value.categorias ?? []).map((item) => (
+              <FilterPill key={`categoria-${item}`} label={item} onRemove={() => patch({ categorias: (value.categorias ?? []).filter((v) => v !== item) })} />
+            ))}
+            {(value.subcategorias ?? []).map((item) => (
+              <FilterPill key={`subcategoria-${item}`} label={item} onRemove={() => patch({ subcategorias: (value.subcategorias ?? []).filter((v) => v !== item) })} />
+            ))}
+            {(value.utilizacoes ?? []).map((slug) => (
+              <FilterPill key={`utilizacao-${slug}`} label={nomePorSlug.get(slug) ?? slug} onRemove={() => patch({ utilizacoes: (value.utilizacoes ?? []).filter((v) => v !== slug) })} />
+            ))}
+            {(value.fabricantes ?? []).map((item) => (
+              <FilterPill key={`fabricante-${item}`} label={item} onRemove={() => patch({ fabricantes: (value.fabricantes ?? []).filter((v) => v !== item) })} />
+            ))}
+            {(value.distribuidores ?? []).map((item) => (
+              <FilterPill key={`distribuidor-${item}`} label={item} onRemove={() => patch({ distribuidores: (value.distribuidores ?? []).filter((v) => v !== item) })} />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Linha 2: catálogo — farmácia, os DOIS níveis, e utilização.
-          Categoria e subcategoria são selects separados de propósito: são
-          níveis diferentes, e tratá-los como um só foi o defeito que isto
-          corrige. */}
-      <div className="mt-3 grid gap-3 md:grid-cols-4">
-        <FilterSelect
-          label="Farmácia"
-          options={options.farmacias}
-          selected={value.farmaciaNomes ?? []}
-          onChange={(v) => patch({ farmaciaNomes: v })}
-        />
-        <FilterSelect
-          label="Categoria"
-          options={options.categorias}
-          selected={value.categorias ?? []}
-          onChange={(v) => patch({ categorias: v })}
-        />
-        <FilterSelect
-          label="Subcategoria"
-          options={subcategoriasVisiveis}
-          selected={value.subcategorias ?? []}
-          onChange={(v) => patch({ subcategorias: v })}
-        />
-        <FilterSelect
-          label="Utilização"
-          options={utilizacaoNomes}
-          selected={(value.utilizacoes ?? []).map((s) => nomePorSlug.get(s) ?? s)}
-          onChange={(nomes) =>
-            patch({ utilizacoes: nomes.map((n) => slugPorNome.get(n) ?? n) })
-          }
-        />
-      </div>
+      {/* ── Filtros rápidos — sempre visíveis, fora do painel ── */}
+      {(options.semClassificacao || mostrarNaturezas) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-2.5">
+          {/* "Apenas produtos sem classificação" — só aparece se houver
+              produtos de CATÁLOGO sem classificação no tenant. Evita
+              poluir a UI quando não é relevante.
 
-      {/* Linha 3: proveniência comercial. */}
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <FilterSelect
-          label="Fabricante"
-          options={options.fabricantes}
-          selected={value.fabricantes ?? []}
-          onChange={(v) => patch({ fabricantes: v })}
-        />
-        <FilterSelect
-          label="Distribuidor"
-          options={options.distribuidores}
-          selected={value.distribuidores ?? []}
-          onChange={(v) => patch({ distribuidores: v })}
-        />
-      </div>
-
-      {/* Toggle "apenas sem classificação" — só aparece se houver
-          produtos de CATÁLOGO sem classificação no tenant. Evita poluir
-          a UI quando não é relevante.
-
-          O rótulo dizia "sem classificação canónica" e implementava
-          "sem classificação nenhuma". Antes das classificações
-          provisórias as duas frases eram sinónimas; deixaram de ser no
-          dia em que passou a existir um terceiro estado. Quem ligasse o
-          filtro à procura de provisórias não encontrava nenhuma — elas
-          TÊM nível 1 — e concluía que a grelha as escondia. */}
-      {options.semClassificacao && (
-        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
-          <input
-            type="checkbox"
-            checked={!!value.apenasSemClassif}
-            onChange={(e) => patch({ apenasSemClassif: e.target.checked || undefined })}
-            className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-          />
-          <span>Apenas produtos sem classificação</span>
-        </label>
-      )}
-
-      {/* Os dois interruptores do relatório oficial do SPharm.
-          Os defaults são os do relatório contra o qual reconciliamos —
-          crédito Sim, transferências Não — e são explícitos aqui para
-          que ninguém tenha de adivinhar o que está a ver. Um total já
-          somado não se desligava: a natureza vive até à query. */}
-      {mostrarNaturezas && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
-            <input
-              type="checkbox"
-              checked={value.incluirCredito ?? DEFAULT_INCLUIR_CREDITO}
-              onChange={(e) => patch({ incluirCredito: e.target.checked })}
-              className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              O rótulo dizia "sem classificação canónica" e implementava
+              "sem classificação nenhuma". Antes das classificações
+              provisórias as duas frases eram sinónimas; deixaram de ser
+              no dia em que passou a existir um terceiro estado. Quem
+              ligasse o filtro à procura de provisórias não encontrava
+              nenhuma — elas TÊM nível 1 — e concluía que a grelha as
+              escondia. */}
+          {options.semClassificacao && (
+            <ToggleRow
+              label="Apenas produtos sem classificação"
+              checked={!!value.apenasSemClassif}
+              onChange={(v) => patch({ apenasSemClassif: v || undefined })}
+              compact
             />
-            <span>Incluir vendas a crédito</span>
-          </label>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-slate-600">
-            <input
-              type="checkbox"
-              checked={value.incluirTransferencias ?? DEFAULT_INCLUIR_TRANSFERENCIAS}
-              onChange={(e) => patch({ incluirTransferencias: e.target.checked })}
-              className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            />
-            <span>Incluir guias de transferência</span>
-          </label>
-          <span className="text-[11px] text-slate-400">{rotuloNaturezas(value)}</span>
+          )}
+
+          {/* Os dois interruptores do relatório oficial do SPharm.
+              Os defaults são os do relatório contra o qual reconciliamos
+              — crédito Sim, transferências Não — e o rótulo à direita
+              está sempre à vista para ninguém ter de adivinhar o que
+              está a ver. Um total já somado não se desligava: a natureza
+              vive até à query. */}
+          {mostrarNaturezas && (
+            <>
+              <ToggleRow
+                label="Incluir vendas a crédito"
+                checked={value.incluirCredito ?? DEFAULT_INCLUIR_CREDITO}
+                onChange={(v) => patch({ incluirCredito: v })}
+                compact
+              />
+              <ToggleRow
+                label="Incluir guias de transferência"
+                checked={value.incluirTransferencias ?? DEFAULT_INCLUIR_TRANSFERENCIAS}
+                onChange={(v) => patch({ incluirTransferencias: v })}
+                compact
+              />
+              <span className="text-[11px] text-slate-400">{rotuloNaturezas(value)}</span>
+            </>
+          )}
         </div>
       )}
     </section>

@@ -10,14 +10,23 @@ import {
   buildEncomendaPrefillFromVendas,
   modoEncomendaParaVendas,
 } from "@/lib/encomendas/prefill-from-vendas";
-import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
+import {
+  contarFiltrosAtivos,
+  passaFiltroCatalogo,
+  type SharedReportFilters,
+} from "@/lib/reporting/filters-shared";
 import { normalizarOpcao } from "@/components/reporting/filter-select";
+import {
+  FilterPill,
+  FiltrosToggleButton,
+  LimparFiltrosButton,
+  SearchableMultiSelect,
+  ToggleRow,
+} from "@/components/reporting/filter-panel";
 import {
   Eye,
   Filter,
-  ChevronDown,
   Search,
-  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportActions } from "@/components/reporting/report-actions";
@@ -705,14 +714,59 @@ export function VendasClient({
     periodHeader,
   ]);
 
-  const filtrosAtivosCount =
-    farmaciasSelecionadas.length +
-    fornecedoresSelecionados.length +
-    fabricantesSelecionados.length +
-    categoriasSelecionadas.length +
-    // A lista conta como UM filtro, não como 437. O contador diz quantos
-    // eixos estão activos, e um ficheiro é um eixo.
-    (listaCodigos ? 1 : 0);
+  // O Vendas guarda os filtros em `useState` separados (histórico do
+  // ficheiro), não num único `SharedReportFilters` como Margens/
+  // Inventário — este objecto efémero existe só para alimentar a MESMA
+  // regra de contagem partilhada (`contarFiltrosAtivos`), nunca é usado
+  // para mais nada. Corrige, de propósito, o que a soma ad-hoc anterior
+  // deixava de fora (subcategoria e utilização nunca entravam nela).
+  const filtrosParaContagem: SharedReportFilters = useMemo(
+    () => ({
+      farmaciaNomes: farmaciasSelecionadas,
+      categorias: categoriasSelecionadas,
+      subcategorias: subcategoriasSelecionadas,
+      utilizacoes: utilizacoesSelecionadas,
+      fabricantes: fabricantesSelecionados,
+      distribuidores: fornecedoresSelecionados,
+      cnps: listaCodigos ? listaCodigos.cnps : undefined,
+    }),
+    [
+      farmaciasSelecionadas,
+      categoriasSelecionadas,
+      subcategoriasSelecionadas,
+      utilizacoesSelecionadas,
+      fabricantesSelecionados,
+      fornecedoresSelecionados,
+      listaCodigos,
+    ],
+  );
+  const filtrosAtivosCount = contarFiltrosAtivos(filtrosParaContagem);
+
+  /**
+   * "Limpar filtros" — mesma regra e mesmo alcance definidos em
+   * `limparFiltrosPreservandoData` (lib/reporting/filters-shared.ts),
+   * aplicada campo a campo porque o estado do Vendas não é um único
+   * objecto. Mantém Data início/Data fim, âmbito, agrupamento,
+   * ordenação e modo de visualização — são período e VISTA, não
+   * filtragem. Repõe os "filtros rápidos" para os SEUS defaults
+   * documentados (nunca para "tudo desligado" às cegas).
+   */
+  function limparFiltros() {
+    setFarmaciasSelecionadas([]);
+    setFornecedoresSelecionados([]);
+    setFabricantesSelecionados([]);
+    setCategoriasSelecionadas([]);
+    setSubcategoriasSelecionadas([]);
+    setUtilizacoesSelecionadas([]);
+    setArtigo("");
+    setListaCodigos(null);
+    setApenasComVendas(true);
+    setApenasComStock(false);
+    setIncluirManutencao(false);
+    setIncluirTotais(true);
+    setIncluirCredito(DEFAULT_INCLUIR_CREDITO);
+    setIncluirTransferencias(DEFAULT_INCLUIR_TRANSFERENCIAS);
+  }
 
   const showFarmaciaColumnInReport =
     ambito === "comparativo" || farmaciasSelecionadas.length !== 1;
@@ -899,29 +953,13 @@ export function VendasClient({
               ]}
             />
 
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => setFiltrosAbertos((prev) => !prev)}
-                className={[
-                  "inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[13px] font-medium transition",
-                  filtrosAbertos
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
-                ].join(" ")}
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Filtros
-                <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                  {filtrosAtivosCount}
-                </span>
-                <ChevronDown
-                  className={[
-                    "h-3.5 w-3.5 transition",
-                    filtrosAbertos ? "rotate-180" : "",
-                  ].join(" ")}
-                />
-              </button>
+            <div className="flex items-end gap-2">
+              <FiltrosToggleButton
+                aberto={filtrosAbertos}
+                onToggle={() => setFiltrosAbertos((prev) => !prev)}
+                contagem={filtrosAtivosCount}
+              />
+              <LimparFiltrosButton onClick={limparFiltros} />
             </div>
           </div>
 
@@ -1147,6 +1185,28 @@ export function VendasClient({
                     onRemove={() =>
                       setCategoriasSelecionadas((prev) =>
                         prev.filter((v) => v !== item)
+                      )
+                    }
+                  />
+                ))}
+                {subcategoriasSelecionadas.map((item) => (
+                  <FilterPill
+                    key={`subcategoria-${item}`}
+                    label={item}
+                    onRemove={() =>
+                      setSubcategoriasSelecionadas((prev) =>
+                        prev.filter((v) => v !== item)
+                      )
+                    }
+                  />
+                ))}
+                {utilizacoesSelecionadas.map((slug) => (
+                  <FilterPill
+                    key={`utilizacao-${slug}`}
+                    label={nomePorSlug.get(slug) ?? slug}
+                    onRemove={() =>
+                      setUtilizacoesSelecionadas((prev) =>
+                        prev.filter((v) => v !== slug)
                       )
                     }
                   />
@@ -1895,136 +1955,6 @@ function CompactDate({
         onChange={(e) => onChange(e.target.value)}
         className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
       />
-    </label>
-  );
-}
-
-function SearchableMultiSelect({
-  label,
-  options,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  options: string[];
-  selected: string[];
-  onToggle: (value: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-
-  const filteredOptions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((option) => option.toLowerCase().includes(q));
-  }, [options, query]);
-
-  return (
-    <div>
-      <div className="mb-1 text-[11px] font-medium text-slate-500">{label}</div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Pesquisar ${label.toLowerCase()}...`}
-            className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white"
-          />
-        </div>
-
-        <div className="mt-2 max-h-44 space-y-1 overflow-y-auto">
-          {filteredOptions.map((option) => {
-            const active = selected.includes(option);
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => onToggle(option)}
-                className={[
-                  "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-[12px] font-medium transition",
-                  active
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-                ].join(" ")}
-              >
-                <span className="truncate">{option}</span>
-                {active && <span className="ml-2 text-[11px] font-semibold">✓</span>}
-              </button>
-            );
-          })}
-
-          {filteredOptions.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-3 text-[12px] text-slate-500">
-              Sem resultados.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FilterPill({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] text-slate-700">
-      {label}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-slate-400 transition hover:text-slate-700"
-      >
-        <X className="h-3 w-3" />
-      </button>
-    </span>
-  );
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-  compact = false,
-  title,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  compact?: boolean;
-  /** Tooltip nativo — usado quando o toggle só faz efeito ao clicar "Gerar". */
-  title?: string;
-}) {
-  return (
-    <label
-      title={title}
-      className={
-        compact
-          ? "flex items-center gap-2.5"
-          : "flex items-center justify-between gap-2.5"
-      }
-    >
-      <span className="text-[13px] text-slate-700">{label}</span>
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={[
-          "relative h-5 w-10 rounded-full transition",
-          checked ? "bg-emerald-500" : "bg-slate-200",
-        ].join(" ")}
-      >
-        <span
-          className={[
-            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition",
-            checked ? "left-[20px]" : "left-0.5",
-          ].join(" ")}
-        />
-      </button>
     </label>
   );
 }

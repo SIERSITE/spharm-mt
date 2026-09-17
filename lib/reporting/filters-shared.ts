@@ -20,7 +20,18 @@
  * Loaders específicos podem ESTENDER este tipo com campos adicionais
  * (ex: granularidade, agrupamento server-side) — mas NUNCA renomear
  * campos partilhados.
+ *
+ * ── Uniformização dos filtros (Vendas/Margens/Inventário) ────────────
+ *
+ * `contarFiltrosAtivos`/`limparFiltrosPreservandoData`, ao fundo deste
+ * ficheiro, são a regra ÚNICA de contagem do badge "Filtros N" e do
+ * alcance de "Limpar filtros" — pensadas para valer nos três
+ * relatórios, mesmo o Vendas, cujo estado de filtros vive em `useState`
+ * separados em vez de num único objecto deste tipo (o chamador
+ * constrói um `SharedReportFilters` efémero só para as alimentar).
  */
+import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS } from "./natureza-venda";
+
 export type SharedReportFilters = {
   /** Lista de NOMES de farmácia. Vazio/omitido = todas as activas. */
   farmaciaNomes?: string[];
@@ -138,6 +149,88 @@ export type SharedReportFilters = {
    */
   incluirManutencao?: boolean;
 };
+
+/**
+ * A regra ÚNICA de quantos "eixos de filtro" estão activos — o número
+ * dentro do badge "Filtros N", igual em Vendas, Margens e Inventário
+ * (secção "Contador de filtros" do pedido de uniformização de UX).
+ *
+ * Conta EIXOS, não itens: escolher 5 categorias conta 1, não 5 — o que
+ * interessa ao utilizador é "quantas dimensões estou a restringir", não
+ * "quantos valores dentro de cada uma". Antes desta função, o Vendas
+ * tinha a sua própria soma ad-hoc que, por lapso, nunca incluía
+ * subcategoria nem utilização — corrigido aqui, de propósito, para os
+ * três relatórios contarem sempre da mesma forma.
+ *
+ * NÃO conta: pesquisa livre (`pesquisa`) nem período (`from`/`to`) —
+ * ficam sempre visíveis na linha de topo, nunca escondidos atrás do
+ * painel "Filtros"; nem os toggles de "filtros rápidos" (natureza,
+ * apenas-sem-classificação, apenasComStock, incluirManutencao, ...) —
+ * esses vivem fora do painel avançado, com o próprio estado já visível
+ * sem precisar de abrir nada.
+ */
+export function contarFiltrosAtivos(filtros: SharedReportFilters): number {
+  let n = 0;
+  if ((filtros.farmaciaNomes?.length ?? 0) > 0) n++;
+  if ((filtros.categorias?.length ?? 0) > 0) n++;
+  if ((filtros.subcategorias?.length ?? 0) > 0) n++;
+  if ((filtros.utilizacoes?.length ?? 0) > 0) n++;
+  if ((filtros.fabricantes?.length ?? 0) > 0) n++;
+  if ((filtros.distribuidores?.length ?? 0) > 0) n++;
+  // A lista importada conta como UM eixo, não como "N produtos" — ver
+  // a nota grande em `cnps` acima sobre `undefined` vs `[]`.
+  if (filtros.cnps !== undefined) n++;
+  return n;
+}
+
+/**
+ * "Limpar filtros" — a definição ÚNICA do que é reposto e do que fica,
+ * usada nos três relatórios (secção "Novo botão Limpar filtros" do
+ * pedido de uniformização de UX).
+ *
+ *   · REPÕE: pesquisa, farmácia, categoria, subcategoria, utilização,
+ *     fabricante, distribuidor, lista de CNP importada, "apenas sem
+ *     classificação", e os toggles específicos de Vendas
+ *     (`apenasComStock`, `incluirManutencao`) e de natureza
+ *     (crédito/transferências) para os seus defaults documentados.
+ *   · MANTÉM: `from`/`to` (Data início/Data fim) — decisão explícita:
+ *     o utilizador normalmente quer continuar a analisar o MESMO
+ *     período depois de limpar os critérios de filtragem, não
+ *     recomeçar do zero.
+ *   · Nunca mexe em agrupamento/ordenação/modo de visualização — são
+ *     controlos de VISTA, não de filtragem (a mesma distinção que já
+ *     existe hoje: separadores de nível e chips de estado em
+ *     Margens/Inventário nunca contaram como filtro).
+ *
+ * Campos fora deste tipo (ex: `apenasComVendas`/`incluirTotais` do
+ * Vendas, que vivem em `useState` próprios porque o Vendas ainda não
+ * guarda o estado num único objecto) não são tocados por esta função —
+ * o chamador repõe-nos à parte, com a MESMA regra (repor ao default
+ * documentado do próprio campo).
+ */
+export function limparFiltrosPreservandoData(
+  filtros: SharedReportFilters,
+): SharedReportFilters {
+  return {
+    ...filtros,
+    pesquisa: undefined,
+    farmaciaNomes: [],
+    categorias: [],
+    subcategorias: [],
+    utilizacoes: [],
+    fabricantes: [],
+    distribuidores: [],
+    cnps: undefined,
+    apenasSemClassif: false,
+    incluirCredito: DEFAULT_INCLUIR_CREDITO,
+    incluirTransferencias: DEFAULT_INCLUIR_TRANSFERENCIAS,
+    apenasComStock: false,
+    incluirManutencao: false,
+    // from/to NUNCA aparecem acima — ficam exactamente como vieram, via
+    // spread. É a garantia de que esta função não os pode tocar por
+    // engano numa edição futura.
+  };
+}
 
 /**
  * A linha de cabeçalho que anuncia a lista importada.
