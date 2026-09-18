@@ -217,8 +217,8 @@ console.log("\nC · o rótulo diz a verdade");
   // em que passou a existir PROVISORIA, e o rótulo prometia incluí-las.
   //
   // A verificação olha para o que é RENDERIZADO (as props `label="..."`
-  // deste ficheiro, que `ToggleRow`/`FilterSelect` mostram tal como
-  // vêm), não para o ficheiro inteiro: o comentário que explica a
+  // deste ficheiro, que `ToggleRow`/`SearchableMultiSelect` mostram tal
+  // como vêm), não para o ficheiro inteiro: o comentário que explica a
   // mudança cita necessariamente o texto antigo, e uma procura no
   // ficheiro inteiro acusava-o como se fosse o rótulo.
   const rotulos = [...ui.matchAll(/label="([^"]*)"/g)].map((m) => m[1]);

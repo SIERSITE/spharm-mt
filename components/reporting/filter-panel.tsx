@@ -31,6 +31,13 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, Eraser, Filter, Search, X } from "lucide-react";
 
+/** Acrescenta/remove `valor` de `selecionados` — a única regra de toggle de uma multi-selecção, para nunca haver uma cópia divergente por relatório. */
+export function alternarValor(valor: string, selecionados: readonly string[]): string[] {
+  return selecionados.includes(valor)
+    ? selecionados.filter((v) => v !== valor)
+    : [...selecionados, valor];
+}
+
 /** Uma dimensão (farmácia, fabricante, categoria, ...) como pesquisa + lista de botões toggle. */
 export function SearchableMultiSelect({
   label,

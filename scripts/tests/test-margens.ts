@@ -235,44 +235,73 @@ console.log("\nL · pesquisa local nos filtros");
   // Sem correspondências: lista vazia, e não a lista toda.
   eq(opcoesVisiveis(FABRICANTES, "xpto"), [], "sem correspondências ⇒ vazio");
 
-  // B · a selecção não é tocada
-  const cliente = readFileSync("components/reporting/filter-select.tsx", "utf8");
+  // B · `normalizarOpcao`/`opcoesVisiveis` continuam a descrever
+  // `filter-select.tsx` correctamente — esse componente ainda existe e
+  // ainda é usado (ex. `devolucoes-client.tsx`), só deixou de ser o que
+  // a barra partilhada de Margens/Inventário usa (ver secção L2 abaixo).
+  const filterSelectSrc = readFileSync("components/reporting/filter-select.tsx", "utf8");
   check(
-    !/setProcura[\s\S]{0,200}onChange\(/.test(cliente),
+    !/setProcura[\s\S]{0,200}onChange\(/.test(filterSelectSrc),
     "B: escrever na caixa nunca chama o onChange da selecção",
   );
   check(
-    cliente.includes("const escondidasSeleccionadas = selected.filter"),
+    filterSelectSrc.includes("const escondidasSeleccionadas = selected.filter"),
     "B: e a UI diz quantas seleccionadas a pesquisa escondeu",
   );
   check(
-    cliente.includes("checked={selected.includes(opt)}"),
+    filterSelectSrc.includes("checked={selected.includes(opt)}"),
     "B: o estado do checkbox vem sempre de `selected`, não do que está visível",
   );
   check(
-    cliente.includes("const MINIMO_PARA_PESQUISA = 8"),
+    filterSelectSrc.includes("const MINIMO_PARA_PESQUISA = 8"),
     "a caixa só aparece em listas longas",
   );
   check(
-    !cliente.includes("fetch(") && !cliente.includes("useEffect"),
+    !filterSelectSrc.includes("fetch(") && !filterSelectSrc.includes("useEffect"),
     "sem pedidos à base de dados: o universo já veio do servidor",
   );
+}
 
-  // Todos os filtros da barra usam este componente — logo, todos ganham
-  // a pesquisa de uma vez.
+// ══════════════════════════════════════════════════════════════════════
+// L2 · A SELECÇÃO DE MARGENS/INVENTÁRIO É O MESMO COMPONENTE DO VENDAS
+//
+// Pedido explícito de uniformização: não bastava a mesma ÁREA de
+// filtros (painel "Filtros" colapsável) — a SELECÇÃO em si (farmácia/
+// categoria/subcategoria/utilização/fabricante/distribuidor) tinha de
+// deixar de usar `FilterSelect` (<details> + checkboxes) e passar a
+// usar `SearchableMultiSelect` — o MESMO componente que o Vendas usa,
+// importado do MESMO ficheiro, nunca uma cópia com o mesmo aspecto.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nL2 · Margens/Inventário usam o SearchableMultiSelect do Vendas");
+{
   const barra = readFileSync("components/reporting/report-filters-bar.tsx", "utf8");
   for (const f of ["Farmácia", "Categoria", "Subcategoria", "Utilização", "Fabricante", "Distribuidor"]) {
-    check(
-      new RegExp(`label="${f}"[\\s\\S]{0,200}<`).test(barra) || barra.includes(`label="${f}"`),
-      `o filtro ${f} está na barra partilhada`,
-    );
+    check(barra.includes(`label="${f}"`), `o filtro ${f} está na barra partilhada`);
   }
-  // `<FilterSelect` aparece tambem no comentario do cabecalho do
-  // ficheiro; conta-se a forma JSX real (etiqueta + quebra de linha).
+  check(
+    barra.includes('from "./filter-panel"'),
+    "a barra importa do MESMO módulo partilhado que o Vendas usa (filter-panel.tsx)",
+  );
+  // A etiqueta JSX real (com quebra de linha) — não a menção em prosa no
+  // comentário do cabeçalho do ficheiro, que fala do componente sem `<`.
   eq(
-    (barra.match(/<FilterSelect\n/g) ?? []).length,
+    (barra.match(/<SearchableMultiSelect\n/g) ?? []).length,
     6,
-    "os 6 filtros passam pelo mesmo FilterSelect",
+    "os 6 filtros passam pelo mesmo SearchableMultiSelect do Vendas",
+  );
+  check(
+    !/<FilterSelect[\s/]/.test(barra),
+    "FilterSelect (checkboxes tradicionais) já não é usado na barra partilhada — nunca mais um checkbox aqui",
+  );
+  const painel = readFileSync("components/reporting/filter-panel.tsx", "utf8");
+  check(
+    painel.includes("export function SearchableMultiSelect"),
+    "SearchableMultiSelect vive em filter-panel.tsx — o mesmo ficheiro que o Vendas importa",
+  );
+  const vendasSrc = readFileSync("components/vendas/vendas-client.tsx", "utf8");
+  check(
+    vendasSrc.includes('from "@/components/reporting/filter-panel"') && vendasSrc.includes("SearchableMultiSelect"),
+    "…e o Vendas importa exactamente o mesmo símbolo do mesmo ficheiro (não uma cópia local)",
   );
 }
 

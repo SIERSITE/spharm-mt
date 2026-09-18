@@ -32,11 +32,29 @@
  * A LÓGICA de filtragem não mudou nada: mesmo `value`/`onChange`,
  * mesmos campos, mesmo `SharedReportFilters` — só a disposição.
  *
+ * ── Multi-selects: o MESMO componente do Vendas, não um parecido ──────
+ *
+ * Os 6 multi-selects (farmácia/categoria/subcategoria/utilização/
+ * fabricante/distribuidor) usavam o componente de selecção "FilterSelect"
+ * — um "details" com checkboxes tradicionais, uma interacção DIFERENTE
+ * da do Vendas (linhas/pills clicáveis, destaque a verde, ✓ à direita,
+ * sem checkbox). Isso era precisamente o principal ponto por
+ * uniformizar: o botão "Filtros" e o painel colapsável já seguiam o
+ * padrão do Vendas, mas a SELECÇÃO em si continuava a parecer um
+ * formulário diferente assim que se olhava para dentro de cada
+ * dimensão.
+ *
+ * Agora usam SearchableMultiSelect — literalmente o mesmo componente
+ * que `components/vendas/vendas-client.tsx` importa de
+ * `filter-panel.tsx`, não uma cópia com o mesmo aspecto. O componente
+ * de selecção anterior deixou de ser usado aqui (continua a existir
+ * para quem ainda o usa, ex. `devolucoes-client.tsx`, fora do âmbito
+ * desta uniformização).
+ *
  * Reaproveita:
- *   · `<FilterSelect>` para os multi-selects (chevron + checkboxes)
  *   · `SearchableMultiSelect`/`FilterPill`/`ToggleRow`/
- *     `FiltrosToggleButton`/`LimparFiltrosButton` do Vendas
- *     (components/reporting/filter-panel.tsx)
+ *     `FiltrosToggleButton`/`LimparFiltrosButton`/`alternarValor` do
+ *     Vendas (components/reporting/filter-panel.tsx)
  *   · `contarFiltrosAtivos`/`limparFiltrosPreservandoData` — a MESMA
  *     regra usada pelo Vendas (lib/reporting/filters-shared.ts)
  *   · `SharedReportFilters` como tipo do estado
@@ -48,8 +66,14 @@
  */
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { FilterSelect } from "./filter-select";
-import { FilterPill, FiltrosToggleButton, LimparFiltrosButton, ToggleRow } from "./filter-panel";
+import {
+  FilterPill,
+  FiltrosToggleButton,
+  LimparFiltrosButton,
+  SearchableMultiSelect,
+  ToggleRow,
+  alternarValor,
+} from "./filter-panel";
 import { ImportListaCodigos } from "./import-lista-codigos";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -214,47 +238,49 @@ export function ReportFiltersBar({
               propósito: são níveis diferentes, e tratá-los como um só
               foi o defeito que isto corrige. */}
           <div className="grid gap-3 md:grid-cols-4">
-            <FilterSelect
+            <SearchableMultiSelect
               label="Farmácia"
               options={options.farmacias}
               selected={value.farmaciaNomes ?? []}
-              onChange={(v) => patch({ farmaciaNomes: v })}
+              onToggle={(v) => patch({ farmaciaNomes: alternarValor(v, value.farmaciaNomes ?? []) })}
             />
-            <FilterSelect
+            <SearchableMultiSelect
               label="Categoria"
               options={options.categorias}
               selected={value.categorias ?? []}
-              onChange={(v) => patch({ categorias: v })}
+              onToggle={(v) => patch({ categorias: alternarValor(v, value.categorias ?? []) })}
             />
-            <FilterSelect
+            <SearchableMultiSelect
               label="Subcategoria"
               options={subcategoriasVisiveis}
               selected={value.subcategorias ?? []}
-              onChange={(v) => patch({ subcategorias: v })}
+              onToggle={(v) => patch({ subcategorias: alternarValor(v, value.subcategorias ?? []) })}
             />
-            <FilterSelect
+            {/* Viaja em slug, mostra-se pelo nome — mesmo padrão do Vendas. */}
+            <SearchableMultiSelect
               label="Utilização"
               options={utilizacaoNomes}
               selected={(value.utilizacoes ?? []).map((s) => nomePorSlug.get(s) ?? s)}
-              onChange={(nomes) =>
-                patch({ utilizacoes: nomes.map((n) => slugPorNome.get(n) ?? n) })
-              }
+              onToggle={(nome) => {
+                const slug = slugPorNome.get(nome) ?? nome;
+                patch({ utilizacoes: alternarValor(slug, value.utilizacoes ?? []) });
+              }}
             />
           </div>
 
           {/* Proveniência comercial. */}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <FilterSelect
+            <SearchableMultiSelect
               label="Fabricante"
               options={options.fabricantes}
               selected={value.fabricantes ?? []}
-              onChange={(v) => patch({ fabricantes: v })}
+              onToggle={(v) => patch({ fabricantes: alternarValor(v, value.fabricantes ?? []) })}
             />
-            <FilterSelect
+            <SearchableMultiSelect
               label="Distribuidor"
               options={options.distribuidores}
               selected={value.distribuidores ?? []}
-              onChange={(v) => patch({ distribuidores: v })}
+              onToggle={(v) => patch({ distribuidores: alternarValor(v, value.distribuidores ?? []) })}
             />
           </div>
 
