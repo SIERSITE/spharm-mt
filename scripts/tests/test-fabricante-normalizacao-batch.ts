@@ -339,10 +339,14 @@ console.log("\nG · canonical_name (renomeação do canónico)");
   const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
   eq(relatorio.grupos.length, 0, "G11: nome pedido == nome actual → grupo nem entra no relatório (nada a fazer)");
   eq(relatorio.totais.canonicaisRenomeados, 0, "G12: nenhuma renomeação contada");
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "inconsistencia_do_plano", "G12b: classificado como inconsistência (pediu-se renomeação para um nome que já é o actual)");
+  eq(relatorio.renomeacoesBloqueadas.length, 0, "G12c: inconsistencia_do_plano NÃO é tratado como bloqueio — não trava um --apply nem aparece nessa lista");
 }
 {
-  // Colisão: o nome pedido já é o nomeNormalizado de OUTRO Fabricante —
-  // a renomeação é recusada, mas os merges do grupo continuam.
+  // Colisão: o nome pedido já é o nomeNormalizado de OUTRO Fabricante QUE
+  // NÃO PERTENCE a este grupo — a renomeação é recusada (conflito
+  // externo, decisão empresarial nova que o plano não tomou), mas os
+  // merges do grupo continuam.
   const grupos: GrupoNormalizacao[] = [
     { kind: "verified", canonical_id: "c1", canonical_name: "JA EXISTE LDA", source_ids: ["s1"] },
   ];
@@ -352,9 +356,12 @@ console.log("\nG · canonical_name (renomeação do canónico)");
     ["s1", fab("s1", "S1 LDA")],
   ]);
   const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
-  eq(relatorio.renomeacoesBloqueadas.length, 1, "G13: a renomeação é bloqueada por colisão");
-  eq(relatorio.renomeacoesBloqueadas[0].motivo, "colisao_nome", "G14: motivo correcto");
+  eq(relatorio.renomeacoesBloqueadas.length, 1, "G13: a renomeação é bloqueada por colisão externa");
+  eq(relatorio.renomeacoesBloqueadas[0].motivo, "conflito_externo", "G14: motivo correcto");
+  eq(relatorio.renomeacoesBloqueadas[0].fabricanteConflitanteId, "outro", "G14b: identifica o Fabricante em conflito");
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "conflito_externo", "G14c: também aparece classificado");
   check(!relatorio.grupos[0]?.renomeacao, "G15: o grupo resolvido não carrega renomeação nenhuma");
+  check(!relatorio.grupos[0]?.promocao, "G15b: nem promoção — 'outro' não é source deste grupo");
   eq(relatorio.grupos[0]?.sources.map((s) => s.sourceId), ["s1"], "G16: mas o merge do grupo continua a acontecer");
 }
 {
@@ -370,6 +377,179 @@ console.log("\nG · canonical_name (renomeação do canónico)");
   eq(relatorio.grupos[0].renomeacao?.aliasJaExistente, true, "G17: aliasJaExistente=true");
   eq(relatorio.grupos[0].renomeacao?.aliasACriar, null, "G18: nada a criar — já lá estava");
   eq(relatorio.totais.aliasesCriadosPorRenomeacao, 0, "G19: não conta como alias novo");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// G2 · canonical_rename_required — o gate EXPLÍCITO, e o bug real das
+//      494 renomeações espúrias: canonical_rename_required:false nunca
+//      pode desencadear renomeação nenhuma, mesmo que canonical_name_after
+//      difira, em pontuação, do nomeNormalizado já na base.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nG2 · canonical_rename_required — gate explícito (bug das 494 renomeações espúrias)");
+{
+  // O caso concreto reportado: base tem "MEDICINALIA CORMEDICA - MCMEDICAL LDA"
+  // (já normalizado — sem ponto final), o plano acaba de trazer
+  // canonical_name_after="Medicinalia Cormedica - Mcmedical, Lda." (com
+  // pontuação/vírgula — normaliza para o MESMO valor, mas ANTES da
+  // correcção o código nem chegava a comparar: bastava canonical_name
+  // estar presente). canonical_rename_required é false explicitamente.
+  const plano: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "initial_orthographic",
+        canonical_id: "c1",
+        canonical_name_before: "Medicinalia Cormedica - Mcmedical, Lda.",
+        canonical_name_after: "Medicinalia Cormedica - Mcmedical, Lda.",
+        canonical_rename_required: false,
+        sources: [{ source_id: "s1", source_name: "MCMEDICAL VARIANTE", products: 0 }],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(plano);
+  check(grupos[0].canonicalRenameRequired === false, "G2.1: combinarGruposAchatado propaga canonical_rename_required=false (deixou de se perder)");
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["c1", fab("c1", "MEDICINALIA CORMEDICA - MCMEDICAL LDA")], // já sem o ponto final, como fica gravado na base
+    ["s1", fab("s1", "MCMEDICAL VARIANTE")],
+  ]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  check(!relatorio.grupos[0]?.renomeacao, "G2.2: NENHUMA tentativa de renomeação, apesar de canonical_name_after ter pontuação diferente da base");
+  eq(relatorio.renomeacoesBloqueadas.length, 0, "G2.3: não aparece em renomeacoesBloqueadas (nunca chegou a tentar)");
+  eq(relatorio.renomeacoesClassificadas.length, 0, "G2.4: nem sequer aparece classificado — o gate impede-o de entrar na resolução");
+  eq(relatorio.totais.canonicaisRenomeados, 0, "G2.5: zero renomeações contadas");
+  eq(relatorio.grupos[0]?.sources.map((s) => s.sourceId), ["s1"], "G2.6: o merge do grupo continua normal");
+}
+{
+  // Mesmo caso, mas canonical_rename_required AUSENTE do JSON (não `false`
+  // explícito) — combinarGruposAchatado tem de o tratar como `false`
+  // (conservador), nunca como `true` por omissão no formato achatado.
+  const plano: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "initial_orthographic",
+        canonical_id: "c1",
+        canonical_name_after: "X, Lda.",
+        sources: [],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(plano);
+  eq(grupos[0].canonicalRenameRequired, false, "G2.7: ausência de canonical_rename_required no achatado vira false, não true");
+}
+{
+  // Grupo com canonical_rename_required:true DIRECTAMENTE por causa duma
+  // diferença real de pontuação/forma — este SIM deve renomear (não é a
+  // pontuação que decide, é a flag; mas quando a flag é true E o nome
+  // normalizado realmente difere, a renomeação acontece normalmente).
+  const plano: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "supplemental_research_final",
+        canonical_id: "c1",
+        canonical_name_before: "NOME ANTIGO SA",
+        canonical_name_after: "Nome Novo, S.A.",
+        canonical_rename_required: true,
+        sources: [],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(plano);
+  const fabricantesPorId = new Map<string, FabricanteDb>([["c1", fab("c1", "NOME ANTIGO SA")]]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  eq(relatorio.grupos[0]?.renomeacao?.nomeDepois, "NOME NOVO S A", "G2.8: com a flag true e nome realmente diferente, a renomeação acontece");
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "rename_sem_conflito", "G2.9: classificado como rename_sem_conflito");
+}
+{
+  // Achado real na análise do plano (grupos #242, #307, #449): quando
+  // canonical_name_after tem mais de 60 caracteres, normalizeFabricanteCanonico
+  // devolve null (o limite é validado lá, não aqui) — inconsistência do
+  // plano, nunca um crash nem uma renomeação "para vazio".
+  const nomeDemasiadoLongo = "LABORATORIOS EXPANSCIENCE - PRODUTOS DE HIGIENE SOCIEDADE UNIPESSOAL LDA";
+  check(nomeDemasiadoLongo.length > 60, "G2.10 (pré-condição do teste): o nome de exemplo tem mesmo mais de 60 caracteres");
+  const grupos: GrupoNormalizacao[] = [
+    { kind: "supplemental_research_final", canonical_id: "c1", canonical_name: nomeDemasiadoLongo, canonicalRenameRequired: true, source_ids: [] },
+  ];
+  const fabricantesPorId = new Map<string, FabricanteDb>([["c1", fab("c1", "LABORATORIOS EXPANSCIENCE PRODUTOS DE HIGIENE")]]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "inconsistencia_do_plano", "G2.11: nome > 60 caracteres é inconsistência, não renomeação nem crash");
+  check(!relatorio.grupos[0]?.renomeacao, "G2.12: nenhuma renomeação escrita para um nome inválido");
+  eq(relatorio.renomeacoesBloqueadas.length, 0, "G2.13: também não bloqueia nada — mesmo tratamento não-bloqueante");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// G3 · promover_source_a_canonical — o nome final já pertence a uma
+//      origem do PRÓPRIO grupo: promove-a, não bloqueia nem adultera o
+//      fabricante inactivo. Caso concreto: MYLAN LDA. → MYLAN LDA, com
+//      uma origem já chamada "MYLAN LDA" no mesmo grupo.
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nG3 · promover_source_a_canonical (colisão com origem do próprio grupo)");
+{
+  const grupos: GrupoNormalizacao[] = [
+    {
+      kind: "supplemental_research_final",
+      canonical_id: "mylanLda.",
+      canonical_name: "MYLAN LDA",
+      canonicalRenameRequired: true,
+      source_ids: ["mylanLda", "outraOrigem"],
+    },
+  ];
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["mylanLda.", fab("mylanLda.", "MYLAN LDA.")], // canónico actual — o ponto final é a única diferença
+    ["mylanLda", fab("mylanLda", "MYLAN LDA")], // já tem, literalmente, o nome final pretendido
+    ["outraOrigem", fab("outraOrigem", "OUTRA ORIGEM LDA")],
+  ]);
+  const produtosPorFabricanteId = new Map<string, ProdutoDoLoser[]>([
+    ["mylanLda.", [{ id: "p-antigo-canonico", validadoManualmente: false }]],
+    ["mylanLda", [{ id: "p-ja-no-destino", validadoManualmente: false }]],
+    ["outraOrigem", [{ id: "p-outra-origem", validadoManualmente: false }]],
+  ]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId, doNotMerge: [] });
+
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "promover_source_a_canonical", "G3.1: classificado como promoção");
+  eq(relatorio.gruposBloqueados.length, 0, "G3.2: grupo não fica bloqueado");
+  eq(relatorio.renomeacoesBloqueadas.length, 0, "G3.3: não é tratado como bloqueio");
+  eq(relatorio.grupos.length, 1, "G3.4: um grupo resolvido");
+  eq(relatorio.grupos[0].canonicalId, "mylanLda", "G3.5: o NOVO canónico é o registo que já tinha o nome final");
+  eq(relatorio.grupos[0].canonicalNome, "MYLAN LDA", "G3.6: nome do canónico já correcto, sem nenhuma escrita de rename");
+  check(!relatorio.grupos[0].renomeacao, "G3.7: não há objecto de renomeação nenhum — nada para escrever em nomeNormalizado");
+  eq(relatorio.grupos[0].promocao?.canonicalIdAntigo, "mylanLda.", "G3.8: promocao regista o antigo canónico");
+  eq(relatorio.grupos[0].promocao?.canonicalIdNovo, "mylanLda", "G3.9: promocao regista o novo canónico");
+
+  // G4: não cria cadeias nem sources duplicados — exactamente 2 origens
+  // (o antigo canónico + "outraOrigem"), cada uma uma única vez.
+  const sourceIds = relatorio.grupos[0].sources.map((s) => s.sourceId).sort();
+  eq(sourceIds, ["mylanLda.", "outraOrigem"].sort(), "G4.1: o antigo canónico entra como origem, sem duplicar nem desaparecer");
+  eq(new Set(sourceIds).size, sourceIds.length, "G4.2: sem sources duplicados");
+  eq(relatorio.sourcesExcluidos.length, 0, "G4.3: nenhuma exclusão — nem 'cadeia', nem 'self_merge', nem duplicado");
+  eq(relatorio.totais.fabricantesOrigemAInativar, 2, "G4.4: duas origens a inactivar, o mesmo total de sempre (só trocou QUAL id é canónico)");
+
+  // G6: produtos e aliases do antigo canónico (agora origem) chegam ao
+  // destino definitivo, tal como qualquer outra origem.
+  const produtosDoAntigoCanonico = relatorio.grupos[0].sources.find((s) => s.sourceId === "mylanLda.");
+  check(!!produtosDoAntigoCanonico?.plano.produtosAReatribuir.includes("p-antigo-canonico"), "G6.1: o produto do antigo canónico é reatribuído ao novo");
+  const produtosDaOutraOrigem = relatorio.grupos[0].sources.find((s) => s.sourceId === "outraOrigem");
+  check(!!produtosDaOutraOrigem?.plano.produtosAReatribuir.includes("p-outra-origem"), "G6.2: o produto da outra origem também chega ao destino definitivo");
+  check(!!produtosDoAntigoCanonico?.plano.aliasesACriar.includes("MYLAN LDA."), "G6.3: a denominação antiga (com ponto) fica preservada como alias do destino final");
+}
+{
+  // A promoção não deve acontecer se o registo com o nome final estiver
+  // INATIVO — promovê-lo violaria "todo canonical_id tem de estar ATIVO".
+  // Neste caso cai em conflito_externo (decisão empresarial: não se pode
+  // decidir sozinho reactivar um fabricante inactivo).
+  const grupos: GrupoNormalizacao[] = [
+    { kind: "verified", canonical_id: "c1", canonical_name: "MYLAN LDA", canonicalRenameRequired: true, source_ids: ["jaInativo"] },
+  ];
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["c1", fab("c1", "MYLAN LDA.")],
+    ["jaInativo", fab("jaInativo", "MYLAN LDA", "INATIVO")],
+  ]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  eq(relatorio.renomeacoesClassificadas[0]?.classificacao, "conflito_externo", "G3.10: registo com o nome final mas INATIVO não é promovido — fica conflito_externo");
 }
 
 // ══════════════════════════════════════════════════════════════════════

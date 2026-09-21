@@ -70,6 +70,19 @@ export type GrupoKind =
 export type GrupoPlanoOrigem = {
   canonical_id: string;
   canonical_name?: string;
+  /**
+   * Gate EXPLÍCITO de uma tentativa de renomeação — `undefined` (formato
+   * original, que nunca teve este campo) preserva o comportamento antigo
+   * (compara sempre que `canonical_name` vem preenchido); no formato
+   * achatado é SEMPRE o valor literal de `canonical_rename_required` do
+   * plano, nunca inferido. Um `canonical_name` presente mas com esta
+   * flag a `false` NUNCA desencadeia tentativa de renomeação nenhuma —
+   * ver `combinarGruposAchatado` e o bug que isto corrige (494 grupos
+   * com `canonical_rename_required: false` a tentar substituir
+   * pontuação por uma forma normalizada, só porque `canonical_name`
+   * vinha preenchido).
+   */
+  canonicalRenameRequired?: boolean;
   source_ids: string[];
   type?: string;
   reason?: string;
@@ -155,6 +168,10 @@ export function combinarGruposAchatado(plano: PlanoNormalizacaoArquivoAchatado):
     kind: (g.origin as GrupoKind) || "orthographic",
     canonical_id: g.canonical_id,
     canonical_name: g.canonical_name_after,
+    // Literal — nunca inferido a partir de uma diferença de pontuação.
+    // `?? false` é só para um ficheiro que omita o campo; o checkpoint
+    // real traz sempre um boolean explícito nos 557 grupos.
+    canonicalRenameRequired: g.canonical_rename_required ?? false,
     source_ids: g.sources.map((s) => s.source_id),
     reason: g.reason,
   }));
@@ -208,14 +225,78 @@ export type RenomeacaoCanonical = {
   aliasJaExistente: boolean;
 };
 
+/**
+ * As QUATRO saídas possíveis de uma renomeação SOLICITADA
+ * (`canonicalRenameRequired === true` e `canonical_name` presente):
+ *
+ *   · rename_sem_conflito         — nome novo, sem ninguém com esse nome
+ *                                   ainda. Escreve (ver `renomeacao`).
+ *   · promover_source_a_canonical — o nome pretendido já é, literalmente,
+ *                                   o `nomeNormalizado` de uma ORIGEM
+ *                                   deste mesmo grupo. Não se renomeia
+ *                                   nada nem se adultera o fabricante
+ *                                   inactivo — essa origem passa a
+ *                                   canónico do grupo, e o antigo
+ *                                   canónico passa a origem (ver
+ *                                   `promocao`), com o merge normal a
+ *                                   tratar-lhe os produtos e o nome
+ *                                   antigo como alias, como a qualquer
+ *                                   outra origem.
+ *   · conflito_externo            — o nome pretendido já pertence a um
+ *                                   Fabricante que NÃO é deste grupo.
+ *                                   Isto é uma decisão empresarial nova
+ *                                   que o plano não tomou (qual das duas
+ *                                   entidades deve ceder o nome) — a
+ *                                   renomeação fica bloqueada, mas os
+ *                                   merges do grupo continuam.
+ *   · inconsistencia_do_plano     — o plano diz `canonical_rename_required:
+ *                                   true` mas não há nada para fazer:
+ *                                   falta `canonical_name`, ou o nome
+ *                                   pedido (normalizado) já É o nome
+ *                                   actual do canónico. Sinaliza um
+ *                                   `summary`/flag desactualizado no
+ *                                   ficheiro do plano, não um erro de
+ *                                   dados da base.
+ */
+export type RenomeacaoClassificacao =
+  | "rename_sem_conflito"
+  | "promover_source_a_canonical"
+  | "conflito_externo"
+  | "inconsistencia_do_plano";
+
+export type PromocaoCanonical = {
+  canonicalIdAntigo: string;
+  canonicalNomeAntigo: string;
+  canonicalIdNovo: string;
+  canonicalNomeNovo: string;
+};
+
 export type RenomeacaoBloqueada = {
   groupIndex: number;
   kind: GrupoKind;
   canonicalId: string;
   nomeAtual: string;
   nomeSolicitado: string;
-  motivo: "colisao_nome";
+  motivo: "conflito_externo";
+  /** Preenchido só em conflito_externo — o Fabricante (de OUTRO grupo, ou de fora do plano) que já tem o nome pretendido. */
+  fabricanteConflitanteId?: string;
   detalhe: string;
+};
+
+/**
+ * Uma linha por CADA grupo que pediu renomeação (`canonicalRenameRequired
+ * === true`), independentemente do resultado — inclui os que escrevem, os
+ * promovidos, os bloqueados E as inconsistências. É a fonte única para
+ * auditar as renomeações do plano (ver `RelatorioNormalizacaoBatch.renomeacoesClassificadas`).
+ */
+export type RenomeacaoClassificada = {
+  groupIndex: number;
+  kind: GrupoKind;
+  canonicalIdOriginal: string;
+  classificacao: RenomeacaoClassificacao;
+  nomeAtual: string;
+  nomeSolicitado: string;
+  detalhe?: string;
 };
 
 export type GrupoResolvido = {
@@ -223,8 +304,10 @@ export type GrupoResolvido = {
   kind: GrupoKind;
   canonicalId: string;
   canonicalNome: string;
-  /** Renomeação do canónico, quando o plano pede uma e ela não colide com outro Fabricante. */
+  /** Renomeação do canónico — só quando a classificação é rename_sem_conflito. */
   renomeacao?: RenomeacaoCanonical;
+  /** Troca de papéis dentro do grupo — só quando a classificação é promover_source_a_canonical. */
+  promocao?: PromocaoCanonical;
   /** Sources válidos, com o plano de merge já calculado (produtos/aliases). */
   sources: Array<{ sourceId: string; nomeNormalizado: string; plano: PlanoMergeFabricantes }>;
 };
@@ -242,6 +325,8 @@ export type RelatorioNormalizacaoBatch = {
   gruposBloqueados: GrupoBloqueado[];
   sourcesExcluidos: SourceExcluido[];
   renomeacoesBloqueadas: RenomeacaoBloqueada[];
+  /** Uma linha por CADA grupo que pediu renomeação — ver `RenomeacaoClassificada`. */
+  renomeacoesClassificadas: RenomeacaoClassificada[];
   /** Totais agregados sobre os grupos válidos (não os bloqueados/excluídos). */
   totais: {
     grupos: number;
@@ -251,8 +336,122 @@ export type RelatorioNormalizacaoBatch = {
     aliasesACriar: number;
     canonicaisRenomeados: number;
     aliasesCriadosPorRenomeacao: number;
+    promocoesCanonical: number;
   };
 };
+
+/**
+ * Resolve a renomeação SOLICITADA de um grupo (canónico já confirmado
+ * ATIVO) — pura, sem tocar em nada. Devolve o `canonicalId`/`sourceIds`
+ * FINAIS do grupo (idênticos ao pedido, excepto quando a classificação é
+ * `promover_source_a_canonical`, que troca os dois papéis) e a
+ * classificação correspondente, para o caller decidir o resto (existência
+ * dos sources, do_not_merge, cadeias — nada disso muda por causa duma
+ * renomeação).
+ */
+function resolverRenomeacaoDoGrupo(
+  grupo: GrupoNormalizacao,
+  canonical: FabricanteDb,
+  fabricantesPorId: ReadonlyMap<string, FabricanteDb>,
+): {
+  canonicalId: string;
+  sourceIds: readonly string[];
+  classificacao?: RenomeacaoClassificacao;
+  nomeAtual?: string;
+  nomeSolicitado?: string;
+  renomeacao?: RenomeacaoCanonical;
+  promocao?: PromocaoCanonical;
+  detalhe?: string;
+  fabricanteConflitanteId?: string;
+} {
+  const semAlteracao = { canonicalId: grupo.canonical_id, sourceIds: grupo.source_ids };
+
+  // Gate ÚNICO e explícito: canonicalRenameRequired === true (ou
+  // undefined, formato original — ver o comentário no tipo). Um
+  // `canonical_name` presente com a flag a false NUNCA chega aqui.
+  const renameSolicitado = grupo.canonical_name !== undefined && (grupo.canonicalRenameRequired ?? true);
+  if (!renameSolicitado) return semAlteracao;
+
+  if (!grupo.canonical_name) {
+    return {
+      ...semAlteracao,
+      classificacao: "inconsistencia_do_plano",
+      nomeAtual: canonical.nomeNormalizado,
+      nomeSolicitado: "",
+      detalhe: "canonicalRenameRequired=true mas o plano não trouxe canonical_name.",
+    };
+  }
+
+  // A normalização é usada SÓ para procurar conflitos (comparar contra
+  // `Fabricante.nomeNormalizado`, que é sempre a forma normalizada — ver
+  // lib/catalog-normalizers.ts) — nunca para decidir SE se renomeia
+  // (isso é só a flag, acima) nem para substituir a denominação literal
+  // pretendida por uma variante silenciosa.
+  const nomeDepois = normalizeFabricanteCanonico(grupo.canonical_name);
+  if (!nomeDepois || nomeDepois === canonical.nomeNormalizado) {
+    return {
+      ...semAlteracao,
+      classificacao: "inconsistencia_do_plano",
+      nomeAtual: canonical.nomeNormalizado,
+      nomeSolicitado: nomeDepois ?? grupo.canonical_name,
+      detalhe: nomeDepois
+        ? "canonicalRenameRequired=true mas o nome pedido já é o nome actual do canónico — nada para fazer."
+        : `canonical_name="${grupo.canonical_name}" normaliza para vazio/inválido.`,
+    };
+  }
+
+  const colisao = [...fabricantesPorId.values()].find(
+    (f) => f.id !== canonical.id && f.nomeNormalizado === nomeDepois,
+  );
+
+  if (!colisao) {
+    const aliasJaExistente = canonical.aliases.includes(canonical.nomeNormalizado);
+    return {
+      ...semAlteracao,
+      classificacao: "rename_sem_conflito",
+      nomeAtual: canonical.nomeNormalizado,
+      nomeSolicitado: nomeDepois,
+      renomeacao: {
+        nomeAntes: canonical.nomeNormalizado,
+        nomeDepois,
+        aliasACriar: aliasJaExistente ? null : canonical.nomeNormalizado,
+        aliasJaExistente,
+      },
+    };
+  }
+
+  // O nome pretendido já pertence a uma ORIGEM deste mesmo grupo, e essa
+  // origem está ATIVA (só faz sentido promovê-la a canónico se puder
+  // ela própria ser um canónico válido) — promove-a, em vez de bloquear
+  // ou adulterar o fabricante inactivo.
+  if (grupo.source_ids.includes(colisao.id) && colisao.estado === "ATIVO") {
+    return {
+      canonicalId: colisao.id,
+      sourceIds: [grupo.canonical_id, ...grupo.source_ids.filter((id) => id !== colisao.id)],
+      classificacao: "promover_source_a_canonical",
+      nomeAtual: canonical.nomeNormalizado,
+      nomeSolicitado: nomeDepois,
+      promocao: {
+        canonicalIdAntigo: grupo.canonical_id,
+        canonicalNomeAntigo: canonical.nomeNormalizado,
+        canonicalIdNovo: colisao.id,
+        canonicalNomeNovo: colisao.nomeNormalizado,
+      },
+    };
+  }
+
+  // Conflito com um Fabricante que NÃO é deste grupo (ou que é deste
+  // grupo mas já está INATIVO, o que também impede promovê-lo) — decisão
+  // empresarial nova que o plano não tomou. Bloqueia só a renomeação.
+  return {
+    ...semAlteracao,
+    classificacao: "conflito_externo",
+    nomeAtual: canonical.nomeNormalizado,
+    nomeSolicitado: nomeDepois,
+    fabricanteConflitanteId: colisao.id,
+    detalhe: `já existe outro Fabricante (${colisao.id}, estado=${colisao.estado}) com nomeNormalizado="${nomeDepois}" e não pertence a este grupo — renomeação recusada.`,
+  };
+}
 
 /**
  * Planeia o lote inteiro — sem tocar em nada. Recebe o estado da BD já
@@ -281,20 +480,24 @@ export function planearNormalizacaoBatch(input: {
     }
   });
 
-  // Todos os canonical_id do lote — um source_id que também seja o
-  // canonical_id de OUTRO grupo formaria uma cadeia (A absorve B, B
-  // absorve C na mesma corrida): B ficaria INATIVO antes de C ser
-  // reatribuído para ele, ou a ordem dependeria de sorte de iteração.
-  // O plano nunca deve pedir isto — mas a verificação é feita aqui,
-  // contra os dados, e não apenas assumida pela ausência no ficheiro.
-  const todosCanonicalIds = new Set(grupos.map((g) => g.canonical_id));
-
-  const sourceOwnerGroupIndex = new Map<string, number>(); // detecta source_id repetido entre grupos
-
-  const gruposResolvidos: GrupoResolvido[] = [];
   const gruposBloqueados: GrupoBloqueado[] = [];
-  const sourcesExcluidos: SourceExcluido[] = [];
   const renomeacoesBloqueadas: RenomeacaoBloqueada[] = [];
+  const renomeacoesClassificadas: RenomeacaoClassificada[] = [];
+
+  // ── PASSO 1 — por grupo, independente dos outros: existe/está ATIVO o
+  // canónico declarado? Se sim, resolve a renomeação SOLICITADA (que pode
+  // trocar canonicalId/sourceIds do grupo — ver `resolverRenomeacaoDoGrupo`).
+  // Nada disto depende de outro grupo, por isso pode ser feito ANTES do
+  // conjunto de cadeias (passo 2), que já precisa do canonicalId FINAL.
+  type GrupoParcial = {
+    groupIndex: number;
+    grupo: GrupoNormalizacao;
+    canonicalId: string;
+    sourceIds: readonly string[];
+    renomeacao?: RenomeacaoCanonical;
+    promocao?: PromocaoCanonical;
+  };
+  const gruposParciais: GrupoParcial[] = [];
 
   grupos.forEach((grupo, groupIndex) => {
     const canonical = fabricantesPorId.get(grupo.canonical_id);
@@ -319,47 +522,72 @@ export function planearNormalizacaoBatch(input: {
       return;
     }
 
-    // ── Renomeação opcional do próprio canónico ──────────────────────
-    // Só existe quando o plano traz `canonical_name` E esse nome
-    // (normalizado) difere do que já está na base — um plano que repete
-    // o nome actual nunca desencadeia escrita nenhuma aqui.
-    let renomeacao: RenomeacaoCanonical | undefined;
-    if (grupo.canonical_name) {
-      const nomeDepois = normalizeFabricanteCanonico(grupo.canonical_name);
-      if (nomeDepois && nomeDepois !== canonical.nomeNormalizado) {
-        const colisao = [...fabricantesPorId.values()].find(
-          (f) => f.id !== canonical.id && f.nomeNormalizado === nomeDepois,
-        );
-        if (colisao) {
-          renomeacoesBloqueadas.push({
-            groupIndex,
-            kind: grupo.kind,
-            canonicalId: grupo.canonical_id,
-            nomeAtual: canonical.nomeNormalizado,
-            nomeSolicitado: nomeDepois,
-            motivo: "colisao_nome",
-            detalhe: `já existe outro Fabricante (${colisao.id}) com nomeNormalizado="${nomeDepois}" — renomeação recusada.`,
-          });
-        } else {
-          const aliasJaExistente = canonical.aliases.includes(canonical.nomeNormalizado);
-          renomeacao = {
-            nomeAntes: canonical.nomeNormalizado,
-            nomeDepois,
-            aliasACriar: aliasJaExistente ? null : canonical.nomeNormalizado,
-            aliasJaExistente,
-          };
-        }
-      }
-    }
+    const resolucao = resolverRenomeacaoDoGrupo(grupo, canonical, fabricantesPorId);
 
-    const sourcesValidos: GrupoResolvido["sources"] = [];
-
-    for (const sourceId of grupo.source_ids) {
-      if (sourceId === grupo.canonical_id) {
-        sourcesExcluidos.push({
+    if (resolucao.classificacao) {
+      renomeacoesClassificadas.push({
+        groupIndex,
+        kind: grupo.kind,
+        canonicalIdOriginal: grupo.canonical_id,
+        classificacao: resolucao.classificacao,
+        nomeAtual: resolucao.nomeAtual ?? canonical.nomeNormalizado,
+        nomeSolicitado: resolucao.nomeSolicitado ?? "",
+        detalhe: resolucao.detalhe,
+      });
+      // Só conflito_externo é genuinamente "bloqueado" — precisa de uma
+      // decisão empresarial nova que este executor não toma sozinho.
+      // inconsistencia_do_plano (a flag pedia renomeação, mas já não há
+      // nada para fazer) NÃO bloqueia nada: o grupo e os seus merges
+      // seguem em frente normalmente, só fica registado em
+      // `renomeacoesClassificadas` para auditoria — nunca aparece aqui,
+      // ou um plano tecnicamente limpo (zero conflitos reais) mostraria
+      // sempre "renomeações bloqueadas > 0" só por ruído do próprio
+      // plano, que é precisamente o oposto do que esta distinção serve.
+      if (resolucao.classificacao === "conflito_externo") {
+        renomeacoesBloqueadas.push({
           groupIndex,
           kind: grupo.kind,
           canonicalId: grupo.canonical_id,
+          nomeAtual: resolucao.nomeAtual ?? canonical.nomeNormalizado,
+          nomeSolicitado: resolucao.nomeSolicitado ?? "",
+          motivo: resolucao.classificacao,
+          fabricanteConflitanteId: resolucao.fabricanteConflitanteId,
+          detalhe: resolucao.detalhe ?? "",
+        });
+      }
+    }
+
+    gruposParciais.push({
+      groupIndex,
+      grupo,
+      canonicalId: resolucao.canonicalId,
+      sourceIds: resolucao.sourceIds,
+      renomeacao: resolucao.renomeacao,
+      promocao: resolucao.promocao,
+    });
+  });
+
+  // ── PASSO 2 — cadeias, sobre o canonicalId FINAL (pós-promoção) ──────
+  // Um source_id que também seja o canonical_id FINAL de OUTRO grupo
+  // formaria uma cadeia — a mesma razão de sempre, agora calculada depois
+  // de qualquer troca de papéis por promoção, não antes.
+  const todosCanonicalIdsFinais = new Set(gruposParciais.map((g) => g.canonicalId));
+
+  const sourceOwnerGroupIndex = new Map<string, number>(); // detecta source_id repetido entre grupos
+  const gruposResolvidos: GrupoResolvido[] = [];
+  const sourcesExcluidos: SourceExcluido[] = [];
+
+  for (const { groupIndex, grupo, canonicalId, sourceIds, renomeacao, promocao } of gruposParciais) {
+    const canonical = fabricantesPorId.get(canonicalId)!; // já confirmado no passo 1 (ou é a colisão promovida, também vinda de fabricantesPorId)
+
+    const sourcesValidos: GrupoResolvido["sources"] = [];
+
+    for (const sourceId of sourceIds) {
+      if (sourceId === canonicalId) {
+        sourcesExcluidos.push({
+          groupIndex,
+          kind: grupo.kind,
+          canonicalId,
           sourceId,
           motivo: "self_merge",
           detalhe: "source_id igual ao canonical_id do próprio grupo.",
@@ -367,11 +595,11 @@ export function planearNormalizacaoBatch(input: {
         continue;
       }
 
-      if (todosCanonicalIds.has(sourceId)) {
+      if (todosCanonicalIdsFinais.has(sourceId)) {
         sourcesExcluidos.push({
           groupIndex,
           kind: grupo.kind,
-          canonicalId: grupo.canonical_id,
+          canonicalId,
           sourceId,
           motivo: "cadeia",
           detalhe: `source_id ${sourceId} é também canonical_id de outro grupo do plano — cadeia source→canonical recusada.`,
@@ -384,7 +612,7 @@ export function planearNormalizacaoBatch(input: {
         sourcesExcluidos.push({
           groupIndex,
           kind: grupo.kind,
-          canonicalId: grupo.canonical_id,
+          canonicalId,
           sourceId,
           motivo: "duplicado_noutro_grupo",
           detalhe: `já reatribuído no grupo #${donoAnterior}.`,
@@ -397,7 +625,7 @@ export function planearNormalizacaoBatch(input: {
         sourcesExcluidos.push({
           groupIndex,
           kind: grupo.kind,
-          canonicalId: grupo.canonical_id,
+          canonicalId,
           sourceId,
           motivo: "id_inexistente",
           detalhe: `source_id ${sourceId} não corresponde a nenhum Fabricante nesta base.`,
@@ -408,7 +636,7 @@ export function planearNormalizacaoBatch(input: {
         sourcesExcluidos.push({
           groupIndex,
           kind: grupo.kind,
-          canonicalId: grupo.canonical_id,
+          canonicalId,
           sourceId,
           motivo: "ja_inativo",
           detalhe: `"${source.nomeNormalizado}" já está INATIVO — presume-se já migrado.`,
@@ -422,7 +650,7 @@ export function planearNormalizacaoBatch(input: {
         sourcesExcluidos.push({
           groupIndex,
           kind: grupo.kind,
-          canonicalId: grupo.canonical_id,
+          canonicalId,
           sourceId,
           motivo: "do_not_merge",
           detalhe: `"${source.nomeNormalizado}" → "${canonical.nomeNormalizado}" está coberto por do_not_merge: ${doNotMerge[idxCanonical].reason ?? "grupo do_not_merge (sem motivo registado neste ficheiro)"}`,
@@ -445,21 +673,22 @@ export function planearNormalizacaoBatch(input: {
       sourcesValidos.push({ sourceId, nomeNormalizado: source.nomeNormalizado, plano: planoMerge });
     }
 
-    // Um grupo entra no relatório se tiver sources válidos OU uma
-    // renomeação a aplicar — os dois são independentes (Takeda e Haleon
-    // têm sources válidos E renomeação; um grupo podia, em teoria, ter
-    // só uma das duas coisas).
-    if (sourcesValidos.length > 0 || renomeacao) {
+    // Um grupo entra no relatório se tiver sources válidos, uma
+    // renomeação a aplicar, OU uma promoção (que por si só já reatribui
+    // pelo menos o antigo canónico, que entra como source normal acima —
+    // mas fica explícito aqui para não depender só disso).
+    if (sourcesValidos.length > 0 || renomeacao || promocao) {
       gruposResolvidos.push({
         groupIndex,
         kind: grupo.kind,
-        canonicalId: grupo.canonical_id,
+        canonicalId,
         canonicalNome: canonical.nomeNormalizado,
         ...(renomeacao ? { renomeacao } : {}),
+        ...(promocao ? { promocao } : {}),
         sources: sourcesValidos,
       });
     }
-  });
+  }
 
   const totais = gruposResolvidos.reduce(
     (acc, g) => {
@@ -473,6 +702,7 @@ export function planearNormalizacaoBatch(input: {
         acc.canonicaisRenomeados += 1;
         if (g.renomeacao.aliasACriar) acc.aliasesCriadosPorRenomeacao += 1;
       }
+      if (g.promocao) acc.promocoesCanonical += 1;
       return acc;
     },
     {
@@ -483,10 +713,18 @@ export function planearNormalizacaoBatch(input: {
       aliasesACriar: 0,
       canonicaisRenomeados: 0,
       aliasesCriadosPorRenomeacao: 0,
+      promocoesCanonical: 0,
     },
   );
 
-  return { grupos: gruposResolvidos, gruposBloqueados, sourcesExcluidos, renomeacoesBloqueadas, totais };
+  return {
+    grupos: gruposResolvidos,
+    gruposBloqueados,
+    sourcesExcluidos,
+    renomeacoesBloqueadas,
+    renomeacoesClassificadas,
+    totais,
+  };
 }
 
 // ── Aplicação — tudo numa única transacção ──────────────────────────
@@ -686,7 +924,20 @@ export function compararDivergencias(input: {
   const summary = planoAchatado.summary ?? {};
   par("groups", summary.groups, planoAchatado.groups.length);
   par("source_manufacturers_to_deactivate", summary.source_manufacturers_to_deactivate, relatorio.totais.fabricantesOrigemAInativar);
-  par("canonical_renames_required", summary.canonical_renames_required, relatorio.totais.canonicaisRenomeados);
+  // Uma promoção (`promover_source_a_canonical`) satisfaz EXACTAMENTE a
+  // mesma exigência que o plano declarou (\"este grupo precisa que o
+  // canónico acabe com a denominação X\") — só que em vez de um UPDATE
+  // literal usa-se o registo que já tem essa denominação, sem cadeias nem
+  // adulterar o fabricante inactivo. Por isso conta para esta comparação
+  // tal como uma renomeação escrita: das 36 exigências declaradas no
+  // plano, as que resultam numa promoção não são menos "satisfeitas" do
+  // que as que resultam num UPDATE — o total declarado é sobre PEDIDOS
+  // resolvidos, não sobre UPDATEs de nomeNormalizado especificamente.
+  par(
+    "canonical_renames_required",
+    summary.canonical_renames_required,
+    relatorio.totais.canonicaisRenomeados + relatorio.totais.promocoesCanonical,
+  );
   // Contra o que a base REAL confirma que seria reatribuído (relatorio.totais)
   // — a comparação que interessa antes de um --apply.
   par("products_to_reassign_unique", summary.products_to_reassign_unique, relatorio.totais.produtosAReatribuir);

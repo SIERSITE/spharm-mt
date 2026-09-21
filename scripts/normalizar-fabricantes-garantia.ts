@@ -328,6 +328,11 @@ async function main(): Promise<void> {
             : `        denominação anterior já existia como alias — nada a criar`,
         );
       }
+      if (g.promocao) {
+        console.log(`      ⇄ PROMOÇÃO DE ORIGEM A CANÓNICO`);
+        console.log(`        canónico antigo: "${g.promocao.canonicalNomeAntigo}" (${g.promocao.canonicalIdAntigo}) — passa a origem`);
+        console.log(`        canónico novo:   "${g.promocao.canonicalNomeNovo}" (${g.promocao.canonicalIdNovo}) — já tinha a denominação final`);
+      }
       for (const s of g.sources) {
         console.log(
           `      ← "${s.nomeNormalizado}" (${s.sourceId})  produtos=${s.plano.produtosAReatribuir.length}` +
@@ -339,13 +344,27 @@ async function main(): Promise<void> {
       }
     }
 
+    if (relatorio.renomeacoesClassificadas.length > 0) {
+      console.log(`\n${"─".repeat(78)}`);
+      console.log(`Renomeações declaradas no plano (canonicalRenameRequired=true) — ${relatorio.renomeacoesClassificadas.length}:`);
+      const porClassificacao = new Map<string, number>();
+      for (const r of relatorio.renomeacoesClassificadas) porClassificacao.set(r.classificacao, (porClassificacao.get(r.classificacao) ?? 0) + 1);
+      for (const [classificacao, n] of porClassificacao) console.log(`  ${classificacao}: ${n}`);
+      for (const r of relatorio.renomeacoesClassificadas) {
+        console.log(
+          `    grupo #${r.groupIndex} [${r.kind}] canonical_id=${r.canonicalIdOriginal} — ${r.classificacao}: ` +
+            `"${r.nomeAtual}" → "${r.nomeSolicitado}"${r.detalhe ? ` (${r.detalhe})` : ""}`,
+        );
+      }
+    }
+
     if (relatorio.renomeacoesBloqueadas.length > 0) {
       console.log(`\n${"─".repeat(78)}`);
-      console.log(`Renomeações bloqueadas (colisão de nomeNormalizado) — ${relatorio.renomeacoesBloqueadas.length}:`);
+      console.log(`Renomeações bloqueadas (conflito externo ou inconsistência do plano) — ${relatorio.renomeacoesBloqueadas.length}:`);
       for (const r of relatorio.renomeacoesBloqueadas) {
         console.log(
-          `  [${r.kind}] grupo #${r.groupIndex} canonical_id=${r.canonicalId} — ` +
-            `"${r.nomeAtual}" → "${r.nomeSolicitado}" recusado: ${r.detalhe}`,
+          `  [${r.kind}] grupo #${r.groupIndex} canonical_id=${r.canonicalId} — ${r.motivo} — ` +
+            `"${r.nomeAtual}" → "${r.nomeSolicitado}": ${r.detalhe}`,
         );
       }
     }
@@ -378,6 +397,7 @@ async function main(): Promise<void> {
     console.log(`  Aliases a criar no canónico (por merge):    ${relatorio.totais.aliasesACriar}`);
     console.log(`  Canónicos a renomear:                       ${relatorio.totais.canonicaisRenomeados}`);
     console.log(`  Aliases a criar por renomeação:              ${relatorio.totais.aliasesCriadosPorRenomeacao}`);
+    console.log(`  Promoções de origem a canónico:              ${relatorio.totais.promocoesCanonical}`);
 
     console.log(`\n${"─".repeat(78)}`);
     console.log("Contagens antes / depois (estimado):");
@@ -461,6 +481,16 @@ async function main(): Promise<void> {
               },
             }
           : {}),
+        ...(g.promocao
+          ? {
+              promocao: {
+                canonicalIdAntigo: g.promocao.canonicalIdAntigo,
+                canonicalNomeAntigo: g.promocao.canonicalNomeAntigo,
+                canonicalIdNovo: g.promocao.canonicalIdNovo,
+                canonicalNomeNovo: g.promocao.canonicalNomeNovo,
+              },
+            }
+          : {}),
         sources: g.sources.map((s) => ({
           sourceId: s.sourceId,
           nomeNormalizado: s.nomeNormalizado,
@@ -474,6 +504,7 @@ async function main(): Promise<void> {
       origensAInativar: relatorio.grupos.flatMap((g) => g.sources.map((s) => s.sourceId)),
       gruposBloqueados: relatorio.gruposBloqueados,
       sourcesExcluidos: relatorio.sourcesExcluidos,
+      renomeacoesClassificadas: relatorio.renomeacoesClassificadas,
       renomeacoesBloqueadas: relatorio.renomeacoesBloqueadas,
       ...(divergencias ? { divergencias } : {}),
       ...(applyRecusado ? { applyRecusado } : {}),
