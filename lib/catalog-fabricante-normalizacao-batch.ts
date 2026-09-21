@@ -18,6 +18,15 @@
  * Reaproveita `planearMergeFabricantes`/`executarMergeFabricantes` por
  * grupo — não duplica a lógica de "o que é um merge", só orquestra
  * muitos de uma vez com uma transacção só e um relatório agregado.
+ *
+ * `canonical_name` (opcional, por grupo) é a segunda coisa que este
+ * módulo sabe fazer: quando presente e diferente do `nomeNormalizado`
+ * já na base, renomeia o PRÓPRIO fabricante canónico — na mesma
+ * transacção dos merges desse grupo — e preserva a denominação
+ * anterior como `FabricanteAlias` dele, nunca perdida. Uma colisão com
+ * o `nomeNormalizado` de outro Fabricante bloqueia só a renomeação
+ * (reportada em `renomeacoesBloqueadas`); os merges do grupo, se os
+ * houver, continuam.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import {
@@ -90,11 +99,38 @@ export type SourceExcluido = {
   detalhe?: string;
 };
 
+/**
+ * Renomeação do PRÓPRIO fabricante canónico de um grupo — só existe
+ * quando o plano traz `canonical_name` e esse nome (normalizado) DIFERE
+ * do `nomeNormalizado` actual na base. A denominação anterior nunca se
+ * perde: torna-se `FabricanteAlias` do mesmo fabricante, na MESMA
+ * transacção que o renomeia (ver `executarNormalizacaoBatch`).
+ */
+export type RenomeacaoCanonical = {
+  nomeAntes: string;
+  nomeDepois: string;
+  /** Nome a criar como alias (a denominação anterior) — null se já existia como alias do próprio. */
+  aliasACriar: string | null;
+  aliasJaExistente: boolean;
+};
+
+export type RenomeacaoBloqueada = {
+  groupIndex: number;
+  kind: "verified" | "orthographic";
+  canonicalId: string;
+  nomeAtual: string;
+  nomeSolicitado: string;
+  motivo: "colisao_nome";
+  detalhe: string;
+};
+
 export type GrupoResolvido = {
   groupIndex: number;
   kind: "verified" | "orthographic";
   canonicalId: string;
   canonicalNome: string;
+  /** Renomeação do canónico, quando o plano pede uma e ela não colide com outro Fabricante. */
+  renomeacao?: RenomeacaoCanonical;
   /** Sources válidos, com o plano de merge já calculado (produtos/aliases). */
   sources: Array<{ sourceId: string; nomeNormalizado: string; plano: PlanoMergeFabricantes }>;
 };
@@ -111,6 +147,7 @@ export type RelatorioNormalizacaoBatch = {
   grupos: GrupoResolvido[];
   gruposBloqueados: GrupoBloqueado[];
   sourcesExcluidos: SourceExcluido[];
+  renomeacoesBloqueadas: RenomeacaoBloqueada[];
   /** Totais agregados sobre os grupos válidos (não os bloqueados/excluídos). */
   totais: {
     grupos: number;
@@ -118,6 +155,8 @@ export type RelatorioNormalizacaoBatch = {
     produtosAReatribuir: number;
     produtosBloqueadosValidadoManualmente: number;
     aliasesACriar: number;
+    canonicaisRenomeados: number;
+    aliasesCriadosPorRenomeacao: number;
   };
 };
 
@@ -153,6 +192,7 @@ export function planearNormalizacaoBatch(input: {
   const gruposResolvidos: GrupoResolvido[] = [];
   const gruposBloqueados: GrupoBloqueado[] = [];
   const sourcesExcluidos: SourceExcluido[] = [];
+  const renomeacoesBloqueadas: RenomeacaoBloqueada[] = [];
 
   grupos.forEach((grupo, groupIndex) => {
     const canonical = fabricantesPorId.get(grupo.canonical_id);
@@ -175,6 +215,39 @@ export function planearNormalizacaoBatch(input: {
         detalhe: `canonical_id ${grupo.canonical_id} ("${canonical.nomeNormalizado}") já está INATIVO.`,
       });
       return;
+    }
+
+    // ── Renomeação opcional do próprio canónico ──────────────────────
+    // Só existe quando o plano traz `canonical_name` E esse nome
+    // (normalizado) difere do que já está na base — um plano que repete
+    // o nome actual nunca desencadeia escrita nenhuma aqui.
+    let renomeacao: RenomeacaoCanonical | undefined;
+    if (grupo.canonical_name) {
+      const nomeDepois = normalizeFabricanteCanonico(grupo.canonical_name);
+      if (nomeDepois && nomeDepois !== canonical.nomeNormalizado) {
+        const colisao = [...fabricantesPorId.values()].find(
+          (f) => f.id !== canonical.id && f.nomeNormalizado === nomeDepois,
+        );
+        if (colisao) {
+          renomeacoesBloqueadas.push({
+            groupIndex,
+            kind: grupo.kind,
+            canonicalId: grupo.canonical_id,
+            nomeAtual: canonical.nomeNormalizado,
+            nomeSolicitado: nomeDepois,
+            motivo: "colisao_nome",
+            detalhe: `já existe outro Fabricante (${colisao.id}) com nomeNormalizado="${nomeDepois}" — renomeação recusada.`,
+          });
+        } else {
+          const aliasJaExistente = canonical.aliases.includes(canonical.nomeNormalizado);
+          renomeacao = {
+            nomeAntes: canonical.nomeNormalizado,
+            nomeDepois,
+            aliasACriar: aliasJaExistente ? null : canonical.nomeNormalizado,
+            aliasJaExistente,
+          };
+        }
+      }
     }
 
     const sourcesValidos: GrupoResolvido["sources"] = [];
@@ -258,12 +331,17 @@ export function planearNormalizacaoBatch(input: {
       sourcesValidos.push({ sourceId, nomeNormalizado: source.nomeNormalizado, plano: planoMerge });
     }
 
-    if (sourcesValidos.length > 0) {
+    // Um grupo entra no relatório se tiver sources válidos OU uma
+    // renomeação a aplicar — os dois são independentes (Takeda e Haleon
+    // têm sources válidos E renomeação; um grupo podia, em teoria, ter
+    // só uma das duas coisas).
+    if (sourcesValidos.length > 0 || renomeacao) {
       gruposResolvidos.push({
         groupIndex,
         kind: grupo.kind,
         canonicalId: grupo.canonical_id,
         canonicalNome: canonical.nomeNormalizado,
+        ...(renomeacao ? { renomeacao } : {}),
         sources: sourcesValidos,
       });
     }
@@ -277,6 +355,10 @@ export function planearNormalizacaoBatch(input: {
         acc.produtosBloqueadosValidadoManualmente += s.plano.produtosBloqueadosValidadoManualmente.length;
         acc.aliasesACriar += s.plano.aliasesACriar.length;
       }
+      if (g.renomeacao) {
+        acc.canonicaisRenomeados += 1;
+        if (g.renomeacao.aliasACriar) acc.aliasesCriadosPorRenomeacao += 1;
+      }
       return acc;
     },
     {
@@ -285,10 +367,12 @@ export function planearNormalizacaoBatch(input: {
       produtosAReatribuir: 0,
       produtosBloqueadosValidadoManualmente: 0,
       aliasesACriar: 0,
+      canonicaisRenomeados: 0,
+      aliasesCriadosPorRenomeacao: 0,
     },
   );
 
-  return { grupos: gruposResolvidos, gruposBloqueados, sourcesExcluidos, totais };
+  return { grupos: gruposResolvidos, gruposBloqueados, sourcesExcluidos, renomeacoesBloqueadas, totais };
 }
 
 // ── Aplicação — tudo numa única transacção ──────────────────────────
@@ -297,6 +381,7 @@ export type ResultadoNormalizacaoBatch = {
   produtosReatribuidos: number;
   aliasesCriados: number;
   fabricantesInativados: number;
+  canonicaisRenomeados: number;
 };
 
 /**
@@ -320,18 +405,40 @@ export async function executarNormalizacaoBatch(
   if (dryRun) {
     return {
       produtosReatribuidos: relatorio.totais.produtosAReatribuir,
-      aliasesCriados: relatorio.totais.aliasesACriar,
+      aliasesCriados: relatorio.totais.aliasesACriar + relatorio.totais.aliasesCriadosPorRenomeacao,
       fabricantesInativados: relatorio.totais.fabricantesOrigemAInativar,
+      canonicaisRenomeados: relatorio.totais.canonicaisRenomeados,
     };
   }
 
   let produtosReatribuidos = 0;
   let aliasesCriados = 0;
   let fabricantesInativados = 0;
+  let canonicaisRenomeados = 0;
 
   await prisma.$transaction(
     async (tx) => {
       for (const grupo of relatorio.grupos) {
+        // Renomear o canónico ANTES de mexer nos sources: a denominação
+        // anterior tem de existir como alias antes de deixar de ser o
+        // nomeNormalizado — a ordem pedida explicitamente, embora dentro
+        // da mesma transacção um erro a meio desfaz tudo de qualquer forma.
+        if (grupo.renomeacao) {
+          if (grupo.renomeacao.aliasACriar) {
+            await tx.fabricanteAlias.upsert({
+              where: { fabricanteId_aliasNome: { fabricanteId: grupo.canonicalId, aliasNome: grupo.renomeacao.aliasACriar } },
+              create: { fabricanteId: grupo.canonicalId, aliasNome: grupo.renomeacao.aliasACriar },
+              update: {},
+            });
+            aliasesCriados += 1;
+          }
+          await tx.fabricante.update({
+            where: { id: grupo.canonicalId },
+            data: { nomeNormalizado: grupo.renomeacao.nomeDepois, dataAtualizacao: new Date() },
+          });
+          canonicaisRenomeados += 1;
+        }
+
         for (const s of grupo.sources) {
           const { plano } = s;
 
@@ -375,5 +482,5 @@ export async function executarNormalizacaoBatch(
     { timeout: 5 * 60 * 1000 },
   );
 
-  return { produtosReatribuidos, aliasesCriados, fabricantesInativados };
+  return { produtosReatribuidos, aliasesCriados, fabricantesInativados, canonicaisRenomeados };
 }

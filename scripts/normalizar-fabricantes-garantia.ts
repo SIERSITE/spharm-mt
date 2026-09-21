@@ -31,6 +31,23 @@
  * transacção interactiva — ou fica tudo aplicado, ou nada (rollback
  * automático em caso de erro a meio).
  *
+ * ── canonical_name (opcional) ─────────────────────────────────────────
+ * Um grupo do plano pode trazer `canonical_name`: a denominação que o
+ * PRÓPRIO canónico deve passar a ter. Só dispara escrita quando difere
+ * do `nomeNormalizado` já na base — e, quando dispara, a denominação
+ * ANTERIOR do canónico é preservada como `FabricanteAlias` dele antes
+ * de o renomear, na MESMA transacção dos merges desse grupo. Uma
+ * colisão com o `nomeNormalizado` de outro Fabricante bloqueia só essa
+ * renomeação (reportada, nunca aplicada) — os merges do grupo, se os
+ * houver, continuam.
+ *
+ * ── Âmbito ─────────────────────────────────────────────────────────────
+ * Isto é a PRIMEIRA FASE do trabalho de normalização de fabricantes da
+ * garantia — os 568 grupos deste plano (561 ortográficos + 7 mudanças
+ * empresariais verificadas), nunca uma revisão completa do catálogo de
+ * fabricantes do tenant. Fabricantes fora deste plano continuam ATIVOS
+ * e por rever.
+ *
  * Uso:
  *   # 1. Dry-run — SEMPRE primeiro. Imprime o relatório completo e
  *   #    grava uma cópia em JSON para auditoria. Não escreve nada.
@@ -161,6 +178,11 @@ async function main(): Promise<void> {
     console.log(`  source: ${args.source}`);
     console.log(`  Grupos no plano: ${plano.verified_business_changes.length} verified_business_changes + ${plano.orthographic_merges.length} orthographic_merges = ${grupos.length}`);
     console.log(`  do_not_merge: ${plano.do_not_merge.length} entrada(s)`);
+    console.log(
+      `  Âmbito: primeira fase segura — ${plano.orthographic_merges.length} normalizações ortográficas + ` +
+        `${plano.verified_business_changes.length} mudanças empresariais verificadas. Fabricantes fora deste ` +
+        `plano permanecem ATIVOS e não são tocados nem revistos aqui.`,
+    );
 
     // ── 1. Ler todos os Fabricante referenciados pelo plano, numa query só ──
     const idsReferenciados = new Set<string>();
@@ -213,6 +235,16 @@ async function main(): Promise<void> {
     console.log("Fabricantes de origem envolvidos (grupos válidos):");
     for (const g of relatorio.grupos) {
       console.log(`  [${g.kind}] → "${g.canonicalNome}" (${g.canonicalId})`);
+      if (g.renomeacao) {
+        console.log(`      ✎ RENOMEAÇÃO DO CANÓNICO`);
+        console.log(`        canonicalNameBefore: "${g.renomeacao.nomeAntes}"`);
+        console.log(`        canonicalNameAfter:  "${g.renomeacao.nomeDepois}"`);
+        console.log(
+          g.renomeacao.aliasACriar
+            ? `        alias criado com a denominação anterior: "${g.renomeacao.aliasACriar}"`
+            : `        denominação anterior já existia como alias — nada a criar`,
+        );
+      }
       for (const s of g.sources) {
         console.log(
           `      ← "${s.nomeNormalizado}" (${s.sourceId})  produtos=${s.plano.produtosAReatribuir.length}` +
@@ -220,6 +252,17 @@ async function main(): Promise<void> {
               ? ` bloqueados=${s.plano.produtosBloqueadosValidadoManualmente.length}`
               : "") +
             `  aliases_novos=${s.plano.aliasesACriar.length}`,
+        );
+      }
+    }
+
+    if (relatorio.renomeacoesBloqueadas.length > 0) {
+      console.log(`\n${"─".repeat(78)}`);
+      console.log(`Renomeações bloqueadas (colisão de nomeNormalizado) — ${relatorio.renomeacoesBloqueadas.length}:`);
+      for (const r of relatorio.renomeacoesBloqueadas) {
+        console.log(
+          `  [${r.kind}] grupo #${r.groupIndex} canonical_id=${r.canonicalId} — ` +
+            `"${r.nomeAtual}" → "${r.nomeSolicitado}" recusado: ${r.detalhe}`,
         );
       }
     }
@@ -249,7 +292,9 @@ async function main(): Promise<void> {
     console.log(`  Fabricantes de origem a marcar INATIVO:     ${relatorio.totais.fabricantesOrigemAInativar}`);
     console.log(`  Produtos a reatribuir:                      ${relatorio.totais.produtosAReatribuir}`);
     console.log(`  Produtos bloqueados (validadoManualmente):  ${relatorio.totais.produtosBloqueadosValidadoManualmente}`);
-    console.log(`  Aliases a criar no canónico:                 ${relatorio.totais.aliasesACriar}`);
+    console.log(`  Aliases a criar no canónico (por merge):    ${relatorio.totais.aliasesACriar}`);
+    console.log(`  Canónicos a renomear:                       ${relatorio.totais.canonicaisRenomeados}`);
+    console.log(`  Aliases a criar por renomeação:              ${relatorio.totais.aliasesCriadosPorRenomeacao}`);
 
     console.log(`\n${"─".repeat(78)}`);
     console.log("Contagens antes / depois (estimado):");
@@ -264,7 +309,8 @@ async function main(): Promise<void> {
     console.log(`\n${"─".repeat(78)}`);
     console.log(
       `${dryRun ? "[dry-run] Seriam" : "Foram"} reatribuídos ${resultado.produtosReatribuidos} produto(s), ` +
-        `criado(s) ${resultado.aliasesCriados} alias(es), inactivado(s) ${resultado.fabricantesInativados} fabricante(s).`,
+        `criado(s) ${resultado.aliasesCriados} alias(es), inactivado(s) ${resultado.fabricantesInativados} fabricante(s), ` +
+        `renomeado(s) ${resultado.canonicaisRenomeados} canónico(s).`,
     );
 
     // ── 7. Gravar relatório detalhado para auditoria ──
@@ -284,6 +330,16 @@ async function main(): Promise<void> {
         kind: g.kind,
         canonicalId: g.canonicalId,
         canonicalNome: g.canonicalNome,
+        ...(g.renomeacao
+          ? {
+              renomeacao: {
+                canonicalNameBefore: g.renomeacao.nomeAntes,
+                canonicalNameAfter: g.renomeacao.nomeDepois,
+                aliasCriado: g.renomeacao.aliasACriar,
+                aliasJaExistente: g.renomeacao.aliasJaExistente,
+              },
+            }
+          : {}),
         sources: g.sources.map((s) => ({
           sourceId: s.sourceId,
           nomeNormalizado: s.nomeNormalizado,
@@ -295,6 +351,7 @@ async function main(): Promise<void> {
       })),
       gruposBloqueados: relatorio.gruposBloqueados,
       sourcesExcluidos: relatorio.sourcesExcluidos,
+      renomeacoesBloqueadas: relatorio.renomeacoesBloqueadas,
     };
     writeFileSync(args.relatorioPath, JSON.stringify(relatorioParaDisco, null, 2), "utf8");
     console.log(`\nRelatório detalhado gravado em: ${args.relatorioPath}`);
