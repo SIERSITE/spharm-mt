@@ -12,7 +12,7 @@
  *                 `sources[].products` (contagem esperada) e `do_not_merge`
  *                 como arrays de nomes nus
  *                 (scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json
- *                 — o ponto de partida ACTUAL; 555 grupos, 28 com
+ *                 — o ponto de partida ACTUAL; 557 grupos, 36 com
  *                 renomeação do canónico)
  *
  * Este ficheiro NÃO investiga nem reclassifica fabricante nenhum: só
@@ -139,7 +139,7 @@ export function parseArgs(argv: readonly string[]): Args {
   return out as Args;
 }
 
-type PlanoCarregado = {
+export type PlanoCarregado = {
   achatado: boolean;
   /** Só presente no formato achatado — usado para o relatório de divergências. */
   achatadoRaw?: PlanoNormalizacaoArquivoAchatado;
@@ -151,7 +151,7 @@ type PlanoCarregado = {
   descricaoFormato: string;
 };
 
-function carregarPlano(path: string): PlanoCarregado {
+export function carregarPlano(path: string): PlanoCarregado {
   const bruto = readFileSync(path, "utf8");
   const json = JSON.parse(bruto) as PlanoNormalizacaoArquivo | PlanoNormalizacaoArquivoAchatado;
 
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
   if (slugPedido !== TENANT_TRAVADO) {
     console.error(
       `\n[fatal] Este script está travado ao tenant "${TENANT_TRAVADO}" — recebeu --tenant=${slugPedido ?? "(nenhum)"}.\n` +
-        `O plano em scripts/data/plano-execucao-normalizacao-garantia.json só faz sentido nesse tenant;\n` +
+        `O plano em scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json só faz sentido nesse tenant;\n` +
         `correr noutro reatribuiria produtos de Fabricante IDs que lá significam outra coisa (ou não existem).\n`,
     );
     process.exitCode = 1;
@@ -470,6 +470,8 @@ async function main(): Promise<void> {
           aliasesJaExistentes: s.plano.aliasesJaExistentes,
         })),
       })),
+      // Lista simples de todos os source_id que ficariam INATIVO — agregado dos grupos válidos, para conferência rápida sem percorrer `grupos`.
+      origensAInativar: relatorio.grupos.flatMap((g) => g.sources.map((s) => s.sourceId)),
       gruposBloqueados: relatorio.gruposBloqueados,
       sourcesExcluidos: relatorio.sourcesExcluidos,
       renomeacoesBloqueadas: relatorio.renomeacoesBloqueadas,

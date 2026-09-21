@@ -4,18 +4,23 @@
  * Lógica pura de lib/catalog-fabricante-normalizacao-batch.ts — sem BD
  * viva (secção I usa um Prisma falso, mesma convenção de
  * test-fabricante-merge.ts). Prova as regras do plano
- * (scripts/data/plano-execucao-normalizacao-garantia.json):
+ * (scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json):
  * ids inexistentes/inactivos são ignorados e reportados, source_id
- * repetido entre grupos só conta uma vez, self-merge é ignorado,
- * do_not_merge nunca vira merge, canonical_name renomeia o canónico
- * preservando o nome anterior como alias (secção G) DENTRO da mesma
- * transacção que os merges do grupo (secção I), e o parsing de CLI
- * aceita só --tenant=garantia.
+ * repetido entre grupos só conta uma vez, self-merge é ignorado, cadeias
+ * source→canonical entre grupos são recusadas (secção F2), do_not_merge
+ * nunca vira merge, canonical_name renomeia o canónico preservando o
+ * nome anterior como alias (secção G) DENTRO da mesma transacção que os
+ * merges do grupo (secção I), um erro a meio da transacção propaga-se em
+ * vez de ser engolido — condição necessária para o rollback real do
+ * Prisma (secção I3) —, um plano de outro tenant é recusado por
+ * carregarPlano (secção H2), e o parsing de CLI aceita só
+ * --tenant=garantia.
  *
  * Corre com: npx tsx scripts/tests/test-fabricante-normalizacao-batch.ts
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   combinarGrupos,
   combinarGruposAchatado,
@@ -32,7 +37,7 @@ import {
 } from "../../lib/catalog-fabricante-normalizacao-batch";
 import type { ProdutoDoLoser } from "../../lib/catalog-fabricante-merge";
 import type { PrismaClient } from "../../generated/prisma/client";
-import { parseArgs } from "../normalizar-fabricantes-garantia";
+import { carregarPlano, parseArgs } from "../normalizar-fabricantes-garantia";
 
 let ok = 0;
 let ko = 0;
@@ -221,6 +226,66 @@ console.log("\nF · do_not_merge");
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// F2 · cadeia source→canonical entre grupos — recusada explicitamente,
+//      não apenas ausente por acaso nos dados
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nF2 · cadeia source→canonical entre grupos");
+{
+  // grupo 0 pede "a←b" (b seria absorvido por a). grupo 1 pede "b←c" (c
+  // seria absorvido por b). Mas "b" é, ao mesmo tempo, source no grupo 0
+  // E canonical_id no grupo 1 — se os dois corressem, "b" ficaria INATIVO
+  // (grupo 0) e seria simultaneamente o destino de "c" (grupo 1): uma
+  // cadeia. "b" enquanto SOURCE é recusado (motivo "cadeia"); o grupo 1
+  // continua válido, porque "b" enquanto CANONICAL nunca é tocado por
+  // este mecanismo — só a aparição de "b" como source é que é uma cadeia.
+  const grupos: GrupoNormalizacao[] = [
+    { kind: "orthographic", canonical_id: "a", source_ids: ["b"] },
+    { kind: "orthographic", canonical_id: "b", source_ids: ["c"] },
+  ];
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["a", fab("a", "A LDA")],
+    ["b", fab("b", "B LDA")],
+    ["c", fab("c", "C LDA")],
+  ]);
+  const relatorio = planearNormalizacaoBatch({
+    grupos,
+    fabricantesPorId,
+    produtosPorFabricanteId: new Map(),
+    doNotMerge: [],
+  });
+  eq(relatorio.grupos.length, 1, "F2.1: só o grupo 1 (b←c) fica válido — o grupo 0 fica sem sources válidos");
+  eq(relatorio.grupos[0].canonicalId, "b", "F2.2: o grupo válido é b←c");
+  const excluidoCadeia = relatorio.sourcesExcluidos.find((s) => s.sourceId === "b");
+  check(!!excluidoCadeia, "F2.3: 'b' aparece excluído (enquanto source do grupo 0)");
+  eq(excluidoCadeia?.motivo, "cadeia", "F2.4: motivo é 'cadeia', não outro");
+  eq(excluidoCadeia?.groupIndex, 0, "F2.5: reportado no grupo #0 (a←b)");
+}
+{
+  // A ORDEM dos grupos no plano não deve importar: mesmo que o grupo cujo
+  // source é uma cadeia venha DEPOIS do grupo que o usa como canonical, a
+  // exclusão continua a acontecer — o conjunto de todos os canonical_id é
+  // construído com TODOS os grupos antes de qualquer validação, não
+  // incrementalmente durante a iteração.
+  const grupos: GrupoNormalizacao[] = [
+    { kind: "orthographic", canonical_id: "b", source_ids: ["c"] },
+    { kind: "orthographic", canonical_id: "a", source_ids: ["b"] },
+  ];
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["a", fab("a", "A LDA")],
+    ["b", fab("b", "B LDA")],
+    ["c", fab("c", "C LDA")],
+  ]);
+  const relatorio = planearNormalizacaoBatch({
+    grupos,
+    fabricantesPorId,
+    produtosPorFabricanteId: new Map(),
+    doNotMerge: [],
+  });
+  const excluidoCadeia = relatorio.sourcesExcluidos.find((s) => s.sourceId === "b");
+  eq(excluidoCadeia?.motivo, "cadeia", "F2.6: cadeia detectada independentemente da ordem dos grupos no plano");
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // G · canonical_name — renomeação do próprio canónico, com alias preservado
 // ══════════════════════════════════════════════════════════════════════
 console.log("\nG · canonical_name (renomeação do canónico)");
@@ -332,6 +397,38 @@ console.log("\nH · parseArgs do CLI de normalização");
     (() => { try { parseArgs(["--tenant=garantia", "--source=x", "--desconhecido"]); return false; } catch { return true; } })(),
     "H8: argumento desconhecido é erro fatal",
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// H2 · carregarPlano recusa um ficheiro cujo tenant não é "garantia"
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nH2 · carregarPlano — tentativa de usar outro tenant");
+{
+  const dir = mkdtempSync(join(tmpdir(), "plano-outro-tenant-"));
+  const path = join(dir, "plano-outro-tenant.json");
+  writeFileSync(
+    path,
+    JSON.stringify({ tenant: "outro-tenant", do_not_merge: [], groups: [] }),
+    "utf8",
+  );
+  let lancou = false;
+  let mensagem = "";
+  try {
+    carregarPlano(path);
+  } catch (err) {
+    lancou = true;
+    mensagem = err instanceof Error ? err.message : String(err);
+  }
+  check(lancou, "H2.1: um plano com tenant != garantia é recusado com erro, não silenciosamente aceite");
+  check(mensagem.includes("outro-tenant") && mensagem.includes("garantia"), "H2.2: a mensagem identifica o tenant errado e o tenant travado", mensagem);
+}
+{
+  // Confirma também o caminho feliz: tenant correcto carrega sem lançar.
+  const dir = mkdtempSync(join(tmpdir(), "plano-garantia-"));
+  const path = join(dir, "plano-garantia.json");
+  writeFileSync(path, JSON.stringify({ tenant: "garantia", do_not_merge: [], groups: [] }), "utf8");
+  const plano = carregarPlano(path);
+  eq(plano.achatado, true, "H2.3: tenant correcto carrega normalmente (formato achatado detectado)");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -494,7 +591,7 @@ console.log("\nM · validação estrutural do checkpoint real em disco");
   const plano = JSON.parse(readFileSync(planoPath, "utf8")) as PlanoNormalizacaoArquivoAchatado;
 
   eq(plano.tenant, "garantia", "M1: tenant é garantia");
-  eq(plano.status, "RESEARCH_CHECKPOINT_DO_NOT_APPLY", "M2: status ainda não autoriza --apply");
+  eq(plano.status, "RESEARCH_CONCLUDED_READY_FOR_IMPLEMENTATION_DRY_RUN_DO_NOT_APPLY", "M2: status ainda não autoriza --apply");
   eq(plano.groups.length, plano.summary?.groups, "M3: groups.length bate com summary.groups");
 
   const sourceOwner = new Map<string, number>();
@@ -623,6 +720,103 @@ async function principal() {
   const resultadoDryRun = await executarNormalizacaoBatch(fake as PrismaClient, { relatorio, source: "teste", dryRun: true });
   eq(resultadoDryRun.canonicaisRenomeados, 1, "I7: dry-run também conta a renomeação");
   eq(resultadoDryRun.aliasesCriados, relatorio.totais.aliasesACriar + relatorio.totais.aliasesCriadosPorRenomeacao, "I8: dry-run soma aliases de merge + de renomeação");
+
+  // ══════════════════════════════════════════════════════════════════════
+  // I2 · dry-run isolado — prova, com um Prisma falso NUNCA antes chamado
+  //      neste teste, que dry-run não toca em NENHUM método do Prisma
+  // ══════════════════════════════════════════════════════════════════════
+  console.log("\nI2 · dry-run isolado — zero chamadas ao Prisma, prova limpa");
+  {
+    const chamadasIsoladas: string[] = [];
+    const fakeIsolado = {
+      produto: { updateMany: async () => { chamadasIsoladas.push("produto.updateMany"); return { count: 0 }; } },
+      fabricanteAlias: {
+        upsert: async () => { chamadasIsoladas.push("fabricanteAlias.upsert"); return {}; },
+        deleteMany: async () => { chamadasIsoladas.push("fabricanteAlias.deleteMany"); return { count: 0 }; },
+      },
+      fabricante: { update: async () => { chamadasIsoladas.push("fabricante.update"); return {}; } },
+      enrichmentSourceLog: { createMany: async () => { chamadasIsoladas.push("enrichmentSourceLog.createMany"); return { count: 0 }; } },
+      $transaction: async (fn: (tx: unknown) => Promise<void>) => { chamadasIsoladas.push("$transaction"); return fn(fakeIsolado); },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const resultadoIsolado = await executarNormalizacaoBatch(fakeIsolado as PrismaClient, { relatorio, source: "teste", dryRun: true });
+    eq(resultadoIsolado.canonicaisRenomeados, 1, "I2.1: dry-run isolado ainda soma as contagens do relatório corretamente");
+    eq(chamadasIsoladas.length, 0, "I2.2: NENHUMA chamada ao Prisma falso — nem $transaction sequer abre");
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // I3 · rollback integral — um erro A MEIO da transacção propaga-se para
+  //      fora de executarNormalizacaoBatch (nunca é engolido), que é a
+  //      condição necessária para o $transaction real do Prisma reverter
+  //      tudo. Aqui simula-se com um Prisma falso cujo segundo grupo
+  //      lança a meio, depois de o primeiro já ter "escrito".
+  // ══════════════════════════════════════════════════════════════════════
+  console.log("\nI3 · rollback integral — erro a meio da transacção propaga-se (não é engolido)");
+  {
+    const gruposRollback: GrupoNormalizacao[] = [
+      { kind: "initial_orthographic", canonical_id: "r1", source_ids: ["r1s1"] },
+      { kind: "initial_orthographic", canonical_id: "r2", source_ids: ["r2s1"] },
+    ];
+    const fabricantesPorIdRollback = new Map<string, FabricanteDb>([
+      ["r1", fab("r1", "R1 LDA")],
+      ["r1s1", fab("r1s1", "R1S1 LDA")],
+      ["r2", fab("r2", "R2 LDA")],
+      ["r2s1", fab("r2s1", "R2S1 LDA")],
+    ]);
+    const relatorioRollback = planearNormalizacaoBatch({
+      grupos: gruposRollback,
+      fabricantesPorId: fabricantesPorIdRollback,
+      produtosPorFabricanteId: new Map(),
+      doNotMerge: [],
+    });
+    eq(relatorioRollback.gruposBloqueados.length, 0, "I3.1: nenhum conflito — o abort pré-transacção não se aplica aqui");
+    eq(relatorioRollback.sourcesExcluidos.length, 0, "I3.2: nenhum conflito — idem");
+
+    let transacaoFoiRevertida = false;
+    let chamadasAntesDoErro = 0;
+    const fakeRollback = {
+      produto: { updateMany: async () => ({ count: 0 }) },
+      fabricanteAlias: { upsert: async () => ({}), deleteMany: async () => ({ count: 0 }) },
+      fabricante: {
+        update: async (args: { where: { id: string } }) => {
+          chamadasAntesDoErro++;
+          // r1s1 (loser do primeiro grupo) é desactivado com sucesso; r2s1
+          // (loser do segundo grupo) é onde a falha simulada acontece — ou
+          // seja, DEPOIS de o primeiro grupo já ter "escrito" de verdade.
+          if (args.where.id === "r2s1") {
+            throw new Error("falha simulada a meio da transação (ex.: violação de unicidade na BD real)");
+          }
+          return {};
+        },
+      },
+      enrichmentSourceLog: { createMany: async () => ({ count: 0 }) },
+      $transaction: async (fn: (tx: unknown) => Promise<void>) => {
+        try {
+          return await fn(fakeRollback);
+        } catch (err) {
+          // É EXACTAMENTE isto que o Prisma real faz: um erro dentro do
+          // callback da transacção interactiva faz ROLLBACK automático.
+          transacaoFoiRevertida = true;
+          throw err;
+        }
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    let lancouRollback = false;
+    let mensagemRollback = "";
+    try {
+      await executarNormalizacaoBatch(fakeRollback as PrismaClient, { relatorio: relatorioRollback, source: "teste", dryRun: false });
+    } catch (err) {
+      lancouRollback = true;
+      mensagemRollback = err instanceof Error ? err.message : String(err);
+    }
+    check(lancouRollback, "I3.3: o erro a meio da transação propaga-se para fora de executarNormalizacaoBatch");
+    check(mensagemRollback.includes("falha simulada"), "I3.4: a mensagem original do erro não é substituída nem engolida", mensagemRollback);
+    check(transacaoFoiRevertida, "I3.5: o wrapper $transaction viu o erro e reverteu (o que o Prisma real faria)");
+    eq(chamadasAntesDoErro, 2, "I3.6: o primeiro grupo (r1) chegou a chamar fabricante.update antes do segundo (r2) falhar — prova que a falha é MESMO a meio, não antes de começar");
+  }
 
   // ══════════════════════════════════════════════════════════════════════
   // K · --apply aborta TUDO perante qualquer conflito — nunca aplica só

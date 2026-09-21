@@ -64,7 +64,8 @@ export type GrupoKind =
   | "orthographic"
   | "initial_verified"
   | "initial_orthographic"
-  | "supplemental_research";
+  | "supplemental_research"
+  | "supplemental_research_final";
 
 export type GrupoPlanoOrigem = {
   canonical_id: string;
@@ -180,6 +181,7 @@ export type MotivoExclusaoSource =
   | "ja_inativo"
   | "duplicado_noutro_grupo"
   | "self_merge"
+  | "cadeia"
   | "do_not_merge";
 
 export type SourceExcluido = {
@@ -279,6 +281,14 @@ export function planearNormalizacaoBatch(input: {
     }
   });
 
+  // Todos os canonical_id do lote — um source_id que também seja o
+  // canonical_id de OUTRO grupo formaria uma cadeia (A absorve B, B
+  // absorve C na mesma corrida): B ficaria INATIVO antes de C ser
+  // reatribuído para ele, ou a ordem dependeria de sorte de iteração.
+  // O plano nunca deve pedir isto — mas a verificação é feita aqui,
+  // contra os dados, e não apenas assumida pela ausência no ficheiro.
+  const todosCanonicalIds = new Set(grupos.map((g) => g.canonical_id));
+
   const sourceOwnerGroupIndex = new Map<string, number>(); // detecta source_id repetido entre grupos
 
   const gruposResolvidos: GrupoResolvido[] = [];
@@ -353,6 +363,18 @@ export function planearNormalizacaoBatch(input: {
           sourceId,
           motivo: "self_merge",
           detalhe: "source_id igual ao canonical_id do próprio grupo.",
+        });
+        continue;
+      }
+
+      if (todosCanonicalIds.has(sourceId)) {
+        sourcesExcluidos.push({
+          groupIndex,
+          kind: grupo.kind,
+          canonicalId: grupo.canonical_id,
+          sourceId,
+          motivo: "cadeia",
+          detalhe: `source_id ${sourceId} é também canonical_id de outro grupo do plano — cadeia source→canonical recusada.`,
         });
         continue;
       }
