@@ -2,51 +2,59 @@
  * scripts/normalizar-fabricantes-garantia.ts
  *
  * Executa, em lote, o plano de normalização de `Fabricante` do tenant
- * garantia descrito em `scripts/data/plano-execucao-normalizacao-garantia.json`
- * (7 `verified_business_changes` + 561 `orthographic_merges`, cada um
- * um merge winner/loser(s) já decidido e aprovado fora deste script —
- * ver `execution_rules` desse ficheiro). Este ficheiro NÃO investiga
- * nem reclassifica fabricante nenhum: só verifica que os IDs do plano
- * existem mesmo nesta base, respeita `do_not_merge`, e aplica
- * mecanicamente o que `lib/catalog-fabricante-merge.ts` já sabe fazer
- * a um par de cada vez — `lib/catalog-fabricante-normalizacao-batch.ts`
- * é só a orquestração dos ~570 grupos numa única transacção.
+ * garantia. Aceita DOIS formatos de plano, ambos traduzidos para a
+ * MESMA representação interna antes de planear (ver
+ * `lib/catalog-fabricante-normalizacao-batch.ts`):
+ *
+ *   · original    `verified_business_changes` + `orthographic_merges`
+ *                 (scripts/data/plano-execucao-normalizacao-garantia.json)
+ *   · achatado     `groups[]` único, com `canonical_name_before`/`_after`,
+ *                 `sources[].products` (contagem esperada) e `do_not_merge`
+ *                 como arrays de nomes nus
+ *                 (scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json
+ *                 — o ponto de partida ACTUAL; 555 grupos, 28 com
+ *                 renomeação do canónico)
+ *
+ * Este ficheiro NÃO investiga nem reclassifica fabricante nenhum: só
+ * verifica que os IDs do plano existem mesmo nesta base, respeita
+ * `do_not_merge`, e aplica mecanicamente o que já está decidido.
  *
  * ── Segurança: travado ao tenant garantia ────────────────────────────
  * `--tenant=garantia` é o ÚNICO valor aceite — este script recusa-se a
  * correr contra qualquer outro tenant, mesmo que --tenant= aponte para
- * outro (o plano é específico da garantia; correr isto acidentalmente
- * noutro tenant reatribuiria produtos de fabricantes que nem existem
- * lá com o mesmo significado). Além disso, o `tenant` do próprio
- * ficheiro do plano tem de ser "garantia" — outra camada da mesma
- * trava.
+ * outro. Além disso, o `tenant` do próprio ficheiro do plano tem de ser
+ * "garantia" — outra camada da mesma trava.
  *
  * ── Segurança: dry-run é o DEFAULT ───────────────────────────────────
- * Mesma polaridade de `merge-fabricantes.ts` e
- * `correct-fabricantes-listagem.ts` — nunca escreve nada sem --apply
- * explícito.
+ * Nunca escreve nada sem --apply explícito.
  *
- * ── Segurança: tudo numa transacção ──────────────────────────────────
- * `executarNormalizacaoBatch` (lib) aplica os ~570 grupos dentro de UMA
- * transacção interactiva — ou fica tudo aplicado, ou nada (rollback
- * automático em caso de erro a meio).
+ * ── Segurança: plano com `status` não-aprovado bloqueia --apply ──────
+ * Se o plano trouxer `status` (só o achatado traz) e não for
+ * exactamente `"APPROVED"` — ex.: `RESEARCH_CHECKPOINT_DO_NOT_APPLY` —
+ * `--apply` é recusado ANTES de sequer ligar à base. O dry-run continua
+ * a correr sempre, para se poder rever o plano.
+ *
+ * ── Segurança: tudo numa transacção, e recusa parcial em --apply ─────
+ * `executarNormalizacaoBatch` (lib) aplica os grupos dentro de UMA
+ * transacção interactiva — ou fica tudo aplicado, ou nada. E recusa-se
+ * a sequer abrir essa transacção se houver QUALQUER grupo bloqueado,
+ * source excluído ou renomeação bloqueada no relatório: um `--apply`
+ * nunca aplica só os itens limpos e ignora os outros em silêncio.
  *
  * ── canonical_name (opcional) ─────────────────────────────────────────
- * Um grupo do plano pode trazer `canonical_name`: a denominação que o
- * PRÓPRIO canónico deve passar a ter. Só dispara escrita quando difere
- * do `nomeNormalizado` já na base — e, quando dispara, a denominação
- * ANTERIOR do canónico é preservada como `FabricanteAlias` dele antes
- * de o renomear, na MESMA transacção dos merges desse grupo. Uma
- * colisão com o `nomeNormalizado` de outro Fabricante bloqueia só essa
- * renomeação (reportada, nunca aplicada) — os merges do grupo, se os
- * houver, continuam.
+ * Um grupo do plano pode trazer a denominação que o PRÓPRIO canónico
+ * deve passar a ter. Só dispara escrita quando difere do
+ * `nomeNormalizado` já na base — e, quando dispara, a denominação
+ * ANTERIOR é preservada como `FabricanteAlias` antes de renomear, na
+ * MESMA transacção dos merges desse grupo.
  *
- * ── Âmbito ─────────────────────────────────────────────────────────────
- * Isto é a PRIMEIRA FASE do trabalho de normalização de fabricantes da
- * garantia — os 568 grupos deste plano (561 ortográficos + 7 mudanças
- * empresariais verificadas), nunca uma revisão completa do catálogo de
- * fabricantes do tenant. Fabricantes fora deste plano continuam ATIVOS
- * e por rever.
+ * ── Divergências (só no formato achatado) ─────────────────────────────
+ * O plano achatado declara, por source, quantos produtos ESPERA
+ * reatribuir, e no bloco `summary` os totais agregados. Este script
+ * compara isso contra a base REAL (`compararDivergencias`, lib) e
+ * imprime o que não bate — o plano é investigação
+ * (`RESEARCH_CHECKPOINT_DO_NOT_APPLY`), e uma contagem desactualizada é
+ * sinal de que os dados mudaram desde que foi escrito.
  *
  * Uso:
  *   # 1. Dry-run — SEMPRE primeiro. Imprime o relatório completo e
@@ -55,7 +63,8 @@
  *     --tenant=garantia \
  *     --source=normalizacao-fabricantes-garantia-2026-09
  *
- *   # 2. Aplicar, depois de validar o dry-run.
+ *   # 2. Aplicar, só depois de: (a) validar o dry-run, (b) o plano ter
+ *   #    status="APPROVED" (ou não ter `status` nenhum).
  *   npx tsx scripts/normalizar-fabricantes-garantia.ts \
  *     --tenant=garantia \
  *     --source=normalizacao-fabricantes-garantia-2026-09 \
@@ -63,8 +72,8 @@
  *
  * Opções:
  *   --tenant=garantia     Obrigatório, e tem de ser exactamente "garantia".
- *   --plano=<path>        Opcional. Default:
- *                         scripts/data/plano-execucao-normalizacao-garantia.json
+ *   --plano=<path>        Opcional. Default: o checkpoint achatado
+ *                         (scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json).
  *   --source=<tag>        Obrigatório. Gravado em EnrichmentSourceLog.source.
  *   --apply               Escreve de facto. Omitido → dry-run (default).
  *   --relatorio=<path>    Opcional. Onde gravar o relatório JSON detalhado.
@@ -83,15 +92,24 @@ import { AlvoRecusado, descreverAlvo, resolverAlvo, type AlvoDb } from "../lib/c
 import type { ProdutoDoLoser } from "../lib/catalog-fabricante-merge";
 import {
   combinarGrupos,
+  combinarGruposAchatado,
+  compararDivergencias,
+  ehPlanoAchatado,
   executarNormalizacaoBatch,
+  normalizarDoNotMerge,
   planearNormalizacaoBatch,
+  type DoNotMergeEntry,
   type FabricanteDb,
+  type GrupoNormalizacao,
   type PlanoNormalizacaoArquivo,
+  type PlanoNormalizacaoArquivoAchatado,
+  type RelatorioDivergencias,
 } from "../lib/catalog-fabricante-normalizacao-batch";
 
 const TENANT_TRAVADO = "garantia";
-const PLANO_DEFAULT = resolve(__dirname, "data", "plano-execucao-normalizacao-garantia.json");
+const PLANO_DEFAULT = resolve(__dirname, "data", "plano-normalizacao-garantia-achatado-checkpoint.json");
 const RELATORIO_DEFAULT = resolve(__dirname, "data", "relatorio-normalizacao-garantia.json");
+const APPLY_STATUS_PERMITIDO = "APPROVED";
 
 type Args = {
   planoPath: string;
@@ -121,16 +139,50 @@ export function parseArgs(argv: readonly string[]): Args {
   return out as Args;
 }
 
-function carregarPlano(path: string): PlanoNormalizacaoArquivo {
+type PlanoCarregado = {
+  achatado: boolean;
+  /** Só presente no formato achatado — usado para o relatório de divergências. */
+  achatadoRaw?: PlanoNormalizacaoArquivoAchatado;
+  status?: string;
+  warnings?: string[];
+  grupos: GrupoNormalizacao[];
+  doNotMerge: DoNotMergeEntry[];
+  totalGruposNoPlano: number;
+  descricaoFormato: string;
+};
+
+function carregarPlano(path: string): PlanoCarregado {
   const bruto = readFileSync(path, "utf8");
-  const plano = JSON.parse(bruto) as PlanoNormalizacaoArquivo;
-  if (plano.tenant !== TENANT_TRAVADO) {
+  const json = JSON.parse(bruto) as PlanoNormalizacaoArquivo | PlanoNormalizacaoArquivoAchatado;
+
+  if (json.tenant !== TENANT_TRAVADO) {
     throw new Error(
-      `O plano em ${path} diz respeito ao tenant "${plano.tenant}", não "${TENANT_TRAVADO}". ` +
+      `O plano em ${path} diz respeito ao tenant "${json.tenant}", não "${TENANT_TRAVADO}". ` +
         `Este script está travado ao tenant garantia — recusado.`,
     );
   }
-  return plano;
+
+  if (ehPlanoAchatado(json)) {
+    return {
+      achatado: true,
+      achatadoRaw: json,
+      status: json.status,
+      warnings: json.warnings,
+      grupos: combinarGruposAchatado(json),
+      doNotMerge: normalizarDoNotMerge(json.do_not_merge),
+      totalGruposNoPlano: json.groups.length,
+      descricaoFormato: `achatado — groups[] (${json.groups.length} grupos)`,
+    };
+  }
+
+  const grupos = combinarGrupos(json);
+  return {
+    achatado: false,
+    grupos,
+    doNotMerge: normalizarDoNotMerge(json.do_not_merge),
+    totalGruposNoPlano: grupos.length,
+    descricaoFormato: `original — ${json.verified_business_changes.length} verified_business_changes + ${json.orthographic_merges.length} orthographic_merges`,
+  };
 }
 
 async function main(): Promise<void> {
@@ -142,6 +194,25 @@ async function main(): Promise<void> {
       `\n[fatal] Este script está travado ao tenant "${TENANT_TRAVADO}" — recebeu --tenant=${slugPedido ?? "(nenhum)"}.\n` +
         `O plano em scripts/data/plano-execucao-normalizacao-garantia.json só faz sentido nesse tenant;\n` +
         `correr noutro reatribuiria produtos de Fabricante IDs que lá significam outra coisa (ou não existem).\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const args = parseArgs(argv);
+  const dryRun = !args.apply;
+
+  const plano = carregarPlano(args.planoPath);
+
+  // ── Status do plano bloqueia --apply, ANTES de qualquer ligação à base ──
+  // Um plano achatado sem status="APPROVED" (ex.: RESEARCH_CHECKPOINT_DO_NOT_APPLY,
+  // o valor actual) nunca aplica — só o dry-run corre. Falha aqui, sem tocar
+  // em rede nenhuma, é mais seguro do que falhar depois de já ter ligado à VPS.
+  if (args.apply && plano.status && plano.status !== APPLY_STATUS_PERMITIDO) {
+    console.error(
+      `\n[fatal] O plano em ${args.planoPath} declara status="${plano.status}" — não é "${APPLY_STATUS_PERMITIDO}".\n` +
+        `--apply recusado. Corre sem --apply (dry-run) para rever o plano; só aplicar depois de uma aprovação\n` +
+        `humana explícita que actualize este status no ficheiro.\n`,
     );
     process.exitCode = 1;
     return;
@@ -159,11 +230,7 @@ async function main(): Promise<void> {
     throw err;
   }
 
-  const args = parseArgs(argv);
-  const dryRun = !args.apply;
-
-  const plano = carregarPlano(args.planoPath);
-  const grupos = combinarGrupos(plano);
+  const grupos = plano.grupos;
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: alvo.url }) });
   try {
@@ -175,13 +242,18 @@ async function main(): Promise<void> {
     console.log(`  ${descreverAlvo(alvo)}`);
     console.log(`  Modo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
     console.log(`  Plano: ${args.planoPath}`);
+    console.log(`  Formato: ${plano.descricaoFormato}`);
     console.log(`  source: ${args.source}`);
-    console.log(`  Grupos no plano: ${plano.verified_business_changes.length} verified_business_changes + ${plano.orthographic_merges.length} orthographic_merges = ${grupos.length}`);
-    console.log(`  do_not_merge: ${plano.do_not_merge.length} entrada(s)`);
+    console.log(`  Grupos no plano: ${plano.totalGruposNoPlano}`);
+    console.log(`  do_not_merge: ${plano.doNotMerge.length} entrada(s)`);
+    if (plano.status) console.log(`  Estado do plano: ${plano.status}`);
+    if (plano.warnings?.length) {
+      console.log(`  Avisos do plano:`);
+      for (const w of plano.warnings) console.log(`    - ${w}`);
+    }
     console.log(
-      `  Âmbito: primeira fase segura — ${plano.orthographic_merges.length} normalizações ortográficas + ` +
-        `${plano.verified_business_changes.length} mudanças empresariais verificadas. Fabricantes fora deste ` +
-        `plano permanecem ATIVOS e não são tocados nem revistos aqui.`,
+      `  Âmbito: normalização de fabricantes do tenant garantia — ${plano.totalGruposNoPlano} grupos deste plano. ` +
+        `Fabricantes fora deste plano permanecem ATIVOS e não são tocados nem revistos aqui.`,
     );
 
     // ── 1. Ler todos os Fabricante referenciados pelo plano, numa query só ──
@@ -220,7 +292,7 @@ async function main(): Promise<void> {
       grupos,
       fabricantesPorId,
       produtosPorFabricanteId,
-      doNotMerge: plano.do_not_merge,
+      doNotMerge: plano.doNotMerge,
       incluirValidadosManualmente: args.incluirValidadosManualmente,
     });
 
@@ -229,6 +301,17 @@ async function main(): Promise<void> {
       prisma.fabricante.count({ where: { estado: "ATIVO" } }),
       prisma.fabricante.count({ where: { estado: "INATIVO" } }),
     ]);
+
+    // ── 4b. Divergências: o que o plano achatado DECLAROU vs a base REAL ──
+    let divergencias: RelatorioDivergencias | undefined;
+    if (plano.achatado && plano.achatadoRaw) {
+      divergencias = compararDivergencias({
+        planoAchatado: plano.achatadoRaw,
+        relatorio,
+        produtosPorFabricanteId,
+        totalFabricantesAtivosAntes,
+      });
+    }
 
     // ── 5. Relatório em consola ──
     console.log(`\n${"─".repeat(78)}`);
@@ -303,15 +386,53 @@ async function main(): Promise<void> {
     console.log(`  Fabricante INATIVO antes: ${totalFabricantesInativosAntes}`);
     console.log(`  Fabricante INATIVO depois: ${totalFabricantesInativosAntes + relatorio.totais.fabricantesOrigemAInativar}`);
 
-    // ── 6. Executar (dry-run por omissão) ──
-    const resultado = await executarNormalizacaoBatch(prisma, { relatorio, source: args.source, dryRun });
+    // ── 5b. Divergências: plano DECLAROU vs base REAL diz agora ──
+    if (divergencias) {
+      console.log(`\n${"─".repeat(78)}`);
+      const piores = divergencias.resumo.filter((r) => !r.bate);
+      console.log(`Divergências vs o plano (summary declarado): ${piores.length ? piores.length + " campo(s) não batem" : "nenhuma — tudo bate certo"}`);
+      for (const r of divergencias.resumo) {
+        console.log(`  ${r.bate ? "✓" : "✗"} ${r.campo}: declarado=${r.esperado}  real=${r.real}`);
+      }
+      if (divergencias.produtos.length > 0) {
+        console.log(`\n  Divergências de produtos por source — ${divergencias.produtos.length}:`);
+        for (const d of divergencias.produtos) {
+          console.log(
+            `    grupo #${d.groupIndex} source_id=${d.sourceId}${d.sourceNome ? ` ("${d.sourceNome}")` : ""} — ` +
+              `declarado=${d.produtosEsperados} real=${d.produtosReais}`,
+          );
+        }
+      } else {
+        console.log(`  Nenhuma divergência de produtos por source.`);
+      }
+    }
 
-    console.log(`\n${"─".repeat(78)}`);
-    console.log(
-      `${dryRun ? "[dry-run] Seriam" : "Foram"} reatribuídos ${resultado.produtosReatribuidos} produto(s), ` +
-        `criado(s) ${resultado.aliasesCriados} alias(es), inactivado(s) ${resultado.fabricantesInativados} fabricante(s), ` +
-        `renomeado(s) ${resultado.canonicaisRenomeados} canónico(s).`,
-    );
+    // ── 6. Executar (dry-run por omissão) ──
+    let resultado: Awaited<ReturnType<typeof executarNormalizacaoBatch>> | undefined;
+    let applyRecusado: string | undefined;
+    try {
+      resultado = await executarNormalizacaoBatch(prisma, { relatorio, source: args.source, dryRun });
+    } catch (err) {
+      if (!dryRun && err instanceof Error) {
+        // Abort estrutural de executarNormalizacaoBatch (conflitos por resolver) — não é um
+        // erro de infra-estrutura, é a trava a funcionar. Reporta e sai sem propagar como fatal.
+        applyRecusado = err.message;
+      } else {
+        throw err;
+      }
+    }
+
+    if (applyRecusado) {
+      console.log(`\n${"─".repeat(78)}`);
+      console.log(`✗ ${applyRecusado}`);
+    } else if (resultado) {
+      console.log(`\n${"─".repeat(78)}`);
+      console.log(
+        `${dryRun ? "[dry-run] Seriam" : "Foram"} reatribuídos ${resultado.produtosReatribuidos} produto(s), ` +
+          `criado(s) ${resultado.aliasesCriados} alias(es), inactivado(s) ${resultado.fabricantesInativados} fabricante(s), ` +
+          `renomeado(s) ${resultado.canonicaisRenomeados} canónico(s).`,
+      );
+    }
 
     // ── 7. Gravar relatório detalhado para auditoria ──
     const relatorioParaDisco = {
@@ -352,11 +473,16 @@ async function main(): Promise<void> {
       gruposBloqueados: relatorio.gruposBloqueados,
       sourcesExcluidos: relatorio.sourcesExcluidos,
       renomeacoesBloqueadas: relatorio.renomeacoesBloqueadas,
+      ...(divergencias ? { divergencias } : {}),
+      ...(applyRecusado ? { applyRecusado } : {}),
     };
     writeFileSync(args.relatorioPath, JSON.stringify(relatorioParaDisco, null, 2), "utf8");
     console.log(`\nRelatório detalhado gravado em: ${args.relatorioPath}`);
 
-    if (dryRun) {
+    if (applyRecusado) {
+      console.log(`\n✗  --apply RECUSADO — nada foi escrito. Ver motivo acima.`);
+      process.exitCode = 1;
+    } else if (dryRun) {
       console.log(`\n⚠  DRY-RUN — nenhuma alteração foi gravada. Reveja o relatório acima e, se estiver correcto, corra com --apply.`);
     } else {
       console.log(`\n✔  Aplicado.`);

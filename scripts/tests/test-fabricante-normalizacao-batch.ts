@@ -14,13 +14,21 @@
  *
  * Corre com: npx tsx scripts/tests/test-fabricante-normalizacao-batch.ts
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   combinarGrupos,
+  combinarGruposAchatado,
+  compararDivergencias,
+  ehPlanoAchatado,
   executarNormalizacaoBatch,
+  normalizarDoNotMerge,
   planearNormalizacaoBatch,
+  type DoNotMergeEntry,
   type FabricanteDb,
   type GrupoNormalizacao,
   type PlanoNormalizacaoArquivo,
+  type PlanoNormalizacaoArquivoAchatado,
 } from "../../lib/catalog-fabricante-normalizacao-batch";
 import type { ProdutoDoLoser } from "../../lib/catalog-fabricante-merge";
 import type { PrismaClient } from "../../generated/prisma/client";
@@ -307,7 +315,7 @@ console.log("\nH · parseArgs do CLI de normalização");
   const args = parseArgs(["--tenant=garantia", "--source=x"]);
   eq(args.apply, false, "H1: default é dry-run");
   eq(args.incluirValidadosManualmente, false, "H2: default não inclui validados manualmente");
-  check(args.planoPath.endsWith("plano-execucao-normalizacao-garantia.json"), "H3: plano por omissão aponta para o ficheiro certo", args.planoPath);
+  check(args.planoPath.endsWith("plano-normalizacao-garantia-achatado-checkpoint.json"), "H3: plano por omissão aponta para o checkpoint achatado (o ponto de partida actual)", args.planoPath);
 }
 {
   const args = parseArgs(["--tenant=garantia", "--source=x", "--apply", "--plano=outro.json", "--incluir-validados-manualmente"]);
@@ -324,6 +332,216 @@ console.log("\nH · parseArgs do CLI de normalização");
     (() => { try { parseArgs(["--tenant=garantia", "--source=x", "--desconhecido"]); return false; } catch { return true; } })(),
     "H8: argumento desconhecido é erro fatal",
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// J · formato achatado (checkpoint) — combinarGruposAchatado,
+//     normalizarDoNotMerge, ehPlanoAchatado
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nJ · formato achatado (plano-normalizacao-garantia-achatado-checkpoint.json)");
+{
+  const planoOriginal: PlanoNormalizacaoArquivo = {
+    tenant: "garantia",
+    verified_business_changes: [],
+    orthographic_merges: [],
+    do_not_merge: [],
+  };
+  const planoAchatado: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [],
+  };
+  eq(ehPlanoAchatado(planoOriginal), false, "J1: o formato original NÃO é reconhecido como achatado");
+  eq(ehPlanoAchatado(planoAchatado), true, "J2: o formato achatado é reconhecido pela presença de groups[]");
+}
+{
+  // canonical_name_after vira canonical_name; sources[].source_id vira source_ids; origin vira kind.
+  const plano: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "supplemental_research",
+        canonical_id: "c1",
+        canonical_name_before: "NOME ANTIGO",
+        canonical_name_after: "NOME NOVO LDA",
+        canonical_rename_required: true,
+        sources: [
+          { source_id: "s1", source_name: "S1 LDA", products: 12 },
+          { source_id: "s2", source_name: "S2 LDA", products: 0 },
+        ],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(plano);
+  eq(grupos.length, 1, "J3: um grupo traduzido");
+  eq(grupos[0].kind, "supplemental_research", "J4: origin vira kind, tal-qual");
+  eq(grupos[0].canonical_id, "c1", "J5: canonical_id preservado");
+  eq(grupos[0].canonical_name, "NOME NOVO LDA", "J6: canonical_name_after vira canonical_name");
+  eq(grupos[0].source_ids, ["s1", "s2"], "J7: sources[].source_id vira source_ids");
+}
+{
+  // combinarGruposAchatado alimenta planearNormalizacaoBatch sem alteração nenhuma na lógica de planeamento.
+  const plano: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "initial_orthographic",
+        canonical_id: "c1",
+        canonical_name_before: "X LDA",
+        canonical_name_after: "X LDA",
+        canonical_rename_required: false,
+        sources: [{ source_id: "s1", source_name: "X L DA", products: 3 }],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(plano);
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["c1", fab("c1", "X LDA")],
+    ["s1", fab("s1", "X L DA")],
+  ]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  eq(relatorio.grupos.length, 1, "J8: o grupo achatado passa pelo planeamento normal");
+  check(!relatorio.grupos[0].renomeacao, "J9: canonical_name_after igual ao actual → sem renomeação (mesma regra de sempre)");
+}
+{
+  // normalizarDoNotMerge junta os dois formatos: arrays nus (achatado) e {names,reason} (original).
+  const misto: (string[] | DoNotMergeEntry)[] = [
+    ["MYLAN", "VIATRIS"],
+    { names: ["PENTAFARMA", "TECNIMEDE"], reason: "entidades distintas" },
+  ];
+  const normalizado = normalizarDoNotMerge(misto);
+  eq(normalizado.length, 2, "J10: as duas entradas sobrevivem");
+  eq(normalizado[0], { names: ["MYLAN", "VIATRIS"] }, "J11: array nu vira {names} sem reason");
+  eq(normalizado[1], { names: ["PENTAFARMA", "TECNIMEDE"], reason: "entidades distintas" }, "J12: {names,reason} original passa tal-qual");
+}
+{
+  // do_not_merge sem reason continua a bloquear — só a mensagem fica genérica.
+  const grupos: GrupoNormalizacao[] = [{ kind: "initial_orthographic", canonical_id: "viatris", source_ids: ["mylan"] }];
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["viatris", fab("viatris", "VIATRIS")],
+    ["mylan", fab("mylan", "MYLAN")],
+  ]);
+  const doNotMerge = normalizarDoNotMerge([["MYLAN", "UPJOHN EESV", "VIATRIS"]]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge });
+  eq(relatorio.grupos.length, 0, "J13: MYLAN→VIATRIS continua bloqueado sem reason nenhum");
+  eq(relatorio.sourcesExcluidos[0]?.motivo, "do_not_merge", "J14: motivo correcto mesmo sem reason no ficheiro");
+  check(!!relatorio.sourcesExcluidos[0]?.detalhe, "J15: a mensagem tem um texto genérico, não undefined/vazio");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// L · compararDivergencias — o que o plano DECLAROU vs o que a base REAL diz
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nL · compararDivergencias");
+{
+  const planoAchatado: PlanoNormalizacaoArquivoAchatado = {
+    tenant: "garantia",
+    summary: { groups: 1, source_manufacturers_to_deactivate: 1, canonical_renames_required: 0, products_to_reassign_unique: 5, active_before: 10, active_after_estimated: 9 },
+    do_not_merge: [],
+    groups: [
+      {
+        origin: "initial_orthographic",
+        canonical_id: "c1",
+        canonical_name_before: "C1 LDA",
+        canonical_name_after: "C1 LDA",
+        canonical_rename_required: false,
+        sources: [{ source_id: "s1", source_name: "S1 LDA", products: 5 }],
+      },
+    ],
+  };
+  const grupos = combinarGruposAchatado(planoAchatado);
+  const fabricantesPorId = new Map<string, FabricanteDb>([
+    ["c1", fab("c1", "C1 LDA")],
+    ["s1", fab("s1", "S1 LDA")],
+  ]);
+  // Base real diz 3 produtos, plano dizia 5 — divergência de propósito.
+  const produtosPorFabricanteId = new Map<string, ProdutoDoLoser[]>([
+    ["s1", [{ id: "p1", validadoManualmente: false }, { id: "p2", validadoManualmente: false }, { id: "p3", validadoManualmente: false }]],
+  ]);
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId, doNotMerge: [] });
+  const divergencias = compararDivergencias({ planoAchatado, relatorio, produtosPorFabricanteId, totalFabricantesAtivosAntes: 10 });
+
+  eq(divergencias.produtos.length, 1, "L1: uma divergência de produtos por source");
+  eq(divergencias.produtos[0].produtosEsperados, 5, "L2: o esperado vem do plano");
+  eq(divergencias.produtos[0].produtosReais, 3, "L3: o real vem da base");
+
+  const porCampo = new Map(divergencias.resumo.map((r) => [r.campo, r]));
+  check(porCampo.get("groups")?.bate === true, "L4: groups bate (1 declarado, 1 real)");
+  check(porCampo.get("products_to_reassign_unique")?.bate === false, "L5: products_to_reassign_unique (vs base real) NÃO bate (5 declarado, 3 reais)", JSON.stringify(porCampo.get("products_to_reassign_unique")));
+  check(porCampo.get("products_to_reassign_unique_vs_soma_por_source_no_plano")?.bate === true, "L5b: mas a soma DECLARADA no plano bate consigo própria (5 == 5) — a divergência é só contra a base");
+  check(porCampo.get("active_before")?.bate === true, "L6: active_before bate (10 declarado, 10 real)");
+  check(porCampo.get("active_after_estimated")?.bate === true, "L7: active_after_estimated bate (9 declarado, 10-1=9 real)");
+}
+{
+  // Sem summary no plano: compararDivergencias não rebenta, só devolve resumo vazio.
+  const planoSemSummary: PlanoNormalizacaoArquivoAchatado = { tenant: "garantia", do_not_merge: [], groups: [] };
+  const relatorioVazio = planearNormalizacaoBatch({ grupos: [], fabricantesPorId: new Map(), produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  const divergencias = compararDivergencias({ planoAchatado: planoSemSummary, relatorio: relatorioVazio, produtosPorFabricanteId: new Map(), totalFabricantesAtivosAntes: 0 });
+  eq(divergencias.resumo, [], "L8: sem summary, resumo fica vazio (nada a comparar)");
+  eq(divergencias.produtos, [], "L9: sem grupos, sem divergências de produtos");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// M · validação estrutural do CHECKPOINT REAL em disco — não é lógica de
+//     lib/, é uma prova de que o ficheiro que vai para a VPS está limpo:
+//     sem cadeias, sem sources repetidos, do_not_merge respeitado, e as
+//     contagens declaradas em summary batem com o que o ficheiro contém
+// ══════════════════════════════════════════════════════════════════════
+console.log("\nM · validação estrutural do checkpoint real em disco");
+{
+  const planoPath = resolve(__dirname, "..", "data", "plano-normalizacao-garantia-achatado-checkpoint.json");
+  const plano = JSON.parse(readFileSync(planoPath, "utf8")) as PlanoNormalizacaoArquivoAchatado;
+
+  eq(plano.tenant, "garantia", "M1: tenant é garantia");
+  eq(plano.status, "RESEARCH_CHECKPOINT_DO_NOT_APPLY", "M2: status ainda não autoriza --apply");
+  eq(plano.groups.length, plano.summary?.groups, "M3: groups.length bate com summary.groups");
+
+  const sourceOwner = new Map<string, number>();
+  const dupSources: string[] = [];
+  const selfMerges: string[] = [];
+  const canonicalIds = new Set<string>();
+  let totalSources = 0;
+  let renamesRequired = 0;
+  let somaProdutos = 0;
+  plano.groups.forEach((g, idx) => {
+    canonicalIds.add(g.canonical_id);
+    if (g.canonical_rename_required) renamesRequired++;
+    for (const s of g.sources) {
+      totalSources++;
+      somaProdutos += s.products ?? 0;
+      if (s.source_id === g.canonical_id) selfMerges.push(s.source_id);
+      if (sourceOwner.has(s.source_id)) dupSources.push(s.source_id);
+      else sourceOwner.set(s.source_id, idx);
+    }
+  });
+  const chains = [...canonicalIds].filter((cid) => sourceOwner.has(cid));
+
+  eq(dupSources.length, 0, "M4: nenhum source_id repetido entre grupos");
+  eq(selfMerges.length, 0, "M5: nenhum self-merge (source_id === canonical_id do próprio grupo)");
+  eq(chains.length, 0, "M6: nenhuma cadeia winner→loser→winner (canonical também source noutro grupo)");
+  eq(canonicalIds.size, plano.groups.length, "M7: nenhum canonical_id repetido entre grupos");
+  eq(totalSources, plano.summary?.source_manufacturers_to_deactivate, "M8: total de sources bate com summary");
+  eq(renamesRequired, plano.summary?.canonical_renames_required, "M9: total de renomeações bate com summary");
+  eq(somaProdutos, plano.summary?.products_to_reassign_unique, "M10: soma de products por source bate com summary");
+
+  // do_not_merge (arrays de nomes) tem de ser aceite por normalizarDoNotMerge sem rebentar.
+  const doNotMerge = normalizarDoNotMerge(plano.do_not_merge);
+  check(doNotMerge.length === plano.do_not_merge.length, "M11: normalizarDoNotMerge preserva o número de entradas");
+  check(doNotMerge.every((e) => !("reason" in e) || e.reason === undefined), "M12: entradas do checkpoint não têm reason (formato achatado)");
+
+  // O plano inteiro passa pelo planeamento puro sem excepções nem grupos bloqueados —
+  // é exactamente o que "checkpoint tecnicamente consistente" quer dizer.
+  const grupos = combinarGruposAchatado(plano);
+  const fabricantesPorId = new Map<string, FabricanteDb>();
+  for (const id of [...canonicalIds, ...sourceOwner.keys()]) fabricantesPorId.set(id, fab(id, `NOME-${id}`));
+  // Como os nomes sintéticos acima são todos distintos e iguais ao nome "actual" de cada id,
+  // nenhuma renomeação dispara aqui (não é isso que esta secção testa) — o que interessa é
+  // que NENHUM grupo fica bloqueado e NENHUM source é excluído por duplicação/self-merge/cadeia.
+  const relatorio = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+  eq(relatorio.gruposBloqueados.length, 0, "M13: nenhum grupo bloqueado quando todos os IDs existem e estão ATIVO");
+  const exclusoesEstruturais = relatorio.sourcesExcluidos.filter((s) => s.motivo === "duplicado_noutro_grupo" || s.motivo === "self_merge");
+  eq(exclusoesEstruturais.length, 0, "M14: nenhuma exclusão por duplicação ou self-merge — o ficheiro é mesmo limpo");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -405,6 +623,89 @@ async function principal() {
   const resultadoDryRun = await executarNormalizacaoBatch(fake as PrismaClient, { relatorio, source: "teste", dryRun: true });
   eq(resultadoDryRun.canonicaisRenomeados, 1, "I7: dry-run também conta a renomeação");
   eq(resultadoDryRun.aliasesCriados, relatorio.totais.aliasesACriar + relatorio.totais.aliasesCriadosPorRenomeacao, "I8: dry-run soma aliases de merge + de renomeação");
+
+  // ══════════════════════════════════════════════════════════════════════
+  // K · --apply aborta TUDO perante qualquer conflito — nunca aplica só
+  //     os itens limpos e ignora os outros em silêncio
+  // ══════════════════════════════════════════════════════════════════════
+  console.log("\nK · executarNormalizacaoBatch — abortar tudo perante qualquer conflito (só em --apply)");
+  {
+    // Um grupo válido + um grupo bloqueado (canonical inexistente) no MESMO relatório.
+    const grupos: GrupoNormalizacao[] = [
+      { kind: "initial_orthographic", canonical_id: "c1", source_ids: ["s1"] },
+      { kind: "initial_orthographic", canonical_id: "naoexiste", source_ids: ["s2"] },
+    ];
+    const fabricantesPorId = new Map<string, FabricanteDb>([
+      ["c1", fab("c1", "C1 LDA")],
+      ["s1", fab("s1", "S1 LDA")],
+      ["s2", fab("s2", "S2 LDA")],
+    ]);
+    const relatorioComConflito = planearNormalizacaoBatch({
+      grupos,
+      fabricantesPorId,
+      produtosPorFabricanteId: new Map(),
+      doNotMerge: [],
+    });
+    eq(relatorioComConflito.grupos.length, 1, "K1: o primeiro grupo continua válido no relatório");
+    eq(relatorioComConflito.gruposBloqueados.length, 1, "K2: o segundo fica bloqueado (canonical_id inexistente)");
+
+    const chamadasK: string[] = [];
+    const fakeK = {
+      produto: { updateMany: async () => { chamadasK.push("produto.updateMany"); return { count: 0 }; } },
+      fabricanteAlias: {
+        upsert: async () => { chamadasK.push("fabricanteAlias.upsert"); return {}; },
+        deleteMany: async () => { chamadasK.push("fabricanteAlias.deleteMany"); return { count: 0 }; },
+      },
+      fabricante: { update: async () => { chamadasK.push("fabricante.update"); return {}; } },
+      enrichmentSourceLog: { createMany: async () => { chamadasK.push("enrichmentSourceLog.createMany"); return { count: 0 }; } },
+      $transaction: async (fn: (tx: unknown) => Promise<void>) => fn(fakeK),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    let lancou = false;
+    let mensagem = "";
+    try {
+      await executarNormalizacaoBatch(fakeK as PrismaClient, { relatorio: relatorioComConflito, source: "teste", dryRun: false });
+    } catch (err) {
+      lancou = true;
+      mensagem = err instanceof Error ? err.message : String(err);
+    }
+    check(lancou, "K3: --apply lança erro em vez de aplicar parcialmente");
+    check(mensagem.includes("1 grupo(s) bloqueado(s)"), "K4: a mensagem diz quantos grupos estão bloqueados", mensagem);
+    eq(chamadasK.length, 0, "K5: NADA foi chamado no Prisma — nem sequer o grupo #1, que era válido sozinho");
+  }
+  {
+    // Relatório 100% limpo: --apply corre normalmente (nenhum abort).
+    const grupos: GrupoNormalizacao[] = [{ kind: "initial_orthographic", canonical_id: "c1", source_ids: ["s1"] }];
+    const fabricantesPorId = new Map<string, FabricanteDb>([
+      ["c1", fab("c1", "C1 LDA")],
+      ["s1", fab("s1", "S1 LDA")],
+    ]);
+    const relatorioLimpo = planearNormalizacaoBatch({ grupos, fabricantesPorId, produtosPorFabricanteId: new Map(), doNotMerge: [] });
+    eq(relatorioLimpo.gruposBloqueados.length, 0, "K6: nenhum grupo bloqueado");
+    eq(relatorioLimpo.sourcesExcluidos.length, 0, "K7: nenhum source excluído");
+
+    const chamadasLimpo: string[] = [];
+    const fakeLimpo = {
+      produto: { updateMany: async () => { chamadasLimpo.push("produto.updateMany"); return { count: 0 }; } },
+      fabricanteAlias: {
+        upsert: async () => { chamadasLimpo.push("fabricanteAlias.upsert"); return {}; },
+        deleteMany: async () => { chamadasLimpo.push("fabricanteAlias.deleteMany"); return { count: 0 }; },
+      },
+      fabricante: { update: async () => { chamadasLimpo.push("fabricante.update"); return {}; } },
+      enrichmentSourceLog: { createMany: async () => { chamadasLimpo.push("enrichmentSourceLog.createMany"); return { count: 0 }; } },
+      $transaction: async (fn: (tx: unknown) => Promise<void>) => fn(fakeLimpo),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const resultadoLimpo = await executarNormalizacaoBatch(fakeLimpo as PrismaClient, {
+      relatorio: relatorioLimpo,
+      source: "teste",
+      dryRun: false,
+    });
+    eq(resultadoLimpo.fabricantesInativados, 1, "K8: um relatório limpo aplica normalmente, sem abortar");
+    check(chamadasLimpo.includes("fabricante.update"), "K9: o Prisma foi mesmo chamado desta vez");
+  }
 
   console.log(`\n${ok} ok, ${ko} falhas`);
   process.exit(ko === 0 ? 0 : 1);

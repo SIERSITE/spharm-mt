@@ -27,6 +27,26 @@
  * o `nomeNormalizado` de outro Fabricante bloqueia só a renomeação
  * (reportada em `renomeacoesBloqueadas`); os merges do grupo, se os
  * houver, continuam.
+ *
+ * ── Formato "achatado" (checkpoint) ──────────────────────────────────
+ * `scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json`
+ * substitui `verified_business_changes`/`orthographic_merges` por um
+ * único array `groups[]` (cada um com `origin`, `canonical_name_before`/
+ * `canonical_name_after`, `canonical_rename_required` e `sources[]` —
+ * `{source_id, source_name, products}` em vez de `source_ids: string[]`
+ * nus) e `do_not_merge` por arrays de nomes em vez de `{names, reason}`.
+ * `combinarGruposAchatado`/`normalizarDoNotMerge` traduzem os dois para
+ * a MESMA forma interna (`GrupoNormalizacao`/`DoNotMergeEntry`) que
+ * `planearNormalizacaoBatch` já sabia consumir — nenhuma lógica de
+ * planeamento foi duplicada para o formato novo.
+ *
+ * ── Abortar tudo perante qualquer conflito (só em --apply) ───────────
+ * `executarNormalizacaoBatch` recusa-se a abrir a transacção se houver
+ * QUALQUER grupo bloqueado, source excluído ou renomeação bloqueada —
+ * ao contrário do dry-run (que continua a mostrar tudo, incluindo o que
+ * ficaria de fora), um `--apply` sobre um lote com conflitos não aplica
+ * SÓ os itens limpos: recusa o lote inteiro. O operador corrige o plano
+ * (ou os dados) e volta a correr o dry-run até sair limpo.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import {
@@ -38,6 +58,14 @@ import { normalizeFabricanteCanonico } from "./catalog-normalizers";
 
 // ── Estrutura do ficheiro de plano ──────────────────────────────────
 
+/** Proveniência de um grupo — rotula tanto o formato original como o achatado. */
+export type GrupoKind =
+  | "verified"
+  | "orthographic"
+  | "initial_verified"
+  | "initial_orthographic"
+  | "supplemental_research";
+
 export type GrupoPlanoOrigem = {
   canonical_id: string;
   canonical_name?: string;
@@ -48,7 +76,8 @@ export type GrupoPlanoOrigem = {
 
 export type DoNotMergeEntry = {
   names: string[];
-  reason: string;
+  /** Opcional: o formato achatado não traz motivo por entrada (fica só no markdown de acompanhamento). */
+  reason?: string;
 };
 
 export type PlanoNormalizacaoArquivo = {
@@ -62,7 +91,7 @@ export type PlanoNormalizacaoArquivo = {
 
 /** Um grupo do plano, já rotulado com a secção de onde veio. */
 export type GrupoNormalizacao = GrupoPlanoOrigem & {
-  kind: "verified" | "orthographic";
+  kind: GrupoKind;
 };
 
 export function combinarGrupos(plano: PlanoNormalizacaoArquivo): GrupoNormalizacao[] {
@@ -70,6 +99,69 @@ export function combinarGrupos(plano: PlanoNormalizacaoArquivo): GrupoNormalizac
     ...plano.verified_business_changes.map((g) => ({ ...g, kind: "verified" as const })),
     ...plano.orthographic_merges.map((g) => ({ ...g, kind: "orthographic" as const })),
   ];
+}
+
+// ── Formato achatado (checkpoint) ────────────────────────────────────
+
+export type SourcePlanoAchatado = {
+  source_id: string;
+  source_name?: string;
+  /** Contagem de produtos ESPERADA pela investigação — comparada contra a base real em `compararDivergencias`. */
+  products?: number;
+};
+
+export type GrupoPlanoAchatado = {
+  origin: string;
+  canonical_id: string;
+  canonical_name_before?: string;
+  canonical_name_after?: string;
+  canonical_rename_required?: boolean;
+  relation?: string;
+  reason?: string;
+  sources: SourcePlanoAchatado[];
+  evidence?: string[];
+  confidence?: string;
+};
+
+export type PlanoNormalizacaoArquivoAchatado = {
+  tenant: string;
+  status?: string;
+  generated_at?: string;
+  warnings?: string[];
+  summary?: Record<string, number>;
+  /** Duas formas aceites: arrays de nomes nus (achatado) ou {names,reason} (original) — `normalizarDoNotMerge` junta as duas. */
+  do_not_merge: string[][] | DoNotMergeEntry[];
+  groups: GrupoPlanoAchatado[];
+};
+
+/** Detecta o formato achatado sem exigir que o caller já saiba qual é. */
+export function ehPlanoAchatado(
+  plano: PlanoNormalizacaoArquivo | PlanoNormalizacaoArquivoAchatado,
+): plano is PlanoNormalizacaoArquivoAchatado {
+  return Array.isArray((plano as PlanoNormalizacaoArquivoAchatado).groups);
+}
+
+/**
+ * Traduz `groups[]` (achatado) para a MESMA forma interna que
+ * `combinarGrupos` produz a partir do formato original — nenhuma
+ * lógica de planeamento distingue os dois depois disto.
+ * `canonical_name_after` torna-se `canonical_name` (o que
+ * `planearNormalizacaoBatch` compara contra a base); `sources[].source_id`
+ * vira `source_ids`. `origin` viaja tal-qual para `kind`.
+ */
+export function combinarGruposAchatado(plano: PlanoNormalizacaoArquivoAchatado): GrupoNormalizacao[] {
+  return plano.groups.map((g) => ({
+    kind: (g.origin as GrupoKind) || "orthographic",
+    canonical_id: g.canonical_id,
+    canonical_name: g.canonical_name_after,
+    source_ids: g.sources.map((s) => s.source_id),
+    reason: g.reason,
+  }));
+}
+
+/** Junta os dois formatos de `do_not_merge` (arrays nus ou {names,reason}) numa forma só. */
+export function normalizarDoNotMerge(raw: readonly (string[] | DoNotMergeEntry)[]): DoNotMergeEntry[] {
+  return raw.map((entrada) => (Array.isArray(entrada) ? { names: entrada } : entrada));
 }
 
 // ── Estado da BD necessário para planear ────────────────────────────
@@ -92,7 +184,7 @@ export type MotivoExclusaoSource =
 
 export type SourceExcluido = {
   groupIndex: number;
-  kind: "verified" | "orthographic";
+  kind: GrupoKind;
   canonicalId: string;
   sourceId: string;
   motivo: MotivoExclusaoSource;
@@ -116,7 +208,7 @@ export type RenomeacaoCanonical = {
 
 export type RenomeacaoBloqueada = {
   groupIndex: number;
-  kind: "verified" | "orthographic";
+  kind: GrupoKind;
   canonicalId: string;
   nomeAtual: string;
   nomeSolicitado: string;
@@ -126,7 +218,7 @@ export type RenomeacaoBloqueada = {
 
 export type GrupoResolvido = {
   groupIndex: number;
-  kind: "verified" | "orthographic";
+  kind: GrupoKind;
   canonicalId: string;
   canonicalNome: string;
   /** Renomeação do canónico, quando o plano pede uma e ela não colide com outro Fabricante. */
@@ -137,7 +229,7 @@ export type GrupoResolvido = {
 
 export type GrupoBloqueado = {
   groupIndex: number;
-  kind: "verified" | "orthographic";
+  kind: GrupoKind;
   canonicalId: string;
   motivo: "canonical_inexistente" | "canonical_inativo";
   detalhe: string;
@@ -311,7 +403,7 @@ export function planearNormalizacaoBatch(input: {
           canonicalId: grupo.canonical_id,
           sourceId,
           motivo: "do_not_merge",
-          detalhe: `"${source.nomeNormalizado}" → "${canonical.nomeNormalizado}" está coberto por do_not_merge: ${doNotMerge[idxCanonical].reason}`,
+          detalhe: `"${source.nomeNormalizado}" → "${canonical.nomeNormalizado}" está coberto por do_not_merge: ${doNotMerge[idxCanonical].reason ?? "grupo do_not_merge (sem motivo registado neste ficheiro)"}`,
         });
         continue;
       }
@@ -411,6 +503,24 @@ export async function executarNormalizacaoBatch(
     };
   }
 
+  // ── Abortar tudo perante qualquer conflito ──────────────────────────
+  // Só em --apply. O dry-run já mostrou tudo isto ao operador; aplicar
+  // só os itens limpos e ignorar os conflitos em silêncio é precisamente
+  // o que NÃO se quer aqui — um lote com QUALQUER grupo bloqueado, source
+  // excluído ou renomeação bloqueada é recusado por inteiro, antes de a
+  // transacção sequer abrir. Nada é escrito.
+  const totalConflitos =
+    relatorio.gruposBloqueados.length + relatorio.sourcesExcluidos.length + relatorio.renomeacoesBloqueadas.length;
+  if (totalConflitos > 0) {
+    throw new Error(
+      `--apply recusado: ${totalConflitos} conflito(s) por resolver ` +
+        `(${relatorio.gruposBloqueados.length} grupo(s) bloqueado(s), ` +
+        `${relatorio.sourcesExcluidos.length} source(s) excluído(s), ` +
+        `${relatorio.renomeacoesBloqueadas.length} renomeação(ões) bloqueada(s)). ` +
+        `Nada foi escrito. Corrige o plano ou os dados e corre o dry-run outra vez até sair limpo.`,
+    );
+  }
+
   let produtosReatribuidos = 0;
   let aliasesCriados = 0;
   let fabricantesInativados = 0;
@@ -483,4 +593,92 @@ export async function executarNormalizacaoBatch(
   );
 
   return { produtosReatribuidos, aliasesCriados, fabricantesInativados, canonicaisRenomeados };
+}
+
+// ── Divergências: o que o plano ESPERAVA vs o que a base REAL diz ──────
+
+export type DivergenciaProdutos = {
+  groupIndex: number;
+  canonicalId: string;
+  sourceId: string;
+  sourceNome?: string;
+  produtosEsperados: number;
+  produtosReais: number;
+};
+
+export type DivergenciaResumo = {
+  campo: string;
+  esperado: number;
+  real: number;
+  bate: boolean;
+};
+
+export type RelatorioDivergencias = {
+  produtos: DivergenciaProdutos[];
+  resumo: DivergenciaResumo[];
+};
+
+/**
+ * Compara as contagens que o plano achatado DECLAROU (por source, e no
+ * bloco `summary`) contra o que a base REAL diz agora — puro, sem tocar
+ * em nada. Existe porque o plano é investigação (`status:
+ * RESEARCH_CHECKPOINT_DO_NOT_APPLY`): um `products` errado por source ou
+ * um total de `summary` que já não bate certo é sinal de que os dados
+ * mudaram desde a investigação (produtos entretanto movidos, fabricante
+ * entretanto inactivado) — não faz o dry-run falhar, mas tem de aparecer
+ * no relatório para revisão humana antes de qualquer `--apply`.
+ */
+export function compararDivergencias(input: {
+  planoAchatado: PlanoNormalizacaoArquivoAchatado;
+  relatorio: RelatorioNormalizacaoBatch;
+  produtosPorFabricanteId: ReadonlyMap<string, ProdutoDoLoser[]>;
+  totalFabricantesAtivosAntes: number;
+}): RelatorioDivergencias {
+  const { planoAchatado, relatorio, produtosPorFabricanteId, totalFabricantesAtivosAntes } = input;
+
+  const produtos: DivergenciaProdutos[] = [];
+  let somaProdutosEsperados = 0;
+  planoAchatado.groups.forEach((g, groupIndex) => {
+    for (const s of g.sources) {
+      if (s.products === undefined) continue;
+      somaProdutosEsperados += s.products;
+      const reais = (produtosPorFabricanteId.get(s.source_id) ?? []).length;
+      if (reais !== s.products) {
+        produtos.push({
+          groupIndex,
+          canonicalId: g.canonical_id,
+          sourceId: s.source_id,
+          sourceNome: s.source_name,
+          produtosEsperados: s.products,
+          produtosReais: reais,
+        });
+      }
+    }
+  });
+
+  const resumo: DivergenciaResumo[] = [];
+  const par = (campo: string, esperado: number | undefined, real: number) => {
+    if (esperado === undefined) return;
+    resumo.push({ campo, esperado, real, bate: esperado === real });
+  };
+  const summary = planoAchatado.summary ?? {};
+  par("groups", summary.groups, planoAchatado.groups.length);
+  par("source_manufacturers_to_deactivate", summary.source_manufacturers_to_deactivate, relatorio.totais.fabricantesOrigemAInativar);
+  par("canonical_renames_required", summary.canonical_renames_required, relatorio.totais.canonicaisRenomeados);
+  // Contra o que a base REAL confirma que seria reatribuído (relatorio.totais)
+  // — a comparação que interessa antes de um --apply.
+  par("products_to_reassign_unique", summary.products_to_reassign_unique, relatorio.totais.produtosAReatribuir);
+  // E, à parte, a consistência interna DO PRÓPRIO PLANO: o total declarado em
+  // summary bate com a soma dos `products` que o plano atribui a cada source?
+  // Não depende da base — apanha um erro de transcrição no ficheiro mesmo que
+  // a base ainda não tenha sido consultada.
+  par("products_to_reassign_unique_vs_soma_por_source_no_plano", summary.products_to_reassign_unique, somaProdutosEsperados);
+  par("active_before", summary.active_before, totalFabricantesAtivosAntes);
+  par(
+    "active_after_estimated",
+    summary.active_after_estimated,
+    totalFabricantesAtivosAntes - relatorio.totais.fabricantesOrigemAInativar,
+  );
+
+  return { produtos, resumo };
 }
