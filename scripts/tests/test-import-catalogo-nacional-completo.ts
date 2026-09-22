@@ -12,7 +12,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs, registoParaParsedRow, importarCatalogoNacional } from "../import-catalogo-nacional-completo";
+import { parseArgs, registoParaParsedRow, importarCatalogoNacional, ImportacaoDuplicada } from "../import-catalogo-nacional-completo";
 import { MARCADOR_FIM_REGISTO } from "../../lib/catalog/catalogo-nacional-parser";
 
 let ok = 0;
@@ -94,6 +94,7 @@ async function principal() {
           update: async () => { chamadas.push("update"); return {}; },
         },
         catalogoNacionalImportacao: {
+          findFirst: async () => { chamadas.push("catalogoNacionalImportacao.findFirst"); return null; },
           create: async (args: { data: { totalRegistos: number; totalCnpValidos: number } }) => {
             chamadas.push("catalogoNacionalImportacao.create");
             const id = `imp${proximoIdImportacao++}`;
@@ -117,7 +118,7 @@ async function principal() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
-      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, batchSize: 500, limit: null }, fakePrisma);
+      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
 
       eq(stats.registosLidos, 3, "C1: 3 registos lidos do ficheiro sintético");
       eq(stats.erros.length, 0, "C2: sem erros de reconstrução");
@@ -151,7 +152,7 @@ async function principal() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
-      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: true, force: false, batchSize: 500, limit: null }, fakePrisma);
+      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: true, force: false, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
 
       check(chamadas.includes("findMany"), "D1: findMany foi chamado (precisa de ler para simular insert vs update)");
       check(!chamadas.includes("createMany"), "D2: createMany NUNCA chamado em dry-run");
@@ -180,6 +181,7 @@ async function principal() {
           update: async () => ({}),
         },
         catalogoNacionalImportacao: {
+          findFirst: async () => null,
           create: async () => ({ id: "imp1" }),
           update: async () => ({}),
         },
@@ -187,7 +189,7 @@ async function principal() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
-      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, batchSize: 500, limit: null }, fakePrisma);
+      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
       eq(stats.cnpDuplicadosNoFicheiro, 1, "E1: 1 duplicado detectado");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -204,12 +206,12 @@ async function principal() {
 
       const fakePrisma = {
         regulatoryRecord: { findMany: async () => [], createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }), update: async () => ({}) },
-        catalogoNacionalImportacao: { create: async () => ({ id: "imp1" }), update: async () => ({}) },
+        catalogoNacionalImportacao: { findFirst: async () => null, create: async () => ({ id: "imp1" }), update: async () => ({}) },
         catalogoNacionalRegistoImportado: { createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }) },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
-      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, batchSize: 500, limit: 2 }, fakePrisma);
+      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, permitirReimportacao: false, batchSize: 500, limit: 2 }, fakePrisma);
       eq(stats.registosLidos, 2, "F1: só 2 registos lidos, respeitando --limit=2");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -231,7 +233,7 @@ async function principal() {
       // Um único armazém partilhado entre as DUAS corridas — como duas
       // execuções reais do importador na mesma base fariam.
       const registosRegulatory = new Map<number, { cnp: number; titularAim: string | null }>();
-      const importacoes = new Map<string, { id: string }>();
+      const importacoes = new Map<string, { id: string; hashSha256: string }>();
       const registosImportados: Array<{ importacaoId: string; cnp: number; titularObservado: string | null }> = [];
       let proximoId = 1;
       const fakePrisma = {
@@ -249,9 +251,13 @@ async function principal() {
           },
         },
         catalogoNacionalImportacao: {
-          create: async () => {
+          findFirst: async (args: { where: { hashSha256: string } }) => {
+            const existente = [...importacoes.values()].find((i: { id: string; hashSha256: string }) => i.hashSha256 === args.where.hashSha256);
+            return existente ? { id: existente.id, nomeFicheiro: "x", importadoEm: new Date() } : null;
+          },
+          create: async (args: { data: { hashSha256: string } }) => {
             const id = `imp${proximoId++}`;
-            importacoes.set(id, { id });
+            importacoes.set(id, { id, hashSha256: args.data.hashSha256 });
             return { id };
           },
           update: async () => ({}),
@@ -265,8 +271,8 @@ async function principal() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
-      const statsV1 = await importarCatalogoNacional(pathV1, { source: "importacao-2026-08", dryRun: false, force: true, batchSize: 500, limit: null }, fakePrisma);
-      const statsV2 = await importarCatalogoNacional(pathV2, { source: "importacao-2026-09", dryRun: false, force: true, batchSize: 500, limit: null }, fakePrisma);
+      const statsV1 = await importarCatalogoNacional(pathV1, { source: "importacao-2026-08", dryRun: false, force: true, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
+      const statsV2 = await importarCatalogoNacional(pathV2, { source: "importacao-2026-09", dryRun: false, force: true, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
 
       check(statsV1.importacaoId !== statsV2.importacaoId, "G1: as duas corridas criaram DUAS CatalogoNacionalImportacao distintas");
 
@@ -280,6 +286,46 @@ async function principal() {
         registoV1?.titularObservado !== registosRegulatory.get(2000099)?.titularAim,
         "G5: a prova da 1ª classificação (registoV1) DIVERGE do RegulatoryRecord actual — exactamente o cenário que motivou snapshotRegistoId em vez de snapshotCnp",
       );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  console.log("\nH · reimportar o MESMO ficheiro (mesmo hash) é recusado sem --permitir-reimportacao — nunca cria uma segunda CatalogoNacionalImportacao por engano");
+  {
+    const dir = mkdtempSync(join(tmpdir(), "import-catalogo-teste-"));
+    try {
+      const path = join(dir, "amostra.csv");
+      writeFileSync(path, registoLinha("2000099", "Ativo", "Aspirina", "Bayer Portugal, Lda.") + "\r\n", "latin1");
+
+      let createChamado = false;
+      const fakePrisma = {
+        regulatoryRecord: { findMany: async () => [], createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }), update: async () => ({}) },
+        catalogoNacionalImportacao: {
+          findFirst: async () => ({ id: "imp-anterior", nomeFicheiro: "amostra.csv", importadoEm: new Date("2026-09-01T00:00:00Z") }),
+          create: async () => { createChamado = true; return { id: "imp-novo" }; },
+          update: async () => ({}),
+        },
+        catalogoNacionalRegistoImportado: { createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }) },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any;
+
+      let apanhado: unknown = null;
+      try {
+        await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, permitirReimportacao: false, batchSize: 500, limit: null }, fakePrisma);
+      } catch (err) {
+        apanhado = err;
+      }
+      check(apanhado instanceof ImportacaoDuplicada, "H1: lança ImportacaoDuplicada");
+      check(!createChamado, "H2: catalogoNacionalImportacao.create NUNCA chamado — nenhuma importação nova/parcial foi criada");
+      if (apanhado instanceof ImportacaoDuplicada) {
+        eq(apanhado.importacaoExistente.id, "imp-anterior", "H3: o erro aponta para a importação anterior concreta");
+      }
+
+      // Com --permitir-reimportacao, prossegue normalmente (cria uma SEGUNDA importação, nunca mexe na primeira).
+      const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, permitirReimportacao: true, batchSize: 500, limit: null }, fakePrisma);
+      check(createChamado, "H4: com --permitir-reimportacao, create É chamado normalmente");
+      eq(stats.importacaoId, "imp-novo", "H5: cria uma importação NOVA e distinta da anterior, nunca reaproveita o id antigo");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

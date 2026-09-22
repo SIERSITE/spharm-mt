@@ -40,6 +40,26 @@
  *
  * "BAYER PORTUGAL LDA", "Bayer Portugal, Lda." e "Bayer Portugal Lda"
  * convergem todas para "BAYER PORTUGAL LDA".
+ *
+ * ── Limite de comprimento (120, não 60) ──────────────────────────────────
+ * Até 2026-09-22 o limite superior era 60 — curto demais para designações
+ * sociais completas reais: "Ratiopharm - Comércio E Indústria De Produtos
+ * Farmacêuticos Lda" normaliza para 63 caracteres, "Pentafarma Genéricos -
+ * Sociedade Técnico Medicinal, Unipessoal Lda." para 65 — ambas caíam
+ * silenciosamente para `null` (fabricante "descartado", nunca reportado
+ * como erro por quem chama, só como ausência). Encontrado ao validar a
+ * configuração de grupos laboratoriais pesquisáveis do tenant garantia
+ * (scripts/data/grupos-laboratoriais-iniciais-garantia.json), mas afecta
+ * TODOS os chamadores desta função (ingest ERP, upsert de Fabricante,
+ * correcções regulatórias) — não é um problema exclusivo de grupos. Não
+ * há limite correspondente na base de dados: `Fabricante.nomeNormalizado`
+ * e `GrupoLaboratorial.nomeNormalizado` são `String` no schema Prisma sem
+ * `@db.VarChar`, ou seja, `TEXT` em Postgres, sem limite de comprimento —
+ * o corte em 60 nunca teve nenhuma justificação ao nível dos dados, só
+ * arbitrária. 120 dá margem generosa para designações sociais longas
+ * (holdings, sufixos "Sociedade Anónima", nomes internacionais com mais
+ * de uma parte) sem deixar de rejeitar lixo claramente inválido (blocos
+ * de texto muito longos, provavelmente erro de leitura de coluna).
  */
 export function normalizeFabricanteCanonico(
   value: string | null | undefined
@@ -51,7 +71,7 @@ export function normalizeFabricanteCanonico(
     .replace(/[^A-Z0-9 &-]/g, " ") // pontuação (incl. pontos de abreviatura) vira espaço
     .replace(/\s+/g, " ")
     .trim();
-  return canonico.length >= 2 && canonico.length <= 60 ? canonico : null;
+  return canonico.length >= 2 && canonico.length <= 120 ? canonico : null;
 }
 
 /** Sufixos empresariais que devem ficar em maiúsculas. */

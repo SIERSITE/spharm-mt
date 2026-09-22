@@ -1065,6 +1065,19 @@ export type $ProdutoGrupoLaboratorialPayload<ExtArgs extends runtime.Types.Exten
     produto: Prisma.$ProdutoPayload<ExtArgs>
     grupoLaboratorial: Prisma.$GrupoLaboratorialPayload<ExtArgs>
     regraCnp: Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs> | null
+    /**
+     * onDelete: Restrict, explícito — sem isto, o default do Prisma para uma
+     * relação opcional é SetNull, que apagaria SILENCIOSAMENTE o ponteiro
+     * para a prova imutável (snapshotRegistoId → null) caso alguém apague a
+     * importação de onde essa prova veio, sem apagar a classificação em si:
+     * ficaria uma classificação SNAPSHOT_CNP sem evidência rastreável,
+     * indistinguível de corrupção de dados. Com Restrict, apagar uma
+     * CatalogoNacionalImportacao cujos registos ainda estão referenciados
+     * por uma classificação activa FALHA alto e claro (violação de FK) em
+     * vez de corromper a proveniência em silêncio — política de retenção
+     * esperada: nunca apagar importações antigas; se algum dia for preciso,
+     * primeiro re-associar ou apagar as classificações que dependem delas.
+     */
     snapshotRegisto: Prisma.$CatalogoNacionalRegistoImportadoPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{

@@ -36,10 +36,14 @@
         "ALFA WASSERMANN - PRODUTOS FARMACEUTICAS", "ALFA WASSERMANN - PRODUTOS FARMACEUTICOS", "ALFA WASSERMANN- PROD FARM LDA",
         "ALFASIGMA LDA", "ALFASIGMA PORTUGAL", "ALFASIGMA PORTUGAL LDA", "ALFASIGMA PORTUGAL LDA.",
         "ALFASIGMA S P A", "ALFASIGMA S.P.A.",
-        "BIOSAUDE - PROD FARM LDA", "BIOSAUDE - PRODUTOS FARMACEUTICOS"
+        "BIOSAUDE - PROD FARM LDA", "BIOSAUDE - PRODUTOS FARMACEUTICOS",
+        "ALFA WASSERMAN - PRODUTOS FARMACEUTICOS",
+        "SIGMA-TAU INDUSTRIE FARMACEUTICHE RIUNITE SOCIETA PER AZIONI"
       ],
       "naoIncluirAutomaticamente": [],
-      "_nota_fabricantes_legais": "Alfasigma S.P.A. (matriz) e Alfasigma Portugal (subsidiária) mantêm-se fabricantes legais DISTINTOS entre si — podem ambos pertencer ao MESMO grupo pesquisável sem deixar de ser entidades legais separadas; o grupo nunca funde fabricantes."
+      "_nota_fabricantes_legais": "Alfasigma S.P.A. (matriz) e Alfasigma Portugal (subsidiária) mantêm-se fabricantes legais DISTINTOS entre si — podem ambos pertencer ao MESMO grupo pesquisável sem deixar de ser entidades legais separadas; o grupo nunca funde fabricantes.",
+      "_nota_alfa_wasserman_2026_09_22": "'ALFA WASSERMAN - PRODUTOS FARMACEUTICOS' (uma variante real de garantia, um só 'N') é apenas uma grafia alternativa de 'ALFA WASSERMANN' (duas 'N') já integral — mesma entidade legal, erro de transcrição, não uma decisão de negócio nova.",
+      "_nota_sigma_tau_2026_09_22": "Alfa Wassermann e Sigma-Tau fundiram os seus negócios farmacêuticos para formar a Alfasigma em 2015-05 (Sigma-Tau contribuiu a sua actividade farmacêutica; a unidade de doenças raras da Sigma-Tau ficou expressamente FORA da fusão, retida pela família Cavazza e mais tarde vendida à Chiesi em 2016 — não afecta o catálogo de retalho da Garantia). Fontes: Bebeez, 'Italy's drugmakers Alfa Wassermann and Sigma-Tau to merge in a new group' (2015-03), https://bebeez.it/en/2015/03/06/italys-drugmakers-alfa-wassermann-and-sigma-tau-to-merge-new-group ; Notiziario Chimico Farmaceutico, 'Alfasigma aggrega attività farmaceutiche di Alfa Wassermann e Sigma Tau' (2015-05-19), https://www.notiziariochimicofarmaceutico.it/2015/05/19/alfasigma/. Associação INTEGRAL (categoria A) para a entidade principal 'Sigma-Tau Industrie Farmaceutiche Riunite Societa Per Azioni' — a exclusão da unidade de doenças raras é uma reserva conhecida, documentada aqui, não motivo para reverter a categoria A (essa unidade nunca teve produtos no universo desta farmácia)."
     },
     {
       "nome": "Teva",
@@ -57,11 +61,12 @@
         "RATIOPHARM COM PROD FARM LDA", "RATIOPHARM GMBH",
         "TEVA B V", "TEVA GMBH", "TEVA PHARMA - PROD FARM LDA", "TEVA PHARMA - PROD FARM. LDA",
         "TEVA PHARMA - PRODUTOS FARMACEUTICOS", "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA", "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA.",
-        "TEVA PHARMA B V", "TEVA PHARMA GMBH"
+        "TEVA PHARMA B V", "TEVA PHARMA GMBH",
+        "CEPHALON FRANCE", "CEPHALON UK"
       ],
       "naoIncluirAutomaticamente": [],
       "_nota_fabricantes_legais": "Ratiopharm e Teva mantêm-se fabricantes legais DISTINTOS entre si — a fase anterior de normalização de fabricantes (grupo #449 do plano de 557) já protegia explicitamente esta distinção via do_not_merge; este grupo pesquisável reforça, não contradiz, essa decisão.",
-      "_nota_limite_60_chars": "'Ratiopharm - Comércio E Indústria De Produtos Farmacêuticos Lda' (66 chars) e o equivalente exacto de garantia excedem o limite actual de normalizeFabricanteCanonico (60 chars) NESTA branch — normalizam para null e ficam de fora, reportado por validarConfig como fabricante_integral_invalido. O limite já foi levantado para 120 na branch catalog/normalizacao-fabricantes-garantia (ainda não integrada em main); até lá, a cobertura deste grupo depende das restantes variantes mais curtas, que já cobrem o volume real (RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARM, 370 produtos)."
+      "_nota_cephalon_2026_09_22": "Teva adquiriu a Cephalon Inc. por aquisição TOTAL (100% das acções, $6.8bn), efectiva 2011-10-14 — a Cephalon deixou de existir como empresa independente e ficou integralmente subsidiária da Teva. Fonte: comunicado oficial Teva IR, 'Teva Completes Acquisition of Cephalon' (2011-10-14), https://ir.tevapharm.com/news-and-events/press-releases/press-release-details/2011/Teva-Completes-Acquisition-of-Cephalon/default.aspx. Associação INTEGRAL (categoria A) — aquisição total confirmada, não uma transferência parcial de portfólio."
     },
     {
       "nome": "Kenvue",
@@ -93,28 +98,74 @@
         "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL", "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A", "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S.A.",
         "TECNIMEDE SOC TEC MEDIC SA", "TECNIMEDE SOC. TEC. MEDIC. SA"
       ],
+      "naoIncluirAutomaticamente": []
+    },
+    {
+      "nome": "Towa",
+      "nomeNormalizado": "TOWA",
+      "aliases": [
+        { "alias": "toLife", "aliasNormalizado": "TOLIFE", "origem": "investigação 2026-09-22 — Towa Pharmaceutical adquiriu a Pensa Investments S.L. (dona da toLife Portugal) à Esteve, fecho 2020-01-31; 'toLife' mantém-se como marca comercial sob propriedade da Towa" }
+      ],
+      "fabricantesIntegrais": [
+        "Towa Pharmaceutical", "TOWA PHARMACEUTICAL", "Towa Pharmaceutical S.A.", "TOWA PHARMACEUTICAL S A", "TOWA PHARMACEUTICAL S.A.",
+        "Tolife - Produtos Farmacêuticos", "TOLIFE - PRODUTOS FARMACEUTICOS", "TOLIFE - PRODUTOS FARMACEUTICOS S A", "TOLIFE - PRODUTOS FARMACEUTICOS S.A.", "TOLIFE- PROD FARMACEUTICOS SA"
+      ],
       "naoIncluirAutomaticamente": [],
-      "_nota_limite_60_chars": "'Pentafarma Genéricos - Sociedade Técnico Medicinal, Unipessoal Lda.' (69 chars) excede o limite actual de 60 chars nesta branch — normaliza para null, fica de fora (reportado por validarConfig). Sem impacto prático: nenhum Fabricante real de garantia corresponde a essa forma exacta; a cobertura real vem das variantes mais curtas listadas acima."
+      "_nota_evidencia_2026_09_22": "Aquisição TOTAL confirmada por fonte oficial Towa: 'Nossa história' (towapharmaceutical.pt/nossa-historia/) — 'A toLife é adquirida pela Towa Pharmaceutical S.A.'; corroborado por MarketScreener, 'Towa Pharmaceutical Co Ltd completed the acquisition of Pensa Investments S.L. from Esteve Pharmaceuticals' (fecho 2020-01-31). 239 produtos reais de garantia com fabricante 'TOLIFE - PRODUTOS FARMACEUTICOS' têm titular ACTUAL no catálogo nacional = 'Towa Pharmaceutical S.A.' (confirmado via scripts/descobrir-cnps-sucessao-por-par.ts) — consistente em 100% dos casos, sem sinal contraditório. Associação INTEGRAL (categoria A)."
+    },
+    {
+      "nome": "Organon",
+      "nomeNormalizado": "ORGANON",
+      "aliases": [],
+      "fabricantesIntegrais": [
+        "N.V. Organon", "N V ORGANON", "N.V. ORGANON",
+        "Organon Portugal, Sociedade Unipessoal, Lda.", "ORGANON PORTUGAL SOCIEDADE UNIPESSOAL", "ORGANON PORTUGAL SOCIEDADE UNIPESSOAL LDA", "ORGANON PORTUGAL SOCIEDADE UNIPESSOAL LDA.",
+        "ORGANON PORTUGUESA - PRODUTOS QUIMICOS E FARMACEUTICOS"
+      ],
+      "naoIncluirAutomaticamente": [
+        "Merck Sharp & Dohme e variantes (MSD) — o spin-off de 2021 transferiu APENAS as linhas de saúde da mulher, biosimilares e 'legacy brands' sem patente; a MSD continua uma empresa independente em Portugal com Oncologia/Vacinas/Hospitalar. MSD nunca entra em Organon por associação integral — só por RegraGrupoLaboratorialPorCnp, caso a caso (ver scripts/data/regras-cnp-grupos-laboratoriais-garantia.json)."
+      ],
+      "_nota_evidencia_2026_09_22": "Spin-off PARCIAL confirmado: comunicado oficial Merck, 'Merck to Focus on Key Growth Pillars Through Spinoff...' (2020-02-05), https://www.organon.com/news/merck-to-focus-on-key-growth-pillars-through-spinoff-of-womens-health-trusted-legacy-brands-and-biosimilars-products-into-new-company-newco/ ; conclusão em 2021-06-02, DCAT, https://www.dcatvci.org/top-industry-news/merck-co-completes-spin-off-of-organon/. 95 CNPs reais de garantia com fabricante 'MERCK SHARP & DOHME' têm titular ACTUAL = 'Organon Portugal...' — todos promovidos a RegraGrupoLaboratorialPorCnp (categoria B), nunca associação integral do fabricante MSD."
+    },
+    {
+      "nome": "Sandoz",
+      "nomeNormalizado": "SANDOZ",
+      "aliases": [],
+      "fabricantesIntegrais": [
+        "Sandoz Farmacêutica, Lda", "SANDOZ FARMACEUTICA", "SANDOZ FARMACEUTICA LDA",
+        "Sandoz GmbH", "SANDOZ GMBH", "Sandoz Pharmaceuticals GmbH", "SANDOZ PHARMACEUTICALS GMBH"
+      ],
+      "naoIncluirAutomaticamente": [
+        "Novartis e variantes — o spin-off de 2023 transferiu APENAS a divisão de genéricos/biossimilares; a Novartis continua uma empresa independente focada em medicamentos inovadores/patenteados. Novartis nunca entra em Sandoz por associação integral — só por RegraGrupoLaboratorialPorCnp."
+      ],
+      "_nota_evidencia_2026_09_22": "Spin-off PARCIAL confirmado: Novartis.com, página oficial do spin-off da Sandoz (concluído 2023-10-04), https://www.novartis.com/news/sandoz-spinoff ; comunicado 'Novartis executes Sandoz Spin-off, completing strategic transformation...', https://www.novartis.com/news/media-releases/novartis-executes-sandoz-spin-completing-strategic-transformation-leading-focused-innovative-medicines-company. 7 CNPs reais de garantia com fabricante 'NOVARTIS FARMA - PRODUTOS FARMACEUTICOS' têm titular ACTUAL = 'Sandoz Farmacêutica, Lda' — todos promovidos a RegraGrupoLaboratorialPorCnp (categoria B)."
+    },
+    {
+      "nome": "Zentiva",
+      "nomeNormalizado": "ZENTIVA",
+      "aliases": [],
+      "fabricantesIntegrais": [
+        "Zentiva", "ZENTIVA", "Zentiva k.s.", "ZENTIVA K S", "ZENTIVA K.S.",
+        "Zentiva Portugal, Lda.", "ZENTIVA PORTUGAL", "ZENTIVA PORTUGAL LDA", "ZENTIVA PORTUGAL LDA."
+      ],
+      "naoIncluirAutomaticamente": [
+        "Sanofi e variantes — a Zentiva foi vendida pela Sanofi (negócio europeu de genéricos) à Advent International em 2018; a Sanofi continua uma empresa independente com o seu negócio de marca/vacinas. Sanofi nunca entra em Zentiva por associação integral — só por RegraGrupoLaboratorialPorCnp."
+      ],
+      "_nota_evidencia_2026_09_22": "Divestment PARCIAL confirmado: Pharmaceutical Technology, 'Sanofi concludes sale of Zentiva to Advent for $2.2bn' (2018-10-02), https://www.pharmaceutical-technology.com/news/sanofi-sells-zentiva/ ; BioPharm International, 'Acquisition of Sanofi's Zentiva is Completed by Advent International'. 47 CNPs reais de garantia com fabricante 'SANOFI - PRODUTOS FARMACEUTICOS' têm titular ACTUAL = 'Zentiva Portugal, Lda.' — todos promovidos a RegraGrupoLaboratorialPorCnp (categoria B)."
+    },
+    {
+      "nome": "Opella",
+      "nomeNormalizado": "OPELLA",
+      "aliases": [],
+      "fabricantesIntegrais": [
+        "Opella Healthcare Portugal, Unipessoal, Lda.", "OPELLA HEALTHCARE PORTUGAL UNIPESSOAL LDA"
+      ],
+      "naoIncluirAutomaticamente": [
+        "Sanofi e variantes — a unidade de consumer health da Sanofi foi separada/rebrandada como Opella (fecho 2025-04-30, CD&R fica com participação de controlo); a Sanofi continua uma empresa independente com o seu negócio de prescrição/vacinas. Sanofi nunca entra em Opella por associação integral — só por RegraGrupoLaboratorialPorCnp.",
+        "Boehringer Ingelheim e variantes — mesmo racional: só produtos concretos de consumer health, nunca a empresa Boehringer inteira."
+      ],
+      "_nota_evidencia_2026_09_22": "Spin-off PARCIAL confirmado (consumer health apenas): comunicado Sanofi, 'Sanofi and CD&R partner to fuel Opella's ambitions' (2024-10-21), https://www.sanofi.com/en/media-room/press-releases/2024/2024-10-21-05-30-00-2965875 ; fecho, comunicado Sanofi (2025-04-30), https://www.sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167. 40 CNPs reais de garantia com fabricante 'SANOFI - OTC S'/variantes e 4 CNPs com fabricante 'BOEHRINGER INGELHEIM' têm titular ACTUAL = 'Opella Healthcare Portugal, Unipessoal Lda' — todos promovidos a RegraGrupoLaboratorialPorCnp (categoria B)."
     }
   ],
-  "sucessoesParciaisConhecidas": [
-    {
-      "descricao": "MSD → Organon (spin-off 2021)",
-      "fabricanteLegalOrigem": "Merck Sharp & Dohme",
-      "grupoDestinoSugerido": null,
-      "nota": "Nenhum grupo 'Organon' incluído nos 5 iniciais — candidato encontrado na análise (80 CNPs MSD→Organon), a confirmar antes de criar o grupo. Requer RegraGrupoLaboratorialPorCnp, nunca associação integral (MSD continua grande empresa independente)."
-    },
-    {
-      "descricao": "Novartis → Sandoz (spin-off 2023)",
-      "fabricanteLegalOrigem": "Novartis Farma - Produtos Farmacêuticos",
-      "grupoDestinoSugerido": null,
-      "nota": "Candidato encontrado na análise (3 CNPs confirmados, provavelmente mais). Requer RegraGrupoLaboratorialPorCnp, nunca associação integral."
-    },
-    {
-      "descricao": "Sanofi → Zentiva (spin-off genéricos 2018) / Opella (consumer health)",
-      "fabricanteLegalOrigem": "Sanofi - Produtos Farmacêuticos",
-      "grupoDestinoSugerido": null,
-      "nota": "Dois destinos distintos consoante o CNP (genéricos vs. consumer health) — candidatos encontrados na análise (40 e 48 CNPs respectivamente). Requer RegraGrupoLaboratorialPorCnp caso a caso."
-    }
-  ]
+  "_nota_sucessoes_2026_09_22": "sucessoesParciaisConhecidas (secção de candidatos em texto livre, sem CNPs concretos) foi substituída pelos 5 grupos acima (Towa, Organon, Sandoz, Zentiva, Opella), cada um com evidência citada e — exceto Towa, que é associação integral — regras por CNP concretas em scripts/data/regras-cnp-grupos-laboratoriais-garantia.json. Ver scripts/data/decisoes-propostas-grupos-laboratoriais-garantia.json para a decomposição completa e auditável de todas as classificações A/B/C/D."
 }

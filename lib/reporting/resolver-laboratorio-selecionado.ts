@@ -25,6 +25,12 @@ type PrismaParaResolucao = Pick<PrismaClient, "grupoLaboratorial" | "produtoGrup
 export async function resolverProdutoIdsPorLaboratoriosSelecionados(
   prisma: PrismaParaResolucao,
   nomesSelecionados: readonly string[],
+  // Injectável só para testes de integração (scripts/tests/*) — permite
+  // simular tenantSlug="garantia" sem um pedido Next.js real, que
+  // `resolveCurrentTenantSlug()` não sabe fazer fora de um request (ver o
+  // seu próprio doc comment). NUNCA passado por nenhum caller de produção
+  // — todos usam o default, comportamento 100% inalterado.
+  resolverTenant: () => Promise<string | null> = resolveCurrentTenantSlug,
 ): Promise<string[]> {
   if (nomesSelecionados.length === 0) return [];
 
@@ -35,7 +41,7 @@ export async function resolverProdutoIdsPorLaboratoriosSelecionados(
   // NUNCA corre: `getReportingFilterOptions` só devolve nomes de grupo
   // para garantia, portanto fora daí `nomesSelecionados` só pode conter
   // nomes de Fabricante — o caminho antigo, inalterado.
-  const tenantSlug = await resolveCurrentTenantSlug();
+  const tenantSlug = await resolverTenant();
   const gruposPodemExistir = tenantSlug === TENANT_GRUPOS_LABORATORIAIS;
 
   const grupos = gruposPodemExistir

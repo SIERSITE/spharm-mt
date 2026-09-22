@@ -63,6 +63,8 @@ export type Args = {
   catalogoPath: string;
   configPath: string;
   relatorioPath: string;
+  /** Opcional — scripts/data/regras-cnp-grupos-laboratoriais-garantia.json (nível 2, validadas). Sem isto, regrasCnpPorCnp fica vazio, como sempre foi. */
+  regrasPath?: string;
 };
 
 export function parseArgs(argv: readonly string[]): Args {
@@ -72,6 +74,7 @@ export function parseArgs(argv: readonly string[]): Args {
     else if (a.startsWith("--catalogo=")) out.catalogoPath = a.slice("--catalogo=".length);
     else if (a.startsWith("--config=")) out.configPath = a.slice("--config=".length);
     else if (a.startsWith("--relatorio=")) out.relatorioPath = a.slice("--relatorio=".length);
+    else if (a.startsWith("--regras=")) out.regrasPath = a.slice("--regras=".length);
     else if (a.startsWith("--tenant=")) {
       const slug = a.slice("--tenant=".length);
       if (slug !== TENANT_TRAVADO) {
@@ -332,12 +335,30 @@ async function main(): Promise<void> {
 
   console.log(`\n[3/4] Resolver mapas (config × fabricantes reais de garantia)...`);
   const { mapas: mapasBase, gruposPorId, fabricantesIntegraisResolvidos, fabricantesIntegraisNaoEncontrados } = construirMapasResolver(config, exportado.fabricantes);
-  const mapas: MapasResolverGrupo = { ...mapasBase, snapshotsPorCnp };
   for (const [grupoId, g] of gruposPorId) {
     const resolvidos = fabricantesIntegraisResolvidos.get(grupoId)!.length;
     const naoEncontrados = fabricantesIntegraisNaoEncontrados.get(grupoId)!;
     console.log(`  ${g.nome}: ${resolvidos}/${g.fabricantesIntegrais.length} fabricantes integrais resolvidos contra garantia${naoEncontrados.length > 0 ? ` (não encontrados: ${naoEncontrados.join(", ")})` : ""}`);
   }
+
+  let regrasCnpPorCnp: MapasResolverGrupo["regrasCnpPorCnp"] = new Map();
+  if (args.regrasPath) {
+    const grupoIdPorNomeNormalizado = new Map<string, string>();
+    for (const [grupoId, g] of gruposPorId) grupoIdPorNomeNormalizado.set(g.nomeNormalizado, grupoId);
+    const regrasFicheiro = JSON.parse(readFileSync(args.regrasPath, "utf8")) as {
+      regras: Array<{ cnp: number; grupoLaboratorialNomeNormalizado: string; estado: "ATIVO" | "INATIVO"; validadoManualmente: boolean }>;
+    };
+    const mapaRegras = new Map<number, { id: string; grupoLaboratorialId: string; estado: "ATIVO" | "INATIVO"; validadoManualmente: boolean }>();
+    let semGrupoCorrespondente = 0;
+    regrasFicheiro.regras.forEach((r, idx) => {
+      const grupoId = grupoIdPorNomeNormalizado.get(r.grupoLaboratorialNomeNormalizado);
+      if (!grupoId) { semGrupoCorrespondente++; return; }
+      mapaRegras.set(r.cnp, { id: `regra${idx}`, grupoLaboratorialId: grupoId, estado: r.estado, validadoManualmente: r.validadoManualmente });
+    });
+    regrasCnpPorCnp = mapaRegras;
+    console.log(`  ${mapaRegras.size} regra(s) por CNP carregadas de ${args.regrasPath}${semGrupoCorrespondente > 0 ? ` (${semGrupoCorrespondente} ignorada(s) — grupo não encontrado na config)` : ""}`);
+  }
+  const mapas: MapasResolverGrupo = { ...mapasBase, snapshotsPorCnp, regrasCnpPorCnp };
 
   console.log(`\n[4/4] Classificação sobre ${exportado.produtos.length} produtos...`);
   const produtosParaResolver: ProdutoParaResolver[] = exportado.produtos
@@ -490,7 +511,7 @@ async function main(): Promise<void> {
   }
   /**
    * Grupo DEFINITIVO de um fabricante — deliberadamente EXCLUI
-   * `proposta_snapshot_cnp` (nível 3): esse nível é só uma proposta,
+   * `proposta_snapshot_cnp` (nível 4): esse nível é só uma proposta,
    * nunca uma classificação real, e um produto Pfizer pode legitimamente
    * RECEBER uma proposta de Viatris (se o catálogo actual disser que
    * aquele CNP específico já é titular Viatris) sem que isso viole "a
@@ -555,39 +576,44 @@ async function main(): Promise<void> {
     });
   }
 
-  // Pfizer: sem regra por CNP configurada, NENHUM produto Pfizer deve
-  // resolver para Viatris — confirma a negativa com dados reais. A
-  // positiva (Pfizer COM regra por CNP entra em Viatris) não tem dados
-  // reais ainda (nenhuma regra validada existe) — está demonstrada nos
-  // testes unitários (test-resolver-grupo-laboratorial.ts, secção F),
-  // não aqui, e fica dito explicitamente no relatório.
+  // Pfizer: a empresa NUNCA pode estar integralmente no grupo (nível 3) —
+  // só CNPs específicos com regra validada (nível 2, ver
+  // scripts/data/regras-cnp-grupos-laboratoriais-garantia.json, gerado a
+  // partir de evidência real: 14 CNPs de "LABORATORIOS PFIZER
+  // LDA"/"PFIZER"/"LABORATORIOS PFIZER" cujo titular ACTUAL no catálogo
+  // nacional já é "Upjohn EESV"). Duas verificações independentes:
+  // negativa (nenhum fabricante Pfizer tem associação INTEGRAL) e
+  // positiva (os CNPs concretos com regra validada resolvem
+  // definitivamente, com dados reais — já não apenas sintético).
   {
     const pfizers = exportado.fabricantes.filter((f) => f.nomeNormalizado.includes("PFIZER"));
-    const algumEmViatris = pfizers.some((f) => grupoDefinitivoDeUmFabricante(f.id) === "Viatris");
-    // Achado real, informativo — NÃO é uma violação: um produto Pfizer
-    // pode legitimamente receber uma PROPOSTA (nível 3) de Viatris se o
-    // catálogo actual disser que aquele CNP específico já mudou de
-    // titular — é exactamente o mecanismo desenhado para isto, e nunca
-    // se aplica sozinho. Contado à parte para transparência.
+    const algumIntegral = pfizers.some((f) => mapas.gruposFabricantePorFabricanteId.has(f.id));
+    let produtosPfizerComRegraCnpViatris = 0;
     let produtosPfizerComPropostaViatris = 0;
     for (const f of pfizers) {
       for (const p of exportado.produtos) {
         if (p.fabricanteId !== f.id) continue;
         const r = resultadoPorProdutoId.get(p.id);
-        if (r && r.tipo === "proposta_snapshot_cnp" && gruposPorId.get(r.grupoLaboratorialId)?.nome === "Viatris") produtosPfizerComPropostaViatris++;
+        if (!r) continue;
+        if (r.tipo === "regra_cnp" && gruposPorId.get(r.grupoLaboratorialId)?.nome === "Viatris") produtosPfizerComRegraCnpViatris++;
+        if (r.tipo === "proposta_snapshot_cnp" && gruposPorId.get(r.grupoLaboratorialId)?.nome === "Viatris") produtosPfizerComPropostaViatris++;
       }
     }
     validacoes.push({
-      descricao: "Pfizer SEM regra por CNP não entra DEFINITIVAMENTE em VIATRIS",
-      passou: !algumEmViatris,
+      descricao: "Pfizer NUNCA tem associação INTEGRAL (nível 3) com VIATRIS",
+      passou: !algumIntegral,
       detalhe:
-        `${pfizers.length} fabricante(s) real(is) "PFIZER*" verificados, zero regras por CNP na config — nenhum resolve DEFINITIVAMENTE (nível 4) para Viatris. ` +
-        `${produtosPfizerComPropostaViatris} produto(s) Pfizer receberam uma PROPOSTA (nível 3, nunca aplicada sem validação) de Viatris, com base no catálogo actual — não é uma violação, é o mecanismo a funcionar como desenhado.`,
+        `${pfizers.length} fabricante(s) real(is) "PFIZER*" verificados — nenhum está em GrupoLaboratorialFabricante/fabricantesIntegrais (Pfizer continua uma empresa grande e distinta). ` +
+        `${produtosPfizerComRegraCnpViatris} produto(s) Pfizer entram em Viatris via REGRA_CNP validada (nível 2, CNPs concretos com transferência comprovada) — isso é o desenho correcto, nunca uma violação. ` +
+        `${produtosPfizerComPropostaViatris} produto(s) Pfizer adicionais têm uma PROPOSTA (nível 4, ainda não validada) de Viatris.`,
     });
     validacoes.push({
       descricao: "Pfizer COM regra por CNP entra em VIATRIS (positiva)",
-      passou: true,
-      detalhe: "NÃO demonstrado com dados reais — a config inicial não tem nenhuma regra por CNP validada ainda. Demonstrado sinteticamente em scripts/tests/test-resolver-grupo-laboratorial.ts secção F (produto Pfizer com RegraGrupoLaboratorialPorCnp específica resolve para Viatris).",
+      passou: produtosPfizerComRegraCnpViatris > 0,
+      detalhe:
+        args.regrasPath
+          ? `Demonstrado com dados reais: ${produtosPfizerComRegraCnpViatris} produto(s) Pfizer com regra por CNP validada resolvem para Viatris via nível 2 (regra_cnp). Também demonstrado sinteticamente em scripts/tests/test-resolver-grupo-laboratorial.ts secção F.`
+          : "NÃO demonstrado com dados reais nesta corrida — --regras não foi passado. Demonstrado sinteticamente em scripts/tests/test-resolver-grupo-laboratorial.ts secção F (produto Pfizer com RegraGrupoLaboratorialPorCnp específica resolve para Viatris).",
     });
   }
 

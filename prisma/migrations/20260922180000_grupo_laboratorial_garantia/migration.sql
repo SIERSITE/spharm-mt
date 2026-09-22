@@ -170,7 +170,7 @@ ALTER TABLE "ProdutoGrupoLaboratorial" ADD CONSTRAINT "ProdutoGrupoLaboratorial_
 ALTER TABLE "ProdutoGrupoLaboratorial" ADD CONSTRAINT "ProdutoGrupoLaboratorial_regraCnpId_fkey" FOREIGN KEY ("regraCnpId") REFERENCES "RegraGrupoLaboratorialPorCnp"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ProdutoGrupoLaboratorial" ADD CONSTRAINT "ProdutoGrupoLaboratorial_snapshotRegistoId_fkey" FOREIGN KEY ("snapshotRegistoId") REFERENCES "CatalogoNacionalRegistoImportado"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ProdutoGrupoLaboratorial" ADD CONSTRAINT "ProdutoGrupoLaboratorial_snapshotRegistoId_fkey" FOREIGN KEY ("snapshotRegistoId") REFERENCES "CatalogoNacionalRegistoImportado"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RegraGrupoLaboratorialPorCnp" ADD CONSTRAINT "RegraGrupoLaboratorialPorCnp_grupoLaboratorialId_fkey" FOREIGN KEY ("grupoLaboratorialId") REFERENCES "GrupoLaboratorial"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -15,20 +15,20 @@
  *                                reimportação traga outro sinal.
  *   2. regra_cnp               — RegraGrupoLaboratorialPorCnp para este
  *                                CNP, `estado=ATIVO` E `validadoManualmente=true`.
- *   3. proposta_snapshot_cnp   — o titular ACTUAL (nunca histórico) do
- *                                catálogo nacional para este CNP resolve
- *                                a um Fabricante conhecido, mapeado a um
- *                                grupo. É SÓ uma proposta — nunca escrita
- *                                automaticamente num `ProdutoGrupoLaboratorial`
- *                                real sem validação humana (ver
- *                                `scripts/classificar-grupos-laboratoriais-garantia.ts`).
- *   4. fabricante_inequivoco   — `Produto.fabricanteId` (a identidade
+ *   3. fabricante_inequivoco   — `Produto.fabricanteId` (a identidade
  *                                LEGAL já atribuída) mapeia, via
  *                                `GrupoLaboratorialFabricante`, a um
  *                                grupo. Seguro para aplicar automaticamente
  *                                — a associação já foi curada quando foi
  *                                criada (só existe para fabricantes que
  *                                pertencem AO GRUPO INTEIRO).
+ *   4. proposta_snapshot_cnp   — o titular ACTUAL (nunca histórico) do
+ *                                catálogo nacional para este CNP resolve
+ *                                a um Fabricante conhecido, mapeado a um
+ *                                grupo. É SÓ uma proposta — nunca escrita
+ *                                automaticamente num `ProdutoGrupoLaboratorial`
+ *                                real sem validação humana (ver
+ *                                `scripts/classificar-grupos-laboratoriais-garantia.ts`).
  *   5. alias_inequivoco        — o nome do fabricante legal actual bate
  *                                com exactamente UM alias de grupo. Se
  *                                baterem aliases de MAIS DE UM grupo,
@@ -36,9 +36,22 @@
  *                                revisão (nível 6), nunca lança excepção.
  *   6. sem_grupo               — fila de revisão.
  *
+ * IMPORTANTE — nível 3 (curado) vem ANTES do nível 4 (proposta bruta do
+ * catálogo), não depois. Ordem original (proposta antes de fabricante
+ * inequívoco) foi corrigida em 2026-09-22: contra os 40 714 produtos
+ * reais de garantia, 1153 dos 1336 produtos que apareciam como "proposta
+ * pendente" tinham o SEU PRÓPRIO fabricanteId já curado como integral do
+ * MESMO grupo — a proposta nunca era uma ambiguidade real, era o nível 3
+ * a responder primeiro e esconder que o nível 4 já resolvia o mesmo
+ * produto, de forma independente, com uma associação humanamente
+ * aprovada. Avaliar o nível curado primeiro elimina esse ruído: a
+ * proposta bruta do catálogo só continua a aparecer para produtos cujo
+ * fabricante NÃO está (ainda) mapeado — exactamente o papel para que foi
+ * desenhada. Ver decompor-propostas-grupos-laboratoriais-garantia.ts.
+ *
  * Um registo histórico do catálogo (`Anulado`, `Revogado`, `Suspenso`,
  * `Retirado pela Entidade Reguladora`, etc. — tudo o que não seja
- * `Ativo`/`Activo`/`Autorizado`) NUNCA alimenta o nível 3 — ver
+ * `Ativo`/`Activo`/`Autorizado`) NUNCA alimenta o nível 4 (proposta) — ver
  * `ehEstadoAtual` em `catalogo-nacional-parser.ts`.
  */
 import { normalizeFabricanteCanonico } from "../catalog-normalizers";
@@ -125,7 +138,15 @@ export function resolverGrupoDoProduto(produto: ProdutoParaResolver, mapas: Mapa
     return { tipo: "regra_cnp", grupoLaboratorialId: regra.grupoLaboratorialId, regraCnpId: regra.id };
   }
 
-  // ── 3. proposta de snapshot actual (NUNCA aplicada sem validação humana) ──
+  // ── 3. fabricante inteiro inequivocamente no grupo (curado — avaliado ANTES da proposta bruta) ──
+  if (produto.fabricanteId) {
+    const grupoFab = mapas.gruposFabricantePorFabricanteId.get(produto.fabricanteId);
+    if (grupoFab) {
+      return { tipo: "fabricante_inequivoco", grupoLaboratorialId: grupoFab.grupoLaboratorialId };
+    }
+  }
+
+  // ── 4. proposta de snapshot actual (NUNCA aplicada sem validação humana) ──
   const snapshot = mapas.snapshotsPorCnp.get(produto.cnp);
   if (snapshot && ehEstadoAtual(snapshot.estadoAim)) {
     const nomeNorm = normalizeFabricanteCanonico(snapshot.titularAim);
@@ -137,14 +158,6 @@ export function resolverGrupoDoProduto(produto: ProdutoParaResolver, mapas: Mapa
           return { tipo: "proposta_snapshot_cnp", grupoLaboratorialId: grupoFab.grupoLaboratorialId, cnpEvidencia: produto.cnp };
         }
       }
-    }
-  }
-
-  // ── 4. fabricante inteiro inequivocamente no grupo ──
-  if (produto.fabricanteId) {
-    const grupoFab = mapas.gruposFabricantePorFabricanteId.get(produto.fabricanteId);
-    if (grupoFab) {
-      return { tipo: "fabricante_inequivoco", grupoLaboratorialId: grupoFab.grupoLaboratorialId };
     }
   }
 

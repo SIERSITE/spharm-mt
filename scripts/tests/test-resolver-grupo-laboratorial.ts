@@ -91,7 +91,7 @@ console.log("\nC · nível 2 (regra por CNP) — só se estado=ATIVO E validadoM
   eq(r.tipo, "sem_grupo", "C5: regra INATIVA nunca classifica");
 }
 
-console.log("\nD · nível 3 (proposta snapshot) — só de estado ACTUAL, e nunca aplica sozinho (é só proposta)");
+console.log("\nD · nível 4 (proposta snapshot) — só de estado ACTUAL, e nunca aplica sozinho (é só proposta)");
 {
   const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolver>([["VIATRIS HEALTHCARE LDA", { id: "fViatrisH", nomeNormalizado: "VIATRIS HEALTHCARE LDA" }]]);
   const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>([["fViatrisH", { grupoLaboratorialId: "gViatris" }]]);
@@ -120,13 +120,40 @@ console.log("\nD · nível 3 (proposta snapshot) — só de estado ACTUAL, e nun
   eq(r.tipo, "sem_grupo", "D5: titular sem Fabricante conhecido correspondente nunca inventa uma classificação");
 }
 
-console.log("\nE · nível 4 (fabricante inequívoco) — seguro para aplicar automaticamente");
+console.log("\nE · nível 3 (fabricante inequívoco) — seguro para aplicar automaticamente, avaliado ANTES da proposta bruta (nível 4)");
 {
   const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>([["fMylan", { grupoLaboratorialId: "gViatris" }]]);
   const produto: ProdutoParaResolver = { id: "p1", cnp: 2000001, fabricanteId: "fMylan" };
   const r = resolverGrupoDoProduto(produto, { ...mapasVazios(), gruposFabricantePorFabricanteId });
   eq(r.tipo, "fabricante_inequivoco", "E1: fabricante integralmente no grupo classifica directamente");
   if (r.tipo === "fabricante_inequivoco") eq(r.grupoLaboratorialId, "gViatris", "E2: grupo correcto");
+}
+{
+  // Caso real encontrado em 2026-09-22 contra os dados de garantia: um
+  // produto cujo fabricanteId JÁ é curado como integral do grupo (nível
+  // 3) E cujo CNP também bate com uma proposta do catálogo (nível 4) para
+  // o MESMO grupo. O resultado tem de vir do nível 3 (curado), nunca do
+  // nível 4 — a proposta bruta não deve esconder uma associação já segura.
+  const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolver>([["ALFASIGMA PORTUGAL", { id: "fAlfasigma", nomeNormalizado: "ALFASIGMA PORTUGAL" }]]);
+  const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>([["fAlfaWassermann", { grupoLaboratorialId: "gAlfasigma" }], ["fAlfasigma", { grupoLaboratorialId: "gAlfasigma" }]]);
+  const snapshotsPorCnp = new Map<number, SnapshotParaResolver>([[2000050, { cnp: 2000050, titularAim: "Alfasigma Portugal", estadoAim: "Ativo" }]]);
+  const produto: ProdutoParaResolver = { id: "pAlfaWassermann", cnp: 2000050, fabricanteId: "fAlfaWassermann" };
+  const r = resolverGrupoDoProduto(produto, { ...mapasVazios(), fabricantesPorNomeNormalizado, gruposFabricantePorFabricanteId, snapshotsPorCnp });
+  eq(r.tipo, "fabricante_inequivoco", "E3: fabricante já curado (ex.: Alfa Wassermann→Alfasigma) vence a proposta bruta do mesmo CNP, mesmo grupo — deixa de aparecer como 'pendente'");
+  if (r.tipo === "fabricante_inequivoco") eq(r.grupoLaboratorialId, "gAlfasigma", "E4: grupo correcto");
+}
+{
+  // Caso ainda mais exigente: o fabricante já curado aponta para um grupo
+  // DIFERENTE do que a proposta bruta do catálogo sugeriria para o mesmo
+  // CNP. A decisão humana (nível 3) tem de vencer sempre — nunca um sinal
+  // não-curado de um único CNP pode contradizer uma associação já aprovada.
+  const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolver>([["OUTRO FABRICANTE", { id: "fOutro", nomeNormalizado: "OUTRO FABRICANTE" }]]);
+  const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>([["fCurado", { grupoLaboratorialId: "gGrupoA" }], ["fOutro", { grupoLaboratorialId: "gGrupoB" }]]);
+  const snapshotsPorCnp = new Map<number, SnapshotParaResolver>([[2000051, { cnp: 2000051, titularAim: "Outro Fabricante", estadoAim: "Ativo" }]]);
+  const produto: ProdutoParaResolver = { id: "pConflito", cnp: 2000051, fabricanteId: "fCurado" };
+  const r = resolverGrupoDoProduto(produto, { ...mapasVazios(), fabricantesPorNomeNormalizado, gruposFabricantePorFabricanteId, snapshotsPorCnp });
+  eq(r.tipo, "fabricante_inequivoco", "E5: em conflito entre grupos, a associação curada (nível 3) vence sempre a proposta bruta (nível 4)");
+  if (r.tipo === "fabricante_inequivoco") eq(r.grupoLaboratorialId, "gGrupoA", "E6: grupo da associação curada, nunca o da proposta");
 }
 
 console.log("\nF · o caso Pfizer explícito — só entra em VIATRIS com regra por CNP, NUNCA por associação integral");

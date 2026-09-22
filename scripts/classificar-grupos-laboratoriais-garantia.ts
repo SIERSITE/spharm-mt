@@ -24,7 +24,7 @@
  * parte (ver `scripts/data/grupos-laboratoriais-iniciais-garantia.json`).
  * `--apply` só faz upsert de `ProdutoGrupoLaboratorial` para os 3 níveis
  * seguros de aplicar automaticamente (regra_cnp, fabricante_inequivoco,
- * alias_inequivoco) — nunca para `proposta_snapshot_cnp` (nível 3, só
+ * alias_inequivoco) — nunca para `proposta_snapshot_cnp` (nível 4, só
  * proposta) nem `sem_grupo`.
  *
  * Uso:

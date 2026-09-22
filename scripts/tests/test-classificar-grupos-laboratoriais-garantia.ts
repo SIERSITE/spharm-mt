@@ -70,7 +70,7 @@ console.log("\nC · TIPOS_APLICAVEIS_AUTOMATICAMENTE — só os 3 níveis seguro
   check(TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("regra_cnp"), "C1: regra_cnp é aplicável");
   check(TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("fabricante_inequivoco"), "C2: fabricante_inequivoco é aplicável");
   check(TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("alias_inequivoco"), "C3: alias_inequivoco é aplicável");
-  check(!TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("proposta_snapshot_cnp"), "C4: proposta_snapshot_cnp NUNCA é aplicável automaticamente (nível 3 é só proposta)");
+  check(!TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("proposta_snapshot_cnp"), "C4: proposta_snapshot_cnp NUNCA é aplicável automaticamente (nível 4 é só proposta)");
   check(!TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("sem_grupo"), "C5: sem_grupo nunca é 'aplicável'");
   check(!TIPOS_APLICAVEIS_AUTOMATICAMENTE.has("mantido_manual"), "C6: mantido_manual não precisa de reaplicação (já está correcto)");
   eq(TIPOS_APLICAVEIS_AUTOMATICAMENTE.size, 3, "C7: exactamente 3 tipos aplicáveis");

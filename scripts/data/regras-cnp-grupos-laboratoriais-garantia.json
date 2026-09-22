@@ -1,0 +1,2742 @@
+{
+  "geradoEm": "2026-09-22T14:25:04.294Z",
+  "totalRegras": 342,
+  "regras": [
+    {
+      "cnp": 6032078,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6036343,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6037762,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6041863,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6057935,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6283481,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6456087,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6493114,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6496133,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6574517,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6574533,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6575746,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6575753,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6576934,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6714113,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6755173,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6758888,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6806695,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6809194,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6829267,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6839795,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6846576,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6855916,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6870980,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6879726,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6890293,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6893859,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6908855,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6921072,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6931410,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6934083,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6945139,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6958215,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6983965,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6983973,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6983981,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7073858,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7098574,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7251660,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7463802,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7491217,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6061994,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6261990,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6858704,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6858712,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6858720,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6896183,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6970145,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6981332,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7007328,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7475442,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7478297,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7478313,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7479584,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7485169,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON E JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON E JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6270686,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6270694,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6283739,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6368357,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6617399,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6806703,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6847905,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6853333,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6857243,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6906693,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6915413,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6929075,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6945113,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7063206,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6472662,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6529222,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6533596,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6598821,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6805085,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6821967,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6836643,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6866095,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6899591,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6899617,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6899625,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6915785,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7108845,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5133285,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5133780,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5134085,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5134184,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5134481,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5134788,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5135082,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5135389,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5389200,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5905286,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5905385,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5905583,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8537308,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8667550,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8667568,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6326496,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7473041,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7473058,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7473074,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7473082,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2743581,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5133087,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5134689,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5866686,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7477216,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "AVEENO",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"AVEENO\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7477224,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "AVEENO",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"AVEENO\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7477232,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "AVEENO",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"AVEENO\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7477240,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "AVEENO",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"AVEENO\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6037812,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6051250,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6961375,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6487363,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6622217,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6899609,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7572073,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7577163,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7587345,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2743482,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2743888,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "LABORATORIOS PFIZER",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"LABORATORIOS PFIZER\" na Garantia, titular ACTUAL no catálogo nacional = \"Upjohn EESV\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5107537,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "GREEN AVET - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"GREEN AVET - PRODUTOS FARMACEUTICOS\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5171913,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "GREEN AVET - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"GREEN AVET - PRODUTOS FARMACEUTICOS\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5341045,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "APOGEPHA ARZNEIMITTEL GMBH",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"APOGEPHA ARZNEIMITTEL GMBH\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5395561,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "APOGEPHA ARZNEIMITTEL GMBH",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"APOGEPHA ARZNEIMITTEL GMBH\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5998190,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "SOFEX FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SOFEX FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma Portugal, Lda.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9791939,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "SOFEX FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SOFEX FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma Portugal, Lda.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6225482,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6225508,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "SERVESTEC LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"SERVESTEC LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6622118,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6622126,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7479550,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7479568,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON LDA.",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON LDA.\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7596585,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "ALFASIGMA PORTUGAL LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"ALFASIGMA PORTUGAL LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma Portugal, Lda.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7611442,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "ALFASIGMA PORTUGAL LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"ALFASIGMA PORTUGAL LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma Portugal, Lda.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5656426,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "GENERICS UK",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"GENERICS UK\" na Garantia, titular ACTUAL no catálogo nacional = \"Viatris\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3994688,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "WYNN INDUSTRIAL PHARMA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"WYNN INDUSTRIAL PHARMA\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5892310,
+      "grupoLaboratorialNomeNormalizado": "TEVA",
+      "fabricanteLegalEsperadoNormalizado": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Teva Pharma - Produtos Farmacêuticos Lda\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 7894683,
+      "grupoLaboratorialNomeNormalizado": "VIATRIS",
+      "fabricanteLegalEsperadoNormalizado": "MYLAN LDA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"MYLAN LDA\" na Garantia, titular ACTUAL no catálogo nacional = \"Mylan, Lda.\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6575720,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "JOHNSON & JOHNSON",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"JOHNSON & JOHNSON\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6932434,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "IFC SKINCARE PORTUGAL",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"IFC SKINCARE PORTUGAL\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6943613,
+      "grupoLaboratorialNomeNormalizado": "KENVUE",
+      "fabricanteLegalEsperadoNormalizado": "AVEENO",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"AVEENO\" na Garantia, titular ACTUAL no catálogo nacional = \"JNTL Consumer Health (Portugal) Limitada\" (Ativo) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4375283,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9276147,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9489724,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9489732,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9506907,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9625814,
+      "grupoLaboratorialNomeNormalizado": "ALFASIGMA",
+      "fabricanteLegalEsperadoNormalizado": "DEFIANTE FARMACEUTICA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"DEFIANTE FARMACEUTICA\" na Garantia, titular ACTUAL no catálogo nacional = \"Alfasigma S.P.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9645721,
+      "grupoLaboratorialNomeNormalizado": "TECNIMEDE",
+      "fabricanteLegalEsperadoNormalizado": "EMPIFARMA PROD FARMACEUT SA",
+      "evidencia": "Categoria B (REGRA_CNP_SEGURA): fabricante actual \"EMPIFARMA PROD FARMACEUT SA\" na Garantia, titular ACTUAL no catálogo nacional = \"Tecnimede - Sociedade Técnico-Medicinal S.A.\" (Autorizado) — evidência regulatória directa por CNP, nunca semelhança textual. Nunca promove o fabricante inteiro (associação integral), só este CNP.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2133189,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2133387,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2317584,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2317782,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2530889,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2627883,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2639680,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2639789,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2639987,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2640084,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2716181,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2798486,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2798585,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2832681,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2871382,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3112885,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3124989,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3268984,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3269081,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3502382,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3502481,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3506888,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3509486,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3613387,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3862380,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3862786,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3863180,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3919180,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3982782,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4106282,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4107686,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4108080,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4109088,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4109385,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4109484,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4114583,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4115986,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4116281,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4116380,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4117388,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4117685,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4117784,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4314787,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4367587,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4367785,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5013859,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5032255,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5034426,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5055660,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5062500,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5065156,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5165584,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5243480,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5243886,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5244280,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5299631,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5299649,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5566781,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5627781,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5715032,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5715040,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5715131,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5717756,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5743554,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5819172,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8372532,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8372557,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8372573,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8452912,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8476010,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8589556,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8589804,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8589812,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8713115,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8768739,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8777300,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8780502,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8780510,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9166900,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9222109,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9263004,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9419309,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9419408,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9434613,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9454504,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9454611,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9458323,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9486514,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9585000,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9647800,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9647909,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9789917,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9789933,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9790006,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9790014,
+      "grupoLaboratorialNomeNormalizado": "ORGANON",
+      "fabricanteLegalEsperadoNormalizado": "MERCK SHARP & DOHME",
+      "evidencia": "Spin-off parcial MSD→Organon (2021-06-02) — apenas saúde da mulher/biossimilares/legacy brands. Fonte: organon.com/news/merck-to-focus-on-key-growth-pillars... (2020-02-05).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2055184,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2055283,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2055580,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2328185,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2328284,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3818481,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5418488,
+      "grupoLaboratorialNomeNormalizado": "SANDOZ",
+      "fabricanteLegalEsperadoNormalizado": "NOVARTIS FARMA - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Spin-off parcial Novartis→Sandoz (2023-10-04) — apenas genéricos/biossimilares. Fonte: novartis.com/news/sandoz-spinoff.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3080686,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3531795,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4026985,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4622593,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4740486,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4768388,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 4768685,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5025770,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5047766,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5047808,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5107677,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5156187,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5156286,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5156583,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5285382,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5286612,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5374855,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5374863,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5403845,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5408208,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5408232,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5414248,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5414255,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5414263,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5427539,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5443411,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5467238,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5476056,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5480124,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5480132,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5564554,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5565056,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5565064,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5565247,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5579511,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5583273,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5595640,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5595913,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5595921,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5639588,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5657341,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5661236,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5665310,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5665328,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5691605,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5742887,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5914080,
+      "grupoLaboratorialNomeNormalizado": "ZENTIVA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - PRODUTOS FARMACEUTICOS",
+      "evidencia": "Divestment parcial Sanofi→Zentiva (fecho 2018-09-30, venda à Advent International) — apenas negócio europeu de genéricos. Fonte: pharmaceutical-technology.com/news/sanofi-sells-zentiva/ (2018-10-02).",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2594984,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 2595189,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3574589,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3605995,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5100920,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5349964,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5404603,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5421375,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5488325,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5490578,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5593322,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5604277,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5745377,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5790183,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5899463,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6222752,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6456590,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6983023,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 6983031,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8116707,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8256727,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8283309,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8520809,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8520825,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8574913,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8631119,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8656504,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8767004,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9254813,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9412809,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9412817,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9412908,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9679704,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9679712,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9679720,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9767004,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9767103,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9901710,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9901728,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 9904805,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "SANOFI - OTC S",
+      "evidencia": "Spin-off parcial Sanofi consumer health→Opella (fecho 2025-04-30). Fonte: sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 3245586,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "BOEHRINGER INGELHEIM",
+      "evidencia": "Mesmo spin-off Opella — produtos de consumer health cedidos pela Boehringer Ingelheim (parceiro histórico de comercialização de OTC da Sanofi em Portugal). Fonte: idem Opella acima.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 5490248,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "BOEHRINGER INGELHEIM",
+      "evidencia": "Mesmo spin-off Opella — produtos de consumer health cedidos pela Boehringer Ingelheim (parceiro histórico de comercialização de OTC da Sanofi em Portugal). Fonte: idem Opella acima.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8904912,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "BOEHRINGER INGELHEIM",
+      "evidencia": "Mesmo spin-off Opella — produtos de consumer health cedidos pela Boehringer Ingelheim (parceiro histórico de comercialização de OTC da Sanofi em Portugal). Fonte: idem Opella acima.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    },
+    {
+      "cnp": 8906404,
+      "grupoLaboratorialNomeNormalizado": "OPELLA",
+      "fabricanteLegalEsperadoNormalizado": "BOEHRINGER INGELHEIM",
+      "evidencia": "Mesmo spin-off Opella — produtos de consumer health cedidos pela Boehringer Ingelheim (parceiro histórico de comercialização de OTC da Sanofi em Portugal). Fonte: idem Opella acima.",
+      "estado": "ATIVO",
+      "validadoManualmente": true
+    }
+  ]
+}

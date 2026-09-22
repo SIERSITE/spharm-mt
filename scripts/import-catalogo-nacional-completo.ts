@@ -39,6 +39,14 @@
  *   --batch-size=N     Default 500 — mesmo default de import-regulatory-record.ts.
  *   --limit=N          Limitar nº de registos processados (debug).
  *   --permitir-externo Necessário se o tenant não for a VPS de produção.
+ *   --permitir-reimportacao  Necessário para reimportar um ficheiro cujo
+ *                       hashSha256 já existe numa CatalogoNacionalImportacao
+ *                       anterior — sem isto, o import é recusado (ver
+ *                       `ImportacaoDuplicada` abaixo). Reimportar o MESMO
+ *                       ficheiro cria uma SEGUNDA CatalogoNacionalImportacao
+ *                       (a primeira nunca é tocada/substituída) — só faz
+ *                       sentido para recuperar de uma corrida falhada a
+ *                       meio, nunca para "corrigir" a importação anterior.
  */
 import "dotenv/config";
 import { createHash } from "node:crypto";
@@ -69,15 +77,17 @@ export type Args = {
   force: boolean;
   batchSize: number;
   limit: number | null;
+  permitirReimportacao: boolean;
 };
 
 export function parseArgs(argv: readonly string[]): Args {
-  const out: Partial<Args> = { dryRun: false, force: false, batchSize: 500, limit: null };
+  const out: Partial<Args> = { dryRun: false, force: false, batchSize: 500, limit: null, permitirReimportacao: false };
   for (const a of argv) {
     if (a.startsWith("--file=")) out.file = a.slice("--file=".length);
     else if (a.startsWith("--source=")) out.source = a.slice("--source=".length);
     else if (a === "--dry-run") out.dryRun = true;
     else if (a === "--force") out.force = true;
+    else if (a === "--permitir-reimportacao") out.permitirReimportacao = true;
     else if (a.startsWith("--batch-size=")) {
       const n = parseInt(a.slice("--batch-size=".length), 10);
       if (!isNaN(n) && n > 0 && n <= 1000) out.batchSize = n;
@@ -93,6 +103,22 @@ export function parseArgs(argv: readonly string[]): Args {
   if (!out.file) throw new Error("--file=<path> é obrigatório");
   if (!out.source) throw new Error("--source=<tag> é obrigatório");
   return out as Args;
+}
+
+/** Lançado quando o hash do ficheiro já existe numa importação anterior e --permitir-reimportacao não foi passado. */
+export class ImportacaoDuplicada extends Error {
+  constructor(
+    public readonly hashSha256: string,
+    public readonly importacaoExistente: { id: string; nomeFicheiro: string; importadoEm: Date },
+  ) {
+    super(
+      `Este ficheiro (hash ${hashSha256}) já foi importado antes: CatalogoNacionalImportacao "${importacaoExistente.id}" ` +
+        `(${importacaoExistente.nomeFicheiro}, ${importacaoExistente.importadoEm.toISOString()}). ` +
+        `Reimportar o mesmo conteúdo não é um erro fatal do sistema, mas quase sempre é um engano do operador — ` +
+        `passa --permitir-reimportacao se isto for mesmo intencional (ex.: recuperar de uma corrida anterior que falhou a meio).`,
+    );
+    this.name = "ImportacaoDuplicada";
+  }
 }
 
 export function registoParaParsedRow(r: RegistoCatalogoNacionalBruto): ParsedRow {
@@ -133,7 +159,7 @@ type PrismaComProveniencia = Parameters<typeof upsertBatch>[4] &
  */
 export async function importarCatalogoNacional(
   filePath: string,
-  args: Pick<Args, "source" | "dryRun" | "force" | "batchSize" | "limit">,
+  args: Pick<Args, "source" | "dryRun" | "force" | "batchSize" | "limit" | "permitirReimportacao">,
   prismaClient: PrismaComProveniencia,
   onBatch?: (processados: number) => void,
   dataReferencia: Date = new Date(),
@@ -146,6 +172,15 @@ export async function importarCatalogoNacional(
     importacaoId: null,
     hashSha256: await hashSha256DoFicheiro(filePath),
   };
+
+  if (!args.dryRun && !args.permitirReimportacao) {
+    const existente = await prismaClient.catalogoNacionalImportacao.findFirst({
+      where: { hashSha256: stats.hashSha256 },
+      orderBy: { importadoEm: "desc" },
+      select: { id: true, nomeFicheiro: true, importadoEm: true },
+    });
+    if (existente) throw new ImportacaoDuplicada(stats.hashSha256, existente);
+  }
 
   if (!args.dryRun) {
     const importacao = await prismaClient.catalogoNacionalImportacao.create({

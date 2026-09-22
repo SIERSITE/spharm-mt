@@ -1,0 +1,57 @@
+{
+  "_nota": "Classificação manual A/B/C/D dos pares (fabricante atual garantia x titular catálogo) que restam não-redundantes depois da correcção de precedência de 2026-09-22 (ver decompor-propostas-grupos-laboratoriais-garantia.ts). Chave = grupo + fabricanteAtual + titularCatalogo + estado, concatenados SEM separador visível (o decompositor usa o carácter de controlo U+0001 como separador interno, nunca visível aqui) — nunca editar a chave à mão sem confirmar contra a saída real do decompositor. Pares ausentes desta lista e que não sejam '(sem fabricante)' ficam DELIBERADAMENTE em D (REVISAO_MANUAL) por omissão segura — nunca promovidos sem decisão explícita.",
+  "promovidosParaIntegral_A": [
+    "Alfasigma|||SIGMA-TAU INDUSTRIE FARMACEUTICHE RIUNITE SOCIETA PER AZIONI|||Alfasigma S.P.A.|||Autorizado",
+    "Alfasigma|||ALFA WASSERMAN - PRODUTOS FARMACEUTICOS|||Alfasigma Portugal, Lda.|||Autorizado",
+    "Teva|||CEPHALON FRANCE|||Teva Pharma B.V.|||Autorizado"
+  ],
+  "regraCnp_B": [
+    "Kenvue|||JOHNSON E JOHNSON|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Kenvue|||JOHNSON E JOHNSON|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Kenvue|||JOHNSON & JOHNSON LDA.|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Kenvue|||IFC SKINCARE PORTUGAL|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Viatris|||LABORATORIOS PFIZER LDA|||Upjohn EESV|||Autorizado",
+    "Kenvue|||JOHNSON & JOHNSON|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Tecnimede|||SERVESTEC LDA|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Ativo",
+    "Viatris|||PFIZER|||Upjohn EESV|||Autorizado",
+    "Kenvue|||AVEENO|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Kenvue|||IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Kenvue|||IFC SKINCARE PORTUGAL - PRODUTOS DERMATOLOGICOS U|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Tecnimede|||TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Ativo",
+    "Viatris|||LABORATORIOS PFIZER|||Upjohn EESV|||Autorizado",
+    "Teva|||GREEN AVET - PRODUTOS FARMACEUTICOS|||Teva Pharma - Produtos Farmacêuticos Lda|||Autorizado",
+    "Tecnimede|||APOGEPHA ARZNEIMITTEL GMBH|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Autorizado",
+    "Alfasigma|||SOFEX FARMACEUTICA|||Alfasigma Portugal, Lda.|||Autorizado",
+    "Tecnimede|||SERVESTEC LDA|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Autorizado",
+    "Teva|||TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA|||Teva Pharma - Produtos Farmacêuticos Lda|||Ativo",
+    "Kenvue|||JOHNSON & JOHNSON LDA.|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Alfasigma|||ALFASIGMA PORTUGAL LDA|||Alfasigma Portugal, Lda.|||Ativo",
+    "Viatris|||GENERICS UK|||Viatris|||Autorizado",
+    "Teva|||WYNN INDUSTRIAL PHARMA|||Teva Pharma - Produtos Farmacêuticos Lda|||Autorizado",
+    "Teva|||TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA|||Teva Pharma - Produtos Farmacêuticos Lda|||Autorizado",
+    "Viatris|||MYLAN LDA|||Mylan, Lda.|||Ativo",
+    "Kenvue|||JOHNSON & JOHNSON|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Kenvue|||IFC SKINCARE PORTUGAL|||JNTL Consumer Health (Portugal) Limitada|||Autorizado",
+    "Kenvue|||AVEENO|||JNTL Consumer Health (Portugal) Limitada|||Ativo",
+    "Alfasigma|||DEFIANTE FARMACEUTICA|||Alfasigma S.P.A.|||Autorizado",
+    "Tecnimede|||EMPIFARMA PROD FARMACEUT SA|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Autorizado"
+  ],
+  "revisaoManual_D_evidenciaInsuficienteOuConflitante": [
+    {
+      "chave": "Viatris|||LABORATORIOS VITORIA S.A.|||Mylan, Lda.|||Autorizado",
+      "razao": "Sinal contraditório: o candidato de maior volume para 'LABORATORIOS VITORIA' no catálogo é 'FAES FARMA Portugal, SA.' (82 CNPs, ver candidatosAdicionais do simulador) — uma empresa totalmente alheia a este grupo. Este único CNP a apontar para Mylan é provavelmente um caso isolado (produto licenciado?) ou uma anomalia de dados — não promover sem confirmação humana."
+    },
+    {
+      "chave": "Teva|||THERAMEX IRELAND LIMITED|||Teva Pharma B.V.|||Autorizado",
+      "razao": "Direcção contraditória com o conhecimento de mercado: a Theramex foi originalmente destacada DO portfólio de saúde da mulher da Teva (~2018) — a relação esperada seria Teva→Theramex, não o inverso. Catálogo mostra o sentido oposto para estes 2 CNPs — merece revisão humana antes de qualquer promoção."
+    },
+    {
+      "chave": "Teva|||TECNIFAR - INDUSTRIA TECNICA FARMACEUTICA|||Teva Pharma - Produtos Farmacêuticos Lda|||Autorizado",
+      "razao": "Tecnifar é uma empresa farmacêutica portuguesa independente e proeminente, sem relação societária conhecida com a Teva. Um único CNP não é evidência suficiente para inferir uma transferência real — pode ser um licenciamento pontual ou um erro de catálogo."
+    },
+    {
+      "chave": "Tecnimede|||FARMOZ - SOCIEDADE TECNICO MEDICINAL|||Tecnimede - Sociedade Técnico-Medicinal S.A.|||Autorizado",
+      "razao": "Farmoz é uma empresa de genéricos portuguesa independente e concorrente directa da Tecnimede, sem relação societária conhecida. Um único CNP não chega para promover — risco de implicar uma fusão inexistente."
+    }
+  ]
+}
