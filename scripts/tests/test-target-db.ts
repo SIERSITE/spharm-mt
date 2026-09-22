@@ -151,6 +151,10 @@ async function main() {
     // Bloco F — corrige fabricanteId de um tenant real a partir de uma
     // listagem externa; sem isto escrevia sempre em DATABASE_URL.
     "../correct-fabricantes-listagem.ts",
+    // Exportador read-only de produtos/fabricantes do tenant garantia —
+    // trava dupla (parseArgs + confirmarAlvoGarantia), mas continua a
+    // resolver o destino pelo mesmo caminho que todos os outros.
+    "../export-produtos-fabricantes-garantia.ts",
   ];
   for (const caminho of TENANT_AWARE) {
     const nome = caminho.split("/").pop()!;
