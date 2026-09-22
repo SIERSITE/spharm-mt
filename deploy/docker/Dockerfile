@@ -299,6 +299,21 @@ COPY scripts/seed-taxonomy.ts ./scripts/seed-taxonomy.ts
 COPY scripts/classify-tipodoc.ts ./scripts/classify-tipodoc.ts
 COPY scripts/reclassify-ingest-vendas.ts ./scripts/reclassify-ingest-vendas.ts
 COPY scripts/vendas ./scripts/vendas
+# Grupos laboratoriais pesquisáveis (garantia): importar o catálogo
+# nacional completo, povoar grupos/aliases/associações integrais/regras
+# por CNP a partir da configuração curada, e classificar. Três scripts de
+# RAIZ (não catalog-master/) — `import-regulatory-record.ts` entra porque
+# `import-catalogo-nacional-completo.ts` importa `upsertBatch` dele
+# (`from "./import-regulatory-record"`), reaproveitando o mesmo
+# upsert/batching que `correct-fabricantes-listagem.ts` já usava, nunca
+# duplicado. Os dois ficheiros de scripts/data/ são a configuração
+# aprovada que `catalog:importar-grupos-laboratoriais` lê por omissão —
+# sem eles o comando falha em `readFileSync`, ENOENT, na VPS.
+COPY scripts/import-catalogo-nacional-completo.ts ./scripts/import-catalogo-nacional-completo.ts
+COPY scripts/import-regulatory-record.ts ./scripts/import-regulatory-record.ts
+COPY scripts/importar-grupos-laboratoriais-garantia.ts ./scripts/importar-grupos-laboratoriais-garantia.ts
+COPY scripts/classificar-grupos-laboratoriais-garantia.ts ./scripts/classificar-grupos-laboratoriais-garantia.ts
+COPY scripts/data/grupos-laboratoriais-iniciais-garantia.json scripts/data/regras-cnp-grupos-laboratoriais-garantia.json ./scripts/data/
 COPY --from=builder /app/generated ./generated
 
 # Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro

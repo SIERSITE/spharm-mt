@@ -123,6 +123,22 @@ catalog:sincronizar-estado
 # recusa-se a correr.
 catalog:promote-global
 
+# Grupos laboratoriais pesquisáveis (garantia, exclusivo): importar o
+# catálogo nacional completo (INFARMED-like) para RegulatoryRecord,
+# povoar GrupoLaboratorial/GrupoLaboratorialAlias/
+# GrupoLaboratorialFabricante/RegraGrupoLaboratorialPorCnp a partir da
+# configuração curada e aprovada em scripts/data/, e classificar o grupo
+# de cada produto — por esta ORDEM DE EXECUÇÃO. Os três correm sempre
+# com `--tenant=garantia` explícito (resolverAlvo, control plane) e uma
+# segunda trava (confirmarAlvoGarantia) — nunca DATABASE_URL genérico,
+# nunca outro tenant. Todos têm dry-run por omissão; `catalog:importar-
+# grupos-laboratoriais` exige as DUAS flags --apply e
+# --confirmar-tenant=garantia para escrever, e recusa o apply inteiro se
+# detectar qualquer fabricante inexistente/ambíguo ou conflito.
+catalog:importar-catalogo-nacional
+catalog:importar-grupos-laboratoriais
+catalog:classificar-grupos-laboratoriais
+
 # As divergencias entre o catalogo global e cada tenant: listar (read-only)
 # e marcar como resolvida com aprovador e motivo. Sao operacionais porque
 # a tabela enche-se sozinha a cada project-global e a cada importacao.
