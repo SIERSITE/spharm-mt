@@ -99,7 +99,7 @@ console.log("\nD · nível 3 (proposta snapshot) — só de estado ACTUAL, e nun
   const produto: ProdutoParaResolver = { id: "p1", cnp: 2000001, fabricanteId: null };
   const r = resolverGrupoDoProduto(produto, { ...mapasVazios(), fabricantesPorNomeNormalizado, gruposFabricantePorFabricanteId, snapshotsPorCnp });
   eq(r.tipo, "proposta_snapshot_cnp", "D1: snapshot actual com titular mapeado a um grupo → proposta");
-  if (r.tipo === "proposta_snapshot_cnp") { eq(r.grupoLaboratorialId, "gViatris", "D2: grupo correcto"); eq(r.snapshotCnp, 2000001, "D3: cnp do snapshot preservado"); }
+  if (r.tipo === "proposta_snapshot_cnp") { eq(r.grupoLaboratorialId, "gViatris", "D2: grupo correcto"); eq(r.cnpEvidencia, 2000001, "D3: cnp da evidência preservado"); }
 }
 {
   // registo HISTÓRICO — nunca gera proposta.

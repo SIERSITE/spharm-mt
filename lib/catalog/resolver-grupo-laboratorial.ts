@@ -82,7 +82,13 @@ export type AliasParaResolver = {
 export type ClassificacaoGrupoResultado =
   | { tipo: "mantido_manual"; grupoLaboratorialId: string }
   | { tipo: "regra_cnp"; grupoLaboratorialId: string; regraCnpId: string }
-  | { tipo: "proposta_snapshot_cnp"; grupoLaboratorialId: string; snapshotCnp: number }
+  // `cnpEvidencia` é só o CNP que sustenta a proposta em tempo de decisão —
+  // NÃO é o mesmo que `ProdutoGrupoLaboratorial.snapshotRegistoId` no
+  // schema (esse aponta para o registo IMUTÁVEL de uma importação
+  // concreta; nunca escrito por este resolver puro, que não sabe nada de
+  // importações). Quem promover esta proposta a nível 2/manual tem de
+  // resolver o registo imutável correspondente nessa altura.
+  | { tipo: "proposta_snapshot_cnp"; grupoLaboratorialId: string; cnpEvidencia: number }
   | { tipo: "fabricante_inequivoco"; grupoLaboratorialId: string }
   | { tipo: "alias_inequivoco"; grupoLaboratorialId: string; aliasNormalizado: string }
   | { tipo: "sem_grupo"; motivo: string };
@@ -128,7 +134,7 @@ export function resolverGrupoDoProduto(produto: ProdutoParaResolver, mapas: Mapa
       if (fabricanteDoSnapshot) {
         const grupoFab = mapas.gruposFabricantePorFabricanteId.get(fabricanteDoSnapshot.id);
         if (grupoFab) {
-          return { tipo: "proposta_snapshot_cnp", grupoLaboratorialId: grupoFab.grupoLaboratorialId, snapshotCnp: produto.cnp };
+          return { tipo: "proposta_snapshot_cnp", grupoLaboratorialId: grupoFab.grupoLaboratorialId, cnpEvidencia: produto.cnp };
         }
       }
     }

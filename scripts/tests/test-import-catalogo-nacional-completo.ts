@@ -77,6 +77,9 @@ async function principal() {
 
       const chamadas: string[] = [];
       const registosNaFake = new Map<number, { cnp: number }>();
+      const importacoesNaFake = new Map<string, { id: string; totalRegistos: number; totalCnpValidos: number }>();
+      const registosImportadosNaFake: Array<{ importacaoId: string; cnp: number }> = [];
+      let proximoIdImportacao = 1;
       const fakePrisma = {
         regulatoryRecord: {
           findMany: async (args: { where: { cnp: { in: number[] } } }) => {
@@ -90,6 +93,27 @@ async function principal() {
           },
           update: async () => { chamadas.push("update"); return {}; },
         },
+        catalogoNacionalImportacao: {
+          create: async (args: { data: { totalRegistos: number; totalCnpValidos: number } }) => {
+            chamadas.push("catalogoNacionalImportacao.create");
+            const id = `imp${proximoIdImportacao++}`;
+            importacoesNaFake.set(id, { id, totalRegistos: args.data.totalRegistos, totalCnpValidos: args.data.totalCnpValidos });
+            return { id };
+          },
+          update: async (args: { where: { id: string }; data: { totalRegistos: number; totalCnpValidos: number } }) => {
+            chamadas.push("catalogoNacionalImportacao.update");
+            const atual = importacoesNaFake.get(args.where.id)!;
+            importacoesNaFake.set(args.where.id, { ...atual, ...args.data });
+            return atual;
+          },
+        },
+        catalogoNacionalRegistoImportado: {
+          createMany: async (args: { data: Array<{ importacaoId: string; cnp: number }> }) => {
+            chamadas.push("catalogoNacionalRegistoImportado.createMany");
+            registosImportadosNaFake.push(...args.data);
+            return { count: args.data.length };
+          },
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
@@ -100,6 +124,11 @@ async function principal() {
       eq(stats.cnpDuplicadosNoFicheiro, 0, "C3: sem duplicados");
       eq(stats.totais.inserted, 3, "C4: 3 inseridos (live)");
       check(chamadas.includes("createMany"), "C5: createMany foi mesmo chamado (modo live)");
+      check(stats.importacaoId !== null, "C6: uma CatalogoNacionalImportacao foi criada (modo live)");
+      eq(registosImportadosNaFake.length, 3, "C7: 3 CatalogoNacionalRegistoImportado criados, um por registo");
+      check(stats.hashSha256.length === 64, "C8: hash SHA-256 calculado (64 chars hex)", stats.hashSha256);
+      const importacaoFinal = importacoesNaFake.get(stats.importacaoId!)!;
+      eq(importacaoFinal.totalRegistos, 3, "C9: totalRegistos finalizado com o valor real (não fica a 0)");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -150,6 +179,11 @@ async function principal() {
           createMany: async (args: { data: unknown[] }) => ({ count: args.data.length }),
           update: async () => ({}),
         },
+        catalogoNacionalImportacao: {
+          create: async () => ({ id: "imp1" }),
+          update: async () => ({}),
+        },
+        catalogoNacionalRegistoImportado: { createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }) },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
@@ -170,11 +204,82 @@ async function principal() {
 
       const fakePrisma = {
         regulatoryRecord: { findMany: async () => [], createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }), update: async () => ({}) },
+        catalogoNacionalImportacao: { create: async () => ({ id: "imp1" }), update: async () => ({}) },
+        catalogoNacionalRegistoImportado: { createMany: async (a: { data: unknown[] }) => ({ count: a.data.length }) },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any;
 
       const stats = await importarCatalogoNacional(path, { source: "teste", dryRun: false, force: false, batchSize: 500, limit: 2 }, fakePrisma);
       eq(stats.registosLidos, 2, "F1: só 2 registos lidos, respeitando --limit=2");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  console.log("\nG · proveniência: uma importação POSTERIOR nunca toca no CatalogoNacionalRegistoImportado de uma importação ANTERIOR");
+  {
+    const dir = mkdtempSync(join(tmpdir(), "import-catalogo-teste-"));
+    try {
+      const pathV1 = join(dir, "v1.csv");
+      writeFileSync(pathV1, registoLinha("2000099", "Ativo", "Aspirina", "Bayer Portugal, Lda.") + "\r\n", "latin1");
+      const pathV2 = join(dir, "v2.csv");
+      // Mesmo CNP, titular MUDOU — simula uma importação posterior que
+      // reflecte uma sucessão empresarial real (o mesmo padrão de
+      // Mylan→Viatris no catálogo real).
+      writeFileSync(pathV2, registoLinha("2000099", "Ativo", "Aspirina", "Nova Titular Sucessora Lda.") + "\r\n", "latin1");
+
+      // Um único armazém partilhado entre as DUAS corridas — como duas
+      // execuções reais do importador na mesma base fariam.
+      const registosRegulatory = new Map<number, { cnp: number; titularAim: string | null }>();
+      const importacoes = new Map<string, { id: string }>();
+      const registosImportados: Array<{ importacaoId: string; cnp: number; titularObservado: string | null }> = [];
+      let proximoId = 1;
+      const fakePrisma = {
+        regulatoryRecord: {
+          findMany: async (args: { where: { cnp: { in: number[] } } }) =>
+            args.where.cnp.in.filter((c) => registosRegulatory.has(c)).map((c) => registosRegulatory.get(c)!),
+          createMany: async (args: { data: Array<{ cnp: number; titularAim: string | null }> }) => {
+            for (const r of args.data) if (!registosRegulatory.has(r.cnp)) registosRegulatory.set(r.cnp, r);
+            return { count: args.data.length };
+          },
+          update: async (args: { where: { cnp: number }; data: Record<string, unknown> }) => {
+            const atual = registosRegulatory.get(args.where.cnp)!;
+            registosRegulatory.set(args.where.cnp, { ...atual, ...args.data } as { cnp: number; titularAim: string | null });
+            return atual;
+          },
+        },
+        catalogoNacionalImportacao: {
+          create: async () => {
+            const id = `imp${proximoId++}`;
+            importacoes.set(id, { id });
+            return { id };
+          },
+          update: async () => ({}),
+        },
+        catalogoNacionalRegistoImportado: {
+          createMany: async (args: { data: Array<{ importacaoId: string; cnp: number; titularObservado: string | null }> }) => {
+            registosImportados.push(...args.data);
+            return { count: args.data.length };
+          },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any;
+
+      const statsV1 = await importarCatalogoNacional(pathV1, { source: "importacao-2026-08", dryRun: false, force: true, batchSize: 500, limit: null }, fakePrisma);
+      const statsV2 = await importarCatalogoNacional(pathV2, { source: "importacao-2026-09", dryRun: false, force: true, batchSize: 500, limit: null }, fakePrisma);
+
+      check(statsV1.importacaoId !== statsV2.importacaoId, "G1: as duas corridas criaram DUAS CatalogoNacionalImportacao distintas");
+
+      const registoV1 = registosImportados.find((r) => r.importacaoId === statsV1.importacaoId && r.cnp === 2000099);
+      const registoV2 = registosImportados.find((r) => r.importacaoId === statsV2.importacaoId && r.cnp === 2000099);
+
+      eq(registoV1?.titularObservado, "Bayer Portugal, Lda.", "G2: o registo IMUTÁVEL da 1ª importação continua a dizer 'Bayer Portugal, Lda.'");
+      eq(registoV2?.titularObservado, "Nova Titular Sucessora Lda.", "G3: o registo da 2ª importação (independente) diz o titular novo");
+      eq(registosRegulatory.get(2000099)?.titularAim, "Nova Titular Sucessora Lda.", "G4: RegulatoryRecord (mutável) reflecte o titular MAIS RECENTE — é para isto que serve");
+      check(
+        registoV1?.titularObservado !== registosRegulatory.get(2000099)?.titularAim,
+        "G5: a prova da 1ª classificação (registoV1) DIVERGE do RegulatoryRecord actual — exactamente o cenário que motivou snapshotRegistoId em vez de snapshotCnp",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,5 +1,6 @@
 {
-  "_nota": "Configuração PROPOSTA dos 5 grupos laboratoriais iniciais confirmados na análise do catálogo nacional (sessão 2026-09-22). NUNCA foi inserida em nenhuma base — os fabricanteNomeNormalizado listados em fabricantesIntegrais têm de ser resolvidos contra o Fabricante REAL de garantia (por nomeNormalizado exacto) antes de qualquer insert em GrupoLaboratorialFabricante; um nome sem Fabricante correspondente em garantia é ignorado, nunca inventado. As entidades listadas em naoIncluirAutomaticamente são exclusões deliberadas, não uma lista exaustiva de tudo o resto.",
+  "_nota": "Configuração PROPOSTA dos 5 grupos laboratoriais iniciais. NUNCA foi inserida em nenhuma base — os fabricanteNomeNormalizado listados em fabricantesIntegrais têm de ser resolvidos contra o Fabricante REAL de garantia (por nomeNormalizado exacto, após normalizeFabricanteCanonico) antes de qualquer insert em GrupoLaboratorialFabricante; um nome sem Fabricante correspondente é ignorado, nunca inventado. As entidades listadas em naoIncluirAutomaticamente são exclusões deliberadas, não uma lista exaustiva de tudo o resto.",
+  "_nota_revisao_2026_09_22": "Revisto depois de correr scripts/simular-grupos-laboratoriais-garantia.ts contra os 40 714 produtos reais de garantia. Achado: os nomes de fabricante da CATALOGO (titular AIM oficial, com sufixo legal completo — 'Teva Pharma - Produtos Farmacêuticos, L.da') frequentemente NÃO batem com a grafia que garantia guarda internamente (ERP-derivada, muitas vezes truncada — 'TEVA PHARMA - PROD FARM LDA', 'TEVA B V', sem sufixo legal). fabricantesIntegrais passou a incluir AMBAS as formas — a do catálogo (evidência/proveniência) e a forma real observada em garantia (o que efectivamente bate em runtime) — nunca substituindo uma pela outra.",
   "grupos": [
     {
       "nome": "Viatris",
@@ -13,7 +14,10 @@
         "Mylan Ireland Ltd.", "Mylan dura GmbH", "Mylan Ire Healthcare Ltd.",
         "Upjohn EESV", "Pharmacia e Upjohn Laboratórios, L.da",
         "Viatris", "Viatris Healthcare, Lda.", "Viatris Healthcare Limited",
-        "Viatris Farmacêutica, S.A.", "Viatris Manufacturing B.V."
+        "Viatris Farmacêutica, S.A.", "Viatris Manufacturing B.V.",
+        "MYLAN", "MYLAN GENERICOS", "MYLAN IRE HEALTHCARE", "MYLAN IRELAND LTD", "MYLAN IRELAND LTD.",
+        "MYLAN LDA", "MYLAN LDA.", "MYLAN MARCAS", "MYLAN PHARMACEUTICALS LIMITED", "MYLAN PRODUCTS LIMITED",
+        "MYLAN SAS", "UPJOHN EESV", "VIATRIS", "VIATRIS HEALTHCARE", "VIATRIS LIMITED"
       ],
       "naoIncluirAutomaticamente": [
         "Laboratórios Pfizer e variantes — Pfizer continua uma empresa grande e maioritariamente independente; só produtos específicos foram cedidos à Viatris/Upjohn. Requer RegraGrupoLaboratorialPorCnp por CNP, nunca GrupoLaboratorialFabricante integral."
@@ -28,7 +32,11 @@
       ],
       "fabricantesIntegrais": [
         "Alfa Wassermann - Produtos Farmacêuticos Lda.", "Biosaúde - Produtos Farmacêuticos S.A.",
-        "Alfasigma Portugal, Lda.", "Alfasigma S.P.A.", "ALFASIGMA, LDA"
+        "Alfasigma Portugal, Lda.", "Alfasigma S.P.A.", "ALFASIGMA, LDA",
+        "ALFA WASSERMANN - PRODUTOS FARMACEUTICAS", "ALFA WASSERMANN - PRODUTOS FARMACEUTICOS", "ALFA WASSERMANN- PROD FARM LDA",
+        "ALFASIGMA LDA", "ALFASIGMA PORTUGAL", "ALFASIGMA PORTUGAL LDA", "ALFASIGMA PORTUGAL LDA.",
+        "ALFASIGMA S P A", "ALFASIGMA S.P.A.",
+        "BIOSAUDE - PROD FARM LDA", "BIOSAUDE - PRODUTOS FARMACEUTICOS"
       ],
       "naoIncluirAutomaticamente": [],
       "_nota_fabricantes_legais": "Alfasigma S.P.A. (matriz) e Alfasigma Portugal (subsidiária) mantêm-se fabricantes legais DISTINTOS entre si — podem ambos pertencer ao MESMO grupo pesquisável sem deixar de ser entidades legais separadas; o grupo nunca funde fabricantes."
@@ -44,10 +52,16 @@
         "Teva Pharma B.V.", "Teva Gmbh", "Teva Generics GmbH", "Teva Generics Portugal - Prod Farmacêuticos, L.da",
         "Teva Generics B.V.",
         "Ratiopharm - Comércio E Indústria De Produtos Farmacêuticos Lda",
-        "Ratiopharm - Comércio e Ind de Prod Farm, L.da", "Ratiopharm Gmbh"
+        "Ratiopharm - Comércio e Ind de Prod Farm, L.da", "Ratiopharm Gmbh",
+        "RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARM", "RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARMACEUTICOS",
+        "RATIOPHARM COM PROD FARM LDA", "RATIOPHARM GMBH",
+        "TEVA B V", "TEVA GMBH", "TEVA PHARMA - PROD FARM LDA", "TEVA PHARMA - PROD FARM. LDA",
+        "TEVA PHARMA - PRODUTOS FARMACEUTICOS", "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA", "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA.",
+        "TEVA PHARMA B V", "TEVA PHARMA GMBH"
       ],
       "naoIncluirAutomaticamente": [],
-      "_nota_fabricantes_legais": "Ratiopharm e Teva mantêm-se fabricantes legais DISTINTOS entre si — a fase anterior de normalização de fabricantes (grupo #449 do plano de 557) já protegia explicitamente esta distinção via do_not_merge; este grupo pesquisável reforça, não contradiz, essa decisão."
+      "_nota_fabricantes_legais": "Ratiopharm e Teva mantêm-se fabricantes legais DISTINTOS entre si — a fase anterior de normalização de fabricantes (grupo #449 do plano de 557) já protegia explicitamente esta distinção via do_not_merge; este grupo pesquisável reforça, não contradiz, essa decisão.",
+      "_nota_limite_60_chars": "'Ratiopharm - Comércio E Indústria De Produtos Farmacêuticos Lda' (66 chars) e o equivalente exacto de garantia excedem o limite actual de normalizeFabricanteCanonico (60 chars) NESTA branch — normalizam para null e ficam de fora, reportado por validarConfig como fabricante_integral_invalido. O limite já foi levantado para 120 na branch catalog/normalizacao-fabricantes-garantia (ainda não integrada em main); até lá, a cobertura deste grupo depende das restantes variantes mais curtas, que já cobrem o volume real (RATIOPHARM - COMERCIO E INDUSTRIA DE PRODUTOS FARM, 370 produtos)."
     },
     {
       "nome": "Kenvue",
@@ -56,10 +70,11 @@
         { "alias": "JNTL Consumer Health", "aliasNormalizado": "JNTL CONSUMER HEALTH", "origem": "catálogo nacional 2026-09 — spin-off Kenvue da J&J, 2023" }
       ],
       "fabricantesIntegrais": [
-        "JNTL Consumer Health (Portugal) Limitada"
+        "JNTL Consumer Health (Portugal) Limitada",
+        "JNTL CONSUMER HEALTH PORTUGAL LIMITADA", "KENVUE"
       ],
       "naoIncluirAutomaticamente": [
-        "Janssen-Cilag Farmacêutica Lda., Janssen Farmacêutica Portugal S.A./Lda., Janssen-Cilag International NV, Janssen Biologics B.V. — divisão farmacêutica/prescrição da J&J, permanece distinta e NUNCA entra em Kenvue automaticamente, nem por alias nem por associação integral."
+        "Janssen-Cilag Farmacêutica Lda., Janssen Farmacêutica Portugal S.A./Lda., Janssen-Cilag International NV, Janssen Biologics B.V. (e as variantes reais de garantia: JANSSEN CILAG FARMACEUT LDA, JANSSEN CILAG FARMACEUT. LDA, JANSSEN FARMACEUTICA PORTUGAL, JANSSEN-CILAG FARMACEUTICA, JANSSEN-CILAG INTERNATIONAL N V, JANSSEN-CILAG INTERNATIONAL N.V.) — divisão farmacêutica/prescrição da J&J, permanece distinta e NUNCA entra em Kenvue automaticamente, nem por alias nem por associação integral. Confirmado por scripts/simular-grupos-laboratoriais-garantia.ts: nenhum dos 6 fabricantes reais 'JANSSEN*' de garantia resolve para Kenvue."
       ]
     },
     {
@@ -73,9 +88,13 @@
         "Pentafarma Genéricos - Sociedade Técnico Medicinal, Unipessoal Lda.",
         "Pentafarma Especialidades - Sociedade Técnico Medicinal Lda.",
         "Tecnimede - Sociedade Técnico-Medicinal, S. A.", "Tecnimede Especialidades - Soc. Técnico Medicinal, Lda",
-        "Tecnimede España - Industria Farmacêutica S.A."
+        "Tecnimede España - Industria Farmacêutica S.A.",
+        "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL", "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S A", "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S. A.",
+        "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL", "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S A", "TECNIMEDE - SOCIEDADE TECNICO-MEDICINAL S.A.",
+        "TECNIMEDE SOC TEC MEDIC SA", "TECNIMEDE SOC. TEC. MEDIC. SA"
       ],
-      "naoIncluirAutomaticamente": []
+      "naoIncluirAutomaticamente": [],
+      "_nota_limite_60_chars": "'Pentafarma Genéricos - Sociedade Técnico Medicinal, Unipessoal Lda.' (69 chars) excede o limite actual de 60 chars nesta branch — normaliza para null, fica de fora (reportado por validarConfig). Sem impacto prático: nenhum Fabricante real de garantia corresponde a essa forma exacta; a cobertura real vem das variantes mais curtas listadas acima."
     }
   ],
   "sucessoesParciaisConhecidas": [

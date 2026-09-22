@@ -390,6 +390,8 @@ export const ModelName = {
   GrupoLaboratorial: 'GrupoLaboratorial',
   GrupoLaboratorialAlias: 'GrupoLaboratorialAlias',
   GrupoLaboratorialFabricante: 'GrupoLaboratorialFabricante',
+  CatalogoNacionalImportacao: 'CatalogoNacionalImportacao',
+  CatalogoNacionalRegistoImportado: 'CatalogoNacionalRegistoImportado',
   ProdutoGrupoLaboratorial: 'ProdutoGrupoLaboratorial',
   RegraGrupoLaboratorialPorCnp: 'RegraGrupoLaboratorialPorCnp',
   Classificacao: 'Classificacao',
@@ -458,7 +460,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "grupoLaboratorial" | "grupoLaboratorialAlias" | "grupoLaboratorialFabricante" | "produtoGrupoLaboratorial" | "regraGrupoLaboratorialPorCnp" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "grupoLaboratorial" | "grupoLaboratorialAlias" | "grupoLaboratorialFabricante" | "catalogoNacionalImportacao" | "catalogoNacionalRegistoImportado" | "produtoGrupoLaboratorial" | "regraGrupoLaboratorialPorCnp" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -903,6 +905,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.GrupoLaboratorialFabricanteCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialFabricanteCountAggregateOutputType> | number
+        }
+      }
+    }
+    CatalogoNacionalImportacao: {
+      payload: Prisma.$CatalogoNacionalImportacaoPayload<ExtArgs>
+      fields: Prisma.CatalogoNacionalImportacaoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoNacionalImportacaoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoNacionalImportacaoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoNacionalImportacaoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoNacionalImportacaoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoNacionalImportacaoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoNacionalImportacaoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoNacionalImportacaoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoNacionalImportacaoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoNacionalImportacaoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        update: {
+          args: Prisma.CatalogoNacionalImportacaoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoNacionalImportacaoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoNacionalImportacaoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoNacionalImportacaoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoNacionalImportacaoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalImportacaoPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoNacionalImportacaoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoNacionalImportacao>
+        }
+        groupBy: {
+          args: Prisma.CatalogoNacionalImportacaoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoNacionalImportacaoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoNacionalImportacaoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoNacionalImportacaoCountAggregateOutputType> | number
+        }
+      }
+    }
+    CatalogoNacionalRegistoImportado: {
+      payload: Prisma.$CatalogoNacionalRegistoImportadoPayload<ExtArgs>
+      fields: Prisma.CatalogoNacionalRegistoImportadoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CatalogoNacionalRegistoImportadoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CatalogoNacionalRegistoImportadoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        findFirst: {
+          args: Prisma.CatalogoNacionalRegistoImportadoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CatalogoNacionalRegistoImportadoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        findMany: {
+          args: Prisma.CatalogoNacionalRegistoImportadoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>[]
+        }
+        create: {
+          args: Prisma.CatalogoNacionalRegistoImportadoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        createMany: {
+          args: Prisma.CatalogoNacionalRegistoImportadoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CatalogoNacionalRegistoImportadoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>[]
+        }
+        delete: {
+          args: Prisma.CatalogoNacionalRegistoImportadoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        update: {
+          args: Prisma.CatalogoNacionalRegistoImportadoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        deleteMany: {
+          args: Prisma.CatalogoNacionalRegistoImportadoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CatalogoNacionalRegistoImportadoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CatalogoNacionalRegistoImportadoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>[]
+        }
+        upsert: {
+          args: Prisma.CatalogoNacionalRegistoImportadoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CatalogoNacionalRegistoImportadoPayload>
+        }
+        aggregate: {
+          args: Prisma.CatalogoNacionalRegistoImportadoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCatalogoNacionalRegistoImportado>
+        }
+        groupBy: {
+          args: Prisma.CatalogoNacionalRegistoImportadoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoNacionalRegistoImportadoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CatalogoNacionalRegistoImportadoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CatalogoNacionalRegistoImportadoCountAggregateOutputType> | number
         }
       }
     }
@@ -4973,13 +5123,39 @@ export const GrupoLaboratorialFabricanteScalarFieldEnum = {
 export type GrupoLaboratorialFabricanteScalarFieldEnum = (typeof GrupoLaboratorialFabricanteScalarFieldEnum)[keyof typeof GrupoLaboratorialFabricanteScalarFieldEnum]
 
 
+export const CatalogoNacionalImportacaoScalarFieldEnum = {
+  id: 'id',
+  nomeFicheiro: 'nomeFicheiro',
+  hashSha256: 'hashSha256',
+  dataReferencia: 'dataReferencia',
+  importadoEm: 'importadoEm',
+  source: 'source',
+  totalRegistos: 'totalRegistos',
+  totalCnpValidos: 'totalCnpValidos'
+} as const
+
+export type CatalogoNacionalImportacaoScalarFieldEnum = (typeof CatalogoNacionalImportacaoScalarFieldEnum)[keyof typeof CatalogoNacionalImportacaoScalarFieldEnum]
+
+
+export const CatalogoNacionalRegistoImportadoScalarFieldEnum = {
+  id: 'id',
+  importacaoId: 'importacaoId',
+  cnp: 'cnp',
+  titularObservado: 'titularObservado',
+  estadoObservado: 'estadoObservado',
+  designacaoObservada: 'designacaoObservada'
+} as const
+
+export type CatalogoNacionalRegistoImportadoScalarFieldEnum = (typeof CatalogoNacionalRegistoImportadoScalarFieldEnum)[keyof typeof CatalogoNacionalRegistoImportadoScalarFieldEnum]
+
+
 export const ProdutoGrupoLaboratorialScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
   grupoLaboratorialId: 'grupoLaboratorialId',
   origem: 'origem',
   regraCnpId: 'regraCnpId',
-  snapshotCnp: 'snapshotCnp',
+  snapshotRegistoId: 'snapshotRegistoId',
   validadoManualmente: 'validadoManualmente',
   evidencia: 'evidencia',
   dataCriacao: 'dataCriacao',
@@ -6635,6 +6811,8 @@ export type GlobalOmitConfig = {
   grupoLaboratorial?: Prisma.GrupoLaboratorialOmit
   grupoLaboratorialAlias?: Prisma.GrupoLaboratorialAliasOmit
   grupoLaboratorialFabricante?: Prisma.GrupoLaboratorialFabricanteOmit
+  catalogoNacionalImportacao?: Prisma.CatalogoNacionalImportacaoOmit
+  catalogoNacionalRegistoImportado?: Prisma.CatalogoNacionalRegistoImportadoOmit
   produtoGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialOmit
   regraGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpOmit
   classificacao?: Prisma.ClassificacaoOmit

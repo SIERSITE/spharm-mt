@@ -85,6 +85,34 @@ export type GrupoLaboratorialAlias = Prisma.GrupoLaboratorialAliasModel
  */
 export type GrupoLaboratorialFabricante = Prisma.GrupoLaboratorialFabricanteModel
 /**
+ * Model CatalogoNacionalImportacao
+ * UMA importação imutável do catálogo nacional completo — uma linha por
+ * corrida do importador, NUNCA actualizada depois de criada.
+ * 
+ * Existe porque `RegulatoryRecord` é um modelo de LEITURA actual (upsert,
+ * "preserva não-null" ou `--force` sobrescreve — ver import-regulatory-record.ts):
+ * óptimo para responder "o que é que o catálogo diz HOJE", péssimo para
+ * responder "o que é que o catálogo dizia QUANDO esta classificação foi
+ * decidida" — se o titular ou o estado de um CNP mudar amanhã num novo
+ * upsert, uma classificação de grupo que apontasse só para
+ * `RegulatoryRecord.cnp` passaria a apontar, silenciosamente, para um
+ * conteúdo diferente do que a originou. `CatalogoNacionalRegistoImportado`
+ * (abaixo) é o registo imutável que resolve isto — nunca é tocado depois
+ * de escrito, mesmo que uma importação posterior actualize o
+ * `RegulatoryRecord` correspondente.
+ */
+export type CatalogoNacionalImportacao = Prisma.CatalogoNacionalImportacaoModel
+/**
+ * Model CatalogoNacionalRegistoImportado
+ * UM registo (CNP) dentro de UMA importação — imutável. É a prova de "o
+ * catálogo dizia X para este CNP, nesta importação, neste ficheiro, com
+ * este hash" — independentemente do que `RegulatoryRecord` diga depois
+ * de um upsert posterior. `@@unique([importacaoId, cnp])`: o mesmo CNP
+ * pode aparecer em IMPORTAÇÕES diferentes (histórico completo), nunca
+ * duas vezes dentro da MESMA importação.
+ */
+export type CatalogoNacionalRegistoImportado = Prisma.CatalogoNacionalRegistoImportadoModel
+/**
  * Model ProdutoGrupoLaboratorial
  * O grupo EFECTIVO e já resolvido de um produto — a única tabela que a
  * pesquisa/filtro lê. `produtoId` é `@unique`: um produto só pode ter

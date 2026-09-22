@@ -23,18 +23,8 @@ export type ProdutoGrupoLaboratorialModel = runtime.Types.Result.DefaultSelectio
 
 export type AggregateProdutoGrupoLaboratorial = {
   _count: ProdutoGrupoLaboratorialCountAggregateOutputType | null
-  _avg: ProdutoGrupoLaboratorialAvgAggregateOutputType | null
-  _sum: ProdutoGrupoLaboratorialSumAggregateOutputType | null
   _min: ProdutoGrupoLaboratorialMinAggregateOutputType | null
   _max: ProdutoGrupoLaboratorialMaxAggregateOutputType | null
-}
-
-export type ProdutoGrupoLaboratorialAvgAggregateOutputType = {
-  snapshotCnp: number | null
-}
-
-export type ProdutoGrupoLaboratorialSumAggregateOutputType = {
-  snapshotCnp: number | null
 }
 
 export type ProdutoGrupoLaboratorialMinAggregateOutputType = {
@@ -43,7 +33,7 @@ export type ProdutoGrupoLaboratorialMinAggregateOutputType = {
   grupoLaboratorialId: string | null
   origem: string | null
   regraCnpId: string | null
-  snapshotCnp: number | null
+  snapshotRegistoId: string | null
   validadoManualmente: boolean | null
   evidencia: string | null
   dataCriacao: Date | null
@@ -56,7 +46,7 @@ export type ProdutoGrupoLaboratorialMaxAggregateOutputType = {
   grupoLaboratorialId: string | null
   origem: string | null
   regraCnpId: string | null
-  snapshotCnp: number | null
+  snapshotRegistoId: string | null
   validadoManualmente: boolean | null
   evidencia: string | null
   dataCriacao: Date | null
@@ -69,7 +59,7 @@ export type ProdutoGrupoLaboratorialCountAggregateOutputType = {
   grupoLaboratorialId: number
   origem: number
   regraCnpId: number
-  snapshotCnp: number
+  snapshotRegistoId: number
   validadoManualmente: number
   evidencia: number
   dataCriacao: number
@@ -78,21 +68,13 @@ export type ProdutoGrupoLaboratorialCountAggregateOutputType = {
 }
 
 
-export type ProdutoGrupoLaboratorialAvgAggregateInputType = {
-  snapshotCnp?: true
-}
-
-export type ProdutoGrupoLaboratorialSumAggregateInputType = {
-  snapshotCnp?: true
-}
-
 export type ProdutoGrupoLaboratorialMinAggregateInputType = {
   id?: true
   produtoId?: true
   grupoLaboratorialId?: true
   origem?: true
   regraCnpId?: true
-  snapshotCnp?: true
+  snapshotRegistoId?: true
   validadoManualmente?: true
   evidencia?: true
   dataCriacao?: true
@@ -105,7 +87,7 @@ export type ProdutoGrupoLaboratorialMaxAggregateInputType = {
   grupoLaboratorialId?: true
   origem?: true
   regraCnpId?: true
-  snapshotCnp?: true
+  snapshotRegistoId?: true
   validadoManualmente?: true
   evidencia?: true
   dataCriacao?: true
@@ -118,7 +100,7 @@ export type ProdutoGrupoLaboratorialCountAggregateInputType = {
   grupoLaboratorialId?: true
   origem?: true
   regraCnpId?: true
-  snapshotCnp?: true
+  snapshotRegistoId?: true
   validadoManualmente?: true
   evidencia?: true
   dataCriacao?: true
@@ -164,18 +146,6 @@ export type ProdutoGrupoLaboratorialAggregateArgs<ExtArgs extends runtime.Types.
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
-   * Select which fields to average
-  **/
-  _avg?: ProdutoGrupoLaboratorialAvgAggregateInputType
-  /**
-   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-   * 
-   * Select which fields to sum
-  **/
-  _sum?: ProdutoGrupoLaboratorialSumAggregateInputType
-  /**
-   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-   * 
    * Select which fields to find the minimum value
   **/
   _min?: ProdutoGrupoLaboratorialMinAggregateInputType
@@ -206,8 +176,6 @@ export type ProdutoGrupoLaboratorialGroupByArgs<ExtArgs extends runtime.Types.Ex
   take?: number
   skip?: number
   _count?: ProdutoGrupoLaboratorialCountAggregateInputType | true
-  _avg?: ProdutoGrupoLaboratorialAvgAggregateInputType
-  _sum?: ProdutoGrupoLaboratorialSumAggregateInputType
   _min?: ProdutoGrupoLaboratorialMinAggregateInputType
   _max?: ProdutoGrupoLaboratorialMaxAggregateInputType
 }
@@ -218,14 +186,12 @@ export type ProdutoGrupoLaboratorialGroupByOutputType = {
   grupoLaboratorialId: string
   origem: string
   regraCnpId: string | null
-  snapshotCnp: number | null
+  snapshotRegistoId: string | null
   validadoManualmente: boolean
   evidencia: string | null
   dataCriacao: Date
   dataAtualizacao: Date
   _count: ProdutoGrupoLaboratorialCountAggregateOutputType | null
-  _avg: ProdutoGrupoLaboratorialAvgAggregateOutputType | null
-  _sum: ProdutoGrupoLaboratorialSumAggregateOutputType | null
   _min: ProdutoGrupoLaboratorialMinAggregateOutputType | null
   _max: ProdutoGrupoLaboratorialMaxAggregateOutputType | null
 }
@@ -254,7 +220,7 @@ export type ProdutoGrupoLaboratorialWhereInput = {
   grupoLaboratorialId?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   origem?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   regraCnpId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
-  snapshotCnp?: Prisma.IntNullableFilter<"ProdutoGrupoLaboratorial"> | number | null
+  snapshotRegistoId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   validadoManualmente?: Prisma.BoolFilter<"ProdutoGrupoLaboratorial"> | boolean
   evidencia?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoGrupoLaboratorial"> | Date | string
@@ -262,7 +228,7 @@ export type ProdutoGrupoLaboratorialWhereInput = {
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   grupoLaboratorial?: Prisma.XOR<Prisma.GrupoLaboratorialScalarRelationFilter, Prisma.GrupoLaboratorialWhereInput>
   regraCnp?: Prisma.XOR<Prisma.RegraGrupoLaboratorialPorCnpNullableScalarRelationFilter, Prisma.RegraGrupoLaboratorialPorCnpWhereInput> | null
-  snapshot?: Prisma.XOR<Prisma.RegulatoryRecordNullableScalarRelationFilter, Prisma.RegulatoryRecordWhereInput> | null
+  snapshotRegisto?: Prisma.XOR<Prisma.CatalogoNacionalRegistoImportadoNullableScalarRelationFilter, Prisma.CatalogoNacionalRegistoImportadoWhereInput> | null
 }
 
 export type ProdutoGrupoLaboratorialOrderByWithRelationInput = {
@@ -271,7 +237,7 @@ export type ProdutoGrupoLaboratorialOrderByWithRelationInput = {
   grupoLaboratorialId?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   regraCnpId?: Prisma.SortOrderInput | Prisma.SortOrder
-  snapshotCnp?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotRegistoId?: Prisma.SortOrderInput | Prisma.SortOrder
   validadoManualmente?: Prisma.SortOrder
   evidencia?: Prisma.SortOrderInput | Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -279,7 +245,7 @@ export type ProdutoGrupoLaboratorialOrderByWithRelationInput = {
   produto?: Prisma.ProdutoOrderByWithRelationInput
   grupoLaboratorial?: Prisma.GrupoLaboratorialOrderByWithRelationInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpOrderByWithRelationInput
-  snapshot?: Prisma.RegulatoryRecordOrderByWithRelationInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoOrderByWithRelationInput
 }
 
 export type ProdutoGrupoLaboratorialWhereUniqueInput = Prisma.AtLeast<{
@@ -291,7 +257,7 @@ export type ProdutoGrupoLaboratorialWhereUniqueInput = Prisma.AtLeast<{
   grupoLaboratorialId?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   origem?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   regraCnpId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
-  snapshotCnp?: Prisma.IntNullableFilter<"ProdutoGrupoLaboratorial"> | number | null
+  snapshotRegistoId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   validadoManualmente?: Prisma.BoolFilter<"ProdutoGrupoLaboratorial"> | boolean
   evidencia?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoGrupoLaboratorial"> | Date | string
@@ -299,7 +265,7 @@ export type ProdutoGrupoLaboratorialWhereUniqueInput = Prisma.AtLeast<{
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
   grupoLaboratorial?: Prisma.XOR<Prisma.GrupoLaboratorialScalarRelationFilter, Prisma.GrupoLaboratorialWhereInput>
   regraCnp?: Prisma.XOR<Prisma.RegraGrupoLaboratorialPorCnpNullableScalarRelationFilter, Prisma.RegraGrupoLaboratorialPorCnpWhereInput> | null
-  snapshot?: Prisma.XOR<Prisma.RegulatoryRecordNullableScalarRelationFilter, Prisma.RegulatoryRecordWhereInput> | null
+  snapshotRegisto?: Prisma.XOR<Prisma.CatalogoNacionalRegistoImportadoNullableScalarRelationFilter, Prisma.CatalogoNacionalRegistoImportadoWhereInput> | null
 }, "id" | "produtoId">
 
 export type ProdutoGrupoLaboratorialOrderByWithAggregationInput = {
@@ -308,16 +274,14 @@ export type ProdutoGrupoLaboratorialOrderByWithAggregationInput = {
   grupoLaboratorialId?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   regraCnpId?: Prisma.SortOrderInput | Prisma.SortOrder
-  snapshotCnp?: Prisma.SortOrderInput | Prisma.SortOrder
+  snapshotRegistoId?: Prisma.SortOrderInput | Prisma.SortOrder
   validadoManualmente?: Prisma.SortOrder
   evidencia?: Prisma.SortOrderInput | Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
   _count?: Prisma.ProdutoGrupoLaboratorialCountOrderByAggregateInput
-  _avg?: Prisma.ProdutoGrupoLaboratorialAvgOrderByAggregateInput
   _max?: Prisma.ProdutoGrupoLaboratorialMaxOrderByAggregateInput
   _min?: Prisma.ProdutoGrupoLaboratorialMinOrderByAggregateInput
-  _sum?: Prisma.ProdutoGrupoLaboratorialSumOrderByAggregateInput
 }
 
 export type ProdutoGrupoLaboratorialScalarWhereWithAggregatesInput = {
@@ -329,7 +293,7 @@ export type ProdutoGrupoLaboratorialScalarWhereWithAggregatesInput = {
   grupoLaboratorialId?: Prisma.StringWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | string
   origem?: Prisma.StringWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | string
   regraCnpId?: Prisma.StringNullableWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | string | null
-  snapshotCnp?: Prisma.IntNullableWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | number | null
+  snapshotRegistoId?: Prisma.StringNullableWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | string | null
   validadoManualmente?: Prisma.BoolWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | boolean
   evidencia?: Prisma.StringNullableWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | string | null
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"ProdutoGrupoLaboratorial"> | Date | string
@@ -346,7 +310,7 @@ export type ProdutoGrupoLaboratorialCreateInput = {
   produto: Prisma.ProdutoCreateNestedOneWithoutGrupoLaboratorialInput
   grupoLaboratorial: Prisma.GrupoLaboratorialCreateNestedOneWithoutProdutosInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedOneWithoutProdutosInput
-  snapshot?: Prisma.RegulatoryRecordCreateNestedOneWithoutPropostasGrupoLaboratorialInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoCreateNestedOneWithoutPropostasInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedCreateInput = {
@@ -355,7 +319,7 @@ export type ProdutoGrupoLaboratorialUncheckedCreateInput = {
   grupoLaboratorialId: string
   origem: string
   regraCnpId?: string | null
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -372,7 +336,7 @@ export type ProdutoGrupoLaboratorialUpdateInput = {
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutGrupoLaboratorialNestedInput
   grupoLaboratorial?: Prisma.GrupoLaboratorialUpdateOneRequiredWithoutProdutosNestedInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateOneWithoutProdutosNestedInput
-  snapshot?: Prisma.RegulatoryRecordUpdateOneWithoutPropostasGrupoLaboratorialNestedInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoUpdateOneWithoutPropostasNestedInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedUpdateInput = {
@@ -381,7 +345,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateInput = {
   grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -394,7 +358,7 @@ export type ProdutoGrupoLaboratorialCreateManyInput = {
   grupoLaboratorialId: string
   origem: string
   regraCnpId?: string | null
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -416,7 +380,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateManyInput = {
   grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -444,15 +408,11 @@ export type ProdutoGrupoLaboratorialCountOrderByAggregateInput = {
   grupoLaboratorialId?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   regraCnpId?: Prisma.SortOrder
-  snapshotCnp?: Prisma.SortOrder
+  snapshotRegistoId?: Prisma.SortOrder
   validadoManualmente?: Prisma.SortOrder
   evidencia?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
-}
-
-export type ProdutoGrupoLaboratorialAvgOrderByAggregateInput = {
-  snapshotCnp?: Prisma.SortOrder
 }
 
 export type ProdutoGrupoLaboratorialMaxOrderByAggregateInput = {
@@ -461,7 +421,7 @@ export type ProdutoGrupoLaboratorialMaxOrderByAggregateInput = {
   grupoLaboratorialId?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   regraCnpId?: Prisma.SortOrder
-  snapshotCnp?: Prisma.SortOrder
+  snapshotRegistoId?: Prisma.SortOrder
   validadoManualmente?: Prisma.SortOrder
   evidencia?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -474,15 +434,11 @@ export type ProdutoGrupoLaboratorialMinOrderByAggregateInput = {
   grupoLaboratorialId?: Prisma.SortOrder
   origem?: Prisma.SortOrder
   regraCnpId?: Prisma.SortOrder
-  snapshotCnp?: Prisma.SortOrder
+  snapshotRegistoId?: Prisma.SortOrder
   validadoManualmente?: Prisma.SortOrder
   evidencia?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
-}
-
-export type ProdutoGrupoLaboratorialSumOrderByAggregateInput = {
-  snapshotCnp?: Prisma.SortOrder
 }
 
 export type ProdutoGrupoLaboratorialCreateNestedOneWithoutProdutoInput = {
@@ -559,6 +515,48 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutGrupoLaboratorialN
   deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
 }
 
+export type ProdutoGrupoLaboratorialCreateNestedManyWithoutSnapshotRegistoInput = {
+  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput[]
+  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput[]
+  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInputEnvelope
+  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+}
+
+export type ProdutoGrupoLaboratorialUncheckedCreateNestedManyWithoutSnapshotRegistoInput = {
+  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput[]
+  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput[]
+  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInputEnvelope
+  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+}
+
+export type ProdutoGrupoLaboratorialUpdateManyWithoutSnapshotRegistoNestedInput = {
+  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput[]
+  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput[]
+  upsert?: Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotRegistoInput[]
+  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInputEnvelope
+  set?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  disconnect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  delete?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  update?: Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotRegistoInput[]
+  updateMany?: Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotRegistoInput[]
+  deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
+}
+
+export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotRegistoNestedInput = {
+  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput[]
+  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput[]
+  upsert?: Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotRegistoInput[]
+  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInputEnvelope
+  set?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  disconnect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  delete?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
+  update?: Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotRegistoInput[]
+  updateMany?: Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotRegistoInput[]
+  deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
+}
+
 export type ProdutoGrupoLaboratorialCreateNestedManyWithoutRegraCnpInput = {
   create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutRegraCnpInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutRegraCnpInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutRegraCnpInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutRegraCnpInput[]
   connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutRegraCnpInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutRegraCnpInput[]
@@ -601,48 +599,6 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutRegraCnpNestedInpu
   deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
 }
 
-export type ProdutoGrupoLaboratorialCreateNestedManyWithoutSnapshotInput = {
-  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput[]
-  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput[]
-  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInputEnvelope
-  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-}
-
-export type ProdutoGrupoLaboratorialUncheckedCreateNestedManyWithoutSnapshotInput = {
-  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput[]
-  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput[]
-  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInputEnvelope
-  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-}
-
-export type ProdutoGrupoLaboratorialUpdateManyWithoutSnapshotNestedInput = {
-  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput[]
-  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput[]
-  upsert?: Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotInput[]
-  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInputEnvelope
-  set?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  disconnect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  delete?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  update?: Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotInput[]
-  updateMany?: Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotInput[]
-  deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
-}
-
-export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotNestedInput = {
-  create?: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput> | Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput[] | Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput[]
-  connectOrCreate?: Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput[]
-  upsert?: Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotInput[]
-  createMany?: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInputEnvelope
-  set?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  disconnect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  delete?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  connect?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput | Prisma.ProdutoGrupoLaboratorialWhereUniqueInput[]
-  update?: Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotInput[]
-  updateMany?: Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotInput | Prisma.ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotInput[]
-  deleteMany?: Prisma.ProdutoGrupoLaboratorialScalarWhereInput | Prisma.ProdutoGrupoLaboratorialScalarWhereInput[]
-}
-
 export type ProdutoGrupoLaboratorialCreateWithoutProdutoInput = {
   id?: string
   origem: string
@@ -652,7 +608,7 @@ export type ProdutoGrupoLaboratorialCreateWithoutProdutoInput = {
   dataAtualizacao?: Date | string
   grupoLaboratorial: Prisma.GrupoLaboratorialCreateNestedOneWithoutProdutosInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedOneWithoutProdutosInput
-  snapshot?: Prisma.RegulatoryRecordCreateNestedOneWithoutPropostasGrupoLaboratorialInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoCreateNestedOneWithoutPropostasInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedCreateWithoutProdutoInput = {
@@ -660,7 +616,7 @@ export type ProdutoGrupoLaboratorialUncheckedCreateWithoutProdutoInput = {
   grupoLaboratorialId: string
   origem: string
   regraCnpId?: string | null
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -692,7 +648,7 @@ export type ProdutoGrupoLaboratorialUpdateWithoutProdutoInput = {
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   grupoLaboratorial?: Prisma.GrupoLaboratorialUpdateOneRequiredWithoutProdutosNestedInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateOneWithoutProdutosNestedInput
-  snapshot?: Prisma.RegulatoryRecordUpdateOneWithoutPropostasGrupoLaboratorialNestedInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoUpdateOneWithoutPropostasNestedInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutProdutoInput = {
@@ -700,7 +656,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutProdutoInput = {
   grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -716,7 +672,7 @@ export type ProdutoGrupoLaboratorialCreateWithoutGrupoLaboratorialInput = {
   dataAtualizacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutGrupoLaboratorialInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedOneWithoutProdutosInput
-  snapshot?: Prisma.RegulatoryRecordCreateNestedOneWithoutPropostasGrupoLaboratorialInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoCreateNestedOneWithoutPropostasInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedCreateWithoutGrupoLaboratorialInput = {
@@ -724,7 +680,7 @@ export type ProdutoGrupoLaboratorialUncheckedCreateWithoutGrupoLaboratorialInput
   produtoId: string
   origem: string
   regraCnpId?: string | null
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -766,11 +722,61 @@ export type ProdutoGrupoLaboratorialScalarWhereInput = {
   grupoLaboratorialId?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   origem?: Prisma.StringFilter<"ProdutoGrupoLaboratorial"> | string
   regraCnpId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
-  snapshotCnp?: Prisma.IntNullableFilter<"ProdutoGrupoLaboratorial"> | number | null
+  snapshotRegistoId?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   validadoManualmente?: Prisma.BoolFilter<"ProdutoGrupoLaboratorial"> | boolean
   evidencia?: Prisma.StringNullableFilter<"ProdutoGrupoLaboratorial"> | string | null
   dataCriacao?: Prisma.DateTimeFilter<"ProdutoGrupoLaboratorial"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"ProdutoGrupoLaboratorial"> | Date | string
+}
+
+export type ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput = {
+  id?: string
+  origem: string
+  validadoManualmente?: boolean
+  evidencia?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  produto: Prisma.ProdutoCreateNestedOneWithoutGrupoLaboratorialInput
+  grupoLaboratorial: Prisma.GrupoLaboratorialCreateNestedOneWithoutProdutosInput
+  regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedOneWithoutProdutosInput
+}
+
+export type ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput = {
+  id?: string
+  produtoId: string
+  grupoLaboratorialId: string
+  origem: string
+  regraCnpId?: string | null
+  validadoManualmente?: boolean
+  evidencia?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+}
+
+export type ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotRegistoInput = {
+  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput>
+}
+
+export type ProdutoGrupoLaboratorialCreateManySnapshotRegistoInputEnvelope = {
+  data: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInput | Prisma.ProdutoGrupoLaboratorialCreateManySnapshotRegistoInput[]
+  skipDuplicates?: boolean
+}
+
+export type ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotRegistoInput = {
+  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
+  update: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotRegistoInput>
+  create: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotRegistoInput>
+}
+
+export type ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotRegistoInput = {
+  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
+  data: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateWithoutSnapshotRegistoInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotRegistoInput>
+}
+
+export type ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotRegistoInput = {
+  where: Prisma.ProdutoGrupoLaboratorialScalarWhereInput
+  data: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateManyMutationInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotRegistoInput>
 }
 
 export type ProdutoGrupoLaboratorialCreateWithoutRegraCnpInput = {
@@ -782,7 +788,7 @@ export type ProdutoGrupoLaboratorialCreateWithoutRegraCnpInput = {
   dataAtualizacao?: Date | string
   produto: Prisma.ProdutoCreateNestedOneWithoutGrupoLaboratorialInput
   grupoLaboratorial: Prisma.GrupoLaboratorialCreateNestedOneWithoutProdutosInput
-  snapshot?: Prisma.RegulatoryRecordCreateNestedOneWithoutPropostasGrupoLaboratorialInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoCreateNestedOneWithoutPropostasInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedCreateWithoutRegraCnpInput = {
@@ -790,7 +796,7 @@ export type ProdutoGrupoLaboratorialUncheckedCreateWithoutRegraCnpInput = {
   produtoId: string
   grupoLaboratorialId: string
   origem: string
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -823,62 +829,12 @@ export type ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutRegraCnpInput = {
   data: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateManyMutationInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutRegraCnpInput>
 }
 
-export type ProdutoGrupoLaboratorialCreateWithoutSnapshotInput = {
-  id?: string
-  origem: string
-  validadoManualmente?: boolean
-  evidencia?: string | null
-  dataCriacao?: Date | string
-  dataAtualizacao?: Date | string
-  produto: Prisma.ProdutoCreateNestedOneWithoutGrupoLaboratorialInput
-  grupoLaboratorial: Prisma.GrupoLaboratorialCreateNestedOneWithoutProdutosInput
-  regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedOneWithoutProdutosInput
-}
-
-export type ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput = {
-  id?: string
-  produtoId: string
-  grupoLaboratorialId: string
-  origem: string
-  regraCnpId?: string | null
-  validadoManualmente?: boolean
-  evidencia?: string | null
-  dataCriacao?: Date | string
-  dataAtualizacao?: Date | string
-}
-
-export type ProdutoGrupoLaboratorialCreateOrConnectWithoutSnapshotInput = {
-  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
-  create: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput>
-}
-
-export type ProdutoGrupoLaboratorialCreateManySnapshotInputEnvelope = {
-  data: Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInput | Prisma.ProdutoGrupoLaboratorialCreateManySnapshotInput[]
-  skipDuplicates?: boolean
-}
-
-export type ProdutoGrupoLaboratorialUpsertWithWhereUniqueWithoutSnapshotInput = {
-  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
-  update: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotInput>
-  create: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialCreateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedCreateWithoutSnapshotInput>
-}
-
-export type ProdutoGrupoLaboratorialUpdateWithWhereUniqueWithoutSnapshotInput = {
-  where: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
-  data: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateWithoutSnapshotInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotInput>
-}
-
-export type ProdutoGrupoLaboratorialUpdateManyWithWhereWithoutSnapshotInput = {
-  where: Prisma.ProdutoGrupoLaboratorialScalarWhereInput
-  data: Prisma.XOR<Prisma.ProdutoGrupoLaboratorialUpdateManyMutationInput, Prisma.ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotInput>
-}
-
 export type ProdutoGrupoLaboratorialCreateManyGrupoLaboratorialInput = {
   id?: string
   produtoId: string
   origem: string
   regraCnpId?: string | null
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -894,7 +850,7 @@ export type ProdutoGrupoLaboratorialUpdateWithoutGrupoLaboratorialInput = {
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutGrupoLaboratorialNestedInput
   regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateOneWithoutProdutosNestedInput
-  snapshot?: Prisma.RegulatoryRecordUpdateOneWithoutPropostasGrupoLaboratorialNestedInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoUpdateOneWithoutPropostasNestedInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutGrupoLaboratorialInput = {
@@ -902,7 +858,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutGrupoLaboratorialInput
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -914,7 +870,55 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutGrupoLaboratorialI
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
   regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type ProdutoGrupoLaboratorialCreateManySnapshotRegistoInput = {
+  id?: string
+  produtoId: string
+  grupoLaboratorialId: string
+  origem: string
+  regraCnpId?: string | null
+  validadoManualmente?: boolean
+  evidencia?: string | null
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+}
+
+export type ProdutoGrupoLaboratorialUpdateWithoutSnapshotRegistoInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  origem?: Prisma.StringFieldUpdateOperationsInput | string
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  produto?: Prisma.ProdutoUpdateOneRequiredWithoutGrupoLaboratorialNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialUpdateOneRequiredWithoutProdutosNestedInput
+  regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateOneWithoutProdutosNestedInput
+}
+
+export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotRegistoInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
+  origem?: Prisma.StringFieldUpdateOperationsInput | string
+  regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotRegistoInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  produtoId?: Prisma.StringFieldUpdateOperationsInput | string
+  grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
+  origem?: Prisma.StringFieldUpdateOperationsInput | string
+  regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -926,7 +930,7 @@ export type ProdutoGrupoLaboratorialCreateManyRegraCnpInput = {
   produtoId: string
   grupoLaboratorialId: string
   origem: string
-  snapshotCnp?: number | null
+  snapshotRegistoId?: string | null
   validadoManualmente?: boolean
   evidencia?: string | null
   dataCriacao?: Date | string
@@ -942,7 +946,7 @@ export type ProdutoGrupoLaboratorialUpdateWithoutRegraCnpInput = {
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutGrupoLaboratorialNestedInput
   grupoLaboratorial?: Prisma.GrupoLaboratorialUpdateOneRequiredWithoutProdutosNestedInput
-  snapshot?: Prisma.RegulatoryRecordUpdateOneWithoutPropostasGrupoLaboratorialNestedInput
+  snapshotRegisto?: Prisma.CatalogoNacionalRegistoImportadoUpdateOneWithoutPropostasNestedInput
 }
 
 export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutRegraCnpInput = {
@@ -950,7 +954,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutRegraCnpInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -962,55 +966,7 @@ export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutRegraCnpInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
   origem?: Prisma.StringFieldUpdateOperationsInput | string
-  snapshotCnp?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
-  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
-export type ProdutoGrupoLaboratorialCreateManySnapshotInput = {
-  id?: string
-  produtoId: string
-  grupoLaboratorialId: string
-  origem: string
-  regraCnpId?: string | null
-  validadoManualmente?: boolean
-  evidencia?: string | null
-  dataCriacao?: Date | string
-  dataAtualizacao?: Date | string
-}
-
-export type ProdutoGrupoLaboratorialUpdateWithoutSnapshotInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  origem?: Prisma.StringFieldUpdateOperationsInput | string
-  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  produto?: Prisma.ProdutoUpdateOneRequiredWithoutGrupoLaboratorialNestedInput
-  grupoLaboratorial?: Prisma.GrupoLaboratorialUpdateOneRequiredWithoutProdutosNestedInput
-  regraCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateOneWithoutProdutosNestedInput
-}
-
-export type ProdutoGrupoLaboratorialUncheckedUpdateWithoutSnapshotInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  produtoId?: Prisma.StringFieldUpdateOperationsInput | string
-  grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
-  origem?: Prisma.StringFieldUpdateOperationsInput | string
-  regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
-  evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
-export type ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotInput = {
-  id?: Prisma.StringFieldUpdateOperationsInput | string
-  produtoId?: Prisma.StringFieldUpdateOperationsInput | string
-  grupoLaboratorialId?: Prisma.StringFieldUpdateOperationsInput | string
-  origem?: Prisma.StringFieldUpdateOperationsInput | string
-  regraCnpId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  snapshotRegistoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   validadoManualmente?: Prisma.BoolFieldUpdateOperationsInput | boolean
   evidencia?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1025,7 +981,7 @@ export type ProdutoGrupoLaboratorialSelect<ExtArgs extends runtime.Types.Extensi
   grupoLaboratorialId?: boolean
   origem?: boolean
   regraCnpId?: boolean
-  snapshotCnp?: boolean
+  snapshotRegistoId?: boolean
   validadoManualmente?: boolean
   evidencia?: boolean
   dataCriacao?: boolean
@@ -1033,7 +989,7 @@ export type ProdutoGrupoLaboratorialSelect<ExtArgs extends runtime.Types.Extensi
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }, ExtArgs["result"]["produtoGrupoLaboratorial"]>
 
 export type ProdutoGrupoLaboratorialSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1042,7 +998,7 @@ export type ProdutoGrupoLaboratorialSelectCreateManyAndReturn<ExtArgs extends ru
   grupoLaboratorialId?: boolean
   origem?: boolean
   regraCnpId?: boolean
-  snapshotCnp?: boolean
+  snapshotRegistoId?: boolean
   validadoManualmente?: boolean
   evidencia?: boolean
   dataCriacao?: boolean
@@ -1050,7 +1006,7 @@ export type ProdutoGrupoLaboratorialSelectCreateManyAndReturn<ExtArgs extends ru
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }, ExtArgs["result"]["produtoGrupoLaboratorial"]>
 
 export type ProdutoGrupoLaboratorialSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1059,7 +1015,7 @@ export type ProdutoGrupoLaboratorialSelectUpdateManyAndReturn<ExtArgs extends ru
   grupoLaboratorialId?: boolean
   origem?: boolean
   regraCnpId?: boolean
-  snapshotCnp?: boolean
+  snapshotRegistoId?: boolean
   validadoManualmente?: boolean
   evidencia?: boolean
   dataCriacao?: boolean
@@ -1067,7 +1023,7 @@ export type ProdutoGrupoLaboratorialSelectUpdateManyAndReturn<ExtArgs extends ru
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }, ExtArgs["result"]["produtoGrupoLaboratorial"]>
 
 export type ProdutoGrupoLaboratorialSelectScalar = {
@@ -1076,31 +1032,31 @@ export type ProdutoGrupoLaboratorialSelectScalar = {
   grupoLaboratorialId?: boolean
   origem?: boolean
   regraCnpId?: boolean
-  snapshotCnp?: boolean
+  snapshotRegistoId?: boolean
   validadoManualmente?: boolean
   evidencia?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
 }
 
-export type ProdutoGrupoLaboratorialOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "grupoLaboratorialId" | "origem" | "regraCnpId" | "snapshotCnp" | "validadoManualmente" | "evidencia" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produtoGrupoLaboratorial"]>
+export type ProdutoGrupoLaboratorialOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "produtoId" | "grupoLaboratorialId" | "origem" | "regraCnpId" | "snapshotRegistoId" | "validadoManualmente" | "evidencia" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["produtoGrupoLaboratorial"]>
 export type ProdutoGrupoLaboratorialInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }
 export type ProdutoGrupoLaboratorialIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }
 export type ProdutoGrupoLaboratorialIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
   grupoLaboratorial?: boolean | Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>
   regraCnp?: boolean | Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>
-  snapshot?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>
+  snapshotRegisto?: boolean | Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>
 }
 
 export type $ProdutoGrupoLaboratorialPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1109,7 +1065,7 @@ export type $ProdutoGrupoLaboratorialPayload<ExtArgs extends runtime.Types.Exten
     produto: Prisma.$ProdutoPayload<ExtArgs>
     grupoLaboratorial: Prisma.$GrupoLaboratorialPayload<ExtArgs>
     regraCnp: Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs> | null
-    snapshot: Prisma.$RegulatoryRecordPayload<ExtArgs> | null
+    snapshotRegisto: Prisma.$CatalogoNacionalRegistoImportadoPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1123,11 +1079,14 @@ export type $ProdutoGrupoLaboratorialPayload<ExtArgs extends runtime.Types.Exten
     origem: string
     regraCnpId: string | null
     /**
-     * CNP do RegulatoryRecord que originou uma proposta SNAPSHOT_CNP — FK
-     * real (não um id solto sem integridade referencial), auditável até
-     * ao registo regulatório exacto que a gerou. Null nos outros 4 níveis.
+     * FK para o REGISTO IMUTÁVEL (não para RegulatoryRecord.cnp — ver o
+     * doc comment de CatalogoNacionalImportacao para o porquê) que
+     * originou uma proposta SNAPSHOT_CNP. Continua a apontar para o
+     * titular/estado observados NAQUELA importação, mesmo que
+     * RegulatoryRecord seja actualizado depois por uma importação
+     * posterior. Null nos outros 4 níveis.
      */
-    snapshotCnp: number | null
+    snapshotRegistoId: string | null
     validadoManualmente: boolean
     evidencia: string | null
     dataCriacao: Date
@@ -1529,7 +1488,7 @@ export interface Prisma__ProdutoGrupoLaboratorialClient<T, Null = never, ExtArgs
   produto<T extends Prisma.ProdutoDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProdutoDefaultArgs<ExtArgs>>): Prisma.Prisma__ProdutoClient<runtime.Types.Result.GetResult<Prisma.$ProdutoPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   grupoLaboratorial<T extends Prisma.GrupoLaboratorialDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.GrupoLaboratorialDefaultArgs<ExtArgs>>): Prisma.Prisma__GrupoLaboratorialClient<runtime.Types.Result.GetResult<Prisma.$GrupoLaboratorialPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   regraCnp<T extends Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs>>): Prisma.Prisma__RegraGrupoLaboratorialPorCnpClient<runtime.Types.Result.GetResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
-  snapshot<T extends Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs>>): Prisma.Prisma__RegulatoryRecordClient<runtime.Types.Result.GetResult<Prisma.$RegulatoryRecordPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  snapshotRegisto<T extends Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs>>): Prisma.Prisma__CatalogoNacionalRegistoImportadoClient<runtime.Types.Result.GetResult<Prisma.$CatalogoNacionalRegistoImportadoPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1564,7 +1523,7 @@ export interface ProdutoGrupoLaboratorialFieldRefs {
   readonly grupoLaboratorialId: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'String'>
   readonly origem: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'String'>
   readonly regraCnpId: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'String'>
-  readonly snapshotCnp: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'Int'>
+  readonly snapshotRegistoId: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'String'>
   readonly validadoManualmente: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'Boolean'>
   readonly evidencia: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'String'>
   readonly dataCriacao: Prisma.FieldRef<"ProdutoGrupoLaboratorial", 'DateTime'>
@@ -1989,22 +1948,22 @@ export type ProdutoGrupoLaboratorial$regraCnpArgs<ExtArgs extends runtime.Types.
 }
 
 /**
- * ProdutoGrupoLaboratorial.snapshot
+ * ProdutoGrupoLaboratorial.snapshotRegisto
  */
-export type ProdutoGrupoLaboratorial$snapshotArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type ProdutoGrupoLaboratorial$snapshotRegistoArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
-   * Select specific fields to fetch from the RegulatoryRecord
+   * Select specific fields to fetch from the CatalogoNacionalRegistoImportado
    */
-  select?: Prisma.RegulatoryRecordSelect<ExtArgs> | null
+  select?: Prisma.CatalogoNacionalRegistoImportadoSelect<ExtArgs> | null
   /**
-   * Omit specific fields from the RegulatoryRecord
+   * Omit specific fields from the CatalogoNacionalRegistoImportado
    */
-  omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
+  omit?: Prisma.CatalogoNacionalRegistoImportadoOmit<ExtArgs> | null
   /**
    * Choose, which related nodes to fetch as well
    */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  where?: Prisma.RegulatoryRecordWhereInput
+  include?: Prisma.CatalogoNacionalRegistoImportadoInclude<ExtArgs> | null
+  where?: Prisma.CatalogoNacionalRegistoImportadoWhereInput
 }
 
 /**

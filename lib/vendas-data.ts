@@ -94,6 +94,7 @@ import {
 import type { SharedReportFilters } from "@/lib/reporting/filters-shared";
 import { naturezasIncluidas } from "@/lib/reporting/natureza-venda";
 import { construirCondicaoPesquisa } from "@/lib/reporting/pesquisa-produto";
+import { resolverProdutoIdsPorLaboratoriosSelecionados } from "@/lib/reporting/resolver-laboratorio-selecionado";
 import {
   SQL_LINHAS_ELEGIVEIS,
   SQL_QUANTIDADE_ASSINADA,
@@ -314,20 +315,16 @@ export async function getVendasData(
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }
   if (filters.fabricantes && filters.fabricantes.length > 0) {
-    const fabs = await prisma.fabricante.findMany({
-      where: { nomeNormalizado: { in: filters.fabricantes }, estado: "ATIVO" },
-      select: { id: true },
-    });
-    const fabIds = fabs.map((f) => f.id);
-    if (fabIds.length === 0) return { period, rows: [] };
-    const produtos = await prisma.produto.findMany({
-      where: {
-        fabricanteId: { in: fabIds },
-        ...(produtoIdFilter ? { id: { in: produtoIdFilter } } : {}),
-      },
-      select: { id: true },
-    });
-    produtoIdFilter = produtos.map((p) => p.id);
+    // Resolve nomes de fabricante OU de grupo laboratorial (garantia) —
+    // mesmo resolvedor partilhado com Margens/Inventário, nunca duplicado.
+    const idsLaboratorio = await resolverProdutoIdsPorLaboratoriosSelecionados(prisma, filters.fabricantes);
+    if (idsLaboratorio.length === 0) return { period, rows: [] };
+    if (produtoIdFilter) {
+      const idsLaboratorioSet = new Set(idsLaboratorio);
+      produtoIdFilter = produtoIdFilter.filter((id) => idsLaboratorioSet.has(id));
+    } else {
+      produtoIdFilter = idsLaboratorio;
+    }
     if (produtoIdFilter.length === 0) return { period, rows: [] };
   }
   // Lista de CNP importada, subcategoria (N2) e utilizacao —

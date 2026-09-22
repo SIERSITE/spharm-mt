@@ -27,6 +27,7 @@
 import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
 
 export type ReportingFilterOptions = {
   /**
@@ -40,6 +41,14 @@ export type ReportingFilterOptions = {
   /**
    * Fabricantes / laboratórios canónicos (Bayer, Bial, Pfizer, …).
    * Vem de `Fabricante.nomeNormalizado` (canon, com aliases).
+   *
+   * SÓ no tenant garantia: um fabricante integralmente associado a um
+   * grupo laboratorial pesquisável (ex.: "Mylan") é substituído pelo
+   * nome do grupo ("Viatris") — nunca aparecem os dois como opções
+   * concorrentes. `resolverProdutoIdsPorLaboratoriosSelecionados`
+   * (lib/reporting/resolver-laboratorio-selecionado.ts) sabe resolver
+   * qualquer um dos dois tipos de nome de volta a produtos. Nos
+   * restantes tenants este campo é exactamente o que sempre foi.
    */
   fabricantes: string[];
   /**
@@ -124,6 +133,27 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     `
   );
 
+  // Grupo laboratorial pesquisável — SÓ para o tenant garantia (ver
+  // lib/tenant-context.ts). Um fabricante integralmente associado a um
+  // grupo é removido da lista de fabricantes "soltos" — é assim que se
+  // evita, aqui como no catálogo, o mesmo laboratório aparecer duas
+  // vezes como duas opções concorrentes (o grupo E o fabricante). Fora
+  // de garantia este bloco não corre — `fabricantes` fica exactamente
+  // como sempre esteve.
+  let fabricantesFinal = cleanSortUnique(fabricanteRows.map((r) => r.nome));
+  const tenantSlug = await resolveCurrentTenantSlug();
+  if (tenantSlug === TENANT_GRUPOS_LABORATORIAIS) {
+    const [grupos, associacoesIntegrais] = await Promise.all([
+      prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { nome: true } }),
+      prisma.grupoLaboratorialFabricante.findMany({ select: { fabricante: { select: { nomeNormalizado: true } } } }),
+    ]);
+    const nomesIntegraisNumGrupo = new Set(associacoesIntegrais.map((a) => a.fabricante.nomeNormalizado));
+    fabricantesFinal = cleanSortUnique([
+      ...grupos.map((g) => g.nome),
+      ...fabricantesFinal.filter((nome) => !nomesIntegraisNumGrupo.has(nome)),
+    ]);
+  }
+
   // Categorias: SÓ canónicas (Classificacao NIVEL_1 estado=ATIVO). Sem UNION
   // com categoriaOrigem — esse texto não é fiável e contradiz a regra de
   // "SPharmMT é a fonte de verdade para classificação".
@@ -189,7 +219,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
   return {
     distribuidores,
     fornecedores: distribuidores, // alias deprecated — mesma lista
-    fabricantes: cleanSortUnique(fabricanteRows.map((r) => r.nome)),
+    fabricantes: fabricantesFinal,
     categorias,
     subcategorias: subcategoriaRows
       .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))

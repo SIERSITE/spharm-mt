@@ -57,6 +57,8 @@ export const ModelName = {
   GrupoLaboratorial: 'GrupoLaboratorial',
   GrupoLaboratorialAlias: 'GrupoLaboratorialAlias',
   GrupoLaboratorialFabricante: 'GrupoLaboratorialFabricante',
+  CatalogoNacionalImportacao: 'CatalogoNacionalImportacao',
+  CatalogoNacionalRegistoImportado: 'CatalogoNacionalRegistoImportado',
   ProdutoGrupoLaboratorial: 'ProdutoGrupoLaboratorial',
   RegraGrupoLaboratorialPorCnp: 'RegraGrupoLaboratorialPorCnp',
   Classificacao: 'Classificacao',
@@ -234,13 +236,39 @@ export const GrupoLaboratorialFabricanteScalarFieldEnum = {
 export type GrupoLaboratorialFabricanteScalarFieldEnum = (typeof GrupoLaboratorialFabricanteScalarFieldEnum)[keyof typeof GrupoLaboratorialFabricanteScalarFieldEnum]
 
 
+export const CatalogoNacionalImportacaoScalarFieldEnum = {
+  id: 'id',
+  nomeFicheiro: 'nomeFicheiro',
+  hashSha256: 'hashSha256',
+  dataReferencia: 'dataReferencia',
+  importadoEm: 'importadoEm',
+  source: 'source',
+  totalRegistos: 'totalRegistos',
+  totalCnpValidos: 'totalCnpValidos'
+} as const
+
+export type CatalogoNacionalImportacaoScalarFieldEnum = (typeof CatalogoNacionalImportacaoScalarFieldEnum)[keyof typeof CatalogoNacionalImportacaoScalarFieldEnum]
+
+
+export const CatalogoNacionalRegistoImportadoScalarFieldEnum = {
+  id: 'id',
+  importacaoId: 'importacaoId',
+  cnp: 'cnp',
+  titularObservado: 'titularObservado',
+  estadoObservado: 'estadoObservado',
+  designacaoObservada: 'designacaoObservada'
+} as const
+
+export type CatalogoNacionalRegistoImportadoScalarFieldEnum = (typeof CatalogoNacionalRegistoImportadoScalarFieldEnum)[keyof typeof CatalogoNacionalRegistoImportadoScalarFieldEnum]
+
+
 export const ProdutoGrupoLaboratorialScalarFieldEnum = {
   id: 'id',
   produtoId: 'produtoId',
   grupoLaboratorialId: 'grupoLaboratorialId',
   origem: 'origem',
   regraCnpId: 'regraCnpId',
-  snapshotCnp: 'snapshotCnp',
+  snapshotRegistoId: 'snapshotRegistoId',
   validadoManualmente: 'validadoManualmente',
   evidencia: 'evidencia',
   dataCriacao: 'dataCriacao',

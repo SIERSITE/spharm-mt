@@ -290,7 +290,6 @@ export type RegulatoryRecordWhereInput = {
   source?: Prisma.StringFilter<"RegulatoryRecord"> | string
   importedAt?: Prisma.DateTimeFilter<"RegulatoryRecord"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"RegulatoryRecord"> | Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialListRelationFilter
 }
 
 export type RegulatoryRecordOrderByWithRelationInput = {
@@ -307,7 +306,6 @@ export type RegulatoryRecordOrderByWithRelationInput = {
   source?: Prisma.SortOrder
   importedAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialOrderByRelationAggregateInput
 }
 
 export type RegulatoryRecordWhereUniqueInput = Prisma.AtLeast<{
@@ -327,7 +325,6 @@ export type RegulatoryRecordWhereUniqueInput = Prisma.AtLeast<{
   source?: Prisma.StringFilter<"RegulatoryRecord"> | string
   importedAt?: Prisma.DateTimeFilter<"RegulatoryRecord"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"RegulatoryRecord"> | Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialListRelationFilter
 }, "cnp">
 
 export type RegulatoryRecordOrderByWithAggregationInput = {
@@ -384,7 +381,6 @@ export type RegulatoryRecordCreateInput = {
   source: string
   importedAt?: Date | string
   updatedAt?: Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialCreateNestedManyWithoutSnapshotInput
 }
 
 export type RegulatoryRecordUncheckedCreateInput = {
@@ -401,7 +397,6 @@ export type RegulatoryRecordUncheckedCreateInput = {
   source: string
   importedAt?: Date | string
   updatedAt?: Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedCreateNestedManyWithoutSnapshotInput
 }
 
 export type RegulatoryRecordUpdateInput = {
@@ -418,7 +413,6 @@ export type RegulatoryRecordUpdateInput = {
   source?: Prisma.StringFieldUpdateOperationsInput | string
   importedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUpdateManyWithoutSnapshotNestedInput
 }
 
 export type RegulatoryRecordUncheckedUpdateInput = {
@@ -435,7 +429,6 @@ export type RegulatoryRecordUncheckedUpdateInput = {
   source?: Prisma.StringFieldUpdateOperationsInput | string
   importedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  propostasGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialUncheckedUpdateManyWithoutSnapshotNestedInput
 }
 
 export type RegulatoryRecordCreateManyInput = {
@@ -484,11 +477,6 @@ export type RegulatoryRecordUncheckedUpdateManyInput = {
   source?: Prisma.StringFieldUpdateOperationsInput | string
   importedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
-export type RegulatoryRecordNullableScalarRelationFilter = {
-  is?: Prisma.RegulatoryRecordWhereInput | null
-  isNot?: Prisma.RegulatoryRecordWhereInput | null
 }
 
 export type RegulatoryRecordCountOrderByAggregateInput = {
@@ -547,131 +535,6 @@ export type RegulatoryRecordSumOrderByAggregateInput = {
   cnp?: Prisma.SortOrder
 }
 
-export type RegulatoryRecordCreateNestedOneWithoutPropostasGrupoLaboratorialInput = {
-  create?: Prisma.XOR<Prisma.RegulatoryRecordCreateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedCreateWithoutPropostasGrupoLaboratorialInput>
-  connectOrCreate?: Prisma.RegulatoryRecordCreateOrConnectWithoutPropostasGrupoLaboratorialInput
-  connect?: Prisma.RegulatoryRecordWhereUniqueInput
-}
-
-export type RegulatoryRecordUpdateOneWithoutPropostasGrupoLaboratorialNestedInput = {
-  create?: Prisma.XOR<Prisma.RegulatoryRecordCreateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedCreateWithoutPropostasGrupoLaboratorialInput>
-  connectOrCreate?: Prisma.RegulatoryRecordCreateOrConnectWithoutPropostasGrupoLaboratorialInput
-  upsert?: Prisma.RegulatoryRecordUpsertWithoutPropostasGrupoLaboratorialInput
-  disconnect?: Prisma.RegulatoryRecordWhereInput | boolean
-  delete?: Prisma.RegulatoryRecordWhereInput | boolean
-  connect?: Prisma.RegulatoryRecordWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.RegulatoryRecordUpdateToOneWithWhereWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUpdateWithoutPropostasGrupoLaboratorialInput>, Prisma.RegulatoryRecordUncheckedUpdateWithoutPropostasGrupoLaboratorialInput>
-}
-
-export type RegulatoryRecordCreateWithoutPropostasGrupoLaboratorialInput = {
-  cnp: number
-  designacaoOficial?: string | null
-  dci?: string | null
-  codigoATC?: string | null
-  formaFarmaceutica?: string | null
-  dosagem?: string | null
-  embalagem?: string | null
-  grupoTerapeutico?: string | null
-  titularAim?: string | null
-  estadoAim?: string | null
-  source: string
-  importedAt?: Date | string
-  updatedAt?: Date | string
-}
-
-export type RegulatoryRecordUncheckedCreateWithoutPropostasGrupoLaboratorialInput = {
-  cnp: number
-  designacaoOficial?: string | null
-  dci?: string | null
-  codigoATC?: string | null
-  formaFarmaceutica?: string | null
-  dosagem?: string | null
-  embalagem?: string | null
-  grupoTerapeutico?: string | null
-  titularAim?: string | null
-  estadoAim?: string | null
-  source: string
-  importedAt?: Date | string
-  updatedAt?: Date | string
-}
-
-export type RegulatoryRecordCreateOrConnectWithoutPropostasGrupoLaboratorialInput = {
-  where: Prisma.RegulatoryRecordWhereUniqueInput
-  create: Prisma.XOR<Prisma.RegulatoryRecordCreateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedCreateWithoutPropostasGrupoLaboratorialInput>
-}
-
-export type RegulatoryRecordUpsertWithoutPropostasGrupoLaboratorialInput = {
-  update: Prisma.XOR<Prisma.RegulatoryRecordUpdateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedUpdateWithoutPropostasGrupoLaboratorialInput>
-  create: Prisma.XOR<Prisma.RegulatoryRecordCreateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedCreateWithoutPropostasGrupoLaboratorialInput>
-  where?: Prisma.RegulatoryRecordWhereInput
-}
-
-export type RegulatoryRecordUpdateToOneWithWhereWithoutPropostasGrupoLaboratorialInput = {
-  where?: Prisma.RegulatoryRecordWhereInput
-  data: Prisma.XOR<Prisma.RegulatoryRecordUpdateWithoutPropostasGrupoLaboratorialInput, Prisma.RegulatoryRecordUncheckedUpdateWithoutPropostasGrupoLaboratorialInput>
-}
-
-export type RegulatoryRecordUpdateWithoutPropostasGrupoLaboratorialInput = {
-  cnp?: Prisma.IntFieldUpdateOperationsInput | number
-  designacaoOficial?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  grupoTerapeutico?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  titularAim?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  estadoAim?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  source?: Prisma.StringFieldUpdateOperationsInput | string
-  importedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
-export type RegulatoryRecordUncheckedUpdateWithoutPropostasGrupoLaboratorialInput = {
-  cnp?: Prisma.IntFieldUpdateOperationsInput | number
-  designacaoOficial?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dci?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  codigoATC?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  formaFarmaceutica?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  dosagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  embalagem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  grupoTerapeutico?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  titularAim?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  estadoAim?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  source?: Prisma.StringFieldUpdateOperationsInput | string
-  importedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-}
-
-
-/**
- * Count Type RegulatoryRecordCountOutputType
- */
-
-export type RegulatoryRecordCountOutputType = {
-  propostasGrupoLaboratorial: number
-}
-
-export type RegulatoryRecordCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  propostasGrupoLaboratorial?: boolean | RegulatoryRecordCountOutputTypeCountPropostasGrupoLaboratorialArgs
-}
-
-/**
- * RegulatoryRecordCountOutputType without action
- */
-export type RegulatoryRecordCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the RegulatoryRecordCountOutputType
-   */
-  select?: Prisma.RegulatoryRecordCountOutputTypeSelect<ExtArgs> | null
-}
-
-/**
- * RegulatoryRecordCountOutputType without action
- */
-export type RegulatoryRecordCountOutputTypeCountPropostasGrupoLaboratorialArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  where?: Prisma.ProdutoGrupoLaboratorialWhereInput
-}
 
 
 export type RegulatoryRecordSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -688,8 +551,6 @@ export type RegulatoryRecordSelect<ExtArgs extends runtime.Types.Extensions.Inte
   source?: boolean
   importedAt?: boolean
   updatedAt?: boolean
-  propostasGrupoLaboratorial?: boolean | Prisma.RegulatoryRecord$propostasGrupoLaboratorialArgs<ExtArgs>
-  _count?: boolean | Prisma.RegulatoryRecordCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["regulatoryRecord"]>
 
 export type RegulatoryRecordSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -741,22 +602,10 @@ export type RegulatoryRecordSelectScalar = {
 }
 
 export type RegulatoryRecordOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"cnp" | "designacaoOficial" | "dci" | "codigoATC" | "formaFarmaceutica" | "dosagem" | "embalagem" | "grupoTerapeutico" | "titularAim" | "estadoAim" | "source" | "importedAt" | "updatedAt", ExtArgs["result"]["regulatoryRecord"]>
-export type RegulatoryRecordInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  propostasGrupoLaboratorial?: boolean | Prisma.RegulatoryRecord$propostasGrupoLaboratorialArgs<ExtArgs>
-  _count?: boolean | Prisma.RegulatoryRecordCountOutputTypeDefaultArgs<ExtArgs>
-}
-export type RegulatoryRecordIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
-export type RegulatoryRecordIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 
 export type $RegulatoryRecordPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "RegulatoryRecord"
-  objects: {
-    /**
-     * Propostas de grupo laboratorial (nível 3 da precedência) derivadas
-     * deste registo por CNP — nunca aplicadas automaticamente sem validação.
-     */
-    propostasGrupoLaboratorial: Prisma.$ProdutoGrupoLaboratorialPayload<ExtArgs>[]
-  }
+  objects: {}
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     cnp: number
     designacaoOficial: string | null
@@ -1176,7 +1025,6 @@ readonly fields: RegulatoryRecordFieldRefs;
  */
 export interface Prisma__RegulatoryRecordClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
-  propostasGrupoLaboratorial<T extends Prisma.RegulatoryRecord$propostasGrupoLaboratorialArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.RegulatoryRecord$propostasGrupoLaboratorialArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoGrupoLaboratorialPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1236,10 +1084,6 @@ export type RegulatoryRecordFindUniqueArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * Filter, which RegulatoryRecord to fetch.
    */
   where: Prisma.RegulatoryRecordWhereUniqueInput
@@ -1258,10 +1102,6 @@ export type RegulatoryRecordFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * Filter, which RegulatoryRecord to fetch.
    */
   where: Prisma.RegulatoryRecordWhereUniqueInput
@@ -1279,10 +1119,6 @@ export type RegulatoryRecordFindFirstArgs<ExtArgs extends runtime.Types.Extensio
    * Omit specific fields from the RegulatoryRecord
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
   /**
    * Filter, which RegulatoryRecord to fetch.
    */
@@ -1332,10 +1168,6 @@ export type RegulatoryRecordFindFirstOrThrowArgs<ExtArgs extends runtime.Types.E
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * Filter, which RegulatoryRecord to fetch.
    */
   where?: Prisma.RegulatoryRecordWhereInput
@@ -1383,10 +1215,6 @@ export type RegulatoryRecordFindManyArgs<ExtArgs extends runtime.Types.Extension
    * Omit specific fields from the RegulatoryRecord
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
   /**
    * Filter, which RegulatoryRecords to fetch.
    */
@@ -1436,10 +1264,6 @@ export type RegulatoryRecordCreateArgs<ExtArgs extends runtime.Types.Extensions.
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * The data needed to create a RegulatoryRecord.
    */
   data: Prisma.XOR<Prisma.RegulatoryRecordCreateInput, Prisma.RegulatoryRecordUncheckedCreateInput>
@@ -1487,10 +1311,6 @@ export type RegulatoryRecordUpdateArgs<ExtArgs extends runtime.Types.Extensions.
    * Omit specific fields from the RegulatoryRecord
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
   /**
    * The data needed to update a RegulatoryRecord.
    */
@@ -1558,10 +1378,6 @@ export type RegulatoryRecordUpsertArgs<ExtArgs extends runtime.Types.Extensions.
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * The filter to search for the RegulatoryRecord to update in case it exists.
    */
   where: Prisma.RegulatoryRecordWhereUniqueInput
@@ -1588,10 +1404,6 @@ export type RegulatoryRecordDeleteArgs<ExtArgs extends runtime.Types.Extensions.
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
   /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
-  /**
    * Filter which RegulatoryRecord to delete.
    */
   where: Prisma.RegulatoryRecordWhereUniqueInput
@@ -1612,30 +1424,6 @@ export type RegulatoryRecordDeleteManyArgs<ExtArgs extends runtime.Types.Extensi
 }
 
 /**
- * RegulatoryRecord.propostasGrupoLaboratorial
- */
-export type RegulatoryRecord$propostasGrupoLaboratorialArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
-  /**
-   * Select specific fields to fetch from the ProdutoGrupoLaboratorial
-   */
-  select?: Prisma.ProdutoGrupoLaboratorialSelect<ExtArgs> | null
-  /**
-   * Omit specific fields from the ProdutoGrupoLaboratorial
-   */
-  omit?: Prisma.ProdutoGrupoLaboratorialOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.ProdutoGrupoLaboratorialInclude<ExtArgs> | null
-  where?: Prisma.ProdutoGrupoLaboratorialWhereInput
-  orderBy?: Prisma.ProdutoGrupoLaboratorialOrderByWithRelationInput | Prisma.ProdutoGrupoLaboratorialOrderByWithRelationInput[]
-  cursor?: Prisma.ProdutoGrupoLaboratorialWhereUniqueInput
-  take?: number
-  skip?: number
-  distinct?: Prisma.ProdutoGrupoLaboratorialScalarFieldEnum | Prisma.ProdutoGrupoLaboratorialScalarFieldEnum[]
-}
-
-/**
  * RegulatoryRecord without action
  */
 export type RegulatoryRecordDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1647,8 +1435,4 @@ export type RegulatoryRecordDefaultArgs<ExtArgs extends runtime.Types.Extensions
    * Omit specific fields from the RegulatoryRecord
    */
   omit?: Prisma.RegulatoryRecordOmit<ExtArgs> | null
-  /**
-   * Choose, which related nodes to fetch as well
-   */
-  include?: Prisma.RegulatoryRecordInclude<ExtArgs> | null
 }

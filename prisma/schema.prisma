@@ -548,6 +548,60 @@ model GrupoLaboratorialFabricante {
   @@index([grupoLaboratorialId])
 }
 
+/// UMA importação imutável do catálogo nacional completo — uma linha por
+/// corrida do importador, NUNCA actualizada depois de criada.
+///
+/// Existe porque `RegulatoryRecord` é um modelo de LEITURA actual (upsert,
+/// "preserva não-null" ou `--force` sobrescreve — ver import-regulatory-record.ts):
+/// óptimo para responder "o que é que o catálogo diz HOJE", péssimo para
+/// responder "o que é que o catálogo dizia QUANDO esta classificação foi
+/// decidida" — se o titular ou o estado de um CNP mudar amanhã num novo
+/// upsert, uma classificação de grupo que apontasse só para
+/// `RegulatoryRecord.cnp` passaria a apontar, silenciosamente, para um
+/// conteúdo diferente do que a originou. `CatalogoNacionalRegistoImportado`
+/// (abaixo) é o registo imutável que resolve isto — nunca é tocado depois
+/// de escrito, mesmo que uma importação posterior actualize o
+/// `RegulatoryRecord` correspondente.
+model CatalogoNacionalImportacao {
+  id              String   @id @default(cuid())
+  nomeFicheiro    String
+  hashSha256      String
+  /// Data a que o próprio catálogo se refere (ex.: a data do snapshot
+  /// nacional), distinta de `importadoEm` (quando ESTA corrida correu).
+  dataReferencia  DateTime
+  importadoEm     DateTime @default(now())
+  /// Mesma tag gravada em RegulatoryRecord.source por esta corrida.
+  source          String
+  totalRegistos   Int
+  totalCnpValidos Int
+
+  registos CatalogoNacionalRegistoImportado[]
+
+  @@index([hashSha256])
+  @@index([importadoEm])
+}
+
+/// UM registo (CNP) dentro de UMA importação — imutável. É a prova de "o
+/// catálogo dizia X para este CNP, nesta importação, neste ficheiro, com
+/// este hash" — independentemente do que `RegulatoryRecord` diga depois
+/// de um upsert posterior. `@@unique([importacaoId, cnp])`: o mesmo CNP
+/// pode aparecer em IMPORTAÇÕES diferentes (histórico completo), nunca
+/// duas vezes dentro da MESMA importação.
+model CatalogoNacionalRegistoImportado {
+  id                  String  @id @default(cuid())
+  importacaoId        String
+  cnp                 Int
+  titularObservado    String?
+  estadoObservado     String?
+  designacaoObservada String?
+
+  importacao CatalogoNacionalImportacao @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+  propostas  ProdutoGrupoLaboratorial[]
+
+  @@unique([importacaoId, cnp])
+  @@index([cnp])
+}
+
 /// O grupo EFECTIVO e já resolvido de um produto — a única tabela que a
 /// pesquisa/filtro lê. `produtoId` é `@unique`: um produto só pode ter
 /// um grupo. Nunca escreve em `Produto.fabricanteId` — são camadas
@@ -561,23 +615,26 @@ model ProdutoGrupoLaboratorial {
   /// Texto livre e não enum, mesma convenção de `Produto.classificacaoOrigem`.
   origem              String
   regraCnpId          String?
-  /// CNP do RegulatoryRecord que originou uma proposta SNAPSHOT_CNP — FK
-  /// real (não um id solto sem integridade referencial), auditável até
-  /// ao registo regulatório exacto que a gerou. Null nos outros 4 níveis.
-  snapshotCnp         Int?
+  /// FK para o REGISTO IMUTÁVEL (não para RegulatoryRecord.cnp — ver o
+  /// doc comment de CatalogoNacionalImportacao para o porquê) que
+  /// originou uma proposta SNAPSHOT_CNP. Continua a apontar para o
+  /// titular/estado observados NAQUELA importação, mesmo que
+  /// RegulatoryRecord seja actualizado depois por uma importação
+  /// posterior. Null nos outros 4 níveis.
+  snapshotRegistoId   String?
   validadoManualmente Boolean  @default(false)
   evidencia           String?
   dataCriacao         DateTime @default(now())
   dataAtualizacao     DateTime @updatedAt
 
-  produto           Produto                       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  grupoLaboratorial GrupoLaboratorial             @relation(fields: [grupoLaboratorialId], references: [id])
-  regraCnp          RegraGrupoLaboratorialPorCnp? @relation(fields: [regraCnpId], references: [id])
-  snapshot          RegulatoryRecord?             @relation(fields: [snapshotCnp], references: [cnp])
+  produto           Produto                           @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  grupoLaboratorial GrupoLaboratorial                 @relation(fields: [grupoLaboratorialId], references: [id])
+  regraCnp          RegraGrupoLaboratorialPorCnp?      @relation(fields: [regraCnpId], references: [id])
+  snapshotRegisto   CatalogoNacionalRegistoImportado?  @relation(fields: [snapshotRegistoId], references: [id])
 
   @@index([grupoLaboratorialId])
   @@index([regraCnpId])
-  @@index([snapshotCnp])
+  @@index([snapshotRegistoId])
 }
 
 /// Sucessão empresarial AO NÍVEL DO CNP — cobre os casos em que só parte
@@ -900,10 +957,6 @@ model RegulatoryRecord {
   source            String
   importedAt        DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  /// Propostas de grupo laboratorial (nível 3 da precedência) derivadas
-  /// deste registo por CNP — nunca aplicadas automaticamente sem validação.
-  propostasGrupoLaboratorial ProdutoGrupoLaboratorial[]
 
   @@index([codigoATC])
   @@index([dci])

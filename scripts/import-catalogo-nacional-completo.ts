@@ -41,6 +41,7 @@
  *   --permitir-externo Necessário se o tenant não for a VPS de produção.
  */
 import "dotenv/config";
+import { createHash } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -48,6 +49,18 @@ import { buildTenantConnectionString, getTenantBySlug } from "../lib/control-pla
 import { AlvoRecusado, descreverAlvo, resolverAlvo, type AlvoDb } from "../lib/catalog/target-db";
 import { lerCatalogoNacional, type RegistoCatalogoNacionalBruto, type ErroReconstrucaoCatalogo } from "../lib/catalog/catalogo-nacional-parser";
 import { upsertBatch, type ParsedRow, type UpsertCounters } from "./import-regulatory-record";
+
+/**
+ * SHA-256 do ficheiro em streaming — nunca o carrega inteiro para
+ * memória. Junto com `nomeFicheiro`/`dataReferencia`, é a prova de
+ * EXACTAMENTE que conteúdo gerou uma dada `CatalogoNacionalImportacao`.
+ */
+export async function hashSha256DoFicheiro(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(filePath);
+  for await (const chunk of stream) hash.update(chunk as Buffer);
+  return hash.digest("hex");
+}
 
 export type Args = {
   file: string;
@@ -96,28 +109,66 @@ export type EstatisticasImportacao = {
   erros: ErroReconstrucaoCatalogo[];
   cnpDuplicadosNoFicheiro: number;
   totais: UpsertCounters;
+  /** Id da CatalogoNacionalImportacao criada — null em dry-run (nunca escreve nada imutável a simular). */
+  importacaoId: string | null;
+  hashSha256: string;
 };
+
+type PrismaComProveniencia = Parameters<typeof upsertBatch>[4] &
+  Pick<PrismaClient, "catalogoNacionalImportacao" | "catalogoNacionalRegistoImportado">;
 
 /**
  * Consome o generator do parser em batches, delega cada batch a
  * `upsertBatch` — nunca acumula o ficheiro inteiro em memória (o maior
  * array vivo em qualquer momento é UM batch, `batchSize` registos).
+ *
+ * Em modo APPLY (nunca em dry-run), cria também UMA
+ * `CatalogoNacionalImportacao` imutável para esta corrida — com o hash
+ * do ficheiro — e UM `CatalogoNacionalRegistoImportado` por registo
+ * válido, na mesma cadência de batches. É esta linha, não
+ * `RegulatoryRecord` (mutável, upsert), que fica como prova de "o
+ * catálogo dizia X quando isto foi decidido", mesmo que uma importação
+ * posterior actualize `RegulatoryRecord` para outra coisa. Ver o doc
+ * comment de `CatalogoNacionalImportacao` em prisma/schema.prisma.
  */
 export async function importarCatalogoNacional(
   filePath: string,
   args: Pick<Args, "source" | "dryRun" | "force" | "batchSize" | "limit">,
-  prismaClient: Parameters<typeof upsertBatch>[4],
+  prismaClient: PrismaComProveniencia,
   onBatch?: (processados: number) => void,
+  dataReferencia: Date = new Date(),
 ): Promise<EstatisticasImportacao> {
   const stats: EstatisticasImportacao = {
     registosLidos: 0,
     erros: [],
     cnpDuplicadosNoFicheiro: 0,
     totais: { inserted: 0, updatedSomeFields: 0, unchanged: 0, failed: 0 },
+    importacaoId: null,
+    hashSha256: await hashSha256DoFicheiro(filePath),
   };
+
+  if (!args.dryRun) {
+    const importacao = await prismaClient.catalogoNacionalImportacao.create({
+      data: {
+        nomeFicheiro: filePath,
+        hashSha256: stats.hashSha256,
+        dataReferencia,
+        source: args.source,
+        // Placeholder — actualizado UMA vez, no fim DESTA MESMA corrida,
+        // quando os totais reais são conhecidos. Nunca mais tocado depois
+        // (nenhuma corrida futura escreve nesta linha) — não é o mesmo
+        // que "mutável como RegulatoryRecord".
+        totalRegistos: 0,
+        totalCnpValidos: 0,
+      },
+      select: { id: true },
+    });
+    stats.importacaoId = importacao.id;
+  }
 
   const cnpVistos = new Set<number>();
   let batch: ParsedRow[] = [];
+  let batchRegistosImportados: Array<{ cnp: number; titularObservado: string | null; estadoObservado: string | null; designacaoObservada: string | null }> = [];
 
   const input = createReadStream(filePath, { encoding: "latin1" });
 
@@ -128,8 +179,17 @@ export async function importarCatalogoNacional(
     stats.totais.updatedSomeFields += c.updatedSomeFields;
     stats.totais.unchanged += c.unchanged;
     stats.totais.failed += c.failed;
+
+    if (!args.dryRun && stats.importacaoId && batchRegistosImportados.length > 0) {
+      await prismaClient.catalogoNacionalRegistoImportado.createMany({
+        data: batchRegistosImportados.map((r) => ({ importacaoId: stats.importacaoId!, ...r })),
+        skipDuplicates: true,
+      });
+    }
+
     onBatch?.(stats.registosLidos);
     batch = [];
+    batchRegistosImportados = [];
   };
 
   for await (const evento of lerCatalogoNacional(input)) {
@@ -144,9 +204,22 @@ export async function importarCatalogoNacional(
     else cnpVistos.add(evento.registo.cnp);
 
     batch.push(registoParaParsedRow(evento.registo));
+    batchRegistosImportados.push({
+      cnp: evento.registo.cnp,
+      titularObservado: evento.registo.titular,
+      estadoObservado: evento.registo.estado,
+      designacaoObservada: evento.registo.designacao,
+    });
     if (batch.length >= args.batchSize) await processarBatch();
   }
   await processarBatch();
+
+  if (!args.dryRun && stats.importacaoId) {
+    await prismaClient.catalogoNacionalImportacao.update({
+      where: { id: stats.importacaoId },
+      data: { totalRegistos: stats.registosLidos, totalCnpValidos: stats.registosLidos - stats.cnpDuplicadosNoFicheiro },
+    });
+  }
 
   return stats;
 }
