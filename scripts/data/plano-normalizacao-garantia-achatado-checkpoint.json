@@ -6,15 +6,16 @@
     "A investigação empresarial está concluída segundo a regra conservadora: só se fundem relações documentadas; na dúvida, as entidades ficam separadas.",
     "Este ficheiro ainda não autoriza --apply. Primeiro é obrigatório adaptar o executor, testar e correr novo dry-run na VPS.",
     "O executor atual tem de suportar canonical_name_after, criar alias da denominação anterior e validar conflitos de unicidade dentro da mesma transação.",
-    "Os grupos initial_orthographic representam variantes textuais já validadas pelo dry-run; os grupos supplemental_research_final incluem fontes e conclusão empresarial."
+    "Os grupos initial_orthographic representam variantes textuais já validadas pelo dry-run; os grupos supplemental_research_final incluem fontes e conclusão empresarial.",
+    "2026-09-22: revisão pós-dry-run real (VPS, tenant garantia) — as 19 promoções de source a canonical (classificação promover_source_a_canonical) foram gravadas explicitamente neste ficheiro (canonical_id trocado, fonte antiga movida para sources[], canonical_rename_required=false); o limite de 60 caracteres em normalizeFabricanteCanonico foi levantado para 120 (sem restrição real na base — Fabricante.nomeNormalizado é TEXT), o que resolveu as 3 denominações que excediam 60 caracteres (grupos IFC Skincare Portugal, Laboratorios Expanscience, Ratiopharm) como renomeações normais; summary recalculado a partir dos 557 grupos."
   ],
   "summary": {
     "groups": 557,
     "source_manufacturers_to_deactivate": 756,
-    "products_to_reassign_unique": 11338,
+    "products_to_reassign_unique": 12854,
     "active_before": 2365,
     "active_after_estimated": 1609,
-    "canonical_renames_required": 36,
+    "canonical_renames_required": 17,
     "final_business_decisions_added_this_revision": 9,
     "protected_legal_entity_families": 15
   },
@@ -582,10 +583,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw3yjg1qu601thl7yai8iw",
-      "canonical_name_before": "ALLIANCE HEALTHCARE SA",
-      "canonical_name_after": "ALLIANCE HEALTHCARE S.A.",
-      "canonical_rename_required": true,
+      "canonical_id": "cmu6bfidf0psy01qmcfa0xwsj",
+      "canonical_name_before": "ALLIANCE HEALTHCARE S A",
+      "canonical_name_after": "ALLIANCE HEALTHCARE S A",
+      "canonical_rename_required": false,
       "relation": "truncamento",
       "reason": "A denominação atual é Alliance Healthcare, S.A., NIF 502693150. Alliance Healthcare Açores, S.A. permanece distinta.",
       "sources": [
@@ -595,14 +596,14 @@
           "products": 1
         },
         {
-          "source_id": "cmu6bfidf0psy01qmcfa0xwsj",
-          "source_name": "ALLIANCE HEALTHCARE S A",
-          "products": 1
-        },
-        {
           "source_id": "cmtjw542x1ue701thcm893f46",
           "source_name": "ALLIANCE HEALTHCARE S.A.",
           "products": 28
+        },
+        {
+          "source_id": "cmtjw3yjg1qu601thl7yai8iw",
+          "source_name": "ALLIANCE HEALTHCARE SA",
+          "products": 83
         }
       ],
       "evidence": [
@@ -777,10 +778,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw516s1u3q01th593qxocy",
-      "canonical_name_before": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA.",
+      "canonical_id": "cmtjw5tky1x5401thm74p1oy0",
+      "canonical_name_before": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA",
       "canonical_name_after": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "mudanca_nome_e_truncamento",
       "reason": "A entidade com NIF 500583650 usa atualmente Angelini Pharma Portugal, Unipessoal, Lda.; Angelini Farmacêutica, Lda. consta como denominação anterior. Angelini Pharma S.p.A. permanece distinta.",
       "sources": [
@@ -800,11 +801,6 @@
           "products": 3
         },
         {
-          "source_id": "cmtjw5tky1x5401thm74p1oy0",
-          "source_name": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA",
-          "products": 10
-        },
-        {
           "source_id": "cmu6cdfiv1m6i01qmq8qmxgw0",
           "source_name": "ANGELINI FARMACEUTICA L DA",
           "products": 0
@@ -813,6 +809,11 @@
           "source_id": "cmtk5fosa009001ny3a9yiv7i",
           "source_name": "ANGELINI FARMACEUTICA L.DA",
           "products": 1
+        },
+        {
+          "source_id": "cmtjw516s1u3q01th593qxocy",
+          "source_name": "ANGELINI PHARMA PORTUGAL UNIPESSOAL LDA.",
+          "products": 13
         }
       ],
       "evidence": [
@@ -1810,10 +1811,10 @@
     },
     {
       "origin": "supplemental_research_final",
-      "canonical_id": "cmtlf1n63norz01nyuwyuo8gu",
-      "canonical_name_before": "BOEHRINGER INGELHEIM PORTUGAL LDA.",
+      "canonical_id": "cmu6enr7f91zp01qmguqas4ho",
+      "canonical_name_before": "BOEHRINGER INGELHEIM PORTUGAL LDA",
       "canonical_name_after": "BOEHRINGER INGELHEIM PORTUGAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "denominacao_incompleta_e_variantes_legais",
       "sources": [
         {
@@ -1832,9 +1833,9 @@
           "products": 3
         },
         {
-          "source_id": "cmu6enr7f91zp01qmguqas4ho",
-          "source_name": "BOEHRINGER INGELHEIM PORTUGAL LDA",
-          "products": 0
+          "source_id": "cmtlf1n63norz01nyuwyuo8gu",
+          "source_name": "BOEHRINGER INGELHEIM PORTUGAL LDA.",
+          "products": 1
         }
       ],
       "evidence": [
@@ -2329,10 +2330,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw50l71u1k01th6mztszff",
-      "canonical_name_before": "CREFAR - REPRESENTACOES LDA.",
+      "canonical_id": "cmu6bfeen0pbg01qmtryi1i23",
+      "canonical_name_before": "CREFAR - REPRESENTACOES LDA",
       "canonical_name_after": "CREFAR - REPRESENTACOES LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao_e_truncamento",
       "reason": "A denominação atual é Crefar - Representações, Lda., NIF 500080135.",
       "sources": [
@@ -2352,9 +2353,9 @@
           "products": 1
         },
         {
-          "source_id": "cmu6bfeen0pbg01qmtryi1i23",
-          "source_name": "CREFAR - REPRESENTACOES LDA",
-          "products": 0
+          "source_id": "cmtjw50l71u1k01th6mztszff",
+          "source_name": "CREFAR - REPRESENTACOES LDA.",
+          "products": 30
         }
       ],
       "evidence": [
@@ -3487,10 +3488,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw6wb721gq01th89xc55at",
-      "canonical_name_before": "FARMOZ - SOCIEDADE TECNICO MEDICINAL",
-      "canonical_name_after": "FARMOZ - SOCIEDADE TECNICO MEDICINAL S.A.",
-      "canonical_rename_required": true,
+      "canonical_id": "cmu6eln948pdg01qm9t6zkm7m",
+      "canonical_name_before": "FARMOZ - SOCIEDADE TECNICO MEDICINAL S A",
+      "canonical_name_after": "FARMOZ - SOCIEDADE TECNICO MEDICINAL S A",
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Farmoz - Sociedade Técnico Medicinal, S.A., NIF 501505334. Biofarmoz e Farmoz Genéricos têm NIF próprios e ficam excluídas.",
       "sources": [
@@ -3510,9 +3511,9 @@
           "products": 0
         },
         {
-          "source_id": "cmu6eln948pdg01qm9t6zkm7m",
-          "source_name": "FARMOZ - SOCIEDADE TECNICO MEDICINAL S A",
-          "products": 0
+          "source_id": "cmtjw6wb721gq01th89xc55at",
+          "source_name": "FARMOZ - SOCIEDADE TECNICO MEDICINAL",
+          "products": 192
         }
       ],
       "evidence": [
@@ -3640,10 +3641,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw4ym11tvn01thbn96vyhy",
-      "canonical_name_before": "FILORGA PORTUGAL UNIPESSOAL LDA.",
+      "canonical_id": "cmu6bfcr40p2l01qmg28f5zaa",
+      "canonical_name_before": "FILORGA PORTUGAL UNIPESSOAL LDA",
       "canonical_name_after": "FILORGA PORTUGAL UNIPESSOAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Filorga Portugal, Unipessoal, Lda., NIF 508657806.",
       "sources": [
@@ -3653,14 +3654,14 @@
           "products": 24
         },
         {
-          "source_id": "cmu6bfcr40p2l01qmg28f5zaa",
-          "source_name": "FILORGA PORTUGAL UNIPESSOAL LDA",
-          "products": 0
-        },
-        {
           "source_id": "cmu6bdzil0hw501qm12qzj32s",
           "source_name": "FILORGA PORTUGAL UNIP LDA",
           "products": 0
+        },
+        {
+          "source_id": "cmtjw4ym11tvn01thbn96vyhy",
+          "source_name": "FILORGA PORTUGAL UNIPESSOAL LDA.",
+          "products": 31
         }
       ],
       "evidence": [
@@ -4934,10 +4935,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw0pc81k2r01th3bpp8nig",
-      "canonical_name_before": "JOHNSON & JOHNSON LDA.",
+      "canonical_id": "cmu6b9pvz08is01qmil1qa0li",
+      "canonical_name_before": "JOHNSON & JOHNSON LDA",
       "canonical_name_after": "JOHNSON & JOHNSON LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A entidade portuguesa atual é Johnson & Johnson, Lda., NIF 500153370. Kenvue permanece expressamente distinta.",
       "sources": [
@@ -4952,9 +4953,9 @@
           "products": 21
         },
         {
-          "source_id": "cmu6b9pvz08is01qmil1qa0li",
-          "source_name": "JOHNSON & JOHNSON LDA",
-          "products": 0
+          "source_id": "cmtjw0pc81k2r01th3bpp8nig",
+          "source_name": "JOHNSON & JOHNSON LDA.",
+          "products": 20
         }
       ],
       "evidence": [
@@ -5092,10 +5093,10 @@
     },
     {
       "origin": "supplemental_research_final",
-      "canonical_id": "cmtjw0wzs1kio01thnvk7l7b3",
-      "canonical_name_before": "L OREAL PORTUGAL UNIPESSOAL LDA.",
+      "canonical_id": "cmu6ba3st09i801qmci9iu1mx",
+      "canonical_name_before": "L OREAL PORTUGAL UNIPESSOAL LDA",
       "canonical_name_after": "L OREAL PORTUGAL UNIPESSOAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "incorporacao_e_consolidacao_de_divisao",
       "sources": [
         {
@@ -5159,9 +5160,9 @@
           "products": 19
         },
         {
-          "source_id": "cmu6ba3st09i801qmci9iu1mx",
-          "source_name": "L OREAL PORTUGAL UNIPESSOAL LDA",
-          "products": 3
+          "source_id": "cmtjw0wzs1kio01thnvk7l7b3",
+          "source_name": "L OREAL PORTUGAL UNIPESSOAL LDA.",
+          "products": 207
         }
       ],
       "evidence": [
@@ -5500,10 +5501,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw2mxn1nt501thrzvw8de8",
-      "canonical_name_before": "LABORATORIOS ATRAL S.A",
-      "canonical_name_after": "LABORATORIOS ATRAL S.A.",
-      "canonical_rename_required": true,
+      "canonical_id": "cmu6bdikv0frz01qmhaan38eb",
+      "canonical_name_before": "LABORATORIOS ATRAL S A",
+      "canonical_name_after": "LABORATORIOS ATRAL S A",
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Laboratórios Atral, S.A., NIF 500162085.",
       "sources": [
@@ -5513,14 +5514,14 @@
           "products": 137
         },
         {
-          "source_id": "cmu6bdikv0frz01qmhaan38eb",
-          "source_name": "LABORATORIOS ATRAL S A",
-          "products": 3
-        },
-        {
           "source_id": "cmtjw3efo1pb901thbo6als7y",
           "source_name": "LABORATORIOS ATRAL SA",
           "products": 16
+        },
+        {
+          "source_id": "cmtjw2mxn1nt501thrzvw8de8",
+          "source_name": "LABORATORIOS ATRAL S.A",
+          "products": 30
         }
       ],
       "evidence": [
@@ -5560,10 +5561,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw0uhg1kcs01th0awqsvzv",
-      "canonical_name_before": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S.A",
-      "canonical_name_after": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S.A.",
-      "canonical_rename_required": true,
+      "canonical_id": "cmu6b9vqr095w01qm6h5mngn6",
+      "canonical_name_before": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S A",
+      "canonical_name_after": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S A",
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Laboratórios Basi - Indústria Farmacêutica, S.A., NIF 506632296.",
       "sources": [
@@ -5578,11 +5579,6 @@
           "products": 13
         },
         {
-          "source_id": "cmu6b9vqr095w01qm6h5mngn6",
-          "source_name": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S A",
-          "products": 1
-        },
-        {
           "source_id": "cmtk5hst1086001nyuhz7psxs",
           "source_name": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S.A.",
           "products": 10
@@ -5591,6 +5587,11 @@
           "source_id": "cmu6bd2uk0dqa01qmt3xtk0v4",
           "source_name": "LABORATORIOS BASI IND F SA",
           "products": 0
+        },
+        {
+          "source_id": "cmtjw0uhg1kcs01th0awqsvzv",
+          "source_name": "LABORATORIOS BASI - INDUSTRIA FARMACEUTICA S.A",
+          "products": 96
         }
       ],
       "evidence": [
@@ -6776,10 +6777,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw4qk91t6u01thxz6oj3xy",
-      "canonical_name_before": "MYLAN LDA.",
+      "canonical_id": "cmtk5hnfe07ig01nyld2gojex",
+      "canonical_name_before": "MYLAN LDA",
       "canonical_name_after": "MYLAN LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "designacoes_comerciais_da_entidade_portuguesa",
       "reason": "Mylan, Lda. é a entidade portuguesa do grupo Viatris. As entradas Mylan Genéricos, Mylan Marcas e Mylan sem forma jurídica são categorias/designações incompletas; Viatris Healthcare, Viatris Limited e as entidades Mylan estrangeiras permanecem distintas.",
       "sources": [
@@ -6799,9 +6800,9 @@
           "products": 156
         },
         {
-          "source_id": "cmtk5hnfe07ig01nyld2gojex",
-          "source_name": "MYLAN LDA",
-          "products": 2
+          "source_id": "cmtjw4qk91t6u01thxz6oj3xy",
+          "source_name": "MYLAN LDA.",
+          "products": 9
         }
       ],
       "evidence": [
@@ -6828,10 +6829,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw0ugi1kch01thp6kte8wm",
-      "canonical_name_before": "NAOS PORTUGAL UNIPESSOAL LDA.",
+      "canonical_id": "cmu6bab7j09uq01qmbsbnj8w8",
+      "canonical_name_before": "NAOS PORTUGAL UNIPESSOAL LDA",
       "canonical_name_after": "NAOS PORTUGAL UNIPESSOAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "mudanca_nome_e_abreviacao",
       "reason": "A entidade com NIF 510041418 usa atualmente a denominação NAOS Portugal, Unipessoal, Lda.; Laboratoire Bioderma Portugal consta como denominação anterior.",
       "sources": [
@@ -6851,9 +6852,9 @@
           "products": 1
         },
         {
-          "source_id": "cmu6bab7j09uq01qmbsbnj8w8",
-          "source_name": "NAOS PORTUGAL UNIPESSOAL LDA",
-          "products": 7
+          "source_id": "cmtjw0ugi1kch01thp6kte8wm",
+          "source_name": "NAOS PORTUGAL UNIPESSOAL LDA.",
+          "products": 213
         }
       ],
       "evidence": [
@@ -6916,10 +6917,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtk5i2q509fa01nyjnytet1h",
-      "canonical_name_before": "NESTLE PORTUGAL UNIPESSOAL LDA.",
+      "canonical_id": "cmtkat4hu5b7w01nyl3jeg7g3",
+      "canonical_name_before": "NESTLE PORTUGAL UNIPESSOAL LDA",
       "canonical_name_after": "NESTLE PORTUGAL UNIPESSOAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "mudanca_forma_juridica_e_abreviacao",
       "reason": "A entidade com NIF 500201307 usa atualmente a denominação Nestlé Portugal, Unipessoal, Lda.; Nestlé Portugal, S.A. consta como denominação anterior.",
       "sources": [
@@ -6934,14 +6935,14 @@
           "products": 37
         },
         {
-          "source_id": "cmtkat4hu5b7w01nyl3jeg7g3",
-          "source_name": "NESTLE PORTUGAL UNIPESSOAL LDA",
-          "products": 3
-        },
-        {
           "source_id": "cmu6ccg731lp701qmukysoqp6",
           "source_name": "NESTLE PORTUGAL S A",
           "products": 0
+        },
+        {
+          "source_id": "cmtk5i2q509fa01nyjnytet1h",
+          "source_name": "NESTLE PORTUGAL UNIPESSOAL LDA.",
+          "products": 36
         }
       ],
       "evidence": [
@@ -7588,10 +7589,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw0pck1k2w01thrsnakx46",
-      "canonical_name_before": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S. A.",
-      "canonical_name_after": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S.A.",
-      "canonical_rename_required": true,
+      "canonical_id": "cmu6b9t1t08yp01qmg17sgjh0",
+      "canonical_name_before": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S A",
+      "canonical_name_after": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S A",
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Pentafarma - Sociedade Técnico Medicinal, S.A., NIF 501261176.",
       "sources": [
@@ -7601,9 +7602,9 @@
           "products": 253
         },
         {
-          "source_id": "cmu6b9t1t08yp01qmg17sgjh0",
-          "source_name": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S A",
-          "products": 0
+          "source_id": "cmtjw0pck1k2w01thrsnakx46",
+          "source_name": "PENTAFARMA - SOCIEDADE TECNICO-MEDICINAL S. A.",
+          "products": 17
         }
       ],
       "evidence": [
@@ -7789,10 +7790,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw0vby1keq01thufhradfd",
-      "canonical_name_before": "PHD - ESPECIALIDADES FARMACEUTICAS LDA.",
+      "canonical_id": "cmu6b9vqu095x01qmsw0pwmf7",
+      "canonical_name_before": "PHD - ESPECIALIDADES FARMACEUTICAS LDA",
       "canonical_name_after": "PHD - ESPECIALIDADES FARMACEUTICAS LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "truncamento",
       "reason": "A denominação atual é PHD - Especialidades Farmacêuticas, Lda., NIF 510189458.",
       "sources": [
@@ -7802,9 +7803,9 @@
           "products": 51
         },
         {
-          "source_id": "cmu6b9vqu095x01qmsw0pwmf7",
-          "source_name": "PHD - ESPECIALIDADES FARMACEUTICAS LDA",
-          "products": 0
+          "source_id": "cmtjw0vby1keq01thufhradfd",
+          "source_name": "PHD - ESPECIALIDADES FARMACEUTICAS LDA.",
+          "products": 147
         }
       ],
       "evidence": [
@@ -7846,10 +7847,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw7lqk24k801thlbfu79o4",
-      "canonical_name_before": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA.",
+      "canonical_id": "cmu6bgt9f0yoh01qml8ehw1aq",
+      "canonical_name_before": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA",
       "canonical_name_after": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "marcas_e_abreviacoes_da_mesma_entidade",
       "reason": "Avène, Ducray, Klorane, A-Derma, René Furterer e Oral Care integram o portefólio dermocosmético Pierre Fabre; a entidade portuguesa é Pierre Fabre Dermo-Cosmétique Portugal, Lda., NIF 501757635. Pierre Fabre Medicament Portugal permanece distinta.",
       "sources": [
@@ -7929,11 +7930,6 @@
           "products": 32
         },
         {
-          "source_id": "cmu6bgt9f0yoh01qml8ehw1aq",
-          "source_name": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA",
-          "products": 2
-        },
-        {
           "source_id": "cmtkaq0a64x9801ny36h7owfx",
           "source_name": "PIERRE FABRE - AVENE",
           "products": 12
@@ -7967,6 +7963,11 @@
           "source_id": "cmu6b9r3p08ok01qmwcdbkd2f",
           "source_name": "PIERRE FABRE DERMO-COSM LDA - HIGIENE ORAL MYCOSTER DEXERYL",
           "products": 0
+        },
+        {
+          "source_id": "cmtjw7lqk24k801thlbfu79o4",
+          "source_name": "PIERRE FABRE DERMO-COSMETIQUE PORTUGAL LDA.",
+          "products": 364
         }
       ],
       "evidence": [
@@ -7978,10 +7979,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw67eq1yjr01thgeqxe2sh",
-      "canonical_name_before": "PIERRE FABRE MEDICAMENT PORTUGAL LDA.",
+      "canonical_id": "cmu6bgexr0vkf01qmc094a370",
+      "canonical_name_before": "PIERRE FABRE MEDICAMENT PORTUGAL LDA",
       "canonical_name_after": "PIERRE FABRE MEDICAMENT PORTUGAL LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "São variantes da entidade portuguesa Pierre Fabre Medicament Portugal, Lda., distinta da entidade Dermo-Cosmétique.",
       "sources": [
@@ -8011,9 +8012,9 @@
           "products": 0
         },
         {
-          "source_id": "cmu6bgexr0vkf01qmc094a370",
-          "source_name": "PIERRE FABRE MEDICAMENT PORTUGAL LDA",
-          "products": 0
+          "source_id": "cmtjw67eq1yjr01thgeqxe2sh",
+          "source_name": "PIERRE FABRE MEDICAMENT PORTUGAL LDA.",
+          "products": 1
         }
       ],
       "evidence": [
@@ -8829,10 +8830,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtjw5eu71vge01thmt5uisi6",
-      "canonical_name_before": "SMITH & NEPHEW LDA.",
+      "canonical_id": "cmu6bfs8p0r9z01qmwyx8lg5y",
+      "canonical_name_before": "SMITH & NEPHEW LDA",
       "canonical_name_after": "SMITH & NEPHEW LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Smith & Nephew, Lda., NIF 503552461. Smith & Nephew II - Produtos e Serviços de Saúde, S.A. é outra entidade e fica excluída.",
       "sources": [
@@ -8847,9 +8848,9 @@
           "products": 2
         },
         {
-          "source_id": "cmu6bfs8p0r9z01qmwyx8lg5y",
-          "source_name": "SMITH & NEPHEW LDA",
-          "products": 0
+          "source_id": "cmtjw5eu71vge01thmt5uisi6",
+          "source_name": "SMITH & NEPHEW LDA.",
+          "products": 7
         }
       ],
       "evidence": [
@@ -9267,10 +9268,10 @@
     },
     {
       "origin": "supplemental_research",
-      "canonical_id": "cmtk5fq9z00cm01nyea14uozp",
-      "canonical_name_before": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA.",
+      "canonical_id": "cmtjw5nio1wdf01th4xipdcrf",
+      "canonical_name_before": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
       "canonical_name_after": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
-      "canonical_rename_required": true,
+      "canonical_rename_required": false,
       "relation": "abreviacao",
       "reason": "A denominação atual é Teva Pharma - Produtos Farmacêuticos, Lda., NIF 507045491. Teva B.V., Teva Pharma B.V. e Teva Pharma GmbH permanecem distintas.",
       "sources": [
@@ -9285,14 +9286,14 @@
           "products": 5
         },
         {
-          "source_id": "cmtjw5nio1wdf01th4xipdcrf",
-          "source_name": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA",
-          "products": 4
-        },
-        {
           "source_id": "cmu6fk0rj9hpb01qmqsvqnllj",
           "source_name": "TEVA PHARMA - PROD FARM LDA",
           "products": 0
+        },
+        {
+          "source_id": "cmtk5fq9z00cm01nyea14uozp",
+          "source_name": "TEVA PHARMA - PRODUTOS FARMACEUTICOS LDA.",
+          "products": 55
         }
       ],
       "evidence": [

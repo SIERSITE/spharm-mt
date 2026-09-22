@@ -98,6 +98,7 @@ import {
   executarNormalizacaoBatch,
   normalizarDoNotMerge,
   planearNormalizacaoBatch,
+  validarPlanoAchatadoEstrutural,
   type DoNotMergeEntry,
   type FabricanteDb,
   type GrupoNormalizacao,
@@ -163,6 +164,21 @@ export function carregarPlano(path: string): PlanoCarregado {
   }
 
   if (ehPlanoAchatado(json)) {
+    // ── Validação estrutural, ANTES de sequer abrir ligação à BD ──────
+    // Só olha para o próprio ficheiro: summary desactualizado, ids
+    // repetidos, self-merge, cadeias, alvo do_not_merge, renomeação
+    // contraditória ou nome final inválido são defeitos de AUTORIA do
+    // plano, não do estado da base — falham aqui, sempre, mesmo em
+    // dry-run, para nunca gerar um relatório sobre um plano já sabido
+    // inconsistente.
+    const violacoes = validarPlanoAchatadoEstrutural(json);
+    if (violacoes.length > 0) {
+      throw new Error(
+        `O plano em ${path} tem ${violacoes.length} violação(ões) estrutural(is) — recusado antes de ligar à base:\n` +
+          violacoes.map((v) => `  - ${v}`).join("\n"),
+      );
+    }
+
     return {
       achatado: true,
       achatadoRaw: json,

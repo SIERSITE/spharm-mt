@@ -182,6 +182,162 @@ export function normalizarDoNotMerge(raw: readonly (string[] | DoNotMergeEntry)[
   return raw.map((entrada) => (Array.isArray(entrada) ? { names: entrada } : entrada));
 }
 
+/**
+ * Validação ESTRUTURAL do plano achatado — só olha para o próprio
+ * ficheiro (nenhum acesso à BD), e corre ANTES de sequer ligar a uma
+ * base. Existe para apanhar defeitos de autoria do plano (não do estado
+ * da BD) o mais cedo possível: um `summary` desactualizado, um
+ * `source_id`/`canonical_id` repetido, um self-merge, uma cadeia
+ * source→canonical, um alvo coberto por `do_not_merge`, um
+ * `canonical_rename_required: false` que na verdade pede uma
+ * renomeação, ou uma denominação final inválida.
+ *
+ * Devolve a lista de violações (vazia = plano estruturalmente limpo).
+ * Quem chama decide o que fazer — `carregarPlano` (script) trata
+ * qualquer violação como fatal, antes de abrir ligação à BD.
+ */
+export function validarPlanoAchatadoEstrutural(plano: PlanoNormalizacaoArquivoAchatado): string[] {
+  const violacoes: string[] = [];
+  const grupos = plano.groups;
+  const doNotMerge = normalizarDoNotMerge(plano.do_not_merge);
+
+  // Nome normalizado -> índice da entrada do_not_merge a que pertence.
+  const doNotMergeIndexPorNome = new Map<string, number>();
+  doNotMerge.forEach((entrada, idx) => {
+    for (const nome of entrada.names) {
+      const canonico = normalizeFabricanteCanonico(nome);
+      if (canonico) doNotMergeIndexPorNome.set(canonico, idx);
+    }
+  });
+
+  const canonicalIdParaGrupo = new Map<string, number>();
+  const sourceIdParaGrupo = new Map<string, number>();
+
+  grupos.forEach((g, groupIndex) => {
+    // ── canonical repetido ──
+    const jaVisto = canonicalIdParaGrupo.get(g.canonical_id);
+    if (jaVisto !== undefined) {
+      violacoes.push(
+        `canonical_id repetido: "${g.canonical_id}" aparece no grupo #${jaVisto} e no grupo #${groupIndex}.`,
+      );
+    } else {
+      canonicalIdParaGrupo.set(g.canonical_id, groupIndex);
+    }
+
+    // ── canonical_rename_required: false com renomeação pedida ──
+    if (
+      g.canonical_rename_required === false &&
+      g.canonical_name_before !== undefined &&
+      g.canonical_name_after !== undefined &&
+      g.canonical_name_before !== g.canonical_name_after
+    ) {
+      violacoes.push(
+        `grupo #${groupIndex} (canonical_id=${g.canonical_id}): canonical_rename_required=false mas ` +
+          `canonical_name_before ("${g.canonical_name_before}") difere de canonical_name_after ` +
+          `("${g.canonical_name_after}") — ou o plano esqueceu-se de marcar a renomeação, ou os dois campos ` +
+          `já deviam ter convergido depois de resolvida.`,
+      );
+    }
+
+    // ── nome final inválido ──
+    if (g.canonical_name_after !== undefined && normalizeFabricanteCanonico(g.canonical_name_after) === null) {
+      violacoes.push(
+        `grupo #${groupIndex} (canonical_id=${g.canonical_id}): canonical_name_after ` +
+          `("${g.canonical_name_after}") não passa em normalizeFabricanteCanonico — vazio, com menos de ` +
+          `2 caracteres úteis, ou acima do limite aplicacional.`,
+      );
+    }
+
+    const idxCanonicalDoNotMerge = doNotMergeIndexPorNome.get(
+      normalizeFabricanteCanonico(g.canonical_name_after ?? g.canonical_name_before ?? "") ?? "",
+    );
+
+    g.sources.forEach((s) => {
+      // ── source repetido (noutro grupo OU dentro do mesmo) ──
+      const grupoAnterior = sourceIdParaGrupo.get(s.source_id);
+      if (grupoAnterior !== undefined) {
+        violacoes.push(
+          `source_id repetido: "${s.source_id}" aparece no grupo #${grupoAnterior} e no grupo #${groupIndex}.`,
+        );
+      } else {
+        sourceIdParaGrupo.set(s.source_id, groupIndex);
+      }
+
+      // ── self-merge ──
+      if (s.source_id === g.canonical_id) {
+        violacoes.push(
+          `grupo #${groupIndex}: self-merge — source_id "${s.source_id}" é igual ao próprio canonical_id.`,
+        );
+      }
+
+      // ── do_not_merge: canónico e source do MESMO grupo, com nomes NORMALIZADOS
+      // DIFERENTES, ambos na mesma família protegida. Uma família do_not_merge
+      // pode listar variantes de pontuação da MESMA entidade a par de entidades
+      // realmente distintas (ex.: entrada #4 tem "ALFASIGMA S.P.A." — a matriz —
+      // e "ALFASIGMA PORTUGAL" — a subsidiária); duas grafias que colapsam para o
+      // MESMO normalizado (ex.: "ALFASIGMA S.P.A." e "ALFASIGMA S P A") são a
+      // mesma identidade e fundi-las é o comportamento correcto, não uma
+      // violação — só nomes normalizados DIFERENTES dentro da mesma família é
+      // que nunca se devem fundir.
+      const nomeCanonicoNormalizado = normalizeFabricanteCanonico(g.canonical_name_after ?? g.canonical_name_before ?? "");
+      const nomeSourceNormalizado = s.source_name ? normalizeFabricanteCanonico(s.source_name) : null;
+      if (
+        idxCanonicalDoNotMerge !== undefined &&
+        nomeSourceNormalizado !== null &&
+        nomeSourceNormalizado !== nomeCanonicoNormalizado
+      ) {
+        const idxSource = doNotMergeIndexPorNome.get(nomeSourceNormalizado);
+        if (idxSource === idxCanonicalDoNotMerge) {
+          violacoes.push(
+            `grupo #${groupIndex}: alvo coberto por do_not_merge — "${s.source_name}" e ` +
+              `"${g.canonical_name_after ?? g.canonical_name_before}" pertencem à mesma família protegida ` +
+              `(entrada #${idxCanonicalDoNotMerge}) mas o grupo funde-os na mesma.`,
+          );
+        }
+      }
+    });
+  });
+
+  // ── cadeia: um source_id que é, ele próprio, canonical_id de OUTRO grupo ──
+  for (const [sourceId, groupIndex] of sourceIdParaGrupo) {
+    const idxCanonical = canonicalIdParaGrupo.get(sourceId);
+    if (idxCanonical !== undefined && idxCanonical !== groupIndex) {
+      violacoes.push(
+        `cadeia: source_id "${sourceId}" do grupo #${groupIndex} é o canonical_id do grupo #${idxCanonical} — ` +
+          `um merge em duas etapas que o executor não resolve implicitamente.`,
+      );
+    }
+  }
+
+  // ── summary desactualizado face aos próprios grupos ──
+  if (plano.summary) {
+    const totalGrupos = grupos.length;
+    const totalSources = grupos.reduce((acc, g) => acc + g.sources.length, 0);
+    const totalRenomeacoes = grupos.filter((g) => g.canonical_rename_required === true).length;
+    const somaProdutos = grupos.every((g) => g.sources.every((s) => typeof s.products === "number"))
+      ? grupos.reduce((acc, g) => acc + g.sources.reduce((a, s) => a + (s.products ?? 0), 0), 0)
+      : undefined;
+
+    const checagens: Array<[campo: string, declarado: number | undefined, real: number]> = [
+      ["groups", plano.summary.groups, totalGrupos],
+      ["source_manufacturers_to_deactivate", plano.summary.source_manufacturers_to_deactivate, totalSources],
+      ["canonical_renames_required", plano.summary.canonical_renames_required, totalRenomeacoes],
+    ];
+    if (somaProdutos !== undefined) {
+      checagens.push(["products_to_reassign_unique", plano.summary.products_to_reassign_unique, somaProdutos]);
+    }
+    for (const [campo, declarado, real] of checagens) {
+      if (declarado !== undefined && declarado !== real) {
+        violacoes.push(
+          `summary.${campo} declara ${declarado} mas os grupos do plano somam ${real} — summary desactualizado.`,
+        );
+      }
+    }
+  }
+
+  return violacoes;
+}
+
 // ── Estado da BD necessário para planear ────────────────────────────
 
 export type FabricanteDb = {
@@ -778,6 +934,25 @@ export async function executarNormalizacaoBatch(
         `${relatorio.sourcesExcluidos.length} source(s) excluído(s), ` +
         `${relatorio.renomeacoesBloqueadas.length} renomeação(ões) bloqueada(s)). ` +
         `Nada foi escrito. Corrige o plano ou os dados e corre o dry-run outra vez até sair limpo.`,
+    );
+  }
+
+  // ── Recusar promoção DINÂMICA em --apply ────────────────────────────
+  // `promover_source_a_canonical` é uma decisão de negócio (qual origem
+  // passa a canónico) — está bem que o executor a DETECTE e a resolva
+  // sozinho num dry-run, para dar visibilidade, mas nunca a deve tomar
+  // silenciosamente num --apply real. Um plano "final" já tem essa troca
+  // gravada explicitamente no próprio ficheiro (canonical_id trocado,
+  // canonical_rename_required=false) — se ainda chega aqui uma promoção
+  // por resolver, o plano está desactualizado face à base e tem de ser
+  // corrigido primeiro (ver validarPlanoAchatadoEstrutural / o
+  // procedimento que gerou scripts/data/plano-normalizacao-garantia-achatado-checkpoint.json).
+  if (relatorio.totais.promocoesCanonical > 0) {
+    throw new Error(
+      `--apply recusado: ${relatorio.totais.promocoesCanonical} promoção(ões) de origem a canónico ainda ` +
+        `seriam decididas dinamicamente pelo executor. Num plano final essa troca tem de estar já gravada ` +
+        `explicitamente no ficheiro do plano (canonical_id do grupo já é o da origem promovida, ` +
+        `canonical_rename_required=false) — nada foi escrito. Corrige o plano e corre o dry-run outra vez.`,
     );
   }
 

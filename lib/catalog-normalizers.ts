@@ -51,7 +51,15 @@ export function normalizeFabricanteCanonico(
     .replace(/[^A-Z0-9 &-]/g, " ") // pontuação (incl. pontos de abreviatura) vira espaço
     .replace(/\s+/g, " ")
     .trim();
-  return canonico.length >= 2 && canonico.length <= 60 ? canonico : null;
+  // Limite de 120 é só uma salvaguarda aplicacional contra lixo/õ-loop de
+  // regex — não reflecte nenhuma restrição da BD: `Fabricante.nomeNormalizado`
+  // é `String @unique` no Prisma, mapeado para `TEXT NOT NULL` no Postgres
+  // (ver prisma/migrations/20260407113733_init/migration.sql:86), sem
+  // `@db.VarChar` nem CHECK de comprimento. Foi 60 até 2026-09-22, o que
+  // truncava denominações legais completas e reais (ex.: "IFC SKINCARE
+  // PORTUGAL - PRODUTOS DERMATOLOGICOS UNIPESSOAL LDA", 62 chars) para
+  // `null` — nunca truncar/abreviar a denominação legal de um fabricante.
+  return canonico.length >= 2 && canonico.length <= 120 ? canonico : null;
 }
 
 /** Sufixos empresariais que devem ficar em maiúsculas. */
