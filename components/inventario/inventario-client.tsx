@@ -260,6 +260,7 @@ export function InventarioClient({
       farmacias: universe.farmacias,
       categorias: universe.categorias,
       fabricantes: universe.fabricantes,
+      laboratorios: universe.laboratorios,
       distribuidores: universe.distribuidores,
     };
     if (vista === "farmacia") {

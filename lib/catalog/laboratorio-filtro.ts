@@ -149,6 +149,50 @@ export function pesquisarLaboratorios(
 }
 
 /**
+ * Traduz um valor seleccionado para um cabeçalho/resumo de EXPORT
+ * (PDF/Excel de Vendas, Margens, Inventário) — NUNCA expõe um id interno.
+ * Um valor sem prefixo (nome solto — outros tenants, ou um link antigo já
+ * sem prefixo) é devolvido tal e qual, já é legível. Um valor tipado
+ * ("grupo:<id>"/"fabricante:<id>") é traduzido para "Tipo: Nome" usando a
+ * MESMA lista de opções do filtro interactivo — nunca uma query nova; se
+ * o id já não existir nessa lista (grupo/fabricante removido/renomeado
+ * entretanto), devolve "Seleção indisponível", nunca o id em bruto.
+ *
+ * Correcção de 2026-09-25 — antes desta função, o cabeçalho "universo"
+ * dos exports mostrava o valor seleccionado tal e qual, incluindo
+ * "grupo:cke1..." quando a selecção vinha do filtro tipado (garantia,
+ * desde a correcção de UX de 2026-09-24) — um id interno nunca deve
+ * chegar a um PDF/Excel entregue ao cliente.
+ */
+export function rotuloLaboratorioParaExport(valor: string, laboratorios: readonly CatalogoFilterOptionLaboratorio[] | undefined): string {
+  const parsed = parseValorLaboratorio(valor);
+  if (!parsed) return valor; // sem prefixo — já é um nome legível (outros tenants, ou link antigo)
+  const opcao = (laboratorios ?? []).find((o) => valorDeLaboratorio(o) === valor);
+  if (!opcao) return "Seleção indisponível";
+  return `${rotuloTipoLaboratorio(opcao)}: ${nomeDeLaboratorio(opcao)}`;
+}
+
+/**
+ * Traduz uma LISTA de valores seleccionados para um cabeçalho de export —
+ * deduplica as etiquetas resultantes e ordena deterministicamente
+ * (alfabético, `pt-PT`) para que o mesmo conjunto de selecções produza
+ * sempre o mesmo texto, independentemente da ordem em que foram
+ * clicadas. Só traduz/reordena quando `laboratorios` está presente —
+ * isto é, só no tenant garantia; nos restantes tenants (`laboratorios`
+ * `undefined`) devolve a lista tal e qual, sem qualquer alteração de
+ * ordem nem deduplicação — comportamento 100% inalterado.
+ */
+export function traduzirLaboratoriosParaExport(
+  selecionados: readonly string[] | undefined,
+  laboratorios: readonly CatalogoFilterOptionLaboratorio[] | undefined,
+): string[] | undefined {
+  if (!selecionados) return undefined;
+  if (!laboratorios) return [...selecionados];
+  const rotulos = selecionados.map((v) => rotuloLaboratorioParaExport(v, laboratorios));
+  return [...new Set(rotulos)].sort((a, b) => a.localeCompare(b, "pt-PT"));
+}
+
+/**
  * Traduz o valor do filtro (`"grupo:<id>"` / `"fabricante:<id>"`) para o
  * `where` do Prisma — a ÚNICA função que decide isto, para a lista e o
  * filtro nunca poderem divergir. `null` quando o valor está vazio ou

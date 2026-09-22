@@ -88,6 +88,7 @@ import type {
 } from "../report-types";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { filtroListaImportada } from "../filters-shared";
+import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import {
   agruparPorArtigo,
@@ -329,11 +330,11 @@ function buildColumns(
   ];
 }
 
-function joinList(list: string[] | undefined, total: number, labelTodas: string): string {
+function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
   if (!list || list.length === 0) return labelTodas;
   if (list.length === total) return labelTodas;
-  if (list.length <= 3) return list.join(", ");
-  return `${list.slice(0, 3).join(", ")} (+${list.length - 3})`;
+  if (list.length <= 3) return list.join(separador);
+  return `${list.slice(0, 3).join(separador)} (+${list.length - 3})`;
 }
 
 function buildFilters(
@@ -342,6 +343,8 @@ function buildFilters(
     farmacias: string[];
     fornecedores: string[];
     fabricantes: string[];
+    /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     categorias: string[];
   }
 ): ReportFilter[] {
@@ -364,9 +367,19 @@ function buildFilters(
     });
   }
   if (f.fabricantesSelecionados && f.fabricantesSelecionados.length > 0) {
+    // Rótulo: "Laboratório/grupo" em garantia (universe.laboratorios
+    // presente), "Fabricantes" nos restantes tenants — inalterado. Os
+    // valores tipados "grupo:<id>"/"fabricante:<id>" são traduzidos para
+    // "Grupo: X"/"Fabricante: Y" ANTES de entrarem no PDF/Excel — nunca
+    // um id interno chega ao cliente.
     out.push({
-      label: "Fabricantes",
-      value: joinList(f.fabricantesSelecionados, universe.fabricantes.length, "Todos"),
+      label: universe.laboratorios ? (f.fabricantesSelecionados.length === 1 ? "Laboratório/grupo" : "Laboratórios/grupos") : "Fabricantes",
+      value: joinList(
+        traduzirLaboratoriosParaExport(f.fabricantesSelecionados, universe.laboratorios),
+        (universe.laboratorios ?? universe.fabricantes).length,
+        "Todos",
+        universe.laboratorios ? "; " : ", ",
+      ),
     });
   }
   if (f.categoriasSelecionadas && f.categoriasSelecionadas.length > 0) {
@@ -435,6 +448,8 @@ export function buildVendasReport(input: {
     farmacias: string[];
     fornecedores: string[];
     fabricantes: string[];
+    /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     categorias: string[];
   };
   /**

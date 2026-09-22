@@ -996,7 +996,7 @@ export function VendasClient({
                       apenasComStock,
                       incluirManutencao,
                     },
-                    universe: { farmacias, fornecedores, fabricantes, categorias },
+                    universe: { farmacias, fornecedores, fabricantes, laboratorios: filterOptions.laboratorios, categorias },
                     organization: formatFarmaciaHeader(
                       farmaciasSelecionadas,
                       farmaciasInfo

@@ -26,6 +26,7 @@ import type {
   EstadoInventario,
 } from "@/lib/inventario-data";
 import { filtroListaImportada, type SharedReportFilters } from "@/lib/reporting/filters-shared";
+import { traduzirLaboratoriosParaExport, type CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 import { GROUP_KEY, ROW_KIND_KEY } from "../report-types";
 import { nomeFarmaciaCurto } from "../farmacia-nome";
 import { ordenarPorFarmacia } from "../ordenacao-farmacias";
@@ -72,11 +73,11 @@ const INVENTARIO_COLUMNS: ReportColumn[] = [
   { key: "dataUltimaVenda",  label: "Últ. venda",     format: "text",     width: 7 },
 ];
 
-function joinList(list: string[] | undefined, total: number, labelTodas: string): string {
+function joinList(list: string[] | undefined, total: number, labelTodas: string, separador = ", "): string {
   if (!list || list.length === 0) return labelTodas;
   if (list.length === total) return labelTodas;
-  if (list.length <= 3) return list.join(", ");
-  return `${list.slice(0, 3).join(", ")} (+${list.length - 3})`;
+  if (list.length <= 3) return list.join(separador);
+  return `${list.slice(0, 3).join(separador)} (+${list.length - 3})`;
 }
 
 function buildFiltersLabel(
@@ -85,6 +86,8 @@ function buildFiltersLabel(
     farmacias: string[];
     categorias: string[];
     fabricantes: string[];
+    /** SÓ garantia — ver o mesmo campo em ReportFilterOptions (lib/reporting/filters-shared.ts). */
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     distribuidores: string[];
   },
 ): ReportFilter[] {
@@ -100,9 +103,19 @@ function buildFiltersLabel(
     });
   }
   if (f.fabricantes && f.fabricantes.length > 0) {
+    // Rótulo: "Laboratório/grupo" em garantia (universe.laboratorios
+    // presente), "Fabricantes" nos restantes tenants — inalterado. Os
+    // valores tipados "grupo:<id>"/"fabricante:<id>" são traduzidos para
+    // "Grupo: X"/"Fabricante: Y" ANTES de entrarem no PDF/Excel — nunca
+    // um id interno chega ao cliente.
     out.push({
-      label: "Fabricantes",
-      value: joinList(f.fabricantes, universe.fabricantes.length, "Todos"),
+      label: universe.laboratorios ? (f.fabricantes.length === 1 ? "Laboratório/grupo" : "Laboratórios/grupos") : "Fabricantes",
+      value: joinList(
+        traduzirLaboratoriosParaExport(f.fabricantes, universe.laboratorios),
+        (universe.laboratorios ?? universe.fabricantes).length,
+        "Todos",
+        universe.laboratorios ? "; " : ", ",
+      ),
     });
   }
   if (f.distribuidores && f.distribuidores.length > 0) {
@@ -140,6 +153,7 @@ export function buildInventarioReport(input: {
     farmacias: string[];
     categorias: string[];
     fabricantes: string[];
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     distribuidores: string[];
   };
   organization: string;
@@ -301,6 +315,7 @@ export function buildInventarioPorFarmaciaReport(input: {
     farmacias: string[];
     categorias: string[];
     fabricantes: string[];
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     distribuidores: string[];
   };
   organization: string;
@@ -387,6 +402,7 @@ export function buildInventarioPorGrupoReport(input: {
     farmacias: string[];
     categorias: string[];
     fabricantes: string[];
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     distribuidores: string[];
   };
   organization: string;
@@ -465,6 +481,7 @@ export function buildInventarioPorIvaReport(input: {
     farmacias: string[];
     categorias: string[];
     fabricantes: string[];
+    laboratorios?: CatalogoFilterOptionLaboratorio[];
     distribuidores: string[];
   };
   organization: string;
