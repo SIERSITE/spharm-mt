@@ -7,12 +7,13 @@
     "Este ficheiro ainda não autoriza --apply. Primeiro é obrigatório adaptar o executor, testar e correr novo dry-run na VPS.",
     "O executor atual tem de suportar canonical_name_after, criar alias da denominação anterior e validar conflitos de unicidade dentro da mesma transação.",
     "Os grupos initial_orthographic representam variantes textuais já validadas pelo dry-run; os grupos supplemental_research_final incluem fontes e conclusão empresarial.",
-    "2026-09-22: revisão pós-dry-run real (VPS, tenant garantia) — as 19 promoções de source a canonical (classificação promover_source_a_canonical) foram gravadas explicitamente neste ficheiro (canonical_id trocado, fonte antiga movida para sources[], canonical_rename_required=false); o limite de 60 caracteres em normalizeFabricanteCanonico foi levantado para 120 (sem restrição real na base — Fabricante.nomeNormalizado é TEXT), o que resolveu as 3 denominações que excediam 60 caracteres (grupos IFC Skincare Portugal, Laboratorios Expanscience, Ratiopharm) como renomeações normais; summary recalculado a partir dos 557 grupos."
+    "2026-09-22: revisão pós-dry-run real (VPS, tenant garantia) — as 19 promoções de source a canonical (classificação promover_source_a_canonical) foram gravadas explicitamente neste ficheiro (canonical_id trocado, fonte antiga movida para sources[], canonical_rename_required=false); o limite de 60 caracteres em normalizeFabricanteCanonico foi levantado para 120 (sem restrição real na base — Fabricante.nomeNormalizado é TEXT), o que resolveu as 3 denominações que excediam 60 caracteres (grupos IFC Skincare Portugal, Laboratorios Expanscience, Ratiopharm) como renomeações normais; summary recalculado a partir dos 557 grupos.",
+    "2026-09-22: dry-run final real (VPS, tenant garantia) detetou uma variação de 5 produtos face à fotografia anterior em três origens — BELPHAR LDA (source_id cmtjw0uhm1kcu01thli7v7qf6, grupo #78, 1→2), PRIM S A (source_id cmu6bc7lh0bhp01qm74zd85bx, grupo #438, 0→3) e TOWA PHARMACEUTICAL (source_id cmtjw5pwo1woa01thj37bf21g, grupo #510, 100→101); as contagens destas três origens foram sincronizadas com a base real e summary.products_to_reassign_unique passou de 12854 para 12859. Nenhuma relação empresarial, canonical_id, source_id, renomeação ou do_not_merge foi alterada."
   ],
   "summary": {
     "groups": 557,
     "source_manufacturers_to_deactivate": 756,
-    "products_to_reassign_unique": 12854,
+    "products_to_reassign_unique": 12859,
     "active_before": 2365,
     "active_after_estimated": 1609,
     "canonical_renames_required": 17,
@@ -1521,7 +1522,7 @@
         {
           "source_id": "cmtjw0uhm1kcu01thli7v7qf6",
           "source_name": "BELPHAR LDA",
-          "products": 1
+          "products": 2
         }
       ],
       "evidence": []
@@ -8114,7 +8115,7 @@
         {
           "source_id": "cmu6bc7lh0bhp01qm74zd85bx",
           "source_name": "PRIM S A",
-          "products": 0
+          "products": 3
         }
       ],
       "evidence": []
@@ -9410,7 +9411,7 @@
         {
           "source_id": "cmtjw5pwo1woa01thj37bf21g",
           "source_name": "TOWA PHARMACEUTICAL",
-          "products": 100
+          "products": 101
         },
         {
           "source_id": "cmtjw0w741kgr01thmziaeqe4",

@@ -854,7 +854,7 @@ console.log("\nN · validarPlanoAchatadoEstrutural + promoções/renomeações g
 
   eq(validarPlanoAchatadoEstrutural(plano), [], "N1: o checkpoint real tem zero violações estruturais");
   eq(plano.summary?.canonical_renames_required, 17, "N2: summary.canonical_renames_required é 17 (14 renomeações + 3 nomes longos resolvidos)");
-  eq(plano.summary?.products_to_reassign_unique, 12854, "N3: summary.products_to_reassign_unique reflecte a base REAL (dry-run VPS)");
+  eq(plano.summary?.products_to_reassign_unique, 12859, "N3: summary.products_to_reassign_unique reflecte a base REAL (dry-run VPS, incl. sincronização de 2026-09-22)");
   eq(plano.summary?.source_manufacturers_to_deactivate, 756, "N4: summary.source_manufacturers_to_deactivate é 756");
   eq(plano.summary?.groups, 557, "N5: summary.groups é 557");
 
