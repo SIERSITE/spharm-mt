@@ -54,6 +54,11 @@ export const ModelName = {
   Produto: 'Produto',
   Fabricante: 'Fabricante',
   FabricanteAlias: 'FabricanteAlias',
+  GrupoLaboratorial: 'GrupoLaboratorial',
+  GrupoLaboratorialAlias: 'GrupoLaboratorialAlias',
+  GrupoLaboratorialFabricante: 'GrupoLaboratorialFabricante',
+  ProdutoGrupoLaboratorial: 'ProdutoGrupoLaboratorial',
+  RegraGrupoLaboratorialPorCnp: 'RegraGrupoLaboratorialPorCnp',
   Classificacao: 'Classificacao',
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
@@ -190,6 +195,74 @@ export const FabricanteAliasScalarFieldEnum = {
 } as const
 
 export type FabricanteAliasScalarFieldEnum = (typeof FabricanteAliasScalarFieldEnum)[keyof typeof FabricanteAliasScalarFieldEnum]
+
+
+export const GrupoLaboratorialScalarFieldEnum = {
+  id: 'id',
+  nome: 'nome',
+  nomeNormalizado: 'nomeNormalizado',
+  estado: 'estado',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type GrupoLaboratorialScalarFieldEnum = (typeof GrupoLaboratorialScalarFieldEnum)[keyof typeof GrupoLaboratorialScalarFieldEnum]
+
+
+export const GrupoLaboratorialAliasScalarFieldEnum = {
+  id: 'id',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  alias: 'alias',
+  aliasNormalizado: 'aliasNormalizado',
+  origem: 'origem',
+  estado: 'estado'
+} as const
+
+export type GrupoLaboratorialAliasScalarFieldEnum = (typeof GrupoLaboratorialAliasScalarFieldEnum)[keyof typeof GrupoLaboratorialAliasScalarFieldEnum]
+
+
+export const GrupoLaboratorialFabricanteScalarFieldEnum = {
+  id: 'id',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  fabricanteId: 'fabricanteId',
+  tipoAssociacao: 'tipoAssociacao',
+  evidencia: 'evidencia',
+  validadoManualmente: 'validadoManualmente',
+  dataCriacao: 'dataCriacao'
+} as const
+
+export type GrupoLaboratorialFabricanteScalarFieldEnum = (typeof GrupoLaboratorialFabricanteScalarFieldEnum)[keyof typeof GrupoLaboratorialFabricanteScalarFieldEnum]
+
+
+export const ProdutoGrupoLaboratorialScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  origem: 'origem',
+  regraCnpId: 'regraCnpId',
+  snapshotCnp: 'snapshotCnp',
+  validadoManualmente: 'validadoManualmente',
+  evidencia: 'evidencia',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type ProdutoGrupoLaboratorialScalarFieldEnum = (typeof ProdutoGrupoLaboratorialScalarFieldEnum)[keyof typeof ProdutoGrupoLaboratorialScalarFieldEnum]
+
+
+export const RegraGrupoLaboratorialPorCnpScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  fabricanteLegalEsperadoId: 'fabricanteLegalEsperadoId',
+  evidencia: 'evidencia',
+  estado: 'estado',
+  validadoManualmente: 'validadoManualmente',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type RegraGrupoLaboratorialPorCnpScalarFieldEnum = (typeof RegraGrupoLaboratorialPorCnpScalarFieldEnum)[keyof typeof RegraGrupoLaboratorialPorCnpScalarFieldEnum]
 
 
 export const ClassificacaoScalarFieldEnum = {

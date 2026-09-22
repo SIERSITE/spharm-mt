@@ -80,7 +80,7 @@ function parseFilters(
 
   return {
     search: asString(sp.q) || undefined,
-    fabricanteId: asString(sp.fabricante) || undefined,
+    laboratorio: asString(sp.fabricante) || undefined,
     classificacaoN1Id: asString(sp.n1) || undefined,
     productType,
     verificationStatus,

@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
-import type {
-  CatalogoFilterOptions,
-  CatalogoListData,
-  CatalogoListFilters,
-  CatalogoRow,
-  ResumoClassificacao,
+import {
+  pesquisarLaboratorios,
+  type CatalogoFilterOptionLaboratorio,
+  type CatalogoFilterOptions,
+  type CatalogoListData,
+  type CatalogoListFilters,
+  type CatalogoRow,
+  type ResumoClassificacao,
 } from "@/lib/catalogo-data";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
 
@@ -150,7 +152,7 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
 
   const hasActiveFilters =
     !!filters.search ||
-    !!filters.fabricanteId ||
+    !!filters.laboratorio ||
     !!filters.productType ||
     !!filters.classificacaoN1Id ||
     !!filters.verificationStatus ||
@@ -198,18 +200,31 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
             </div>
           </label>
 
-          <SelectFilter
-            label="Fabricante"
-            value={filters.fabricanteId ?? ""}
-            onChange={(v) => navigate({ fabricante: v || undefined })}
-            options={[
-              { value: "", label: "Fabricante (todos)" },
-              ...filterOptions.fabricantes.map((f) => ({
-                value: f.id,
-                label: f.nomeNormalizado,
-              })),
-            ]}
-          />
+          {/* Nenhum grupo laboratorial nesta lista (todos os tenants excepto
+              garantia, hoje) → o `<select>` nativo de sempre, byte a byte
+              como estava antes desta mudança. Só quando existe pelo menos
+              um grupo é que a pesquisa por alias (searchable combobox)
+              entra — nunca uma alteração de UI visível nos outros tenants. */}
+          {filterOptions.laboratorios.some((l) => l.tipo === "grupo") ? (
+            <LaboratorioSearchSelect
+              laboratorios={filterOptions.laboratorios}
+              value={filters.laboratorio ?? ""}
+              onChange={(v) => navigate({ fabricante: v || undefined })}
+            />
+          ) : (
+            <SelectFilter
+              label="Fabricante"
+              value={filters.laboratorio ?? ""}
+              onChange={(v) => navigate({ fabricante: v || undefined })}
+              options={[
+                { value: "", label: "Fabricante (todos)" },
+                ...filterOptions.laboratorios.map((l) => ({
+                  value: valorDaOpcao(l),
+                  label: nomeDaOpcao(l),
+                })),
+              ]}
+            />
+          )}
 
           <SelectFilter
             label="Classificação N1"
@@ -446,6 +461,84 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
         </span>
       </td>
     </tr>
+  );
+}
+
+function valorDaOpcao(o: CatalogoFilterOptionLaboratorio): string {
+  return o.tipo === "grupo" ? `grupo:${o.id}` : `fabricante:${o.id}`;
+}
+function nomeDaOpcao(o: CatalogoFilterOptionLaboratorio): string {
+  return o.tipo === "grupo" ? o.nome : o.nomeNormalizado;
+}
+
+/**
+ * Filtro de laboratório — UMA lista, nunca duas concorrentes. Escrever
+ * "Mylan" filtra para mostrar só "Viatris" (via `termosBusca`/aliases do
+ * grupo — ver `pesquisarLaboratorios`); "Mylan" nunca aparece como opção
+ * à parte, porque não é uma entrada própria da lista. O fabricante legal
+ * continua disponível como opção — só não é OUTRA opção para quem já
+ * pertence integralmente a um grupo (ver loadCatalogoFilterOptions).
+ */
+function LaboratorioSearchSelect({
+  laboratorios,
+  value,
+  onChange,
+}: {
+  laboratorios: CatalogoFilterOptionLaboratorio[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selecionada = useMemo(() => laboratorios.find((o) => valorDaOpcao(o) === value) ?? null, [laboratorios, value]);
+  const resultados = useMemo(() => pesquisarLaboratorios(laboratorios, query), [laboratorios, query]);
+
+  function selecionar(o: CatalogoFilterOptionLaboratorio | null): void {
+    onChange(o ? valorDaOpcao(o) : "");
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <label className="relative block">
+      <div className="mb-1 text-[11px] font-medium text-slate-500">Fabricante</div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={open ? query : (selecionada ? nomeDaOpcao(selecionada) : "")}
+        placeholder="Fabricante (todos)"
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        onChange={(e) => setQuery(e.target.value)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); }
+          if (e.key === "Enter" && resultados.length === 1) { e.preventDefault(); selecionar(resultados[0]!); }
+        }}
+        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+      />
+      {open && (
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 text-[13px] shadow-lg">
+          <li
+            className="cursor-pointer px-3 py-1.5 text-slate-500 hover:bg-slate-50"
+            onMouseDown={(e) => { e.preventDefault(); selecionar(null); }}
+          >
+            Fabricante (todos)
+          </li>
+          {resultados.map((o) => (
+            <li
+              key={valorDaOpcao(o)}
+              className="cursor-pointer px-3 py-1.5 font-medium text-slate-800 hover:bg-emerald-50"
+              onMouseDown={(e) => { e.preventDefault(); selecionar(o); }}
+            >
+              {nomeDaOpcao(o)}
+            </li>
+          ))}
+          {resultados.length === 0 && <li className="px-3 py-1.5 text-slate-400">Sem correspondência</li>}
+        </ul>
+      )}
+    </label>
   );
 }
 

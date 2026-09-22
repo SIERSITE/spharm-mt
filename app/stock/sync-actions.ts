@@ -17,12 +17,25 @@
  * Auth: mesmo padrão do Bloco A (`getHistoricoProdutoAction`) —
  * `requirePermission("stock.sync")` + `canAccessFarmaciaSync` por
  * farmácia pedida explicitamente.
+ *
+ * ── Trava garantia (2026-09) ──────────────────────────────────────────
+ * O tenant garantia está a meio de uma classificação cuidada de
+ * fabricantes/grupos laboratoriais (esta iniciativa) — uma sincronização
+ * automática do ERP podia reintroduzir produtos/fabricanteId por cima
+ * desse trabalho. `requestSyncNowAction` recusa-se a criar um
+ * `SyncRequest` para este tenant, no SERVIDOR — esconder o botão na UI
+ * (`components/stock/sync-now-widget.tsx`/`app/stock/page.tsx`) é só a
+ * primeira camada, não a única: alguém a chamar a action directamente
+ * (DevTools, um cliente antigo em cache) tem de ser recusado aqui na
+ * mesma. Outros tenants seguem o fluxo exactamente como antes — nada
+ * muda para eles.
  */
 
 import { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { requirePermission, canAccessFarmaciaSync } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { resolveCurrentTenantSlug, TENANT_SYNC_BLOQUEADO } from "@/lib/tenant-context";
 import {
   computeTimeoutAt,
   podeCriarNovoPedido,
@@ -71,6 +84,15 @@ export async function getSyncStatusAction(input: { farmaciaId: string }): Promis
  */
 export async function requestSyncNowAction(input: { farmaciaId: string }): Promise<SyncActionResult> {
   const session = await requirePermission("stock.sync");
+
+  const tenantSlug = await resolveCurrentTenantSlug();
+  if (tenantSlug === TENANT_SYNC_BLOQUEADO) {
+    return {
+      ok: false,
+      error: "Sincronização automática temporariamente desligada para este tenant enquanto decorre a classificação de fabricantes/grupos laboratoriais.",
+    };
+  }
+
   const farmaciaId = input.farmaciaId?.trim();
   if (!farmaciaId) return { ok: false, error: "Farmácia em falta." };
   if (!canAccessFarmaciaSync(session, farmaciaId)) {

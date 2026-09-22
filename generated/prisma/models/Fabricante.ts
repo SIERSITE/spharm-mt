@@ -192,6 +192,8 @@ export type FabricanteWhereInput = {
   dataAtualizacao?: Prisma.DateTimeFilter<"Fabricante"> | Date | string
   aliases?: Prisma.FabricanteAliasListRelationFilter
   produtos?: Prisma.ProdutoListRelationFilter
+  grupoLaboratorial?: Prisma.XOR<Prisma.GrupoLaboratorialFabricanteNullableScalarRelationFilter, Prisma.GrupoLaboratorialFabricanteWhereInput> | null
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpListRelationFilter
 }
 
 export type FabricanteOrderByWithRelationInput = {
@@ -203,6 +205,8 @@ export type FabricanteOrderByWithRelationInput = {
   dataAtualizacao?: Prisma.SortOrder
   aliases?: Prisma.FabricanteAliasOrderByRelationAggregateInput
   produtos?: Prisma.ProdutoOrderByRelationAggregateInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteOrderByWithRelationInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpOrderByRelationAggregateInput
 }
 
 export type FabricanteWhereUniqueInput = Prisma.AtLeast<{
@@ -217,6 +221,8 @@ export type FabricanteWhereUniqueInput = Prisma.AtLeast<{
   dataAtualizacao?: Prisma.DateTimeFilter<"Fabricante"> | Date | string
   aliases?: Prisma.FabricanteAliasListRelationFilter
   produtos?: Prisma.ProdutoListRelationFilter
+  grupoLaboratorial?: Prisma.XOR<Prisma.GrupoLaboratorialFabricanteNullableScalarRelationFilter, Prisma.GrupoLaboratorialFabricanteWhereInput> | null
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpListRelationFilter
 }, "id" | "nomeNormalizado">
 
 export type FabricanteOrderByWithAggregationInput = {
@@ -252,6 +258,8 @@ export type FabricanteCreateInput = {
   dataAtualizacao?: Date | string
   aliases?: Prisma.FabricanteAliasCreateNestedManyWithoutFabricanteInput
   produtos?: Prisma.ProdutoCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteUncheckedCreateInput = {
@@ -263,6 +271,8 @@ export type FabricanteUncheckedCreateInput = {
   dataAtualizacao?: Date | string
   aliases?: Prisma.FabricanteAliasUncheckedCreateNestedManyWithoutFabricanteInput
   produtos?: Prisma.ProdutoUncheckedCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteUpdateInput = {
@@ -274,6 +284,8 @@ export type FabricanteUpdateInput = {
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FabricanteAliasUpdateManyWithoutFabricanteNestedInput
   produtos?: Prisma.ProdutoUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyWithoutFabricanteLegalEsperadoNestedInput
 }
 
 export type FabricanteUncheckedUpdateInput = {
@@ -285,6 +297,8 @@ export type FabricanteUncheckedUpdateInput = {
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FabricanteAliasUncheckedUpdateManyWithoutFabricanteNestedInput
   produtos?: Prisma.ProdutoUncheckedUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedUpdateManyWithoutFabricanteLegalEsperadoNestedInput
 }
 
 export type FabricanteCreateManyInput = {
@@ -385,6 +399,36 @@ export type FabricanteUpdateOneRequiredWithoutAliasesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.FabricanteUpdateToOneWithWhereWithoutAliasesInput, Prisma.FabricanteUpdateWithoutAliasesInput>, Prisma.FabricanteUncheckedUpdateWithoutAliasesInput>
 }
 
+export type FabricanteCreateNestedOneWithoutGrupoLaboratorialInput = {
+  create?: Prisma.XOR<Prisma.FabricanteCreateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedCreateWithoutGrupoLaboratorialInput>
+  connectOrCreate?: Prisma.FabricanteCreateOrConnectWithoutGrupoLaboratorialInput
+  connect?: Prisma.FabricanteWhereUniqueInput
+}
+
+export type FabricanteUpdateOneRequiredWithoutGrupoLaboratorialNestedInput = {
+  create?: Prisma.XOR<Prisma.FabricanteCreateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedCreateWithoutGrupoLaboratorialInput>
+  connectOrCreate?: Prisma.FabricanteCreateOrConnectWithoutGrupoLaboratorialInput
+  upsert?: Prisma.FabricanteUpsertWithoutGrupoLaboratorialInput
+  connect?: Prisma.FabricanteWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FabricanteUpdateToOneWithWhereWithoutGrupoLaboratorialInput, Prisma.FabricanteUpdateWithoutGrupoLaboratorialInput>, Prisma.FabricanteUncheckedUpdateWithoutGrupoLaboratorialInput>
+}
+
+export type FabricanteCreateNestedOneWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  create?: Prisma.XOR<Prisma.FabricanteCreateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedCreateWithoutRegrasGrupoLaboratorialPorCnpInput>
+  connectOrCreate?: Prisma.FabricanteCreateOrConnectWithoutRegrasGrupoLaboratorialPorCnpInput
+  connect?: Prisma.FabricanteWhereUniqueInput
+}
+
+export type FabricanteUpdateOneWithoutRegrasGrupoLaboratorialPorCnpNestedInput = {
+  create?: Prisma.XOR<Prisma.FabricanteCreateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedCreateWithoutRegrasGrupoLaboratorialPorCnpInput>
+  connectOrCreate?: Prisma.FabricanteCreateOrConnectWithoutRegrasGrupoLaboratorialPorCnpInput
+  upsert?: Prisma.FabricanteUpsertWithoutRegrasGrupoLaboratorialPorCnpInput
+  disconnect?: Prisma.FabricanteWhereInput | boolean
+  delete?: Prisma.FabricanteWhereInput | boolean
+  connect?: Prisma.FabricanteWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.FabricanteUpdateToOneWithWhereWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUpdateWithoutRegrasGrupoLaboratorialPorCnpInput>, Prisma.FabricanteUncheckedUpdateWithoutRegrasGrupoLaboratorialPorCnpInput>
+}
+
 export type FabricanteCreateWithoutProdutosInput = {
   id?: string
   nomeNormalizado: string
@@ -393,6 +437,8 @@ export type FabricanteCreateWithoutProdutosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FabricanteAliasCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteUncheckedCreateWithoutProdutosInput = {
@@ -403,6 +449,8 @@ export type FabricanteUncheckedCreateWithoutProdutosInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   aliases?: Prisma.FabricanteAliasUncheckedCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteCreateOrConnectWithoutProdutosInput = {
@@ -429,6 +477,8 @@ export type FabricanteUpdateWithoutProdutosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FabricanteAliasUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyWithoutFabricanteLegalEsperadoNestedInput
 }
 
 export type FabricanteUncheckedUpdateWithoutProdutosInput = {
@@ -439,6 +489,8 @@ export type FabricanteUncheckedUpdateWithoutProdutosInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   aliases?: Prisma.FabricanteAliasUncheckedUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedUpdateManyWithoutFabricanteLegalEsperadoNestedInput
 }
 
 export type FabricanteCreateWithoutAliasesInput = {
@@ -449,6 +501,8 @@ export type FabricanteCreateWithoutAliasesInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   produtos?: Prisma.ProdutoCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteUncheckedCreateWithoutAliasesInput = {
@@ -459,6 +513,8 @@ export type FabricanteUncheckedCreateWithoutAliasesInput = {
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
   produtos?: Prisma.ProdutoUncheckedCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedCreateNestedOneWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedCreateNestedManyWithoutFabricanteLegalEsperadoInput
 }
 
 export type FabricanteCreateOrConnectWithoutAliasesInput = {
@@ -485,6 +541,8 @@ export type FabricanteUpdateWithoutAliasesInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produtos?: Prisma.ProdutoUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyWithoutFabricanteLegalEsperadoNestedInput
 }
 
 export type FabricanteUncheckedUpdateWithoutAliasesInput = {
@@ -495,6 +553,136 @@ export type FabricanteUncheckedUpdateWithoutAliasesInput = {
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   produtos?: Prisma.ProdutoUncheckedUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedUpdateOneWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedUpdateManyWithoutFabricanteLegalEsperadoNestedInput
+}
+
+export type FabricanteCreateWithoutGrupoLaboratorialInput = {
+  id?: string
+  nomeNormalizado: string
+  paisOrigem?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FabricanteAliasCreateNestedManyWithoutFabricanteInput
+  produtos?: Prisma.ProdutoCreateNestedManyWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpCreateNestedManyWithoutFabricanteLegalEsperadoInput
+}
+
+export type FabricanteUncheckedCreateWithoutGrupoLaboratorialInput = {
+  id?: string
+  nomeNormalizado: string
+  paisOrigem?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FabricanteAliasUncheckedCreateNestedManyWithoutFabricanteInput
+  produtos?: Prisma.ProdutoUncheckedCreateNestedManyWithoutFabricanteInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedCreateNestedManyWithoutFabricanteLegalEsperadoInput
+}
+
+export type FabricanteCreateOrConnectWithoutGrupoLaboratorialInput = {
+  where: Prisma.FabricanteWhereUniqueInput
+  create: Prisma.XOR<Prisma.FabricanteCreateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedCreateWithoutGrupoLaboratorialInput>
+}
+
+export type FabricanteUpsertWithoutGrupoLaboratorialInput = {
+  update: Prisma.XOR<Prisma.FabricanteUpdateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedUpdateWithoutGrupoLaboratorialInput>
+  create: Prisma.XOR<Prisma.FabricanteCreateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedCreateWithoutGrupoLaboratorialInput>
+  where?: Prisma.FabricanteWhereInput
+}
+
+export type FabricanteUpdateToOneWithWhereWithoutGrupoLaboratorialInput = {
+  where?: Prisma.FabricanteWhereInput
+  data: Prisma.XOR<Prisma.FabricanteUpdateWithoutGrupoLaboratorialInput, Prisma.FabricanteUncheckedUpdateWithoutGrupoLaboratorialInput>
+}
+
+export type FabricanteUpdateWithoutGrupoLaboratorialInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  paisOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FabricanteAliasUpdateManyWithoutFabricanteNestedInput
+  produtos?: Prisma.ProdutoUpdateManyWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyWithoutFabricanteLegalEsperadoNestedInput
+}
+
+export type FabricanteUncheckedUpdateWithoutGrupoLaboratorialInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  paisOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FabricanteAliasUncheckedUpdateManyWithoutFabricanteNestedInput
+  produtos?: Prisma.ProdutoUncheckedUpdateManyWithoutFabricanteNestedInput
+  regrasGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpUncheckedUpdateManyWithoutFabricanteLegalEsperadoNestedInput
+}
+
+export type FabricanteCreateWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  id?: string
+  nomeNormalizado: string
+  paisOrigem?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FabricanteAliasCreateNestedManyWithoutFabricanteInput
+  produtos?: Prisma.ProdutoCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteCreateNestedOneWithoutFabricanteInput
+}
+
+export type FabricanteUncheckedCreateWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  id?: string
+  nomeNormalizado: string
+  paisOrigem?: string | null
+  estado?: $Enums.EntidadeEstado
+  dataCriacao?: Date | string
+  dataAtualizacao?: Date | string
+  aliases?: Prisma.FabricanteAliasUncheckedCreateNestedManyWithoutFabricanteInput
+  produtos?: Prisma.ProdutoUncheckedCreateNestedManyWithoutFabricanteInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedCreateNestedOneWithoutFabricanteInput
+}
+
+export type FabricanteCreateOrConnectWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  where: Prisma.FabricanteWhereUniqueInput
+  create: Prisma.XOR<Prisma.FabricanteCreateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedCreateWithoutRegrasGrupoLaboratorialPorCnpInput>
+}
+
+export type FabricanteUpsertWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  update: Prisma.XOR<Prisma.FabricanteUpdateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedUpdateWithoutRegrasGrupoLaboratorialPorCnpInput>
+  create: Prisma.XOR<Prisma.FabricanteCreateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedCreateWithoutRegrasGrupoLaboratorialPorCnpInput>
+  where?: Prisma.FabricanteWhereInput
+}
+
+export type FabricanteUpdateToOneWithWhereWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  where?: Prisma.FabricanteWhereInput
+  data: Prisma.XOR<Prisma.FabricanteUpdateWithoutRegrasGrupoLaboratorialPorCnpInput, Prisma.FabricanteUncheckedUpdateWithoutRegrasGrupoLaboratorialPorCnpInput>
+}
+
+export type FabricanteUpdateWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  paisOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FabricanteAliasUpdateManyWithoutFabricanteNestedInput
+  produtos?: Prisma.ProdutoUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUpdateOneWithoutFabricanteNestedInput
+}
+
+export type FabricanteUncheckedUpdateWithoutRegrasGrupoLaboratorialPorCnpInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  nomeNormalizado?: Prisma.StringFieldUpdateOperationsInput | string
+  paisOrigem?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  aliases?: Prisma.FabricanteAliasUncheckedUpdateManyWithoutFabricanteNestedInput
+  produtos?: Prisma.ProdutoUncheckedUpdateManyWithoutFabricanteNestedInput
+  grupoLaboratorial?: Prisma.GrupoLaboratorialFabricanteUncheckedUpdateOneWithoutFabricanteNestedInput
 }
 
 
@@ -505,11 +693,13 @@ export type FabricanteUncheckedUpdateWithoutAliasesInput = {
 export type FabricanteCountOutputType = {
   aliases: number
   produtos: number
+  regrasGrupoLaboratorialPorCnp: number
 }
 
 export type FabricanteCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   aliases?: boolean | FabricanteCountOutputTypeCountAliasesArgs
   produtos?: boolean | FabricanteCountOutputTypeCountProdutosArgs
+  regrasGrupoLaboratorialPorCnp?: boolean | FabricanteCountOutputTypeCountRegrasGrupoLaboratorialPorCnpArgs
 }
 
 /**
@@ -536,6 +726,13 @@ export type FabricanteCountOutputTypeCountProdutosArgs<ExtArgs extends runtime.T
   where?: Prisma.ProdutoWhereInput
 }
 
+/**
+ * FabricanteCountOutputType without action
+ */
+export type FabricanteCountOutputTypeCountRegrasGrupoLaboratorialPorCnpArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RegraGrupoLaboratorialPorCnpWhereInput
+}
+
 
 export type FabricanteSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -546,6 +743,8 @@ export type FabricanteSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
   dataAtualizacao?: boolean
   aliases?: boolean | Prisma.Fabricante$aliasesArgs<ExtArgs>
   produtos?: boolean | Prisma.Fabricante$produtosArgs<ExtArgs>
+  grupoLaboratorial?: boolean | Prisma.Fabricante$grupoLaboratorialArgs<ExtArgs>
+  regrasGrupoLaboratorialPorCnp?: boolean | Prisma.Fabricante$regrasGrupoLaboratorialPorCnpArgs<ExtArgs>
   _count?: boolean | Prisma.FabricanteCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["fabricante"]>
 
@@ -580,6 +779,8 @@ export type FabricanteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs
 export type FabricanteInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   aliases?: boolean | Prisma.Fabricante$aliasesArgs<ExtArgs>
   produtos?: boolean | Prisma.Fabricante$produtosArgs<ExtArgs>
+  grupoLaboratorial?: boolean | Prisma.Fabricante$grupoLaboratorialArgs<ExtArgs>
+  regrasGrupoLaboratorialPorCnp?: boolean | Prisma.Fabricante$regrasGrupoLaboratorialPorCnpArgs<ExtArgs>
   _count?: boolean | Prisma.FabricanteCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type FabricanteIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -590,6 +791,13 @@ export type $FabricantePayload<ExtArgs extends runtime.Types.Extensions.Internal
   objects: {
     aliases: Prisma.$FabricanteAliasPayload<ExtArgs>[]
     produtos: Prisma.$ProdutoPayload<ExtArgs>[]
+    /**
+     * Presente só quando TODO este fabricante pertence inequivocamente a um
+     * grupo pesquisável (ver GrupoLaboratorialFabricante) — nunca para
+     * sucessões parciais (essas usam RegraGrupoLaboratorialPorCnp).
+     */
+    grupoLaboratorial: Prisma.$GrupoLaboratorialFabricantePayload<ExtArgs> | null
+    regrasGrupoLaboratorialPorCnp: Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -994,6 +1202,8 @@ export interface Prisma__FabricanteClient<T, Null = never, ExtArgs extends runti
   readonly [Symbol.toStringTag]: "PrismaPromise"
   aliases<T extends Prisma.Fabricante$aliasesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fabricante$aliasesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FabricanteAliasPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   produtos<T extends Prisma.Fabricante$produtosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fabricante$produtosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProdutoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  grupoLaboratorial<T extends Prisma.Fabricante$grupoLaboratorialArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fabricante$grupoLaboratorialArgs<ExtArgs>>): Prisma.Prisma__GrupoLaboratorialFabricanteClient<runtime.Types.Result.GetResult<Prisma.$GrupoLaboratorialFabricantePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  regrasGrupoLaboratorialPorCnp<T extends Prisma.Fabricante$regrasGrupoLaboratorialPorCnpArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Fabricante$regrasGrupoLaboratorialPorCnpArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1467,6 +1677,49 @@ export type Fabricante$produtosArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   distinct?: Prisma.ProdutoScalarFieldEnum | Prisma.ProdutoScalarFieldEnum[]
+}
+
+/**
+ * Fabricante.grupoLaboratorial
+ */
+export type Fabricante$grupoLaboratorialArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GrupoLaboratorialFabricante
+   */
+  select?: Prisma.GrupoLaboratorialFabricanteSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GrupoLaboratorialFabricante
+   */
+  omit?: Prisma.GrupoLaboratorialFabricanteOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GrupoLaboratorialFabricanteInclude<ExtArgs> | null
+  where?: Prisma.GrupoLaboratorialFabricanteWhereInput
+}
+
+/**
+ * Fabricante.regrasGrupoLaboratorialPorCnp
+ */
+export type Fabricante$regrasGrupoLaboratorialPorCnpArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the RegraGrupoLaboratorialPorCnp
+   */
+  select?: Prisma.RegraGrupoLaboratorialPorCnpSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the RegraGrupoLaboratorialPorCnp
+   */
+  omit?: Prisma.RegraGrupoLaboratorialPorCnpOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RegraGrupoLaboratorialPorCnpInclude<ExtArgs> | null
+  where?: Prisma.RegraGrupoLaboratorialPorCnpWhereInput
+  orderBy?: Prisma.RegraGrupoLaboratorialPorCnpOrderByWithRelationInput | Prisma.RegraGrupoLaboratorialPorCnpOrderByWithRelationInput[]
+  cursor?: Prisma.RegraGrupoLaboratorialPorCnpWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RegraGrupoLaboratorialPorCnpScalarFieldEnum | Prisma.RegraGrupoLaboratorialPorCnpScalarFieldEnum[]
 }
 
 /**

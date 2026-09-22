@@ -33,6 +33,51 @@ export type Fabricante = Prisma.FabricanteModel
  */
 export type FabricanteAlias = Prisma.FabricanteAliasModel
 /**
+ * Model GrupoLaboratorial
+ * Um grupo laboratorial PESQUISÁVEL — uma etiqueta curada que pode
+ * abranger vários `Fabricante` legais distintos (ex.: "Viatris" cobre
+ * Mylan Lda, Upjohn EESV e Viatris Healthcare Lda como entidades legais
+ * SEPARADAS). Nunca é, por si só, uma identidade legal.
+ */
+export type GrupoLaboratorial = Prisma.GrupoLaboratorialModel
+/**
+ * Model GrupoLaboratorialAlias
+ * Termos de pesquisa adicionais de um grupo (ex.: "Mylan", "Upjohn" como
+ * aliases do grupo "Viatris") — distinto de `FabricanteAlias`, que é
+ * sempre sobre a grafia de UM fabricante legal, nunca sobre o grupo.
+ * O MESMO alias pode existir em grupos diferentes (`@@unique` é só
+ * por-grupo) — é assim que o resolver detecta ambiguidade: nunca por
+ * uma restrição de unicidade global, sempre por leitura ("quantos
+ * grupos batem?") em tempo de classificação.
+ */
+export type GrupoLaboratorialAlias = Prisma.GrupoLaboratorialAliasModel
+/**
+ * Model GrupoLaboratorialFabricante
+ * Associação INTEGRAL fabricante legal → grupo — só pode existir quando
+ * TODO o fabricante pertence inequivocamente ao grupo (`fabricanteId` é
+ * `@unique`: um fabricante legal nunca pode estar integralmente em mais
+ * do que um grupo). Sucessões parciais NÃO usam este modelo — usam
+ * `RegraGrupoLaboratorialPorCnp`.
+ */
+export type GrupoLaboratorialFabricante = Prisma.GrupoLaboratorialFabricanteModel
+/**
+ * Model ProdutoGrupoLaboratorial
+ * O grupo EFECTIVO e já resolvido de um produto — a única tabela que a
+ * pesquisa/filtro lê. `produtoId` é `@unique`: um produto só pode ter
+ * um grupo. Nunca escreve em `Produto.fabricanteId` — são camadas
+ * completamente independentes.
+ */
+export type ProdutoGrupoLaboratorial = Prisma.ProdutoGrupoLaboratorialModel
+/**
+ * Model RegraGrupoLaboratorialPorCnp
+ * Sucessão empresarial AO NÍVEL DO CNP — cobre os casos em que só parte
+ * da carteira de um fabricante mudou de grupo (ex.: um CNP da Pfizer
+ * passou para o grupo Viatris, os restantes da Pfizer não). `cnp` é
+ * `@unique`: no máximo uma regra por CNP, activa ou não — não apenas
+ * "uma regra activa por CNP", mais forte.
+ */
+export type RegraGrupoLaboratorialPorCnp = Prisma.RegraGrupoLaboratorialPorCnpModel
+/**
  * Model Classificacao
  * Árvore de classificação central.
  */

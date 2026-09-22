@@ -16,6 +16,7 @@ import { lerOrdenacaoDeParams } from "@/lib/tabela/ordenacao";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { loadFarmaciasParaSync } from "@/lib/sync-request-data";
+import { resolveCurrentTenantSlug, TENANT_SYNC_BLOQUEADO } from "@/lib/tenant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +80,17 @@ export default async function StockPage({ searchParams }: Props) {
   // que a sessão tem acesso (`canAccessFarmaciaSync`, mesmo padrão do
   // Bloco A). Sem sessão ou sem permissão, `syncFarmacias` fica vazio e
   // `SyncNowWidget` não desenha nada.
-  const session = await getSession();
-  const syncFarmacias = session && can(session, "stock.sync") ? await loadFarmaciasParaSync(session) : [];
+  //
+  // Trava garantia (2026-09, ver lib/tenant-context.ts): mesmo princípio
+  // — `syncFarmacias` vazio também esconde o widget. A recusa REAL vive
+  // em `requestSyncNowAction` (servidor); isto é só a UI a não oferecer
+  // um botão que o servidor ia recusar. Outros tenants: comportamento
+  // inalterado.
+  const [session, tenantSlug] = await Promise.all([getSession(), resolveCurrentTenantSlug()]);
+  const syncFarmacias =
+    session && can(session, "stock.sync") && tenantSlug !== TENANT_SYNC_BLOQUEADO
+      ? await loadFarmaciasParaSync(session)
+      : [];
 
   return <StockClient data={data} syncFarmacias={syncFarmacias} />;
 }

@@ -2,11 +2,23 @@ import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { MIN_CNP_CATALOGAVEL } from "@/lib/catalog/cnp-catalogavel";
 import { origemClassificacao, type OrigemClassificacao } from "@/lib/categoria-resolver";
+import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
+import {
+  nomeDeLaboratorio,
+  pesquisarLaboratorios,
+  resolverFiltroLaboratorioWhere,
+  type CatalogoFilterOptionLaboratorio,
+} from "@/lib/catalog/laboratorio-filtro";
 import {
   Prisma,
   type ProdutoEstado,
   type VerificationStatus,
 } from "@/generated/prisma/client";
+
+// Reexportados para quem já importa de lib/catalogo-data.ts (a página, o
+// componente cliente) não precisar de saber que a lógica pura mora agora
+// em lib/catalog/laboratorio-filtro.ts (ver o porquê nesse ficheiro).
+export { pesquisarLaboratorios, resolverFiltroLaboratorioWhere, type CatalogoFilterOptionLaboratorio };
 
 /**
  * Data loaders read-only para as páginas /catalogo e /catalogo/artigo/[cnp].
@@ -104,7 +116,17 @@ export type ResumoClassificacao = {
 
 export type CatalogoListFilters = {
   search?: string;
-  fabricanteId?: string;
+  /**
+   * UM único filtro de laboratório — nunca dois concorrentes. Formato
+   * `"grupo:<id>"` (tenant garantia, quando o produto tem um
+   * ProdutoGrupoLaboratorial — ver resolverFiltroLaboratorioWhere) ou
+   * `"fabricante:<id>"` (todos os tenants — o Fabricante legal
+   * directamente, mesmo comportamento que existia antes desta mudança).
+   * Um fabricante que pertence INTEGRALMENTE a um grupo nunca aparece
+   * como opção `fabricante:` separada em `loadCatalogoFilterOptions` —
+   * evita a duplicação que o utilizador pediu para nunca acontecer.
+   */
+  laboratorio?: string;
   productType?: string;
   classificacaoN1Id?: string;
   verificationStatus?: VerificationStatus;
@@ -146,7 +168,7 @@ export type CatalogoListData = {
 };
 
 export type CatalogoFilterOptions = {
-  fabricantes: Array<{ id: string; nomeNormalizado: string }>;
+  laboratorios: CatalogoFilterOptionLaboratorio[];
   classificacoesN1: Array<{ id: string; nome: string }>;
 };
 
@@ -167,7 +189,10 @@ export function clampPage(n: number): number {
 
 export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions> {
   const prisma = await getPrisma();
-  const [fabricantes, classificacoesN1] = await Promise.all([
+  const tenantSlug = await resolveCurrentTenantSlug();
+  const comGrupos = tenantSlug === TENANT_GRUPOS_LABORATORIAIS;
+
+  const [fabricantesRaw, classificacoesN1, grupos, associacoesIntegrais, aliasesRaw] = await Promise.all([
     prisma.fabricante.findMany({
       where: { estado: "ATIVO" },
       select: { id: true, nomeNormalizado: true },
@@ -178,8 +203,42 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),
+    comGrupos
+      ? prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { id: true, nome: true } })
+      : Promise.resolve([]),
+    comGrupos ? prisma.grupoLaboratorialFabricante.findMany({ select: { fabricanteId: true } }) : Promise.resolve([]),
+    comGrupos
+      ? prisma.grupoLaboratorialAlias.findMany({ where: { estado: "ATIVO" }, select: { grupoLaboratorialId: true, alias: true } })
+      : Promise.resolve([]),
   ]);
-  return { fabricantes, classificacoesN1 };
+
+  if (!comGrupos) {
+    const laboratorios: CatalogoFilterOptionLaboratorio[] = fabricantesRaw.map((f) => ({
+      tipo: "fabricante",
+      id: f.id,
+      nomeNormalizado: f.nomeNormalizado,
+    }));
+    return { laboratorios, classificacoesN1 };
+  }
+
+  // Um fabricante integralmente associado a um grupo nunca aparece TAMBÉM
+  // como opção "fabricante:" separada — é assim que se evita a
+  // duplicação de opções para o mesmo laboratório.
+  const idsIntegraisNumGrupo = new Set(associacoesIntegrais.map((a) => a.fabricanteId));
+  const aliasesPorGrupo = new Map<string, string[]>();
+  for (const a of aliasesRaw) {
+    const lista = aliasesPorGrupo.get(a.grupoLaboratorialId) ?? [];
+    lista.push(a.alias);
+    aliasesPorGrupo.set(a.grupoLaboratorialId, lista);
+  }
+  const laboratorios: CatalogoFilterOptionLaboratorio[] = [
+    ...grupos.map((g): CatalogoFilterOptionLaboratorio => ({ tipo: "grupo", id: g.id, nome: g.nome, termosBusca: aliasesPorGrupo.get(g.id) ?? [] })),
+    ...fabricantesRaw
+      .filter((f) => !idsIntegraisNumGrupo.has(f.id))
+      .map((f): CatalogoFilterOptionLaboratorio => ({ tipo: "fabricante", id: f.id, nomeNormalizado: f.nomeNormalizado })),
+  ].sort((a, b) => nomeDeLaboratorio(a).localeCompare(nomeDeLaboratorio(b)));
+
+  return { laboratorios, classificacoesN1 };
 }
 
 // ─── Listagem ────────────────────────────────────────────────────────────────
@@ -193,7 +252,8 @@ export async function loadCatalogoListData(
 
   const where: Prisma.ProdutoWhereInput = {};
   if (filters.estado) where.estado = filters.estado;
-  if (filters.fabricanteId) where.fabricanteId = filters.fabricanteId;
+  const whereLaboratorio = resolverFiltroLaboratorioWhere(filters.laboratorio);
+  if (whereLaboratorio) Object.assign(where, whereLaboratorio);
   if (filters.productType) where.productType = filters.productType;
   if (filters.classificacaoN1Id) where.classificacaoNivel1Id = filters.classificacaoN1Id;
   if (filters.verificationStatus) where.verificationStatus = filters.verificationStatus;

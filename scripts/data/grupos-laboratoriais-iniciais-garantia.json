@@ -1,0 +1,101 @@
+{
+  "_nota": "Configuração PROPOSTA dos 5 grupos laboratoriais iniciais confirmados na análise do catálogo nacional (sessão 2026-09-22). NUNCA foi inserida em nenhuma base — os fabricanteNomeNormalizado listados em fabricantesIntegrais têm de ser resolvidos contra o Fabricante REAL de garantia (por nomeNormalizado exacto) antes de qualquer insert em GrupoLaboratorialFabricante; um nome sem Fabricante correspondente em garantia é ignorado, nunca inventado. As entidades listadas em naoIncluirAutomaticamente são exclusões deliberadas, não uma lista exaustiva de tudo o resto.",
+  "grupos": [
+    {
+      "nome": "Viatris",
+      "nomeNormalizado": "VIATRIS",
+      "aliases": [
+        { "alias": "Mylan", "aliasNormalizado": "MYLAN", "origem": "catálogo nacional 2026-09 — fusão Mylan+Upjohn→Viatris, 2020" },
+        { "alias": "Upjohn", "aliasNormalizado": "UPJOHN", "origem": "catálogo nacional 2026-09 — fusão Mylan+Upjohn→Viatris, 2020" }
+      ],
+      "fabricantesIntegrais": [
+        "Mylan, Lda.", "Mylan, L.da", "Mylan Pharmaceuticals Limited", "Mylan S.A.S",
+        "Mylan Ireland Ltd.", "Mylan dura GmbH", "Mylan Ire Healthcare Ltd.",
+        "Upjohn EESV", "Pharmacia e Upjohn Laboratórios, L.da",
+        "Viatris", "Viatris Healthcare, Lda.", "Viatris Healthcare Limited",
+        "Viatris Farmacêutica, S.A.", "Viatris Manufacturing B.V."
+      ],
+      "naoIncluirAutomaticamente": [
+        "Laboratórios Pfizer e variantes — Pfizer continua uma empresa grande e maioritariamente independente; só produtos específicos foram cedidos à Viatris/Upjohn. Requer RegraGrupoLaboratorialPorCnp por CNP, nunca GrupoLaboratorialFabricante integral."
+      ]
+    },
+    {
+      "nome": "Alfasigma",
+      "nomeNormalizado": "ALFASIGMA",
+      "aliases": [
+        { "alias": "Alfa Wassermann", "aliasNormalizado": "ALFA WASSERMANN", "origem": "catálogo nacional 2026-09" },
+        { "alias": "Biosaúde", "aliasNormalizado": "BIOSAUDE", "origem": "catálogo nacional 2026-09" }
+      ],
+      "fabricantesIntegrais": [
+        "Alfa Wassermann - Produtos Farmacêuticos Lda.", "Biosaúde - Produtos Farmacêuticos S.A.",
+        "Alfasigma Portugal, Lda.", "Alfasigma S.P.A.", "ALFASIGMA, LDA"
+      ],
+      "naoIncluirAutomaticamente": [],
+      "_nota_fabricantes_legais": "Alfasigma S.P.A. (matriz) e Alfasigma Portugal (subsidiária) mantêm-se fabricantes legais DISTINTOS entre si — podem ambos pertencer ao MESMO grupo pesquisável sem deixar de ser entidades legais separadas; o grupo nunca funde fabricantes."
+    },
+    {
+      "nome": "Teva",
+      "nomeNormalizado": "TEVA",
+      "aliases": [
+        { "alias": "Ratiopharm", "aliasNormalizado": "RATIOPHARM", "origem": "catálogo nacional 2026-09 — Ratiopharm adquirida pela Teva, 2010" }
+      ],
+      "fabricantesIntegrais": [
+        "Teva Pharma - Produtos Farmacêuticos Lda", "Teva B.V.", "Teva Pharma - Produtos Farmacêuticos, L.da",
+        "Teva Pharma B.V.", "Teva Gmbh", "Teva Generics GmbH", "Teva Generics Portugal - Prod Farmacêuticos, L.da",
+        "Teva Generics B.V.",
+        "Ratiopharm - Comércio E Indústria De Produtos Farmacêuticos Lda",
+        "Ratiopharm - Comércio e Ind de Prod Farm, L.da", "Ratiopharm Gmbh"
+      ],
+      "naoIncluirAutomaticamente": [],
+      "_nota_fabricantes_legais": "Ratiopharm e Teva mantêm-se fabricantes legais DISTINTOS entre si — a fase anterior de normalização de fabricantes (grupo #449 do plano de 557) já protegia explicitamente esta distinção via do_not_merge; este grupo pesquisável reforça, não contradiz, essa decisão."
+    },
+    {
+      "nome": "Kenvue",
+      "nomeNormalizado": "KENVUE",
+      "aliases": [
+        { "alias": "JNTL Consumer Health", "aliasNormalizado": "JNTL CONSUMER HEALTH", "origem": "catálogo nacional 2026-09 — spin-off Kenvue da J&J, 2023" }
+      ],
+      "fabricantesIntegrais": [
+        "JNTL Consumer Health (Portugal) Limitada"
+      ],
+      "naoIncluirAutomaticamente": [
+        "Janssen-Cilag Farmacêutica Lda., Janssen Farmacêutica Portugal S.A./Lda., Janssen-Cilag International NV, Janssen Biologics B.V. — divisão farmacêutica/prescrição da J&J, permanece distinta e NUNCA entra em Kenvue automaticamente, nem por alias nem por associação integral."
+      ]
+    },
+    {
+      "nome": "Tecnimede",
+      "nomeNormalizado": "TECNIMEDE",
+      "aliases": [
+        { "alias": "Pentafarma", "aliasNormalizado": "PENTAFARMA", "origem": "catálogo nacional 2026-09" }
+      ],
+      "fabricantesIntegrais": [
+        "Pentafarma - Sociedade Técnico Medicinal S.A.", "Pentafarma - Sociedade Técnico-Medicinal, S.A.",
+        "Pentafarma Genéricos - Sociedade Técnico Medicinal, Unipessoal Lda.",
+        "Pentafarma Especialidades - Sociedade Técnico Medicinal Lda.",
+        "Tecnimede - Sociedade Técnico-Medicinal, S. A.", "Tecnimede Especialidades - Soc. Técnico Medicinal, Lda",
+        "Tecnimede España - Industria Farmacêutica S.A."
+      ],
+      "naoIncluirAutomaticamente": []
+    }
+  ],
+  "sucessoesParciaisConhecidas": [
+    {
+      "descricao": "MSD → Organon (spin-off 2021)",
+      "fabricanteLegalOrigem": "Merck Sharp & Dohme",
+      "grupoDestinoSugerido": null,
+      "nota": "Nenhum grupo 'Organon' incluído nos 5 iniciais — candidato encontrado na análise (80 CNPs MSD→Organon), a confirmar antes de criar o grupo. Requer RegraGrupoLaboratorialPorCnp, nunca associação integral (MSD continua grande empresa independente)."
+    },
+    {
+      "descricao": "Novartis → Sandoz (spin-off 2023)",
+      "fabricanteLegalOrigem": "Novartis Farma - Produtos Farmacêuticos",
+      "grupoDestinoSugerido": null,
+      "nota": "Candidato encontrado na análise (3 CNPs confirmados, provavelmente mais). Requer RegraGrupoLaboratorialPorCnp, nunca associação integral."
+    },
+    {
+      "descricao": "Sanofi → Zentiva (spin-off genéricos 2018) / Opella (consumer health)",
+      "fabricanteLegalOrigem": "Sanofi - Produtos Farmacêuticos",
+      "grupoDestinoSugerido": null,
+      "nota": "Dois destinos distintos consoante o CNP (genéricos vs. consumer health) — candidatos encontrados na análise (40 e 48 CNPs respectivamente). Requer RegraGrupoLaboratorialPorCnp caso a caso."
+    }
+  ]
+}

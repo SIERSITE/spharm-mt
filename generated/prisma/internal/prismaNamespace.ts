@@ -387,6 +387,11 @@ export const ModelName = {
   Produto: 'Produto',
   Fabricante: 'Fabricante',
   FabricanteAlias: 'FabricanteAlias',
+  GrupoLaboratorial: 'GrupoLaboratorial',
+  GrupoLaboratorialAlias: 'GrupoLaboratorialAlias',
+  GrupoLaboratorialFabricante: 'GrupoLaboratorialFabricante',
+  ProdutoGrupoLaboratorial: 'ProdutoGrupoLaboratorial',
+  RegraGrupoLaboratorialPorCnp: 'RegraGrupoLaboratorialPorCnp',
   Classificacao: 'Classificacao',
   Utilizacao: 'Utilizacao',
   ProdutoUtilizacao: 'ProdutoUtilizacao',
@@ -453,7 +458,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
+    modelProps: "produto" | "fabricante" | "fabricanteAlias" | "grupoLaboratorial" | "grupoLaboratorialAlias" | "grupoLaboratorialFabricante" | "produtoGrupoLaboratorial" | "regraGrupoLaboratorialPorCnp" | "classificacao" | "utilizacao" | "produtoUtilizacao" | "ingestProdutoRun" | "compraDocumento" | "catalogoBackfillRun" | "infarmedSnapshot" | "regulatoryRecord" | "regulatoryAcquisitionJob" | "produtoVerificacaoHistorico" | "enrichmentSourceLog" | "fornecedor" | "fornecedorAlias" | "fornecedorErpRef" | "farmacia" | "emailConfig" | "utilizador" | "utilizadorFarmacia" | "auditLog" | "produtoFarmacia" | "produtoInterno" | "venda" | "vendaMensal" | "vendaManutencao" | "vendaManutencaoCelula" | "vendaManutencaoFarmacia" | "compra" | "devolucao" | "historicoStock" | "ajusteStock" | "inventario" | "linhaInventario" | "indicadoresProdutoFarmacia" | "listaEncomenda" | "linhaEncomenda" | "transferencia" | "linhaTransferencia" | "filaRevisao" | "enriquecimentoFila" | "loteIngestao" | "ingestVendaLinhaRaw" | "stagingCompraRawLine" | "stagingDevolucaoFornecedorRawLine" | "pipelineRun" | "tipoDocumentoClassificacao" | "orderOutbox" | "orderExportAudit" | "syncRequest" | "movimentoArtigo" | "ingestStocksMovRaw" | "knowledgeEnrichmentCache"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -676,6 +681,376 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.FabricanteAliasCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.FabricanteAliasCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrupoLaboratorial: {
+      payload: Prisma.$GrupoLaboratorialPayload<ExtArgs>
+      fields: Prisma.GrupoLaboratorialFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrupoLaboratorialFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrupoLaboratorialFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        findFirst: {
+          args: Prisma.GrupoLaboratorialFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrupoLaboratorialFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        findMany: {
+          args: Prisma.GrupoLaboratorialFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>[]
+        }
+        create: {
+          args: Prisma.GrupoLaboratorialCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        createMany: {
+          args: Prisma.GrupoLaboratorialCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrupoLaboratorialCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>[]
+        }
+        delete: {
+          args: Prisma.GrupoLaboratorialDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        update: {
+          args: Prisma.GrupoLaboratorialUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrupoLaboratorialDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrupoLaboratorialUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrupoLaboratorialUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrupoLaboratorialUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialPayload>
+        }
+        aggregate: {
+          args: Prisma.GrupoLaboratorialAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrupoLaboratorial>
+        }
+        groupBy: {
+          args: Prisma.GrupoLaboratorialGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrupoLaboratorialCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrupoLaboratorialAlias: {
+      payload: Prisma.$GrupoLaboratorialAliasPayload<ExtArgs>
+      fields: Prisma.GrupoLaboratorialAliasFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrupoLaboratorialAliasFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrupoLaboratorialAliasFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        findFirst: {
+          args: Prisma.GrupoLaboratorialAliasFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrupoLaboratorialAliasFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        findMany: {
+          args: Prisma.GrupoLaboratorialAliasFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>[]
+        }
+        create: {
+          args: Prisma.GrupoLaboratorialAliasCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        createMany: {
+          args: Prisma.GrupoLaboratorialAliasCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrupoLaboratorialAliasCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>[]
+        }
+        delete: {
+          args: Prisma.GrupoLaboratorialAliasDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        update: {
+          args: Prisma.GrupoLaboratorialAliasUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        deleteMany: {
+          args: Prisma.GrupoLaboratorialAliasDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrupoLaboratorialAliasUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrupoLaboratorialAliasUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>[]
+        }
+        upsert: {
+          args: Prisma.GrupoLaboratorialAliasUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialAliasPayload>
+        }
+        aggregate: {
+          args: Prisma.GrupoLaboratorialAliasAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrupoLaboratorialAlias>
+        }
+        groupBy: {
+          args: Prisma.GrupoLaboratorialAliasGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialAliasGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrupoLaboratorialAliasCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialAliasCountAggregateOutputType> | number
+        }
+      }
+    }
+    GrupoLaboratorialFabricante: {
+      payload: Prisma.$GrupoLaboratorialFabricantePayload<ExtArgs>
+      fields: Prisma.GrupoLaboratorialFabricanteFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GrupoLaboratorialFabricanteFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GrupoLaboratorialFabricanteFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        findFirst: {
+          args: Prisma.GrupoLaboratorialFabricanteFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GrupoLaboratorialFabricanteFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        findMany: {
+          args: Prisma.GrupoLaboratorialFabricanteFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>[]
+        }
+        create: {
+          args: Prisma.GrupoLaboratorialFabricanteCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        createMany: {
+          args: Prisma.GrupoLaboratorialFabricanteCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GrupoLaboratorialFabricanteCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>[]
+        }
+        delete: {
+          args: Prisma.GrupoLaboratorialFabricanteDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        update: {
+          args: Prisma.GrupoLaboratorialFabricanteUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        deleteMany: {
+          args: Prisma.GrupoLaboratorialFabricanteDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GrupoLaboratorialFabricanteUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GrupoLaboratorialFabricanteUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>[]
+        }
+        upsert: {
+          args: Prisma.GrupoLaboratorialFabricanteUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GrupoLaboratorialFabricantePayload>
+        }
+        aggregate: {
+          args: Prisma.GrupoLaboratorialFabricanteAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGrupoLaboratorialFabricante>
+        }
+        groupBy: {
+          args: Prisma.GrupoLaboratorialFabricanteGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialFabricanteGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GrupoLaboratorialFabricanteCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GrupoLaboratorialFabricanteCountAggregateOutputType> | number
+        }
+      }
+    }
+    ProdutoGrupoLaboratorial: {
+      payload: Prisma.$ProdutoGrupoLaboratorialPayload<ExtArgs>
+      fields: Prisma.ProdutoGrupoLaboratorialFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProdutoGrupoLaboratorialFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProdutoGrupoLaboratorialFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        findFirst: {
+          args: Prisma.ProdutoGrupoLaboratorialFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProdutoGrupoLaboratorialFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        findMany: {
+          args: Prisma.ProdutoGrupoLaboratorialFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>[]
+        }
+        create: {
+          args: Prisma.ProdutoGrupoLaboratorialCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        createMany: {
+          args: Prisma.ProdutoGrupoLaboratorialCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProdutoGrupoLaboratorialCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>[]
+        }
+        delete: {
+          args: Prisma.ProdutoGrupoLaboratorialDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        update: {
+          args: Prisma.ProdutoGrupoLaboratorialUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProdutoGrupoLaboratorialDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProdutoGrupoLaboratorialUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProdutoGrupoLaboratorialUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProdutoGrupoLaboratorialUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProdutoGrupoLaboratorialPayload>
+        }
+        aggregate: {
+          args: Prisma.ProdutoGrupoLaboratorialAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProdutoGrupoLaboratorial>
+        }
+        groupBy: {
+          args: Prisma.ProdutoGrupoLaboratorialGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProdutoGrupoLaboratorialGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProdutoGrupoLaboratorialCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProdutoGrupoLaboratorialCountAggregateOutputType> | number
+        }
+      }
+    }
+    RegraGrupoLaboratorialPorCnp: {
+      payload: Prisma.$RegraGrupoLaboratorialPorCnpPayload<ExtArgs>
+      fields: Prisma.RegraGrupoLaboratorialPorCnpFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        findFirst: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        findMany: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>[]
+        }
+        create: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        createMany: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>[]
+        }
+        delete: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        update: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        deleteMany: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>[]
+        }
+        upsert: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RegraGrupoLaboratorialPorCnpPayload>
+        }
+        aggregate: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRegraGrupoLaboratorialPorCnp>
+        }
+        groupBy: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegraGrupoLaboratorialPorCnpGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RegraGrupoLaboratorialPorCnpCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RegraGrupoLaboratorialPorCnpCountAggregateOutputType> | number
         }
       }
     }
@@ -4561,6 +4936,74 @@ export const FabricanteAliasScalarFieldEnum = {
 export type FabricanteAliasScalarFieldEnum = (typeof FabricanteAliasScalarFieldEnum)[keyof typeof FabricanteAliasScalarFieldEnum]
 
 
+export const GrupoLaboratorialScalarFieldEnum = {
+  id: 'id',
+  nome: 'nome',
+  nomeNormalizado: 'nomeNormalizado',
+  estado: 'estado',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type GrupoLaboratorialScalarFieldEnum = (typeof GrupoLaboratorialScalarFieldEnum)[keyof typeof GrupoLaboratorialScalarFieldEnum]
+
+
+export const GrupoLaboratorialAliasScalarFieldEnum = {
+  id: 'id',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  alias: 'alias',
+  aliasNormalizado: 'aliasNormalizado',
+  origem: 'origem',
+  estado: 'estado'
+} as const
+
+export type GrupoLaboratorialAliasScalarFieldEnum = (typeof GrupoLaboratorialAliasScalarFieldEnum)[keyof typeof GrupoLaboratorialAliasScalarFieldEnum]
+
+
+export const GrupoLaboratorialFabricanteScalarFieldEnum = {
+  id: 'id',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  fabricanteId: 'fabricanteId',
+  tipoAssociacao: 'tipoAssociacao',
+  evidencia: 'evidencia',
+  validadoManualmente: 'validadoManualmente',
+  dataCriacao: 'dataCriacao'
+} as const
+
+export type GrupoLaboratorialFabricanteScalarFieldEnum = (typeof GrupoLaboratorialFabricanteScalarFieldEnum)[keyof typeof GrupoLaboratorialFabricanteScalarFieldEnum]
+
+
+export const ProdutoGrupoLaboratorialScalarFieldEnum = {
+  id: 'id',
+  produtoId: 'produtoId',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  origem: 'origem',
+  regraCnpId: 'regraCnpId',
+  snapshotCnp: 'snapshotCnp',
+  validadoManualmente: 'validadoManualmente',
+  evidencia: 'evidencia',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type ProdutoGrupoLaboratorialScalarFieldEnum = (typeof ProdutoGrupoLaboratorialScalarFieldEnum)[keyof typeof ProdutoGrupoLaboratorialScalarFieldEnum]
+
+
+export const RegraGrupoLaboratorialPorCnpScalarFieldEnum = {
+  id: 'id',
+  cnp: 'cnp',
+  grupoLaboratorialId: 'grupoLaboratorialId',
+  fabricanteLegalEsperadoId: 'fabricanteLegalEsperadoId',
+  evidencia: 'evidencia',
+  estado: 'estado',
+  validadoManualmente: 'validadoManualmente',
+  dataCriacao: 'dataCriacao',
+  dataAtualizacao: 'dataAtualizacao'
+} as const
+
+export type RegraGrupoLaboratorialPorCnpScalarFieldEnum = (typeof RegraGrupoLaboratorialPorCnpScalarFieldEnum)[keyof typeof RegraGrupoLaboratorialPorCnpScalarFieldEnum]
+
+
 export const ClassificacaoScalarFieldEnum = {
   id: 'id',
   nome: 'nome',
@@ -6189,6 +6632,11 @@ export type GlobalOmitConfig = {
   produto?: Prisma.ProdutoOmit
   fabricante?: Prisma.FabricanteOmit
   fabricanteAlias?: Prisma.FabricanteAliasOmit
+  grupoLaboratorial?: Prisma.GrupoLaboratorialOmit
+  grupoLaboratorialAlias?: Prisma.GrupoLaboratorialAliasOmit
+  grupoLaboratorialFabricante?: Prisma.GrupoLaboratorialFabricanteOmit
+  produtoGrupoLaboratorial?: Prisma.ProdutoGrupoLaboratorialOmit
+  regraGrupoLaboratorialPorCnp?: Prisma.RegraGrupoLaboratorialPorCnpOmit
   classificacao?: Prisma.ClassificacaoOmit
   utilizacao?: Prisma.UtilizacaoOmit
   produtoUtilizacao?: Prisma.ProdutoUtilizacaoOmit

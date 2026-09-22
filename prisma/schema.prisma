@@ -416,6 +416,9 @@ model Produto {
   ingestVendasLinhasRaw IngestVendaLinhaRaw[]
   movimentos            MovimentoArtigo[]
   vendaManutencoes      VendaManutencao[]
+  /// Grupo laboratorial PESQUISÁVEL efectivo — nunca confundir com
+  /// `fabricante`/`fabricanteId` acima (identidade LEGAL). Ver GrupoLaboratorial.
+  grupoLaboratorial     ProdutoGrupoLaboratorial?
 
   @@index([fabricanteId])
   @@index([classificacaoNivel1Id])
@@ -439,6 +442,11 @@ model Fabricante {
 
   aliases  FabricanteAlias[]
   produtos Produto[]
+  /// Presente só quando TODO este fabricante pertence inequivocamente a um
+  /// grupo pesquisável (ver GrupoLaboratorialFabricante) — nunca para
+  /// sucessões parciais (essas usam RegraGrupoLaboratorialPorCnp).
+  grupoLaboratorial GrupoLaboratorialFabricante?
+  regrasGrupoLaboratorialPorCnp RegraGrupoLaboratorialPorCnp[]
 }
 
 /// Variantes de nomes de fabricante encontradas nas origens.
@@ -451,6 +459,149 @@ model FabricanteAlias {
 
   @@unique([fabricanteId, aliasNome])
   @@index([aliasNome])
+}
+
+// ── Grupo laboratorial pesquisável (tenant garantia — 2026-09) ──────────
+//
+// Camada SEPARADA da identidade legal (`Fabricante`) — nunca a substitui
+// nem escreve em `Produto.fabricanteId`. Existe porque uma sucessão
+// empresarial real (Mylan+Upjohn→Viatris, MSD→Organon, Novartis→Sandoz,
+// Sanofi→Zentiva/Opella) frequentemente NÃO abrange a carteira inteira de
+// um fabricante legal — só parte dela, produto a produto — pelo que uma
+// simples `Fabricante.grupoLaboratorialId` seria insegura: fundiria
+// "Pfizer" inteiro num grupo que só corresponde a alguns CNPs da Pfizer.
+//
+// Duas formas de associação, deliberadamente distintas:
+//   · GrupoLaboratorialFabricante — o fabricante legal INTEIRO pertence
+//     ao grupo, sem excepção conhecida (ex.: qualquer "Viatris Healthcare
+//     Lda" É sempre grupo Viatris). Só usar quando isto for mesmo verdade
+//     para TODOS os produtos desse fabricante.
+//   · RegraGrupoLaboratorialPorCnp — só ESTE CNP pertence ao grupo,
+//     independentemente de qual seja o fabricante legal do produto
+//     (cobre exactamente as sucessões parciais acima).
+//
+// `ProdutoGrupoLaboratorial` é o resultado JÁ RESOLVIDO por produto — a
+// pesquisa/filtro nunca recalcula a precedência em runtime, só lê esta
+// tabela. Ver lib/catalog/resolver-grupo-laboratorial.ts para os 6 níveis
+// de precedência que a preenchem.
+
+/// Um grupo laboratorial PESQUISÁVEL — uma etiqueta curada que pode
+/// abranger vários `Fabricante` legais distintos (ex.: "Viatris" cobre
+/// Mylan Lda, Upjohn EESV e Viatris Healthcare Lda como entidades legais
+/// SEPARADAS). Nunca é, por si só, uma identidade legal.
+model GrupoLaboratorial {
+  id              String         @id @default(cuid())
+  nome            String
+  nomeNormalizado String         @unique
+  estado          EntidadeEstado @default(ATIVO)
+  dataCriacao     DateTime       @default(now())
+  dataAtualizacao DateTime       @updatedAt
+
+  aliases     GrupoLaboratorialAlias[]
+  fabricantes GrupoLaboratorialFabricante[]
+  produtos    ProdutoGrupoLaboratorial[]
+  regrasCnp   RegraGrupoLaboratorialPorCnp[]
+}
+
+/// Termos de pesquisa adicionais de um grupo (ex.: "Mylan", "Upjohn" como
+/// aliases do grupo "Viatris") — distinto de `FabricanteAlias`, que é
+/// sempre sobre a grafia de UM fabricante legal, nunca sobre o grupo.
+/// O MESMO alias pode existir em grupos diferentes (`@@unique` é só
+/// por-grupo) — é assim que o resolver detecta ambiguidade: nunca por
+/// uma restrição de unicidade global, sempre por leitura ("quantos
+/// grupos batem?") em tempo de classificação.
+model GrupoLaboratorialAlias {
+  id                  String         @id @default(cuid())
+  grupoLaboratorialId String
+  alias               String
+  aliasNormalizado    String
+  /// Texto livre de proveniência (ex.: "análise catálogo nacional 2026-09") — auditoria, nunca decide comportamento.
+  origem              String?
+  estado              EntidadeEstado @default(ATIVO)
+
+  grupoLaboratorial GrupoLaboratorial @relation(fields: [grupoLaboratorialId], references: [id], onDelete: Cascade)
+
+  @@unique([grupoLaboratorialId, aliasNormalizado])
+  @@index([aliasNormalizado])
+}
+
+/// Associação INTEGRAL fabricante legal → grupo — só pode existir quando
+/// TODO o fabricante pertence inequivocamente ao grupo (`fabricanteId` é
+/// `@unique`: um fabricante legal nunca pode estar integralmente em mais
+/// do que um grupo). Sucessões parciais NÃO usam este modelo — usam
+/// `RegraGrupoLaboratorialPorCnp`.
+model GrupoLaboratorialFabricante {
+  id                  String   @id @default(cuid())
+  grupoLaboratorialId String
+  fabricanteId        String   @unique
+  /// Hoje só "INEQUIVOCA" tem sentido — texto livre (não enum) para não
+  /// custar uma migração se surgir uma segunda forma de associação
+  /// integral; mesma convenção de `Produto.classificacaoOrigem`.
+  tipoAssociacao      String   @default("INEQUIVOCA")
+  evidencia           String?
+  validadoManualmente Boolean  @default(false)
+  dataCriacao         DateTime @default(now())
+
+  grupoLaboratorial GrupoLaboratorial @relation(fields: [grupoLaboratorialId], references: [id], onDelete: Cascade)
+  fabricante        Fabricante        @relation(fields: [fabricanteId], references: [id], onDelete: Cascade)
+
+  @@index([grupoLaboratorialId])
+}
+
+/// O grupo EFECTIVO e já resolvido de um produto — a única tabela que a
+/// pesquisa/filtro lê. `produtoId` é `@unique`: um produto só pode ter
+/// um grupo. Nunca escreve em `Produto.fabricanteId` — são camadas
+/// completamente independentes.
+model ProdutoGrupoLaboratorial {
+  id                  String   @id @default(cuid())
+  produtoId           String   @unique
+  grupoLaboratorialId String
+  /// MANUAL | REGRA_CNP | SNAPSHOT_CNP | FABRICANTE_INEQUIVOCO | ALIAS_INEQUIVOCO
+  /// — os 5 níveis não-terminais da precedência (ver resolver-grupo-laboratorial.ts).
+  /// Texto livre e não enum, mesma convenção de `Produto.classificacaoOrigem`.
+  origem              String
+  regraCnpId          String?
+  /// CNP do RegulatoryRecord que originou uma proposta SNAPSHOT_CNP — FK
+  /// real (não um id solto sem integridade referencial), auditável até
+  /// ao registo regulatório exacto que a gerou. Null nos outros 4 níveis.
+  snapshotCnp         Int?
+  validadoManualmente Boolean  @default(false)
+  evidencia           String?
+  dataCriacao         DateTime @default(now())
+  dataAtualizacao     DateTime @updatedAt
+
+  produto           Produto                       @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  grupoLaboratorial GrupoLaboratorial             @relation(fields: [grupoLaboratorialId], references: [id])
+  regraCnp          RegraGrupoLaboratorialPorCnp? @relation(fields: [regraCnpId], references: [id])
+  snapshot          RegulatoryRecord?             @relation(fields: [snapshotCnp], references: [cnp])
+
+  @@index([grupoLaboratorialId])
+  @@index([regraCnpId])
+  @@index([snapshotCnp])
+}
+
+/// Sucessão empresarial AO NÍVEL DO CNP — cobre os casos em que só parte
+/// da carteira de um fabricante mudou de grupo (ex.: um CNP da Pfizer
+/// passou para o grupo Viatris, os restantes da Pfizer não). `cnp` é
+/// `@unique`: no máximo uma regra por CNP, activa ou não — não apenas
+/// "uma regra activa por CNP", mais forte.
+model RegraGrupoLaboratorialPorCnp {
+  id                         String         @id @default(cuid())
+  cnp                        Int            @unique
+  grupoLaboratorialId        String
+  /// Preenchido quando se sabe qual DEVERIA ser o fabricante legal deste
+  /// CNP (ex.: continua "Laboratórios Pfizer") — nunca escrito em
+  /// `Produto.fabricanteId` por este mecanismo; só contexto/validação.
+  fabricanteLegalEsperadoId  String?
+  evidencia                  String?
+  estado                     EntidadeEstado @default(ATIVO)
+  validadoManualmente        Boolean        @default(false)
+  dataCriacao                DateTime       @default(now())
+  dataAtualizacao            DateTime       @updatedAt
+
+  grupoLaboratorial       GrupoLaboratorial          @relation(fields: [grupoLaboratorialId], references: [id])
+  fabricanteLegalEsperado Fabricante?                @relation(fields: [fabricanteLegalEsperadoId], references: [id])
+  produtos                ProdutoGrupoLaboratorial[]
 }
 
 /// Árvore de classificação central.
@@ -749,6 +900,10 @@ model RegulatoryRecord {
   source            String
   importedAt        DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  /// Propostas de grupo laboratorial (nível 3 da precedência) derivadas
+  /// deste registo por CNP — nunca aplicadas automaticamente sem validação.
+  propostasGrupoLaboratorial ProdutoGrupoLaboratorial[]
 
   @@index([codigoATC])
   @@index([dci])

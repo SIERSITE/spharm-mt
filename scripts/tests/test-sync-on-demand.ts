@@ -401,6 +401,63 @@ console.log("\n== J. Timeout local e política de retry do agent ==");
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// P — Trava garantia (2026-09): "Sincronizar agora" desligado só para o
+//     tenant garantia, enquanto decorre a classificação de fabricantes/
+//     grupos laboratoriais — recusado no SERVIDOR (não só escondido na
+//     UI), outros tenants seguem inalterados. Verificação por inspecção
+//     do código-fonte, mesmo padrão das secções H/N/O acima (a acção
+//     real precisa de `requirePermission`/`headers()` de um pedido Next
+//     a sério para correr).
+// ═════════════════════════════════════════════════════════════════════
+console.log("\n== P. Trava garantia — Sincronizar agora recusado no servidor, outros tenants inalterados ==");
+{
+  const tenantContext = src("lib/tenant-context.ts");
+  check(
+    tenantContext.includes('export const TENANT_SYNC_BLOQUEADO = "garantia"'),
+    "lib/tenant-context.ts declara TENANT_SYNC_BLOQUEADO = \"garantia\" — fonte única para as duas camadas (servidor + UI)",
+  );
+
+  const syncActions = src("app/stock/sync-actions.ts");
+  const bodyRequestSyncNow = syncActions.slice(syncActions.indexOf("export async function requestSyncNowAction"));
+  check(
+    bodyRequestSyncNow.includes("resolveCurrentTenantSlug") && bodyRequestSyncNow.includes("TENANT_SYNC_BLOQUEADO"),
+    "requestSyncNowAction resolve o tenant actual e compara com TENANT_SYNC_BLOQUEADO",
+  );
+  check(
+    /tenantSlug === TENANT_SYNC_BLOQUEADO/.test(bodyRequestSyncNow),
+    "a comparação é POR IGUALDADE ao tenant bloqueado (=== \"garantia\") — nunca uma negação tipo '!== outroTenant', que bloquearia todos os OUTROS tenants em vez de só o garantia",
+  );
+  const idxCheck = bodyRequestSyncNow.indexOf("TENANT_SYNC_BLOQUEADO");
+  const idxCreate = bodyRequestSyncNow.indexOf("syncRequest.create(");
+  check(
+    idxCheck !== -1 && idxCreate !== -1 && idxCheck < idxCreate,
+    "a verificação do tenant acontece ANTES do INSERT do SyncRequest — recusa mesmo antes de tocar na base",
+  );
+  check(
+    !bodyRequestSyncNow.slice(0, bodyRequestSyncNow.indexOf("resolveCurrentTenantSlug")).includes("syncRequest.create("),
+    "não há nenhum caminho de escrita ANTES da trava — a trava é a primeira coisa depois da permissão",
+  );
+
+  const page = src("app/stock/page.tsx");
+  check(
+    page.includes("resolveCurrentTenantSlug") && page.includes("TENANT_SYNC_BLOQUEADO"),
+    "app/stock/page.tsx também verifica o tenant — a UI não oferece um botão que o servidor ia recusar",
+  );
+  check(
+    /tenantSlug !== TENANT_SYNC_BLOQUEADO/.test(page),
+    "a UI só carrega syncFarmacias quando o tenant NÃO é o bloqueado — outros tenants continuam a ver o widget normalmente",
+  );
+
+  // Import a partir de app/stock/sync-actions.ts teria rebentado o build
+  // (ficheiro "use server" só pode exportar funções) — confirma que a
+  // constante NÃO é exportada de lá.
+  check(
+    !/export const TENANT_SYNC_BLOQUEADO/.test(syncActions),
+    "TENANT_SYNC_BLOQUEADO NÃO é declarada em sync-actions.ts (ficheiro \"use server\" só pode exportar funções — a constante vive em lib/tenant-context.ts)",
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // K — Long-poll no SERVIDOR (`lib/sync-request/longpoll.ts`)
 //
 // Núcleo puro (sem BD) — testado com um `attemptClaim` falso e um
