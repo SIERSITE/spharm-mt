@@ -1,0 +1,357 @@
+{
+  "_nota": "Ficheiro auditável único com TODAS as relações empresariais usadas para construir scripts/data/grupos-laboratoriais-iniciais-garantia.json e scripts/data/regras-cnp-grupos-laboratoriais-garantia.json. Cada entrada tem: grupo, fabricanteOuTitularOrigem, tipo (INTEGRAL = GrupoLaboratorialFabricante, futuro; CNP = RegraGrupoLaboratorialPorCnp), quantidade, fonteOficial, url, dataFonte, resumoEvidencia, decisao. 'CNP' com fonteOficial='Catálogo Nacional (INFARMED-like)' significa que a evidência é o próprio registo regulatório actual por CNP — não uma fonte externa, mas ainda assim uma prova concreta e auditável, nunca semelhança textual.",
+  "relacoes": [
+    {
+      "grupo": "Alfasigma",
+      "fabricanteOuTitularOrigem": "Alfa Wassermann (Produtos Farmacêuticos, e variantes reais de garantia)",
+      "tipo": "INTEGRAL",
+      "quantidade": "~50 produtos (fabricante_inequivoco, dados reais garantia)",
+      "fonteOficial": "Alfasigma — história corporativa; Bebeez (cobertura do anúncio)",
+      "url": "https://bebeez.it/en/2015/03/06/italys-drugmakers-alfa-wassermann-and-sigma-tau-to-merge-new-group",
+      "dataFonte": "2015-03-06",
+      "resumoEvidencia": "Alfa Wassermann e Sigma-Tau fundiram os seus negócios farmacêuticos para formar a Alfasigma; fusão efectiva em 2015-05.",
+      "decisao": "A — associação integral (a Alfa Wassermann deixou de existir como marca comercial separada)."
+    },
+    {
+      "grupo": "Alfasigma",
+      "fabricanteOuTitularOrigem": "Sigma-Tau Industrie Farmaceutiche Riunite Societa Per Azioni",
+      "tipo": "INTEGRAL",
+      "quantidade": "1 produto (fabricante_inequivoco, dados reais garantia)",
+      "fonteOficial": "Bebeez; Notiziario Chimico Farmaceutico",
+      "url": "https://www.notiziariochimicofarmaceutico.it/2015/05/19/alfasigma/",
+      "dataFonte": "2015-05-19",
+      "resumoEvidencia": "Fusão Alfa Wassermann + Sigma-Tau → Alfasigma, 2015-05. Ressalva: a unidade de doenças raras da Sigma-Tau ficou FORA da fusão (retida pela família Cavazza, vendida à Chiesi em 2016) — sem impacto no catálogo de retalho da Garantia.",
+      "decisao": "A — associação integral da entidade principal, com a ressalva documentada."
+    },
+    {
+      "grupo": "Alfasigma",
+      "fabricanteOuTitularOrigem": "Biosaúde - Produtos Farmacêuticos",
+      "tipo": "INTEGRAL",
+      "quantidade": "incluído no total fabricante_inequivoco de Alfasigma",
+      "fonteOficial": "Catálogo Nacional (titular actual = Alfasigma Portugal)",
+      "url": null,
+      "dataFonte": "2026-09 (snapshot do catálogo usado nesta simulação)",
+      "resumoEvidencia": "Fabricante real de garantia 'Biosaúde' resolve directamente para Alfasigma via nome já incluído na configuração original (proveniência: catálogo nacional).",
+      "decisao": "A — associação integral, já presente na config inicial."
+    },
+    {
+      "grupo": "Alfasigma",
+      "fabricanteOuTitularOrigem": "Defiante Farmacêutica",
+      "tipo": "CNP",
+      "quantidade": "6 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09 (snapshot do catálogo usado nesta simulação)",
+      "resumoEvidencia": "6 CNPs cujo fabricante actual em garantia é 'Defiante Farmacêutica' têm titular ACTUAL no catálogo nacional = Alfasigma S.P.A., consistentemente (sem sinal contraditório). Sem confirmação externa independente da relação societária completa — por isso regra por CNP, não associação integral.",
+      "decisao": "B — regra por CNP, só para estes 6 CNPs concretos."
+    },
+    {
+      "grupo": "Alfasigma",
+      "fabricanteOuTitularOrigem": "Sofex Farmacêutica",
+      "tipo": "CNP",
+      "quantidade": "2 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "2 CNPs com titular ACTUAL = Alfasigma Portugal, sem sinal contraditório.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Viatris",
+      "fabricanteOuTitularOrigem": "Mylan (e variantes: Mylan Lda, Mylan Ireland, Mylan Pharmaceuticals Limited, etc.)",
+      "tipo": "INTEGRAL",
+      "quantidade": "707 produtos (fabricante_inequivoco, dados reais garantia)",
+      "fonteOficial": "Viatris — comunicado corporativo da fusão Mylan+Upjohn",
+      "url": "https://www.viatris.com",
+      "dataFonte": "2020 (fusão)",
+      "resumoEvidencia": "Fusão Mylan + Upjohn (unidade off-patent da Pfizer) → Viatris, concluída Nov/2020. Mylan deixou de existir como empresa independente.",
+      "decisao": "A — associação integral."
+    },
+    {
+      "grupo": "Viatris",
+      "fabricanteOuTitularOrigem": "Upjohn EESV",
+      "tipo": "INTEGRAL",
+      "quantidade": "incluído no total fabricante_inequivoco de Viatris",
+      "fonteOficial": "Viatris — comunicado corporativo da fusão",
+      "url": "https://www.viatris.com",
+      "dataFonte": "2020",
+      "resumoEvidencia": "Upjohn era a unidade de medicamentos genéricos/de marca sem patente da Pfizer, separada e fundida com a Mylan para formar a Viatris.",
+      "decisao": "A — associação integral."
+    },
+    {
+      "grupo": "Viatris",
+      "fabricanteOuTitularOrigem": "Pfizer / Laboratórios Pfizer (variantes reais de garantia)",
+      "tipo": "CNP",
+      "quantidade": "14 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "14 CNPs com fabricante actual em garantia 'LABORATORIOS PFIZER'/'PFIZER' têm titular ACTUAL no catálogo = Upjohn EESV — prova per-CNP de que estes produtos específicos já transitaram da Pfizer para a Upjohn/Viatris no âmbito da cisão de 2020. A Pfizer continua uma empresa grande e maioritariamente independente — NUNCA associação integral.",
+      "decisao": "B — regra por CNP, exclusivamente para estes 14 CNPs."
+    },
+    {
+      "grupo": "Viatris",
+      "fabricanteOuTitularOrigem": "Generics UK",
+      "tipo": "CNP",
+      "quantidade": "1 CNP",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "'Generics UK' foi historicamente a designação pré-rebranding da Mylan no Reino Unido; 1 CNP com titular actual = Viatris.",
+      "decisao": "B — regra por CNP (volume demasiado baixo para inferir associação integral sem mais evidência)."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Ratiopharm (e variantes reais de garantia)",
+      "tipo": "INTEGRAL",
+      "quantidade": "incluído no total fabricante_inequivoco de Teva (760)",
+      "fonteOficial": "Teva — aquisição da Ratiopharm",
+      "url": null,
+      "dataFonte": "2010",
+      "resumoEvidencia": "Teva adquiriu a Ratiopharm (Merckle/ratiopharm Group) em 2010, tornando-a subsidiária integral.",
+      "decisao": "A — associação integral (mantendo Ratiopharm como fabricante legal DISTINTO da Teva, per a decisão do plano de 557 grupos — grupo pesquisável não funde entidades legais)."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Cephalon (França e Reino Unido)",
+      "tipo": "INTEGRAL",
+      "quantidade": "2 CNPs (Cephalon France) + fabricante Cephalon UK adicionado defensivamente",
+      "fonteOficial": "Teva IR — 'Teva Completes Acquisition of Cephalon'",
+      "url": "https://ir.tevapharm.com/news-and-events/press-releases/press-release-details/2011/Teva-Completes-Acquisition-of-Cephalon/default.aspx",
+      "dataFonte": "2011-10-14",
+      "resumoEvidencia": "Aquisição TOTAL (100% das acções, $6.8bn); a Cephalon Inc. tornou-se subsidiária integral da Teva e deixou de ser transaccionada na NASDAQ.",
+      "decisao": "A — associação integral (aquisição completa confirmada)."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Green Avet - Produtos Farmacêuticos",
+      "tipo": "CNP",
+      "quantidade": "2 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "2 CNPs com titular actual = Teva, sem sinal contraditório conhecido (entidade sem registo de conflito).",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Wynn Industrial Pharma",
+      "tipo": "CNP",
+      "quantidade": "1 CNP",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "1 CNP com titular actual = Teva Pharma, sem sinal contraditório.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Teva Pharma - Produtos Farmacêuticos Lda (variante de grafia sem ponto final)",
+      "tipo": "CNP",
+      "quantidade": "3 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "Lacuna de cobertura na config (a mesma entidade Teva, grafia ligeiramente diferente da já integral) — mesma entidade legal, não uma decisão de negócio nova.",
+      "decisao": "B — regra por CNP (via evidência de catálogo, sem investigar mais a lacuna de grafia)."
+    },
+    {
+      "grupo": "Kenvue",
+      "fabricanteOuTitularOrigem": "JNTL Consumer Health (Portugal) Limitada",
+      "tipo": "INTEGRAL",
+      "quantidade": "incluído no total fabricante_inequivoco de Kenvue (208)",
+      "fonteOficial": "J&J — comunicado 'Johnson & Johnson Announces Updated Financials... Following Completion of the Kenvue Separation'",
+      "url": "https://www.jnj.com/media-center/press-releases/johnson-johnson-announces-updated-financials-and-2023-guidance-following-completion-of-the-kenvue-separation",
+      "dataFonte": "2023-08-30",
+      "resumoEvidencia": "Separação da unidade de Consumer Health da J&J para a Kenvue Inc., concluída Ago/2023 — JNTL Consumer Health é a entidade legal local da nova Kenvue.",
+      "decisao": "A — associação integral."
+    },
+    {
+      "grupo": "Kenvue",
+      "fabricanteOuTitularOrigem": "Johnson & Johnson / Johnson E Johnson (variantes reais de garantia)",
+      "tipo": "CNP",
+      "quantidade": "70 CNPs (41+14+7+7+1)",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "70 CNPs com fabricante actual em garantia 'JOHNSON & JOHNSON'/variantes têm titular ACTUAL = JNTL Consumer Health — prova per-CNP de que estes produtos concretos (consumer health) já transitaram. A entidade 'Johnson & Johnson' ampla NUNCA entra integralmente (inclui Janssen/farmacêutica e MedTech, que permanecem J&J — ver J&J press release 2023-08-30, Pharmaceutical/MedTech continuam segmentos J&J).",
+      "decisao": "B — regra por CNP, exclusivamente para estes 70 CNPs."
+    },
+    {
+      "grupo": "Kenvue",
+      "fabricanteOuTitularOrigem": "IFC Skincare Portugal (e variante truncada 'PRODUTOS DERMATOLOGICOS U')",
+      "tipo": "CNP",
+      "quantidade": "20 CNPs (13+3+3+1)",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "IFC Skincare Portugal era a subsidiária dermatológica (Neutrogena e afins) da J&J consumer; 20 CNPs com titular actual = JNTL Consumer Health.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Kenvue",
+      "fabricanteOuTitularOrigem": "Aveeno (nome de marca usado como campo fabricante em garantia)",
+      "tipo": "CNP",
+      "quantidade": "5 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "'Aveeno' é uma marca de consumer health da J&J/Kenvue, não uma entidade legal — 5 CNPs com titular actual = JNTL Consumer Health.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Pentafarma (e variantes reais de garantia)",
+      "tipo": "INTEGRAL",
+      "quantidade": "incluído no total fabricante_inequivoco de Tecnimede (476)",
+      "fonteOficial": "Tecnimede — grupo corporativo (Pentafarma é marca/subsidiária histórica do grupo Tecnimede)",
+      "url": null,
+      "dataFonte": "n/a — relação de longa data, já validada no plano de 557 grupos",
+      "resumoEvidencia": "Pentafarma opera dentro do grupo Tecnimede; confirmado pelo plano de normalização de fabricantes anterior (não uma nova investigação desta sessão).",
+      "decisao": "A — associação integral, herdada."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Servestec Lda",
+      "tipo": "CNP",
+      "quantidade": "7 CNPs (5+2)",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "7 CNPs com titular actual = Tecnimede, sem sinal contraditório.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Apogepha Arzneimittel GmbH",
+      "tipo": "CNP",
+      "quantidade": "2 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "Empresa alemã; sem confirmação externa da relação societária. 2 CNPs com titular actual = Tecnimede, sem conflito conhecido.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Empifarma Prod Farmaceut SA",
+      "tipo": "CNP",
+      "quantidade": "1 CNP",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "1 CNP com titular actual = Tecnimede.",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Tecnimede - Sociedade Tecnico-Medicinal S A (variante de grafia)",
+      "tipo": "CNP",
+      "quantidade": "3 CNPs",
+      "fonteOficial": "Catálogo Nacional (INFARMED-like) — titular ACTUAL por CNP",
+      "url": null,
+      "dataFonte": "2026-09",
+      "resumoEvidencia": "Lacuna de cobertura (mesma entidade Tecnimede, grafia diferente).",
+      "decisao": "B — regra por CNP."
+    },
+    {
+      "grupo": "Towa",
+      "fabricanteOuTitularOrigem": "Tolife - Produtos Farmacêuticos (e variantes reais de garantia)",
+      "tipo": "INTEGRAL",
+      "quantidade": "342 produtos (fabricante_inequivoco, dados reais garantia)",
+      "fonteOficial": "Towa Pharmaceutical Portugal — 'Nossa história'; MarketScreener (cobertura do fecho)",
+      "url": "https://towapharmaceutical.pt/nossa-historia/",
+      "dataFonte": "2020-01-31 (fecho da aquisição)",
+      "resumoEvidencia": "Towa Pharmaceutical Co. (Japão) adquiriu a Pensa Investments S.L. (dona da toLife Portugal) à Esteve Pharmaceuticals, fecho 2020-01-31. 'A toLife é adquirida pela Towa Pharmaceutical S.A.' — aquisição TOTAL da entidade corporativa; 'toLife' mantém-se só como marca comercial.",
+      "decisao": "A — associação integral (aquisição total confirmada)."
+    },
+    {
+      "grupo": "Organon",
+      "fabricanteOuTitularOrigem": "Merck Sharp & Dohme (MSD)",
+      "tipo": "CNP",
+      "quantidade": "95 CNPs",
+      "fonteOficial": "Merck — 'Merck to Focus on Key Growth Pillars Through Spinoff...'; DCAT — conclusão do spin-off",
+      "url": "https://www.organon.com/news/merck-to-focus-on-key-growth-pillars-through-spinoff-of-womens-health-trusted-legacy-brands-and-biosimilars-products-into-new-company-newco/",
+      "dataFonte": "2020-02-05 (anúncio) / 2021-06-02 (conclusão)",
+      "resumoEvidencia": "Spin-off PARCIAL — só saúde da mulher, biossimilares e 'legacy brands' sem patente; a MSD continua empresa independente (Oncologia/Vacinas/Hospitalar). NUNCA associação integral.",
+      "decisao": "B — regra por CNP para os 95 CNPs confirmados no catálogo."
+    },
+    {
+      "grupo": "Sandoz",
+      "fabricanteOuTitularOrigem": "Novartis Farma - Produtos Farmacêuticos",
+      "tipo": "CNP",
+      "quantidade": "7 CNPs",
+      "fonteOficial": "Novartis — página oficial do spin-off da Sandoz",
+      "url": "https://www.novartis.com/news/sandoz-spinoff",
+      "dataFonte": "2023-10-04 (conclusão)",
+      "resumoEvidencia": "Spin-off PARCIAL — só genéricos/biossimilares; a Novartis continua empresa independente focada em medicamentos inovadores. NUNCA associação integral.",
+      "decisao": "B — regra por CNP para os 7 CNPs confirmados no catálogo."
+    },
+    {
+      "grupo": "Zentiva",
+      "fabricanteOuTitularOrigem": "Sanofi - Produtos Farmacêuticos",
+      "tipo": "CNP",
+      "quantidade": "47 CNPs",
+      "fonteOficial": "Pharmaceutical Technology — 'Sanofi concludes sale of Zentiva to Advent for $2.2bn'",
+      "url": "https://www.pharmaceutical-technology.com/news/sanofi-sells-zentiva/",
+      "dataFonte": "2018-10-02 (publicação; fecho 2018-09-30)",
+      "resumoEvidencia": "Venda PARCIAL — só o negócio europeu de genéricos (Zentiva) à Advent International; a Sanofi continua empresa independente com negócio de marca/vacinas. NUNCA associação integral.",
+      "decisao": "B — regra por CNP para os 47 CNPs confirmados no catálogo."
+    },
+    {
+      "grupo": "Opella",
+      "fabricanteOuTitularOrigem": "Sanofi - OTC / Sanofi consumer health",
+      "tipo": "CNP",
+      "quantidade": "40 CNPs",
+      "fonteOficial": "Sanofi — 'Sanofi and CD&R partner to fuel Opella's ambitions'",
+      "url": "https://www.sanofi.com/en/media-room/press-releases/2024/2024-10-21-05-30-00-2965875",
+      "dataFonte": "2024-10-21 (acordo) / 2025-04-30 (fecho)",
+      "resumoEvidencia": "Spin-off PARCIAL — só consumer health (OTC); a Sanofi continua empresa independente com negócio de prescrição/vacinas. NUNCA associação integral.",
+      "decisao": "B — regra por CNP para os 40 CNPs confirmados no catálogo."
+    },
+    {
+      "grupo": "Opella",
+      "fabricanteOuTitularOrigem": "Boehringer Ingelheim",
+      "tipo": "CNP",
+      "quantidade": "4 CNPs",
+      "fonteOficial": "Sanofi — comunicados do spin-off Opella (mesmo racional)",
+      "url": "https://www.sanofi.com/en/media-room/press-releases/2025/2025-04-30-11-00-00-3071167",
+      "dataFonte": "2025-04-30",
+      "resumoEvidencia": "Produtos de consumer health historicamente co-comercializados pela Boehringer Ingelheim em Portugal, cedidos no âmbito do mesmo spin-off Opella — só os 4 CNPs concretos, nunca a Boehringer inteira.",
+      "decisao": "B — regra por CNP para os 4 CNPs confirmados no catálogo."
+    }
+  ],
+  "revisaoManual_semEvidenciaSuficiente": [
+    {
+      "grupo": "Viatris",
+      "fabricanteOuTitularOrigem": "Laboratorios Vitoria S.A.",
+      "quantidade": "1 CNP",
+      "razao": "Sinal CONTRADITÓRIO: o candidato de maior volume para 'Laboratorios Vitoria' no catálogo nacional é 'FAES FARMA Portugal, SA.' (82 CNPs) — uma empresa sem relação com a Viatris. Este único CNP a apontar para Mylan é provavelmente um caso isolado ou uma anomalia de dados."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Theramex Ireland Limited",
+      "quantidade": "2 CNPs",
+      "razao": "Direcção contraditória com o conhecimento de mercado: a Theramex foi originalmente destacada DO portfólio de saúde da mulher da Teva (~2018) — a relação esperada seria Teva→Theramex, não o inverso."
+    },
+    {
+      "grupo": "Teva",
+      "fabricanteOuTitularOrigem": "Tecnifar - Industria Tecnica Farmaceutica",
+      "quantidade": "1 CNP",
+      "razao": "Tecnifar é uma empresa farmacêutica portuguesa independente e proeminente, sem relação societária conhecida com a Teva."
+    },
+    {
+      "grupo": "Tecnimede",
+      "fabricanteOuTitularOrigem": "Farmoz - Sociedade Tecnico Medicinal",
+      "quantidade": "1 CNP",
+      "razao": "Farmoz é uma empresa de genéricos portuguesa independente e concorrente directa da Tecnimede, sem relação societária conhecida."
+    }
+  ],
+  "naoIncluidosDeliberadamente": [
+    {
+      "grupo": "Kenvue",
+      "fabricanteOuTitularOrigem": "Janssen-Cilag e variantes (Janssen Farmacêutica, Janssen-Cilag International, Janssen Biologics)",
+      "razao": "Divisão farmacêutica/prescrição da J&J — permanece J&J, NUNCA parte da Kenvue (só consumer health). Confirmado: nenhum dos 6 fabricantes reais 'JANSSEN*' de garantia resolve para Kenvue (ver validação automática no simulador)."
+    }
+  ]
+}

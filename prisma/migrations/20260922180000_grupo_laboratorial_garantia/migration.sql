@@ -122,7 +122,7 @@ CREATE UNIQUE INDEX "GrupoLaboratorialFabricante_fabricanteId_key" ON "GrupoLabo
 CREATE INDEX "GrupoLaboratorialFabricante_grupoLaboratorialId_idx" ON "GrupoLaboratorialFabricante"("grupoLaboratorialId");
 
 -- CreateIndex
-CREATE INDEX "CatalogoNacionalImportacao_hashSha256_idx" ON "CatalogoNacionalImportacao"("hashSha256");
+CREATE UNIQUE INDEX "CatalogoNacionalImportacao_hashSha256_key" ON "CatalogoNacionalImportacao"("hashSha256");
 
 -- CreateIndex
 CREATE INDEX "CatalogoNacionalImportacao_importadoEm_idx" ON "CatalogoNacionalImportacao"("importadoEm");

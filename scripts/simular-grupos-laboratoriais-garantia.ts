@@ -37,6 +37,7 @@ import "dotenv/config";
 import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { normalizeFabricanteCanonico } from "../lib/catalog-normalizers";
+import { normalizeGrupoLaboratorialAlias } from "../lib/catalog/grupo-laboratorial-normalizers";
 import { lerCatalogoNacional, ehEstadoAtual } from "../lib/catalog/catalogo-nacional-parser";
 import {
   resolverGruposEmLote,
@@ -172,7 +173,11 @@ export function validarConfig(config: ConfigGruposIniciais): ProblemaConfig[] {
   const fabricanteIntegralParaGrupo = new Map<string, string>();
   for (const g of config.grupos) {
     for (const nomeCru of g.fabricantesIntegrais) {
-      const norm = normalizeFabricanteCanonico(nomeCru);
+      // normalizeGrupoLaboratorialAlias (120 chars), NUNCA normalizeFabricanteCanonico
+      // (60, identidade global de Fabricante) — a config guarda designações
+      // sociais completas como evidência, que não podem ser rejeitadas só
+      // pelo comprimento. Ver lib/catalog/grupo-laboratorial-normalizers.ts.
+      const norm = normalizeGrupoLaboratorialAlias(nomeCru);
       if (!norm) {
         problemas.push({ tipo: "fabricante_integral_invalido", detalhe: `grupo "${g.nome}": "${nomeCru}" não normaliza (vazio ou inválido)` });
         continue;
@@ -239,7 +244,14 @@ export function construirMapasResolver(
     const resolvidos: { grupoId: string; grupoNome: string; fabricanteId: string; fabricanteNome: string }[] = [];
     const naoEncontrados: string[] = [];
     for (const nomeCru of g.fabricantesIntegrais) {
-      const norm = normalizeFabricanteCanonico(nomeCru);
+      // normalizeGrupoLaboratorialAlias aqui só para NUNCA descartar um
+      // candidato por comprimento antes sequer de tentar a procura — a
+      // procura em si (fabricantesPorNomeNormalizado) só tem chaves <=60
+      // (identidade real de Fabricante, normalizeFabricanteCanonico), por
+      // isso um candidato >60 caracteres canónicos nunca vai encontrar
+      // correspondência de qualquer forma — cai correctamente em
+      // "não encontrado", nunca inventa uma correspondência.
+      const norm = normalizeGrupoLaboratorialAlias(nomeCru);
       const fab = norm ? fabricantesPorNomeNormalizado.get(norm) : undefined;
       if (fab) {
         gruposFabricantePorFabricanteId.set(fab.id, { grupoLaboratorialId: grupoId });
@@ -252,7 +264,7 @@ export function construirMapasResolver(
     fabricantesIntegraisNaoEncontrados.set(grupoId, naoEncontrados);
 
     for (const a of g.aliases) {
-      const norm = normalizeFabricanteCanonico(a.alias) ?? a.aliasNormalizado;
+      const norm = normalizeGrupoLaboratorialAlias(a.alias) ?? a.aliasNormalizado;
       const lista = aliasesPorNomeNormalizado.get(norm) ?? [];
       lista.push({ grupoLaboratorialId: grupoId, estado: "ATIVO" });
       aliasesPorNomeNormalizado.set(norm, lista);
@@ -408,7 +420,18 @@ async function main(): Promise<void> {
   for (const [grupoId, g] of gruposPorId) {
     const resolvidos = fabricantesIntegraisResolvidos.get(grupoId)!;
     const naoEncontrados = fabricantesIntegraisNaoEncontrados.get(grupoId)!;
-    const nomesFabricantesIntegrais = new Set(resolvidos.map((r) => r.fabricanteNome));
+    // BUG real encontrado em 2026-09-22: `r.fabricanteNome` é a grafia CRUA
+    // de garantia (ex.: "ALFASIGMA PORTUGAL LDA." — COM o ponto final),
+    // nunca re-canonicalizada; comparar isto directamente contra um titular
+    // de catálogo canonicalizado (`tNorm`, abaixo, sem pontuação) falhava
+    // silenciosamente sempre que a grafia crua continha qualquer pontuação
+    // residual — a causa real das contagens "0 atuais" injustificadas
+    // nalguns grupos (Alfasigma, Tecnimede). `normalizeFabricanteCanonico`
+    // aqui é apropriado (não `normalizeGrupoLaboratorialAlias`): está a
+    // canonicalizar uma identidade de Fabricante REAL, sempre <=60 chars.
+    const nomesFabricantesIntegrais = new Set(
+      resolvidos.map((r) => normalizeFabricanteCanonico(r.fabricanteNome)).filter((n): n is string => n !== null),
+    );
 
     const porFabricanteInequivoco: Array<{ cnp: number; designacao: string }> = [];
     const porRegraCnp: Array<{ cnp: number; designacao: string }> = [];
@@ -434,11 +457,19 @@ async function main(): Promise<void> {
     // Registos do catálogo (todo o ficheiro) cujo titular bate com o
     // NOME do grupo, um alias, ou um fabricante integral — dá a
     // dimensão total do grupo no catálogo nacional, actuais vs. históricos.
-    const nomesRelevantes = new Set<string>([g.nomeNormalizado, ...g.aliases.map((a) => normalizeFabricanteCanonico(a.alias) ?? a.aliasNormalizado), ...nomesFabricantesIntegrais]);
+    const nomesRelevantes = new Set<string>([g.nomeNormalizado, ...g.aliases.map((a) => normalizeGrupoLaboratorialAlias(a.alias) ?? a.aliasNormalizado), ...nomesFabricantesIntegrais]);
     let atuais = 0;
     let historicos = 0;
     for (const snap of snapshotsPorCnp.values()) {
-      const tNorm = normalizeFabricanteCanonico(snap.titularAim);
+      // normalizeGrupoLaboratorialAlias (120), NUNCA normalizeFabricanteCanonico
+      // (60) — o titular do catálogo pode ser uma designação social
+      // completa longa (ex.: "Pentafarma Genéricos - Sociedade Técnico
+      // Medicinal, Unipessoal Lda.", 65 chars canónicos); com o limite de
+      // 60, esse registo era descartado SILENCIOSAMENTE desta contagem
+      // (nem entrava em "atuais" nem em "históricos") — a causa real por
+      // trás de contagens "0 atuais" injustificadamente baixas nalguns
+      // grupos, investigada em 2026-09-22.
+      const tNorm = normalizeGrupoLaboratorialAlias(snap.titularAim);
       if (!tNorm || !nomesRelevantes.has(tNorm)) continue;
       if (ehEstadoAtual(snap.estadoAim)) atuais++;
       else historicos++;
@@ -465,7 +496,7 @@ async function main(): Promise<void> {
   const aliasParaGrupos = new Map<string, Set<string>>();
   for (const g of gruposPorId.values()) {
     for (const a of g.aliases) {
-      const norm = normalizeFabricanteCanonico(a.alias) ?? a.aliasNormalizado;
+      const norm = normalizeGrupoLaboratorialAlias(a.alias) ?? a.aliasNormalizado;
       const set = aliasParaGrupos.get(norm) ?? new Set<string>();
       set.add(g.nome);
       aliasParaGrupos.set(norm, set);

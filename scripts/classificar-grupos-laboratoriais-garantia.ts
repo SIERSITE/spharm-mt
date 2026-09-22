@@ -101,6 +101,161 @@ export function escreverAtomico(caminhoFinal: string, conteudo: string): void {
   }
 }
 
+type PrismaParaClassificacao = Pick<
+  PrismaClient,
+  "produto" | "fabricante" | "regraGrupoLaboratorialPorCnp" | "grupoLaboratorialFabricante" | "grupoLaboratorialAlias" | "produtoGrupoLaboratorial" | "regulatoryRecord" | "$transaction"
+>;
+
+export type ResultadoClassificacao = {
+  grupos: ReturnType<typeof resolverGruposEmLote>["totais"];
+  fabricante: ReturnType<typeof resolverPropostasFabricanteEmLote>["totais"];
+  candidatosAdicionais: ReturnType<typeof descobrirCandidatosGrupoLaboratorial>;
+  escritos?: number;
+};
+
+/**
+ * Núcleo da classificação — extraído de `main()` para ser chamável
+ * directamente com um `PrismaClient` já ligado (testes de integração,
+ * incluindo o ensaio de volume real em Postgres descartável), sem passar
+ * por `resolverAlvo`/`confirmarAlvoGarantia` (que são especificamente
+ * para o caminho de produção via control plane, nunca para uma base de
+ * testes local). `main()` (abaixo) continua a ser o único caminho que
+ * escreve na VPS real — chama esta função DEPOIS das duas camadas de
+ * confirmação de tenant.
+ */
+export async function classificarGruposLaboratoriais(prisma: PrismaParaClassificacao, args: { apply: boolean }): Promise<ResultadoClassificacao> {
+  // ── 1. Carregar tudo o que o resolver precisa ──────────────────────
+  const [produtosRaw, fabricantesRaw, regrasCnpRaw, gruposFabricanteRaw, aliasesRaw, existentesRaw] = await Promise.all([
+    prisma.produto.findMany({ select: { id: true, cnp: true, fabricanteId: true, camposManuais: true } }),
+    prisma.fabricante.findMany({ select: { id: true, nomeNormalizado: true } }),
+    prisma.regraGrupoLaboratorialPorCnp.findMany({ select: { id: true, cnp: true, grupoLaboratorialId: true, estado: true, validadoManualmente: true } }),
+    prisma.grupoLaboratorialFabricante.findMany({ select: { fabricanteId: true, grupoLaboratorialId: true } }),
+    prisma.grupoLaboratorialAlias.findMany({ select: { grupoLaboratorialId: true, aliasNormalizado: true, estado: true } }),
+    prisma.produtoGrupoLaboratorial.findMany({ select: { produtoId: true, grupoLaboratorialId: true, validadoManualmente: true } }),
+  ]);
+
+  const cnpsProdutos = [...new Set(produtosRaw.map((p) => p.cnp))];
+  const snapshotsRaw = await prisma.regulatoryRecord.findMany({
+    where: { cnp: { in: cnpsProdutos } },
+    select: { cnp: true, titularAim: true, estadoAim: true },
+  });
+
+  // ── 2. Montar os mapas puros ────────────────────────────────────────
+  const fabricantesPorId = new Map<string, FabricanteParaResolver>(fabricantesRaw.map((f) => [f.id, f]));
+  const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolver>(fabricantesRaw.map((f) => [f.nomeNormalizado, f]));
+  const regrasCnpPorCnp = new Map<number, RegraCnpParaResolver>(regrasCnpRaw.map((r) => [r.cnp, r]));
+  const snapshotsPorCnp = new Map<number, SnapshotParaResolver>(snapshotsRaw.map((s) => [s.cnp, s]));
+  const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>(gruposFabricanteRaw.map((g) => [g.fabricanteId, g]));
+  const aliasesPorNomeNormalizado = new Map<string, AliasParaResolver[]>();
+  for (const a of aliasesRaw) {
+    const lista = aliasesPorNomeNormalizado.get(a.aliasNormalizado) ?? [];
+    lista.push({ grupoLaboratorialId: a.grupoLaboratorialId, estado: a.estado });
+    aliasesPorNomeNormalizado.set(a.aliasNormalizado, lista);
+  }
+  const existentesPorProdutoId = new Map(existentesRaw.map((e) => [e.produtoId, e]));
+
+  const mapas: MapasResolverGrupo = {
+    fabricantesPorId,
+    fabricantesPorNomeNormalizado,
+    regrasCnpPorCnp,
+    snapshotsPorCnp,
+    gruposFabricantePorFabricanteId,
+    aliasesPorNomeNormalizado,
+  };
+
+  const produtosParaResolver: ProdutoParaResolver[] = produtosRaw.map((p) => ({
+    id: p.id,
+    cnp: p.cnp,
+    fabricanteId: p.fabricanteId,
+    grupoExistente: existentesPorProdutoId.get(p.id) ?? null,
+  }));
+
+  // ── 3. Resolver grupo laboratorial (todos os produtos) ─────────────
+  const relatorioGrupos = resolverGruposEmLote(produtosParaResolver, mapas);
+
+  // ── 4. Propostas de fabricante — SEPARADO, nunca escreve fabricanteId ──
+  const produtosSemFabricante: ProdutoSemFabricanteParaResolver[] = produtosRaw
+    .filter((p) => p.fabricanteId === null)
+    .map((p) => ({ id: p.id, cnp: p.cnp, camposManuais: p.camposManuais }));
+  const relatorioFabricante = resolverPropostasFabricanteEmLote(produtosSemFabricante, snapshotsPorCnp, fabricantesPorNomeNormalizado);
+
+  // ── 5. Candidatos adicionais a grupo — nunca cria grupos ────────────
+  const produtosParaCandidatos: ProdutoParaCandidatos[] = produtosRaw
+    .filter((p) => p.fabricanteId !== null)
+    .map((p) => ({ cnp: p.cnp, fabricanteNomeNormalizado: fabricantesPorId.get(p.fabricanteId!)?.nomeNormalizado ?? null }));
+  const candidatos = descobrirCandidatosGrupoLaboratorial(produtosParaCandidatos, snapshotsPorCnp);
+
+  console.log(`\n${"─".repeat(78)}`);
+  console.log("Classificação de grupo laboratorial:");
+  console.log(`  produtos:                 ${relatorioGrupos.totais.produtos}`);
+  console.log(`  mantido manual:           ${relatorioGrupos.totais.mantidoManual}`);
+  console.log(`  regra por CNP:            ${relatorioGrupos.totais.regraCnp}`);
+  console.log(`  proposta snapshot (só dry-run): ${relatorioGrupos.totais.propostaSnapshotCnp}`);
+  console.log(`  fabricante inequívoco:    ${relatorioGrupos.totais.fabricanteInequivoco}`);
+  console.log(`  alias inequívoco:         ${relatorioGrupos.totais.aliasInequivoco}`);
+  console.log(`  sem grupo (revisão):      ${relatorioGrupos.totais.semGrupo}`);
+
+  console.log(`\n${"─".repeat(78)}`);
+  console.log("Propostas de fabricante (produtos sem fabricante — SEPARADO de grupo):");
+  console.log(`  total sem fabricante:     ${relatorioFabricante.totais.total}`);
+  console.log(`  protegido manual:         ${relatorioFabricante.totais.protegidoManual}`);
+  console.log(`  proposta actual: ${relatorioFabricante.totais.propostaAtual}`);
+  console.log(`  revisão histórico: ${relatorioFabricante.totais.revisaoHistorico}`);
+  console.log(`  sem correspondência:      ${relatorioFabricante.totais.semCorrespondencia}`);
+
+  console.log(`\n${"─".repeat(78)}`);
+  console.log(`Candidatos adicionais a grupo laboratorial (top 20 de ${candidatos.length}, nunca aplicados):`);
+  for (const c of candidatos.slice(0, 20)) {
+    console.log(`  ${c.ocorrencias}x  "${c.fabricanteGarantia}" → "${c.titularCatalogo}"`);
+  }
+
+  // ── 6. Apply — só ProdutoGrupoLaboratorial, só 3 níveis seguros ────
+  //
+  // Em lotes (LOTE_APPLY), cada um na sua própria transacção interactive —
+  // NUNCA todos os upserts numa única transacção. Encontrado no ensaio de
+  // volume real (2026-09-23): com ~3400 produtos a escrever, uma única
+  // transacção interactive excede o timeout DEFAULT do Prisma (5000ms —
+  // P2028 "query cannot be executed on an expired transaction") e a
+  // corrida inteira falha a meio, sem nenhum produto escrito (rollback).
+  // Em produção, com mais grupos/regras, o volume só tende a crescer —
+  // isto teria falhado da mesma forma na VPS real. Cada lote continua
+  // atómico dentro de si (all-or-nothing por lote de LOTE_APPLY produtos),
+  // só deixou de ser atómico ao nível do TOTAL — uma troca aceitável para
+  // uma operação idempotente (upsert): uma corrida interrompida a meio
+  // não deixa nada inconsistente, só incompleto — repetir a classificação
+  // retoma e completa (ver ensaio de idempotência, secção K).
+  const LOTE_APPLY = 200;
+  let escritos = 0;
+  if (args.apply) {
+    const paraEscrever = relatorioGrupos.resultados.filter((r) => TIPOS_APLICAVEIS_AUTOMATICAMENTE.has(r.resultado.tipo));
+    for (let i = 0; i < paraEscrever.length; i += LOTE_APPLY) {
+      const lote = paraEscrever.slice(i, i + LOTE_APPLY);
+      await prisma.$transaction(async (tx) => {
+        for (const r of lote) {
+          if (r.resultado.tipo === "sem_grupo" || r.resultado.tipo === "mantido_manual" || r.resultado.tipo === "proposta_snapshot_cnp") continue;
+          const grupoLaboratorialId = r.resultado.grupoLaboratorialId;
+          const origem = ORIGEM_POR_TIPO[r.resultado.tipo];
+          const regraCnpId = r.resultado.tipo === "regra_cnp" ? r.resultado.regraCnpId : null;
+          await tx.produtoGrupoLaboratorial.upsert({
+            where: { produtoId: r.produtoId },
+            create: { produtoId: r.produtoId, grupoLaboratorialId, origem, regraCnpId },
+            update: { grupoLaboratorialId, origem, regraCnpId },
+          });
+          escritos++;
+        }
+      });
+    }
+    console.log(`\n✔  Aplicado: ${escritos} ProdutoGrupoLaboratorial escritos/actualizados.`);
+  }
+
+  return {
+    grupos: relatorioGrupos.totais,
+    fabricante: relatorioFabricante.totais,
+    candidatosAdicionais: candidatos,
+    ...(args.apply ? { escritos } : {}),
+  };
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
@@ -140,122 +295,13 @@ async function main(): Promise<void> {
     console.log(`  ${descreverAlvo(alvo)}`);
     console.log(`  Modo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
 
-    // ── 1. Carregar tudo o que o resolver precisa ──────────────────────
-    const [produtosRaw, fabricantesRaw, regrasCnpRaw, gruposFabricanteRaw, aliasesRaw, existentesRaw] = await Promise.all([
-      prisma.produto.findMany({ select: { id: true, cnp: true, fabricanteId: true, camposManuais: true } }),
-      prisma.fabricante.findMany({ select: { id: true, nomeNormalizado: true } }),
-      prisma.regraGrupoLaboratorialPorCnp.findMany({ select: { id: true, cnp: true, grupoLaboratorialId: true, estado: true, validadoManualmente: true } }),
-      prisma.grupoLaboratorialFabricante.findMany({ select: { fabricanteId: true, grupoLaboratorialId: true } }),
-      prisma.grupoLaboratorialAlias.findMany({ select: { grupoLaboratorialId: true, aliasNormalizado: true, estado: true } }),
-      prisma.produtoGrupoLaboratorial.findMany({ select: { produtoId: true, grupoLaboratorialId: true, validadoManualmente: true } }),
-    ]);
+    const resultado = await classificarGruposLaboratoriais(prisma, { apply: args.apply });
 
-    const cnpsProdutos = [...new Set(produtosRaw.map((p) => p.cnp))];
-    const snapshotsRaw = await prisma.regulatoryRecord.findMany({
-      where: { cnp: { in: cnpsProdutos } },
-      select: { cnp: true, titularAim: true, estadoAim: true },
-    });
-
-    // ── 2. Montar os mapas puros ────────────────────────────────────────
-    const fabricantesPorId = new Map<string, FabricanteParaResolver>(fabricantesRaw.map((f) => [f.id, f]));
-    const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolver>(fabricantesRaw.map((f) => [f.nomeNormalizado, f]));
-    const regrasCnpPorCnp = new Map<number, RegraCnpParaResolver>(regrasCnpRaw.map((r) => [r.cnp, r]));
-    const snapshotsPorCnp = new Map<number, SnapshotParaResolver>(snapshotsRaw.map((s) => [s.cnp, s]));
-    const gruposFabricantePorFabricanteId = new Map<string, GrupoFabricanteParaResolver>(gruposFabricanteRaw.map((g) => [g.fabricanteId, g]));
-    const aliasesPorNomeNormalizado = new Map<string, AliasParaResolver[]>();
-    for (const a of aliasesRaw) {
-      const lista = aliasesPorNomeNormalizado.get(a.aliasNormalizado) ?? [];
-      lista.push({ grupoLaboratorialId: a.grupoLaboratorialId, estado: a.estado });
-      aliasesPorNomeNormalizado.set(a.aliasNormalizado, lista);
-    }
-    const existentesPorProdutoId = new Map(existentesRaw.map((e) => [e.produtoId, e]));
-
-    const mapas: MapasResolverGrupo = {
-      fabricantesPorId,
-      fabricantesPorNomeNormalizado,
-      regrasCnpPorCnp,
-      snapshotsPorCnp,
-      gruposFabricantePorFabricanteId,
-      aliasesPorNomeNormalizado,
-    };
-
-    const produtosParaResolver: ProdutoParaResolver[] = produtosRaw.map((p) => ({
-      id: p.id,
-      cnp: p.cnp,
-      fabricanteId: p.fabricanteId,
-      grupoExistente: existentesPorProdutoId.get(p.id) ?? null,
-    }));
-
-    // ── 3. Resolver grupo laboratorial (todos os produtos) ─────────────
-    const relatorioGrupos = resolverGruposEmLote(produtosParaResolver, mapas);
-
-    // ── 4. Propostas de fabricante — SEPARADO, nunca escreve fabricanteId ──
-    const produtosSemFabricante: ProdutoSemFabricanteParaResolver[] = produtosRaw
-      .filter((p) => p.fabricanteId === null)
-      .map((p) => ({ id: p.id, cnp: p.cnp, camposManuais: p.camposManuais }));
-    const relatorioFabricante = resolverPropostasFabricanteEmLote(produtosSemFabricante, snapshotsPorCnp, fabricantesPorNomeNormalizado);
-
-    // ── 5. Candidatos adicionais a grupo — nunca cria grupos ────────────
-    const produtosParaCandidatos: ProdutoParaCandidatos[] = produtosRaw
-      .filter((p) => p.fabricanteId !== null)
-      .map((p) => ({ cnp: p.cnp, fabricanteNomeNormalizado: fabricantesPorId.get(p.fabricanteId!)?.nomeNormalizado ?? null }));
-    const candidatos = descobrirCandidatosGrupoLaboratorial(produtosParaCandidatos, snapshotsPorCnp);
-
-    // ── 6. Consola ───────────────────────────────────────────────────────
-    console.log(`\n${"─".repeat(78)}`);
-    console.log("Classificação de grupo laboratorial:");
-    console.log(`  produtos:                 ${relatorioGrupos.totais.produtos}`);
-    console.log(`  mantido manual:           ${relatorioGrupos.totais.mantidoManual}`);
-    console.log(`  regra por CNP:            ${relatorioGrupos.totais.regraCnp}`);
-    console.log(`  proposta snapshot (só dry-run): ${relatorioGrupos.totais.propostaSnapshotCnp}`);
-    console.log(`  fabricante inequívoco:    ${relatorioGrupos.totais.fabricanteInequivoco}`);
-    console.log(`  alias inequívoco:         ${relatorioGrupos.totais.aliasInequivoco}`);
-    console.log(`  sem grupo (revisão):      ${relatorioGrupos.totais.semGrupo}`);
-
-    console.log(`\n${"─".repeat(78)}`);
-    console.log("Propostas de fabricante (produtos sem fabricante — SEPARADO de grupo):");
-    console.log(`  total sem fabricante:     ${relatorioFabricante.totais.total}`);
-    console.log(`  protegido manual:         ${relatorioFabricante.totais.protegidoManual}`);
-    console.log(`  proposta actual (447-like): ${relatorioFabricante.totais.propostaAtual}`);
-    console.log(`  revisão histórico (146-like): ${relatorioFabricante.totais.revisaoHistorico}`);
-    console.log(`  sem correspondência:      ${relatorioFabricante.totais.semCorrespondencia}`);
-
-    console.log(`\n${"─".repeat(78)}`);
-    console.log(`Candidatos adicionais a grupo laboratorial (top 20 de ${candidatos.length}, nunca aplicados):`);
-    for (const c of candidatos.slice(0, 20)) {
-      console.log(`  ${c.ocorrencias}x  "${c.fabricanteGarantia}" → "${c.titularCatalogo}"`);
-    }
-
-    // ── 7. Apply — só ProdutoGrupoLaboratorial, só 3 níveis seguros ────
-    let escritos = 0;
-    if (args.apply) {
-      const paraEscrever = relatorioGrupos.resultados.filter((r) => TIPOS_APLICAVEIS_AUTOMATICAMENTE.has(r.resultado.tipo));
-      await prisma.$transaction(async (tx) => {
-        for (const r of paraEscrever) {
-          if (r.resultado.tipo === "sem_grupo" || r.resultado.tipo === "mantido_manual" || r.resultado.tipo === "proposta_snapshot_cnp") continue;
-          const grupoLaboratorialId = r.resultado.grupoLaboratorialId;
-          const origem = ORIGEM_POR_TIPO[r.resultado.tipo];
-          const regraCnpId = r.resultado.tipo === "regra_cnp" ? r.resultado.regraCnpId : null;
-          await tx.produtoGrupoLaboratorial.upsert({
-            where: { produtoId: r.produtoId },
-            create: { produtoId: r.produtoId, grupoLaboratorialId, origem, regraCnpId },
-            update: { grupoLaboratorialId, origem, regraCnpId },
-          });
-          escritos++;
-        }
-      });
-      console.log(`\n✔  Aplicado: ${escritos} ProdutoGrupoLaboratorial escritos/actualizados.`);
-    }
-
-    // ── 8. Relatório em disco, atómico ──────────────────────────────────
     const relatorioParaDisco = {
       geradoEm: new Date().toISOString(),
       alvo: { base: alvo.base, host: alvo.host, tenant: alvo.tenant },
       modo: dryRun ? "DRY-RUN" : "APPLY",
-      grupos: relatorioGrupos.totais,
-      fabricante: relatorioFabricante.totais,
-      candidatosAdicionais: candidatos,
-      ...(args.apply ? { escritos } : {}),
+      ...resultado,
     };
     escreverAtomico(args.relatorioPath, JSON.stringify(relatorioParaDisco, null, 2));
     console.log(`\nRelatório gravado em: ${args.relatorioPath}`);

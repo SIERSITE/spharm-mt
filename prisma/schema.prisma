@@ -563,9 +563,18 @@ model GrupoLaboratorialFabricante {
 /// de escrito, mesmo que uma importação posterior actualize o
 /// `RegulatoryRecord` correspondente.
 model CatalogoNacionalImportacao {
-  id              String   @id @default(cuid())
-  nomeFicheiro    String
-  hashSha256      String
+  id           String @id @default(cuid())
+  nomeFicheiro String
+  /// `@unique` — o mesmo ficheiro (mesmo conteúdo byte-a-byte, hash
+  /// independente do nome) NUNCA pode ser importado duas vezes. Não é só
+  /// uma verificação de aplicação (que tem uma janela de corrida entre
+  /// o `findFirst` e o `create`): é uma constraint na base, a MESMA
+  /// protecção que sobrevive a duas execuções concorrentes do importador
+  /// sobre o mesmo ficheiro — a segunda `create` falha com violação de
+  /// unicidade, apanhada explicitamente por `importarCatalogoNacional`
+  /// (ver scripts/import-catalogo-nacional-completo.ts), nunca cria uma
+  /// importação parcial/duplicada.
+  hashSha256   String @unique
   /// Data a que o próprio catálogo se refere (ex.: a data do snapshot
   /// nacional), distinta de `importadoEm` (quando ESTA corrida correu).
   dataReferencia  DateTime
@@ -576,8 +585,6 @@ model CatalogoNacionalImportacao {
   totalCnpValidos Int
 
   registos CatalogoNacionalRegistoImportado[]
-
-  @@index([hashSha256])
   @@index([importadoEm])
 }
 

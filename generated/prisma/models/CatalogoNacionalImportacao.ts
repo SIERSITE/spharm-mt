@@ -274,18 +274,18 @@ export type CatalogoNacionalImportacaoOrderByWithRelationInput = {
 
 export type CatalogoNacionalImportacaoWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  hashSha256?: string
   AND?: Prisma.CatalogoNacionalImportacaoWhereInput | Prisma.CatalogoNacionalImportacaoWhereInput[]
   OR?: Prisma.CatalogoNacionalImportacaoWhereInput[]
   NOT?: Prisma.CatalogoNacionalImportacaoWhereInput | Prisma.CatalogoNacionalImportacaoWhereInput[]
   nomeFicheiro?: Prisma.StringFilter<"CatalogoNacionalImportacao"> | string
-  hashSha256?: Prisma.StringFilter<"CatalogoNacionalImportacao"> | string
   dataReferencia?: Prisma.DateTimeFilter<"CatalogoNacionalImportacao"> | Date | string
   importadoEm?: Prisma.DateTimeFilter<"CatalogoNacionalImportacao"> | Date | string
   source?: Prisma.StringFilter<"CatalogoNacionalImportacao"> | string
   totalRegistos?: Prisma.IntFilter<"CatalogoNacionalImportacao"> | number
   totalCnpValidos?: Prisma.IntFilter<"CatalogoNacionalImportacao"> | number
   registos?: Prisma.CatalogoNacionalRegistoImportadoListRelationFilter
-}, "id">
+}, "id" | "hashSha256">
 
 export type CatalogoNacionalImportacaoOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -613,6 +613,17 @@ export type $CatalogoNacionalImportacaoPayload<ExtArgs extends runtime.Types.Ext
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     nomeFicheiro: string
+    /**
+     * `@unique` — o mesmo ficheiro (mesmo conteúdo byte-a-byte, hash
+     * independente do nome) NUNCA pode ser importado duas vezes. Não é só
+     * uma verificação de aplicação (que tem uma janela de corrida entre
+     * o `findFirst` e o `create`): é uma constraint na base, a MESMA
+     * protecção que sobrevive a duas execuções concorrentes do importador
+     * sobre o mesmo ficheiro — a segunda `create` falha com violação de
+     * unicidade, apanhada explicitamente por `importarCatalogoNacional`
+     * (ver scripts/import-catalogo-nacional-completo.ts), nunca cria uma
+     * importação parcial/duplicada.
+     */
     hashSha256: string
     /**
      * Data a que o próprio catálogo se refere (ex.: a data do snapshot

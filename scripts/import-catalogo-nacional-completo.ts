@@ -39,14 +39,18 @@
  *   --batch-size=N     Default 500 — mesmo default de import-regulatory-record.ts.
  *   --limit=N          Limitar nº de registos processados (debug).
  *   --permitir-externo Necessário se o tenant não for a VPS de produção.
- *   --permitir-reimportacao  Necessário para reimportar um ficheiro cujo
- *                       hashSha256 já existe numa CatalogoNacionalImportacao
- *                       anterior — sem isto, o import é recusado (ver
- *                       `ImportacaoDuplicada` abaixo). Reimportar o MESMO
- *                       ficheiro cria uma SEGUNDA CatalogoNacionalImportacao
- *                       (a primeira nunca é tocada/substituída) — só faz
- *                       sentido para recuperar de uma corrida falhada a
- *                       meio, nunca para "corrigir" a importação anterior.
+ *
+ * Idempotência por hash: reimportar EXACTAMENTE o mesmo ficheiro (mesmo
+ * hashSha256, independentemente do nome) nunca cria uma segunda
+ * importação nem duplica registos — identifica a `CatalogoNacionalImportacao`
+ * existente e termina com `resultado: "JA_IMPORTADO"`, sem processar um
+ * único registo. Não há nenhuma flag para contornar isto — nunca é
+ * intencional duplicar o mesmo conteúdo exacto. Um ficheiro NOVO, com
+ * hash diferente (mesmo que reflicta os mesmos CNPs, numa versão mais
+ * recente do catálogo), cria normalmente uma nova importação. A
+ * protecção existe na base (`CatalogoNacionalImportacao.hashSha256
+ * @unique`), não só no código — sobrevive a duas execuções concorrentes
+ * do mesmo ficheiro.
  */
 import "dotenv/config";
 import { createHash } from "node:crypto";
@@ -77,17 +81,15 @@ export type Args = {
   force: boolean;
   batchSize: number;
   limit: number | null;
-  permitirReimportacao: boolean;
 };
 
 export function parseArgs(argv: readonly string[]): Args {
-  const out: Partial<Args> = { dryRun: false, force: false, batchSize: 500, limit: null, permitirReimportacao: false };
+  const out: Partial<Args> = { dryRun: false, force: false, batchSize: 500, limit: null };
   for (const a of argv) {
     if (a.startsWith("--file=")) out.file = a.slice("--file=".length);
     else if (a.startsWith("--source=")) out.source = a.slice("--source=".length);
     else if (a === "--dry-run") out.dryRun = true;
     else if (a === "--force") out.force = true;
-    else if (a === "--permitir-reimportacao") out.permitirReimportacao = true;
     else if (a.startsWith("--batch-size=")) {
       const n = parseInt(a.slice("--batch-size=".length), 10);
       if (!isNaN(n) && n > 0 && n <= 1000) out.batchSize = n;
@@ -105,22 +107,6 @@ export function parseArgs(argv: readonly string[]): Args {
   return out as Args;
 }
 
-/** Lançado quando o hash do ficheiro já existe numa importação anterior e --permitir-reimportacao não foi passado. */
-export class ImportacaoDuplicada extends Error {
-  constructor(
-    public readonly hashSha256: string,
-    public readonly importacaoExistente: { id: string; nomeFicheiro: string; importadoEm: Date },
-  ) {
-    super(
-      `Este ficheiro (hash ${hashSha256}) já foi importado antes: CatalogoNacionalImportacao "${importacaoExistente.id}" ` +
-        `(${importacaoExistente.nomeFicheiro}, ${importacaoExistente.importadoEm.toISOString()}). ` +
-        `Reimportar o mesmo conteúdo não é um erro fatal do sistema, mas quase sempre é um engano do operador — ` +
-        `passa --permitir-reimportacao se isto for mesmo intencional (ex.: recuperar de uma corrida anterior que falhou a meio).`,
-    );
-    this.name = "ImportacaoDuplicada";
-  }
-}
-
 export function registoParaParsedRow(r: RegistoCatalogoNacionalBruto): ParsedRow {
   return {
     cnp: r.cnp,
@@ -135,13 +121,25 @@ export type EstatisticasImportacao = {
   erros: ErroReconstrucaoCatalogo[];
   cnpDuplicadosNoFicheiro: number;
   totais: UpsertCounters;
-  /** Id da CatalogoNacionalImportacao criada — null em dry-run (nunca escreve nada imutável a simular). */
+  /** Id da CatalogoNacionalImportacao criada (ou já existente, em JA_IMPORTADO) — null em dry-run. */
   importacaoId: string | null;
   hashSha256: string;
+  /**
+   * IMPORTADO: esta corrida criou a importação e os registos.
+   * JA_IMPORTADO: o hash já existia — zero linhas criadas, zero
+   * registos processados, idempotente (nunca duplica).
+   * DRY_RUN: modo simulação, zero escritas (mesmo que fosse a
+   * primeira vez ou já existisse — não interessa em dry-run).
+   */
+  resultado: "IMPORTADO" | "JA_IMPORTADO" | "DRY_RUN";
 };
 
 type PrismaComProveniencia = Parameters<typeof upsertBatch>[4] &
   Pick<PrismaClient, "catalogoNacionalImportacao" | "catalogoNacionalRegistoImportado">;
+
+function ehViolacaoDeUnicidade(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
+}
 
 /**
  * Consome o generator do parser em batches, delega cada batch a
@@ -156,10 +154,24 @@ type PrismaComProveniencia = Parameters<typeof upsertBatch>[4] &
  * catálogo dizia X quando isto foi decidido", mesmo que uma importação
  * posterior actualize `RegulatoryRecord` para outra coisa. Ver o doc
  * comment de `CatalogoNacionalImportacao` em prisma/schema.prisma.
+ *
+ * ── Idempotência por hash (2026-09-23) ────────────────────────────────
+ * Reimportar exactamente o mesmo ficheiro (mesmo hashSha256,
+ * independentemente do nome) é SEMPRE um no-op seguro — nunca há uma
+ * flag para forçar a duplicação. A tentativa de `create()` é o único
+ * gatilho: se `CatalogoNacionalImportacao.hashSha256` (agora `@unique`
+ * no schema) já existe, a base rejeita com violação de unicidade
+ * (P2002), apanhada aqui — não uma verificação prévia (`findFirst`
+ * seguido de `create`) que teria uma janela de corrida entre as duas
+ * chamadas. Isto é o que torna duas execuções CONCORRENTES do mesmo
+ * ficheiro seguras: só uma das duas ganha a corrida ao `create`; a outra
+ * apanha P2002 e resolve para JA_IMPORTADO sem nunca processar um único
+ * registo. A verificação acontece ANTES de qualquer streaming do CSV —
+ * uma reimportação nunca paga o custo de reler 294 mil registos.
  */
 export async function importarCatalogoNacional(
   filePath: string,
-  args: Pick<Args, "source" | "dryRun" | "force" | "batchSize" | "limit" | "permitirReimportacao">,
+  args: Pick<Args, "source" | "dryRun" | "force" | "batchSize" | "limit">,
   prismaClient: PrismaComProveniencia,
   onBatch?: (processados: number) => void,
   dataReferencia: Date = new Date(),
@@ -171,34 +183,42 @@ export async function importarCatalogoNacional(
     totais: { inserted: 0, updatedSomeFields: 0, unchanged: 0, failed: 0 },
     importacaoId: null,
     hashSha256: await hashSha256DoFicheiro(filePath),
+    resultado: "DRY_RUN",
   };
 
-  if (!args.dryRun && !args.permitirReimportacao) {
-    const existente = await prismaClient.catalogoNacionalImportacao.findFirst({
-      where: { hashSha256: stats.hashSha256 },
-      orderBy: { importadoEm: "desc" },
-      select: { id: true, nomeFicheiro: true, importadoEm: true },
-    });
-    if (existente) throw new ImportacaoDuplicada(stats.hashSha256, existente);
-  }
-
   if (!args.dryRun) {
-    const importacao = await prismaClient.catalogoNacionalImportacao.create({
-      data: {
-        nomeFicheiro: filePath,
-        hashSha256: stats.hashSha256,
-        dataReferencia,
-        source: args.source,
-        // Placeholder — actualizado UMA vez, no fim DESTA MESMA corrida,
-        // quando os totais reais são conhecidos. Nunca mais tocado depois
-        // (nenhuma corrida futura escreve nesta linha) — não é o mesmo
-        // que "mutável como RegulatoryRecord".
-        totalRegistos: 0,
-        totalCnpValidos: 0,
-      },
-      select: { id: true },
-    });
-    stats.importacaoId = importacao.id;
+    try {
+      const importacao = await prismaClient.catalogoNacionalImportacao.create({
+        data: {
+          nomeFicheiro: filePath,
+          hashSha256: stats.hashSha256,
+          dataReferencia,
+          source: args.source,
+          // Placeholder — actualizado UMA vez, no fim DESTA MESMA corrida,
+          // quando os totais reais são conhecidos. Nunca mais tocado depois
+          // (nenhuma corrida futura escreve nesta linha) — não é o mesmo
+          // que "mutável como RegulatoryRecord".
+          totalRegistos: 0,
+          totalCnpValidos: 0,
+        },
+        select: { id: true },
+      });
+      stats.importacaoId = importacao.id;
+      stats.resultado = "IMPORTADO";
+    } catch (err) {
+      if (!ehViolacaoDeUnicidade(err)) throw err;
+      // Outra corrida (esta mesma execução repetida, ou uma concorrente)
+      // já importou este hash — idempotente: procura a existente, devolve
+      // JA_IMPORTADO, NUNCA processa um único registo do ficheiro (nem
+      // sequer abre o stream do CSV — ver o `return` imediato abaixo).
+      const existente = await prismaClient.catalogoNacionalImportacao.findFirst({
+        where: { hashSha256: stats.hashSha256 },
+        select: { id: true },
+      });
+      stats.importacaoId = existente?.id ?? null;
+      stats.resultado = "JA_IMPORTADO";
+      return stats;
+    }
   }
 
   const cnpVistos = new Set<number>();
@@ -304,7 +324,12 @@ async function main(): Promise<void> {
     });
 
     console.log(`\n${"─".repeat(78)}`);
-    console.log("Resultado:");
+    console.log(`Resultado: ${stats.resultado}`);
+    if (stats.resultado === "JA_IMPORTADO") {
+      console.log(`  hash ${stats.hashSha256} já tinha sido importado antes — CatalogoNacionalImportacao "${stats.importacaoId}".`);
+      console.log(`  Idempotente: zero linhas criadas, zero registos processados.`);
+      return;
+    }
     console.log(`  registos lidos:              ${stats.registosLidos}`);
     console.log(`  cnp duplicados no ficheiro:   ${stats.cnpDuplicadosNoFicheiro}`);
     console.log(`  erros de reconstrução:        ${stats.erros.length}`);
