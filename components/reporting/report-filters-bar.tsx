@@ -75,6 +75,7 @@ import {
   alternarValor,
 } from "./filter-panel";
 import { ImportListaCodigos } from "./import-lista-codigos";
+import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "./laboratorio-multi-select";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
   contarFiltrosAtivos,
@@ -268,14 +269,26 @@ export function ReportFiltersBar({
             />
           </div>
 
-          {/* Proveniência comercial. */}
+          {/* Proveniência comercial. Laboratório/grupo: SÓ garantia tem
+              `options.laboratorios` populado (ver lib/reporting-filter-options.ts)
+              — os restantes tenants continuam a ver exactamente o
+              SearchableMultiSelect antigo, com `options.fabricantes`
+              tal e qual sempre foi. */}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <SearchableMultiSelect
-              label="Fabricante"
-              options={options.fabricantes}
-              selected={value.fabricantes ?? []}
-              onToggle={(v) => patch({ fabricantes: alternarValor(v, value.fabricantes ?? []) })}
-            />
+            {options.laboratorios && options.laboratorios.length > 0 ? (
+              <LaboratorioMultiSelect
+                laboratorios={options.laboratorios}
+                selected={value.fabricantes ?? []}
+                onToggle={(v) => patch({ fabricantes: alternarValor(v, value.fabricantes ?? []) })}
+              />
+            ) : (
+              <SearchableMultiSelect
+                label="Fabricante"
+                options={options.fabricantes}
+                selected={value.fabricantes ?? []}
+                onToggle={(v) => patch({ fabricantes: alternarValor(v, value.fabricantes ?? []) })}
+              />
+            )}
             <SearchableMultiSelect
               label="Distribuidor"
               options={options.distribuidores}
@@ -301,7 +314,11 @@ export function ReportFiltersBar({
               <FilterPill key={`utilizacao-${slug}`} label={nomePorSlug.get(slug) ?? slug} onRemove={() => patch({ utilizacoes: (value.utilizacoes ?? []).filter((v) => v !== slug) })} />
             ))}
             {(value.fabricantes ?? []).map((item) => (
-              <FilterPill key={`fabricante-${item}`} label={item} onRemove={() => patch({ fabricantes: (value.fabricantes ?? []).filter((v) => v !== item) })} />
+              <FilterPill
+                key={`fabricante-${item}`}
+                label={options.laboratorios ? rotuloLaboratorioSelecionado(item, options.laboratorios) : item}
+                onRemove={() => patch({ fabricantes: (value.fabricantes ?? []).filter((v) => v !== item) })}
+              />
             ))}
             {(value.distribuidores ?? []).map((item) => (
               <FilterPill key={`distribuidor-${item}`} label={item} onRemove={() => patch({ distribuidores: (value.distribuidores ?? []).filter((v) => v !== item) })} />

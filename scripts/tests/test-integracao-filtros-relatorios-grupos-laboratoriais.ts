@@ -34,6 +34,7 @@ import {
   type FabricanteParaResolver,
   type GrupoFabricanteParaResolver,
   type RegraCnpParaResolver,
+  type SnapshotParaResolver,
 } from "../../lib/catalog/resolver-grupo-laboratorial";
 import { resolverProdutoIdsPorLaboratoriosSelecionados } from "../../lib/reporting/resolver-laboratorio-selecionado";
 
@@ -47,6 +48,8 @@ const eqSet = (a: readonly string[], b: readonly string[], label: string) => {
   const as = [...a].sort(), bs = [...b].sort();
   check(JSON.stringify(as) === JSON.stringify(bs), label, `esperado ${JSON.stringify(bs)}, veio ${JSON.stringify(as)}`);
 };
+const eq = <T,>(a: T, b: T, label: string) =>
+  check(JSON.stringify(a) === JSON.stringify(b), label, `esperado ${JSON.stringify(b)}, veio ${JSON.stringify(a)}`);
 
 // ── Dataset sintético ────────────────────────────────────────────────
 const FAB = {
@@ -64,6 +67,7 @@ const produtos: ProdutoParaResolver[] = [
   { id: "p4", cnp: 1000004, fabricanteId: FAB.pfizer, grupoExistente: null }, // TEM regra_cnp validada → Viatris
   { id: "p5", cnp: 1000005, fabricanteId: FAB.pfizer, grupoExistente: null }, // SEM regra → sem_grupo
   { id: "p6", cnp: 1000006, fabricanteId: FAB.bial, grupoExistente: null }, // sem grupo nenhum
+  { id: "p7", cnp: 1000007, fabricanteId: "fOutraEmpresa", grupoExistente: null }, // proposta_snapshot_cnp para Viatris — NUNCA deve entrar na relação de grupo
 ];
 
 const mapas: MapasResolverGrupo = {
@@ -74,15 +78,23 @@ const mapas: MapasResolverGrupo = {
     [FAB.pfizer, { id: FAB.pfizer, nomeNormalizado: "LABORATORIOS PFIZER" }],
     [FAB.bial, { id: FAB.bial, nomeNormalizado: "BIAL" }],
   ]),
-  fabricantesPorNomeNormalizado: new Map(),
+  fabricantesPorNomeNormalizado: new Map<string, FabricanteParaResolver>([
+    ["VIATRIS", { id: "fViatrisNoCatalogo", nomeNormalizado: "VIATRIS" }],
+  ]),
   regrasCnpPorCnp: new Map<number, RegraCnpParaResolver>([
     [1000004, { id: "regraPfizer1", grupoLaboratorialId: "gViatris", estado: "ATIVO", validadoManualmente: true }],
   ]),
-  snapshotsPorCnp: new Map(),
+  // p7: titular ACTUAL do catálogo para este CNP é "Viatris", mas fOutraEmpresa
+  // não está integral nem tem regra por CNP validada — classifica só como
+  // proposta_snapshot_cnp (nível 4), NUNCA escreve ProdutoGrupoLaboratorial.
+  snapshotsPorCnp: new Map<number, SnapshotParaResolver>([
+    [1000007, { cnp: 1000007, titularAim: "Viatris", estadoAim: "Ativo" }],
+  ]),
   gruposFabricantePorFabricanteId: new Map<string, GrupoFabricanteParaResolver>([
     [FAB.mylan, { grupoLaboratorialId: "gViatris" }],
     [FAB.upjohn, { grupoLaboratorialId: "gViatris" }],
     [FAB.alfaWassermann, { grupoLaboratorialId: "gAlfasigma" }],
+    ["fViatrisNoCatalogo", { grupoLaboratorialId: "gViatris" }],
   ]),
   aliasesPorNomeNormalizado: new Map(),
 };
@@ -96,14 +108,21 @@ async function main(): Promise<void> {
   check(resultadoPorId.get("p4")?.tipo === "regra_cnp", "Setup: Pfizer CNP validado (p4) classifica regra_cnp/Viatris");
   check(resultadoPorId.get("p5")?.tipo === "sem_grupo", "Setup: Pfizer sem regra (p5) fica sem_grupo");
   check(resultadoPorId.get("p6")?.tipo === "sem_grupo", "Setup: Bial (p6), sem grupo nenhum na config, fica sem_grupo");
+  check(resultadoPorId.get("p7")?.tipo === "proposta_snapshot_cnp", "Setup: p7 (fOutraEmpresa, titular actual do catálogo = Viatris) fica só proposta_snapshot_cnp — NUNCA escreve ProdutoGrupoLaboratorial");
 
   console.log("\n[2/3] Materializa a classificação nas tabelas que um Prisma real teria (GrupoLaboratorial/ProdutoGrupoLaboratorial)...");
   const gruposReais = [
     { id: "gViatris", nome: "Viatris" },
     { id: "gAlfasigma", nome: "Alfasigma" },
   ];
+  // Só os 3 níveis SEGUROS de aplicar automaticamente escrevem
+  // ProdutoGrupoLaboratorial (ver TIPOS_APLICAVEIS_AUTOMATICAMENTE em
+  // scripts/classificar-grupos-laboratoriais-garantia.ts) — replicado
+  // aqui explicitamente para que p7 (proposta_snapshot_cnp) NUNCA
+  // apareça materializado, tal como um `--apply` real nunca o escreveria.
+  const TIPOS_APLICAVEIS: ReadonlySet<string> = new Set(["regra_cnp", "fabricante_inequivoco", "alias_inequivoco"]);
   const produtoGrupoRows = [...resultadoPorId.entries()]
-    .filter(([, r]) => r.tipo !== "sem_grupo" && r.tipo !== "mantido_manual")
+    .filter(([, r]) => TIPOS_APLICAVEIS.has(r.tipo))
     .map(([produtoId, r]) => ({ produtoId, grupoLaboratorialId: (r as { grupoLaboratorialId: string }).grupoLaboratorialId }));
 
   const fabricantesReais = [
@@ -113,6 +132,12 @@ async function main(): Promise<void> {
   const produtosPorFabricante = new Map<string, string[]>([
     [FAB.pfizer, ["p4", "p5"]],
     [FAB.bial, ["p6"]],
+    // Necessários para as secções G/I (selecção por valor TIPADO
+    // "fabricante:<id>", que consulta produto.findMany DIRECTAMENTE
+    // pelo fabricanteId, sem passar por fabricante.findMany por nome).
+    [FAB.mylan, ["p1"]],
+    [FAB.upjohn, ["p2"]],
+    [FAB.alfaWassermann, ["p3"]],
   ]);
 
   const fakePrisma = {
@@ -185,6 +210,55 @@ async function main(): Promise<void> {
   {
     const resultado = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, ["LABORATORIOS PFIZER"], async () => "garantia");
     eqSet(resultado, ["p4", "p5"], "F1: pesquisar Pfizer DIRECTAMENTE (nome de fabricante) devolve AMBOS os produtos Pfizer — p4 tem também regra Viatris, mas continua um produto real da Pfizer");
+  }
+
+  // ── G-K: a MESMA cena, mas com os valores TIPADOS que a UI real produz
+  // desde 2026-09-24 ("grupo:<id>"/"fabricante:<id>", nunca nomes soltos,
+  // em garantia) — as secções A-F acima continuam válidas (caminho
+  // legado/outros tenants), mas já não reflectem o que o catálogo/
+  // relatórios realmente enviam para garantia.
+  console.log("\nG · [valor tipado] seleccionar FABRICANTE Mylan — só produtos desse fabricanteId, NUNCA Upjohn nem produtos só-Viatris (requisito de teste #2)");
+  {
+    const resultado = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, [`fabricante:${FAB.mylan}`], async () => "garantia");
+    eqSet(resultado, ["p1"], "G1: só p1 (Mylan) — nunca p2 (Upjohn) nem qualquer produto exclusivamente Viatris");
+  }
+
+  console.log("\nH · [valor tipado] seleccionar GRUPO Viatris — inclui Mylan, Upjohn, o CNP Pfizer com regra validada; NUNCA a proposta pendente p7 (requisito de teste #3)");
+  {
+    const resultado = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, ["grupo:gViatris"], async () => "garantia");
+    eqSet(resultado, ["p1", "p2", "p4"], "H1: Mylan (p1) + Upjohn (p2) + regra CNP validada (p4)");
+    check(!resultado.includes("p7"), "H2: a proposta pendente (p7, snapshot do catálogo, nunca validada) NÃO está incluída");
+    check(!resultado.includes("p5"), "H3: o Pfizer sem regra específica (p5) também não está incluído");
+  }
+
+  console.log("\nI · [valor tipado] seleccionar FABRICANTE Alfa Wassermann devolve APENAS esse fabricante (requisito de teste #6)");
+  {
+    const resultado = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, [`fabricante:${FAB.alfaWassermann}`], async () => "garantia");
+    eqSet(resultado, ["p3"], "I1: só p3");
+  }
+
+  console.log("\nJ · [valores tipados MISTOS] grupo Viatris + fabricante Bial em simultâneo — união sem duplicados (requisito de teste #9)");
+  {
+    const resultado = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, ["grupo:gViatris", `fabricante:${FAB.bial}`], async () => "garantia");
+    eqSet(resultado, ["p1", "p2", "p4", "p6"], "J1: união de Viatris (p1,p2,p4) com Bial (p6), sem duplicados nem produtos a mais");
+  }
+
+  console.log("\nK · catálogo, vendas, margens e inventário resolvem para o MESMO conjunto de produtos com o MESMO valor tipado — coerência entre as 4 superfícies (requisito de teste #10)");
+  {
+    // O catálogo usa resolverFiltroLaboratorioWhere (Prisma where directo);
+    // os 3 relatórios usam resolverProdutoIdsPorLaboratoriosSelecionados
+    // (lista de ids) — DUAS implementações distintas por necessidade (uma
+    // filtra no SELECT, a outra pré-resolve ids), mas ambas partilham a
+    // MESMA fonte de verdade: a relação ProdutoGrupoLaboratorial para o
+    // grupo. Aqui provamos que os ids devolvidos pelos relatórios são
+    // EXACTAMENTE os produtos que o catálogo materializou nessa relação.
+    const { resolverFiltroLaboratorioWhere } = await import("../../lib/catalog/laboratorio-filtro");
+    const whereCatalogo = resolverFiltroLaboratorioWhere("grupo:gViatris");
+    eq(whereCatalogo, { grupoLaboratorial: { grupoLaboratorialId: "gViatris" } }, "K1: catálogo filtra pela mesma relação ProdutoGrupoLaboratorial");
+
+    const idsRelatorios = await resolverProdutoIdsPorLaboratoriosSelecionados(fakePrisma, ["grupo:gViatris"], async () => "garantia");
+    const idsMaterializadosParaOGrupo = produtoGrupoRows.filter((r) => r.grupoLaboratorialId === "gViatris").map((r) => r.produtoId);
+    eqSet(idsRelatorios, idsMaterializadosParaOGrupo, "K2: Vendas/Margens/Inventário devolvem EXACTAMENTE os produtos que a relação ProdutoGrupoLaboratorial materializou para este grupo — a mesma fonte que o catálogo consulta");
   }
 
   console.log(`\n${ok} ok, ${ko} falhas`);

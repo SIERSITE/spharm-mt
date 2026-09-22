@@ -31,29 +31,9 @@ import "dotenv/config";
 import { readFileSync, writeFileSync } from "node:fs";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { pesquisarLaboratorios, resolverFiltroLaboratorioWhere, type CatalogoFilterOptionLaboratorio } from "../lib/catalog/laboratorio-filtro";
+import { pesquisarLaboratorios, resolverFiltroLaboratorioWhere } from "../lib/catalog/laboratorio-filtro";
+import { carregarLaboratoriosGarantia } from "../lib/catalog/carregar-laboratorios-garantia";
 import { resolverProdutoIdsPorLaboratoriosSelecionados } from "../lib/reporting/resolver-laboratorio-selecionado";
-
-async function carregarOpcoesCatalogo(prisma: PrismaClient): Promise<CatalogoFilterOptionLaboratorio[]> {
-  // Réplica FIEL de loadCatalogoFilterOptions (lib/catalogo-data.ts) — mesmas queries, mesma lógica de exclusão de fabricantes integrais.
-  const [fabricantesRaw, grupos, associacoesIntegrais, aliasesRaw] = await Promise.all([
-    prisma.fabricante.findMany({ where: { estado: "ATIVO" }, select: { id: true, nomeNormalizado: true } }),
-    prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { id: true, nome: true } }),
-    prisma.grupoLaboratorialFabricante.findMany({ select: { fabricanteId: true } }),
-    prisma.grupoLaboratorialAlias.findMany({ where: { estado: "ATIVO" }, select: { grupoLaboratorialId: true, alias: true } }),
-  ]);
-  const idsIntegraisNumGrupo = new Set(associacoesIntegrais.map((a) => a.fabricanteId));
-  const aliasesPorGrupo = new Map<string, string[]>();
-  for (const a of aliasesRaw) {
-    const lista = aliasesPorGrupo.get(a.grupoLaboratorialId) ?? [];
-    lista.push(a.alias);
-    aliasesPorGrupo.set(a.grupoLaboratorialId, lista);
-  }
-  return [
-    ...grupos.map((g): CatalogoFilterOptionLaboratorio => ({ tipo: "grupo", id: g.id, nome: g.nome, termosBusca: aliasesPorGrupo.get(g.id) ?? [] })),
-    ...fabricantesRaw.filter((f) => !idsIntegraisNumGrupo.has(f.id)).map((f): CatalogoFilterOptionLaboratorio => ({ tipo: "fabricante", id: f.id, nomeNormalizado: f.nomeNormalizado })),
-  ];
-}
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -65,7 +45,7 @@ async function main() {
     console.log("═".repeat(78));
     console.log("1. CATÁLOGO — pesquisa alias-aware (pesquisarLaboratorios → resolverFiltroLaboratorioWhere → produtos reais)");
     console.log("═".repeat(78));
-    const opcoes = await carregarOpcoesCatalogo(prisma);
+    const opcoes = await carregarLaboratoriosGarantia(prisma);
     console.log(`  ${opcoes.length} opções carregadas (${opcoes.filter((o) => o.tipo === "grupo").length} grupos, ${opcoes.filter((o) => o.tipo === "fabricante").length} fabricantes)`);
 
     const casosCatalogo: Array<{ termo: string; grupoEsperado: string }> = [

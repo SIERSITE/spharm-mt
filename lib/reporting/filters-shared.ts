@@ -31,6 +31,7 @@
  * constrói um `SharedReportFilters` efémero só para as alimentar).
  */
 import { DEFAULT_INCLUIR_CREDITO, DEFAULT_INCLUIR_TRANSFERENCIAS } from "./natureza-venda";
+import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 export type SharedReportFilters = {
   /** Lista de NOMES de farmácia. Vazio/omitido = todas as activas. */
@@ -265,6 +266,8 @@ export type ReportFilterOptions = {
   subcategorias: Array<{ nome: string; categoria: string }>;
   utilizacoes: Array<{ slug: string; nome: string }>;
   fabricantes: string[];
+  /** SÓ no tenant garantia — ver o mesmo campo em `ReportingFilterOptions` (lib/reporting-filter-options.ts). */
+  laboratorios?: CatalogoFilterOptionLaboratorio[];
   distribuidores: string[];
   semClassificacao: boolean;  // existem produtos sem classif. canónica?
 };
@@ -315,4 +318,31 @@ export function passaFiltroCatalogo(
     if (!linha.utilizacoes.some((s) => utilizacoes.includes(s))) return false;
   }
   return true;
+}
+
+/**
+ * O predicado do filtro "Laboratório ou grupo" para o refinamento
+ * CLIENT-SIDE do Vendas (`components/vendas/vendas-client.tsx`) —
+ * `baseFiltered`/`groupRows` reaplicam os filtros já enviados ao servidor
+ * sobre as linhas recebidas, sem round-trip. Antes de 2026-09-24 essa
+ * reaplicação comparava `row.fabricante` (o NOME legal do fabricante)
+ * directamente contra o valor seleccionado — correcto enquanto os
+ * valores eram sempre nomes soltos, mas quebrava assim que um valor
+ * seleccionado passou a ser `grupo:<id>` (garantia): nenhuma linha tem
+ * `row.fabricante === "grupo:xxxx"`, por isso TUDO desaparecia do ecrã
+ * mesmo com o servidor a ter devolvido as linhas certas.
+ *
+ * Correcção: quando a selecção contém pelo menos um valor TIPADO
+ * (`grupo:`/`fabricante:` — só acontece em garantia, nunca nos outros
+ * tenants), confia inteiramente no servidor — `resolverProdutoIdsPorLaboratoriosSelecionados`
+ * já devolveu exactamente as linhas certas, não há nada para refinar
+ * outra vez. Quando a selecção é só nomes soltos (todos os outros
+ * tenants, ou estado antigo ainda por migrar), o comportamento é
+ * EXACTAMENTE o mesmo de sempre: comparação exacta contra `row.fabricante`.
+ */
+export function passaFiltroFabricanteSelecionado(fabricanteDaLinha: string, selecionados: readonly string[]): boolean {
+  if (selecionados.length === 0) return true;
+  const temValorTipado = selecionados.some((v) => v.startsWith("grupo:") || v.startsWith("fabricante:"));
+  if (temValorTipado) return true;
+  return selecionados.includes(fabricanteDaLinha);
 }

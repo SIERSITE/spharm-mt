@@ -9,6 +9,7 @@ import {
   resolverFiltroLaboratorioWhere,
   type CatalogoFilterOptionLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
+import { carregarLaboratoriosGarantia } from "@/lib/catalog/carregar-laboratorios-garantia";
 import {
   Prisma,
   type ProdutoEstado,
@@ -17,8 +18,12 @@ import {
 
 // Reexportados para quem já importa de lib/catalogo-data.ts (a página, o
 // componente cliente) não precisar de saber que a lógica pura mora agora
-// em lib/catalog/laboratorio-filtro.ts (ver o porquê nesse ficheiro).
-export { pesquisarLaboratorios, resolverFiltroLaboratorioWhere, type CatalogoFilterOptionLaboratorio };
+// em lib/catalog/laboratorio-filtro.ts (ver o porquê nesse ficheiro), nem
+// que `carregarLaboratoriosGarantia` mora em
+// lib/catalog/carregar-laboratorios-garantia.ts (ver o porquê nesse
+// ficheiro — precisa de ser importável por scripts `tsx`, que não
+// suportam o `"server-only"` deste ficheiro).
+export { pesquisarLaboratorios, resolverFiltroLaboratorioWhere, carregarLaboratoriosGarantia, type CatalogoFilterOptionLaboratorio };
 
 /**
  * Data loaders read-only para as páginas /catalogo e /catalogo/artigo/[cnp].
@@ -192,53 +197,25 @@ export async function loadCatalogoFilterOptions(): Promise<CatalogoFilterOptions
   const tenantSlug = await resolveCurrentTenantSlug();
   const comGrupos = tenantSlug === TENANT_GRUPOS_LABORATORIAIS;
 
-  const [fabricantesRaw, classificacoesN1, grupos, associacoesIntegrais, aliasesRaw] = await Promise.all([
-    prisma.fabricante.findMany({
-      where: { estado: "ATIVO" },
-      select: { id: true, nomeNormalizado: true },
-      orderBy: { nomeNormalizado: "asc" },
-    }),
+  const [classificacoesN1, laboratorios] = await Promise.all([
     prisma.classificacao.findMany({
       where: { tipo: "NIVEL_1", estado: "ATIVO" },
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),
     comGrupos
-      ? prisma.grupoLaboratorial.findMany({ where: { estado: "ATIVO" }, select: { id: true, nome: true } })
-      : Promise.resolve([]),
-    comGrupos ? prisma.grupoLaboratorialFabricante.findMany({ select: { fabricanteId: true } }) : Promise.resolve([]),
-    comGrupos
-      ? prisma.grupoLaboratorialAlias.findMany({ where: { estado: "ATIVO" }, select: { grupoLaboratorialId: true, alias: true } })
-      : Promise.resolve([]),
+      ? carregarLaboratoriosGarantia(prisma)
+      : prisma.fabricante
+          .findMany({ where: { estado: "ATIVO" }, select: { id: true, nomeNormalizado: true }, orderBy: { nomeNormalizado: "asc" } })
+          .then((fabricantesRaw): CatalogoFilterOptionLaboratorio[] =>
+            fabricantesRaw.map((f) => ({ tipo: "fabricante", id: f.id, nomeNormalizado: f.nomeNormalizado, produtos: 0 })),
+          ),
   ]);
 
-  if (!comGrupos) {
-    const laboratorios: CatalogoFilterOptionLaboratorio[] = fabricantesRaw.map((f) => ({
-      tipo: "fabricante",
-      id: f.id,
-      nomeNormalizado: f.nomeNormalizado,
-    }));
-    return { laboratorios, classificacoesN1 };
-  }
-
-  // Um fabricante integralmente associado a um grupo nunca aparece TAMBÉM
-  // como opção "fabricante:" separada — é assim que se evita a
-  // duplicação de opções para o mesmo laboratório.
-  const idsIntegraisNumGrupo = new Set(associacoesIntegrais.map((a) => a.fabricanteId));
-  const aliasesPorGrupo = new Map<string, string[]>();
-  for (const a of aliasesRaw) {
-    const lista = aliasesPorGrupo.get(a.grupoLaboratorialId) ?? [];
-    lista.push(a.alias);
-    aliasesPorGrupo.set(a.grupoLaboratorialId, lista);
-  }
-  const laboratorios: CatalogoFilterOptionLaboratorio[] = [
-    ...grupos.map((g): CatalogoFilterOptionLaboratorio => ({ tipo: "grupo", id: g.id, nome: g.nome, termosBusca: aliasesPorGrupo.get(g.id) ?? [] })),
-    ...fabricantesRaw
-      .filter((f) => !idsIntegraisNumGrupo.has(f.id))
-      .map((f): CatalogoFilterOptionLaboratorio => ({ tipo: "fabricante", id: f.id, nomeNormalizado: f.nomeNormalizado })),
-  ].sort((a, b) => nomeDeLaboratorio(a).localeCompare(nomeDeLaboratorio(b)));
-
-  return { laboratorios, classificacoesN1 };
+  return {
+    laboratorios: [...laboratorios].sort((a, b) => nomeDeLaboratorio(a).localeCompare(nomeDeLaboratorio(b), "pt-PT")),
+    classificacoesN1,
+  };
 }
 
 // ─── Listagem ────────────────────────────────────────────────────────────────

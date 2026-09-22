@@ -6,7 +6,6 @@ import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 import {
-  pesquisarLaboratorios,
   type CatalogoFilterOptionLaboratorio,
   type CatalogoFilterOptions,
   type CatalogoListData,
@@ -14,6 +13,13 @@ import {
   type CatalogoRow,
   type ResumoClassificacao,
 } from "@/lib/catalogo-data";
+import {
+  descricaoAlcanceLaboratorio,
+  nomeDeLaboratorio,
+  pesquisarLaboratorios,
+  rotuloTipoLaboratorio,
+  valorDeLaboratorio,
+} from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
 
 type Props = {
@@ -219,8 +225,8 @@ export function CatalogoListClient({ data, filters, filterOptions }: Props) {
               options={[
                 { value: "", label: "Fabricante (todos)" },
                 ...filterOptions.laboratorios.map((l) => ({
-                  value: valorDaOpcao(l),
-                  label: nomeDaOpcao(l),
+                  value: valorDeLaboratorio(l),
+                  label: nomeDeLaboratorio(l),
                 })),
               ]}
             />
@@ -464,20 +470,16 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
   );
 }
 
-function valorDaOpcao(o: CatalogoFilterOptionLaboratorio): string {
-  return o.tipo === "grupo" ? `grupo:${o.id}` : `fabricante:${o.id}`;
-}
-function nomeDaOpcao(o: CatalogoFilterOptionLaboratorio): string {
-  return o.tipo === "grupo" ? o.nome : o.nomeNormalizado;
-}
-
 /**
- * Filtro de laboratório — UMA lista, nunca duas concorrentes. Escrever
- * "Mylan" filtra para mostrar só "Viatris" (via `termosBusca`/aliases do
- * grupo — ver `pesquisarLaboratorios`); "Mylan" nunca aparece como opção
- * à parte, porque não é uma entrada própria da lista. O fabricante legal
- * continua disponível como opção — só não é OUTRA opção para quem já
- * pertence integralmente a um grupo (ver loadCatalogoFilterOptions).
+ * Filtro de "Laboratório ou grupo" — UMA lista, nunca duas concorrentes,
+ * mas TODAS as entidades legais reais aparecem sempre, mesmo quando
+ * integralmente associadas a um grupo (correcção de UX de 2026-09-24 —
+ * ver o doc comment de `carregarLaboratoriosGarantia`,
+ * lib/catalog/carregar-laboratorios-garantia.ts). Escrever "Mylan"
+ * mostra os fabricantes reais "Mylan..." E, adicionalmente, o grupo
+ * "Viatris" (via `termosBusca`/aliases — ver `pesquisarLaboratorios`) —
+ * NUNCA um em vez do outro. Secções "Grupos relacionados" / "Fabricantes"
+ * distintas quando ambos os tipos aparecem nos resultados.
  */
 function LaboratorioSearchSelect({
   laboratorios,
@@ -492,23 +494,49 @@ function LaboratorioSearchSelect({
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selecionada = useMemo(() => laboratorios.find((o) => valorDaOpcao(o) === value) ?? null, [laboratorios, value]);
+  const selecionada = useMemo(() => laboratorios.find((o) => valorDeLaboratorio(o) === value) ?? null, [laboratorios, value]);
   const resultados = useMemo(() => pesquisarLaboratorios(laboratorios, query), [laboratorios, query]);
+  const grupos = resultados.filter((o) => o.tipo === "grupo");
+  const fabricantes = resultados.filter((o) => o.tipo === "fabricante");
+  const duasSeccoes = grupos.length > 0 && fabricantes.length > 0;
 
   function selecionar(o: CatalogoFilterOptionLaboratorio | null): void {
-    onChange(o ? valorDaOpcao(o) : "");
+    onChange(o ? valorDeLaboratorio(o) : "");
     setQuery("");
     setOpen(false);
   }
 
+  function linha(o: CatalogoFilterOptionLaboratorio) {
+    return (
+      <li
+        key={valorDeLaboratorio(o)}
+        className="cursor-pointer px-3 py-1.5 hover:bg-emerald-50"
+        onMouseDown={(e) => { e.preventDefault(); selecionar(o); }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            className={[
+              "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+              o.tipo === "grupo" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600",
+            ].join(" ")}
+          >
+            {rotuloTipoLaboratorio(o)}
+          </span>
+          <span className="font-medium text-slate-800">{nomeDeLaboratorio(o)}</span>
+        </div>
+        <div className="mt-0.5 text-[11px] text-slate-500">{descricaoAlcanceLaboratorio(o)}</div>
+      </li>
+    );
+  }
+
   return (
     <label className="relative block">
-      <div className="mb-1 text-[11px] font-medium text-slate-500">Fabricante</div>
+      <div className="mb-1 text-[11px] font-medium text-slate-500">Laboratório ou grupo</div>
       <input
         ref={inputRef}
         type="text"
-        value={open ? query : (selecionada ? nomeDaOpcao(selecionada) : "")}
-        placeholder="Fabricante (todos)"
+        value={open ? query : (selecionada ? `${rotuloTipoLaboratorio(selecionada)}: ${nomeDeLaboratorio(selecionada)}` : "")}
+        placeholder="Laboratório ou grupo (todos)"
         onFocus={() => { setOpen(true); setQuery(""); }}
         onChange={(e) => setQuery(e.target.value)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -519,22 +547,23 @@ function LaboratorioSearchSelect({
         className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
       />
       {open && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 text-[13px] shadow-lg">
+        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 text-[13px] shadow-lg">
           <li
             className="cursor-pointer px-3 py-1.5 text-slate-500 hover:bg-slate-50"
             onMouseDown={(e) => { e.preventDefault(); selecionar(null); }}
           >
-            Fabricante (todos)
+            Laboratório ou grupo (todos)
           </li>
-          {resultados.map((o) => (
-            <li
-              key={valorDaOpcao(o)}
-              className="cursor-pointer px-3 py-1.5 font-medium text-slate-800 hover:bg-emerald-50"
-              onMouseDown={(e) => { e.preventDefault(); selecionar(o); }}
-            >
-              {nomeDaOpcao(o)}
-            </li>
-          ))}
+          {duasSeccoes ? (
+            <>
+              <li className="px-3 pt-2 pb-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Grupos relacionados</li>
+              {grupos.map(linha)}
+              <li className="px-3 pt-2 pb-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Fabricantes</li>
+              {fabricantes.map(linha)}
+            </>
+          ) : (
+            resultados.map(linha)
+          )}
           {resultados.length === 0 && <li className="px-3 py-1.5 text-slate-400">Sem correspondência</li>}
         </ul>
       )}

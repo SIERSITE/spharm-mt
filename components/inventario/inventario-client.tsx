@@ -120,6 +120,7 @@ export function InventarioClient({
       subcategorias: filterOptions.subcategorias,
       utilizacoes: filterOptions.utilizacoes,
       fabricantes: filterOptions.fabricantes,
+      laboratorios: filterOptions.laboratorios,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),

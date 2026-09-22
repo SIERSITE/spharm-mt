@@ -13,6 +13,7 @@ import {
 import {
   contarFiltrosAtivos,
   passaFiltroCatalogo,
+  passaFiltroFabricanteSelecionado,
   type SharedReportFilters,
 } from "@/lib/reporting/filters-shared";
 import { normalizarOpcao } from "@/components/reporting/filter-select";
@@ -23,6 +24,7 @@ import {
   SearchableMultiSelect,
   ToggleRow,
 } from "@/components/reporting/filter-panel";
+import { LaboratorioMultiSelect, rotuloLaboratorioSelecionado } from "@/components/reporting/laboratorio-multi-select";
 import {
   Eye,
   Filter,
@@ -273,10 +275,7 @@ export function VendasClient({
       ) {
         return false;
       }
-      if (
-        fabricantesSelecionados.length > 0 &&
-        !fabricantesSelecionados.includes(row.fabricante)
-      ) {
+      if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
         return false;
       }
       if (!passaFiltroCatalogo(row, {
@@ -329,10 +328,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (
-        fabricantesSelecionados.length > 0 &&
-        !fabricantesSelecionados.includes(row.fabricante)
-      ) {
+      if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
         continue;
       }
       if (!passaFiltroCatalogo(row, {
@@ -585,10 +581,7 @@ export function VendasClient({
         ) {
           return false;
         }
-        if (
-          fabricantesSelecionados.length > 0 &&
-          !fabricantesSelecionados.includes(row.fabricante)
-        ) {
+        if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
           return false;
         }
         if (!passaFiltroCatalogo(row, {
@@ -643,10 +636,7 @@ export function VendasClient({
       ) {
         continue;
       }
-      if (
-        fabricantesSelecionados.length > 0 &&
-        !fabricantesSelecionados.includes(row.fabricante)
-      ) {
+      if (!passaFiltroFabricanteSelecionado(row.fabricante, fabricantesSelecionados)) {
         continue;
       }
       if (!passaFiltroCatalogo(row, {
@@ -1064,18 +1054,32 @@ export function VendasClient({
                     )
                   }
                 />
-                <SearchableMultiSelect
-                  label="Fabricante"
-                  options={fabricantes}
-                  selected={fabricantesSelecionados}
-                  onToggle={(value) =>
-                    toggleValue(
-                      value,
-                      fabricantesSelecionados,
-                      setFabricantesSelecionados
-                    )
-                  }
-                />
+                {filterOptions.laboratorios && filterOptions.laboratorios.length > 0 ? (
+                  <LaboratorioMultiSelect
+                    laboratorios={filterOptions.laboratorios}
+                    selected={fabricantesSelecionados}
+                    onToggle={(value) =>
+                      toggleValue(
+                        value,
+                        fabricantesSelecionados,
+                        setFabricantesSelecionados
+                      )
+                    }
+                  />
+                ) : (
+                  <SearchableMultiSelect
+                    label="Fabricante"
+                    options={fabricantes}
+                    selected={fabricantesSelecionados}
+                    onToggle={(value) =>
+                      toggleValue(
+                        value,
+                        fabricantesSelecionados,
+                        setFabricantesSelecionados
+                      )
+                    }
+                  />
+                )}
                 <SearchableMultiSelect
                   label="Categoria"
                   options={categorias}
@@ -1170,7 +1174,7 @@ export function VendasClient({
                 {fabricantesSelecionados.map((item) => (
                   <FilterPill
                     key={`fabricante-${item}`}
-                    label={item}
+                    label={filterOptions.laboratorios ? rotuloLaboratorioSelecionado(item, filterOptions.laboratorios) : item}
                     onRemove={() =>
                       setFabricantesSelecionados((prev) =>
                         prev.filter((v) => v !== item)

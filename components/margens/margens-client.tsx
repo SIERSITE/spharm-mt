@@ -130,6 +130,7 @@ export function MargensClient({
       subcategorias: filterOptions.subcategorias,
       utilizacoes: filterOptions.utilizacoes,
       fabricantes: filterOptions.fabricantes,
+      laboratorios: filterOptions.laboratorios,
       distribuidores: filterOptions.distribuidores,
       semClassificacao: filterOptions.semClassificacao,
     }),

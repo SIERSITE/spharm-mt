@@ -28,6 +28,8 @@ import { whereCnpCatalogavel } from "@/lib/catalog/cnp-catalogavel";
 import { getPrisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { resolveCurrentTenantSlug, TENANT_GRUPOS_LABORATORIAIS } from "@/lib/tenant-context";
+import { carregarLaboratoriosGarantia } from "@/lib/catalog/carregar-laboratorios-garantia";
+import type { CatalogoFilterOptionLaboratorio } from "@/lib/catalog/laboratorio-filtro";
 
 export type ReportingFilterOptions = {
   /**
@@ -51,6 +53,20 @@ export type ReportingFilterOptions = {
    * restantes tenants este campo é exactamente o que sempre foi.
    */
   fabricantes: string[];
+  /**
+   * SÓ no tenant garantia (`undefined` nos restantes): a mesma lista
+   * tipada do catálogo (`CatalogoFilterOptionLaboratorio[]`) — fabricantes
+   * E grupos, cada um com o seu `id`, contagem de produtos, e (para
+   * grupos) alcance/termos de busca. Introduzida em 2026-09-24 para que
+   * Vendas/Margens/Inventário ofereçam a MESMA distinção "Fabricante"
+   * vs "Grupo" que o catálogo já oferece — nunca colapsando "Mylan" na
+   * opção "Viatris" só porque é integral. `fabricantes` (acima) continua
+   * a existir tal e qual, inalterado, para os outros consumidores deste
+   * ficheiro (Devoluções, Transferências, Excessos, Encomendas — fora do
+   * âmbito desta mudança) e como fallback caso `laboratorios` não seja
+   * usado.
+   */
+  laboratorios?: CatalogoFilterOptionLaboratorio[];
   /**
    * Categorias canónicas (`Classificacao` NIVEL_1 estado=ATIVO). NUNCA
    * inclui texto bruto vindo de `ProdutoFarmacia.categoriaOrigem`.
@@ -141,6 +157,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
   // de garantia este bloco não corre — `fabricantes` fica exactamente
   // como sempre esteve.
   let fabricantesFinal = cleanSortUnique(fabricanteRows.map((r) => r.nome));
+  let laboratorios: CatalogoFilterOptionLaboratorio[] | undefined;
   const tenantSlug = await resolveCurrentTenantSlug();
   if (tenantSlug === TENANT_GRUPOS_LABORATORIAIS) {
     const [grupos, associacoesIntegrais] = await Promise.all([
@@ -152,6 +169,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
       ...grupos.map((g) => g.nome),
       ...fabricantesFinal.filter((nome) => !nomesIntegraisNumGrupo.has(nome)),
     ]);
+    laboratorios = await carregarLaboratoriosGarantia(prisma);
   }
 
   // Categorias: SÓ canónicas (Classificacao NIVEL_1 estado=ATIVO). Sem UNION
@@ -220,6 +238,7 @@ export async function getReportingFilterOptions(): Promise<ReportingFilterOption
     distribuidores,
     fornecedores: distribuidores, // alias deprecated — mesma lista
     fabricantes: fabricantesFinal,
+    laboratorios,
     categorias,
     subcategorias: subcategoriaRows
       .map((r) => ({ nome: (r.nome ?? "").trim(), categoria: (r.classificacaoPai?.nome ?? "").trim() }))
