@@ -21,6 +21,7 @@ import {
   confirmarConfigGarantia,
   validarConfigEstrutural,
   resolverFabricantesIntegrais,
+  planearFabricantesIntegrais,
   importarGruposLaboratoriais,
   type ConfigGruposIniciais,
   type RegrasCnpFicheiro,
@@ -267,7 +268,7 @@ console.log("\nC · validarConfigEstrutural — bloqueios estruturais da configu
   check(bloqueios.some((b) => b.tipo === "regra_cnp_sem_grupo_correspondente"), "C9: regra CNP para grupo que não existe na config bloqueia");
 }
 
-console.log("\nD · resolverFabricantesIntegrais — inexistente, ambíguo, conflito resolvido");
+console.log("\nD · resolverFabricantesIntegrais — resolvido (único e múltiplo), inexistente (informativo), conflito real bloqueia");
 {
   const { resolucoes, bloqueios } = resolverFabricantesIntegrais(configBase(), fabricantesReaisBase());
   const viatris = resolucoes.find((r) => r.candidato === "MYLAN LDA");
@@ -278,20 +279,56 @@ console.log("\nD · resolverFabricantesIntegrais — inexistente, ambíguo, conf
   const config: ConfigGruposIniciais = { tenant: "garantia", grupos: [{ nome: "X", nomeNormalizado: "X", aliases: [], fabricantesIntegrais: ["NÃO EXISTE NA GARANTIA"] }] };
   const { resolucoes, bloqueios } = resolverFabricantesIntegrais(config, fabricantesReaisBase());
   eq(resolucoes[0]?.acao, "inexistente", "D3: fabricante sem correspondência real → inexistente");
-  check(bloqueios.some((b) => b.tipo === "fabricante_inexistente"), "D4: fabricante inexistente bloqueia (nunca escolhido automaticamente)");
+  eq(bloqueios.length, 0, "D4: nome inexistente é reportado mas NÃO bloqueia — ausência/no-op, nunca cria Fabricante");
 }
 {
-  // Ambiguidade: dois Fabricante REAIS distintos normalizam para o MESMO nome —
-  // defesa explícita mesmo sabendo que Fabricante.nomeNormalizado é @unique na base.
-  const config: ConfigGruposIniciais = { tenant: "garantia", grupos: [{ nome: "X", nomeNormalizado: "X", aliases: [], fabricantesIntegrais: ["DUPLICADO LDA"] }] };
-  const fabricantesComDuplicado: FabricanteReal[] = [{ id: "f1", nomeNormalizado: "DUPLICADO LDA" }, { id: "f2", nomeNormalizado: "Duplicado, Lda." }];
-  const { resolucoes, bloqueios } = resolverFabricantesIntegrais(config, fabricantesComDuplicado);
-  eq(resolucoes[0]?.acao, "ambiguo", "D5: duas correspondências reais → ambíguo");
-  eq(resolucoes[0]?.correspondencias?.length, 2, "D6: as duas correspondências ficam registadas");
-  check(bloqueios.some((b) => b.tipo === "fabricante_ambiguo"), "D7: fabricante ambíguo bloqueia (nunca escolhido automaticamente)");
+  // Duas linhas Fabricante REAIS distintas normalizam para o MESMO nome configurado
+  // ("ALFASIGMA PORTUGAL LDA") — duplicação de dados de origem, não ambiguidade de
+  // negócio: as DUAS entram no grupo Alfasigma, nenhuma escolhida arbitrariamente.
+  const config: ConfigGruposIniciais = { tenant: "garantia", grupos: [{ nome: "Alfasigma", nomeNormalizado: "ALFASIGMA", aliases: [], fabricantesIntegrais: ["ALFASIGMA PORTUGAL LDA"] }] };
+  const fabricantesEquivalentes: FabricanteReal[] = [
+    { id: "fAlfa1", nomeNormalizado: "ALFASIGMA PORTUGAL LDA" },
+    { id: "fAlfa2", nomeNormalizado: "Alfasigma Portugal, Lda." },
+  ];
+  const { resolucoes, bloqueios } = resolverFabricantesIntegrais(config, fabricantesEquivalentes);
+  const r0 = resolucoes[0];
+  eq(r0?.acao, "resolvido", "D5: candidato com múltiplas linhas equivalentes continua 'resolvido', nunca 'ambiguo'");
+  eq(r0 && r0.acao === "resolvido" ? [...r0.fabricanteIds].sort() : [], ["fAlfa1", "fAlfa2"], "D6: 'ALFASIGMA PORTUGAL LDA' com dois ids equivalentes associa AMBOS ao grupo Alfasigma");
+  eq(bloqueios.length, 0, "D7: zero bloqueios — duplicação de dados de origem não é conflito empresarial");
 }
 {
-  // Conflito RESOLVIDO: dois candidatos crus diferentes, em grupos diferentes, resolvem para o MESMO fabricante real.
+  // Mesmo padrão com "MYLAN LDA" → Viatris (caso real do dry-run de garantia).
+  const config: ConfigGruposIniciais = { tenant: "garantia", grupos: [{ nome: "Viatris", nomeNormalizado: "VIATRIS", aliases: [], fabricantesIntegrais: ["MYLAN LDA"] }] };
+  const fabricantesEquivalentes: FabricanteReal[] = [
+    { id: "fMylan1", nomeNormalizado: "MYLAN LDA" },
+    { id: "fMylan2", nomeNormalizado: "Mylan, Lda." },
+  ];
+  const { resolucoes, bloqueios } = resolverFabricantesIntegrais(config, fabricantesEquivalentes);
+  const r0 = resolucoes[0];
+  eq(r0 && r0.acao === "resolvido" ? [...r0.fabricanteIds].sort() : [], ["fMylan1", "fMylan2"], "D8: 'MYLAN LDA' com dois ids equivalentes associa ambos a Viatris");
+  eq(bloqueios.length, 0, "D9: zero bloqueios");
+}
+{
+  // Repetir variantes do MESMO nome (mesmo grupo) não duplica associações — o
+  // plano dedupe por fabricanteId, mesmo com 3 candidatos crus diferentes.
+  const config: ConfigGruposIniciais = {
+    tenant: "garantia",
+    grupos: [{ nome: "Viatris", nomeNormalizado: "VIATRIS", aliases: [], fabricantesIntegrais: ["MYLAN LDA", "Mylan, Lda.", "MYLAN LDA."] }],
+  };
+  const fabricantesEquivalentes: FabricanteReal[] = [
+    { id: "fMylan1", nomeNormalizado: "MYLAN LDA" },
+    { id: "fMylan2", nomeNormalizado: "Mylan, Lda." },
+  ];
+  const { resolucoes, bloqueios } = resolverFabricantesIntegrais(config, fabricantesEquivalentes);
+  eq(resolucoes.length, 3, "D10: as 3 variantes cruas continuam registadas na resolução (uma entrada por candidato)");
+  eq(bloqueios.length, 0, "D11: repetir variantes do mesmo nome não gera conflito");
+
+  const plano = planearFabricantesIntegrais(resolucoes, [], new Map([["VIATRIS", "gViatris"]]));
+  eq(plano.filter((i) => i.acao === "criar").length, 2, "D12: repetir variantes do mesmo nome não duplica associações — 2 ids distintos a criar, nunca 3 nem 6");
+}
+{
+  // Conflito RESOLVIDO (único candidato por grupo): dois candidatos crus
+  // diferentes, em grupos diferentes, resolvem para o MESMO fabricante real.
   const config: ConfigGruposIniciais = {
     tenant: "garantia",
     grupos: [
@@ -300,7 +337,41 @@ console.log("\nD · resolverFabricantesIntegrais — inexistente, ambíguo, conf
     ],
   };
   const { bloqueios } = resolverFabricantesIntegrais(config, [{ id: "f1", nomeNormalizado: "MYLAN LDA" }]);
-  check(bloqueios.some((b) => b.tipo === "fabricante_resolvido_em_dois_grupos"), "D8: o MESMO fabricante real reclamado por dois grupos (via candidatos crus diferentes) bloqueia");
+  check(bloqueios.some((b) => b.tipo === "fabricante_resolvido_em_dois_grupos"), "D13: o MESMO fabricante real reclamado por dois grupos (via candidatos crus diferentes) bloqueia");
+}
+{
+  // Conflito real também quando o CONJUNTO de ids equivalentes (múltiplas
+  // linhas reais) é reclamado por dois grupos diferentes — um id reclamado
+  // por dois grupos continua a bloquear, mesmo vindo de um conjunto múltiplo.
+  const config: ConfigGruposIniciais = {
+    tenant: "garantia",
+    grupos: [
+      { nome: "A", nomeNormalizado: "A", aliases: [], fabricantesIntegrais: ["DUPLICADO LDA"] },
+      { nome: "B", nomeNormalizado: "B", aliases: [], fabricantesIntegrais: ["Duplicado, Lda."] },
+    ],
+  };
+  const fabricantesComDuplicado: FabricanteReal[] = [{ id: "f1", nomeNormalizado: "DUPLICADO LDA" }, { id: "f2", nomeNormalizado: "Duplicado, Lda." }];
+  const { bloqueios } = resolverFabricantesIntegrais(config, fabricantesComDuplicado);
+  check(bloqueios.some((b) => b.tipo === "fabricante_resolvido_em_dois_grupos"), "D14: um id reclamado por dois grupos diferentes continua a bloquear, mesmo vindo de um conjunto de múltiplas linhas equivalentes");
+}
+{
+  // JANSSEN nunca entra em KENVUE — protecção testada ao nível estrutural
+  // (validarConfigEstrutural, bloco C2/C3) continua válida: resolverFabricantesIntegrais
+  // nunca é sequer chamado com essa config em produção, porque main() só chama
+  // importarGruposLaboratoriais depois de validarConfigEstrutural já ter bloqueado.
+  const { bloqueios } = validarConfigEstrutural(
+    { tenant: "garantia", grupos: [{ nome: "Kenvue", nomeNormalizado: "KENVUE", aliases: [], fabricantesIntegrais: ["Janssen-Cilag Farmacêutica, Lda."] }] },
+    { regras: [] },
+  );
+  check(bloqueios.some((b) => b.tipo === "janssen_em_kenvue"), "D15: Janssen nunca entra em Kenvue, mesmo com grafia equivalente a uma linha real duplicada");
+}
+{
+  // Pfizer nunca entra integralmente em nenhum grupo — mesma protecção estrutural.
+  const { bloqueios } = validarConfigEstrutural(
+    { tenant: "garantia", grupos: [{ nome: "Viatris", nomeNormalizado: "VIATRIS", aliases: [], fabricantesIntegrais: ["Laboratórios Pfizer, Lda."] }] },
+    { regras: [] },
+  );
+  check(bloqueios.some((b) => b.tipo === "pfizer_integral_proibido"), "D16: Pfizer nunca entra integralmente em Viatris (nem em nenhum grupo) — só por RegraGrupoLaboratorialPorCnp");
 }
 
 async function principal() {
@@ -313,7 +384,7 @@ async function principal() {
     eq(r.bloqueios.length, 0, "E1: cenário Pfizer-só-por-CNP não gera bloqueios");
     const regraPfizer = r.regrasCnp.find((i) => i.chave === "1001");
     eq(regraPfizer?.acao, "criar", "E2: a regra CNP 1001 (Pfizer→Viatris) seria criada");
-    const integraisPfizer = r.fabricantesIntegrais.resolucoes.filter((res) => res.fabricanteNomeNormalizado?.includes("PFIZER"));
+    const integraisPfizer = r.fabricantesIntegrais.resolucoes.filter((res) => res.acao === "resolvido" && res.fabricantesNomeNormalizado.some((n) => n.includes("PFIZER")));
     eq(integraisPfizer.length, 0, "E3: nenhuma associação INTEGRAL envolve Pfizer — só a regra por CNP");
   }
 

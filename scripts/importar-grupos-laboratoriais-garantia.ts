@@ -47,12 +47,27 @@
  * (`default_transaction_read_only=on`, mesma defesa dos outros scripts
  * desta iniciativa), relatório completo do que SERIA feito.
  *
+ * ── Fabricante inexistente: ausência, nunca bloqueio ──────────────────
+ * Um candidato configurado sem NENHUMA linha `Fabricante` correspondente
+ * na base real de garantia é um no-op — fica discriminado no relatório
+ * (`fabricantesIntegrais.resolucoes`, acção `"inexistente"`) como
+ * puramente informativo, mas nunca impede o apply dos fabricantes que
+ * EXISTEM. Nunca cria um `Fabricante` automaticamente.
+ *
+ * ── Várias linhas reais equivalentes: associa TODAS, nunca escolhe uma ──
+ * Quando um candidato configurado normaliza para o MESMO nome que mais de
+ * uma linha `Fabricante` real (duplicação de dados de origem — o mesmo
+ * fornecedor com várias linhas), o importador associa TODOS os ids desse
+ * conjunto ao grupo — nunca escolhe um arbitrariamente, nunca bloqueia só
+ * por existirem várias linhas equivalentes.
+ *
  * ── Bloqueios impedem SEMPRE o apply ──────────────────────────────────
- * Um fabricante inexistente, ambíguo, um conflito (o mesmo fabricante
- * integral reclamado por dois grupos, o mesmo CNP com regras para dois
- * grupos diferentes, JANSSEN em KENVUE, qualquer PFIZER com associação
- * integral) bloqueia o apply inteiro — nunca escolhe automaticamente,
- * nunca escreve uma parte "seguro" e ignora o resto.
+ * Só um conflito EMPRESARIAL real bloqueia o apply inteiro: o mesmo
+ * fabricante real (por id) reclamado por dois grupos diferentes, o mesmo
+ * CNP com regras para dois grupos diferentes, JANSSEN em KENVUE, ou
+ * qualquer PFIZER com associação integral. Nunca escolhe automaticamente
+ * perante um conflito real, nunca escreve uma parte "segura" e ignora o
+ * resto.
  *
  * ── Transação única ────────────────────────────────────────────────────
  * Ao contrário de `classificar-grupos-laboratoriais-garantia.ts` (que
@@ -323,14 +338,20 @@ export function validarConfigEstrutural(
 
 export type FabricanteReal = { id: string; nomeNormalizado: string };
 
-export type ResolucaoFabricanteIntegral = {
-  grupoNomeNormalizado: string;
-  candidato: string;
-  acao: "resolvido" | "inexistente" | "ambiguo";
-  fabricanteId?: string;
-  fabricanteNomeNormalizado?: string;
-  correspondencias?: string[];
-};
+export type ResolucaoFabricanteIntegral =
+  | {
+      grupoNomeNormalizado: string;
+      candidato: string;
+      acao: "resolvido";
+      /** Um ou mais ids — mais de um quando várias linhas Fabricante reais normalizam para o mesmo nome configurado; todos entram no grupo. */
+      fabricanteIds: string[];
+      fabricantesNomeNormalizado: string[];
+    }
+  | {
+      grupoNomeNormalizado: string;
+      candidato: string;
+      acao: "inexistente";
+    };
 
 /**
  * Resolve cada string de `fabricantesIntegrais` contra os Fabricante
@@ -341,13 +362,19 @@ export type ResolucaoFabricanteIntegral = {
  *
  * A busca é feita por `findMany` (nunca `findUnique`) deliberadamente:
  * mesmo com `Fabricante.nomeNormalizado` `@unique` no schema, este
- * código não ASSUME essa garantia — verifica-a, e trata mais de uma
- * correspondência como "ambíguo", bloqueando em vez de escolher.
+ * código não ASSUME essa garantia — verifica-a. Quando MAIS DE UMA linha
+ * real corresponde ao mesmo nome configurado, isso não é ambiguidade de
+ * negócio — é duplicação de dados de origem (o mesmo fornecedor com
+ * várias linhas Fabricante) — por isso TODAS entram no grupo, nunca se
+ * escolhe uma arbitrariamente.
  *
- * Depois de resolver, verifica também que NENHUM fabricante REAL
- * (post-resolução, por id) ficou reclamado por mais de um grupo — a
- * mesma verificação de `validarConfigEstrutural`, mas ao nível da
- * entidade resolvida, não da string crua.
+ * Um candidato sem NENHUMA correspondência real é registado como
+ * "inexistente" — puramente informativo, nunca bloqueia.
+ *
+ * Depois de resolver, verifica que NENHUM fabricante REAL (por id, já
+ * post-resolução — cobre tanto o caso de 1 id como o de vários ids
+ * equivalentes) ficou reclamado por mais de um grupo — só isto é um
+ * conflito empresarial real, e só isto bloqueia.
  */
 export function resolverFabricantesIntegrais(
   config: ConfigGruposIniciais,
@@ -378,40 +405,27 @@ export function resolverFabricantesIntegrais(
 
       if (candidatos.length === 0) {
         resolucoes.push({ grupoNomeNormalizado: g.nomeNormalizado, candidato: nomeCru, acao: "inexistente" });
-        bloqueios.push({ tipo: "fabricante_inexistente", detalhe: `grupo "${g.nome}": "${nomeCru}" não corresponde a nenhum Fabricante real de garantia.` });
-        continue;
-      }
-      if (candidatos.length > 1) {
-        resolucoes.push({
-          grupoNomeNormalizado: g.nomeNormalizado,
-          candidato: nomeCru,
-          acao: "ambiguo",
-          correspondencias: candidatos.map((c) => c.id),
-        });
-        bloqueios.push({
-          tipo: "fabricante_ambiguo",
-          detalhe: `grupo "${g.nome}": "${nomeCru}" corresponde a ${candidatos.length} Fabricante reais distintos (${candidatos.map((c) => c.id).join(", ")}) — não escolhido automaticamente.`,
-        });
         continue;
       }
 
-      const fab = candidatos[0]!;
       resolucoes.push({
         grupoNomeNormalizado: g.nomeNormalizado,
         candidato: nomeCru,
         acao: "resolvido",
-        fabricanteId: fab.id,
-        fabricanteNomeNormalizado: fab.nomeNormalizado,
+        fabricanteIds: candidatos.map((c) => c.id),
+        fabricantesNomeNormalizado: candidatos.map((c) => c.nomeNormalizado),
       });
 
-      const grupoAnterior = fabricanteIdParaGrupo.get(fab.id);
-      if (grupoAnterior && grupoAnterior !== g.nomeNormalizado) {
-        bloqueios.push({
-          tipo: "fabricante_resolvido_em_dois_grupos",
-          detalhe: `Fabricante real "${fab.nomeNormalizado}" (${fab.id}) resolve, a partir de candidatos distintos, tanto para "${grupoAnterior}" como para "${g.nome}".`,
-        });
-      } else {
-        fabricanteIdParaGrupo.set(fab.id, g.nomeNormalizado);
+      for (const fab of candidatos) {
+        const grupoAnterior = fabricanteIdParaGrupo.get(fab.id);
+        if (grupoAnterior && grupoAnterior !== g.nomeNormalizado) {
+          bloqueios.push({
+            tipo: "fabricante_resolvido_em_dois_grupos",
+            detalhe: `Fabricante real "${fab.nomeNormalizado}" (${fab.id}) resolve, a partir de candidatos distintos, tanto para "${grupoAnterior}" como para "${g.nome}".`,
+          });
+        } else {
+          fabricanteIdParaGrupo.set(fab.id, g.nomeNormalizado);
+        }
       }
     }
   }
@@ -486,30 +500,36 @@ export function planearFabricantesIntegrais(
   idsGrupoPorNomeNormalizado: ReadonlyMap<string, string>,
 ): ItemPlano[] {
   const existentePorFabricanteId = new Map(existentes.map((e) => [e.fabricanteId, e]));
-  // Dedup: candidatos diferentes do MESMO grupo podem resolver para o
-  // mesmo fabricanteId (ex.: "Mylan, Lda." e "MYLAN LDA" no mesmo grupo).
+  // Dedup: candidatos diferentes do MESMO grupo (ou várias linhas reais
+  // equivalentes do MESMO candidato) podem resolver para o mesmo
+  // fabricanteId (ex.: "Mylan, Lda." e "MYLAN LDA" no mesmo grupo, ou
+  // as 2 linhas reais "MYLAN LDA" por trás de um único candidato).
   const jaPlaneados = new Set<string>();
   const itens: ItemPlano[] = [];
 
   for (const r of resolucoes) {
-    if (r.acao !== "resolvido" || !r.fabricanteId) continue;
-    if (jaPlaneados.has(r.fabricanteId)) continue;
-    jaPlaneados.add(r.fabricanteId);
+    if (r.acao !== "resolvido") continue;
+    for (let i = 0; i < r.fabricanteIds.length; i++) {
+      const fabricanteId = r.fabricanteIds[i]!;
+      const fabricanteNomeNormalizado = r.fabricantesNomeNormalizado[i]!;
+      if (jaPlaneados.has(fabricanteId)) continue;
+      jaPlaneados.add(fabricanteId);
 
-    const grupoId = idsGrupoPorNomeNormalizado.get(r.grupoNomeNormalizado)!;
-    const evidenciaNova = `Associação integral curada (scripts/data/grupos-laboratoriais-iniciais-garantia.json), candidato "${r.candidato}".`;
-    const atual = existentePorFabricanteId.get(r.fabricanteId);
-    if (!atual) {
-      itens.push({ chave: `${r.grupoNomeNormalizado}/${r.fabricanteNomeNormalizado}`, acao: "criar" });
-    } else if (atual.grupoLaboratorialId !== grupoId) {
-      // Conflito com o ESTADO da base — não deveria acontecer se os
-      // bloqueios de resolverFabricantesIntegrais já apanharam tudo, mas
-      // é verificado de novo aqui como segunda camada (a base pode ter
-      // sido curada manualmente antes deste script existir).
-      itens.push({ chave: `${r.grupoNomeNormalizado}/${r.fabricanteNomeNormalizado}`, acao: "atualizar", detalhe: "CONFLITO: já associado a outro grupo na base — ver bloqueios" });
-    } else {
-      const diff = atual.evidencia !== evidenciaNova;
-      itens.push({ chave: `${r.grupoNomeNormalizado}/${r.fabricanteNomeNormalizado}`, acao: diff ? "atualizar" : "inalterado", detalhe: diff ? "evidência diferente" : undefined });
+      const grupoId = idsGrupoPorNomeNormalizado.get(r.grupoNomeNormalizado)!;
+      const evidenciaNova = `Associação integral curada (scripts/data/grupos-laboratoriais-iniciais-garantia.json), candidato "${r.candidato}".`;
+      const atual = existentePorFabricanteId.get(fabricanteId);
+      if (!atual) {
+        itens.push({ chave: `${r.grupoNomeNormalizado}/${fabricanteNomeNormalizado}`, acao: "criar" });
+      } else if (atual.grupoLaboratorialId !== grupoId) {
+        // Conflito com o ESTADO da base — não deveria acontecer se os
+        // bloqueios de resolverFabricantesIntegrais já apanharam tudo, mas
+        // é verificado de novo aqui como segunda camada (a base pode ter
+        // sido curada manualmente antes deste script existir).
+        itens.push({ chave: `${r.grupoNomeNormalizado}/${fabricanteNomeNormalizado}`, acao: "atualizar", detalhe: "CONFLITO: já associado a outro grupo na base — ver bloqueios" });
+      } else {
+        const diff = atual.evidencia !== evidenciaNova;
+        itens.push({ chave: `${r.grupoNomeNormalizado}/${fabricanteNomeNormalizado}`, acao: diff ? "atualizar" : "inalterado", detalhe: diff ? "evidência diferente" : undefined });
+      }
     }
   }
   return itens;
@@ -561,7 +581,19 @@ export type ResultadoImportacao = {
   totais: {
     grupos: { criar: number; atualizar: number; inalterados: number };
     aliases: { criar: number; atualizar: number; inalterados: number };
-    fabricantesIntegrais: { resolvidos: number; inexistentes: number; ambiguos: number; criar: number; atualizar: number; inalterados: number };
+    fabricantesIntegrais: {
+      /** Candidato configurado com exactamente 1 Fabricante real correspondente. */
+      resolvidosUnicos: number;
+      /** Candidato configurado com >1 Fabricante real equivalente — todos associados ao grupo. */
+      resolvidosMultiplos: number;
+      /** Contagem de ids DISTINTOS que serão (ou já estão) associados — dedup total. */
+      idsUnicosAssociados: number;
+      /** Nomes configurados sem nenhum Fabricante real correspondente — informativo, nunca bloqueia. */
+      inexistentes: number;
+      criar: number;
+      atualizar: number;
+      inalterados: number;
+    };
     regrasCnp: { criar: number; atualizar: number; inalterados: number; ignoradasNaoValidadas: number };
     bloqueios: number;
   };
@@ -662,22 +694,28 @@ export async function importarGruposLaboratoriais(
         }
       }
 
-      // 3. Associações integrais.
+      // 3. Associações integrais — cada candidato "resolvido" pode trazer
+      // mais de um id (várias linhas Fabricante reais equivalentes); dedup
+      // global por fabricanteId, como no plano.
       const jaEscritos = new Set<string>();
       for (const r of resolucoes) {
-        if (r.acao !== "resolvido" || !r.fabricanteId) continue;
-        if (jaEscritos.has(r.fabricanteId)) continue;
-        jaEscritos.add(r.fabricanteId);
-        const item = planoFabricantesIntegrais.find((i) => i.chave === `${r.grupoNomeNormalizado}/${r.fabricanteNomeNormalizado}`)!;
-        if (item.acao === "inalterado") continue;
-        const grupoId = idsReaisPorNomeNormalizado.get(r.grupoNomeNormalizado)!;
-        const evidencia = `Associação integral curada (scripts/data/grupos-laboratoriais-iniciais-garantia.json), candidato "${r.candidato}".`;
-        await tx.grupoLaboratorialFabricante.upsert({
-          where: { fabricanteId: r.fabricanteId },
-          create: { fabricanteId: r.fabricanteId, grupoLaboratorialId: grupoId, tipoAssociacao: "INEQUIVOCA", evidencia, validadoManualmente: true },
-          update: { grupoLaboratorialId: grupoId, evidencia, validadoManualmente: true },
-        });
-        escritas++;
+        if (r.acao !== "resolvido") continue;
+        for (let i = 0; i < r.fabricanteIds.length; i++) {
+          const fabricanteId = r.fabricanteIds[i]!;
+          const fabricanteNomeNormalizado = r.fabricantesNomeNormalizado[i]!;
+          if (jaEscritos.has(fabricanteId)) continue;
+          jaEscritos.add(fabricanteId);
+          const item = planoFabricantesIntegrais.find((it) => it.chave === `${r.grupoNomeNormalizado}/${fabricanteNomeNormalizado}`)!;
+          if (item.acao === "inalterado") continue;
+          const grupoId = idsReaisPorNomeNormalizado.get(r.grupoNomeNormalizado)!;
+          const evidencia = `Associação integral curada (scripts/data/grupos-laboratoriais-iniciais-garantia.json), candidato "${r.candidato}".`;
+          await tx.grupoLaboratorialFabricante.upsert({
+            where: { fabricanteId },
+            create: { fabricanteId, grupoLaboratorialId: grupoId, tipoAssociacao: "INEQUIVOCA", evidencia, validadoManualmente: true },
+            update: { grupoLaboratorialId: grupoId, evidencia, validadoManualmente: true },
+          });
+          escritas++;
+        }
       }
 
       // 4. Regras por CNP.
@@ -709,6 +747,10 @@ export async function importarGruposLaboratoriais(
     });
   }
 
+  const resolvidas = resolucoes.filter((r): r is Extract<ResolucaoFabricanteIntegral, { acao: "resolvido" }> => r.acao === "resolvido");
+  const idsUnicosAssociados = new Set<string>();
+  for (const r of resolvidas) for (const id of r.fabricanteIds) idsUnicosAssociados.add(id);
+
   return {
     bloqueios,
     regrasIgnoradasNaoValidadas: regrasIgnoradas.length,
@@ -720,9 +762,10 @@ export async function importarGruposLaboratoriais(
       grupos: contarAcoes(planoGrupos.itens),
       aliases: contarAcoes(planoAliases),
       fabricantesIntegrais: {
-        resolvidos: resolucoes.filter((r) => r.acao === "resolvido").length,
+        resolvidosUnicos: resolvidas.filter((r) => r.fabricanteIds.length === 1).length,
+        resolvidosMultiplos: resolvidas.filter((r) => r.fabricanteIds.length > 1).length,
+        idsUnicosAssociados: idsUnicosAssociados.size,
         inexistentes: resolucoes.filter((r) => r.acao === "inexistente").length,
-        ambiguos: resolucoes.filter((r) => r.acao === "ambiguo").length,
         ...contarAcoes(planoFabricantesIntegrais),
       },
       regrasCnp: { ...contarAcoes(planoRegrasCnp), ignoradasNaoValidadas: regrasIgnoradas.length },
@@ -796,7 +839,7 @@ async function main(): Promise<void> {
     console.log(`\nGrupos:              criar ${resultado.totais.grupos.criar}, atualizar ${resultado.totais.grupos.atualizar}, inalterados ${resultado.totais.grupos.inalterados}`);
     console.log(`Aliases:              criar ${resultado.totais.aliases.criar}, atualizar ${resultado.totais.aliases.atualizar}, inalterados ${resultado.totais.aliases.inalterados}`);
     console.log(
-      `Fabricantes integrais: resolvidos ${resultado.totais.fabricantesIntegrais.resolvidos}, inexistentes ${resultado.totais.fabricantesIntegrais.inexistentes}, ambíguos ${resultado.totais.fabricantesIntegrais.ambiguos} — criar ${resultado.totais.fabricantesIntegrais.criar}, atualizar ${resultado.totais.fabricantesIntegrais.atualizar}, inalterados ${resultado.totais.fabricantesIntegrais.inalterados}`,
+      `Fabricantes integrais: únicos ${resultado.totais.fabricantesIntegrais.resolvidosUnicos}, múltiplos ${resultado.totais.fabricantesIntegrais.resolvidosMultiplos} (${resultado.totais.fabricantesIntegrais.idsUnicosAssociados} ids únicos), inexistentes ${resultado.totais.fabricantesIntegrais.inexistentes} (informativo) — criar ${resultado.totais.fabricantesIntegrais.criar}, atualizar ${resultado.totais.fabricantesIntegrais.atualizar}, inalterados ${resultado.totais.fabricantesIntegrais.inalterados}`,
     );
     console.log(
       `Regras CNP:           criar ${resultado.totais.regrasCnp.criar}, atualizar ${resultado.totais.regrasCnp.atualizar}, inalteradas ${resultado.totais.regrasCnp.inalterados}, ignoradas (não validadas) ${resultado.totais.regrasCnp.ignoradasNaoValidadas}`,
@@ -811,9 +854,12 @@ async function main(): Promise<void> {
       configHash: hashFicheiro(configTexto),
       regrasHash: hashFicheiro(regrasTexto),
       ...resultado,
+      // Puramente informativo — nunca bloqueou o apply (ver resolverFabricantesIntegrais).
       fabricantesInexistentes: resultado.fabricantesIntegrais.resolucoes.filter((r) => r.acao === "inexistente"),
-      fabricantesAmbiguos: resultado.fabricantesIntegrais.resolucoes.filter((r) => r.acao === "ambiguo"),
-      conflitos: resultado.bloqueios.filter((b) => b.tipo.includes("conflito") || b.tipo.includes("dois_grupos")),
+      // Candidatos com >1 Fabricante real equivalente — todos os ids foram associados ao grupo, não escolhido nenhum arbitrariamente.
+      fabricantesResolvidosMultiplos: resultado.fabricantesIntegrais.resolucoes.filter((r) => r.acao === "resolvido" && r.fabricanteIds.length > 1),
+      // Todo o bloqueio remanescente é, por construção, um conflito empresarial real (nunca inexistência nem múltiplas linhas equivalentes).
+      conflitos: resultado.bloqueios,
     };
     escreverAtomico(args.relatorioPath, JSON.stringify(relatorioParaDisco, null, 2));
     console.log(`\nRelatório gravado em: ${args.relatorioPath}`);
