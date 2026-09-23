@@ -60,6 +60,7 @@ import {
   reconciliarImportacaoComGlobal,
   type ResumoReconciliacao,
 } from "@/lib/catalog/reconciliar-importacao";
+import type { ReconciliacaoGruposLaboratoriaisSummary } from "@/lib/catalog/reconciliar-grupos-laboratoriais-garantia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,6 +191,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     preservados: Record<string, number>;
   } | null = null;
   let reconciliacaoGlobal: ResumoReconciliacao | null = null;
+  // Grupo laboratorial pesquisável — exclusivo do tenant garantia (as
+  // tabelas nem existem fisicamente nos outros tenants). Nunca escreve
+  // Produto/Fabricante, nunca falha o ingest — ver lib/catalog/
+  // reconciliar-grupos-laboratoriais-garantia.ts.
+  let gruposLaboratoriais: ReconciliacaoGruposLaboratoriaisSummary | null = null;
 
   // 1) Validar/coercer. CNP é a chave canónica (Produto.cnp @unique);
   //    sem CNP o produto não entra no catálogo.
@@ -336,6 +342,25 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       );
     }
 
+    // Grupo laboratorial pesquisável — corre DEPOIS de applyErpCatalogFields
+    // (que pode ter acabado de escrever Produto.fabricanteId) e é, tal como
+    // os dois blocos anteriores, enriquecimento por cima do contrato do
+    // endpoint: uma falha aqui nunca pode fazer a farmácia perder o upload.
+    if (ctx.tenant.slug === "garantia") {
+      try {
+        const { reconciliarGruposLaboratoriaisGarantia } = await import("@/lib/catalog/reconciliar-grupos-laboratoriais-garantia");
+        gruposLaboratoriais = await reconciliarGruposLaboratoriaisGarantia(ctx.prisma, ctx.tenant.slug, {
+          tipo: "produtos",
+          produtoIds: [...cnpToId.values()],
+        });
+      } catch (err) {
+        console.error(
+          "[bootstrap/products] classificação de grupos laboratoriais falhou (ingestão continua):",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     const pfRows: ProdutoFarmaciaProductRow[] = [];
     for (const a of dedup) {
       const produtoId = cnpToId.get(a.cnp);
@@ -367,6 +392,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       })}`
     );
     upserted = 0;
+    const produtoIdsFallback: string[] = [];
     for (const a of dedup) {
       try {
         // O caminho de recurso tem de aplicar as MESMAS proteccoes do
@@ -452,6 +478,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           },
         });
         upserted++;
+        produtoIdsFallback.push(produto.id);
       } catch (err) {
         errors.push({
           index: a.index,
@@ -459,6 +486,23 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           externalId: a.externalProductId ?? undefined,
           message: err instanceof Error ? err.message : String(err),
         });
+      }
+    }
+
+    // Mesmo passo do caminho bulk (ver acima) — o caminho de recurso
+    // também escreve Produto/ProdutoFarmacia e merece a mesma manutenção.
+    if (ctx.tenant.slug === "garantia") {
+      try {
+        const { reconciliarGruposLaboratoriaisGarantia } = await import("@/lib/catalog/reconciliar-grupos-laboratoriais-garantia");
+        gruposLaboratoriais = await reconciliarGruposLaboratoriaisGarantia(ctx.prisma, ctx.tenant.slug, {
+          tipo: "produtos",
+          produtoIds: produtoIdsFallback,
+        });
+      } catch (err) {
+        console.error(
+          "[bootstrap/products] classificação de grupos laboratoriais falhou no caminho de recurso (ingestão continua):",
+          err instanceof Error ? err.message : err,
+        );
       }
     }
   }
@@ -507,5 +551,6 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     produtosAtualizados,
     ...(catalogoErp ? { catalogoErp } : {}),
     ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
+    ...(gruposLaboratoriais ? { gruposLaboratoriais } : {}),
   });
 });

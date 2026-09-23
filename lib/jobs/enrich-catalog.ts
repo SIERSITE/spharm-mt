@@ -37,6 +37,7 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { mapToCanonical } from "@/lib/catalog-taxonomy-map";
+import type { ReconciliacaoGruposLaboratoriaisSummary } from "@/lib/catalog/reconciliar-grupos-laboratoriais-garantia";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────
 
@@ -130,6 +131,12 @@ export type EnrichCycleSummary = {
    * sem saber de onde vem o conhecimento não há proveniência a registar).
    */
   promocaoGlobal: PromocaoGlobalSummary | null;
+  /**
+   * Fase 6 — manutenção de `ProdutoGrupoLaboratorial`, exclusiva do
+   * tenant garantia (as tabelas nem existem fisicamente nos outros
+   * tenants). `null` quando `tenantSlug !== "garantia"`.
+   */
+  gruposLaboratoriais: (ReconciliacaoGruposLaboratoriaisSummary & { erro: string | null }) | null;
   totalDurationMs: number;
 };
 
@@ -455,6 +462,13 @@ export async function runEnrichCycle(opts: {
    * essa proveniência tornaria a origem impossível de auditar depois.
    */
   tenantSlug?: string;
+  /**
+   * Tecto de segurança por corrida da fase 6 (garantia apenas) — ver
+   * `EscopoReconciliacao["limiteSeguranca"]` em
+   * lib/catalog/reconciliar-grupos-laboratoriais-garantia.ts. O shard
+   * diário (cnp % 20) já limita o volume normal; isto é só a válvula.
+   */
+  gruposLaboratoriaisLimit?: number;
 }): Promise<EnrichCycleSummary> {
   const t0 = Date.now();
   // Ordem obrigatória: o determinístico primeiro, sempre. Só o que ele
@@ -590,12 +604,45 @@ export async function runEnrichCycle(opts: {
     }
   }
 
+  // ── Fase 6: reconciliar ProdutoGrupoLaboratorial — exclusiva garantia ──
+  //
+  // Ao contrário da fase 5 acima (promocaoGlobal, que corre para QUALQUER
+  // tenant com slug), esta fase só existe fisicamente na base da garantia
+  // — GrupoLaboratorial/ProdutoGrupoLaboratorial/etc. não existem no
+  // schema físico de sier/silveira. Gate estrito "=== garantia", nunca
+  // truthy — não "corrigir" para bater com o padrão de cima.
+  //
+  // Rede de segurança para o que o hook do ingest (bootstrap/products)
+  // não apanhou: omissões e classificações automáticas desactualizadas.
+  // Independente das fases 1-5 (nenhuma delas toca fabricanteId nem as
+  // tabelas de grupo), por isso a ordem aqui não importa funcionalmente.
+  let gruposLaboratoriais: (ReconciliacaoGruposLaboratoriaisSummary & { erro: string | null }) | null = null;
+  if (opts.tenantSlug === "garantia") {
+    try {
+      const { reconciliarGruposLaboratoriaisGarantia } = await import("../catalog/reconciliar-grupos-laboratoriais-garantia");
+      const resultado = await reconciliarGruposLaboratoriaisGarantia(opts.prisma, opts.tenantSlug, {
+        tipo: "lote",
+        buckets: 20,
+        limiteSeguranca: opts.gruposLaboratoriaisLimit ?? 5000,
+      });
+      gruposLaboratoriais = { ...resultado, erro: null };
+    } catch (e) {
+      // Mesma política das fases 3/5: nunca derruba o ciclo.
+      gruposLaboratoriais = {
+        analisados: 0, criados: 0, atualizados: 0, removidos: 0, manuaisPreservados: 0,
+        semAlteracao: 0, propostasNaoAplicadas: 0, semGrupo: 0, erros: 0, durationMs: 0,
+        erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+      };
+    }
+  }
+
   return {
     sync,
     reclassify,
     knowledge,
     reclassifyPosKnowledge,
     promocaoGlobal,
+    gruposLaboratoriais,
     totalDurationMs: Date.now() - t0,
   };
 }
