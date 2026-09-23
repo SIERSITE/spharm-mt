@@ -463,6 +463,40 @@ async function principal() {
     eq(estadoBuffer.grupos.length, 0, "H3: ROLLBACK total — nenhum grupo fica escrito, apesar do 1º upsert ter corrido dentro da transação");
   }
 
+  console.log("\nK · configuração REAL (scripts/data/grupos-laboratoriais-iniciais-garantia.json) através do importador completo — idempotente, zero conflito");
+  {
+    // Fabricantes REAIS sintéticos: os 5 nomes da revisão 2026-09-23
+    // (TOLIFE - PRODUTOS FARMACEUTICOS → Towa, MYLAN GENERICOS/MYLAN/MYLAN
+    // MARCAS → Viatris, KENVUE → Kenvue — confirmados já presentes na
+    // configuração real, ver bloco J) + as 4 sucessões parciais que NUNCA
+    // podem entrar integralmente, para provar que a config real as recusa.
+    const fabricantesReaisSinteticos: FabricanteReal[] = [
+      { id: "fMylan", nomeNormalizado: "MYLAN" },
+      { id: "fMylanGenericos", nomeNormalizado: "MYLAN GENERICOS" },
+      { id: "fMylanMarcas", nomeNormalizado: "MYLAN MARCAS" },
+      { id: "fKenvue", nomeNormalizado: "KENVUE" },
+      { id: "fTolife", nomeNormalizado: "TOLIFE - PRODUTOS FARMACEUTICOS" },
+      { id: "fPfizer", nomeNormalizado: "LABORATORIOS PFIZER" },
+      { id: "fMsd", nomeNormalizado: "MERCK SHARP & DOHME" },
+      { id: "fJanssen", nomeNormalizado: "JANSSEN CILAG FARMACEUT LDA" },
+      { id: "fJJ", nomeNormalizado: "JOHNSON & JOHNSON" },
+    ];
+    const configReal = JSON.parse(readFileSync("scripts/data/grupos-laboratoriais-iniciais-garantia.json", "utf8")) as ConfigGruposIniciais;
+    const regrasReais = JSON.parse(readFileSync("scripts/data/regras-cnp-grupos-laboratoriais-garantia.json", "utf8")) as RegrasCnpFicheiro;
+
+    const { prisma, estado } = criarFakePrisma(fabricantesReaisSinteticos);
+    const r1 = await importarGruposLaboratoriais(prisma, { config: configReal, regras: regrasReais, apply: true });
+    check(r1.bloqueios.length === 0, "K1: primeira corrida com a configuração REAL (342 regras CNP reais) não gera bloqueios");
+    const associadosApos1aCorrida = estado().gruposFabricante.length;
+    check(associadosApos1aCorrida === 5, "K2: exactamente os 5 fabricantes sintéticos resolvidos entram — nenhum a mais, nenhum a menos");
+    check(estado().regrasCnp.length === regrasReais.regras.filter((r) => r.estado === "ATIVO" && r.validadoManualmente).length, "K2b: todas as regras CNP activas/validadas reais são escritas");
+
+    const r2 = await importarGruposLaboratoriais(prisma, { config: configReal, regras: regrasReais, apply: true });
+    eq(r2.escritas, 0, "K3: segunda corrida com a MESMA configuração REAL — zero escritas (idempotente)");
+    eq(estado().gruposFabricante.length, associadosApos1aCorrida, "K4: nenhuma associação duplicada entre as duas corridas");
+    eq(r2.totais.fabricantesIntegrais.inalterados, associadosApos1aCorrida, "K5: na segunda corrida, os 5 ficam todos INALTERADOS");
+  }
+
   console.log(`\n${ok} ok, ${ko} falhas`);
   process.exit(ko === 0 ? 0 : 1);
 }
@@ -486,6 +520,77 @@ console.log("I · verificação estática — nunca escreve Produto/Fabricante, 
   check(/\$transaction\(async \(tx\)/.test(codigo), "I8: escreve dentro de uma única transacção interactive");
   check((codigo.match(/\$transaction\(/g) ?? []).length === 1, "I9: exactamente UMA chamada a $transaction (conjunto curado pequeno, nunca em lotes)");
   check(/default_transaction_read_only = \$\{\s*dryRun \? "on" : "off"\s*\}/.test(codigo), "I10: sessão read-only condicional ao modo (mesma defesa dos outros scripts)");
+}
+
+console.log("\nJ · configuração REAL (scripts/data/grupos-laboratoriais-iniciais-garantia.json) — revisão dos candidatos adicionais do dry-run de classificação (2026-09-23)");
+{
+  // Achado desta revisão: o dry-run de classificação (candidatosAdicionais,
+  // lib/catalog/candidatos-grupo-laboratorial.ts) compara o Fabricante
+  // REAL de cada produto directamente contra o titular do catálogo
+  // nacional — nunca consulta GrupoLaboratorialFabricante nem esta
+  // configuração. Por isso um fabricante já integralmente associado
+  // (ex.: "MYLAN" → Viatris) continua a aparecer nesse relatório para
+  // sempre, simplesmente porque "MYLAN" ≠ "Viatris" como strings — não é
+  // sinal de que falte associar. Os 5 nomes indicados nesta revisão
+  // (TOLIFE - PRODUTOS FARMACEUTICOS, MYLAN GENERICOS, KENVUE, MYLAN,
+  // MYLAN MARCAS) já estavam, palavra por palavra, na configuração —
+  // confirmado aqui contra o ficheiro REAL, não uma cópia sintética.
+  const configReal = JSON.parse(readFileSync("scripts/data/grupos-laboratoriais-iniciais-garantia.json", "utf8")) as ConfigGruposIniciais;
+  const regrasReais = JSON.parse(readFileSync("scripts/data/regras-cnp-grupos-laboratoriais-garantia.json", "utf8")) as RegrasCnpFicheiro;
+
+  const { bloqueios: bloqueiosEstruturais } = validarConfigEstrutural(configReal, regrasReais);
+  eq(bloqueiosEstruturais.length, 0, "J1: a configuração REAL não tem nenhum bloqueio estrutural (fabricante/CNP em dois grupos, Janssen em Kenvue, Pfizer integral)");
+
+  const casosEsperados: ReadonlyArray<{ nome: string; grupo: string }> = [
+    { nome: "TOLIFE - PRODUTOS FARMACEUTICOS", grupo: "TOWA" },
+    { nome: "MYLAN GENERICOS", grupo: "VIATRIS" },
+    { nome: "KENVUE", grupo: "KENVUE" },
+    { nome: "MYLAN", grupo: "VIATRIS" },
+    { nome: "MYLAN MARCAS", grupo: "VIATRIS" },
+  ];
+  for (const { nome, grupo } of casosEsperados) {
+    const jaListado = configReal.grupos.find((g) => g.nomeNormalizado === grupo)?.fabricantesIntegrais.includes(nome);
+    check(!!jaListado, `J2 (${nome}): já está, literalmente, em fabricantesIntegrais de ${grupo} — não é um candidato novo, nada para acrescentar`);
+  }
+
+  const fabricantesReaisSinteticos: FabricanteReal[] = [
+    { id: "fMylan", nomeNormalizado: "MYLAN" },
+    { id: "fMylanGenericos", nomeNormalizado: "MYLAN GENERICOS" },
+    { id: "fMylanMarcas", nomeNormalizado: "MYLAN MARCAS" },
+    { id: "fKenvue", nomeNormalizado: "KENVUE" },
+    { id: "fTolife", nomeNormalizado: "TOLIFE - PRODUTOS FARMACEUTICOS" },
+  ];
+  const { resolucoes, bloqueios } = resolverFabricantesIntegrais(configReal, fabricantesReaisSinteticos);
+  eq(bloqueios.length, 0, "J3: zero bloqueios ao resolver os 5 fabricantes contra a configuração REAL");
+  for (const { nome, grupo } of casosEsperados) {
+    const r = resolucoes.find((res) => res.acao === "resolvido" && res.fabricantesNomeNormalizado.includes(nome));
+    check(!!r && r.grupoNomeNormalizado === grupo, `J4 (${nome}): entra integralmente no grupo ${grupo} quando a linha Fabricante real existe`);
+  }
+
+  // Protecção por OMISSÃO (Pfizer/MSD/Novartis/Sanofi/Janssen/Johnson &
+  // Johnson NUNCA aparecem em nenhum fabricantesIntegrais/alias da config
+  // real) — verificada aqui explicitamente, porque só Pfizer e Janssen têm
+  // rejeição ACTIVA em validarConfigEstrutural (regex dedicada); as
+  // restantes sucessões parciais dependem inteiramente de nunca serem
+  // listadas, e é isso que este teste prova sobre o ficheiro REAL.
+  const SUCESSOES_PARCIAIS_PROIBIDAS: ReadonlyArray<{ nome: string; re: RegExp }> = [
+    { nome: "Pfizer", re: /PFIZER/i },
+    { nome: "MSD/Merck Sharp & Dohme", re: /MERCK|\bMSD\b/i },
+    { nome: "Novartis", re: /NOVARTIS/i },
+    { nome: "Sanofi", re: /\bSANOFI\b/i },
+    { nome: "Janssen", re: /JANSSEN/i },
+    { nome: "Johnson & Johnson", re: /JOHNSON/i },
+  ];
+  const violacoes: string[] = [];
+  for (const g of configReal.grupos) {
+    const textos = [...g.fabricantesIntegrais, ...g.aliases.map((a) => a.alias), ...g.aliases.map((a) => a.aliasNormalizado)];
+    for (const texto of textos) {
+      for (const { nome, re } of SUCESSOES_PARCIAIS_PROIBIDAS) {
+        if (re.test(texto)) violacoes.push(`grupo "${g.nome}": "${texto}" bate em ${nome}`);
+      }
+    }
+  }
+  eq(violacoes, [], "J5: nenhuma sucessão parcial conhecida (Pfizer/MSD/Novartis/Sanofi/Janssen/J&J) aparece em fabricantesIntegrais/aliases de NENHUM grupo real");
 }
 
 principal();
