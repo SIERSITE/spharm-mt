@@ -369,7 +369,7 @@ console.log("\nK · verificação estática — app/api/ingest/v1/bootstrap/prod
 console.log("\nL · verificação estática — lib/jobs/enrich-catalog.ts gate estrito === garantia, catch nunca lança (#13, #15)");
 {
   const src = readFileSync(new URL("../../lib/jobs/enrich-catalog.ts", import.meta.url), "utf8");
-  check(/if\s*\(\s*opts\.tenantSlug\s*===\s*"garantia"\s*\)\s*\{\s*\n\s*try\s*\{\s*\n\s*const \{ reconciliarGruposLaboratoriaisGarantia \} = await import\(/.test(src), "L1: a fase 6 está gated por opts.tenantSlug === \"garantia\" (estrito, nunca truthy) e usa import() dinâmico");
+  check(/if\s*\(\s*opts\.tenantSlug\s*===\s*"garantia"\s*&&\s*opts\.apenasFila\s*!==\s*true\s*\)\s*\{\s*\n\s*try\s*\{\s*\n\s*const \{ reconciliarGruposLaboratoriaisGarantia \} = await import\(/.test(src), "L1: a fase 6 está gated por opts.tenantSlug === \"garantia\" (estrito, nunca truthy) E opts.apenasFila !== true (nunca corre na varredura de fila de 15 em 15 min) — usa import() dinâmico");
   check(/const \{ reconciliarGruposLaboratoriaisGarantia \} = await import\(/.test(src), "L2: import dinâmico confirmado");
 
   const idxFase6 = src.indexOf("Fase 6: reconciliar ProdutoGrupoLaboratorial");

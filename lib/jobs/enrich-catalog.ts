@@ -134,7 +134,10 @@ export type EnrichCycleSummary = {
   /**
    * Fase 6 — manutenção de `ProdutoGrupoLaboratorial`, exclusiva do
    * tenant garantia (as tabelas nem existem fisicamente nos outros
-   * tenants). `null` quando `tenantSlug !== "garantia"`.
+   * tenants). `null` quando `tenantSlug !== "garantia"` OU quando
+   * `apenasFila===true` — corre só na corrida diária completa (04:00),
+   * nunca na varredura de poucos-em-poucos-minutos (`?apenasFila=1`,
+   * scripts/workers/scheduler.mjs, a cada 15 min) — ver Fase 6 abaixo.
    */
   gruposLaboratoriais: (ReconciliacaoGruposLaboratoriaisSummary & { erro: string | null }) | null;
   totalDurationMs: number;
@@ -604,7 +607,8 @@ export async function runEnrichCycle(opts: {
     }
   }
 
-  // ── Fase 6: reconciliar ProdutoGrupoLaboratorial — exclusiva garantia ──
+  // ── Fase 6: reconciliar ProdutoGrupoLaboratorial — exclusiva garantia,   ──
+  // ── e só na corrida diária completa, NUNCA na varredura de fila        ──
   //
   // Ao contrário da fase 5 acima (promocaoGlobal, que corre para QUALQUER
   // tenant com slug), esta fase só existe fisicamente na base da garantia
@@ -612,12 +616,20 @@ export async function runEnrichCycle(opts: {
   // schema físico de sier/silveira. Gate estrito "=== garantia", nunca
   // truthy — não "corrigir" para bater com o padrão de cima.
   //
+  // `apenasFila` também tem de ser excluído: scripts/workers/scheduler.mjs
+  // chama este endpoint com `?apenasFila=1` a cada 15 minutos (rede de
+  // segurança da fila de conhecimento, fase 3) — sem este segundo termo,
+  // `seleccionarProdutos({tipo:"lote"})` releria TODOS os produtos da
+  // garantia e reconciliaria o shard do dia ~96x/dia em vez de 1x (só na
+  // corrida completa das 04:00, sem `apenasFila`). Achado e corrigido
+  // 2026-09-23, antes de qualquer deploy — nunca ficou em produção.
+  //
   // Rede de segurança para o que o hook do ingest (bootstrap/products)
   // não apanhou: omissões e classificações automáticas desactualizadas.
   // Independente das fases 1-5 (nenhuma delas toca fabricanteId nem as
   // tabelas de grupo), por isso a ordem aqui não importa funcionalmente.
   let gruposLaboratoriais: (ReconciliacaoGruposLaboratoriaisSummary & { erro: string | null }) | null = null;
-  if (opts.tenantSlug === "garantia") {
+  if (opts.tenantSlug === "garantia" && opts.apenasFila !== true) {
     try {
       const { reconciliarGruposLaboratoriaisGarantia } = await import("../catalog/reconciliar-grupos-laboratoriais-garantia");
       const resultado = await reconciliarGruposLaboratoriaisGarantia(opts.prisma, opts.tenantSlug, {
