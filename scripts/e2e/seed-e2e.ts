@@ -6,7 +6,7 @@
  */
 import { PrismaPg } from "@prisma/adapter-pg";
 
-export const E2E_FARMACIAS = ["Farmacia Alfa", "Farmacia Beta"] as const;
+export const E2E_FARMACIAS = ["Farmacia Alfa", "Farmacia Beta", "Farmacia Gama"] as const;
 export const E2E_FABRICANTES = ["LAB ALFA", "LAB BETA"] as const;
 
 export type SeedResult = {
@@ -34,6 +34,9 @@ export async function seedE2E(databaseUrl: string): Promise<SeedResult> {
     for (const nomeNormalizado of E2E_FABRICANTES) {
       fabs.push(await prisma.fabricante.upsert({ where: { nomeNormalizado }, update: {}, create: { nomeNormalizado } }));
     }
+    // Artigos 1 e 2: excesso na Beta (dá matéria às Transferências/Excessos); os restantes: todas as
+    // farmácias com stock 1 (as 3 compram → consolidação com 3 farmácias com linhas).
+    const stockDe = (i: number, fi: number) => (i <= 2 && fi === 1 ? 60 + i : 1);
     const produtos: SeedResult["produtos"] = [];
     const now = new Date();
     for (let i = 1; i <= 6; i++) {
@@ -48,13 +51,13 @@ export async function seedE2E(databaseUrl: string): Promise<SeedResult> {
       for (const [fi, f] of farmacias.entries()) {
         const existe = await prisma.produtoFarmacia.findFirst({ where: { produtoId: p.id, farmaciaId: f.id } });
         if (existe) {
-          await prisma.produtoFarmacia.update({ where: { id: existe.id }, data: { stockAtual: fi === 0 ? 1 : 60 + i } });
+          await prisma.produtoFarmacia.update({ where: { id: existe.id }, data: { stockAtual: stockDe(i, fi) } });
         } else {
           await prisma.produtoFarmacia.create({
             data: {
               produtoId: p.id, farmaciaId: f.id,
               pvp: 10 + i, pmc: 12 + i, puc: 5 + i,
-              stockAtual: fi === 0 ? 1 : 60 + i, stockMinimo: 5, stockMaximo: 30,
+              stockAtual: stockDe(i, fi), stockMinimo: 5, stockMaximo: 30,
               taxaIvaPercent: 23,
             },
           });

@@ -16,6 +16,7 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
 import { SignJWT } from "jose";
 import { Client } from "pg";
+import { createHash } from "node:crypto";
 import { seedE2E, type SeedResult } from "./seed-e2e";
 
 const DB = process.env.E2E_DATABASE_URL ?? "postgresql://postgres:test@localhost:55432/spharm_e2e";
@@ -229,6 +230,119 @@ async function testeEncomendas(ctx: BrowserContext) {
   await page.close();
 }
 
+async function testeConsolidacaoRespostaPerdida(ctx: BrowserContext) {
+  console.log("\nConsolidação · resposta perdida (fluxo visível ao utilizador)");
+  const db = new Client({ connectionString: DB });
+  await db.connect();
+  const nListas = async () => (await db.query(`SELECT count(*)::int n FROM "ListaEncomenda"`)).rows[0].n as number;
+  const limpar = async () => { await db.query(`DELETE FROM "ListaEncomenda"`); };
+  const page = await ctx.newPage();
+  page.on("dialog", (d) => void d.accept());
+
+  // Prepara uma consolidação de 3 farmácias no ecrã (as 3 têm stock 1 → as 3 compram).
+  const prepararProposta = async () => {
+    await page.goto(BASE + "/encomendas/nova", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Consolidação", exact: true }).click();
+    await page.getByRole("button", { name: /Gerar (nova )?proposta/ }).click();
+    await page.getByText("ARTIGO E2E 6").first().waitFor({ state: "attached", timeout: 30000 });
+  };
+  const chaveLS = async () => page.evaluate(() => Object.keys(localStorage).find((k) => k.startsWith("spharmmt:consolidacao-pendente:")) ?? null);
+  const lerOp = async () => page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("spharmmt:consolidacao-pendente:"));
+    return k ? (JSON.parse(localStorage.getItem(k)!) as { estado: string; chave: string; farmaciaIds: string[] }) : null;
+  });
+  /** A 1.ª submissão chega ao servidor (commit) mas a resposta perde-se; ou nem chega (`chegar=false`). */
+  const perderProximaResposta = async (chegar: boolean) => {
+    let feito = false;
+    await page.route("**/encomendas/nova**", async (route) => {
+      const req = route.request();
+      if (!feito && req.method() === "POST" && (req.postData() ?? "").includes("batchKey")) {
+        feito = true;
+        if (chegar) await route.fetch(); // o servidor recebe e faz commit…
+        await route.abort("connectionreset"); // …e a resposta nunca chega ao browser
+        return;
+      }
+      await route.continue();
+    });
+  };
+  const guardar = () => page.getByRole("button", { name: "Guardar rascunho" }).click();
+
+  // ── A · commit feito, resposta perdida, edição, novo clique ────────────
+  await limpar();
+  await prepararProposta();
+  await perderProximaResposta(true);
+  await guardar();
+  await page.getByTestId("consolidacao-pendente").getByText("Resultado da consolidação desconhecido").waitFor({ timeout: 20000 });
+  check(true, "A1: resposta perdida → o ecrã mostra «Resultado da consolidação desconhecido»");
+  check((await nListas()) === 3, "A2: o servidor fez commit das 3 listas (a resposta é que se perdeu)");
+  const opA = await lerOp();
+  check(opA?.estado === "RESULTADO_DESCONHECIDO" && opA.farmaciaIds.length === 3, "A3: operação persistida no browser como RESULTADO_DESCONHECIDO, com as 3 farmácias");
+  const chaveOriginal = opA?.chave;
+
+  const qtd = page.locator('input[type="number"][value="7"]').first();
+  await qtd.fill("15"); // o utilizador altera uma quantidade
+  await guardar(); // e tenta prosseguir
+  await page.getByTestId("consolidacao-pendente").getByText("Lote de consolidação recuperado").waitFor({ timeout: 20000 });
+  check(true, "A4: ao prosseguir, reconcilia primeiro e mostra «Lote de consolidação recuperado»");
+  check(await visivel(page, "Não foi criado nenhum lote novo"), "A5: o utilizador é informado de que o lote anterior foi recuperado e nada novo foi criado");
+  check((await nListas()) === 3, "A6: continuam a existir apenas 3 listas — nenhum segundo lote");
+  const opA2 = await lerOp();
+  check(opA2?.estado === "CONCLUIDA" && opA2.chave === chaveOriginal, "A7: a operação ficou CONCLUIDA com a chave original (nenhuma chave nova)");
+  const sem15 = await db.query(`SELECT count(*)::int n FROM "LinhaEncomenda" WHERE "quantidadeAjustada"=15`);
+  check(sem15.rows[0].n === 0, "A8: a edição posterior não foi aplicada em silêncio ao lote recuperado");
+  await guardar();
+  await page.waitForTimeout(1500);
+  check((await nListas()) === 3, "A9: voltar a clicar em Guardar continua a não criar outro lote");
+
+  // decisão explícita
+  await page.getByRole("button", { name: "Criar novo lote com as alterações" }).click();
+  await page.waitForFunction(() => location.pathname === "/encomendas", null, { timeout: 20000 });
+  check((await nListas()) === 6, "A10: só a acção explícita cria o 2.º lote");
+  const com15 = await db.query(`SELECT count(*)::int n FROM "LinhaEncomenda" WHERE "quantidadeAjustada"=15`);
+  check(com15.rows[0].n >= 1, "A11: o novo lote contém as alterações");
+
+  // ── B · refresh durante RESULTADO_DESCONHECIDO ─────────────────────────
+  await page.unroute("**/encomendas/nova**");
+  await limpar();
+  await prepararProposta();
+  await perderProximaResposta(true);
+  await guardar();
+  await page.getByTestId("consolidacao-pendente").waitFor({ timeout: 20000 });
+  const chaveB = (await lerOp())?.chave;
+  await page.unroute("**/encomendas/nova**");
+  await page.reload({ waitUntil: "networkidle" });
+  check((await chaveLS()) !== null, "B1: o registo da operação sobreviveu ao refresh");
+  await page.getByTestId("consolidacao-pendente").getByText("Lote de consolidação recuperado").waitFor({ timeout: 20000 });
+  check((await nListas()) === 3 && (await lerOp())?.chave === chaveB, "B2: depois do refresh, a reconciliação recupera o lote (3 listas, mesma chave) sem criar outro");
+  await page.getByRole("button", { name: "Continuar os rascunhos criados" }).click();
+  await page.waitForFunction(() => location.pathname === "/encomendas", null, { timeout: 15000 });
+  check((await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("spharmmt:consolidacao-pendente:")).length)) === 0,
+    "B3: «Continuar os rascunhos criados» encerra a operação pendente");
+
+  // ── C · o servidor realmente NÃO fez commit ────────────────────────────
+  await limpar();
+  await prepararProposta();
+  await perderProximaResposta(false);
+  await guardar();
+  await page.getByTestId("consolidacao-pendente").getByText("Resultado da consolidação desconhecido").waitFor({ timeout: 20000 });
+  check((await nListas()) === 0, "C1: o pedido não chegou ao servidor — nada criado");
+  const chaveC = (await lerOp())?.chave;
+  await page.unroute("**/encomendas/nova**");
+  await qtd.fill("21");
+  await guardar(); // reconcilia (NAO_ENCONTRADA) e repete com a MESMA chave
+  await page.waitForFunction(() => location.pathname === "/encomendas", null, { timeout: 30000 });
+  check((await nListas()) === 3, "C2: o retry cria apenas UM lote de 3");
+  const farmaciasBd = (await db.query(`SELECT id FROM "Farmacia"`)).rows as Array<{ id: string }>;
+  const chavesDerivadas = farmaciasBd.map((f) => createHash("sha256").update(`${chaveC}:${f.id}`).digest("hex"));
+  const comChaveOriginal = await db.query(`SELECT count(*)::int n FROM "ListaEncomenda" WHERE "clientIdempotencyKey" = ANY($1)`, [chavesDerivadas]);
+  check(comChaveOriginal.rows[0].n === 3, "C2b: o retry reutilizou a chave ORIGINAL (mesma intenção)");
+  const com21 = await db.query(`SELECT count(*)::int n FROM "LinhaEncomenda" WHERE "quantidadeAjustada"=21`);
+  check(com21.rows[0].n >= 1, "C3: o lote criado no retry traz a edição feita entretanto");
+
+  await db.end();
+  await page.close();
+}
+
 async function main() {
   const seed = await seedE2E(DB);
   const browser = await chromium.launch();
@@ -238,6 +352,7 @@ async function main() {
     await testeNavegacaoLivre(ctx);
     await testeOrdenacaoEPainel(ctx);
     await testeEncomendas(ctx);
+    await testeConsolidacaoRespostaPerdida(ctx);
   } finally {
     await browser.close();
   }
