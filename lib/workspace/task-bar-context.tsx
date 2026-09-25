@@ -34,9 +34,22 @@ export type Tarefa = {
   href: string;
   /** Há alterações locais/no ecrã que ainda não estão confirmadas no servidor. */
   sujo: boolean;
+  /**
+   * Presente só nos módulos de relatório com sessões de análise
+   * isoladas (Vendas, Margens, Inventário, Transferências, Excessos —
+   * ver `lib/workspace/use-workspace-state.ts`). `undefined` para tudo
+   * o resto (uma encomenda concreta já se identifica pelo seu próprio
+   * `/encomendas/{id}` no `href/id`, não precisa disto).
+   */
+  workspaceId?: string;
 };
 
 const MAX_TAREFAS = 14;
+
+/** Mesmo formato de id que `abrirNova` já usava inline — extraído para ser reutilizável fora do contexto (ex.: o botão "Nova análise" da barra). */
+export function gerarWorkspaceId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 type EstadoPersistido = { tarefas: Tarefa[]; activaId: string | null };
 

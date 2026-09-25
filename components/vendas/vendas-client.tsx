@@ -1,10 +1,12 @@
 "use client";
 
 import { ArtigoLink } from "@/components/stock/artigo-link";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { runVendasReport } from "@/app/vendas/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
 import {
   ENCOMENDA_PREFILL_STORAGE_KEY,
   buildEncomendaPrefillFromVendas,
@@ -35,11 +37,13 @@ import { ReportActions } from "@/components/reporting/report-actions";
 import { buildVendasReport } from "@/lib/reporting/adapters/vendas";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
+import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
-  CabecalhoOrdenavel,
-  useOrdenacao,
-} from "@/components/ui/cabecalho-ordenavel";
-import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+  ordenarLinhas,
+  proximaOrdenacao,
+  type ValorOrdenavel,
+  type EstadoOrdenacao,
+} from "@/lib/tabela/ordenacao";
 import { agregarCusto } from "@/lib/produtos/custo-farmacia";
 import {
   ROTULO_TOTAL_ARTIGO,
@@ -76,6 +80,38 @@ type Agrupamento =
 type Ordenacao = "totalVendas" | "descricao" | "codigo" | "existencia";
 type ModoVisualizacao = "tabela" | "relatorio";
 type AmbitoAnalise = "farmacia" | "grupo" | "comparativo";
+
+/**
+ * Critérios de UMA sessão de análise (workspace) — tudo o que o
+ * utilizador escolhe antes/durante "Gerar": âmbito, filtros, período,
+ * agrupamento, ordenação (tabela e vista de relatório), toggles. NUNCA
+ * inclui `rows`/`periodHeader` (resultados calculados) — ver
+ * `lib/workspace/use-workspace-state.ts`.
+ */
+type VendasCriterios = {
+  ambito: AmbitoAnalise;
+  farmaciasSelecionadas: string[];
+  fornecedoresSelecionados: string[];
+  fabricantesSelecionados: string[];
+  categoriasSelecionadas: string[];
+  subcategoriasSelecionadas: string[];
+  utilizacoesSelecionadas: string[];
+  artigo: string;
+  listaCodigos: ListaCodigosResolvida | null;
+  dataInicio: string;
+  dataFim: string;
+  agruparPor: Agrupamento;
+  ordenarPor: Ordenacao;
+  apenasComVendas: boolean;
+  apenasComStock: boolean;
+  incluirManutencao: boolean;
+  incluirTotais: boolean;
+  modoVisualizacao: ModoVisualizacao;
+  incluirCredito: boolean;
+  incluirTransferencias: boolean;
+  /** Ordenação por coluna clicável da tabela (ver useOrdenacao mais abaixo). */
+  ordenacaoTabela: EstadoOrdenacao<ColunaVendas>;
+};
 
 // Alias local — mantém os callers do componente independentes do nome do
 // tipo no loader. Estrutura idêntica (campos `meses` dinâmicos).
@@ -182,7 +218,11 @@ export function VendasClient({
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get("workspace");
   const utilizador = useUtilizador();
+  const taskBar = useTaskBar();
   const podeEncomendaDeGrupo = CAN_GROUP_PERFIS.has(utilizador?.perfil ?? "");
 
   // ─── "Criar encomenda com estes produtos" ──────────────────────────────
@@ -206,14 +246,68 @@ export function VendasClient({
   const fabricantes = filterOptions.fabricantes;
   const categorias = filterOptions.categorias;
 
-  const [ambito, setAmbito] = useState<AmbitoAnalise>("farmacia");
-  const [farmaciasSelecionadas, setFarmaciasSelecionadas] = useState<string[]>(farmacias);
-  const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
-  const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
-  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
-  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
-  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
-  const [artigo, setArtigo] = useState("");
+  // ── Sessão de análise isolada (workspace) ───────────────────────────
+  //
+  // Duas análises de Vendas abertas ao mesmo tempo (duas tarefas na
+  // barra — ver components/layout/task-bar.tsx, que gera e mantém
+  // `?workspace=<id>` na URL) nunca partilham critérios: cada uma lê e
+  // escreve só na sua própria chave `tenant:userId:workspaceId:"vendas"`
+  // (ver lib/workspace/use-workspace-state.ts). `campo(chave)` devolve
+  // um par com a MESMA assinatura de `useState` para nenhum dos usos
+  // existentes ao longo deste ficheiro ter de mudar.
+  const [criterios, setCriterios] = useWorkspaceState<VendasCriterios>({
+    workspaceId,
+    tenantSlug: utilizador?.tenant ?? "desconhecido",
+    userId: utilizador?.userId ?? "desconhecido",
+    moduleKey: "vendas",
+    initial: {
+      ambito: "farmacia",
+      farmaciasSelecionadas: farmacias,
+      fornecedoresSelecionados: [],
+      fabricantesSelecionados: [],
+      categoriasSelecionadas: [],
+      subcategoriasSelecionadas: [],
+      utilizacoesSelecionadas: [],
+      artigo: "",
+      listaCodigos: null,
+      dataInicio: defaultDataInicio(),
+      dataFim: defaultDataFim(),
+      agruparPor: "artigo",
+      ordenarPor: "totalVendas",
+      apenasComVendas: true,
+      apenasComStock: false,
+      incluirManutencao: false,
+      incluirTotais: true,
+      modoVisualizacao: "tabela",
+      incluirCredito: DEFAULT_INCLUIR_CREDITO,
+      incluirTransferencias: DEFAULT_INCLUIR_TRANSFERENCIAS,
+      ordenacaoTabela: null,
+    },
+  });
+
+  function campo<K extends keyof VendasCriterios>(
+    chave: K
+  ): [VendasCriterios[K], React.Dispatch<React.SetStateAction<VendasCriterios[K]>>] {
+    const setter: React.Dispatch<React.SetStateAction<VendasCriterios[K]>> = (valor) => {
+      setCriterios((prev) => ({
+        ...prev,
+        [chave]:
+          typeof valor === "function"
+            ? (valor as (p: VendasCriterios[K]) => VendasCriterios[K])(prev[chave])
+            : valor,
+      }));
+    };
+    return [criterios[chave], setter];
+  }
+
+  const [ambito, setAmbito] = campo("ambito");
+  const [farmaciasSelecionadas, setFarmaciasSelecionadas] = campo("farmaciasSelecionadas");
+  const [fornecedoresSelecionados, setFornecedoresSelecionados] = campo("fornecedoresSelecionados");
+  const [fabricantesSelecionados, setFabricantesSelecionados] = campo("fabricantesSelecionados");
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
+  const [artigo, setArtigo] = campo("artigo");
   /**
    * Lista de CNP importada por ficheiro.
    *
@@ -222,27 +316,26 @@ export function VendasClient({
    * SQL, via `restringirPorCatalogo`. É a mesma lista, o mesmo campo e
    * o mesmo caminho do Inventário, das Margens e das Encomendas.
    */
-  const [listaCodigos, setListaCodigos] = useState<ListaCodigosResolvida | null>(null);
-  const [dataInicio, setDataInicio] = useState(defaultDataInicio());
-  const [dataFim, setDataFim] = useState(defaultDataFim());
-  const [agruparPor, setAgruparPor] = useState<Agrupamento>("artigo");
-  const [ordenarPor, setOrdenarPor] = useState<Ordenacao>("totalVendas");
-  const [apenasComVendas, setApenasComVendas] = useState(true);
-  const [apenasComStock, setApenasComStock] = useState(false);
+  const [listaCodigos, setListaCodigos] = campo("listaCodigos");
+  const [dataInicio, setDataInicio] = campo("dataInicio");
+  const [dataFim, setDataFim] = campo("dataFim");
+  const [agruparPor, setAgruparPor] = campo("agruparPor");
+  const [ordenarPor, setOrdenarPor] = campo("ordenarPor");
+  const [apenasComVendas, setApenasComVendas] = campo("apenasComVendas");
+  const [apenasComStock, setApenasComStock] = campo("apenasComStock");
   // Default OFF — o mapa mostra só vendas reais enquanto o utilizador
   // não pedir explicitamente para incluir manutenção (ver getVendasData).
-  const [incluirManutencao, setIncluirManutencao] = useState(false);
-  const [incluirTotais, setIncluirTotais] = useState(true);
-  const [modoVisualizacao, setModoVisualizacao] =
-    useState<ModoVisualizacao>("tabela");
+  const [incluirManutencao, setIncluirManutencao] = campo("incluirManutencao");
+  const [incluirTotais, setIncluirTotais] = campo("incluirTotais");
+  const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
+  // UI puro (painel aberto/fechado) — não é critério de análise, não
+  // precisa de sobreviver a trocar de workspace.
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   // Os defaults são os do relatório oficial do SPharm contra o qual
   // reconciliamos: "Incluir Vendas a Crédito = Sim", "Incluir Guias de
   // Transferência = Não".
-  const [incluirCredito, setIncluirCredito] = useState(DEFAULT_INCLUIR_CREDITO);
-  const [incluirTransferencias, setIncluirTransferencias] = useState(
-    DEFAULT_INCLUIR_TRANSFERENCIAS,
-  );
+  const [incluirCredito, setIncluirCredito] = campo("incluirCredito");
+  const [incluirTransferencias, setIncluirTransferencias] = campo("incluirTransferencias");
 
   // Buckets de meses para render — só existe depois de gerar.
   //
@@ -495,7 +588,58 @@ export function VendasClient({
   // O agrupamento preserva a ordem: usa um `Map` por código, e a ordem
   // de inserção de um Map é a de primeira aparição — ou seja, a ordem
   // que a ordenação acabou de definir.
-  const { ordenacao, alternar } = useOrdenacao<ColunaVendas>(null);
+  // A ordenação da tabela é critério, tal como os filtros — vive no
+  // MESMO `criterios`, uma única fonte de verdade (nunca um segundo
+  // `useState` interno a espelhar/desespelhar, que era como
+  // `useOrdenacao` teria de ser usado aqui e que abre uma janela de
+  // "qual dos dois está desactualizado" sempre que se troca de
+  // workspace). `alternar` replica `proximaOrdenacao` — a MESMA função
+  // pura que `useOrdenacao` já usa internamente — directamente sobre
+  // `criterios.ordenacaoTabela`.
+  const [ordenacao, setOrdenacaoTabela] = campo("ordenacaoTabela");
+  function alternar(coluna: ColunaVendas) {
+    setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
+  }
+
+  // Trocar de workspace restaura os CRITÉRIOS (incluindo a ordenação,
+  // acima — via useWorkspaceState) mas NUNCA um resultado calculado com
+  // os critérios do workspace ANTERIOR: mostrar linhas de uma farmácia
+  // enquanto o painel já diz outra seria pior do que mostrar "por
+  // gerar". Mesmo princípio de `carregarRascunhoNovaEncomendaAction`:
+  // nunca finge um resultado que não foi recalculado com os critérios
+  // actuais.
+  useEffect(() => {
+    // Sincroniza o ecrã com uma IDENTIDADE externa que acabou de mudar
+    // (o workspace da URL) — não é derivação de props/state internos,
+    // é exactamente o caso que a regra documenta como legítimo (mesmo
+    // padrão da hidratação de `?rascunho=` em order-create-client.tsx).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasGenerated(false);
+    setRows([]);
+    setPeriodHeader(null);
+    setGenerationError(null);
+  }, [workspaceId]);
+
+  // Título descritivo na barra de tarefas — sem isto, duas análises de
+  // Vendas mostravam-se as duas como "Vendas", indistinguíveis (o
+  // próprio cenário que motivou o isolamento: "Vendas — Alfasigma —
+  // setembro" vs "Vendas — Viatris — agosto"). O filtro mais selectivo
+  // disponível (fabricante > farmácia > "todas") mais o mês/ano.
+  useEffect(() => {
+    if (!taskBar || !pathname || !workspaceId) return;
+    const identidade = `${pathname}?workspace=${workspaceId}`;
+    const foco =
+      fabricantesSelecionados.length === 1
+        ? fabricantesSelecionados[0]
+        : farmaciasSelecionadas.length === 1
+          ? farmaciasSelecionadas[0]
+          : null;
+    const mes = dataFim
+      ? new Date(`${dataFim}T00:00:00Z`).toLocaleDateString("pt-PT", { month: "short", year: "2-digit", timeZone: "UTC" })
+      : null;
+    const titulo = ["Vendas", foco, mes].filter(Boolean).join(" — ");
+    taskBar.actualizarTitulo(identidade, titulo);
+  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, farmaciasSelecionadas, dataFim]);
 
   const rowsOrdenadas = useMemo(
     () =>

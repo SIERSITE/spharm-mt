@@ -342,7 +342,10 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             </div>
           </header>
 
-          <TaskBar />
+          {/* Suspense: TaskBar agora usa useSearchParams() (isolamento de workspace por módulo — ver task-bar.tsx). */}
+          <Suspense fallback={null}>
+            <TaskBar />
+          </Suspense>
 
           <main className="relative z-10 min-w-0 flex-1 px-8 py-8">{children}</main>
 
