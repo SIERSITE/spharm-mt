@@ -1,12 +1,18 @@
 "use client";
 
 import { ArtigoLink } from "@/components/stock/artigo-link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
+import { useUtilizador } from "@/components/layout/session-provider";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
+import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
-  CabecalhoOrdenavel,
-  useOrdenacao,
-} from "@/components/ui/cabecalho-ordenavel";
-import { ordenarLinhas, type ValorOrdenavel } from "@/lib/tabela/ordenacao";
+  ordenarLinhas,
+  proximaOrdenacao,
+  type EstadoOrdenacao,
+  type ValorOrdenavel,
+} from "@/lib/tabela/ordenacao";
 import { descreverFonteCusto, somarParcial } from "@/lib/produtos/custo-farmacia";
 import { runExcessosReport } from "@/app/excessos/actions";
 import { passaFiltroCatalogo } from "@/lib/reporting/filters-shared";
@@ -48,6 +54,35 @@ type Priority = "alta" | "media" | "baixa";
  * chega ao bundle do browser.
  */
 import type { TransferSuggestionRow } from "@/lib/transferencias-data";
+
+/**
+ * Critérios de UMA sessão de análise (workspace) de Excessos — tudo o
+ * que o utilizador escolhe. NUNCA inclui `rows`/`snapshot` (resultados)
+ * — ver `lib/workspace/use-workspace-state.ts`. `ordenarPor` (selector)
+ * e `ordenacaoTabela` (clique no cabeçalho) são dois mecanismos
+ * distintos deste módulo e persistem os dois.
+ */
+type ExcessosCriterios = {
+  farmaciasOrigemSelecionadas: string[];
+  farmaciasDestinoSelecionadas: string[];
+  fornecedoresSelecionados: string[];
+  fabricantesSelecionados: string[];
+  categoriasSelecionadas: string[];
+  subcategoriasSelecionadas: string[];
+  utilizacoesSelecionadas: string[];
+  prioridadesSelecionadas: string[];
+  artigo: string;
+  dataInicio: string;
+  dataFim: string;
+  ordenarPor: Ordenacao;
+  apenasComNecessidade: boolean;
+  apenasComExcesso: boolean;
+  apenasAltaPrioridade: boolean;
+  quantidadeMinima: string;
+  incluirTotais: boolean;
+  modoVisualizacao: ModoVisualizacao;
+  ordenacaoTabela: EstadoOrdenacao<ColunaExcessos>;
+};
 
 type ReportSnapshot = {
   farmaciasOrigemSelecionadas: string[];
@@ -148,15 +183,66 @@ export function ExcessosClient({
   void initialRows;
   const prioridades = ["alta", "media", "baixa"];
 
-  const [farmaciasOrigemSelecionadas, setFarmaciasOrigemSelecionadas] =
-    useState<string[]>(farmacias);
-  const [farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas] =
-    useState<string[]>(farmacias);
-  const [fornecedoresSelecionados, setFornecedoresSelecionados] = useState<string[]>([]);
-  const [fabricantesSelecionados, setFabricantesSelecionados] = useState<string[]>([]);
-  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([]);
-  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = useState<string[]>([]);
-  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = useState<string[]>([]);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get("workspace");
+  const utilizador = useUtilizador();
+  const taskBar = useTaskBar();
+
+  // Últimos 12 meses civis COMPLETOS, no fuso da aplicação.
+  const janelaInicial = useMemo(() => janelaExcessosPorOmissao(), []);
+
+  // Sessão de análise isolada (workspace) — mesmo padrão de vendas-client.tsx.
+  const [criterios, setCriterios] = useWorkspaceState<ExcessosCriterios>({
+    workspaceId,
+    tenantSlug: utilizador?.tenant ?? "desconhecido",
+    userId: utilizador?.userId ?? "desconhecido",
+    moduleKey: "excessos",
+    initial: {
+      farmaciasOrigemSelecionadas: farmacias,
+      farmaciasDestinoSelecionadas: farmacias,
+      fornecedoresSelecionados: [],
+      fabricantesSelecionados: [],
+      categoriasSelecionadas: [],
+      subcategoriasSelecionadas: [],
+      utilizacoesSelecionadas: [],
+      prioridadesSelecionadas: [],
+      artigo: "",
+      dataInicio: janelaInicial.inicio,
+      dataFim: janelaInicial.fim,
+      ordenarPor: "prioridade",
+      apenasComNecessidade: false,
+      apenasComExcesso: true,
+      apenasAltaPrioridade: false,
+      quantidadeMinima: "",
+      incluirTotais: true,
+      modoVisualizacao: "tabela",
+      ordenacaoTabela: null,
+    },
+  });
+
+  function campo<K extends keyof ExcessosCriterios>(
+    chave: K
+  ): [ExcessosCriterios[K], React.Dispatch<React.SetStateAction<ExcessosCriterios[K]>>] {
+    const setter: React.Dispatch<React.SetStateAction<ExcessosCriterios[K]>> = (valor) => {
+      setCriterios((prev) => ({
+        ...prev,
+        [chave]:
+          typeof valor === "function"
+            ? (valor as (p: ExcessosCriterios[K]) => ExcessosCriterios[K])(prev[chave])
+            : valor,
+      }));
+    };
+    return [criterios[chave], setter];
+  }
+
+  const [farmaciasOrigemSelecionadas, setFarmaciasOrigemSelecionadas] = campo("farmaciasOrigemSelecionadas");
+  const [farmaciasDestinoSelecionadas, setFarmaciasDestinoSelecionadas] = campo("farmaciasDestinoSelecionadas");
+  const [fornecedoresSelecionados, setFornecedoresSelecionados] = campo("fornecedoresSelecionados");
+  const [fabricantesSelecionados, setFabricantesSelecionados] = campo("fabricantesSelecionados");
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = campo("categoriasSelecionadas");
+  const [subcategoriasSelecionadas, setSubcategoriasSelecionadas] = campo("subcategoriasSelecionadas");
+  const [utilizacoesSelecionadas, setUtilizacoesSelecionadas] = campo("utilizacoesSelecionadas");
   // Subcategorias acompanham a categoria escolhida — oferecer uma
   // subcategoria de outra categoria é oferecer zero linhas.
   const subcategorias = (
@@ -164,22 +250,17 @@ export function ExcessosClient({
       ? filterOptions.subcategorias.filter((s) => categoriasSelecionadas.includes(s.categoria))
       : filterOptions.subcategorias
   ).map((s) => s.nome);
-  const [prioridadesSelecionadas, setPrioridadesSelecionadas] = useState<string[]>([]);
-  const [artigo, setArtigo] = useState("");
-  // Últimos 12 meses civis COMPLETOS, no fuso da aplicação. Antes eram
-  // duas datas escritas à mão no dia em que este ecrã foi feito
-  // ("2026-04-01" / "2026-04-13") — uma janela arbitrária que envelhecia
-  // sozinha. Continuam editáveis; só o default mudou.
-  const janelaInicial = useMemo(() => janelaExcessosPorOmissao(), []);
-  const [dataInicio, setDataInicio] = useState(janelaInicial.inicio);
-  const [dataFim, setDataFim] = useState(janelaInicial.fim);
-  const [ordenarPor, setOrdenarPor] = useState<Ordenacao>("prioridade");
-  const [apenasComNecessidade, setApenasComNecessidade] = useState(false);
-  const [apenasComExcesso, setApenasComExcesso] = useState(true);
-  const [apenasAltaPrioridade, setApenasAltaPrioridade] = useState(false);
-  const [quantidadeMinima, setQuantidadeMinima] = useState("");
-  const [incluirTotais, setIncluirTotais] = useState(true);
-  const [modoVisualizacao, setModoVisualizacao] = useState<ModoVisualizacao>("tabela");
+  const [prioridadesSelecionadas, setPrioridadesSelecionadas] = campo("prioridadesSelecionadas");
+  const [artigo, setArtigo] = campo("artigo");
+  const [dataInicio, setDataInicio] = campo("dataInicio");
+  const [dataFim, setDataFim] = campo("dataFim");
+  const [ordenarPor, setOrdenarPor] = campo("ordenarPor");
+  const [apenasComNecessidade, setApenasComNecessidade] = campo("apenasComNecessidade");
+  const [apenasComExcesso, setApenasComExcesso] = campo("apenasComExcesso");
+  const [apenasAltaPrioridade, setApenasAltaPrioridade] = campo("apenasAltaPrioridade");
+  const [quantidadeMinima, setQuantidadeMinima] = campo("quantidadeMinima");
+  const [incluirTotais, setIncluirTotais] = campo("incluirTotais");
+  const [modoVisualizacao, setModoVisualizacao] = campo("modoVisualizacao");
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(null);
@@ -286,7 +367,41 @@ export function ExcessosClient({
   // ordenar aqui ordena as linhas todas e não só as visíveis. Nas
   // tabelas paginadas server-side — /stock e /catálogo — a ordenação
   // tem de viajar para o SQL; ver `lib/tabela/ordenacao.ts`.
-  const { ordenacao, alternar } = useOrdenacao<ColunaExcessos>(null);
+  // A ordenação de cabeçalho é critério — vive em `criterios` (fonte única).
+  const [ordenacao, setOrdenacaoTabela] = campo("ordenacaoTabela");
+  function alternar(coluna: ColunaExcessos) {
+    setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
+  }
+
+  // Trocar de workspace restaura os critérios mas NUNCA um resultado
+  // calculado com os critérios do workspace anterior. A 1ª atribuição de
+  // id (null -> id, feita pela barra de tarefas) NÃO é uma troca e não
+  // pode apagar as linhas pré-carregadas pelo servidor (?days).
+  const workspaceAnteriorRef = useRef<string | null>(workspaceId);
+  useEffect(() => {
+    const anterior = workspaceAnteriorRef.current;
+    workspaceAnteriorRef.current = workspaceId;
+    if (anterior === null || anterior === workspaceId) return;
+    // Sincroniza com uma identidade externa (workspace da URL) — caso legítimo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRows([]);
+    setRelatorioGerado(false);
+    setSnapshot(null);
+    setGenerationError(null);
+  }, [workspaceId]);
+
+  // Título descritivo na barra de tarefas (distingue duas análises).
+  useEffect(() => {
+    if (!taskBar || !pathname || !workspaceId) return;
+    const identidade = `${pathname}?workspace=${workspaceId}`;
+    const foco =
+      fabricantesSelecionados.length === 1
+        ? fabricantesSelecionados[0]
+        : prioridadesSelecionadas.length === 1
+          ? `prioridade ${prioridadesSelecionadas[0]}`
+          : null;
+    taskBar.actualizarTitulo(identidade, ["Excessos", foco].filter(Boolean).join(" — "));
+  }, [pathname, workspaceId, taskBar, fabricantesSelecionados, prioridadesSelecionadas]);
 
   const rowsVisiveis = useMemo(
     () => (ordenacao ? ordenarLinhas(orderedRows, ordenacao, acessorExcessos) : orderedRows),

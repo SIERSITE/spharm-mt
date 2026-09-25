@@ -2003,6 +2003,18 @@ model ListaEncomenda {
   /// (ex.: consolidação). Nunca lido por nada fora do próprio ecrã que o
   /// escreveu — reconstrói a análise ao reabrir, mais nada depende dele.
   contextoJson    String?
+  /// Chave de idempotência gerada pelo CLIENTE (uma vez por tentativa de
+  /// criar este rascunho — ver `ensureDraft` em order-create-client.tsx),
+  /// e reutilizada em retries após um erro/timeout. `@unique` é o que
+  /// torna isto realmente idempotente: se o pedido original TIVER sido
+  /// bem sucedido no servidor mas a resposta se perdeu (rede caiu depois
+  /// do INSERT), um retry com a MESMA chave choca no `create` (P2002) em
+  /// vez de criar um segundo rascunho — `createEncomendaWithOutbox`
+  /// apanha esse erro e devolve o rascunho já existente. NULL para todos
+  /// os outros caminhos de criação (duplicarRascunhoComoNovoAction,
+  /// gerarPlanoGrupoAction, scripts) — só o fluxo eager de
+  /// `/encomendas/nova` gera e envia esta chave.
+  clientIdempotencyKey String? @unique
 
   farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])

@@ -20,17 +20,19 @@
  */
 
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
+import { useUtilizador } from "@/components/layout/session-provider";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
-import {
-  CabecalhoOrdenavel,
-  useOrdenacao,
-} from "@/components/ui/cabecalho-ordenavel";
+import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
   ordenarLinhas,
+  proximaOrdenacao,
   type EstadoOrdenacao,
   type ValorOrdenavel,
 } from "@/lib/tabela/ordenacao";
@@ -62,6 +64,21 @@ type Vista = "produto" | "farmacia" | "grupo" | "iva";
 // "Grupo" foi promovido a vista top-level — dentro da vista "Por produto"
 // mantemos só artigo/farmácia para não duplicar a função.
 type AgrupamentoProduto = "artigo" | "farmacia";
+
+/**
+ * Critérios de UMA sessão de análise (workspace) de Inventário: filtros
+ * partilhados, lista de CNP, vista, agrupamento, chip de estado e
+ * ordenação de cabeçalho. NUNCA inclui `result` — ver
+ * `lib/workspace/use-workspace-state.ts`.
+ */
+type InventarioCriterios = {
+  filters: SharedReportFilters;
+  lista: ListaCodigosResolvida | null;
+  vista: Vista;
+  agrupamento: AgrupamentoProduto;
+  estadoChip: "todos" | EstadoInventario;
+  ordenacaoTabela: EstadoOrdenacao<ColunaInventario>;
+};
 
 const ESTADO_LABEL: Record<EstadoInventario, string> = {
   NORMAL: "Normal",
@@ -131,11 +148,49 @@ export function InventarioClient({
   // Filtros canónicos partilhados. Inventário é "snapshot actual" —
   // por isso `from`/`to` ficam unused (hideDates no FiltersBar) mas o
   // tipo é o mesmo dos restantes relatórios.
-  const [filters, setFilters] = useState<SharedReportFilters>({
-    farmaciaNomes: universe.farmacias, // todas seleccionadas por defeito
-    from: startOfYearISO(),            // semantic only — Inventário ignora
-    to: new Date().toISOString().slice(0, 10),
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get("workspace");
+  const utilizador = useUtilizador();
+  const taskBar = useTaskBar();
+
+  // Sessão de análise isolada (workspace) — mesmo padrão de vendas-client.tsx.
+  const [criterios, setCriterios] = useWorkspaceState<InventarioCriterios>({
+    workspaceId,
+    tenantSlug: utilizador?.tenant ?? "desconhecido",
+    userId: utilizador?.userId ?? "desconhecido",
+    moduleKey: "inventario",
+    initial: {
+      filters: {
+        farmaciaNomes: universe.farmacias, // todas seleccionadas por defeito
+        from: startOfYearISO(),            // semantic only — Inventário ignora
+        to: new Date().toISOString().slice(0, 10),
+      },
+      lista: null,
+      vista: "produto",
+      agrupamento: "artigo",
+      estadoChip: "todos",
+      ordenacaoTabela: null,
+    },
   });
+
+  function campo<K extends keyof InventarioCriterios>(
+    chave: K
+  ): [InventarioCriterios[K], React.Dispatch<React.SetStateAction<InventarioCriterios[K]>>] {
+    const setter: React.Dispatch<React.SetStateAction<InventarioCriterios[K]>> = (valor) => {
+      setCriterios((prev) => ({
+        ...prev,
+        [chave]:
+          typeof valor === "function"
+            ? (valor as (p: InventarioCriterios[K]) => InventarioCriterios[K])(prev[chave])
+            : valor,
+      }));
+    };
+    return [criterios[chave], setter];
+  }
+
+  const filters = criterios.filters;
+  const [, setFilters] = campo("filters");
 
   /**
    * A lista de CNP importada por ficheiro.
@@ -145,12 +200,15 @@ export function InventarioClient({
    * mostra (ficheiro, encontrados, não encontrados). Quem os mantém em
    * sincronia é o `ReportFiltersBar`, num único `onChange`.
    */
-  const [lista, setLista] = useState<ListaCodigosResolvida | null>(null);
+  const [lista, setLista] = campo("lista");
 
     // Vista + agrupamento dentro de "Por produto"
-  const [vista, setVista] = useState<Vista>("produto");
-  const [agrupamento, setAgrupamento] = useState<AgrupamentoProduto>("artigo");
-  const [estadoChip, setEstadoChip] = useState<"todos" | EstadoInventario>("todos");
+  const vista = criterios.vista;
+  const [, setVista] = campo("vista");
+  const agrupamento = criterios.agrupamento;
+  const [, setAgrupamento] = campo("agrupamento");
+  const estadoChip = criterios.estadoChip;
+  const [, setEstadoChip] = campo("estadoChip");
 
   // Estado do dataset (lazy — só após "Gerar")
   const [result, setResult] = useState<InventarioResult | null>(null);
@@ -184,7 +242,37 @@ export function InventarioClient({
   // e o cliente refina. Ordenar aqui ordena TUDO, não a página — ao
   // contrário de /stock, que pagina no servidor e por isso manda a
   // ordenação para o SQL. Ver `lib/tabela/ordenacao.ts`.
-  const { ordenacao, alternar } = useOrdenacao<ColunaInventario>(null);
+  // A ordenação de cabeçalho é critério — vive em `criterios` (fonte única).
+  const ordenacao = criterios.ordenacaoTabela;
+  const [, setOrdenacaoTabela] = campo("ordenacaoTabela");
+  function alternar(coluna: ColunaInventario) {
+    setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
+  }
+
+  // Trocar de workspace restaura os critérios mas NUNCA um resultado
+  // calculado com os critérios do workspace anterior.
+  useEffect(() => {
+    // Sincroniza com uma identidade externa (workspace da URL) — caso legítimo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasGenerated(false);
+    setResult(null);
+    setError(null);
+  }, [workspaceId]);
+
+  // Título descritivo na barra de tarefas (distingue duas análises).
+  useEffect(() => {
+    if (!taskBar || !pathname || !workspaceId) return;
+    const identidade = `${pathname}?workspace=${workspaceId}`;
+    const foco =
+      (filters.fabricantes?.length ?? 0) === 1
+        ? filters.fabricantes![0]
+        : (filters.categorias?.length ?? 0) === 1
+          ? filters.categorias![0]
+          : (filters.farmaciaNomes?.length ?? 0) === 1
+            ? filters.farmaciaNomes![0]
+            : null;
+    taskBar.actualizarTitulo(identidade, ["Inventário", foco].filter(Boolean).join(" — "));
+  }, [pathname, workspaceId, taskBar, filters.fabricantes, filters.categorias, filters.farmaciaNomes]);
 
   const rowsOrdenadas = useMemo(
     () => (ordenacao ? ordenarLinhas(rowsByEstado, ordenacao, acessorInventario) : rowsByEstado),

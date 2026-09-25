@@ -39,6 +39,8 @@ export type CreateOrderFormInput = {
   linhas: OrderLineInput[];
   /** Contexto funcional da proposta (modo/período/cobertura/filtros) — ver CreateOrderInput.contexto. */
   contexto?: string | null;
+  /** Chave de idempotência gerada pelo cliente — ver ListaEncomenda.clientIdempotencyKey. */
+  clientIdempotencyKey?: string | null;
 };
 
 export type GenerateProposalInput = {
@@ -74,6 +76,10 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
     return { ok: false, error: "Contexto da proposta excede o tamanho máximo." };
   }
 
+  if (input.clientIdempotencyKey != null && !/^[A-Za-z0-9_-]{16,80}$/.test(input.clientIdempotencyKey)) {
+    return { ok: false, error: "Chave de idempotência inválida." };
+  }
+
   try {
     const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
       farmaciaId: input.farmaciaId,
@@ -82,6 +88,7 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       finalize: input.finalize,
       linhas: input.linhas,
       contexto: input.contexto,
+      clientIdempotencyKey: input.clientIdempotencyKey ?? null,
     });
 
     await logAudit({
@@ -89,7 +96,13 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       action: input.finalize ? "order.created_and_finalized" : "order.created_draft",
       entity: "ListaEncomenda",
       entityId: result.listaEncomendaId,
-      meta: { finalize: input.finalize, linhasCount: input.linhas.length, outboxId: result.outboxId },
+      meta: {
+        finalize: input.finalize,
+        linhasCount: input.linhas.length,
+        outboxId: result.outboxId,
+        comContexto: input.contexto != null,
+        idempotente: input.clientIdempotencyKey != null,
+      },
     });
 
     revalidatePath("/encomendas");
@@ -467,6 +480,8 @@ export type GerarPlanoGrupoInput = {
   /** Prefixo do nome de cada ListaEncomenda gerada. */
   nome: string;
   decisoes: DecisaoLinhaGrupoInput[];
+  /** Contexto da proposta de grupo serializado — gravado em cada ListaEncomenda gerada. */
+  contexto?: string | null;
 };
 
 export type GerarPlanoGrupoResult =
@@ -512,6 +527,9 @@ export async function gerarPlanoGrupoAction(
   if (input.decisoes.length === 0) {
     return { ok: false, error: "Sem linhas na proposta." };
   }
+  if (input.contexto != null && input.contexto.length > CONTEXT_JSON_MAX_CHARS) {
+    return { ok: false, error: "Contexto da proposta excede o tamanho máximo." };
+  }
 
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
@@ -545,6 +563,7 @@ export async function gerarPlanoGrupoAction(
           notas: l.notas ?? null,
           origem: l.origem ?? "PROPOSTA",
         })),
+        contexto: input.contexto ?? undefined,
       });
       resultadoListas.push({
         farmaciaId,
@@ -556,7 +575,13 @@ export async function gerarPlanoGrupoAction(
         action: "group_plan.encomenda_created",
         entity: "ListaEncomenda",
         entityId: resultado.listaEncomendaId,
-        meta: { farmaciaId, linhasCount: linhas.length, outboxId: resultado.outboxId },
+        meta: {
+          mode: "grupo",
+          farmaciaId,
+          linhasCount: linhas.length,
+          outboxId: resultado.outboxId,
+          comContexto: input.contexto != null,
+        },
       });
     }
 
@@ -596,7 +621,7 @@ export async function gerarPlanoGrupoAction(
         action: "group_plan.transferencia_created",
         entity: "Transferencia",
         entityId: transferencia.id,
-        meta: { farmaciaOrigemId, farmaciaDestinoId, linhasCount: linhas.length },
+        meta: { mode: "grupo", farmaciaOrigemId, farmaciaDestinoId, linhasCount: linhas.length },
       });
     }
 

@@ -18,16 +18,18 @@
 
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
+import { useUtilizador } from "@/components/layout/session-provider";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { useWorkspaceState } from "@/lib/workspace/use-workspace-state";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
-import {
-  CabecalhoOrdenavel,
-  useOrdenacao,
-} from "@/components/ui/cabecalho-ordenavel";
+import { CabecalhoOrdenavel } from "@/components/ui/cabecalho-ordenavel";
 import {
   ordenarLinhas,
+  proximaOrdenacao,
   type EstadoOrdenacao,
   type ValorOrdenavel,
 } from "@/lib/tabela/ordenacao";
@@ -63,6 +65,29 @@ import { AlertTriangle } from "lucide-react";
  * Os rotulos dizem-no: "Detalhe por produto" vs "Totais por ...".
  */
 type Nivel = "produto" | "categoria" | "farmacia" | "grupo" | "fabricante";
+
+/**
+ * Critérios de UMA sessão de análise (workspace) de Margens — tudo o
+ * que o utilizador escolhe antes/durante "Gerar": filtros partilhados,
+ * lista de CNP importada, nível de agregação, chip de estado de
+ * margem e ordenação da tabela «Por produto». NUNCA inclui `result`
+ * (resultado calculado) — ver `lib/workspace/use-workspace-state.ts`,
+ * mesmo princípio já aplicado a `VendasCriterios` em
+ * `components/vendas/vendas-client.tsx`.
+ *
+ * `filters` fica ANINHADO (o `SharedReportFilters` inteiro), não
+ * achatado campo a campo: Margens já guarda os filtros num único
+ * objecto (ao contrário de Vendas), e aninhar é o caminho que nunca
+ * esquece um campo que `SharedReportFilters` venha a ganhar no futuro.
+ */
+type MargensCriterios = {
+  filters: SharedReportFilters;
+  lista: ListaCodigosResolvida | null;
+  nivel: Nivel;
+  estadoChip: "todos" | EstadoMargem;
+  /** Ordenação por coluna clicável da tabela «Por produto» (ver campo() mais abaixo). */
+  ordenacaoTabela: EstadoOrdenacao<ColunaMargens>;
+};
 
 const NIVEIS: Nivel[] = ["produto", "categoria", "farmacia", "grupo", "fabricante"];
 
@@ -138,12 +163,56 @@ export function MargensClient({
     [farmaciasInfo, filterOptions],
   );
 
-  const [filters, setFilters] = useState<SharedReportFilters>({
-    farmaciaNomes: universe.farmacias,
-    from: startOfYearISO(),
-    to: new Date().toISOString().slice(0, 10),
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceId = searchParams.get("workspace");
+  const utilizador = useUtilizador();
+  const taskBar = useTaskBar();
+
+  // ── Sessão de análise isolada (workspace) ───────────────────────────
+  //
+  // Duas análises de Margens abertas ao mesmo tempo (duas tarefas na
+  // barra — ver components/layout/task-bar.tsx, que gera e mantém
+  // `?workspace=<id>` na URL) nunca partilham critérios: cada uma lê e
+  // escreve só na sua própria chave `tenant:userId:workspaceId:"margens"`
+  // (ver lib/workspace/use-workspace-state.ts). `campo(chave)` devolve
+  // um par com a MESMA assinatura de `useState` para nenhum dos usos
+  // existentes ao longo deste ficheiro ter de mudar — mesmo padrão de
+  // `components/vendas/vendas-client.tsx`.
+  const [criterios, setCriterios] = useWorkspaceState<MargensCriterios>({
+    workspaceId,
+    tenantSlug: utilizador?.tenant ?? "desconhecido",
+    userId: utilizador?.userId ?? "desconhecido",
+    moduleKey: "margens",
+    initial: {
+      filters: {
+        farmaciaNomes: universe.farmacias,
+        from: startOfYearISO(),
+        to: new Date().toISOString().slice(0, 10),
+      },
+      lista: null,
+      nivel: "produto",
+      estadoChip: "todos",
+      ordenacaoTabela: null,
+    },
   });
 
+  function campo<K extends keyof MargensCriterios>(
+    chave: K
+  ): [MargensCriterios[K], React.Dispatch<React.SetStateAction<MargensCriterios[K]>>] {
+    const setter: React.Dispatch<React.SetStateAction<MargensCriterios[K]>> = (valor) => {
+      setCriterios((prev) => ({
+        ...prev,
+        [chave]:
+          typeof valor === "function"
+            ? (valor as (p: MargensCriterios[K]) => MargensCriterios[K])(prev[chave])
+            : valor,
+      }));
+    };
+    return [criterios[chave], setter];
+  }
+
+  const [filters, setFilters] = campo("filters");
   /**
    * A lista de CNP importada por ficheiro.
    *
@@ -152,10 +221,11 @@ export function MargensClient({
    * mostra (ficheiro, encontrados, não encontrados). Quem os mantém em
    * sincronia é o `ReportFiltersBar`, num único `onChange`.
    */
-  const [lista, setLista] = useState<ListaCodigosResolvida | null>(null);
+  const [lista, setLista] = campo("lista");
 
-    const [nivel, setNivel] = useState<Nivel>("produto");
-  const [estadoChip, setEstadoChip] = useState<"todos" | EstadoMargem>("todos");
+  const [nivel, setNivel] = campo("nivel");
+  const estadoChip = criterios.estadoChip;
+  const [, setEstadoChip] = campo("estadoChip");
 
   const [result, setResult] = useState<MargensResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -226,7 +296,63 @@ export function MargensClient({
   //
   // `getMargensData` não pagina: devolve o universo e o cliente refina.
   // Ordenar aqui ordena TUDO.
-  const { ordenacao, alternar } = useOrdenacao<ColunaMargens>(null);
+  //
+  // A ordenação da tabela é critério, tal como os filtros — vive no
+  // MESMO `criterios`, uma única fonte de verdade (nunca um segundo
+  // `useState` interno a espelhar/desespelhar, que era como
+  // `useOrdenacao` teria de ser usado aqui e abriria uma janela de
+  // "qual dos dois está desactualizado" sempre que se troca de
+  // workspace). `alternar` replica `proximaOrdenacao` — a MESMA função
+  // pura que `useOrdenacao` já usa internamente — directamente sobre
+  // `criterios.ordenacaoTabela`. Mesmo padrão de vendas-client.tsx.
+  const [ordenacao, setOrdenacaoTabela] = campo("ordenacaoTabela");
+  function alternar(coluna: ColunaMargens) {
+    setOrdenacaoTabela((prev) => proximaOrdenacao(prev, coluna));
+  }
+
+  // Trocar de workspace restaura os CRITÉRIOS (incluindo filtros,
+  // nível, chip de estado e ordenação, acima — via useWorkspaceState)
+  // mas NUNCA um resultado calculado com os critérios do workspace
+  // ANTERIOR: mostrar linhas de uma análise enquanto o painel já diz
+  // outra seria pior do que mostrar "por gerar". Mesmo princípio de
+  // `vendas-client.tsx` e de `carregarRascunhoNovaEncomendaAction`:
+  // nunca finge um resultado que não foi recalculado com os critérios
+  // actuais.
+  useEffect(() => {
+    // Sincroniza o ecrã com uma IDENTIDADE externa que acabou de mudar
+    // (o workspace da URL) — não é derivação de props/state internos,
+    // é exactamente o caso que a regra documenta como legítimo (mesmo
+    // padrão da hidratação de `?rascunho=` em order-create-client.tsx).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasGenerated(false);
+    setResult(null);
+    setError(null);
+    // `primeiroEfeito` marca "ainda não passou pelo primeiro ciclo do
+    // debounce depois de gerar" — sem o repor aqui, o 1º "Gerar" de CADA
+    // NOVO workspace herdava o `current = false` deixado pela análise
+    // anterior e disparava uma segunda chamada redundante ao servidor
+    // 400 ms depois de `handleGerar` já ter o resultado.
+    primeiroEfeito.current = true;
+  }, [workspaceId]);
+
+  // Título descritivo na barra de tarefas — sem isto, duas análises de
+  // Margens mostravam-se as duas como "Margens", indistinguíveis (o
+  // próprio cenário que motivou o isolamento). O filtro mais selectivo
+  // disponível (fabricante > categoria > farmácia > "todas").
+  useEffect(() => {
+    if (!taskBar || !pathname || !workspaceId) return;
+    const identidade = `${pathname}?workspace=${workspaceId}`;
+    const foco =
+      (filters.fabricantes?.length ?? 0) === 1
+        ? filters.fabricantes![0]
+        : (filters.categorias?.length ?? 0) === 1
+          ? filters.categorias![0]
+          : (filters.farmaciaNomes?.length ?? 0) === 1
+            ? filters.farmaciaNomes![0]
+            : null;
+    const titulo = ["Margens", foco].filter(Boolean).join(" — ");
+    taskBar.actualizarTitulo(identidade, titulo);
+  }, [pathname, workspaceId, taskBar, filters.fabricantes, filters.categorias, filters.farmaciaNomes]);
 
   const rowsOrdenadasProduto = useMemo(
     () =>

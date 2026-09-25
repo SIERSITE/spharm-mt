@@ -66,6 +66,12 @@ export type CreateOrderInput = {
    * de criação; nenhum segundo write. Omitir = sem contexto registado.
    */
   contexto?: string | null;
+  /**
+   * Chave de idempotência do CLIENTE (ver `ListaEncomenda.clientIdempotencyKey`).
+   * Se já existir uma lista com esta chave (retry após resposta perdida),
+   * devolve-a em vez de criar outra.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 /**
@@ -119,6 +125,38 @@ export async function createEncomendaWithOutbox(
     throw new Error("[ingest/orders] lista sem linhas não é exportável.");
   }
 
+  const chaveCliente = input.clientIdempotencyKey ?? null;
+  if (chaveCliente) {
+    const existente = await prisma.listaEncomenda.findUnique({
+      where: { clientIdempotencyKey: chaveCliente },
+      select: { id: true, farmaciaId: true, criadoPorId: true, outbox: { select: { id: true } } },
+    });
+    if (existente) {
+      if (existente.farmaciaId !== input.farmaciaId || existente.criadoPorId !== input.criadoPorId) {
+        throw new Error("[ingest/orders] chave de idempotência já usada por outra sessão.");
+      }
+      return { listaEncomendaId: existente.id, outboxId: existente.outbox?.id ?? null };
+    }
+  }
+
+  try {
+    return await criarTransaccional();
+  } catch (err) {
+    // Corrida: dois pedidos com a MESMA chave passaram o findUnique acima;
+    // o segundo INSERT choca no @unique (P2002) — devolve o vencedor.
+    if (chaveCliente && (err as { code?: string })?.code === "P2002") {
+      const vencedor = await prisma.listaEncomenda.findUnique({
+        where: { clientIdempotencyKey: chaveCliente },
+        select: { id: true, farmaciaId: true, criadoPorId: true },
+      });
+      if (vencedor && vencedor.farmaciaId === input.farmaciaId && vencedor.criadoPorId === input.criadoPorId) {
+        return { listaEncomendaId: vencedor.id, outboxId: null };
+      }
+    }
+    throw err;
+  }
+
+  function criarTransaccional() {
   return prisma.$transaction(async (tx) => {
     const lista = await tx.listaEncomenda.create({
       data: {
@@ -128,6 +166,7 @@ export async function createEncomendaWithOutbox(
         estado: input.finalize ? "FINALIZADA" : "RASCUNHO",
         estadoExport: "PENDENTE",
         ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
+        ...(chaveCliente ? { clientIdempotencyKey: chaveCliente } : {}),
         linhas: {
           create: input.linhas.map((l) => ({
             produtoId: l.produtoId,
@@ -182,6 +221,7 @@ export async function createEncomendaWithOutbox(
 
     return { listaEncomendaId: lista.id, outboxId: outbox.id };
   });
+  }
 }
 
 /**

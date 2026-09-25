@@ -37,13 +37,24 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-function chaveWorkspaceState(tenant: string, userId: string, workspaceId: string, moduleKey: string): string {
+export function chaveWorkspaceState(tenant: string, userId: string, workspaceId: string, moduleKey: string): string {
   return `spharmmt:workspace:${tenant}:${userId}:${workspaceId}:${moduleKey}`;
 }
 
-function lerEstado<T>(chaveLS: string): T | null {
+/** Subconjunto de `Storage` usado aqui — permite testar sem DOM. */
+export type StorageLike = Pick<Storage, "getItem" | "setItem">;
+
+function storagePadrao(): StorageLike | null {
   try {
-    const raw = window.sessionStorage.getItem(chaveLS);
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function lerEstado<T>(chaveLS: string, storage: StorageLike | null = storagePadrao()): T | null {
+  try {
+    const raw = storage?.getItem(chaveLS);
     if (!raw) return null;
     return JSON.parse(raw) as T;
   } catch {
@@ -51,9 +62,9 @@ function lerEstado<T>(chaveLS: string): T | null {
   }
 }
 
-function escreverEstado<T>(chaveLS: string, estado: T): void {
+export function escreverEstado<T>(chaveLS: string, estado: T, storage: StorageLike | null = storagePadrao()): void {
   try {
-    window.sessionStorage.setItem(chaveLS, JSON.stringify(estado));
+    storage?.setItem(chaveLS, JSON.stringify(estado));
   } catch {
     // Quota excedida/bloqueado — a análise continua a funcionar, só não sobrevive a reidratar.
   }

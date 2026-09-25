@@ -59,6 +59,8 @@
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",
+    "test:reconstruir-rascunho": "tsx scripts/tests/test-reconstruir-rascunho.ts",
+    "test:encomenda-idempotencia": "tsx scripts/tests/test-encomenda-idempotencia.ts",
     "test:diagnostico-tools": "tsx scripts/tests/test-diagnostico-tools.ts",
     "test:seguranca-origem": "tsx scripts/tests/test-seguranca-origem.ts",
     "test:motores-2026-09": "tsx scripts/tests/test-motores-2026-09.ts",

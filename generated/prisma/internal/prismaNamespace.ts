@@ -5766,7 +5766,8 @@ export const ListaEncomendaScalarFieldEnum = {
   dataCriacao: 'dataCriacao',
   dataAtualizacao: 'dataAtualizacao',
   versao: 'versao',
-  contextoJson: 'contextoJson'
+  contextoJson: 'contextoJson',
+  clientIdempotencyKey: 'clientIdempotencyKey'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]

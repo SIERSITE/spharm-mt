@@ -33,6 +33,7 @@ import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
+import { enriquecerLinhasRascunho } from "@/lib/encomendas/reconstruir-rascunho";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
@@ -112,6 +113,12 @@ type Line = {
    * importada e NÃO vendeu no período. Ver `ProposalRow`.
    */
   semVendasNoPeriodo: boolean;
+  /**
+   * `true` numa linha restaurada de rascunho cujos campos informativos
+   * (vendas/stock/cobertura) ainda não foram recalculados — ver
+   * `lib/encomendas/reconstruir-rascunho.ts`. Nunca remove a linha.
+   */
+  dadosDesactualizados: boolean;
 
   // ── Bloco D — decisão por linha em modo grupo ────────────────────
   //
@@ -343,7 +350,14 @@ export function OrderCreateClient({
   const [draftId, setDraftId] = useState<string | null>(null);
   const [draftVersaoInicial, setDraftVersaoInicial] = useState(0);
   const [carregandoRascunho, setCarregandoRascunho] = useState(false);
-  const draftCreatingRef = useRef(false);
+  // Single-flight: enquanto a criação está em curso TODOS os chamadores
+  // esperam a MESMA promise (nunca `null`, que perdia a edição que
+  // disparou a chamada concorrente). `chaveIdempotenciaRef` é gerada uma
+  // vez por tentativa e reutilizada em retries após erro — o servidor
+  // devolve o rascunho já criado se a resposta original se perdeu.
+  const draftPromiseRef = useRef<Promise<string | null> | null>(null);
+  const chaveIdempotenciaRef = useRef<string | null>(null);
+  const chavesConsolidacaoRef = useRef<Map<string, string>>(new Map());
   const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
 
   const utilizador = useUtilizador();
@@ -390,51 +404,65 @@ export function OrderCreateClient({
    * `createOrderAction`, com TODAS as linhas válidas actuais — 300
    * linhas em lote, nunca 300 pedidos) na primeira chamada. Chamadas
    * seguintes são no-op (devolvem o id já conhecido). Nunca cria um
-   * segundo rascunho para a mesma sessão — `draftCreatingRef` serializa
+   * segundo rascunho para a mesma sessão — `draftPromiseRef` (single-flight) serializa
    * chamadas concorrentes (vários campos a disparar isto quase ao mesmo
    * tempo).
    */
-  async function ensureDraft(linhasActuais: Line[]): Promise<string | null> {
-    if (draftId) return draftId;
-    if (mode !== "farmacia") return null;
-    if (!farmaciaId) return null;
-    if (draftCreatingRef.current) return null;
+  function ensureDraft(linhasActuais: Line[]): Promise<string | null> {
+    if (draftId) return Promise.resolve(draftId);
+    if (mode !== "farmacia") return Promise.resolve(null);
+    if (!farmaciaId) return Promise.resolve(null);
+    if (draftPromiseRef.current) return draftPromiseRef.current;
 
     const validas = linhasActuais.filter((l) => {
       const q = Number(l.finalQty || "0");
       return Number.isFinite(q) && q > 0;
     });
-    if (validas.length === 0) return null;
+    if (validas.length === 0) return Promise.resolve(null);
 
-    draftCreatingRef.current = true;
-    try {
-      const contexto = buildContextoActual();
-      const result = await createOrderAction({
-        farmaciaId,
-        nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
-        finalize: false,
-        linhas: validas.map((l) => ({
-          produtoId: l.produtoId,
-          quantidadeSugerida: l.suggestedQty ?? null,
-          quantidadeAjustada: Number(l.finalQty),
-          notas: l.notas.trim() || null,
-          origem: l.origem,
-        })),
-        contexto: serializarPropostaContexto(contexto) ?? null,
-      });
-      if (!result.ok) {
-        setFlash({ type: "err", msg: result.error });
-        return null;
-      }
-      setDraftId(result.listaEncomendaId);
-      setDraftVersaoInicial(0);
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("rascunho", result.listaEncomendaId);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      return result.listaEncomendaId;
-    } finally {
-      draftCreatingRef.current = false;
+    if (!chaveIdempotenciaRef.current) {
+      chaveIdempotenciaRef.current = crypto.randomUUID().replace(/-/g, "");
     }
+    const chave = chaveIdempotenciaRef.current;
+
+    const promessa = (async (): Promise<string | null> => {
+      try {
+        const contexto = buildContextoActual();
+        const result = await createOrderAction({
+          farmaciaId,
+          nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
+          finalize: false,
+          linhas: validas.map((l) => ({
+            produtoId: l.produtoId,
+            quantidadeSugerida: l.suggestedQty ?? null,
+            quantidadeAjustada: Number(l.finalQty),
+            notas: l.notas.trim() || null,
+            origem: l.origem,
+          })),
+          contexto: serializarPropostaContexto(contexto) ?? null,
+          clientIdempotencyKey: chave,
+        });
+        if (!result.ok) {
+          setFlash({ type: "err", msg: result.error });
+          return null; // a chave mantém-se: o próximo retry é idempotente
+        }
+        setDraftId(result.listaEncomendaId);
+        setDraftVersaoInicial(0);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("rascunho", result.listaEncomendaId);
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        return result.listaEncomendaId;
+      } catch (err) {
+        // Rede/timeout: o servidor pode ter criado o rascunho. Retry com a
+        // mesma chave devolve-o em vez de duplicar.
+        setFlash({ type: "err", msg: err instanceof Error ? err.message : "Falha ao criar rascunho." });
+        return null;
+      } finally {
+        draftPromiseRef.current = null;
+      }
+    })();
+    draftPromiseRef.current = promessa;
+    return promessa;
   }
 
   /**
@@ -909,6 +937,7 @@ export function OrderCreateClient({
       const result = await gerarPlanoGrupoAction({
         nome: nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`,
         decisoes,
+        contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
       });
       if (!result.ok) {
         setFlash({ type: "err", msg: result.error });
@@ -1055,6 +1084,7 @@ export function OrderCreateClient({
       notas: "", origem: "PROPOSTA",
       estado: r.estado, motivo: r.motivo, excessoFonte: r.excessoFonte,
       semVendasNoPeriodo: r.semVendasNoPeriodo,
+      dadosDesactualizados: false,
       acao: decisao.acao,
       acaoTocada: false,
       farmaciaEncomendaId: decisao.farmaciaEncomendaId,
@@ -1076,6 +1106,7 @@ export function OrderCreateClient({
       // Linha posta a mao: a nocao de "vendeu no periodo" nao se
       // aplica — nao veio de nenhum calculo sobre vendas.
       semVendasNoPeriodo: false,
+      dadosDesactualizados: false,
       // O picker manual só existe em modo "farmacia" — estes campos
       // nunca são lidos aí, mas o tipo `Line` é partilhado por todos
       // os modos.
@@ -1105,6 +1136,7 @@ export function OrderCreateClient({
       transferirQty: 0, finalQty: String(l.quantidadeAjustada ?? 0), notas: l.notas ?? "",
       origem: l.origem, estado: null, motivo: null, excessoFonte: [],
       semVendasNoPeriodo: false,
+      dadosDesactualizados: true,
       acao: "NAO_FAZER", acaoTocada: false,
       farmaciaEncomendaId: farmId, farmaciaOrigemId: null, farmaciaDestinoId: null,
     };
@@ -1147,11 +1179,51 @@ export function OrderCreateClient({
         setSelUtilizacoes(d.contexto.filters.utilizacoes);
         setSelProductTypes(d.contexto.filters.productTypes);
       }
-      setLinhas(d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId)));
+      const persistidas = d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId));
+      setLinhas(persistidas);
       setHasProposal(d.linhas.length > 0);
+
+      // Recalcula SÓ as colunas informativas a partir do contexto guardado
+      // (modo farmácia) — quantidades/notas/origem persistidas nunca são
+      // tocadas (enriquecerLinhasRascunho). Se falhar, as linhas ficam
+      // marcadas como desactualizadas e o rascunho continua utilizável.
+      let enriquecido = false;
+      const c = d.contexto;
+      if (c && c.mode === "farmacia" && persistidas.length > 0) {
+        try {
+          const fresca = await generateProposalAction({
+            mode: "farmacia",
+            farmaciaId: d.farmaciaId,
+            startDate: c.startDate,
+            endDate: c.endDate,
+            considerStock: c.considerStock,
+            baseRule: c.baseRule as ProposalBaseRule,
+            targetCoverageDays: c.coverageDays,
+            filters: {
+              fabricantes: c.filters.fabricantes,
+              fornecedores: c.filters.fornecedores,
+              categorias: c.filters.categorias,
+              subcategorias: c.filters.subcategorias,
+              utilizacoes: c.filters.utilizacoes,
+              productTypes: c.filters.productTypes,
+              // Universo = as linhas persistidas: garante que cada uma tem
+              // a sua linha fresca independentemente dos filtros.
+              cnps: persistidas.map((l) => l.cnp),
+            },
+          });
+          if (fresca.ok) {
+            setLinhas(enriquecerLinhasRascunho(persistidas, fresca.data.rows));
+            enriquecido = true;
+          }
+        } catch {
+          // mantém as linhas persistidas, marcadas como desactualizadas
+        }
+      }
       setFlash({
         type: "info",
-        msg: `Rascunho retomado — ${d.linhas.length} linha(s). Gera uma nova proposta para actualizar vendas/cobertura/stock.`,
+        msg: enriquecido
+          ? `Rascunho retomado — ${d.linhas.length} linha(s); vendas/stock/cobertura recalculados, quantidades e notas preservadas.`
+          : `Rascunho retomado — ${d.linhas.length} linha(s). Não foi possível recalcular vendas/cobertura/stock; as quantidades estão intactas.`,
       });
       setCarregandoRascunho(false);
     })();
@@ -1175,6 +1247,7 @@ export function OrderCreateClient({
     autosave.resolverConflitoActualizar();
     setDraftId(null);
     setDraftVersaoInicial(0);
+    chaveIdempotenciaRef.current = null; // nova sessão de rascunho → nova chave
     const params = new URLSearchParams(searchParams.toString());
     if (params.has("rascunho")) {
       params.delete("rascunho");
@@ -1451,10 +1524,19 @@ export function OrderCreateClient({
         return;
       }
 
+      // Chave de idempotência POR farmácia, estável entre tentativas: se
+      // 1 de N criações falhar e o utilizador voltar a clicar, as N-1 que
+      // já existem são devolvidas (não duplicadas) e só a falhada é criada.
+      const contextoConsolidacao = serializarPropostaContexto(buildContextoActual()) ?? null;
+      const chavesConsolidacao = chavesConsolidacaoRef.current;
       startTransition(async () => {
         const results = await Promise.all(
-          [...byFarmacia.entries()].map(([fId, fLinhas]) =>
-            createOrderAction({
+          [...byFarmacia.entries()].map(([fId, fLinhas]) => {
+            const chaveId = `${fId}:${finalize ? "F" : "R"}`;
+            if (!chavesConsolidacao.has(chaveId)) {
+              chavesConsolidacao.set(chaveId, crypto.randomUUID().replace(/-/g, ""));
+            }
+            return createOrderAction({
               farmaciaId: fId,
               nome: (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180),
               finalize,
@@ -1465,13 +1547,16 @@ export function OrderCreateClient({
                 notas: l.notas.trim() || null,
                 origem: l.origem,
               })),
-            })
-          )
+              contexto: contextoConsolidacao,
+              clientIdempotencyKey: chavesConsolidacao.get(chaveId),
+            });
+          })
         );
         const errors = results.filter((r) => !r.ok);
         if (errors.length > 0) {
           setFlash({ type: "err", msg: `${errors.length} encomenda(s) falharam.` });
         } else {
+          chavesConsolidacao.clear();
           setFlash({ type: "ok", msg: `${byFarmacia.size} encomenda(s) criadas.` });
           setLinhas([]);
           setHasProposal(false);
