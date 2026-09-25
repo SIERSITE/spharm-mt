@@ -7,6 +7,7 @@ import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import {
+  createConsolidatedOrdersAction,
   createOrderAction,
   generateProposalAction,
   gerarPlanoGrupoAction,
@@ -356,8 +357,12 @@ export function OrderCreateClient({
   // vez por tentativa e reutilizada em retries após erro — o servidor
   // devolve o rascunho já criado se a resposta original se perdeu.
   const draftPromiseRef = useRef<Promise<string | null> | null>(null);
-  const chaveIdempotenciaRef = useRef<string | null>(null);
-  const chavesConsolidacaoRef = useRef<Map<string, string>>(new Map());
+  const pedidoCongeladoRef = useRef<{ chave: string; input: Parameters<typeof createOrderAction>[0] } | null>(null);
+  const pendentesPosCriacaoRef = useRef<
+    Array<{ produtoId: string; patch?: { quantidadeAjustada?: number | null; notas?: string | null; origem?: OrigemLinha }; remover?: boolean }>
+  >([]);
+  // Consolidação: chave do lote + impressão do payload com que foi gerada.
+  const loteConsolidacaoRef = useRef<{ chave: string; impressao: string } | null>(null);
   const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
 
   const utilizador = useUtilizador();
@@ -369,6 +374,19 @@ export function OrderCreateClient({
     userId: utilizador?.userId ?? "desconhecido",
     autosaveAction: autosaveEncomendaAction,
   });
+
+  // Depois de um rascunho recuperado por retry, aplica as edições que o
+  // utilizador fez enquanto a criação falhava/estava pendente.
+  useEffect(() => {
+    if (!draftId || pendentesPosCriacaoRef.current.length === 0) return;
+    const pendentes = pendentesPosCriacaoRef.current;
+    pendentesPosCriacaoRef.current = [];
+    for (const p of pendentes) {
+      if (p.remover) autosave.marcarRemovido(p.produtoId);
+      else if (p.patch) autosave.marcarSujo(p.produtoId, p.patch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftId]);
 
   function buildContextoActual(): PropostaContexto {
     return {
@@ -420,15 +438,14 @@ export function OrderCreateClient({
     });
     if (validas.length === 0) return Promise.resolve(null);
 
-    if (!chaveIdempotenciaRef.current) {
-      chaveIdempotenciaRef.current = crypto.randomUUID().replace(/-/g, "");
-    }
-    const chave = chaveIdempotenciaRef.current;
-
-    const promessa = (async (): Promise<string | null> => {
-      try {
-        const contexto = buildContextoActual();
-        const result = await createOrderAction({
+    // Pedido CONGELADO junto da chave: um retry após timeout/perda de
+    // resposta reenvia exactamente o mesmo payload (o servidor compara o
+    // hash — payload diferente sob a mesma chave seria conflito). As
+    // edições feitas entretanto seguem depois pelo autosave (abaixo).
+    if (!pedidoCongeladoRef.current) {
+      pedidoCongeladoRef.current = {
+        chave: crypto.randomUUID().replace(/-/g, ""),
+        input: {
           farmaciaId,
           nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
           finalize: false,
@@ -439,22 +456,49 @@ export function OrderCreateClient({
             notas: l.notas.trim() || null,
             origem: l.origem,
           })),
-          contexto: serializarPropostaContexto(contexto) ?? null,
-          clientIdempotencyKey: chave,
-        });
+          contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
+        },
+      };
+    }
+    const congelado = pedidoCongeladoRef.current;
+
+    const promessa = (async (): Promise<string | null> => {
+      try {
+        const result = await createOrderAction({ ...congelado.input, clientIdempotencyKey: congelado.chave });
         if (!result.ok) {
           setFlash({ type: "err", msg: result.error });
-          return null; // a chave mantém-se: o próximo retry é idempotente
+          // Conflito explícito: a chave não pode ser reutilizada com outro
+          // pedido — a próxima tentativa nasce com chave nova.
+          if (result.code === "IDEMPOTENCY_CONFLICT") pedidoCongeladoRef.current = null;
+          return null; // caso contrário a chave e o pedido mantêm-se: o retry é idempotente
         }
+        pedidoCongeladoRef.current = null;
         setDraftId(result.listaEncomendaId);
         setDraftVersaoInicial(0);
+        // Edições posteriores ao pedido congelado (retry após falha):
+        // vão para o servidor pelo autosave com optimistic locking.
+        const noServidor = new Map(congelado.input.linhas.map((l) => [l.produtoId, l]));
+        const actuais = new Map(validas.map((l) => [l.produtoId, l]));
+        for (const l of validas) {
+          const antes = noServidor.get(l.produtoId);
+          const notasAgora = l.notas.trim() || null;
+          if (!antes || antes.quantidadeAjustada !== Number(l.finalQty) || (antes.notas ?? null) !== notasAgora) {
+            pendentesPosCriacaoRef.current.push({
+              produtoId: l.produtoId,
+              patch: { quantidadeAjustada: Number(l.finalQty), notas: notasAgora, origem: l.origem },
+            });
+          }
+        }
+        for (const id of noServidor.keys()) {
+          if (!actuais.has(id)) pendentesPosCriacaoRef.current.push({ produtoId: id, remover: true });
+        }
         const params = new URLSearchParams(searchParams.toString());
         params.set("rascunho", result.listaEncomendaId);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
         return result.listaEncomendaId;
       } catch (err) {
-        // Rede/timeout: o servidor pode ter criado o rascunho. Retry com a
-        // mesma chave devolve-o em vez de duplicar.
+        // Rede/timeout: o servidor pode ter criado o rascunho. O retry
+        // reenvia o MESMO pedido com a MESMA chave e recupera-o.
         setFlash({ type: "err", msg: err instanceof Error ? err.message : "Falha ao criar rascunho." });
         return null;
       } finally {
@@ -1247,7 +1291,8 @@ export function OrderCreateClient({
     autosave.resolverConflitoActualizar();
     setDraftId(null);
     setDraftVersaoInicial(0);
-    chaveIdempotenciaRef.current = null; // nova sessão de rascunho → nova chave
+    pedidoCongeladoRef.current = null; // nova sessão de rascunho → nova chave
+    pendentesPosCriacaoRef.current = [];
     const params = new URLSearchParams(searchParams.toString());
     if (params.has("rascunho")) {
       params.delete("rascunho");
@@ -1524,45 +1569,53 @@ export function OrderCreateClient({
         return;
       }
 
-      // Chave de idempotência POR farmácia, estável entre tentativas: se
-      // 1 de N criações falhar e o utilizador voltar a clicar, as N-1 que
-      // já existem são devolvidas (não duplicadas) e só a falhada é criada.
+      // Lote ÚNICO, uma só transacção no servidor (tudo ou nada). A chave
+      // do lote é estável entre retries do MESMO payload (retry idempotente,
+      // sem duplicar); se o utilizador editou linhas desde a tentativa
+      // anterior a impressão muda e nasce uma chave NOVA — a operação nova
+      // reflecte sempre as edições (nunca se devolve o lote antigo).
+      // Como a criação é atómica, uma tentativa falhada nunca deixa
+      // encomendas parciais que a chave nova pudesse duplicar.
+      const nomeLote = (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180);
+      const lotes = [...byFarmacia.entries()]
+        .sort(([x], [y]) => (x < y ? -1 : 1))
+        .map(([fId, fLinhas]) => ({
+          farmaciaId: fId,
+          linhas: [...fLinhas]
+            .sort((x, y) => (x.produtoId < y.produtoId ? -1 : 1))
+            .map((l) => ({
+              produtoId: l.produtoId,
+              quantidadeSugerida: l.suggestedQty ?? null,
+              quantidadeAjustada: Number(l.finalQty),
+              notas: l.notas.trim() || null,
+              origem: l.origem,
+            })),
+        }));
       const contextoConsolidacao = serializarPropostaContexto(buildContextoActual()) ?? null;
-      const chavesConsolidacao = chavesConsolidacaoRef.current;
+      const impressao = JSON.stringify([nomeLote, finalize, contextoConsolidacao, lotes]);
+      if (!loteConsolidacaoRef.current || loteConsolidacaoRef.current.impressao !== impressao) {
+        loteConsolidacaoRef.current = { chave: crypto.randomUUID().replace(/-/g, ""), impressao };
+      }
+      const chaveLote = loteConsolidacaoRef.current.chave;
       startTransition(async () => {
-        const results = await Promise.all(
-          [...byFarmacia.entries()].map(([fId, fLinhas]) => {
-            const chaveId = `${fId}:${finalize ? "F" : "R"}`;
-            if (!chavesConsolidacao.has(chaveId)) {
-              chavesConsolidacao.set(chaveId, crypto.randomUUID().replace(/-/g, ""));
-            }
-            return createOrderAction({
-              farmaciaId: fId,
-              nome: (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180),
-              finalize,
-              linhas: fLinhas.map((l) => ({
-                produtoId: l.produtoId,
-                quantidadeSugerida: l.suggestedQty ?? null,
-                quantidadeAjustada: Number(l.finalQty),
-                notas: l.notas.trim() || null,
-                origem: l.origem,
-              })),
-              contexto: contextoConsolidacao,
-              clientIdempotencyKey: chavesConsolidacao.get(chaveId),
-            });
-          })
-        );
-        const errors = results.filter((r) => !r.ok);
-        if (errors.length > 0) {
-          setFlash({ type: "err", msg: `${errors.length} encomenda(s) falharam.` });
-        } else {
-          chavesConsolidacao.clear();
-          setFlash({ type: "ok", msg: `${byFarmacia.size} encomenda(s) criadas.` });
-          setLinhas([]);
-          setHasProposal(false);
-          setProposalMeta(null);
-          setTimeout(() => router.push("/encomendas"), 800);
+        const r = await createConsolidatedOrdersAction({
+          batchKey: chaveLote,
+          nome: nomeLote,
+          finalize,
+          contexto: contextoConsolidacao,
+          lotes,
+        });
+        if (!r.ok) {
+          if (r.code === "IDEMPOTENCY_CONFLICT") loteConsolidacaoRef.current = null;
+          setFlash({ type: "err", msg: `Consolidação não criada (nada foi gravado): ${r.error}` });
+          return;
         }
+        loteConsolidacaoRef.current = null;
+        setFlash({ type: "ok", msg: `${r.listas.length} encomenda(s) criadas.` });
+        setLinhas([]);
+        setHasProposal(false);
+        setProposalMeta(null);
+        setTimeout(() => router.push("/encomendas"), 800);
       });
     } else {
       // Só "farmacia" chega aqui (o botão não existe em modo "grupo" —

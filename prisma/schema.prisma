@@ -2015,6 +2015,10 @@ model ListaEncomenda {
   /// gerarPlanoGrupoAction, scripts) — só o fluxo eager de
   /// `/encomendas/nova` gera e envia esta chave.
   clientIdempotencyKey String? @unique
+  /// SHA-256 canónico do pedido que criou este rascunho (utilizador, farmácia,
+  /// modo, contexto, linhas). Mesma chave + hash diferente = conflito explícito,
+  /// nunca o rascunho antigo devolvido como se o pedido novo tivesse sido aplicado.
+  clientRequestHash    String?
 
   farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])

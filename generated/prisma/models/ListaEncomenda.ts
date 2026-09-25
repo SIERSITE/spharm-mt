@@ -46,6 +46,7 @@ export type ListaEncomendaMinAggregateOutputType = {
   versao: number | null
   contextoJson: string | null
   clientIdempotencyKey: string | null
+  clientRequestHash: string | null
 }
 
 export type ListaEncomendaMaxAggregateOutputType = {
@@ -60,6 +61,7 @@ export type ListaEncomendaMaxAggregateOutputType = {
   versao: number | null
   contextoJson: string | null
   clientIdempotencyKey: string | null
+  clientRequestHash: string | null
 }
 
 export type ListaEncomendaCountAggregateOutputType = {
@@ -74,6 +76,7 @@ export type ListaEncomendaCountAggregateOutputType = {
   versao: number
   contextoJson: number
   clientIdempotencyKey: number
+  clientRequestHash: number
   _all: number
 }
 
@@ -98,6 +101,7 @@ export type ListaEncomendaMinAggregateInputType = {
   versao?: true
   contextoJson?: true
   clientIdempotencyKey?: true
+  clientRequestHash?: true
 }
 
 export type ListaEncomendaMaxAggregateInputType = {
@@ -112,6 +116,7 @@ export type ListaEncomendaMaxAggregateInputType = {
   versao?: true
   contextoJson?: true
   clientIdempotencyKey?: true
+  clientRequestHash?: true
 }
 
 export type ListaEncomendaCountAggregateInputType = {
@@ -126,6 +131,7 @@ export type ListaEncomendaCountAggregateInputType = {
   versao?: true
   contextoJson?: true
   clientIdempotencyKey?: true
+  clientRequestHash?: true
   _all?: true
 }
 
@@ -227,6 +233,7 @@ export type ListaEncomendaGroupByOutputType = {
   versao: number
   contextoJson: string | null
   clientIdempotencyKey: string | null
+  clientRequestHash: string | null
   _count: ListaEncomendaCountAggregateOutputType | null
   _avg: ListaEncomendaAvgAggregateOutputType | null
   _sum: ListaEncomendaSumAggregateOutputType | null
@@ -264,6 +271,7 @@ export type ListaEncomendaWhereInput = {
   versao?: Prisma.IntFilter<"ListaEncomenda"> | number
   contextoJson?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
   clientIdempotencyKey?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
   linhas?: Prisma.LinhaEncomendaListRelationFilter
@@ -282,6 +290,7 @@ export type ListaEncomendaOrderByWithRelationInput = {
   versao?: Prisma.SortOrder
   contextoJson?: Prisma.SortOrderInput | Prisma.SortOrder
   clientIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   criadoPor?: Prisma.UtilizadorOrderByWithRelationInput
   linhas?: Prisma.LinhaEncomendaOrderByRelationAggregateInput
@@ -303,6 +312,7 @@ export type ListaEncomendaWhereUniqueInput = Prisma.AtLeast<{
   dataAtualizacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
   versao?: Prisma.IntFilter<"ListaEncomenda"> | number
   contextoJson?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
   linhas?: Prisma.LinhaEncomendaListRelationFilter
@@ -321,6 +331,7 @@ export type ListaEncomendaOrderByWithAggregationInput = {
   versao?: Prisma.SortOrder
   contextoJson?: Prisma.SortOrderInput | Prisma.SortOrder
   clientIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.ListaEncomendaCountOrderByAggregateInput
   _avg?: Prisma.ListaEncomendaAvgOrderByAggregateInput
   _max?: Prisma.ListaEncomendaMaxOrderByAggregateInput
@@ -343,6 +354,7 @@ export type ListaEncomendaScalarWhereWithAggregatesInput = {
   versao?: Prisma.IntWithAggregatesFilter<"ListaEncomenda"> | number
   contextoJson?: Prisma.StringNullableWithAggregatesFilter<"ListaEncomenda"> | string | null
   clientIdempotencyKey?: Prisma.StringNullableWithAggregatesFilter<"ListaEncomenda"> | string | null
+  clientRequestHash?: Prisma.StringNullableWithAggregatesFilter<"ListaEncomenda"> | string | null
 }
 
 export type ListaEncomendaCreateInput = {
@@ -355,6 +367,7 @@ export type ListaEncomendaCreateInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
@@ -373,6 +386,7 @@ export type ListaEncomendaUncheckedCreateInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -387,6 +401,7 @@ export type ListaEncomendaUpdateInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
@@ -405,6 +420,7 @@ export type ListaEncomendaUncheckedUpdateInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -421,6 +437,7 @@ export type ListaEncomendaCreateManyInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type ListaEncomendaUpdateManyMutationInput = {
@@ -433,6 +450,7 @@ export type ListaEncomendaUpdateManyMutationInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type ListaEncomendaUncheckedUpdateManyInput = {
@@ -447,6 +465,7 @@ export type ListaEncomendaUncheckedUpdateManyInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type ListaEncomendaListRelationFilter = {
@@ -471,6 +490,7 @@ export type ListaEncomendaCountOrderByAggregateInput = {
   versao?: Prisma.SortOrder
   contextoJson?: Prisma.SortOrder
   clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type ListaEncomendaAvgOrderByAggregateInput = {
@@ -489,6 +509,7 @@ export type ListaEncomendaMaxOrderByAggregateInput = {
   versao?: Prisma.SortOrder
   contextoJson?: Prisma.SortOrder
   clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type ListaEncomendaMinOrderByAggregateInput = {
@@ -503,6 +524,7 @@ export type ListaEncomendaMinOrderByAggregateInput = {
   versao?: Prisma.SortOrder
   contextoJson?: Prisma.SortOrder
   clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type ListaEncomendaSumOrderByAggregateInput = {
@@ -644,6 +666,7 @@ export type ListaEncomendaCreateWithoutFarmaciaInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -660,6 +683,7 @@ export type ListaEncomendaUncheckedCreateWithoutFarmaciaInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -705,6 +729,7 @@ export type ListaEncomendaScalarWhereInput = {
   versao?: Prisma.IntFilter<"ListaEncomenda"> | number
   contextoJson?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
   clientIdempotencyKey?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"ListaEncomenda"> | string | null
 }
 
 export type ListaEncomendaCreateWithoutCriadoPorInput = {
@@ -717,6 +742,7 @@ export type ListaEncomendaCreateWithoutCriadoPorInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -733,6 +759,7 @@ export type ListaEncomendaUncheckedCreateWithoutCriadoPorInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -773,6 +800,7 @@ export type ListaEncomendaCreateWithoutLinhasInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -790,6 +818,7 @@ export type ListaEncomendaUncheckedCreateWithoutLinhasInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
 
@@ -819,6 +848,7 @@ export type ListaEncomendaUpdateWithoutLinhasInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -836,6 +866,7 @@ export type ListaEncomendaUncheckedUpdateWithoutLinhasInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
 
@@ -849,6 +880,7 @@ export type ListaEncomendaCreateWithoutOutboxInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
@@ -866,6 +898,7 @@ export type ListaEncomendaUncheckedCreateWithoutOutboxInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
 }
 
@@ -895,6 +928,7 @@ export type ListaEncomendaUpdateWithoutOutboxInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
@@ -912,6 +946,7 @@ export type ListaEncomendaUncheckedUpdateWithoutOutboxInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
 }
 
@@ -926,6 +961,7 @@ export type ListaEncomendaCreateManyFarmaciaInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type ListaEncomendaUpdateWithoutFarmaciaInput = {
@@ -938,6 +974,7 @@ export type ListaEncomendaUpdateWithoutFarmaciaInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -954,6 +991,7 @@ export type ListaEncomendaUncheckedUpdateWithoutFarmaciaInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -969,6 +1007,7 @@ export type ListaEncomendaUncheckedUpdateManyWithoutFarmaciaInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type ListaEncomendaCreateManyCriadoPorInput = {
@@ -982,6 +1021,7 @@ export type ListaEncomendaCreateManyCriadoPorInput = {
   versao?: number
   contextoJson?: string | null
   clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type ListaEncomendaUpdateWithoutCriadoPorInput = {
@@ -994,6 +1034,7 @@ export type ListaEncomendaUpdateWithoutCriadoPorInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -1010,6 +1051,7 @@ export type ListaEncomendaUncheckedUpdateWithoutCriadoPorInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -1025,6 +1067,7 @@ export type ListaEncomendaUncheckedUpdateManyWithoutCriadoPorInput = {
   versao?: Prisma.IntFieldUpdateOperationsInput | number
   contextoJson?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -1070,6 +1113,7 @@ export type ListaEncomendaSelect<ExtArgs extends runtime.Types.Extensions.Intern
   versao?: boolean
   contextoJson?: boolean
   clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
   linhas?: boolean | Prisma.ListaEncomenda$linhasArgs<ExtArgs>
@@ -1089,6 +1133,7 @@ export type ListaEncomendaSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   versao?: boolean
   contextoJson?: boolean
   clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["listaEncomenda"]>
@@ -1105,6 +1150,7 @@ export type ListaEncomendaSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   versao?: boolean
   contextoJson?: boolean
   clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["listaEncomenda"]>
@@ -1121,9 +1167,10 @@ export type ListaEncomendaSelectScalar = {
   versao?: boolean
   contextoJson?: boolean
   clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
 }
 
-export type ListaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "nome" | "estado" | "estadoExport" | "criadoPorId" | "dataCriacao" | "dataAtualizacao" | "versao" | "contextoJson" | "clientIdempotencyKey", ExtArgs["result"]["listaEncomenda"]>
+export type ListaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "nome" | "estado" | "estadoExport" | "criadoPorId" | "dataCriacao" | "dataAtualizacao" | "versao" | "contextoJson" | "clientIdempotencyKey" | "clientRequestHash", ExtArgs["result"]["listaEncomenda"]>
 export type ListaEncomendaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
@@ -1199,6 +1246,12 @@ export type $ListaEncomendaPayload<ExtArgs extends runtime.Types.Extensions.Inte
      * `/encomendas/nova` gera e envia esta chave.
      */
     clientIdempotencyKey: string | null
+    /**
+     * SHA-256 canónico do pedido que criou este rascunho (utilizador, farmácia,
+     * modo, contexto, linhas). Mesma chave + hash diferente = conflito explícito,
+     * nunca o rascunho antigo devolvido como se o pedido novo tivesse sido aplicado.
+     */
+    clientRequestHash: string | null
   }, ExtArgs["result"]["listaEncomenda"]>
   composites: {}
 }
@@ -1637,6 +1690,7 @@ export interface ListaEncomendaFieldRefs {
   readonly versao: Prisma.FieldRef<"ListaEncomenda", 'Int'>
   readonly contextoJson: Prisma.FieldRef<"ListaEncomenda", 'String'>
   readonly clientIdempotencyKey: Prisma.FieldRef<"ListaEncomenda", 'String'>
+  readonly clientRequestHash: Prisma.FieldRef<"ListaEncomenda", 'String'>
 }
     
 

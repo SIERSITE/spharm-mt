@@ -880,7 +880,8 @@ export const ListaEncomendaScalarFieldEnum = {
   dataAtualizacao: 'dataAtualizacao',
   versao: 'versao',
   contextoJson: 'contextoJson',
-  clientIdempotencyKey: 'clientIdempotencyKey'
+  clientIdempotencyKey: 'clientIdempotencyKey',
+  clientRequestHash: 'clientRequestHash'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]

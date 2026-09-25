@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OrigemLinha } from "@/lib/encomendas/origem-linha";
 
 /**
@@ -104,124 +104,289 @@ function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
+/** Chave de idempotência já usada com outro pedido/utilizador/farmácia. Nunca finge sucesso. */
+export class IdempotencyConflictError extends Error {
+  readonly code = "IDEMPOTENCY_CONFLICT" as const;
+  constructor(message: string) {
+    super(message);
+    this.name = "IdempotencyConflictError";
+  }
+}
+
+export type OrderRequestFingerprintInput = {
+  criadoPorId: string;
+  farmaciaId: string;
+  modo: string;
+  finalize: boolean;
+  nome: string;
+  contexto: string | null | undefined;
+  linhas: OrderLineInput[];
+  /** Consolidação: as farmácias do lote, para o lote não poder mudar de composição sob a mesma chave. */
+  loteFarmaciaIds?: string[];
+};
+
+/**
+ * Impressão digital determinística (SHA-256 de uma serialização
+ * canónica) do pedido relevante: utilizador, farmácia, modo, contexto
+ * e linhas (ordenadas por produto) com quantidades, notas e origem.
+ * Persistida em `ListaEncomenda.clientRequestHash` junto da chave.
+ */
+export function computeOrderRequestHash(p: OrderRequestFingerprintInput): string {
+  const linhas = p.linhas
+    .map((l) => ({
+      produtoId: l.produtoId,
+      sug: l.quantidadeSugerida ?? null,
+      aj: l.quantidadeAjustada ?? null,
+      forn: l.fornecedorSugeridoId ?? null,
+      notas: (l.notas ?? "").trim() || null,
+      origem: l.origem ?? "PROPOSTA",
+    }))
+    .sort((x, y) =>
+      x.produtoId !== y.produtoId ? (x.produtoId < y.produtoId ? -1 : 1) : x.origem < y.origem ? -1 : x.origem > y.origem ? 1 : 0
+    );
+  const canon = JSON.stringify({
+    v: 1,
+    u: p.criadoPorId,
+    f: p.farmaciaId,
+    m: p.modo,
+    fin: p.finalize,
+    n: p.nome,
+    c: p.contexto ?? null,
+    l: linhas,
+    lote: p.loteFarmaciaIds ? [...p.loteFarmaciaIds].sort() : null,
+  });
+  return sha256Hex(canon);
+}
+
+/** Chave por farmácia derivada, de forma estável, da chave do lote. */
+export function deriveFarmaciaIdempotencyKey(batchKey: string, farmaciaId: string): string {
+  return sha256Hex(`${batchKey}:${farmaciaId}`);
+}
+
+type Tx = Prisma.TransactionClient;
+
+type ResultadoCriacao = { listaEncomendaId: string; outboxId: string | null; reutilizado: boolean };
+
+/**
+ * Cria lista + linhas (+ outbox se finalize) DENTRO de uma transacção
+ * já aberta. Se a chave de cliente já existir: mesmo pedido (hash igual,
+ * mesmo utilizador/farmácia) devolve o existente; qualquer outra coisa
+ * lança `IdempotencyConflictError`.
+ */
+async function criarListaNaTransaccao(
+  tx: Tx,
+  tenantSlug: string,
+  input: CreateOrderInput,
+  modo: string,
+  loteFarmaciaIds?: string[]
+): Promise<ResultadoCriacao> {
+  const chaveCliente = input.clientIdempotencyKey ?? null;
+  const hash = chaveCliente
+    ? computeOrderRequestHash({
+        criadoPorId: input.criadoPorId,
+        farmaciaId: input.farmaciaId,
+        modo,
+        finalize: input.finalize,
+        nome: input.nome,
+        contexto: input.contexto,
+        linhas: input.linhas,
+        loteFarmaciaIds,
+      })
+    : null;
+
+  if (chaveCliente) {
+    const existente = await tx.listaEncomenda.findUnique({
+      where: { clientIdempotencyKey: chaveCliente },
+      select: {
+        id: true,
+        farmaciaId: true,
+        criadoPorId: true,
+        clientRequestHash: true,
+        outbox: { select: { id: true } },
+      },
+    });
+    if (existente) {
+      if (existente.farmaciaId !== input.farmaciaId || existente.criadoPorId !== input.criadoPorId) {
+        throw new IdempotencyConflictError("Chave de idempotência já usada por outro utilizador ou farmácia.");
+      }
+      if (existente.clientRequestHash !== hash) {
+        throw new IdempotencyConflictError(
+          "Esta chave de idempotência já foi usada com um pedido diferente — o pedido actual não foi aplicado."
+        );
+      }
+      return { listaEncomendaId: existente.id, outboxId: existente.outbox?.id ?? null, reutilizado: true };
+    }
+  }
+
+  const lista = await tx.listaEncomenda.create({
+    data: {
+      farmaciaId: input.farmaciaId,
+      criadoPorId: input.criadoPorId,
+      nome: input.nome,
+      estado: input.finalize ? "FINALIZADA" : "RASCUNHO",
+      estadoExport: "PENDENTE",
+      ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
+      ...(chaveCliente ? { clientIdempotencyKey: chaveCliente, clientRequestHash: hash } : {}),
+      linhas: {
+        create: input.linhas.map((l) => ({
+          produtoId: l.produtoId,
+          quantidadeSugerida: l.quantidadeSugerida ?? null,
+          quantidadeAjustada: l.quantidadeAjustada ?? null,
+          fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
+          notas: l.notas ?? null,
+          origem: l.origem ?? "PROPOSTA",
+        })),
+      },
+    },
+    include: { linhas: true },
+  });
+
+  if (!input.finalize) {
+    return { listaEncomendaId: lista.id, outboxId: null, reutilizado: false };
+  }
+
+  const payload: FrozenOrderPayload = {
+    version: 1,
+    tenantSlug,
+    listaEncomendaId: lista.id,
+    farmaciaId: lista.farmaciaId,
+    nome: lista.nome,
+    criadoPorId: lista.criadoPorId,
+    criadoEm: lista.dataCriacao.toISOString(),
+    linhas: lista.linhas.map((l) => ({
+      produtoId: l.produtoId,
+      quantidadeSugerida: l.quantidadeSugerida !== null ? l.quantidadeSugerida.toString() : null,
+      quantidadeAjustada: l.quantidadeAjustada !== null ? l.quantidadeAjustada.toString() : null,
+      fornecedorSugeridoId: l.fornecedorSugeridoId,
+      notas: l.notas,
+    })),
+  };
+  const payloadJson = JSON.stringify(payload);
+  const payloadHash = sha256Hex(payloadJson);
+
+  const outbox = await tx.orderOutbox.create({
+    data: {
+      listaEncomendaId: lista.id,
+      farmaciaId: lista.farmaciaId,
+      payloadJson,
+      idempotencyKey: buildIdempotencyKey(tenantSlug, lista.id),
+      payloadHash,
+      state: "PENDENTE",
+      attemptCount: 0,
+      // nextAttemptAt default now() — elegível para o próximo poll.
+    },
+  });
+
+  return { listaEncomendaId: lista.id, outboxId: outbox.id, reutilizado: false };
+}
+
+function exigirTenantELinhas(tenantSlug: string, nLinhas: number) {
+  if (!tenantSlug || tenantSlug.length === 0) {
+    throw new Error(
+      "[ingest/orders] tenantSlug em falta — o outbox precisa do slug do tenant corrente para compor a idempotency key."
+    );
+  }
+  if (nLinhas === 0) {
+    throw new Error("[ingest/orders] lista sem linhas não é exportável.");
+  }
+}
+
+/**
+ * Executa `fn` numa transacção; se a corrida entre dois pedidos com a
+ * MESMA chave rebentar no índice único (P2002 — que aborta a transacção
+ * em Postgres), repete UMA vez: na 2.ª tentativa o vencedor já é visível
+ * e é reutilizado (mesmo pedido) ou dá conflito (pedido diferente).
+ */
+async function transaccaoIdempotente<T>(prisma: PrismaClient, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      return await prisma.$transaction(fn);
+    } catch (err) {
+      if (tentativa === 0 && (err as { code?: string })?.code === "P2002") continue;
+      throw err;
+    }
+  }
+}
+
 /**
  * Cria uma ListaEncomenda com as suas linhas e, se `finalize=true`,
  * cria também a row OrderOutbox na mesma transacção.
  *
  * Retorna a lista criada e (se finalize) o outboxId correspondente.
  * Lança se a transacção falhar — caller decide o que fazer.
+ * Com `clientIdempotencyKey`: retry do MESMO pedido devolve o resultado
+ * existente; pedido diferente sob a mesma chave lança `IdempotencyConflictError`.
  */
 export async function createEncomendaWithOutbox(
   prisma: PrismaClient,
   tenantSlug: string,
-  input: CreateOrderInput
+  input: CreateOrderInput,
+  modo: string = "farmacia"
 ): Promise<{ listaEncomendaId: string; outboxId: string | null }> {
-  if (!tenantSlug || tenantSlug.length === 0) {
-    throw new Error(
-      "[ingest/orders] tenantSlug em falta — o outbox precisa do slug do tenant corrente para compor a idempotency key."
-    );
-  }
-  if (input.linhas.length === 0) {
-    throw new Error("[ingest/orders] lista sem linhas não é exportável.");
-  }
+  exigirTenantELinhas(tenantSlug, input.linhas.length);
+  const r = await transaccaoIdempotente(prisma, (tx) => criarListaNaTransaccao(tx, tenantSlug, input, modo));
+  return { listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId };
+}
 
-  const chaveCliente = input.clientIdempotencyKey ?? null;
-  if (chaveCliente) {
-    const existente = await prisma.listaEncomenda.findUnique({
-      where: { clientIdempotencyKey: chaveCliente },
-      select: { id: true, farmaciaId: true, criadoPorId: true, outbox: { select: { id: true } } },
-    });
-    if (existente) {
-      if (existente.farmaciaId !== input.farmaciaId || existente.criadoPorId !== input.criadoPorId) {
-        throw new Error("[ingest/orders] chave de idempotência já usada por outra sessão.");
-      }
-      return { listaEncomendaId: existente.id, outboxId: existente.outbox?.id ?? null };
-    }
-  }
+export type ConsolidatedOrdersInput = {
+  /** Chave do LOTE (gerada pelo cliente); a de cada farmácia deriva dela. */
+  batchKey: string;
+  criadoPorId: string;
+  nome: string;
+  finalize: boolean;
+  contexto?: string | null;
+  lotes: Array<{ farmaciaId: string; linhas: OrderLineInput[] }>;
+};
 
-  try {
-    return await criarTransaccional();
-  } catch (err) {
-    // Corrida: dois pedidos com a MESMA chave passaram o findUnique acima;
-    // o segundo INSERT choca no @unique (P2002) — devolve o vencedor.
-    if (chaveCliente && (err as { code?: string })?.code === "P2002") {
-      const vencedor = await prisma.listaEncomenda.findUnique({
-        where: { clientIdempotencyKey: chaveCliente },
-        select: { id: true, farmaciaId: true, criadoPorId: true },
-      });
-      if (vencedor && vencedor.farmaciaId === input.farmaciaId && vencedor.criadoPorId === input.criadoPorId) {
-        return { listaEncomendaId: vencedor.id, outboxId: null };
-      }
-    }
-    throw err;
-  }
+/**
+ * Consolidação: TODAS as encomendas (uma por farmácia) e os seus outbox
+ * numa ÚNICA transacção. Uma falha em qualquer farmácia faz rollback do
+ * lote inteiro — nunca fica um conjunto parcial criado por uma operação
+ * nova. Retry do mesmo lote devolve o mesmo resultado; lote diferente
+ * sob a mesma chave lança `IdempotencyConflictError` (e faz rollback).
+ */
+export async function createConsolidatedOrdersWithOutbox(
+  prisma: PrismaClient,
+  tenantSlug: string,
+  input: ConsolidatedOrdersInput
+): Promise<{
+  reutilizado: boolean;
+  listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null }>;
+}> {
+  exigirTenantELinhas(tenantSlug, input.lotes.length);
+  const ids = input.lotes.map((l) => l.farmaciaId);
+  if (new Set(ids).size !== ids.length) throw new Error("[ingest/orders] farmácia repetida no lote.");
+  for (const l of input.lotes) exigirTenantELinhas(tenantSlug, l.linhas.length);
 
-  function criarTransaccional() {
-  return prisma.$transaction(async (tx) => {
-    const lista = await tx.listaEncomenda.create({
-      data: {
-        farmaciaId: input.farmaciaId,
-        criadoPorId: input.criadoPorId,
-        nome: input.nome,
-        estado: input.finalize ? "FINALIZADA" : "RASCUNHO",
-        estadoExport: "PENDENTE",
-        ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
-        ...(chaveCliente ? { clientIdempotencyKey: chaveCliente } : {}),
-        linhas: {
-          create: input.linhas.map((l) => ({
-            produtoId: l.produtoId,
-            quantidadeSugerida: l.quantidadeSugerida ?? null,
-            quantidadeAjustada: l.quantidadeAjustada ?? null,
-            fornecedorSugeridoId: l.fornecedorSugeridoId ?? null,
-            notas: l.notas ?? null,
-            origem: l.origem ?? "PROPOSTA",
-          })),
+  return transaccaoIdempotente(prisma, async (tx) => {
+    const listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null }> = [];
+    let reutilizados = 0;
+    for (const lote of input.lotes) {
+      const r = await criarListaNaTransaccao(
+        tx,
+        tenantSlug,
+        {
+          farmaciaId: lote.farmaciaId,
+          criadoPorId: input.criadoPorId,
+          nome: input.nome,
+          finalize: input.finalize,
+          linhas: lote.linhas,
+          contexto: input.contexto,
+          clientIdempotencyKey: deriveFarmaciaIdempotencyKey(input.batchKey, lote.farmaciaId),
         },
-      },
-      include: { linhas: true },
-    });
-
-    if (!input.finalize) {
-      return { listaEncomendaId: lista.id, outboxId: null };
+        "consolidacao",
+        ids
+      );
+      if (r.reutilizado) reutilizados++;
+      listas.push({ farmaciaId: lote.farmaciaId, listaEncomendaId: r.listaEncomendaId, outboxId: r.outboxId });
     }
-
-    const payload: FrozenOrderPayload = {
-      version: 1,
-      tenantSlug,
-      listaEncomendaId: lista.id,
-      farmaciaId: lista.farmaciaId,
-      nome: lista.nome,
-      criadoPorId: lista.criadoPorId,
-      criadoEm: lista.dataCriacao.toISOString(),
-      linhas: lista.linhas.map((l) => ({
-        produtoId: l.produtoId,
-        quantidadeSugerida:
-          l.quantidadeSugerida !== null ? l.quantidadeSugerida.toString() : null,
-        quantidadeAjustada:
-          l.quantidadeAjustada !== null ? l.quantidadeAjustada.toString() : null,
-        fornecedorSugeridoId: l.fornecedorSugeridoId,
-        notas: l.notas,
-      })),
-    };
-    const payloadJson = JSON.stringify(payload);
-    const payloadHash = sha256Hex(payloadJson);
-
-    const outbox = await tx.orderOutbox.create({
-      data: {
-        listaEncomendaId: lista.id,
-        farmaciaId: lista.farmaciaId,
-        payloadJson,
-        idempotencyKey: buildIdempotencyKey(tenantSlug, lista.id),
-        payloadHash,
-        state: "PENDENTE",
-        attemptCount: 0,
-        // nextAttemptAt default now() — elegível para o próximo poll.
-      },
-    });
-
-    return { listaEncomendaId: lista.id, outboxId: outbox.id };
+    // Lote misto (parte já existia, parte nova) nunca é aceite como sucesso:
+    // seria um conjunto parcial de uma operação anterior.
+    if (reutilizados !== 0 && reutilizados !== input.lotes.length) {
+      throw new IdempotencyConflictError("Lote de consolidação parcialmente existente sob a mesma chave.");
+    }
+    return { reutilizado: reutilizados === input.lotes.length, listas };
   });
-  }
 }
 
 /**
