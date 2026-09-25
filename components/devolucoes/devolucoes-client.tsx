@@ -141,9 +141,16 @@ export function DevolucoesClient({ farmaciasInfo, filterOptions }: Props) {
     };
   }, [filteredRows, groupedBySupplier]);
 
+  // Exactamente as linhas visíveis, na mesma sequência: o ecrã agrupa por
+  // fornecedor (ordenado por valor total desc) e, dentro de cada grupo,
+  // ordena por produto A-Z (`groupedBySupplier` acima) — a exportação
+  // usava `filteredRows` directamente, plano e na ordem crua do servidor,
+  // sem nenhum agrupamento nem ordenação.
+  const rowsParaExportacao = groupedBySupplier.flatMap((g) => g.rows);
+
   const reportSource = () =>
     buildDevolucoesReport({
-      rows: filteredRows.map((r) => ({
+      rows: rowsParaExportacao.map((r) => ({
         data: r.data,
         cnp: r.cnp,
         produto: r.produto,

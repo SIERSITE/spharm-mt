@@ -978,7 +978,16 @@ export function VendasClient({
                 hide={!hasGenerated ? { print: true, pdf: true, excel: true, email: true } : undefined}
                 report={() =>
                   buildVendasReport({
-                    rows: orderedRows,
+                    // Exactamente as linhas visíveis, na mesma sequência:
+                    // `rowsOrdenadas` é o que a tabela renderiza (filtros +
+                    // agrupamento + ordenação do selector + ordenação por
+                    // cabeçalho) — `orderedRows` parava antes do clique no
+                    // cabeçalho, por isso a exportação podia sair numa
+                    // ordem diferente da que o utilizador via no ecrã. Em
+                    // "comparativo" a tabela mostra `comparativoRows` (a
+                    // sua própria ordenação fixa por código+farmácia, sem
+                    // selector nem cabeçalho clicável) — o export segue-a.
+                    rows: ambito === "comparativo" ? comparativoRows : rowsOrdenadas,
                     buckets,
                     filters: {
                       ambito,

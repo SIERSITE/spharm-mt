@@ -457,7 +457,12 @@ export function TransferenciasClient({
             hide={!relatorioGerado ? { print: true, pdf: true, excel: true, email: true } : undefined}
             report={() =>
               buildTransferenciasReport({
-                rows: rowsForReport,
+                // `rowsVisiveis` é o que a tabela renderiza (filtros +
+                // ordenação do selector "Ordenar por" + ordenação por
+                // cabeçalho). `rowsForReport` parava antes de AMBAS as
+                // ordenações — a exportação saía sempre na ordem crua do
+                // servidor, independentemente do que o utilizador via.
+                rows: rowsVisiveis,
                 filters: {
                   farmaciasOrigemSelecionadas,
                   farmaciasDestinoSelecionadas,

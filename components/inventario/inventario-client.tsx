@@ -205,6 +205,13 @@ export function InventarioClient({
       rotura: number;
       excesso: number;
       semMovimento: number;
+      // Contadas também aqui (não só em `counts`) para que a exportação
+      // (buildInventarioPorFarmaciaReport, que exige InventarioPorFarmaciaRow
+      // completo) possa reutilizar exactamente estas linhas agregadas —
+      // ver buildReport() abaixo.
+      semCusto: number;
+      semStock: number;
+      normal: number;
     };
     const m = new Map<string, Acc>();
     for (const r of rowsByEstado) {
@@ -221,6 +228,9 @@ export function InventarioClient({
           rotura: 0,
           excesso: 0,
           semMovimento: 0,
+          semCusto: 0,
+          semStock: 0,
+          normal: 0,
         });
       }
       const acc = m.get(key)!;
@@ -232,6 +242,9 @@ export function InventarioClient({
       if (r.estado === "ROTURA") acc.rotura++;
       if (r.estado === "EXCESSO") acc.excesso++;
       if (r.estado === "SEM_MOVIMENTO") acc.semMovimento++;
+      if (r.estado === "SEM_CUSTO") acc.semCusto++;
+      if (r.estado === "SEM_STOCK") acc.semStock++;
+      if (r.estado === "NORMAL") acc.normal++;
     }
     return Array.from(m.values()).sort((a, b) =>
       a.label.localeCompare(b.label, "pt-PT"),
@@ -287,6 +300,34 @@ export function InventarioClient({
         organization,
       });
     }
+    // Dentro de vista="produto" existe um SEGUNDO toggle, "Agrupar por:
+    // Farmácia" (`agrupamento`), que troca a tabela para as linhas
+    // agregadas (`aggregated`, KPIs por farmácia) em vez do detalhe por
+    // produto. buildReport() nunca olhava para `agrupamento` — exportava
+    // sempre o detalhe plano, mesmo quando o ecrã mostrava os agregados.
+    if (agrupamento === "farmacia" && aggregated) {
+      return buildInventarioPorFarmaciaReport({
+        rows: aggregated.map((a) => ({
+          farmaciaId: a.key,
+          farmacia: a.label,
+          numProdutos: a.numProdutos,
+          stockTotal: a.stockTotal,
+          valorStockSemIva: a.valorStockSemIva,
+          valorIva: a.valorIva,
+          valorStockComIva: a.valorStockComIva,
+          rotura: a.rotura,
+          excesso: a.excesso,
+          semMovimento: a.semMovimento,
+          semCusto: a.semCusto,
+          semStock: a.semStock,
+          normal: a.normal,
+        })),
+        filters,
+        universe: uni,
+        organization,
+      });
+    }
+
     return buildInventarioReport({
       // As MESMAS linhas que estão no ecrã, na MESMA ordem: quem ordena
       // a tabela e depois exporta espera o PDF pela ordem que viu.

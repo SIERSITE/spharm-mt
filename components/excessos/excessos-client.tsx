@@ -375,7 +375,13 @@ export function ExcessosClient({
             hide={!relatorioGerado ? { print: true, pdf: true, excel: true, email: true } : undefined}
             report={() =>
               buildExcessosReport({
-                rows: rowsForReport,
+                // `rowsVisiveis` é o que a tabela ("Tabela" e "Relatório",
+                // ver comentário mais abaixo sobre essas duas vistas)
+                // renderiza — filtros + ordenação do selector + ordenação
+                // por cabeçalho. `rowsForReport` parava antes de AMBAS —
+                // a exportação real (PDF/Excel/email) ainda tinha o mesmo
+                // problema que a vista "Relatório" já tinha corrigido.
+                rows: rowsVisiveis,
                 filters: {
                   farmaciasOrigemSelecionadas,
                   farmaciasDestinoSelecionadas,
