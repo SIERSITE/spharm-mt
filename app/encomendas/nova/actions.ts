@@ -115,8 +115,14 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       },
     });
 
-    revalidatePath("/encomendas");
-    revalidatePath("/configuracoes/integracao");
+    // Rascunho: sem `revalidatePath` (páginas `force-dynamic`; ver o comentário em
+    // autosaveEncomendaAction) — revalidar aqui revertia `?rascunho=<id>` na URL
+    // logo depois de o rascunho eager ser criado. Só a finalização (outbox) muda
+    // o que as outras páginas mostram.
+    if (input.finalize) {
+      revalidatePath("/encomendas");
+      revalidatePath("/configuracoes/integracao");
+    }
     return { ok: true, ...result };
   } catch (err) {
     if (err instanceof IdempotencyConflictError) {

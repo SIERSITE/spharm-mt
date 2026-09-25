@@ -446,7 +446,10 @@ export async function autosaveEncomendaAction(input: {
         versaoNova: resultado.versao,
       },
     });
-    revalidateDetail(input.listaEncomendaId);
+    // SEM `revalidatePath`: as páginas de encomendas são `force-dynamic` (nada em
+    // cache a invalidar) e uma revalidação dentro de uma Server Action faz o
+    // Next re-renderizar a rota actual e REPOR a URL de antes da acção — medido
+    // no browser: `?rascunho=<id>` desaparecia depois do primeiro autosave.
     return { ok: true, versao: resultado.versao, gravadas: resultado.gravadas, removidas: resultado.removidas };
   } catch (err) {
     if (err instanceof ConflitoVersaoError) {

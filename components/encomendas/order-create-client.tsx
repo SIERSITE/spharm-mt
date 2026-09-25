@@ -494,7 +494,12 @@ export function OrderCreateClient({
         }
         const params = new URLSearchParams(searchParams.toString());
         params.set("rascunho", result.listaEncomendaId);
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        // `history.replaceState` (integrado com useSearchParams — ver docs
+        // do Next, «single-page-applications») em vez de `router.replace`:
+        // depois de uma Server Action que faz `revalidatePath`, o payload
+        // devolvido traz a URL de ANTES e reverte o `router.replace` (medido
+        // no browser: `?rascunho=` desaparecia logo após criar o rascunho).
+        window.history.replaceState(window.history.state, "", `${pathname}?${params.toString()}`);
         return result.listaEncomendaId;
       } catch (err) {
         // Rede/timeout: o servidor pode ter criado o rascunho. O retry
@@ -1297,7 +1302,7 @@ export function OrderCreateClient({
     if (params.has("rascunho")) {
       params.delete("rascunho");
       const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      window.history.replaceState(window.history.state, "", query ? `${pathname}?${query}` : pathname);
     }
   }
 

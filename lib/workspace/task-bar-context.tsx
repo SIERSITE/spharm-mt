@@ -51,7 +51,7 @@ export function gerarWorkspaceId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-type EstadoPersistido = { tarefas: Tarefa[]; activaId: string | null };
+export type EstadoPersistido = { tarefas: Tarefa[]; activaId: string | null };
 
 function chave(tenant: string, userId: string): string {
   return `spharmmt:task-bar:${tenant}:${userId}`;
@@ -75,6 +75,25 @@ function escrever(chaveLS: string, estado: EstadoPersistido): void {
   } catch {
     // Quota excedida/bloqueado — a barra fica só em memória nesta sessão.
   }
+}
+
+/**
+ * Reducers PUROS de `marcarSujo`/`actualizarTitulo`. Sem mudança real devolvem
+ * `prev` (MESMA referência): um setState que cria sempre um objecto novo acorda
+ * todos os consumidores do contexto, e um efeito com `taskBar` nas dependências
+ * volta a chamar isto — ciclo infinito que deixava a navegação congelada
+ * (medido no browser em Vendas/Margens/Inventário/Transferências/Excessos).
+ */
+export function reduzirSujo(prev: EstadoPersistido, id: string, sujo: boolean): EstadoPersistido {
+  const t = prev.tarefas.find((x) => x.id === id);
+  if (!t || t.sujo === sujo) return prev;
+  return { ...prev, tarefas: prev.tarefas.map((x) => (x.id === id ? { ...x, sujo } : x)) };
+}
+
+export function reduzirTitulo(prev: EstadoPersistido, id: string, titulo: string): EstadoPersistido {
+  const t = prev.tarefas.find((x) => x.id === id);
+  if (!t || t.titulo === titulo) return prev;
+  return { ...prev, tarefas: prev.tarefas.map((x) => (x.id === id ? { ...x, titulo } : x)) };
 }
 
 type ContextoTaskBar = {
@@ -162,11 +181,11 @@ export function TaskBarProvider({
   }, []);
 
   const marcarSujo = useCallback((id: string, sujo: boolean) => {
-    setEstado((prev) => ({ ...prev, tarefas: prev.tarefas.map((t) => (t.id === id ? { ...t, sujo } : t)) }));
+    setEstado((prev) => reduzirSujo(prev, id, sujo));
   }, []);
 
   const actualizarTitulo = useCallback((id: string, titulo: string) => {
-    setEstado((prev) => ({ ...prev, tarefas: prev.tarefas.map((t) => (t.id === id ? { ...t, titulo } : t)) }));
+    setEstado((prev) => reduzirTitulo(prev, id, titulo));
   }, []);
 
   const valor = useMemo<ContextoTaskBar>(
