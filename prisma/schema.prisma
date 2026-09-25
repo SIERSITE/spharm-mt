@@ -1986,6 +1986,14 @@ model ListaEncomenda {
   criadoPorId     String
   dataCriacao     DateTime             @default(now())
   dataAtualizacao DateTime             @updatedAt
+  /// Bloqueio optimista (optimistic locking) para o autosave do rascunho.
+  /// Incrementado a CADA gravação bem sucedida (autosave em lote ou
+  /// updateLineAction/removeLineAction/addManualLineAction). Um pedido
+  /// de gravação que chegue com uma versão diferente da actual é
+  /// recusado — nunca last-write-wins silencioso quando o mesmo rascunho
+  /// está aberto em duas tarefas/separadores/dispositivos. Ver
+  /// lib/encomendas/autosave.ts.
+  versao          Int                  @default(0)
 
   farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])

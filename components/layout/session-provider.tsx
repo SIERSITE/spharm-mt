@@ -30,6 +30,14 @@ export type UtilizadorSessao = {
   nome: string;
   email: string;
   perfil: string;
+  /**
+   * Id do utilizador (claim `sub` do JWT) e slug do tenant — adicionados
+   * para a barra de tarefas interna e para os rascunhos de encomenda
+   * (namespacing de chaves localStorage por tenant+utilizador; NUNCA a
+   * fonte de verdade de nenhum dado de negócio, só metadado de UI local).
+   */
+  userId: string;
+  tenant: string;
 };
 
 const Contexto = createContext<UtilizadorSessao | null>(null);

@@ -31,7 +31,7 @@ export default async function RootLayout({
 }>) {
   const sessao = await getSession();
   const utilizador = sessao
-    ? { nome: sessao.nome, email: sessao.email, perfil: sessao.perfil }
+    ? { nome: sessao.nome, email: sessao.email, perfil: sessao.perfil, userId: sessao.sub, tenant: sessao.tenant }
     : null;
 
   return (

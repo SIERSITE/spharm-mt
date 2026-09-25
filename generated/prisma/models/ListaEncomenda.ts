@@ -20,8 +20,18 @@ export type ListaEncomendaModel = runtime.Types.Result.DefaultSelection<Prisma.$
 
 export type AggregateListaEncomenda = {
   _count: ListaEncomendaCountAggregateOutputType | null
+  _avg: ListaEncomendaAvgAggregateOutputType | null
+  _sum: ListaEncomendaSumAggregateOutputType | null
   _min: ListaEncomendaMinAggregateOutputType | null
   _max: ListaEncomendaMaxAggregateOutputType | null
+}
+
+export type ListaEncomendaAvgAggregateOutputType = {
+  versao: number | null
+}
+
+export type ListaEncomendaSumAggregateOutputType = {
+  versao: number | null
 }
 
 export type ListaEncomendaMinAggregateOutputType = {
@@ -33,6 +43,7 @@ export type ListaEncomendaMinAggregateOutputType = {
   criadoPorId: string | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  versao: number | null
 }
 
 export type ListaEncomendaMaxAggregateOutputType = {
@@ -44,6 +55,7 @@ export type ListaEncomendaMaxAggregateOutputType = {
   criadoPorId: string | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  versao: number | null
 }
 
 export type ListaEncomendaCountAggregateOutputType = {
@@ -55,9 +67,18 @@ export type ListaEncomendaCountAggregateOutputType = {
   criadoPorId: number
   dataCriacao: number
   dataAtualizacao: number
+  versao: number
   _all: number
 }
 
+
+export type ListaEncomendaAvgAggregateInputType = {
+  versao?: true
+}
+
+export type ListaEncomendaSumAggregateInputType = {
+  versao?: true
+}
 
 export type ListaEncomendaMinAggregateInputType = {
   id?: true
@@ -68,6 +89,7 @@ export type ListaEncomendaMinAggregateInputType = {
   criadoPorId?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  versao?: true
 }
 
 export type ListaEncomendaMaxAggregateInputType = {
@@ -79,6 +101,7 @@ export type ListaEncomendaMaxAggregateInputType = {
   criadoPorId?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  versao?: true
 }
 
 export type ListaEncomendaCountAggregateInputType = {
@@ -90,6 +113,7 @@ export type ListaEncomendaCountAggregateInputType = {
   criadoPorId?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  versao?: true
   _all?: true
 }
 
@@ -131,6 +155,18 @@ export type ListaEncomendaAggregateArgs<ExtArgs extends runtime.Types.Extensions
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: ListaEncomendaAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: ListaEncomendaSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: ListaEncomendaMinAggregateInputType
@@ -161,6 +197,8 @@ export type ListaEncomendaGroupByArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   _count?: ListaEncomendaCountAggregateInputType | true
+  _avg?: ListaEncomendaAvgAggregateInputType
+  _sum?: ListaEncomendaSumAggregateInputType
   _min?: ListaEncomendaMinAggregateInputType
   _max?: ListaEncomendaMaxAggregateInputType
 }
@@ -174,7 +212,10 @@ export type ListaEncomendaGroupByOutputType = {
   criadoPorId: string
   dataCriacao: Date
   dataAtualizacao: Date
+  versao: number
   _count: ListaEncomendaCountAggregateOutputType | null
+  _avg: ListaEncomendaAvgAggregateOutputType | null
+  _sum: ListaEncomendaSumAggregateOutputType | null
   _min: ListaEncomendaMinAggregateOutputType | null
   _max: ListaEncomendaMaxAggregateOutputType | null
 }
@@ -206,6 +247,7 @@ export type ListaEncomendaWhereInput = {
   criadoPorId?: Prisma.StringFilter<"ListaEncomenda"> | string
   dataCriacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
+  versao?: Prisma.IntFilter<"ListaEncomenda"> | number
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
   linhas?: Prisma.LinhaEncomendaListRelationFilter
@@ -221,6 +263,7 @@ export type ListaEncomendaOrderByWithRelationInput = {
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  versao?: Prisma.SortOrder
   farmacia?: Prisma.FarmaciaOrderByWithRelationInput
   criadoPor?: Prisma.UtilizadorOrderByWithRelationInput
   linhas?: Prisma.LinhaEncomendaOrderByRelationAggregateInput
@@ -239,6 +282,7 @@ export type ListaEncomendaWhereUniqueInput = Prisma.AtLeast<{
   criadoPorId?: Prisma.StringFilter<"ListaEncomenda"> | string
   dataCriacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
+  versao?: Prisma.IntFilter<"ListaEncomenda"> | number
   farmacia?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
   linhas?: Prisma.LinhaEncomendaListRelationFilter
@@ -254,9 +298,12 @@ export type ListaEncomendaOrderByWithAggregationInput = {
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  versao?: Prisma.SortOrder
   _count?: Prisma.ListaEncomendaCountOrderByAggregateInput
+  _avg?: Prisma.ListaEncomendaAvgOrderByAggregateInput
   _max?: Prisma.ListaEncomendaMaxOrderByAggregateInput
   _min?: Prisma.ListaEncomendaMinOrderByAggregateInput
+  _sum?: Prisma.ListaEncomendaSumOrderByAggregateInput
 }
 
 export type ListaEncomendaScalarWhereWithAggregatesInput = {
@@ -271,6 +318,7 @@ export type ListaEncomendaScalarWhereWithAggregatesInput = {
   criadoPorId?: Prisma.StringWithAggregatesFilter<"ListaEncomenda"> | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"ListaEncomenda"> | Date | string
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"ListaEncomenda"> | Date | string
+  versao?: Prisma.IntWithAggregatesFilter<"ListaEncomenda"> | number
 }
 
 export type ListaEncomendaCreateInput = {
@@ -280,6 +328,7 @@ export type ListaEncomendaCreateInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
@@ -295,6 +344,7 @@ export type ListaEncomendaUncheckedCreateInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -306,6 +356,7 @@ export type ListaEncomendaUpdateInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
@@ -321,6 +372,7 @@ export type ListaEncomendaUncheckedUpdateInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -334,6 +386,7 @@ export type ListaEncomendaCreateManyInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
 }
 
 export type ListaEncomendaUpdateManyMutationInput = {
@@ -343,6 +396,7 @@ export type ListaEncomendaUpdateManyMutationInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type ListaEncomendaUncheckedUpdateManyInput = {
@@ -354,6 +408,7 @@ export type ListaEncomendaUncheckedUpdateManyInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type ListaEncomendaListRelationFilter = {
@@ -375,6 +430,11 @@ export type ListaEncomendaCountOrderByAggregateInput = {
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  versao?: Prisma.SortOrder
+}
+
+export type ListaEncomendaAvgOrderByAggregateInput = {
+  versao?: Prisma.SortOrder
 }
 
 export type ListaEncomendaMaxOrderByAggregateInput = {
@@ -386,6 +446,7 @@ export type ListaEncomendaMaxOrderByAggregateInput = {
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  versao?: Prisma.SortOrder
 }
 
 export type ListaEncomendaMinOrderByAggregateInput = {
@@ -397,6 +458,11 @@ export type ListaEncomendaMinOrderByAggregateInput = {
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  versao?: Prisma.SortOrder
+}
+
+export type ListaEncomendaSumOrderByAggregateInput = {
+  versao?: Prisma.SortOrder
 }
 
 export type ListaEncomendaScalarRelationFilter = {
@@ -531,6 +597,7 @@ export type ListaEncomendaCreateWithoutFarmaciaInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -544,6 +611,7 @@ export type ListaEncomendaUncheckedCreateWithoutFarmaciaInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -586,6 +654,7 @@ export type ListaEncomendaScalarWhereInput = {
   criadoPorId?: Prisma.StringFilter<"ListaEncomenda"> | string
   dataCriacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"ListaEncomenda"> | Date | string
+  versao?: Prisma.IntFilter<"ListaEncomenda"> | number
 }
 
 export type ListaEncomendaCreateWithoutCriadoPorInput = {
@@ -595,6 +664,7 @@ export type ListaEncomendaCreateWithoutCriadoPorInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -608,6 +678,7 @@ export type ListaEncomendaUncheckedCreateWithoutCriadoPorInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
@@ -645,6 +716,7 @@ export type ListaEncomendaCreateWithoutLinhasInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   outbox?: Prisma.OrderOutboxCreateNestedOneWithoutListaEncomendaInput
@@ -659,6 +731,7 @@ export type ListaEncomendaUncheckedCreateWithoutLinhasInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   outbox?: Prisma.OrderOutboxUncheckedCreateNestedOneWithoutListaEncomendaInput
 }
 
@@ -685,6 +758,7 @@ export type ListaEncomendaUpdateWithoutLinhasInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -699,6 +773,7 @@ export type ListaEncomendaUncheckedUpdateWithoutLinhasInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
 
@@ -709,6 +784,7 @@ export type ListaEncomendaCreateWithoutOutboxInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   farmacia: Prisma.FarmaciaCreateNestedOneWithoutListasEncomendaInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutListasEncomendaInput
   linhas?: Prisma.LinhaEncomendaCreateNestedManyWithoutListaEncomendaInput
@@ -723,6 +799,7 @@ export type ListaEncomendaUncheckedCreateWithoutOutboxInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
   linhas?: Prisma.LinhaEncomendaUncheckedCreateNestedManyWithoutListaEncomendaInput
 }
 
@@ -749,6 +826,7 @@ export type ListaEncomendaUpdateWithoutOutboxInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
@@ -763,6 +841,7 @@ export type ListaEncomendaUncheckedUpdateWithoutOutboxInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
 }
 
@@ -774,6 +853,7 @@ export type ListaEncomendaCreateManyFarmaciaInput = {
   criadoPorId: string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
 }
 
 export type ListaEncomendaUpdateWithoutFarmaciaInput = {
@@ -783,6 +863,7 @@ export type ListaEncomendaUpdateWithoutFarmaciaInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -796,6 +877,7 @@ export type ListaEncomendaUncheckedUpdateWithoutFarmaciaInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -808,6 +890,7 @@ export type ListaEncomendaUncheckedUpdateManyWithoutFarmaciaInput = {
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 export type ListaEncomendaCreateManyCriadoPorInput = {
@@ -818,6 +901,7 @@ export type ListaEncomendaCreateManyCriadoPorInput = {
   estadoExport?: $Enums.OrderExportState
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  versao?: number
 }
 
 export type ListaEncomendaUpdateWithoutCriadoPorInput = {
@@ -827,6 +911,7 @@ export type ListaEncomendaUpdateWithoutCriadoPorInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   farmacia?: Prisma.FarmaciaUpdateOneRequiredWithoutListasEncomendaNestedInput
   linhas?: Prisma.LinhaEncomendaUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUpdateOneWithoutListaEncomendaNestedInput
@@ -840,6 +925,7 @@ export type ListaEncomendaUncheckedUpdateWithoutCriadoPorInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
   linhas?: Prisma.LinhaEncomendaUncheckedUpdateManyWithoutListaEncomendaNestedInput
   outbox?: Prisma.OrderOutboxUncheckedUpdateOneWithoutListaEncomendaNestedInput
 }
@@ -852,6 +938,7 @@ export type ListaEncomendaUncheckedUpdateManyWithoutCriadoPorInput = {
   estadoExport?: Prisma.EnumOrderExportStateFieldUpdateOperationsInput | $Enums.OrderExportState
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  versao?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
 
@@ -894,6 +981,7 @@ export type ListaEncomendaSelect<ExtArgs extends runtime.Types.Extensions.Intern
   criadoPorId?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  versao?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
   linhas?: boolean | Prisma.ListaEncomenda$linhasArgs<ExtArgs>
@@ -910,6 +998,7 @@ export type ListaEncomendaSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   criadoPorId?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  versao?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["listaEncomenda"]>
@@ -923,6 +1012,7 @@ export type ListaEncomendaSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   criadoPorId?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  versao?: boolean
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["listaEncomenda"]>
@@ -936,9 +1026,10 @@ export type ListaEncomendaSelectScalar = {
   criadoPorId?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  versao?: boolean
 }
 
-export type ListaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "nome" | "estado" | "estadoExport" | "criadoPorId" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["listaEncomenda"]>
+export type ListaEncomendaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaId" | "nome" | "estado" | "estadoExport" | "criadoPorId" | "dataCriacao" | "dataAtualizacao" | "versao", ExtArgs["result"]["listaEncomenda"]>
 export type ListaEncomendaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmacia?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
@@ -979,6 +1070,16 @@ export type $ListaEncomendaPayload<ExtArgs extends runtime.Types.Extensions.Inte
     criadoPorId: string
     dataCriacao: Date
     dataAtualizacao: Date
+    /**
+     * Bloqueio optimista (optimistic locking) para o autosave do rascunho.
+     * Incrementado a CADA gravação bem sucedida (autosave em lote ou
+     * updateLineAction/removeLineAction/addManualLineAction). Um pedido
+     * de gravação que chegue com uma versão diferente da actual é
+     * recusado — nunca last-write-wins silencioso quando o mesmo rascunho
+     * está aberto em duas tarefas/separadores/dispositivos. Ver
+     * lib/encomendas/autosave.ts.
+     */
+    versao: number
   }, ExtArgs["result"]["listaEncomenda"]>
   composites: {}
 }
@@ -1414,6 +1515,7 @@ export interface ListaEncomendaFieldRefs {
   readonly criadoPorId: Prisma.FieldRef<"ListaEncomenda", 'String'>
   readonly dataCriacao: Prisma.FieldRef<"ListaEncomenda", 'DateTime'>
   readonly dataAtualizacao: Prisma.FieldRef<"ListaEncomenda", 'DateTime'>
+  readonly versao: Prisma.FieldRef<"ListaEncomenda", 'Int'>
 }
     
 

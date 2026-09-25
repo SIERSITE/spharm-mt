@@ -46,6 +46,8 @@ export type OrderDetail = {
   criadoPorNome: string;
   dataCriacao: Date;
   dataAtualizacao: Date;
+  /** Bloqueio optimista do autosave — ver lib/encomendas/autosave.ts. */
+  versao: number;
   linhas: OrderDetailLine[];
   outbox: {
     id: string;
@@ -157,6 +159,7 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
     criadoPorNome: lista.criadoPor.nome,
     dataCriacao: lista.dataCriacao,
     dataAtualizacao: lista.dataAtualizacao,
+    versao: lista.versao,
     linhas: lista.linhas.map((l) => ({
       id: l.id,
       produtoId: l.produtoId,

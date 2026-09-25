@@ -187,7 +187,15 @@ export async function createEncomendaWithOutbox(
 export async function finalizeAndQueueOrder(
   prisma: PrismaClient,
   tenantSlug: string,
-  listaEncomendaId: string
+  listaEncomendaId: string,
+  /**
+   * Quando fornecida, a finalização só prossegue se a versão actual do
+   * rascunho bater com esta — mesmo bloqueio optimista do autosave (ver
+   * lib/encomendas/autosave.ts). Evita finalizar por cima de uma edição
+   * concorrente que o cliente ainda não viu. Omitido = sem verificação
+   * (compatibilidade com chamadores que não gerem versão).
+   */
+  versaoEsperada?: number
 ): Promise<{ outboxId: string }> {
   if (!tenantSlug) {
     throw new Error("[ingest/orders] tenantSlug em falta.");
@@ -205,13 +213,18 @@ export async function finalizeAndQueueOrder(
       return { outboxId: lista.outbox.id };
     }
 
+    if (versaoEsperada !== undefined && lista.versao !== versaoEsperada) {
+      const { ConflitoVersaoError } = await import("@/lib/encomendas/autosave");
+      throw new ConflitoVersaoError(lista.versao);
+    }
+
     if (lista.linhas.length === 0) {
       throw new Error("[ingest/orders] lista sem linhas não é exportável.");
     }
 
     await tx.listaEncomenda.update({
       where: { id: lista.id },
-      data: { estado: "FINALIZADA", estadoExport: "PENDENTE" },
+      data: { estado: "FINALIZADA", estadoExport: "PENDENTE", versao: { increment: 1 } },
     });
 
     const payload: FrozenOrderPayload = {

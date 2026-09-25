@@ -259,6 +259,32 @@ export function OrderCreateClient({
 
   // ─── Linhas ──────────────────────────────────────────────────────────────
   const [linhas, setLinhas] = useState<Line[]>([]);
+
+  // Aviso ao fechar/recarregar o browser enquanto houver uma proposta
+  // (gerada ou com linhas manuais) que ainda não foi guardada no
+  // servidor — `submit()` faz `setLinhas([])` assim que o `createOrderAction`
+  // tem sucesso, o que desliga o aviso automaticamente (gravado = seguro
+  // navegar, nunca um aviso enganador).
+  //
+  // NOTA (âmbito desta revisão): este ecrã ainda não tem autosave
+  // incremental — ao contrário do detalhe de um rascunho já guardado
+  // (order-detail-client.tsx, lib/encomendas/use-autosave-encomenda.ts),
+  // a proposta aqui só é persistida no clique em "Guardar rascunho"/
+  // "Finalizar". Este aviso é a rede de segurança de NAVEGAÇÃO enquanto
+  // isso não muda; não substitui a persistência incremental. Um recálculo
+  // eager do rascunho a partir da 1ª edição, reutilizando exactamente o
+  // autosave já construído nesta revisão, fica identificado como o passo
+  // seguinte natural (ver relatório final).
+  useEffect(() => {
+    function handler(e: BeforeUnloadEvent) {
+      if (linhas.length === 0) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [linhas.length]);
+
   const [hasProposal, setHasProposal] = useState(false);
   const [proposalMeta, setProposalMeta] = useState<{
     numDays: number;
