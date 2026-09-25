@@ -285,7 +285,7 @@ console.log("\nL2 · Margens/Inventário usam o SearchableMultiSelect do Vendas"
   // A etiqueta JSX real (com quebra de linha) — não a menção em prosa no
   // comentário do cabeçalho do ficheiro, que fala do componente sem `<`.
   eq(
-    (barra.match(/<SearchableMultiSelect\n/g) ?? []).length,
+    (barra.match(/<SearchableMultiSelect\r?\n/g) ?? []).length,
     6,
     "os 6 filtros passam pelo mesmo SearchableMultiSelect do Vendas",
   );
