@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
+import { TaskBar } from "@/components/layout/task-bar";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -144,7 +146,19 @@ function rotuloPerfil(perfil: string): string {
 export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
   const pathname = usePathname();
   const utilizador = useUtilizador();
+  const taskBar = useTaskBar();
   const ehAdministrador = utilizador?.perfil === "ADMINISTRADOR";
+
+  // "Logout... com alterações pendentes avisa" — a tarefa ACTIVA é a
+  // única de que a AppShell pode saber, sem cada ecrã ter de registar um
+  // handler próprio: se estiver marcada como suja (autosave/beforeunload
+  // já a mantêm sincronizada), pede confirmação antes de terminar sessão.
+  function handleLogoutSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const activa = taskBar?.tarefas.find((t) => t.id === taskBar.activaId);
+    if (activa?.sujo && !confirm(`"${activa.titulo}" tem alterações por guardar. Terminar sessão mesmo assim?`)) {
+      e.preventDefault();
+    }
+  }
   const groups = (isPlatformAdmin ? [...navigation, platformGroup] : navigation)
     .map((g) => ({
       ...g,
@@ -314,7 +328,7 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
             <div className="text-sm font-medium text-slate-500">Dashboard</div>
 
             <div className="flex items-center gap-3">
-              <form action={logoutAction}>
+              <form action={logoutAction} onSubmit={handleLogoutSubmit}>
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-white/50 hover:text-slate-700"
@@ -325,6 +339,8 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
               </form>
             </div>
           </header>
+
+          <TaskBar />
 
           <main className="relative z-10 min-w-0 flex-1 px-8 py-8">{children}</main>
         </div>

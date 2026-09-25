@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import {
   createOrderAction,
@@ -284,6 +285,16 @@ export function OrderCreateClient({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [linhas.length]);
+
+  // Mesmo sinal ("há uma proposta em ecrã por guardar") espelhado na
+  // barra de tarefas — nunca uma segunda fonte de verdade além de
+  // `linhas.length`.
+  const taskBar = useTaskBar();
+  const pathname = usePathname();
+  useEffect(() => {
+    if (pathname) taskBar?.marcarSujo(pathname, linhas.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, linhas.length]);
 
   const [hasProposal, setHasProposal] = useState(false);
   const [proposalMeta, setProposalMeta] = useState<{

@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
 import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
@@ -24,6 +24,7 @@ import {
 import type { ProductSearchResult } from "@/app/encomendas/nova/search";
 import { useAutosaveEncomenda } from "@/lib/encomendas/use-autosave-encomenda";
 import { useUtilizador } from "@/components/layout/session-provider";
+import { useTaskBar } from "@/lib/workspace/task-bar-context";
 
 type Props = { detail: OrderDetail };
 
@@ -86,6 +87,21 @@ export function OrderDetailClient({ detail }: Props) {
     userId: utilizador?.userId ?? "desconhecido",
     autosaveAction: autosaveEncomendaAction,
   });
+
+  // Barra de tarefas: título mais claro que o genérico "Encomendas" (a
+  // rota auto-regista só o tipo), e sincroniza o indicador "por guardar"
+  // com o MESMO sinal que já governa o beforeunload do autosave — nunca
+  // duas fontes de verdade para "há trabalho por guardar".
+  const taskBar = useTaskBar();
+  const pathname = usePathname();
+  useEffect(() => {
+    if (pathname) taskBar?.actualizarTitulo(pathname, `Encomenda — ${detail.nome}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, detail.nome]);
+  useEffect(() => {
+    if (pathname) taskBar?.marcarSujo(pathname, autosave.temAlteracoesPendentes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, autosave.temAlteracoesPendentes]);
 
   // ─── Ponto 3 (secundário) — navegação por teclado no campo "Final" ────────
   //

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { getSession } from "@/lib/auth";
 import { SessionProvider } from "@/components/layout/session-provider";
+import { TaskBarProvider } from "@/lib/workspace/task-bar-context";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -40,7 +41,11 @@ export default async function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SessionProvider utilizador={utilizador}>{children}</SessionProvider>
+        <SessionProvider utilizador={utilizador}>
+          <TaskBarProvider tenant={sessao?.tenant ?? null} userId={sessao?.sub ?? null}>
+            {children}
+          </TaskBarProvider>
+        </SessionProvider>
       </body>
     </html>
   );
