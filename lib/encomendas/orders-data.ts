@@ -1,5 +1,4 @@
-import "server-only";
-import { getPrisma } from "@/lib/prisma";
+import type { PrismaClient } from "@/generated/prisma/client";
 import {
   Prisma,
   type OrderExportState,
@@ -29,6 +28,15 @@ export type OrderRow = {
   outboxId: string | null;
   spharmDocumentId: string | null;
   exportedAt: Date | null;
+  /**
+   * Estimativa de custo — SUM(quantidadeAjustada × ProdutoFarmacia.puc)
+   * das linhas com ambos os valores disponíveis. `null` quando NENHUMA
+   * linha tinha PUC conhecido (nunca finge um valor a partir de zero
+   * dados); `parcial=true` quando algumas linhas entraram no total mas
+   * outras ficaram de fora por falta de PUC — o valor mostrado é uma
+   * estimativa por defeito, nunca o total real da encomenda.
+   */
+  valorEstimado: { total: number; parcial: boolean } | null;
 };
 
 export type OrderListFilters = {
@@ -65,10 +73,9 @@ export function clampPage(n: number): number {
 }
 
 export async function loadOrderListData(
+  prisma: PrismaClient,
   filters: OrderListFilters
 ): Promise<OrderListData> {
-  const prisma = await getPrisma();
-
   const page = clampPage(filters.page);
   const pageSize = clampPageSize(filters.pageSize);
 
@@ -108,6 +115,7 @@ export async function loadOrderListData(
         outbox: {
           select: { id: true, spharmDocumentId: true, exportedAt: true },
         },
+        linhas: { select: { produtoId: true, quantidadeAjustada: true } },
       },
     }),
     prisma.listaEncomenda.count({ where }),
@@ -118,21 +126,61 @@ export async function loadOrderListData(
     }),
   ]);
 
-  const orders: OrderRow[] = listas.map((l) => ({
-    id: l.id,
-    nome: l.nome,
-    estado: l.estado,
-    estadoExport: l.estadoExport,
-    farmaciaId: l.farmaciaId,
-    farmaciaNome: l.farmacia.nome,
-    criadoPorNome: l.criadoPor.nome,
-    linhasCount: l._count.linhas,
-    dataCriacao: l.dataCriacao,
-    dataAtualizacao: l.dataAtualizacao,
-    outboxId: l.outbox?.id ?? null,
-    spharmDocumentId: l.outbox?.spharmDocumentId ?? null,
-    exportedAt: l.outbox?.exportedAt ?? null,
-  }));
+  // ── Valor estimado ──────────────────────────────────────────────
+  //
+  // Uma query extra, não um join no `findMany` acima: PUC é por
+  // (produtoId, farmaciaId) — cada encomenda desta página pode ter uma
+  // farmácia diferente, e um único `findMany` com `OR` por par é mais
+  // simples e mais barato do que N sub-queries (N = página, tipicamente
+  // ≤25). `pageSize` tem tecto de 200 — o `OR` nunca cresce sem limite.
+  const paresProdutoFarmacia = new Set<string>();
+  for (const l of listas) {
+    for (const linha of l.linhas) paresProdutoFarmacia.add(`${linha.produtoId}::${l.farmaciaId}`);
+  }
+  const pucPorPar = new Map<string, number>();
+  if (paresProdutoFarmacia.size > 0) {
+    const farmaciaIdsPagina = [...new Set(listas.map((l) => l.farmaciaId))];
+    const produtoIdsPagina = [...new Set(listas.flatMap((l) => l.linhas.map((x) => x.produtoId)))];
+    const rows = await prisma.produtoFarmacia.findMany({
+      where: { farmaciaId: { in: farmaciaIdsPagina }, produtoId: { in: produtoIdsPagina }, puc: { not: null } },
+      select: { produtoId: true, farmaciaId: true, puc: true },
+    });
+    for (const r of rows) {
+      if (r.puc == null) continue;
+      pucPorPar.set(`${r.produtoId}::${r.farmaciaId}`, Number(r.puc));
+    }
+  }
+
+  const orders: OrderRow[] = listas.map((l) => {
+    let total = 0;
+    let comValor = 0;
+    for (const linha of l.linhas) {
+      const puc = pucPorPar.get(`${linha.produtoId}::${l.farmaciaId}`);
+      const qtd = linha.quantidadeAjustada != null ? Number(linha.quantidadeAjustada) : null;
+      if (puc == null || qtd == null) continue;
+      total += puc * qtd;
+      comValor++;
+    }
+    const valorEstimado =
+      comValor === 0 ? null : { total, parcial: comValor < l.linhas.length };
+
+    return {
+      id: l.id,
+      nome: l.nome,
+      estado: l.estado,
+      estadoExport: l.estadoExport,
+      farmaciaId: l.farmaciaId,
+      farmaciaNome: l.farmacia.nome,
+      criadoPorNome: l.criadoPor.nome,
+      linhasCount: l._count.linhas,
+      dataCriacao: l.dataCriacao,
+      dataAtualizacao: l.dataAtualizacao,
+      outboxId: l.outbox?.id ?? null,
+      spharmDocumentId: l.outbox?.spharmDocumentId ?? null,
+      exportedAt: l.outbox?.exportedAt ?? null,
+      valorEstimado,
+    };
+  });
 
   return {
     orders,

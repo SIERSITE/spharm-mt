@@ -47,11 +47,28 @@ export type AutosaveInput = {
   listaEncomendaId: string;
   versaoEsperada: number;
   linhas: readonly LinhaAutosavePatch[];
+  /**
+   * produtoId das linhas a remover nesta gravação — ex.: o utilizador
+   * mudou os critérios da proposta e recalculou; produtos que saíram do
+   * novo cálculo deixam de fazer sentido no rascunho. Nunca usado para
+   * "limpar tudo": cada chamada só remove o que está explicitamente
+   * aqui, o resto do rascunho fica intocado.
+   */
+  linhasRemovidasProdutoIds?: readonly string[];
+  /**
+   * Contexto funcional da proposta (modo/período/cobertura/filtros),
+   * JSON já serializado pelo chamador — `undefined` = não tocar no que
+   * já lá está (autosave normal de linhas); `null` explícito limparia o
+   * campo, mas nenhum chamador actual faz isso. Ver
+   * `ListaEncomenda.contextoJson`.
+   */
+  contexto?: string | null;
 };
 
 export type AutosaveResultado = {
   versao: number;
   gravadas: number;
+  removidas: number;
 };
 
 export class ConflitoVersaoError extends Error {
@@ -77,12 +94,14 @@ export async function salvarAutosaveEncomenda(
   prisma: PrismaClient,
   input: AutosaveInput
 ): Promise<AutosaveResultado> {
-  if (input.linhas.length === 0) {
+  const remocoes = input.linhasRemovidasProdutoIds ?? [];
+  const semNada = input.linhas.length === 0 && remocoes.length === 0 && input.contexto === undefined;
+  if (semNada) {
     const atual = await prisma.listaEncomenda.findUniqueOrThrow({
       where: { id: input.listaEncomendaId },
       select: { versao: true },
     });
-    return { versao: atual.versao, gravadas: 0 };
+    return { versao: atual.versao, gravadas: 0, removidas: 0 };
   }
 
   return prisma.$transaction(async (tx) => {
@@ -121,12 +140,23 @@ export async function salvarAutosaveEncomenda(
       });
     }
 
+    let removidas = 0;
+    if (remocoes.length > 0) {
+      const resultado = await tx.linhaEncomenda.deleteMany({
+        where: { listaEncomendaId: input.listaEncomendaId, produtoId: { in: [...remocoes] } },
+      });
+      removidas = resultado.count;
+    }
+
     const actualizada = await tx.listaEncomenda.update({
       where: { id: input.listaEncomendaId },
-      data: { versao: { increment: 1 } },
+      data: {
+        versao: { increment: 1 },
+        ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
+      },
       select: { versao: true },
     });
 
-    return { versao: actualizada.versao, gravadas: input.linhas.length };
+    return { versao: actualizada.versao, gravadas: input.linhas.length, removidas };
   });
 }

@@ -59,6 +59,13 @@ export type CreateOrderInput = {
   /** Se true, a lista é criada já em FINALIZADA e o outbox fica PENDENTE. */
   finalize: boolean;
   linhas: OrderLineInput[];
+  /**
+   * Contexto funcional da proposta que originou este rascunho (modo,
+   * período, cobertura, filtros) — JSON já serializado pelo chamador.
+   * Grava directo em `ListaEncomenda.contextoJson` na MESMA transacção
+   * de criação; nenhum segundo write. Omitir = sem contexto registado.
+   */
+  contexto?: string | null;
 };
 
 /**
@@ -120,6 +127,7 @@ export async function createEncomendaWithOutbox(
         nome: input.nome,
         estado: input.finalize ? "FINALIZADA" : "RASCUNHO",
         estadoExport: "PENDENTE",
+        ...(input.contexto !== undefined ? { contextoJson: input.contexto } : {}),
         linhas: {
           create: input.linhas.map((l) => ({
             produtoId: l.produtoId,

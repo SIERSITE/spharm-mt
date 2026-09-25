@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import { createEncomendaWithOutbox, type OrderLineInput } from "@/lib/ingest/orders";
+import { loadOrderDetail } from "@/lib/encomendas/order-detail";
+import { parsearPropostaContexto, type PropostaContexto } from "@/lib/encomendas/proposal-context";
 import { logAudit } from "@/lib/audit";
 import { MAX_CODIGOS } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -26,11 +29,16 @@ import { resolverTransferenciaInterna } from "@/lib/transferencias/resolver-tran
 
 export type ProposalMode = "farmacia" | "grupo" | "consolidacao";
 
+/** Tecto do contexto serializado — mesmo valor de app/encomendas/[id]/actions.ts (CONTEXTO_MAX_CHARS). */
+const CONTEXT_JSON_MAX_CHARS = 20_000;
+
 export type CreateOrderFormInput = {
   farmaciaId: string;
   nome: string;
   finalize: boolean;
   linhas: OrderLineInput[];
+  /** Contexto funcional da proposta (modo/período/cobertura/filtros) — ver CreateOrderInput.contexto. */
+  contexto?: string | null;
 };
 
 export type GenerateProposalInput = {
@@ -62,6 +70,9 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
   if (!input.farmaciaId) return { ok: false, error: "Seleccione uma farmácia." };
   if (!input.nome.trim()) return { ok: false, error: "Nome da encomenda em falta." };
   if (input.linhas.length === 0) return { ok: false, error: "Adicione pelo menos um produto." };
+  if (input.contexto != null && input.contexto.length > CONTEXT_JSON_MAX_CHARS) {
+    return { ok: false, error: "Contexto da proposta excede o tamanho máximo." };
+  }
 
   try {
     const result = await createEncomendaWithOutbox(prisma, tenantSlug, {
@@ -70,6 +81,7 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
       nome: input.nome,
       finalize: input.finalize,
       linhas: input.linhas,
+      contexto: input.contexto,
     });
 
     await logAudit({
@@ -86,6 +98,93 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
+}
+
+// ─── Carregar rascunho (retomar em /encomendas/nova?rascunho=<id>) ──────────
+
+export type RascunhoNovaEncomendaLinha = {
+  produtoId: string;
+  cnp: number;
+  designacao: string;
+  fabricante: string | null;
+  fornecedor: string | null;
+  currentStock: number | null;
+  quantidadeSugerida: number | null;
+  quantidadeAjustada: number | null;
+  notas: string | null;
+  origem: "PROPOSTA" | "MANUAL" | "SUGESTAO";
+};
+
+export type RascunhoNovaEncomenda = {
+  listaEncomendaId: string;
+  versao: number;
+  nome: string;
+  farmaciaId: string;
+  contexto: PropostaContexto | null;
+  linhas: RascunhoNovaEncomendaLinha[];
+};
+
+/**
+ * Reconstrói um rascunho criado eagerly em `/encomendas/nova` (ver
+ * `lib/encomendas/proposal-context.ts`) — chamado ao montar o ecrã com
+ * `?rascunho=<id>` na URL, seja por recarregar a página, seja por abrir
+ * o mesmo link noutro computador.
+ *
+ * Reutiliza `loadOrderDetail` (o MESMO carregador de
+ * `app/encomendas/[id]/page.tsx`) para produtoId/cnp/designacao/
+ * fabricante/fornecedor/stock ACTUAL/quantidades/notas/origem — nunca
+ * uma segunda query a fazer a mesma coisa de forma ligeiramente
+ * diferente. As colunas só-de-análise da proposta (vendas médias,
+ * cobertura, pendente, motivo) NÃO são recalculadas aqui — ficam
+ * neutras até o utilizador voltar a clicar "Gerar proposta"; recalculá-
+ * -las eagerly implicaria correr o motor de propostas e fundir com
+ * `fundirComProposta`, cuja regra ("PROPOSTA é sempre substituída")
+ * descartaria silenciosamente uma quantidade editada numa linha ainda
+ * com origem PROPOSTA — exactamente o tipo de perda de dados silenciosa
+ * que esta funcionalidade existe para evitar.
+ */
+export async function carregarRascunhoNovaEncomendaAction(
+  listaEncomendaId: string
+): Promise<{ ok: true; data: RascunhoNovaEncomenda } | { ok: false; error: string }> {
+  const session = await requirePermission("reports.write");
+
+  const detail = await loadOrderDetail(listaEncomendaId);
+  if (!detail) return { ok: false, error: "Rascunho não encontrado." };
+  if (!canAccessFarmaciaSync(session, detail.farmaciaId)) {
+    return { ok: false, error: "Sem acesso a esta farmácia." };
+  }
+  if (detail.estado !== "RASCUNHO") {
+    return { ok: false, error: "Esta encomenda já não é um rascunho editável." };
+  }
+
+  const prisma = await getPrisma();
+  const raw = await prisma.listaEncomenda.findUnique({
+    where: { id: listaEncomendaId },
+    select: { contextoJson: true },
+  });
+
+  return {
+    ok: true,
+    data: {
+      listaEncomendaId: detail.id,
+      versao: detail.versao,
+      nome: detail.nome,
+      farmaciaId: detail.farmaciaId,
+      contexto: parsearPropostaContexto(raw?.contextoJson ?? null),
+      linhas: detail.linhas.map((l) => ({
+        produtoId: l.produtoId,
+        cnp: l.cnp,
+        designacao: l.designacao,
+        fabricante: l.fabricante,
+        fornecedor: l.fornecedor,
+        currentStock: l.currentStock,
+        quantidadeSugerida: l.quantidadeSugerida,
+        quantidadeAjustada: l.quantidadeAjustada,
+        notas: l.notas,
+        origem: l.origem,
+      })),
+    },
+  };
 }
 
 // ─── Gerar proposta ──────────────────────────────────────────────────────────

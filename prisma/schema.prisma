@@ -1994,6 +1994,15 @@ model ListaEncomenda {
   /// está aberto em duas tarefas/separadores/dispositivos. Ver
   /// lib/encomendas/autosave.ts.
   versao          Int                  @default(0)
+  /// Contexto funcional da PROPOSTA que gerou este rascunho — modo
+  /// (farmácia/grupo/consolidação), período, regra de cobertura, filtros
+  /// (fabricante/fornecedor/categoria/...) — serializado em JSON opaco,
+  /// nunca modelado em colunas próprias porque é o INPUT de uma análise,
+  /// não um dado de negócio com identidade própria. NULL para rascunhos
+  /// criados antes desta coluna existir, ou fora do fluxo de proposta
+  /// (ex.: consolidação). Nunca lido por nada fora do próprio ecrã que o
+  /// escreveu — reconstrói a análise ao reabrir, mais nada depende dele.
+  contextoJson    String?
 
   farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
   criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])

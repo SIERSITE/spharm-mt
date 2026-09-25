@@ -338,6 +338,7 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Exportação</th>
                   <th className="px-4 py-3">Linhas</th>
+                  <th className="px-4 py-3 text-right">Valor estim.</th>
                   <th className="px-4 py-3">Criado por</th>
                   <th className="px-4 py-3">Data</th>
                   <th className="px-4 py-3 text-right">Acções</th>
@@ -376,10 +377,28 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                       />
                     </td>
                     <td className="px-4 py-3 text-slate-600">{o.linhasCount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">
+                      {o.valorEstimado
+                        ? `${o.valorEstimado.total.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}${o.valorEstimado.parcial ? "*" : ""}`
+                        : "—"}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">{o.criadoPorNome}</td>
-                    <td className="px-4 py-3 text-slate-500">{fmtDate(o.dataCriacao)}</td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {/* Rascunho: a data que importa é a última gravação
+                          (autosave), não a criação — pode ter sido há
+                          semanas com dezenas de edições desde então. */}
+                      {fmtDate(o.estado === "RASCUNHO" ? o.dataAtualizacao : o.dataCriacao)}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {o.estado === "RASCUNHO" && (
+                          <Link
+                            href={`/encomendas/${o.id}`}
+                            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Continuar
+                          </Link>
+                        )}
                         {o.estado === "RASCUNHO" && (
                           <button
                             disabled={busy}
@@ -407,6 +426,12 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
               </tbody>
             </table>
           </div>
+          {data.orders.some((o) => o.valorEstimado?.parcial) && (
+            <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-400">
+              * Valor estimado com base no custo (PUC) — algumas linhas não têm PUC conhecido e ficam
+              de fora do total.
+            </p>
+          )}
         </div>
       )}
 

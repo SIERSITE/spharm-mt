@@ -343,8 +343,11 @@ export type AutosaveLinhaInput = {
 };
 
 export type AutosaveResult =
-  | { ok: true; versao: number; gravadas: number }
+  | { ok: true; versao: number; gravadas: number; removidas: number }
   | { ok: false; error: string; conflito?: true; versaoAtual?: number };
+
+/** Tecto do JSON de contexto (filtros/critérios da proposta) — generoso, mas nunca ilimitado. */
+const CONTEXTO_MAX_CHARS = 20_000;
 
 /**
  * Autosave em lote — chamado pelo hook de cliente (debounce 800-1500ms,
@@ -354,12 +357,19 @@ export type AutosaveResult =
  * Validação manual (mesma convenção do resto deste ficheiro — sem Zod
  * no projecto): tipo/forma de cada campo, tecto de linhas por chamada,
  * farmácia autorizada.
+ *
+ * `linhasRemovidasProdutoIds` (produtoIds a apagar) e `contexto` (JSON
+ * já serializado da proposta — modo/período/filtros; `undefined` não
+ * toca no que já está gravado) são ambos opcionais e piggybackam no
+ * mesmo autosave, nunca um segundo motor.
  */
 export async function autosaveEncomendaAction(input: {
   listaEncomendaId: string;
   farmaciaId: string;
   versaoEsperada: number;
   linhas: AutosaveLinhaInput[];
+  linhasRemovidasProdutoIds?: string[];
+  contexto?: string | null;
 }): Promise<AutosaveResult> {
   const session = await requirePermission("reports.write");
 
@@ -369,11 +379,23 @@ export async function autosaveEncomendaAction(input: {
   if (!Number.isInteger(input.versaoEsperada) || input.versaoEsperada < 0) {
     return { ok: false, error: "Versão inválida." };
   }
-  if (!Array.isArray(input.linhas) || input.linhas.length === 0) {
+  if (!Array.isArray(input.linhas)) {
+    return { ok: false, error: "Formato de linhas inválido." };
+  }
+  const remocoes = Array.isArray(input.linhasRemovidasProdutoIds) ? input.linhasRemovidasProdutoIds : [];
+  if (input.linhas.length === 0 && remocoes.length === 0 && input.contexto === undefined) {
     return { ok: false, error: "Nada para gravar." };
   }
-  if (input.linhas.length > AUTOSAVE_MAX_LINHAS) {
+  if (input.linhas.length > AUTOSAVE_MAX_LINHAS || remocoes.length > AUTOSAVE_MAX_LINHAS) {
     return { ok: false, error: `Demasiadas linhas num único autosave (máx. ${AUTOSAVE_MAX_LINHAS}).` };
+  }
+  if (input.contexto !== undefined && input.contexto !== null && input.contexto.length > CONTEXTO_MAX_CHARS) {
+    return { ok: false, error: "Contexto da proposta excede o tamanho máximo." };
+  }
+  for (const produtoId of remocoes) {
+    if (typeof produtoId !== "string" || produtoId.length === 0) {
+      return { ok: false, error: "produtoId inválido numa remoção." };
+    }
   }
 
   const linhas: LinhaAutosavePatch[] = [];
@@ -406,6 +428,8 @@ export async function autosaveEncomendaAction(input: {
       listaEncomendaId: input.listaEncomendaId,
       versaoEsperada: input.versaoEsperada,
       linhas,
+      linhasRemovidasProdutoIds: remocoes,
+      contexto: input.contexto,
     });
     // Um único registo de auditoria por chamada de autosave (não por
     // linha) — dezenas de PATCHes por minuto não devem inundar AuditLog;
@@ -415,10 +439,15 @@ export async function autosaveEncomendaAction(input: {
       action: "order.autosave",
       entity: "ListaEncomenda",
       entityId: input.listaEncomendaId,
-      meta: { produtoIds: linhas.map((l) => l.produtoId), versaoNova: resultado.versao },
+      meta: {
+        produtoIds: linhas.map((l) => l.produtoId),
+        produtoIdsRemovidos: remocoes,
+        contextoAlterado: input.contexto !== undefined,
+        versaoNova: resultado.versao,
+      },
     });
     revalidateDetail(input.listaEncomendaId);
-    return { ok: true, versao: resultado.versao, gravadas: resultado.gravadas };
+    return { ok: true, versao: resultado.versao, gravadas: resultado.gravadas, removidas: resultado.removidas };
   } catch (err) {
     if (err instanceof ConflitoVersaoError) {
       return { ok: false, error: err.message, conflito: true, versaoAtual: err.versaoAtual };

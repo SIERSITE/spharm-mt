@@ -36,23 +36,47 @@ function chaveFallback(tenantSlug: string, userId: string, listaEncomendaId: str
   return `spharmmt:autosave-encomenda:${tenantSlug}:${userId}:${listaEncomendaId}`;
 }
 
-function lerFallback(chave: string): Record<string, AutosaveLinhaInput> | null {
+/**
+ * Formato v2 — acrescenta remoções e contexto ao lado das linhas. `v` é
+ * um discriminador simples: qualquer coisa que não seja exactamente
+ * `v: 2` é tratada como "sem fallback" (nunca é fonte principal, perder
+ * um resumo de contingência antigo ao mudar de formato é aceitável).
+ */
+type FallbackPayload = {
+  v: 2;
+  linhas: Record<string, AutosaveLinhaInput>;
+  remocoes: string[];
+  contexto?: string | null;
+};
+
+function lerFallback(chave: string): FallbackPayload | null {
   try {
     const raw = window.localStorage.getItem(chave);
     if (!raw) return null;
-    return JSON.parse(raw) as Record<string, AutosaveLinhaInput>;
+    const parsed = JSON.parse(raw) as Partial<FallbackPayload>;
+    if (parsed.v !== 2 || typeof parsed.linhas !== "object" || parsed.linhas === null) return null;
+    return {
+      v: 2,
+      linhas: parsed.linhas,
+      remocoes: Array.isArray(parsed.remocoes) ? parsed.remocoes : [],
+      contexto: parsed.contexto,
+    };
   } catch {
     // Privado/bloqueado/indisponível — sem fallback, nunca rebenta o autosave real.
     return null;
   }
 }
 
-function escreverFallback(chave: string, pendentes: Record<string, AutosaveLinhaInput>): void {
+function escreverFallback(chave: string, payload: FallbackPayload): void {
   try {
-    if (Object.keys(pendentes).length === 0) {
+    const vazio =
+      Object.keys(payload.linhas).length === 0 &&
+      payload.remocoes.length === 0 &&
+      payload.contexto === undefined;
+    if (vazio) {
       window.localStorage.removeItem(chave);
     } else {
-      window.localStorage.setItem(chave, JSON.stringify(pendentes));
+      window.localStorage.setItem(chave, JSON.stringify(payload));
     }
   } catch {
     // Quota excedida ou indisponível — a gravação real no servidor continua a ser a fonte de verdade.
@@ -73,6 +97,8 @@ export function useAutosaveEncomenda(opts: {
     farmaciaId: string;
     versaoEsperada: number;
     linhas: AutosaveLinhaInput[];
+    linhasRemovidasProdutoIds?: string[];
+    contexto?: string | null;
   }) => Promise<AutosaveResult>;
 }) {
   const { listaEncomendaId, farmaciaId, tenantSlug, userId, onGravado, autosaveAction } = opts;
@@ -81,6 +107,10 @@ export function useAutosaveEncomenda(opts: {
   const [estado, setEstado] = useState<EstadoAutosave>({ tipo: "limpo" });
   const versaoRef = useRef(opts.versaoInicial);
   const pendentesRef = useRef<Map<string, AutosaveLinhaInput>>(new Map());
+  /** produtoIds marcados para remoção no próximo flush — ver `marcarRemovido`. */
+  const pendentesRemocaoRef = useRef<Set<string>>(new Set());
+  /** Contexto da proposta por gravar — `undefined` = nada pendente. */
+  const contextoPendenteRef = useRef<string | null | undefined>(undefined);
   const emVooRef = useRef(false);
   const reagendarRef = useRef(false);
   const bloqueadoRef = useRef(false); // true durante um conflito por resolver
@@ -94,10 +124,17 @@ export function useAutosaveEncomenda(opts: {
   useEffect(() => {
     if (!chave) return;
     const guardadas = lerFallback(chave);
-    if (guardadas && Object.keys(guardadas).length > 0) {
-      for (const [produtoId, patch] of Object.entries(guardadas)) {
+    if (!guardadas) return;
+    const temAlgo =
+      Object.keys(guardadas.linhas).length > 0 ||
+      guardadas.remocoes.length > 0 ||
+      guardadas.contexto !== undefined;
+    if (temAlgo) {
+      for (const [produtoId, patch] of Object.entries(guardadas.linhas)) {
         pendentesRef.current.set(produtoId, patch);
       }
+      for (const produtoId of guardadas.remocoes) pendentesRemocaoRef.current.add(produtoId);
+      if (guardadas.contexto !== undefined) contextoPendenteRef.current = guardadas.contexto;
       setEstado({ tipo: "sujo" });
       // Agenda o flush de retoma — não bloqueia a primeira renderização.
       timerRef.current = setTimeout(() => void flush(), 300);
@@ -115,13 +152,22 @@ export function useAutosaveEncomenda(opts: {
 
   const persistirFallback = useCallback(() => {
     if (!chave) return;
-    escreverFallback(chave, Object.fromEntries(pendentesRef.current));
+    escreverFallback(chave, {
+      v: 2,
+      linhas: Object.fromEntries(pendentesRef.current),
+      remocoes: [...pendentesRemocaoRef.current],
+      contexto: contextoPendenteRef.current,
+    });
   }, [chave]);
 
   const flush = useCallback(async (): Promise<void> => {
     if (!listaEncomendaId) return;
     if (bloqueadoRef.current) return; // conflito por resolver — autosave em pausa
-    if (pendentesRef.current.size === 0) return;
+    const nadaPendente =
+      pendentesRef.current.size === 0 &&
+      pendentesRemocaoRef.current.size === 0 &&
+      contextoPendenteRef.current === undefined;
+    if (nadaPendente) return;
 
     if (emVooRef.current) {
       // Já há uma gravação em curso — nunca duas ao mesmo tempo. Marca
@@ -137,6 +183,8 @@ export function useAutosaveEncomenda(opts: {
 
     const lote = new Map(pendentesRef.current);
     const linhas = [...lote.entries()].map(([produtoId, patch]) => ({ ...patch, produtoId }));
+    const loteRemocao = new Set(pendentesRemocaoRef.current);
+    const contextoEnviado = contextoPendenteRef.current;
 
     try {
       const resultado = await autosaveAction({
@@ -144,6 +192,8 @@ export function useAutosaveEncomenda(opts: {
         farmaciaId,
         versaoEsperada: versaoRef.current,
         linhas,
+        linhasRemovidasProdutoIds: [...loteRemocao],
+        contexto: contextoEnviado,
       });
 
       if (!resultado.ok) {
@@ -169,12 +219,18 @@ export function useAutosaveEncomenda(opts: {
           pendentesRef.current.delete(produtoId);
         }
       }
+      for (const produtoId of loteRemocao) pendentesRemocaoRef.current.delete(produtoId);
+      if (contextoPendenteRef.current === contextoEnviado) contextoPendenteRef.current = undefined;
       versaoRef.current = resultado.versao;
       persistirFallback();
       onGravado?.(linhas.map((l) => l.produtoId), resultado.versao);
       if (montadoRef.current) {
         const hora = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
-        setEstado(pendentesRef.current.size > 0 ? { tipo: "sujo" } : { tipo: "guardado", hora });
+        const aindaSujo =
+          pendentesRef.current.size > 0 ||
+          pendentesRemocaoRef.current.size > 0 ||
+          contextoPendenteRef.current !== undefined;
+        setEstado(aindaSujo ? { tipo: "sujo" } : { tipo: "guardado", hora });
       }
     } catch {
       // Falha de rede (fetch/Server Action rejeitou) — nunca perde o
@@ -197,8 +253,36 @@ export function useAutosaveEncomenda(opts: {
   const marcarSujo = useCallback(
     (produtoId: string, patch: Omit<AutosaveLinhaInput, "produtoId">) => {
       if (bloqueadoRef.current) return; // não acumula mais sujidade durante um conflito por resolver
+      // Reeditar uma linha que tinha sido marcada para remover cancela a
+      // remoção — o utilizador mudou de ideias antes do próximo flush.
+      pendentesRemocaoRef.current.delete(produtoId);
       const anterior = pendentesRef.current.get(produtoId);
       pendentesRef.current.set(produtoId, { ...(anterior ?? {}), ...patch, produtoId } as AutosaveLinhaInput);
+      persistirFallback();
+      setEstado({ tipo: "sujo" });
+      agendar();
+    },
+    [agendar, persistirFallback]
+  );
+
+  /** Marca um produto para remoção no próximo flush — nunca some do rascunho antes do servidor confirmar. */
+  const marcarRemovido = useCallback(
+    (produtoId: string) => {
+      if (bloqueadoRef.current) return;
+      pendentesRef.current.delete(produtoId); // remoção prevalece sobre um patch ainda por enviar
+      pendentesRemocaoRef.current.add(produtoId);
+      persistirFallback();
+      setEstado({ tipo: "sujo" });
+      agendar();
+    },
+    [agendar, persistirFallback]
+  );
+
+  /** Marca o contexto da proposta (modo/período/filtros) para gravar no próximo flush. */
+  const marcarContexto = useCallback(
+    (contexto: string) => {
+      if (bloqueadoRef.current) return;
+      contextoPendenteRef.current = contexto;
       persistirFallback();
       setEstado({ tipo: "sujo" });
       agendar();
@@ -223,13 +307,19 @@ export function useAutosaveEncomenda(opts: {
     // (router.refresh()) — aqui só desbloqueia o autosave e descarta o
     // pendente local, que já não se aplica à versão nova.
     pendentesRef.current.clear();
-    if (chave) escreverFallback(chave, {});
+    pendentesRemocaoRef.current.clear();
+    contextoPendenteRef.current = undefined;
+    if (chave) escreverFallback(chave, { v: 2, linhas: {}, remocoes: [], contexto: undefined });
     bloqueadoRef.current = false;
     setEstado({ tipo: "limpo" });
   }, [chave]);
 
   const temAlteracoesPendentes =
-    pendentesRef.current.size > 0 || estado.tipo === "a_guardar" || estado.tipo === "sem_ligacao";
+    pendentesRef.current.size > 0 ||
+    pendentesRemocaoRef.current.size > 0 ||
+    contextoPendenteRef.current !== undefined ||
+    estado.tipo === "a_guardar" ||
+    estado.tipo === "sem_ligacao";
 
   // Aviso ao fechar/recarregar o browser — SÓ enquanto houver alterações
   // que o servidor ainda não confirmou. Depois de confirmadas, nunca
@@ -250,6 +340,8 @@ export function useAutosaveEncomenda(opts: {
     versaoAtual: versaoRef.current,
     temAlteracoesPendentes,
     marcarSujo,
+    marcarRemovido,
+    marcarContexto,
     guardarAgora,
     flushSincrono,
     resolverConflitoActualizar,

@@ -37,7 +37,7 @@ type FakeLinha = {
   notas: string | null;
   origem: string;
 };
-type FakeLista = { id: string; estado: string; versao: number; linhas: Map<string, FakeLinha> };
+type FakeLista = { id: string; estado: string; versao: number; contextoJson?: string | null; linhas: Map<string, FakeLinha> };
 
 function criarBaseFalsa(listas: FakeLista[]) {
   const store = new Map(listas.map((l) => [l.id, l]));
@@ -54,9 +54,10 @@ function criarBaseFalsa(listas: FakeLista[]) {
         if (!l) throw new Error(`ListaEncomenda "${args.where.id}" não existe`);
         return { versao: l.versao };
       },
-      update: async (args: { where: { id: string }; data: { versao?: { increment: number } } }) => {
+      update: async (args: { where: { id: string }; data: { versao?: { increment: number }; contextoJson?: string | null } }) => {
         const l = store.get(args.where.id)!;
         if (args.data.versao?.increment) l.versao += args.data.versao.increment;
+        if ("contextoJson" in args.data) l.contextoJson = args.data.contextoJson ?? null;
         return { versao: l.versao };
       },
     },
@@ -83,6 +84,14 @@ function criarBaseFalsa(listas: FakeLista[]) {
           l.linhas.set(produtoId, resto);
         }
         return l.linhas.get(produtoId)!;
+      },
+      deleteMany: async (args: { where: { listaEncomendaId: string; produtoId: { in: string[] } } }) => {
+        const l = store.get(args.where.listaEncomendaId)!;
+        let count = 0;
+        for (const produtoId of args.where.produtoId.in) {
+          if (l.linhas.delete(produtoId)) count++;
+        }
+        return { count };
       },
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -209,7 +218,7 @@ console.log("\nH · nenhuma linha para gravar é um no-op — devolve a versão 
 {
   const { prisma, store } = criarBaseFalsa([{ id: "L1", estado: "RASCUNHO", versao: 4, linhas: new Map() }]);
   const r = await salvarAutosaveEncomenda(prisma, { listaEncomendaId: "L1", versaoEsperada: 4, linhas: [] });
-  eq(r, { versao: 4, gravadas: 0 }, "H1: devolve a versão actual, zero gravadas");
+  eq(r, { versao: 4, gravadas: 0, removidas: 0 }, "H1: devolve a versão actual, zero gravadas");
   eq(store.get("L1")!.versao, 4, "H2: a versão não muda com um autosave vazio");
 }
 

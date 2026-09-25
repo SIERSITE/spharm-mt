@@ -1,5 +1,6 @@
 import { MainShell } from "@/components/layout/main-shell";
 import { can, requirePermission } from "@/lib/permissions";
+import { getPrisma } from "@/lib/prisma";
 import {
   clampPage,
   clampPageSize,
@@ -69,7 +70,8 @@ export default async function EncomendasPage({ searchParams }: Props) {
   const session = await requirePermission("reports.write");
   const sp = await searchParams;
   const filters = parseFilters(sp);
-  const data = await loadOrderListData(filters);
+  const prisma = await getPrisma();
+  const data = await loadOrderListData(prisma, filters);
   // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction` —
   // calculada aqui para o botão "Eliminar" nunca aparecer a quem a
   // server action recusaria (a mesma inconsistência que existia com

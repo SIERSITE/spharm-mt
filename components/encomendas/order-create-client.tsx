@@ -10,10 +10,24 @@ import {
   createOrderAction,
   generateProposalAction,
   gerarPlanoGrupoAction,
-  type CreateOrderFormInput,
+  carregarRascunhoNovaEncomendaAction,
   type ProposalMode,
   type DecisaoLinhaGrupoInput,
+  type RascunhoNovaEncomenda,
 } from "@/app/encomendas/nova/actions";
+import {
+  autosaveEncomendaAction,
+  finalizeFromDetailAction,
+  duplicarRascunhoComoNovoAction,
+  cancelDraftAction,
+} from "@/app/encomendas/[id]/actions";
+import { useAutosaveEncomenda } from "@/lib/encomendas/use-autosave-encomenda";
+import { AutosaveStatusBadge } from "@/components/encomendas/autosave-status-badge";
+import { useUtilizador } from "@/components/layout/session-provider";
+import {
+  serializarPropostaContexto,
+  type PropostaContexto,
+} from "@/lib/encomendas/proposal-context";
 import { getHistoricoProdutosLoteAction } from "@/app/encomendas/actions";
 import { type ProductSearchResult } from "@/app/encomendas/nova/search";
 import { ProductPicker } from "@/components/encomendas/product-picker";
@@ -262,40 +276,8 @@ export function OrderCreateClient({
   // ─── Linhas ──────────────────────────────────────────────────────────────
   const [linhas, setLinhas] = useState<Line[]>([]);
 
-  // Aviso ao fechar/recarregar o browser enquanto houver uma proposta
-  // (gerada ou com linhas manuais) que ainda não foi guardada no
-  // servidor — `submit()` faz `setLinhas([])` assim que o `createOrderAction`
-  // tem sucesso, o que desliga o aviso automaticamente (gravado = seguro
-  // navegar, nunca um aviso enganador).
-  //
-  // NOTA (âmbito desta revisão): este ecrã ainda não tem autosave
-  // incremental — ao contrário do detalhe de um rascunho já guardado
-  // (order-detail-client.tsx, lib/encomendas/use-autosave-encomenda.ts),
-  // a proposta aqui só é persistida no clique em "Guardar rascunho"/
-  // "Finalizar". Este aviso é a rede de segurança de NAVEGAÇÃO enquanto
-  // isso não muda; não substitui a persistência incremental. Um recálculo
-  // eager do rascunho a partir da 1ª edição, reutilizando exactamente o
-  // autosave já construído nesta revisão, fica identificado como o passo
-  // seguinte natural (ver relatório final).
-  useEffect(() => {
-    function handler(e: BeforeUnloadEvent) {
-      if (linhas.length === 0) return;
-      e.preventDefault();
-      e.returnValue = "";
-    }
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [linhas.length]);
-
-  // Mesmo sinal ("há uma proposta em ecrã por guardar") espelhado na
-  // barra de tarefas — nunca uma segunda fonte de verdade além de
-  // `linhas.length`.
   const taskBar = useTaskBar();
   const pathname = usePathname();
-  useEffect(() => {
-    if (pathname) taskBar?.marcarSujo(pathname, linhas.length > 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, linhas.length]);
 
   const [hasProposal, setHasProposal] = useState(false);
   const [proposalMeta, setProposalMeta] = useState<{
@@ -343,6 +325,229 @@ export function OrderCreateClient({
 
   // ─── Cabeçalho ────────────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
+
+  // ─── Rascunho eager (Bloqueador 1) ──────────────────────────────────────
+  //
+  // Âmbito desta fase: SÓ `mode === "farmacia"`. `grupo` termina sempre
+  // num único gesto atómico (handleGerarPlano/gerarPlanoGrupoAction — não
+  // há noção de "rascunho retomável" nesse fluxo, por desenho, desde
+  // antes desta revisão). `consolidacao` cria N `ListaEncomenda`, uma por
+  // farmácia — um único hook de autosave (1 listaEncomendaId) não serve
+  // uma sessão com N rascunhos em simultâneo; isso é uma funcionalidade
+  // maior e distinta (N hooks ou um hook redesenhado), não uma variação
+  // pequena desta. Documentado aqui e no relatório final — não é uma
+  // omissão silenciosa: `persistLineChange`/`ensureDraft` abaixo
+  // recusam-se explicitamente a agir fora de "farmacia", e os fluxos de
+  // grupo/consolidação continuam exactamente como estavam (submit() só
+  // no clique, sem regressão).
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftVersaoInicial, setDraftVersaoInicial] = useState(0);
+  const [carregandoRascunho, setCarregandoRascunho] = useState(false);
+  const draftCreatingRef = useRef(false);
+  const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
+
+  const utilizador = useUtilizador();
+  const autosave = useAutosaveEncomenda({
+    listaEncomendaId: draftId,
+    farmaciaId,
+    versaoInicial: draftVersaoInicial,
+    tenantSlug: utilizador?.tenant ?? "desconhecido",
+    userId: utilizador?.userId ?? "desconhecido",
+    autosaveAction: autosaveEncomendaAction,
+  });
+
+  function buildContextoActual(): PropostaContexto {
+    return {
+      version: 1,
+      mode,
+      farmaciaId: mode === "farmacia" ? farmaciaId : null,
+      startDate,
+      endDate,
+      considerStock,
+      baseRule,
+      coverageDays,
+      filters: {
+        fabricantes: selFabricantes,
+        fornecedores: selFornecedores,
+        categorias: selCategorias,
+        subcategorias: selSubcategorias,
+        utilizacoes: selUtilizacoes,
+        productTypes: selProductTypes,
+      },
+      listaImportadaResumo: listaCodigos
+        ? {
+            nomeFicheiro: listaCodigos.nomeFicheiro,
+            encontrados: listaCodigos.encontrados,
+            naoEncontrados: listaCodigos.naoEncontrados.length,
+          }
+        : null,
+      nome,
+    };
+  }
+
+  /**
+   * Garante que existe um rascunho persistido, criando-o (num ÚNICO
+   * `createOrderAction`, com TODAS as linhas válidas actuais — 300
+   * linhas em lote, nunca 300 pedidos) na primeira chamada. Chamadas
+   * seguintes são no-op (devolvem o id já conhecido). Nunca cria um
+   * segundo rascunho para a mesma sessão — `draftCreatingRef` serializa
+   * chamadas concorrentes (vários campos a disparar isto quase ao mesmo
+   * tempo).
+   */
+  async function ensureDraft(linhasActuais: Line[]): Promise<string | null> {
+    if (draftId) return draftId;
+    if (mode !== "farmacia") return null;
+    if (!farmaciaId) return null;
+    if (draftCreatingRef.current) return null;
+
+    const validas = linhasActuais.filter((l) => {
+      const q = Number(l.finalQty || "0");
+      return Number.isFinite(q) && q > 0;
+    });
+    if (validas.length === 0) return null;
+
+    draftCreatingRef.current = true;
+    try {
+      const contexto = buildContextoActual();
+      const result = await createOrderAction({
+        farmaciaId,
+        nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
+        finalize: false,
+        linhas: validas.map((l) => ({
+          produtoId: l.produtoId,
+          quantidadeSugerida: l.suggestedQty ?? null,
+          quantidadeAjustada: Number(l.finalQty),
+          notas: l.notas.trim() || null,
+          origem: l.origem,
+        })),
+        contexto: serializarPropostaContexto(contexto) ?? null,
+      });
+      if (!result.ok) {
+        setFlash({ type: "err", msg: result.error });
+        return null;
+      }
+      setDraftId(result.listaEncomendaId);
+      setDraftVersaoInicial(0);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("rascunho", result.listaEncomendaId);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      return result.listaEncomendaId;
+    } finally {
+      draftCreatingRef.current = false;
+    }
+  }
+
+  /**
+   * Ponto único por onde TODAS as edições de uma linha (quantidade,
+   * notas, remoção, adição manual) passam depois de um rascunho existir
+   * — reusa sempre `ensureDraft` + `autosave.marcarSujo`, nunca um
+   * segundo caminho de gravação. Fora de `mode === "farmacia"` é sempre
+   * no-op (ver nota acima).
+   */
+  async function persistLineChange(
+    produtoId: string,
+    patch: { quantidadeAjustada?: number | null; notas?: string | null; origem?: OrigemLinha },
+    linhasActuais: Line[]
+  ) {
+    if (mode !== "farmacia") return;
+    const id = draftId ?? (await ensureDraft(linhasActuais));
+    if (!id) return;
+    autosave.marcarSujo(produtoId, patch);
+  }
+
+  function persistLineRemoval(produtoId: string) {
+    if (mode !== "farmacia" || !draftId) return; // sem rascunho ainda: nada para remover no servidor
+    autosave.marcarRemovido(produtoId);
+  }
+
+  /**
+   * Conflito de versão (outra sessão gravou entretanto — ver
+   * `ConflitoVersaoError`). Ao contrário do ecrã de detalhe, este
+   * componente NUNCA remonta só porque `draftId` muda (fica sempre na
+   * mesma rota `/encomendas/nova`), por isso os dois caminhos usam
+   * navegação REAL (`window.location`, não `router.push`) — garante que
+   * o efeito de hidratação (que só corre uma vez, ao montar) corre de
+   * novo com o id certo, em vez de deixar o hook de autosave com
+   * `versaoRef`/pendentes de uma sessão antiga presos num componente que
+   * nunca desmontou.
+   */
+  function handleConflitoActualizar() {
+    if (!draftId) return;
+    window.location.href = `${pathname}?rascunho=${draftId}`;
+  }
+
+  /**
+   * Cancela o rascunho eager — arquiva (`ELIMINADA`, o MESMO soft-delete
+   * de `cancelDraftAction`/`OrderDetailClient`), nunca apaga. Pede
+   * confirmação explícita; nunca silencioso.
+   */
+  function handleCancelDraft() {
+    if (!draftId) return;
+    if (
+      !window.confirm(
+        "Cancelar este rascunho? Fica arquivado, nunca eliminado — podes sempre consultá-lo depois em /encomendas."
+      )
+    )
+      return;
+    setFlash(null);
+    startTransition(async () => {
+      const r = await cancelDraftAction(draftId);
+      if (r.ok) {
+        setFlash({ type: "info", msg: "Rascunho cancelado." });
+        setTimeout(() => router.push("/encomendas"), 800);
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
+    });
+  }
+
+  function handleConflitoCriarCopia() {
+    if (!farmaciaId) return;
+    setFlash(null);
+    startTransition(async () => {
+      const r = await duplicarRascunhoComoNovoAction({
+        farmaciaId,
+        nomeOriginal: nome || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
+        linhas: linhas.map((l) => ({
+          produtoId: l.produtoId,
+          quantidadeSugerida: l.suggestedQty ?? null,
+          quantidadeAjustada: Number(l.finalQty),
+          notas: l.notas.trim() || null,
+          origem: l.origem,
+        })),
+      });
+      if (r.ok) {
+        window.location.href = `${pathname}?rascunho=${r.novoId}`;
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
+    });
+  }
+
+  // Aviso ao fechar/recarregar o browser — SÓ enquanto houver trabalho
+  // que o servidor ainda não confirmou. Duas fontes, nunca sobrepostas:
+  // com rascunho activo (`draftId`), `autosave.temAlteracoesPendentes` é
+  // a verdade (o MESMO sinal que já governa o beforeunload do ecrã de
+  // detalhe — ver `use-autosave-encomenda.ts`); sem rascunho ainda
+  // (proposta só em memória, ou modo grupo/consolidação, que não gravam
+  // eagerly — ver nota acima), `linhas.length > 0` continua a ser a rede
+  // de segurança de sempre.
+  const haAlteracoesPorConfirmar = draftId ? autosave.temAlteracoesPendentes : linhas.length > 0;
+  useEffect(() => {
+    function handler(e: BeforeUnloadEvent) {
+      if (!haAlteracoesPorConfirmar) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [haAlteracoesPorConfirmar]);
+
+  // Mesmo sinal espelhado na barra de tarefas.
+  useEffect(() => {
+    if (pathname) taskBar?.marcarSujo(pathname, haAlteracoesPorConfirmar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, haAlteracoesPorConfirmar]);
 
   const isGroupMode = mode === "grupo" || mode === "consolidacao";
 
@@ -880,12 +1085,109 @@ export function OrderCreateClient({
     };
   }
 
+  /**
+   * Reconstrói uma `Line` a partir de uma linha PERSISTIDA (rascunho
+   * retomado). As colunas "decididas" (quantidade final, notas, origem,
+   * sugerida — snapshot gravado quando a linha nasceu) vêm tal e qual do
+   * servidor; stock vem ACTUAL (mesmo campo que `order-detail-client.tsx`
+   * mostra). As colunas só-de-análise da proposta (vendas médias,
+   * cobertura, pendente, estado, motivo) ficam neutras — ver o
+   * comentário em `carregarRascunhoNovaEncomendaAction`.
+   */
+  function buildLineFromRascunho(l: RascunhoNovaEncomenda["linhas"][number], farmId: string): Line {
+    return {
+      key: nextKey(), produtoId: l.produtoId, cnp: l.cnp, designacao: l.designacao,
+      fabricante: l.fabricante, fornecedor: l.fornecedor,
+      farmaciaNome: farmaciasVisiveis.find((f) => f.id === farmId)?.nome ?? null,
+      farmaciaId: farmId,
+      salesQty: null, avgDailySales: null, currentStock: l.currentStock,
+      coberturaAtualDias: null, pendingQty: null, suggestedQty: l.quantidadeSugerida,
+      transferirQty: 0, finalQty: String(l.quantidadeAjustada ?? 0), notas: l.notas ?? "",
+      origem: l.origem, estado: null, motivo: null, excessoFonte: [],
+      semVendasNoPeriodo: false,
+      acao: "NAO_FAZER", acaoTocada: false,
+      farmaciaEncomendaId: farmId, farmaciaOrigemId: null, farmaciaDestinoId: null,
+    };
+  }
+
+  // ─── Retomar rascunho (?rascunho=<id>) ──────────────────────────────────
+  //
+  // Reload da página, ou o MESMO link aberto noutro computador — ambos
+  // passam por aqui. Corre uma única vez ao montar (StrictMode chamaria
+  // o efeito 2x em dev; `rascunhoCarregadoRef` evita um 2º pedido/uma 2ª
+  // reconstrução a competir com a 1ª).
+  useEffect(() => {
+    const rascunhoId = searchParams.get("rascunho");
+    if (!rascunhoId || rascunhoCarregadoRef.current) return;
+    rascunhoCarregadoRef.current = true;
+    setCarregandoRascunho(true);
+    (async () => {
+      const r = await carregarRascunhoNovaEncomendaAction(rascunhoId);
+      if (!r.ok) {
+        setFlash({ type: "err", msg: r.error });
+        setCarregandoRascunho(false);
+        return;
+      }
+      const d = r.data;
+      setDraftId(d.listaEncomendaId);
+      setDraftVersaoInicial(d.versao);
+      setNome(d.nome);
+      setFarmaciaId(d.farmaciaId);
+      if (d.contexto) {
+        setMode(d.contexto.mode);
+        setStartDate(d.contexto.startDate);
+        setEndDate(d.contexto.endDate);
+        setConsiderStock(d.contexto.considerStock);
+        setBaseRule(d.contexto.baseRule as ProposalBaseRule);
+        setCoverageDays(d.contexto.coverageDays);
+        setSelFabricantes(d.contexto.filters.fabricantes);
+        setSelFornecedores(d.contexto.filters.fornecedores);
+        setSelCategorias(d.contexto.filters.categorias);
+        setSelSubcategorias(d.contexto.filters.subcategorias);
+        setSelUtilizacoes(d.contexto.filters.utilizacoes);
+        setSelProductTypes(d.contexto.filters.productTypes);
+      }
+      setLinhas(d.linhas.map((l) => buildLineFromRascunho(l, d.farmaciaId)));
+      setHasProposal(d.linhas.length > 0);
+      setFlash({
+        type: "info",
+        msg: `Rascunho retomado — ${d.linhas.length} linha(s). Gera uma nova proposta para actualizar vendas/cobertura/stock.`,
+      });
+      setCarregandoRascunho(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Acções ───────────────────────────────────────────────────────────────
+
+  /**
+   * Abandona a REFERÊNCIA local a um rascunho (mudar de modo/farmácia
+   * nunca deve continuar a escrever no rascunho da farmácia/modo
+   * ANTERIOR). O rascunho em si não é tocado — continua na base de
+   * dados, e aparece na lista de rascunhos de `/encomendas` para quem o
+   * quiser retomar; só deixa de estar associado a ESTA sessão do ecrã.
+   * `resolverConflitoActualizar` já faz exactamente o "descarta
+   * pendentes locais, volta a limpo" que isto precisa — reutilizado em
+   * vez de duplicado.
+   */
+  function abandonarRascunhoLocal() {
+    if (!draftId) return;
+    autosave.resolverConflitoActualizar();
+    setDraftId(null);
+    setDraftVersaoInicial(0);
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has("rascunho")) {
+      params.delete("rascunho");
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }
 
   function handleModeChange(next: ProposalMode) {
     if (next === mode) return;
     if (linhas.length > 0 && !window.confirm("Mudar de modo limpa as linhas actuais. Continuar?"))
       return;
+    abandonarRascunhoLocal();
     setLinhas([]);
     setHasProposal(false);
     setProposalMeta(null);
@@ -896,6 +1198,7 @@ export function OrderCreateClient({
   function handleFarmaciaChange(nextId: string) {
     if (nextId === farmaciaId) return;
     if (linhas.length > 0 && !window.confirm("Mudar de farmácia limpa as linhas actuais. Continuar?")) return;
+    abandonarRascunhoLocal();
     setLinhas([]);
     setHasProposal(false);
     setProposalMeta(null);
@@ -982,6 +1285,35 @@ export function OrderCreateClient({
       const linhasComDecisao = fundirDecisoesGrupo(fusao.linhas, mapaDecisoes(linhas));
       setLinhas(linhasComDecisao);
       setHasProposal(true);
+
+      // ── Rascunho eager (Bloqueador 1, só mode === "farmacia") ─────
+      //
+      // Uma proposta gerada É o "primeiro evento significativo" — se
+      // ainda não há rascunho, cria-se AGORA, com TODAS as linhas de uma
+      // vez (300 produtos = 1 `createOrderAction`, nunca 300 pedidos).
+      // Se já existe, sincroniza as linhas PROPOSTA novas/actualizadas e
+      // as que saíram do recálculo — reusa sempre o MESMO autosave.
+      if (mode === "farmacia") {
+        if (!draftId) {
+          void ensureDraft(linhasComDecisao);
+        } else {
+          const idsAntes = new Set(linhas.filter((l) => l.origem === "PROPOSTA").map((l) => l.produtoId));
+          const idsDepois = new Set(linhasComDecisao.map((l) => l.produtoId));
+          for (const id of idsAntes) {
+            if (!idsDepois.has(id)) autosave.marcarRemovido(id);
+          }
+          for (const l of linhasComDecisao) {
+            if (l.origem !== "PROPOSTA") continue; // manuais/sugestão preservadas: valores já gravados, não mudaram
+            autosave.marcarSujo(l.produtoId, {
+              quantidadeSugerida: l.suggestedQty ?? null,
+              quantidadeAjustada: Number(l.finalQty),
+              origem: "PROPOSTA",
+            });
+          }
+          const contextoSerializado = serializarPropostaContexto(buildContextoActual());
+          if (contextoSerializado !== undefined) autosave.marcarContexto(contextoSerializado);
+        }
+      }
       setProposalMeta({
         numDays: result.data.meta.numDays,
         stats: result.data.meta.stats,
@@ -1017,34 +1349,47 @@ export function OrderCreateClient({
   }
 
   function handlePickManual(p: ProductSearchResult) {
-    setLinhas((prev) => {
-      const existing = prev.findIndex((l) => l.produtoId === p.id);
-      if (existing >= 0)
-        // ── Já lá está: soma, não duplica ────────────────────────────
-        //
-        // `@@unique([listaEncomendaId, produtoId])` recusaria a gravação
-        // de duas linhas do mesmo produto, e o utilizador veria um erro
-        // de base de dados em vez de uma tabela coerente. Aqui a regra é
-        // a mesma, uma camada acima.
-        //
-        // E a linha passa a MANUAL. Escolher um produto no picker que já
-        // está na proposta é dizer «este quero eu» — a partir daí a
-        // decisão é dele e tem de sobreviver a um recálculo.
-        //
-        // Editar a quantidade no input NÃO promove: isso é ajustar a
-        // proposta, e se cada ajuste tornasse a linha manual, uma
-        // passagem de revisão deixava «recalcular» sem nada para fazer.
-        return prev.map((l, i) =>
-          i !== existing
-            ? l
-            : {
-                ...l,
-                finalQty: String((Number(l.finalQty || "0") || 0) + 1),
-                origem: "MANUAL" as OrigemLinha,
-              }
-        );
-      return [...prev, buildManualLine(p)];
-    });
+    const existing = linhas.findIndex((l) => l.produtoId === p.id);
+    let novaLista: Line[];
+    let linhaAfectada: Line;
+    if (existing >= 0) {
+      // ── Já lá está: soma, não duplica ────────────────────────────
+      //
+      // `@@unique([listaEncomendaId, produtoId])` recusaria a gravação
+      // de duas linhas do mesmo produto, e o utilizador veria um erro
+      // de base de dados em vez de uma tabela coerente. Aqui a regra é
+      // a mesma, uma camada acima.
+      //
+      // E a linha passa a MANUAL. Escolher um produto no picker que já
+      // está na proposta é dizer «este quero eu» — a partir daí a
+      // decisão é dele e tem de sobreviver a um recálculo.
+      //
+      // Editar a quantidade no input NÃO promove: isso é ajustar a
+      // proposta, e se cada ajuste tornasse a linha manual, uma
+      // passagem de revisão deixava «recalcular» sem nada para fazer.
+      novaLista = linhas.map((l, i) =>
+        i !== existing
+          ? l
+          : {
+              ...l,
+              finalQty: String((Number(l.finalQty || "0") || 0) + 1),
+              origem: "MANUAL" as OrigemLinha,
+            }
+      );
+      linhaAfectada = novaLista[existing];
+    } else {
+      const nova = buildManualLine(p);
+      novaLista = [...linhas, nova];
+      linhaAfectada = nova;
+    }
+    setLinhas(novaLista);
+    if (mode === "farmacia") {
+      void persistLineChange(
+        linhaAfectada.produtoId,
+        { quantidadeAjustada: Number(linhaAfectada.finalQty), origem: "MANUAL" },
+        novaLista
+      );
+    }
   }
 
   function updateLine(key: number, patch: Partial<Line>) {
@@ -1053,6 +1398,32 @@ export function OrderCreateClient({
 
   function removeLine(key: number) {
     setLinhas((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  /**
+   * Wrappers de `updateLine`/`removeLine` para os campos operacionais da
+   * linha (quantidade final, notas, remover) — chamam `persistLineChange`/
+   * `persistLineRemoval` a seguir, que só agem em `mode === "farmacia"`
+   * (no-op nos outros modos, sem qualquer novo caminho de gravação).
+   */
+  function handleFinalQtyChange(l: Line, value: string) {
+    updateLine(l.key, { finalQty: value });
+    if (mode !== "farmacia") return;
+    const n = Number(value || "0");
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, finalQty: value } : x));
+    void persistLineChange(l.produtoId, { quantidadeAjustada: Number.isFinite(n) ? n : 0 }, linhasActuais);
+  }
+
+  function handleNotasFieldChange(l: Line, value: string) {
+    updateLine(l.key, { notas: value });
+    if (mode !== "farmacia") return;
+    const linhasActuais = linhas.map((x) => (x.key === l.key ? { ...x, notas: value } : x));
+    void persistLineChange(l.produtoId, { notas: value.trim() || null }, linhasActuais);
+  }
+
+  function handleRemoveLine(l: Line) {
+    removeLine(l.key);
+    if (mode === "farmacia") persistLineRemoval(l.produtoId);
   }
 
   function submit(finalize: boolean) {
@@ -1109,27 +1480,42 @@ export function OrderCreateClient({
         }
       });
     } else {
-      const input: CreateOrderFormInput = {
-        farmaciaId,
-        nome: nome.trim() || `Encomenda ${new Date().toLocaleDateString("pt-PT")}`,
-        finalize,
-        linhas: validLines.map((l) => ({
-          produtoId: l.produtoId,
-          quantidadeSugerida: l.suggestedQty ?? null,
-          quantidadeAjustada: Number(l.finalQty),
-          notas: l.notas.trim() || null,
-          // Guardar e reabrir preserva a origem: sem isto, a encomenda
-          // reaberta era uma lista de linhas todas iguais e o recálculo
-          // a partir daí voltava a apagar as manuais.
-          origem: l.origem,
-        })),
-      };
+      // Só "farmacia" chega aqui (o botão não existe em modo "grupo" —
+      // ver a secção "GUARDAR / FINALIZAR" mais abaixo). Desde que o
+      // rascunho passou a nascer eagerly (1º evento significativo, ver
+      // `ensureDraft`), este botão raramente cria — normalmente o
+      // rascunho já existe e isto é só "força a gravação + confirma",
+      // exactamente como o "Guardar agora" do ecrã de detalhe. Fica no
+      // MESMO ecrã (`/encomendas/nova?rascunho=<id>`) em vez de navegar
+      // para `/encomendas/nova` de novo — nunca dois rascunhos para a
+      // mesma sessão.
       startTransition(async () => {
-        const result = await createOrderAction(input);
+        const id = draftId ?? (await ensureDraft(validLines));
+        if (!id) {
+          setFlash({ type: "err", msg: "Não foi possível criar o rascunho — verifica a farmácia seleccionada." });
+          return;
+        }
+        const gravado = await autosave.flushSincrono();
+        if (!gravado) {
+          setFlash({
+            type: "err",
+            msg: "Não foi possível gravar as últimas alterações — tenta novamente antes de continuar.",
+          });
+          return;
+        }
+        if (!finalize) {
+          setFlash({ type: "ok", msg: "Rascunho guardado." });
+          return;
+        }
+        const result = await finalizeFromDetailAction(id, autosave.versaoAtual);
         if (result.ok) {
-          setFlash({ type: "ok", msg: finalize ? "Encomenda finalizada." : "Rascunho guardado." });
-          setNome(""); setLinhas([]); setHasProposal(false); setProposalMeta(null);
-          setTimeout(() => router.push(`/encomendas/${result.listaEncomendaId}`), 800);
+          setFlash({ type: "ok", msg: "Encomenda finalizada." });
+          setTimeout(() => router.push(`/encomendas/${id}`), 800);
+        } else if (result.conflito) {
+          setFlash({
+            type: "err",
+            msg: "Esta encomenda foi alterada por outra sessão entretanto — recarrega a página antes de finalizar.",
+          });
         } else {
           setFlash({ type: "err", msg: result.error });
         }
@@ -1233,7 +1619,7 @@ export function OrderCreateClient({
         <td className="px-3 py-2">
           <input type="number" min="0" value={l.finalQty}
             ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
-            onChange={(e) => updateLine(l.key, { finalQty: e.target.value })}
+            onChange={(e) => handleFinalQtyChange(l, e.target.value)}
             onFocus={(e) => e.target.select()}
             onKeyDown={(e) => { handleInputVerticalNav(e, rowIndex, finalQtyRefs); handleCampoEnter(e, rowIndex, "finalQty"); }}
             disabled={busy}
@@ -1247,7 +1633,7 @@ export function OrderCreateClient({
           ) : (
             <input type="text" value={l.notas}
               ref={(el) => { notasRefs.current[rowIndex] = el; }}
-              onChange={(e) => updateLine(l.key, { notas: e.target.value })}
+              onChange={(e) => handleNotasFieldChange(l, e.target.value)}
               onKeyDown={(e) => handleInputVerticalNav(e, rowIndex, notasRefs)}
               placeholder="notas"
               disabled={busy}
@@ -1285,7 +1671,7 @@ export function OrderCreateClient({
                 }
               />
             )}
-            <button type="button" onClick={() => removeLine(l.key)} disabled={busy}
+            <button type="button" onClick={() => handleRemoveLine(l)} disabled={busy}
               className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -1308,6 +1694,15 @@ export function OrderCreateClient({
         As sugestões baseiam-se em vendas reais. Não contemplam descontos, MOQ, campanhas
         nem prazos — valide condições comerciais antes de finalizar.
       </div>
+
+      {carregandoRascunho && (
+        <div
+          role="status"
+          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-600"
+        >
+          A retomar rascunho…
+        </div>
+      )}
 
       {flash && (
         <div
@@ -1743,12 +2138,36 @@ export function OrderCreateClient({
         </section>
       )}
 
+      {/* Conflito de versão do rascunho eager (mode === "farmacia") —
+          mesma UX do ecrã de detalhe: nunca sobrescreve silenciosamente,
+          o utilizador escolhe actualizar (descarta local) ou criar cópia
+          (preserva o que está no ecrã como um rascunho novo). */}
+      {mode === "farmacia" && draftId && autosave.estado.tipo === "conflito" && (
+        <section className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3">
+          <p className="text-[13px] font-medium text-rose-800">
+            Este rascunho foi alterado por outra sessão (separador, dispositivo ou utilizador)
+            enquanto o editavas aqui. As tuas alterações locais não foram gravadas por cima —
+            escolhe como continuar:
+          </p>
+          <div className="mt-2.5 flex gap-2">
+            <button type="button" onClick={handleConflitoActualizar}
+              className="rounded-lg border border-rose-300 bg-white px-3.5 py-1.5 text-[12px] font-medium text-rose-800 hover:bg-rose-100">
+              Actualizar (descarta as alterações locais)
+            </button>
+            <button type="button" onClick={handleConflitoCriarCopia} disabled={busy}
+              className="rounded-lg border border-rose-500 bg-rose-600 px-3.5 py-1.5 text-[12px] font-medium text-white hover:bg-rose-700 disabled:opacity-50">
+              Criar cópia com as minhas alterações
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* GUARDAR / FINALIZAR — não em modo grupo: aí a etapa final é o
           resumo por balde + "Gerar" (ver secção seguinte). Continua a
           servir "farmacia" e "consolidação", exactamente como antes. */}
       {mode !== "grupo" && (
         <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-slate-500">
                 {mode === "consolidacao" ? "Prefixo do nome (aplicado a cada encomenda)" : "Nome da encomenda"}
@@ -1764,17 +2183,31 @@ export function OrderCreateClient({
                   Vai criar {new Set(linhas.map((l) => l.farmaciaId).filter(Boolean)).size} encomenda(s) — uma por farmácia.
                 </p>
               )}
+              {mode === "farmacia" && draftId && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <AutosaveStatusBadge estado={autosave.estado} />
+                  <span className="text-[11px] text-slate-400">rascunho {draftId.slice(0, 8)}…</span>
+                </div>
+              )}
             </div>
-            <button type="button" onClick={() => submit(false)}
-              disabled={busy || linhas.length === 0}
-              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
-              {busy ? "A guardar..." : "Guardar rascunho"}
-            </button>
-            <button type="button" onClick={() => submit(true)}
-              disabled={busy || linhas.length === 0}
-              className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
-              {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {mode === "farmacia" && draftId && (
+                <button type="button" onClick={handleCancelDraft} disabled={busy}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-500 shadow-sm hover:bg-slate-50 disabled:opacity-50">
+                  Cancelar rascunho
+                </button>
+              )}
+              <button type="button" onClick={() => submit(false)}
+                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito")}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50">
+                {busy ? "A guardar..." : "Guardar rascunho"}
+              </button>
+              <button type="button" onClick={() => submit(true)}
+                disabled={busy || linhas.length === 0 || (mode === "farmacia" && autosave.estado.tipo === "conflito")}
+                className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:opacity-50">
+                {busy ? "A finalizar..." : mode === "consolidacao" ? "Criar encomendas" : "Finalizar e enviar para fila"}
+              </button>
+            </div>
           </div>
         </section>
       )}
