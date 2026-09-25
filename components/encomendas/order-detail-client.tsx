@@ -8,6 +8,7 @@ import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
 import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import { AutosaveStatusBadge } from "@/components/encomendas/autosave-status-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
@@ -466,7 +467,9 @@ export function OrderDetailClient({ detail }: Props) {
                   <tr key={l.id} className="border-b border-slate-50">
                     <td className="px-3 py-2">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="font-medium text-slate-900">{l.designacao}</span>
+                        <ArtigoLink cnp={l.cnp} className="font-medium text-slate-900 hover:text-emerald-600 hover:underline">
+                          {l.designacao}
+                        </ArtigoLink>
                         {/* A origem sobrevive a guardar-e-reabrir. Sem
                             isto, uma encomenda reaberta era uma lista de
                             linhas todas iguais e ninguem distinguia o

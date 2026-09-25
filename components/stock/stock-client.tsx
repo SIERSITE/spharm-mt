@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
+import { ArtigoLink } from "@/components/stock/artigo-link";
+import { useAbrirFichaArtigo } from "@/components/stock/artigo-panel";
 import { AppShell } from "@/components/layout/app-shell";
 import { AlertTriangle, ArrowRightLeft, ChevronLeft, ChevronRight, Filter, Plus, Search, X } from "lucide-react";
 import type { StockRow, StockPageData } from "@/lib/stock-data";
@@ -135,6 +137,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const abrirFicha = useAbrirFichaArtigo();
   const [isPending, startTransition] = useTransition();
 
   const serverQ = data.params.q ?? "";
@@ -612,19 +615,21 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                 key={`${row.cnp}-${row.pharmacy}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => router.push(`/stock/artigo/${row.cnp}`)}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  abrirFicha(Number(row.cnp));
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    router.push(`/stock/artigo/${row.cnp}`);
+                    abrirFicha(Number(row.cnp));
                   }
                 }}
                 className="grid cursor-pointer grid-cols-[2.2fr_0.8fr_1fr_0.8fr_0.9fr_0.9fr_1.1fr_1.2fr] gap-4 py-3 text-[12px] text-slate-700 transition hover:bg-slate-50/80 focus:bg-slate-50/80 focus:outline-none"
               >
                 <div className="min-w-0">
-                  <Link
-                    href={`/stock/artigo/${row.cnp}`}
-                    onClick={(e) => e.stopPropagation()}
+                  <ArtigoLink
+                    cnp={Number(row.cnp)}
                     className="group block"
                     title={[
                       `Abrir ficha de ${row.product}`,
@@ -659,7 +664,7 @@ export function StockClient({ data, syncFarmacias = [] }: StockClientProps) {
                         </span>
                       )}
                     </div>
-                  </Link>
+                  </ArtigoLink>
                 </div>
                 <div className="flex items-center text-slate-700">{row.pharmacy}</div>
                 <div className="flex items-center font-semibold text-slate-900">{row.stock} un.</div>

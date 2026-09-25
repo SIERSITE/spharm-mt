@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { runVendasReport } from "@/app/vendas/actions";
@@ -1430,12 +1430,12 @@ export function VendasClient({
                             </span>
                           ) : (
                             <div className="space-y-0.5">
-                              <Link
-                                href={`/stock/artigo/${row.codigo}`}
+                              <ArtigoLink
+                                cnp={Number(row.codigo)}
                                 className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
                               >
                                 {row.descricao}
-                              </Link>
+                              </ArtigoLink>
                               <div className="text-[12px] text-slate-500">
                                 {agruparPor === "artigo" || ambito === "farmacia"
                                   ? row.farmacia
@@ -1523,12 +1523,12 @@ export function VendasClient({
                       >
                         <td className="px-4 py-2.5">{row.codigo}</td>
                         <td className="px-3 py-2.5">
-                          <Link
-                            href={`/stock/artigo/${row.codigo}`}
+                          <ArtigoLink
+                            cnp={Number(row.codigo)}
                             className="font-semibold text-slate-900 transition hover:text-emerald-600"
                           >
                             {row.descricao}
-                          </Link>
+                          </ArtigoLink>
                         </td>
                         <td className="px-3 py-2.5">{row.farmacia}</td>
                         {row.meses.map((m, i) => (

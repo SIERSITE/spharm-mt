@@ -22,6 +22,7 @@
 import { SEM_CLASSIFICACAO_LABEL } from "@/lib/categoria-resolver";
 import { useMemo, useState, useTransition } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import { ReportFiltersBar } from "@/components/reporting/report-filters-bar";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 import {
@@ -594,7 +595,11 @@ function TabelaLinhaProduto({
           {rows.map((r) => (
             <tr key={`${r.cnp}:${r.farmaciaId}`}>
               <td className="py-2 pr-3 font-mono text-[11px] text-slate-600">{r.cnp}</td>
-              <td className="py-2 pr-3 text-slate-800">{r.designacao}</td>
+              <td className="py-2 pr-3 text-slate-800">
+                <ArtigoLink cnp={Number(r.cnp)} className="hover:text-emerald-600 hover:underline">
+                  {r.designacao}
+                </ArtigoLink>
+              </td>
               <td className="py-2 pr-3 text-slate-600">
                 {r.categoria ?? "—"}
                 {/* "Outros X" deixou de ser devolvido como grupo: quando o

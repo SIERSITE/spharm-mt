@@ -20,10 +20,12 @@ import {
   KeyRound,
   Wrench,
 } from "lucide-react";
+import { Suspense } from "react";
 import { logoutAction } from "@/app/dashboard/actions";
 import { useUtilizador } from "@/components/layout/session-provider";
 import { TaskBar } from "@/components/layout/task-bar";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
+import { ArtigoPanel } from "@/components/stock/artigo-panel";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -343,6 +345,13 @@ export function AppShell({ children, isPlatformAdmin = false }: AppShellProps) {
           <TaskBar />
 
           <main className="relative z-10 min-w-0 flex-1 px-8 py-8">{children}</main>
+
+          {/* Painel lateral da ficha do artigo — montado uma vez aqui,
+              controlado pelo query param ?ficha=<cnp> (ver
+              components/stock/artigo-panel.tsx). Suspense: useSearchParams(). */}
+          <Suspense fallback={null}>
+            <ArtigoPanel />
+          </Suspense>
         </div>
       </div>
     </div>

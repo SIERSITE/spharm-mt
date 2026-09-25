@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import { useMemo, useState, useTransition } from "react";
 import { janelaOperacionalPorOmissao } from "@/lib/operational/janela-meses";
 import { runTransferenciasReport } from "@/app/transferencias/actions";
@@ -960,8 +960,8 @@ export function TransferenciasClient({
                       </td>
                       <td className="px-3 py-2.5 align-top">
                         <div className="space-y-0.5">
-                          <Link
-                            href={`/stock/artigo/${row.cnp}`}
+                          <ArtigoLink
+                            cnp={Number(row.cnp)}
                             className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600"
                             title={[
                               row.dci ? `DCI: ${row.dci}` : null,
@@ -969,7 +969,7 @@ export function TransferenciasClient({
                             ].filter(Boolean).join(" · ") || undefined}
                           >
                             {row.produto}
-                          </Link>
+                          </ArtigoLink>
                           <div className="text-[12px] text-slate-500">
                             {/* Contexto: fabricante canónico + categoria.
                                 Removido o grossista (fornecedor habitual)

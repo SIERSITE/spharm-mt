@@ -5,6 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from "reac
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTaskBar } from "@/lib/workspace/task-bar-context";
 import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import {
   createOrderAction,
   generateProposalAction,
@@ -1198,7 +1199,9 @@ export function OrderCreateClient({
           ) : (
             <>
               <div className="flex items-baseline gap-1.5">
-                <span className="font-medium text-slate-900">{l.designacao}</span>
+                <ArtigoLink cnp={l.cnp} className="font-medium text-slate-900 hover:text-emerald-600 hover:underline">
+                  {l.designacao}
+                </ArtigoLink>
                 {rotuloOrigem(l.origem) && (
                   <span className={`rounded-full border px-1.5 text-[10px] ${
                     l.origem === "MANUAL"

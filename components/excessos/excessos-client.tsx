@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ArtigoLink } from "@/components/stock/artigo-link";
 import { useMemo, useState, useTransition } from "react";
 import {
   CabecalhoOrdenavel,
@@ -675,9 +675,9 @@ export function ExcessosClient({
                       <td className="px-4 py-2.5 align-top font-medium text-slate-800">{row.cnp}</td>
                       <td className="px-3 py-2.5 align-top">
                         <div className="space-y-0.5">
-                          <Link href={`/stock/artigo/${row.cnp}`} className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600">
+                          <ArtigoLink cnp={Number(row.cnp)} className="block font-semibold leading-5 text-slate-900 transition hover:text-emerald-600">
                             {row.produto}
-                          </Link>
+                          </ArtigoLink>
                           <div className="text-[12px] text-slate-500">
                             {[row.fabricante, row.categoria, row.subcategoria].filter(Boolean).join(" · ") || "—"}
                           </div>
