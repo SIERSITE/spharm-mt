@@ -343,6 +343,128 @@ async function testeConsolidacaoRespostaPerdida(ctx: BrowserContext) {
   await page.close();
 }
 
+async function testeConsolidacaoFinalizar(ctx: BrowserContext) {
+  console.log("\nConsolidação · «Criar encomendas» (finalizar e enviar para a fila) — só até à outbox");
+  const db = new Client({ connectionString: DB });
+  await db.connect();
+  const um = async (sql: string, args: unknown[] = []) => (await db.query(sql, args)).rows[0] as Record<string, number | string>;
+  const estado = async () => ({
+    listas: (await um(`SELECT count(*)::int n FROM "ListaEncomenda"`)).n as number,
+    finalizadas: (await um(`SELECT count(*)::int n FROM "ListaEncomenda" WHERE estado='FINALIZADA'`)).n as number,
+    outbox: (await um(`SELECT count(*)::int n FROM "OrderOutbox"`)).n as number,
+    outboxPorLista: (await um(`SELECT count(DISTINCT "listaEncomendaId")::int n FROM "OrderOutbox"`)).n as number,
+    pendentes: (await um(`SELECT count(*)::int n FROM "OrderOutbox" WHERE state='PENDENTE' AND "attemptCount"=0`)).n as number,
+    auditoriaEnvio: (await um(`SELECT count(*)::int n FROM "OrderExportAudit"`)).n as number,
+  });
+  const limpar = async () => { await db.query(`DELETE FROM "ListaEncomenda"`); };
+  const page = await ctx.newPage();
+  page.on("dialog", (d) => void d.accept());
+
+  const preparar = async () => {
+    await page.goto(BASE + "/encomendas/nova", { waitUntil: "networkidle" });
+    await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("spharmmt:consolidacao-pendente:")).forEach((k) => localStorage.removeItem(k)));
+    await page.getByRole("button", { name: "Consolidação", exact: true }).click();
+    await page.getByRole("button", { name: /Gerar (nova )?proposta/ }).click();
+    await page.getByText("ARTIGO E2E 6").first().waitFor({ state: "attached", timeout: 30000 });
+  };
+  const lerOp = async () => page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("spharmmt:consolidacao-pendente:"));
+    return k ? (JSON.parse(localStorage.getItem(k)!) as { estado: string; chave: string }) : null;
+  });
+  // UM só handler de rede para toda a função (sem register/unregister repetidos):
+  // quando armado, o próximo pedido de criação chega ao servidor (commit) e a resposta é abortada.
+  let perderResposta = false;
+  await page.route("**/encomendas/nova**", async (route) => {
+    const req = route.request();
+    if (perderResposta && req.method() === "POST" && (req.postData() ?? "").includes("batchKey") && (req.postData() ?? "").includes('"lotes"')) {
+      perderResposta = false;
+      await route.fetch(); // o servidor faz commit (lista + outbox)…
+      await route.abort("connectionreset"); // …e a resposta perde-se
+      return;
+    }
+    await route.continue();
+  });
+  const perderProximaResposta = async () => { perderResposta = true; };
+  const finalizar = () => page.getByRole("button", { name: "Criar encomendas" }).click();
+  const banner = () => page.getByTestId("consolidacao-pendente");
+
+  // ── D · finalização directa ────────────────────────────────────────────
+  await limpar();
+  await preparar();
+  await finalizar();
+  await page.waitForFunction(() => location.pathname === "/encomendas", null, { timeout: 30000 });
+  let e = await estado();
+  check(e.listas === 3, "D1: «Criar encomendas» cria o número correto de encomendas (3 farmácias → 3)");
+  check(e.finalizadas === 3, "D2: todas ficam no estado final esperado (FINALIZADA)");
+  check(e.outbox === 3 && e.outboxPorLista === 3, "D3: exactamente uma outbox por encomenda (3 outbox, 3 listas distintas)");
+  check(e.pendentes === 3, "D4: as 3 outbox ficam PENDENTE, 0 tentativas — nada foi processado");
+  check(e.auditoriaEnvio === 0, "D5: nenhum registo de exportação/envio (o ensaio pára na criação da outbox; nenhum worker/agente corre)");
+  const semOp = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("spharmmt:consolidacao-pendente:")).length);
+  check(semOp === 0, "D6: sucesso directo não deixa operação pendente");
+
+  // ── E · commit feito (lista + outbox), resposta perdida, edição, novo clique ──
+  await limpar();
+  await preparar();
+  await perderProximaResposta();
+  await finalizar();
+  await banner().getByText("Resultado da consolidação desconhecido").waitFor({ timeout: 20000 });
+  e = await estado();
+  check(e.listas === 3 && e.finalizadas === 3 && e.outbox === 3, "E1: o servidor fez commit das 3 listas FINALIZADAS e das 3 outbox; a resposta perdeu-se");
+  const opE = await lerOp();
+  check(opE?.estado === "RESULTADO_DESCONHECIDO", "E2: cliente em RESULTADO_DESCONHECIDO");
+  await page.locator('input[type="number"][value="7"]').first().fill("15");
+  await finalizar();
+  await banner().getByText("Lote de consolidação recuperado").waitFor({ timeout: 20000 });
+  e = await estado();
+  check(e.listas === 3 && e.outbox === 3 && e.outboxPorLista === 3, "E3: reconciliado — continuam 3 listas e 3 outbox (nenhuma duplicada)");
+  check(e.pendentes === 3 && e.auditoriaEnvio === 0, "E4: as outbox continuam por processar; nenhum envio");
+  check((await lerOp())?.chave === opE?.chave, "E5: a chave original manteve-se (nenhuma chave nova)");
+  check((await um(`SELECT count(*)::int n FROM "LinhaEncomenda" WHERE "quantidadeAjustada"=15`)).n === 0, "E6: a edição posterior não foi aplicada em silêncio ao lote já finalizado");
+  await finalizar();
+  await page.waitForTimeout(1500);
+  e = await estado();
+  check(e.listas === 3 && e.outbox === 3, "E7: voltar a clicar em «Criar encomendas» não duplica listas nem outbox");
+
+  // ── F · refresh recupera o lote finalizado ─────────────────────────────
+  await limpar();
+  await preparar();
+  await perderProximaResposta();
+  await finalizar();
+  await banner().waitFor({ timeout: 20000 });
+  await page.reload({ waitUntil: "networkidle" });
+  await banner().getByText("Lote de consolidação recuperado").waitFor({ timeout: 20000 });
+  e = await estado();
+  check(e.listas === 3 && e.finalizadas === 3 && e.outbox === 3 && e.outboxPorLista === 3, "F1: o refresh recupera o lote finalizado (3 FINALIZADAS, 3 outbox)");
+  check(e.pendentes === 3 && e.auditoriaEnvio === 0, "F2: sem qualquer envio");
+  await page.getByRole("button", { name: "Continuar os rascunhos criados" }).click();
+  await page.waitForFunction(() => location.pathname === "/encomendas", null, { timeout: 15000 });
+
+  // ── G · lote alheio / conflito continua bloqueado ──────────────────────
+  await limpar();
+  await preparar();
+  await perderProximaResposta();
+  await finalizar();
+  await banner().waitFor({ timeout: 20000 });
+  await db.query(
+    `INSERT INTO "Utilizador"(id,email,nome,perfil,"dataAtualizacao") VALUES ('outro-user-e2e','outro@spharm.test','Outro','ADMINISTRADOR',now()) ON CONFLICT (email) DO NOTHING`
+  );
+  const antesG = await estado();
+  await db.query(`UPDATE "ListaEncomenda" SET "criadoPorId"=(SELECT id FROM "Utilizador" WHERE email='outro@spharm.test')`); // o lote passa a ser de outro utilizador
+  await page.getByRole("button", { name: "Verificar estado no servidor" }).click();
+  await banner().getByText("Consolidação bloqueada").waitFor({ timeout: 20000 });
+  check(true, "G1: lote de outro utilizador → «Consolidação bloqueada»");
+  await finalizar();
+  await page.waitForTimeout(1500);
+  const depoisG = await estado();
+  check(depoisG.listas === antesG.listas && depoisG.outbox === antesG.outbox, "G2: continuar a clicar não cria nem altera nada (3 listas, 3 outbox)");
+  check((await lerOp())?.estado === "CONFLITO", "G3: a operação fica em CONFLITO (nova criação automática bloqueada)");
+  check(!(await page.getByRole("button", { name: "Criar novo lote com as alterações" }).isVisible().catch(() => false)),
+    "G4: em conflito não é oferecido «Criar novo lote» — só o utilizador dono do lote decide");
+
+  await db.end();
+  await page.close();
+}
+
 async function main() {
   const seed = await seedE2E(DB);
   const browser = await chromium.launch();
@@ -353,6 +475,7 @@ async function main() {
     await testeOrdenacaoEPainel(ctx);
     await testeEncomendas(ctx);
     await testeConsolidacaoRespostaPerdida(ctx);
+    await testeConsolidacaoFinalizar(ctx);
   } finally {
     await browser.close();
   }
