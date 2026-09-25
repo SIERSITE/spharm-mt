@@ -7,7 +7,13 @@ import { canAccessFarmaciaSync } from "@/lib/permissions-core";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
 import {
-  createConsolidatedOrdersWithOutbox,
+  criarConsolidacaoServico,
+  obterEstadoConsolidacaoServico,
+  type CriarConsolidacaoInput,
+  type CriarConsolidacaoResultado,
+  type EstadoConsolidacaoServidor,
+} from "@/lib/encomendas/consolidacao-servico";
+import {
   createEncomendaWithOutbox,
   IdempotencyConflictError,
   type OrderLineInput,
@@ -133,90 +139,50 @@ export async function createOrderAction(input: CreateOrderFormInput): Promise<Ac
 }
 
 // ─── Consolidação: N encomendas (uma por farmácia), UMA transacção ───────────
+//
+// A lógica vive em `lib/encomendas/consolidacao-servico.ts` (dependências
+// injectadas → testável sem sessão real). Estas duas actions só resolvem a
+// sessão, o tenant e o prisma reais e delegam.
 
-export type CreateConsolidatedOrdersInput = {
-  /** Chave do lote gerada pelo cliente — as chaves por farmácia derivam dela no servidor. */
-  batchKey: string;
-  nome: string;
-  finalize: boolean;
-  contexto?: string | null;
-  lotes: Array<{ farmaciaId: string; linhas: OrderLineInput[] }>;
-};
-
-export type CreateConsolidatedOrdersResult =
-  | {
-      ok: true;
-      reutilizado: boolean;
-      listas: Array<{ farmaciaId: string; listaEncomendaId: string; outboxId: string | null }>;
-    }
-  | { ok: false; error: string; code?: "IDEMPOTENCY_CONFLICT" };
+export type CreateConsolidatedOrdersInput = CriarConsolidacaoInput;
+export type CreateConsolidatedOrdersResult = CriarConsolidacaoResultado;
 
 export async function createConsolidatedOrdersAction(
   input: CreateConsolidatedOrdersInput
 ): Promise<CreateConsolidatedOrdersResult> {
   const session = await requirePermission("reports.write");
-  if (session.perfil !== "ADMINISTRADOR" && session.perfil !== "GESTOR_GRUPO") {
-    return { ok: false, error: "Sem permissão para vista de grupo." };
-  }
-  if (!CHAVE_IDEMPOTENCIA_RE.test(input.batchKey ?? "")) {
-    return { ok: false, error: "Chave de idempotência inválida." };
-  }
-  if (!input.nome.trim()) return { ok: false, error: "Nome da encomenda em falta." };
-  if (!Array.isArray(input.lotes) || input.lotes.length === 0) {
-    return { ok: false, error: "Sem farmácias na consolidação." };
-  }
-  if (input.lotes.some((l) => !l.farmaciaId || !Array.isArray(l.linhas) || l.linhas.length === 0)) {
-    return { ok: false, error: "Todas as farmácias da consolidação precisam de linhas." };
-  }
-  if (input.contexto != null && input.contexto.length > CONTEXT_JSON_MAX_CHARS) {
-    return { ok: false, error: "Contexto da proposta excede o tamanho máximo." };
-  }
-  for (const l of input.lotes) {
-    if (!canAccessFarmaciaSync(session, l.farmaciaId)) {
-      return { ok: false, error: "Sem acesso a uma das farmácias da consolidação." };
-    }
-  }
-
   const prisma = await getPrisma();
   const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
 
-  try {
-    const r = await createConsolidatedOrdersWithOutbox(prisma, tenantSlug, {
-      batchKey: input.batchKey,
-      criadoPorId: session.sub,
-      nome: input.nome.slice(0, 180),
-      finalize: input.finalize,
-      contexto: input.contexto,
-      lotes: input.lotes,
-    });
-
-    if (!r.reutilizado) {
-      for (const l of r.listas) {
-        await logAudit({
-          actorId: session.sub,
-          action: input.finalize ? "order.created_and_finalized" : "order.created_draft",
-          entity: "ListaEncomenda",
-          entityId: l.listaEncomendaId,
-          meta: {
-            mode: "consolidacao",
-            finalize: input.finalize,
-            farmaciaId: l.farmaciaId,
-            lote: r.listas.length,
-            outboxId: l.outboxId,
-            comContexto: input.contexto != null,
-          },
-        });
-      }
-    }
+  const r = await criarConsolidacaoServico(
+    {
+      prisma,
+      tenantSlug,
+      sessao: session,
+      auditar: (e) =>
+        logAudit({ actorId: session.sub, action: e.action, entity: "ListaEncomenda", entityId: e.entityId, meta: e.meta }),
+    },
+    input
+  );
+  if (r.ok && !r.reutilizado) {
     revalidatePath("/encomendas");
     revalidatePath("/configuracoes/integracao");
-    return { ok: true, ...r };
-  } catch (err) {
-    if (err instanceof IdempotencyConflictError) {
-      return { ok: false, error: err.message, code: err.code };
-    }
-    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
+  return r;
+}
+
+/**
+ * Reconciliação: o que existe no servidor para uma chave de lote cujo
+ * resultado o cliente não viu (timeout, ligação perdida, refresh).
+ * Só lê. Ver `obterEstadoConsolidacaoServico`.
+ */
+export async function obterEstadoConsolidacaoPorChaveAction(input: {
+  batchKey: string;
+  farmaciaIds: string[];
+}): Promise<EstadoConsolidacaoServidor> {
+  const session = await requirePermission("reports.write");
+  const prisma = await getPrisma();
+  return obterEstadoConsolidacaoServico({ prisma, sessao: session }, input);
 }
 
 // ─── Carregar rascunho (retomar em /encomendas/nova?rascunho=<id>) ──────────

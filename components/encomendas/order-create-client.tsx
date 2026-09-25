@@ -8,6 +8,7 @@ import { ChevronDown, Plus, Trash2, ArrowLeftRight } from "lucide-react";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import {
   createConsolidatedOrdersAction,
+  obterEstadoConsolidacaoPorChaveAction,
   createOrderAction,
   generateProposalAction,
   gerarPlanoGrupoAction,
@@ -35,6 +36,17 @@ import { ProductPicker } from "@/components/encomendas/product-picker";
 import { HistoricoProdutoButton } from "@/components/encomendas/historico-produto-modal";
 import type { HistoricoProduto12MesesResult } from "@/lib/encomendas/historico-produto";
 import { enriquecerLinhasRascunho } from "@/lib/encomendas/reconstruir-rascunho";
+import {
+  chaveArmazenamentoOperacao,
+  executarConsolidacao,
+  lerOperacao,
+  limparOperacao,
+  reconciliarPendente,
+  type ApiConsolidacao,
+  type OperacaoConsolidacao,
+  type ResultadoExecucao,
+  type SnapshotConsolidacao,
+} from "@/lib/encomendas/operacao-consolidacao";
 import { agruparPorProduto, type GrupoProduto } from "@/lib/encomendas/agrupar-produto";
 import { ImportListaCodigos } from "@/components/reporting/import-lista-codigos";
 import {
@@ -361,8 +373,8 @@ export function OrderCreateClient({
   const pendentesPosCriacaoRef = useRef<
     Array<{ produtoId: string; patch?: { quantidadeAjustada?: number | null; notas?: string | null; origem?: OrigemLinha }; remover?: boolean }>
   >([]);
-  // Consolidação: chave do lote + impressão do payload com que foi gerada.
-  const loteConsolidacaoRef = useRef<{ chave: string; impressao: string } | null>(null);
+  // Consolidação: operação de criação pendente/recuperada (ver lib/encomendas/operacao-consolidacao.ts).
+  const [operacaoConsolidacao, setOperacaoConsolidacao] = useState<OperacaoConsolidacao | null>(null);
   const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
 
   const utilizador = useUtilizador();
@@ -387,6 +399,140 @@ export function OrderCreateClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId]);
+
+  // ─── Operação de consolidação pendente (resposta perdida) ────────────────
+  //
+  // Uma chave de idempotência identifica uma INTENÇÃO de criação. Depois de
+  // uma tentativa cujo resultado não se viu (timeout, ligação perdida,
+  // refresh), o registo persiste por tenant+utilizador+workspace e o cliente
+  // RECONCILIA junto do servidor antes de qualquer nova tentativa — nunca
+  // gera uma chave nova sozinho. Ver lib/encomendas/operacao-consolidacao.ts.
+  const chaveOperacaoLS = chaveArmazenamentoOperacao(
+    utilizador?.tenant ?? "desconhecido",
+    utilizador?.userId ?? "desconhecido",
+    searchParams.get("workspace") ?? "nova"
+  );
+  const apiConsolidacao: ApiConsolidacao = {
+    criar: (i) => createConsolidatedOrdersAction(i),
+    reconciliar: (i) => obterEstadoConsolidacaoPorChaveAction(i),
+  };
+  function storageOperacao(): Storage | null {
+    try {
+      return typeof window === "undefined" ? null : window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+  function depsConsolidacao() {
+    return {
+      api: apiConsolidacao,
+      storage: storageOperacao(),
+      chaveLS: chaveOperacaoLS,
+      gerarChave: () => crypto.randomUUID().replace(/-/g, ""),
+    };
+  }
+  function aplicarResultadoConsolidacao(r: ResultadoExecucao) {
+    switch (r.tipo) {
+      case "CRIADA":
+        setOperacaoConsolidacao(null);
+        setFlash({ type: "ok", msg: `${r.listas.length} encomenda(s) criadas.` });
+        setLinhas([]);
+        setHasProposal(false);
+        setProposalMeta(null);
+        setTimeout(() => router.push("/encomendas"), 800);
+        return;
+      case "RECUPERADA":
+        setOperacaoConsolidacao(r.op);
+        setFlash({
+          type: "info",
+          msg: `O lote anterior foi recuperado: ${r.listas.length} encomenda(s) já existem no servidor. Não foi criado nenhum lote novo.`,
+        });
+        return;
+      case "REJEITADA":
+        setOperacaoConsolidacao(null);
+        setFlash({ type: "err", msg: `Consolidação não criada (nada foi gravado): ${r.erro}` });
+        return;
+      case "DESCONHECIDO":
+        setOperacaoConsolidacao(r.op);
+        setFlash({
+          type: "err",
+          msg: `Não foi possível confirmar se a consolidação foi criada (${r.erro}). Nada de novo será criado sem verificar primeiro o estado no servidor.`,
+        });
+        return;
+      case "BLOQUEADA":
+        setOperacaoConsolidacao(r.op);
+        setFlash({ type: "err", msg: r.motivo });
+        return;
+    }
+  }
+  function snapshotConsolidacao(finalize: boolean, validLines: Line[]): SnapshotConsolidacao | null {
+    const byFarmacia = new Map<string, Line[]>();
+    for (const l of validLines) {
+      const fId = l.farmaciaId ?? "";
+      if (!fId) continue;
+      if (!byFarmacia.has(fId)) byFarmacia.set(fId, []);
+      byFarmacia.get(fId)!.push(l);
+    }
+    if (byFarmacia.size === 0) return null;
+    return {
+      nome: (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180),
+      finalize,
+      contexto: serializarPropostaContexto(buildContextoActual()) ?? null,
+      lotes: [...byFarmacia.entries()]
+        .sort(([x], [y]) => (x < y ? -1 : 1))
+        .map(([fId, fLinhas]) => ({
+          farmaciaId: fId,
+          linhas: [...fLinhas]
+            .sort((x, y) => (x.produtoId < y.produtoId ? -1 : 1))
+            .map((l) => ({
+              produtoId: l.produtoId,
+              quantidadeSugerida: l.suggestedQty ?? null,
+              quantidadeAjustada: Number(l.finalQty),
+              notas: l.notas.trim() || null,
+              origem: l.origem,
+            })),
+        })),
+    };
+  }
+  // Ao montar (incl. depois de um refresh): lê o registo persistido e reconcilia
+  // com o servidor (só leitura — nunca cria nada).
+  useEffect(() => {
+    const pendente = lerOperacao(storageOperacao(), chaveOperacaoLS);
+    if (!pendente) return;
+    setOperacaoConsolidacao(pendente.estado === "A_SUBMETER" ? { ...pendente, estado: "RESULTADO_DESCONHECIDO" } : pendente);
+    void reconciliarPendente(depsConsolidacao()).then((r) => {
+      if (r) aplicarResultadoConsolidacao(r);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveOperacaoLS]);
+  function verificarEstadoConsolidacao() {
+    startTransition(async () => {
+      const r = await reconciliarPendente(depsConsolidacao());
+      if (r) aplicarResultadoConsolidacao(r);
+    });
+  }
+  function continuarLoteRecuperado() {
+    const st = storageOperacao();
+    if (st) limparOperacao(st, chaveOperacaoLS);
+    setOperacaoConsolidacao(null);
+    router.push("/encomendas");
+  }
+  function criarNovoLoteExplicito() {
+    const validLines = linhas.filter((l) => Number.isFinite(Number(l.finalQty || "0")) && Number(l.finalQty || "0") > 0);
+    const snap = snapshotConsolidacao(operacaoConsolidacao?.snapshot.finalize ?? false, validLines);
+    if (!snap) {
+      setFlash({ type: "err", msg: "Sem linhas com quantidade > 0 para criar um novo lote." });
+      return;
+    }
+    const aviso =
+      operacaoConsolidacao?.estado === "CONCLUIDA"
+        ? "Vai criar um NOVO lote, além do que já existe no servidor. Continuar?"
+        : "Ainda não foi possível confirmar se o lote anterior foi criado. Criar um NOVO lote pode duplicar encomendas. Continuar?";
+    if (!window.confirm(aviso)) return;
+    startTransition(async () => {
+      aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap, { novoLoteExplicito: true }));
+    });
+  }
 
   function buildContextoActual(): PropostaContexto {
     return {
@@ -1561,66 +1707,18 @@ export function OrderCreateClient({
     }
 
     if (mode === "consolidacao") {
-      // Cria uma ListaEncomenda por farmácia
-      const byFarmacia = new Map<string, Line[]>();
-      for (const l of validLines) {
-        const fId = l.farmaciaId ?? "";
-        if (!fId) continue;
-        if (!byFarmacia.has(fId)) byFarmacia.set(fId, []);
-        byFarmacia.get(fId)!.push(l);
-      }
-      if (byFarmacia.size === 0) {
+      // Lote ÚNICO, uma só transacção no servidor (tudo ou nada), com uma
+      // chave de idempotência por INTENÇÃO: `executarConsolidacao` reconcilia
+      // primeiro qualquer operação pendente (resposta perdida, refresh) e só
+      // gera uma chave nova na ausência de operação registada ou por decisão
+      // explícita («Criar novo lote com as alterações»).
+      const snap = snapshotConsolidacao(finalize, validLines);
+      if (!snap) {
         setFlash({ type: "err", msg: "Sem farmácias identificadas nas linhas." });
         return;
       }
-
-      // Lote ÚNICO, uma só transacção no servidor (tudo ou nada). A chave
-      // do lote é estável entre retries do MESMO payload (retry idempotente,
-      // sem duplicar); se o utilizador editou linhas desde a tentativa
-      // anterior a impressão muda e nasce uma chave NOVA — a operação nova
-      // reflecte sempre as edições (nunca se devolve o lote antigo).
-      // Como a criação é atómica, uma tentativa falhada nunca deixa
-      // encomendas parciais que a chave nova pudesse duplicar.
-      const nomeLote = (nome.trim() || `Grupo ${new Date().toLocaleDateString("pt-PT")}`).slice(0, 180);
-      const lotes = [...byFarmacia.entries()]
-        .sort(([x], [y]) => (x < y ? -1 : 1))
-        .map(([fId, fLinhas]) => ({
-          farmaciaId: fId,
-          linhas: [...fLinhas]
-            .sort((x, y) => (x.produtoId < y.produtoId ? -1 : 1))
-            .map((l) => ({
-              produtoId: l.produtoId,
-              quantidadeSugerida: l.suggestedQty ?? null,
-              quantidadeAjustada: Number(l.finalQty),
-              notas: l.notas.trim() || null,
-              origem: l.origem,
-            })),
-        }));
-      const contextoConsolidacao = serializarPropostaContexto(buildContextoActual()) ?? null;
-      const impressao = JSON.stringify([nomeLote, finalize, contextoConsolidacao, lotes]);
-      if (!loteConsolidacaoRef.current || loteConsolidacaoRef.current.impressao !== impressao) {
-        loteConsolidacaoRef.current = { chave: crypto.randomUUID().replace(/-/g, ""), impressao };
-      }
-      const chaveLote = loteConsolidacaoRef.current.chave;
       startTransition(async () => {
-        const r = await createConsolidatedOrdersAction({
-          batchKey: chaveLote,
-          nome: nomeLote,
-          finalize,
-          contexto: contextoConsolidacao,
-          lotes,
-        });
-        if (!r.ok) {
-          if (r.code === "IDEMPOTENCY_CONFLICT") loteConsolidacaoRef.current = null;
-          setFlash({ type: "err", msg: `Consolidação não criada (nada foi gravado): ${r.error}` });
-          return;
-        }
-        loteConsolidacaoRef.current = null;
-        setFlash({ type: "ok", msg: `${r.listas.length} encomenda(s) criadas.` });
-        setLinhas([]);
-        setHasProposal(false);
-        setProposalMeta(null);
-        setTimeout(() => router.push("/encomendas"), 800);
+        aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap));
       });
     } else {
       // Só "farmacia" chega aqui (o botão não existe em modo "grupo" —
@@ -1847,6 +1945,47 @@ export function OrderCreateClient({
         </div>
       )}
 
+      {operacaoConsolidacao && (
+        <div
+          role="status"
+          data-testid="consolidacao-pendente"
+          className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          <p className="font-semibold">
+            {operacaoConsolidacao.estado === "CONCLUIDA"
+              ? "Lote de consolidação recuperado"
+              : operacaoConsolidacao.estado === "CONFLITO"
+                ? "Consolidação bloqueada"
+                : "Resultado da consolidação desconhecido"}
+          </p>
+          <p className="mt-1 text-xs">
+            {operacaoConsolidacao.estado === "CONCLUIDA"
+              ? `${operacaoConsolidacao.listas?.length ?? operacaoConsolidacao.farmaciaIds.length} encomenda(s) já existem no servidor. Alterações feitas depois NÃO foram aplicadas a esse lote.`
+              : operacaoConsolidacao.estado === "CONFLITO"
+                ? "Não é possível criar outro lote automaticamente."
+                : "A resposta do servidor não chegou. Nenhum lote novo será criado sem verificar o estado no servidor."}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {operacaoConsolidacao.estado !== "CONCLUIDA" && operacaoConsolidacao.estado !== "CONFLITO" && (
+              <button type="button" onClick={verificarEstadoConsolidacao} disabled={busy} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
+                Verificar estado no servidor
+              </button>
+            )}
+            {operacaoConsolidacao.estado === "CONCLUIDA" && (
+              <button type="button" onClick={continuarLoteRecuperado} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
+                Continuar os rascunhos criados
+              </button>
+            )}
+            {(operacaoConsolidacao.estado === "CONCLUIDA" ||
+              operacaoConsolidacao.estado === "RESULTADO_DESCONHECIDO" ||
+              operacaoConsolidacao.estado === "NAO_ENCONTRADA") && (
+              <button type="button" onClick={criarNovoLoteExplicito} disabled={busy} className="rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-medium">
+                Criar novo lote com as alterações
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {flash && (
         <div
           className={`rounded-xl border px-4 py-3 text-[13px] ${
