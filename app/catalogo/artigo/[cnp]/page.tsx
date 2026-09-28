@@ -9,6 +9,7 @@ import {
 import type { ProdutoEstado, VerificationStatus } from "@/generated/prisma/client";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
 import { ROTULO_ORIGEM } from "@/lib/categoria-resolver";
+import { formatarFabricanteParaExibicao } from "@/lib/catalog/fabricante-display";
 
 export const dynamic = "force-dynamic";
 
@@ -155,12 +156,8 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
               </div>
               <p className="text-[13px] text-slate-600">
                 CNP {article.cnp}
-                {article.fabricante && (
-                  <>
-                    <span className="px-1.5 text-slate-400">·</span>
-                    {article.fabricante.nomeNormalizado}
-                  </>
-                )}
+                <span className="px-1.5 text-slate-400">·</span>
+                {formatarFabricanteParaExibicao({ fabricanteNome: article.fabricante?.nomeNormalizado, titularAim: article.fabricanteTitularAim })}
                 {article.classificacaoNivel1 && (
                   <>
                     <span className="px-1.5 text-slate-400">·</span>
@@ -219,7 +216,7 @@ function ArticleView({ article }: { article: CatalogoArticle }) {
             { label: "Designação", value: article.designacao },
             {
               label: "Fabricante",
-              value: article.fabricante?.nomeNormalizado ?? "—",
+              value: formatarFabricanteParaExibicao({ fabricanteNome: article.fabricante?.nomeNormalizado, titularAim: article.fabricanteTitularAim }),
             },
             { label: "Origem dos dados", value: article.origemDados },
             { label: "Estado do artigo", value: ESTADO_LABELS[article.estado] },

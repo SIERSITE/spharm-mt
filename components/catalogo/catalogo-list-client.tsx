@@ -21,6 +21,7 @@ import {
   valorDeLaboratorio,
 } from "@/lib/catalog/laboratorio-filtro";
 import type { OrigemClassificacao } from "@/lib/categoria-resolver";
+import { formatarFabricanteParaExibicao } from "@/lib/catalog/fabricante-display";
 
 type Props = {
   data: CatalogoListData;
@@ -436,7 +437,7 @@ function CatalogoRowCells({ row }: { row: CatalogoRow }) {
           </div>
         </div>
       </td>
-      <td className="px-3 py-2 text-[12px] text-slate-700">{row.fabricanteNome ?? "—"}</td>
+      <td className="px-3 py-2 text-[12px] text-slate-700">{formatarFabricanteParaExibicao({ fabricanteNome: row.fabricanteNome, titularAim: row.fabricanteTitularAim })}</td>
       <td className="px-3 py-2 text-[12px] text-slate-700">
         {classifico.length === 0 ? (
           <span className="text-slate-400">—</span>

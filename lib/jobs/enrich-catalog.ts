@@ -38,6 +38,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { mapToCanonical } from "@/lib/catalog-taxonomy-map";
 import type { ReconciliacaoGruposLaboratoriaisSummary } from "@/lib/catalog/reconciliar-grupos-laboratoriais-garantia";
+import type { ReconciliacaoFabricantesSummary } from "@/lib/catalog/reconciliar-fabricantes-por-cnp-garantia";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────
 
@@ -131,6 +132,15 @@ export type EnrichCycleSummary = {
    * sem saber de onde vem o conhecimento não há proveniência a registar).
    */
   promocaoGlobal: PromocaoGlobalSummary | null;
+  /**
+   * Fase 5b — reconciliação de `Produto.fabricanteId` a partir de
+   * `RegulatoryRecord.titularAim`, exclusiva do tenant garantia. Mesmo
+   * gate que a fase 6 (`tenantSlug === "garantia" && apenasFila !==
+   * true`) e corre ANTES dela: a classificação de grupos laboratoriais
+   * depende do fabricante já estar resolvido (ver
+   * lib/catalog/reconciliar-fabricantes-por-cnp-garantia.ts).
+   */
+  fabricantesPorCnp: (ReconciliacaoFabricantesSummary & { erro: string | null }) | null;
   /**
    * Fase 6 — manutenção de `ProdutoGrupoLaboratorial`, exclusiva do
    * tenant garantia (as tabelas nem existem fisicamente nos outros
@@ -472,6 +482,8 @@ export async function runEnrichCycle(opts: {
    * diário (cnp % 20) já limita o volume normal; isto é só a válvula.
    */
   gruposLaboratoriaisLimit?: number;
+  /** Mesma válvula que `gruposLaboratoriaisLimit`, para a fase 5b (garantia apenas). */
+  fabricantesPorCnpLimit?: number;
 }): Promise<EnrichCycleSummary> {
   const t0 = Date.now();
   // Ordem obrigatória: o determinístico primeiro, sempre. Só o que ele
@@ -607,6 +619,43 @@ export async function runEnrichCycle(opts: {
     }
   }
 
+  // ── Fase 5b: reconciliar Produto.fabricanteId a partir de              ──
+  // ── RegulatoryRecord.titularAim — exclusiva garantia, mesmo gate       ──
+  // ── da fase 6, e SEMPRE ANTES dela (a classificação de grupos          ──
+  // ── laboratoriais lê Produto.fabricanteId — resolver primeiro).        ──
+  //
+  // Mesmas razões de exclusividade/gate da fase 6 abaixo: só a garantia
+  // tem `RegulatoryRecord` populado a sério (catálogo INFARMED
+  // importado), e `apenasFila` teria o mesmo efeito indesejado — reler
+  // TODOS os produtos sem fabricante a cada 15 minutos em vez de 1x/dia.
+  let fabricantesPorCnp: (ReconciliacaoFabricantesSummary & { erro: string | null }) | null = null;
+  if (opts.tenantSlug === "garantia" && opts.apenasFila !== true) {
+    try {
+      const { reconciliarFabricantesPorCnpGarantia } = await import("../catalog/reconciliar-fabricantes-por-cnp-garantia");
+      const resultado = await reconciliarFabricantesPorCnpGarantia(opts.prisma, opts.tenantSlug, {
+        tipo: "lote",
+        buckets: 20,
+        limiteSeguranca: opts.fabricantesPorCnpLimit ?? 5000,
+      });
+      fabricantesPorCnp = { ...resultado, erro: null };
+      if (resultado.aindaSemFabricanteAtual > 0) {
+        console.warn(
+          `[enrich-catalog] garantia: ${resultado.aindaSemFabricanteAtual} produto(s) Autorizado/Ativo continuam sem fabricante após a reconciliação (ambíguos ou sem fonte) — ver relatório da fase 5b.`,
+        );
+      }
+    } catch (e) {
+      // Mesma política das fases 3/5: nunca derruba o ciclo.
+      fabricantesPorCnp = {
+        analisados: 0, jaTinhaFabricante: 0, divergencias: 0, protegidosManualmente: 0,
+        resolvidosPorNomeNormalizado: 0, resolvidosPorAlias: 0, resolvidosPorPlanoCurado: 0,
+        fabricantesCriados: 0, aliasesCriados: 0, ambiguidades: 0,
+        semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 },
+        estadosAim: {}, aindaSemFabricanteAtual: 0, erros: 0, durationMs: 0,
+        erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+      };
+    }
+  }
+
   // ── Fase 6: reconciliar ProdutoGrupoLaboratorial — exclusiva garantia,   ──
   // ── e só na corrida diária completa, NUNCA na varredura de fila        ──
   //
@@ -654,6 +703,7 @@ export async function runEnrichCycle(opts: {
     knowledge,
     reclassifyPosKnowledge,
     promocaoGlobal,
+    fabricantesPorCnp,
     gruposLaboratoriais,
     totalDurationMs: Date.now() - t0,
   };

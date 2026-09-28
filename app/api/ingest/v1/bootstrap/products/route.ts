@@ -61,6 +61,7 @@ import {
   type ResumoReconciliacao,
 } from "@/lib/catalog/reconciliar-importacao";
 import type { ReconciliacaoGruposLaboratoriaisSummary } from "@/lib/catalog/reconciliar-grupos-laboratoriais-garantia";
+import type { ReconciliacaoFabricantesSummary } from "@/lib/catalog/reconciliar-fabricantes-por-cnp-garantia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,6 +192,11 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     preservados: Record<string, number>;
   } | null = null;
   let reconciliacaoGlobal: ResumoReconciliacao | null = null;
+  // Fabricante legal a partir de RegulatoryRecord.titularAim — exclusivo
+  // do tenant garantia. Corre ANTES do grupo laboratorial (que lê
+  // Produto.fabricanteId) — ver lib/catalog/
+  // reconciliar-fabricantes-por-cnp-garantia.ts.
+  let fabricantesPorCnp: ReconciliacaoFabricantesSummary | null = null;
   // Grupo laboratorial pesquisável — exclusivo do tenant garantia (as
   // tabelas nem existem fisicamente nos outros tenants). Nunca escreve
   // Produto/Fabricante, nunca falha o ingest — ver lib/catalog/
@@ -342,6 +348,25 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
       );
     }
 
+    // Fabricante legal por CNP — corre DEPOIS de applyErpCatalogFields e
+    // ANTES do grupo laboratorial (que lê Produto.fabricanteId): mesma
+    // política de erro dos blocos anteriores, uma falha aqui nunca pode
+    // fazer a farmácia perder o upload.
+    if (ctx.tenant.slug === "garantia") {
+      try {
+        const { reconciliarFabricantesPorCnpGarantia } = await import("@/lib/catalog/reconciliar-fabricantes-por-cnp-garantia");
+        fabricantesPorCnp = await reconciliarFabricantesPorCnpGarantia(ctx.prisma, ctx.tenant.slug, {
+          tipo: "produtos",
+          produtoIds: [...cnpToId.values()],
+        });
+      } catch (err) {
+        console.error(
+          "[bootstrap/products] reconciliação de fabricantes por CNP falhou (ingestão continua):",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     // Grupo laboratorial pesquisável — corre DEPOIS de applyErpCatalogFields
     // (que pode ter acabado de escrever Produto.fabricanteId) e é, tal como
     // os dois blocos anteriores, enriquecimento por cima do contrato do
@@ -491,6 +516,22 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
 
     // Mesmo passo do caminho bulk (ver acima) — o caminho de recurso
     // também escreve Produto/ProdutoFarmacia e merece a mesma manutenção.
+    // Fabricante SEMPRE antes de grupo laboratorial (ver acima).
+    if (ctx.tenant.slug === "garantia") {
+      try {
+        const { reconciliarFabricantesPorCnpGarantia } = await import("@/lib/catalog/reconciliar-fabricantes-por-cnp-garantia");
+        fabricantesPorCnp = await reconciliarFabricantesPorCnpGarantia(ctx.prisma, ctx.tenant.slug, {
+          tipo: "produtos",
+          produtoIds: produtoIdsFallback,
+        });
+      } catch (err) {
+        console.error(
+          "[bootstrap/products] reconciliação de fabricantes por CNP falhou no caminho de recurso (ingestão continua):",
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     if (ctx.tenant.slug === "garantia") {
       try {
         const { reconciliarGruposLaboratoriaisGarantia } = await import("@/lib/catalog/reconciliar-grupos-laboratoriais-garantia");
@@ -551,6 +592,7 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     produtosAtualizados,
     ...(catalogoErp ? { catalogoErp } : {}),
     ...(reconciliacaoGlobal ? { catalogoGlobal: reconciliacaoGlobal } : {}),
+    ...(fabricantesPorCnp ? { fabricantesPorCnp } : {}),
     ...(gruposLaboratoriais ? { gruposLaboratoriais } : {}),
   });
 });

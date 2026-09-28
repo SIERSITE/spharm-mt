@@ -5,6 +5,7 @@ import { calcularPvpReferencia, descreverPvpReferencia, desvioFaceAReferencia } 
 import { calcularPrecoReferencia, descreverPrecoReferencia } from "@/lib/produtos/preco-referencia";
 import { custoDaFarmacia } from "@/lib/produtos/custo-farmacia";
 import { rotuloProductType } from "@/lib/catalog/product-type-labels";
+import { formatarFabricanteParaExibicao } from "@/lib/catalog/fabricante-display";
 
 /**
  * lib/stock/artigo-ficha-data.ts
@@ -84,6 +85,14 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
   });
   if (!produto) return null;
 
+  // RegulatoryRecord.titularAim — só populado no tenant garantia (catálogo
+  // INFARMED importado), mas a leitura é genérica: para os outros
+  // tenants devolve null e o fallback é o mesmo "Fabricante não
+  // informado pela origem" de sempre. Ver lib/catalog/fabricante-display.ts.
+  const registo = produto.fabricante
+    ? null
+    : await prisma.regulatoryRecord.findUnique({ where: { cnp }, select: { titularAim: true } });
+
   const resolvedCat = resolveCategoria({
     classificacaoNivel1: produto.classificacaoNivel1,
     classificacaoNivel2: produto.classificacaoNivel2,
@@ -145,7 +154,7 @@ export async function loadArtigoFicha(cnp: number): Promise<ArtigoFichaData | nu
     cnp: produto.cnp,
     designacao: produto.designacao,
     imagemUrl: produto.imagemUrl,
-    fabricante: fmt(produto.fabricante?.nomeNormalizado),
+    fabricante: formatarFabricanteParaExibicao({ fabricanteNome: produto.fabricante?.nomeNormalizado, titularAim: registo?.titularAim }),
     principioAtivo: fmt(produto.dci),
     atc: fmt(produto.codigoATC),
     forma: fmt(produto.formaFarmaceutica),

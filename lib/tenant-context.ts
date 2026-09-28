@@ -40,6 +40,17 @@ export const TENANT_SYNC_BLOQUEADO = "garantia";
  */
 export const TENANT_GRUPOS_LABORATORIAIS = "garantia";
 
+/**
+ * Tenant onde `Produto.fabricanteId` é reconciliado automaticamente a
+ * partir de `RegulatoryRecord.titularAim` (ver
+ * lib/catalog/reconciliar-fabricantes-por-cnp-garantia.ts). Mesmo valor
+ * que as constantes acima hoje, mas é OUTRA decisão — constante própria
+ * pela mesma razão de `TENANT_GRUPOS_LABORATORIAIS`: só garantia importou
+ * o catálogo nacional (RegulatoryRecord populado) e só lá esta
+ * reconciliação deve correr, consultar ou escrever.
+ */
+export const TENANT_FABRICANTES_POR_CNP = "garantia";
+
 export async function resolveCurrentTenantSlug(): Promise<string | null> {
   try {
     const { headers } = await import("next/headers");

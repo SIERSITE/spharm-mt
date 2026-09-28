@@ -181,6 +181,8 @@ export type ReviewDetail = {
     estado: ProdutoEstado;
     fabricanteId: string | null;
     fabricanteNome: string | null;
+    /** Ver `CatalogoArticle.fabricanteTitularAim` — mesmo contrato. */
+    fabricanteTitularAim: string | null;
     classificacaoNivel1Id: string | null;
     classificacaoNivel1Nome: string | null;
     classificacaoNivel2Id: string | null;
@@ -281,6 +283,10 @@ export async function loadReviewDetail(
   });
   if (!p) return null;
 
+  const registoParaFabricante = p.fabricante
+    ? null
+    : await prisma.regulatoryRecord.findUnique({ where: { cnp: p.cnp }, select: { titularAim: true } });
+
   const historico = await prisma.produtoVerificacaoHistorico.findMany({
     where: { produtoId },
     orderBy: { verificadoEm: "desc" },
@@ -304,6 +310,7 @@ export async function loadReviewDetail(
       estado: p.estado,
       fabricanteId: p.fabricanteId,
       fabricanteNome: p.fabricante?.nomeNormalizado ?? null,
+      fabricanteTitularAim: registoParaFabricante?.titularAim ?? null,
       classificacaoNivel1Id: p.classificacaoNivel1Id,
       classificacaoNivel1Nome: p.classificacaoNivel1?.nome ?? null,
       classificacaoNivel2Id: p.classificacaoNivel2Id,

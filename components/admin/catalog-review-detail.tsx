@@ -15,6 +15,7 @@ import {
   dismissReviewAction,
   type ApplyReviewInput,
 } from "@/app/admin/catalogo/revisao/actions";
+import { formatarFabricanteParaExibicao } from "@/lib/catalog/fabricante-display";
 
 type ProductType =
   | "MEDICAMENTO"
@@ -256,9 +257,7 @@ export function CatalogReviewDetail({ detail, fabricantes, classificacoes, evide
               </span>
             </Field>
             <Field label="Fabricante / laboratório">
-              {detail.produto.fabricanteNome ?? (
-                <span className="text-slate-400">— (sem fabricante)</span>
-              )}
+              {formatarFabricanteParaExibicao({ fabricanteNome: detail.produto.fabricanteNome, titularAim: detail.produto.fabricanteTitularAim })}
             </Field>
             <Field label="Categoria N1 / N2">
               {detail.produto.classificacaoNivel1Nome ? (
@@ -596,7 +595,7 @@ function EvidenceSection({
       {/* Proveniência heurística do estado actual */}
       <div className="grid gap-2 border-b border-slate-100 px-4 py-3 text-[12px] md:grid-cols-3">
         <ProvField label="Tipo de produto" value={produto.productType ?? "—"} prov={finalProvenance.productType} />
-        <ProvField label="Fabricante" value={produto.fabricanteNome ?? "—"} prov={finalProvenance.fabricante} />
+        <ProvField label="Fabricante" value={formatarFabricanteParaExibicao({ fabricanteNome: produto.fabricanteNome, titularAim: produto.fabricanteTitularAim })} prov={finalProvenance.fabricante} />
         <ProvField
           label="Categoria"
           value={

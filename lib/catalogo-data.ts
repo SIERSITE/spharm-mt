@@ -60,6 +60,8 @@ export type CatalogoRow = {
   cnp: number;
   designacao: string;
   fabricanteNome: string | null;
+  /** Ver `CatalogoArticle.fabricanteTitularAim` — mesmo contrato, versão de listagem. */
+  fabricanteTitularAim: string | null;
   classificacaoN1Nome: string | null;
   classificacaoN2Nome: string | null;
   productType: string | null;
@@ -287,6 +289,18 @@ export async function loadCatalogoListData(
     loadResumoClassificacao(),
   ]);
 
+  // RegulatoryRecord.titularAim em lote — só para as linhas SEM fabricante
+  // (nunca N+1: uma única query para toda a página). Ver
+  // CatalogoArticle.fabricanteTitularAim para o mesmo contrato na ficha.
+  const cnpsSemFabricante = rows.filter((p) => !p.fabricante).map((p) => p.cnp);
+  const titularAimPorCnp = cnpsSemFabricante.length > 0
+    ? new Map(
+        (await prisma.regulatoryRecord.findMany({ where: { cnp: { in: cnpsSemFabricante } }, select: { cnp: true, titularAim: true } })).map(
+          (r) => [r.cnp, r.titularAim],
+        ),
+      )
+    : new Map<number, string | null>();
+
   const list: CatalogoRow[] = rows.map((p) => {
     const pvps = p.produtosFarmacia
       .map((pf) => (pf.pvp == null ? null : Number(pf.pvp)))
@@ -311,6 +325,7 @@ export async function loadCatalogoListData(
       cnp: p.cnp,
       designacao: p.designacao,
       fabricanteNome: p.fabricante?.nomeNormalizado ?? null,
+      fabricanteTitularAim: p.fabricante ? null : (titularAimPorCnp.get(p.cnp) ?? null),
       classificacaoN1Nome: p.classificacaoNivel1?.nome ?? null,
       classificacaoN2Nome: p.classificacaoNivel2?.nome ?? null,
       productType: p.productType,
@@ -446,6 +461,15 @@ export type CatalogoArticle = {
   estado: ProdutoEstado;
   lastVerifiedAt: Date | null;
   fabricante: { id: string; nomeNormalizado: string } | null;
+  /**
+   * `RegulatoryRecord.titularAim` do mesmo CNP, só quando `fabricante`
+   * é `null` — para a UI distinguir "sem fonte nenhuma" de "há um
+   * titular AIM conhecido, ainda por validar como fabricante" (ver
+   * lib/catalog/fabricante-display.ts, regra 9 da reconciliação de
+   * fabricantes por CNP). Populado em todos os tenants (leitura
+   * genérica); só a garantia tem `RegulatoryRecord` preenchido.
+   */
+  fabricanteTitularAim: string | null;
   classificacaoNivel1: { id: string; nome: string } | null;
   classificacaoNivel2: { id: string; nome: string } | null;
   /**
@@ -498,6 +522,10 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
   });
   if (!p) return null;
 
+  const registoParaFabricante = p.fabricante
+    ? null
+    : await prisma.regulatoryRecord.findUnique({ where: { cnp: p.cnp }, select: { titularAim: true } });
+
   // O raciocínio do modelo vive na cache, não no produto. Uma query
   // separada e não um `include`: `KnowledgeEnrichmentCache` não tem
   // relação declarada com `Produto` (a chave é o CNP, de propósito —
@@ -542,6 +570,7 @@ export async function loadCatalogoArticle(cnp: number): Promise<CatalogoArticle 
     estado: p.estado,
     lastVerifiedAt: p.lastVerifiedAt,
     fabricante: p.fabricante,
+    fabricanteTitularAim: registoParaFabricante?.titularAim ?? null,
     classificacaoNivel1: p.classificacaoNivel1,
     classificacaoNivel2: p.classificacaoNivel2,
     utilizacoes: p.utilizacoes
