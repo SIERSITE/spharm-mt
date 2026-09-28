@@ -19,6 +19,11 @@ import {
   type OrderLineInput,
 } from "@/lib/ingest/orders";
 import { loadOrderDetail } from "@/lib/encomendas/order-detail";
+import { loadTransferenciasDetail } from "@/lib/transferencias/transferencia-detail";
+import { buildEncomendaDocumentoReport } from "@/lib/reporting/adapters/encomenda-documento";
+import { buildEncomendaConsolidadaDocumentoReport } from "@/lib/reporting/adapters/encomenda-consolidada-documento";
+import { buildTransferenciaDocumentoReport } from "@/lib/reporting/adapters/transferencia-documento";
+import type { Report } from "@/lib/reporting/report-types";
 import { parsearPropostaContexto, type PropostaContexto } from "@/lib/encomendas/proposal-context";
 import { logAudit } from "@/lib/audit";
 import { MAX_CODIGOS } from "@/lib/produtos/lista-codigos-tipos";
@@ -623,11 +628,18 @@ export async function gerarPlanoGrupoAction(
   try {
     const resultadoListas: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[] = [];
     for (const [farmaciaId, linhas] of porFarmacia) {
+      // `finalize: true` directo — nunca um RASCUNHO intermédio que
+      // obrigaria a reabrir a encomenda noutro ecrã para a finalizar
+      // (o mesmo problema que a consolidação já tinha resolvido). O
+      // "conceito de rascunho" continua a existir para o modo
+      // "farmacia" (`ensureDraft` — autosave incremental linha a linha,
+      // que aqui não se aplica: todas as linhas já vêm decididas de
+      // uma vez), mas deixa de ser um passo obrigatório desta operação.
       const resultado = await createEncomendaWithOutbox(prisma, tenantSlug, {
         farmaciaId,
         criadoPorId: session.sub,
         nome: `${nomePrefixo} · encomendar`.slice(0, 180),
-        finalize: false,
+        finalize: true,
         linhas: linhas.map((l) => ({
           produtoId: l.produtoId,
           quantidadeSugerida: l.quantidadeSugerida ?? null,
@@ -666,12 +678,18 @@ export async function gerarPlanoGrupoAction(
     for (const [, linhas] of porDirecao) {
       const farmaciaOrigemId = linhas[0].farmaciaOrigemId!;
       const farmaciaDestinoId = linhas[0].farmaciaDestinoId!;
+      // `estado: "FINALIZADA"` directo — antes desta revisão nascia em
+      // RASCUNHO e NADA no código alguma vez a levava a FINALIZADA (uma
+      // Transferencia gerada aqui ficava presa para sempre). Como esta
+      // Transferencia nasce já com a decisão final do utilizador (Bloco
+      // D), não há nenhum estado intermédio útil a preservar.
       const transferencia = await prisma.$transaction(async (tx) => {
         return tx.transferencia.create({
           data: {
             farmaciaOrigemId,
             farmaciaDestinoId,
             criadoPorId: session.sub,
+            estado: "FINALIZADA",
             linhas: {
               create: linhas.map((l) => ({
                 produtoId: l.produtoId,
@@ -701,6 +719,98 @@ export async function gerarPlanoGrupoAction(
     revalidatePath("/configuracoes/integracao");
 
     return { ok: true, listasEncomenda: resultadoListas, transferencias: resultadoTransferencias };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+// ─── Documentos pós-finalização (Imprimir/PDF/Email) ───────────────────────
+//
+// Chamada UMA vez, logo a seguir a qualquer finalização bem sucedida
+// (farmácia, grupo ou consolidação) para construir os `Report` que o
+// ecrã de resultado mostra — reutiliza 100% a infra genérica de
+// reporting (`components/reporting/report-actions.tsx` já sabe
+// Imprimir/PDF/Email um `Report` qualquer). Nunca cria nem altera nada:
+// só lê o que já foi persistido.
+
+export type DocumentosFinalizacaoInput = {
+  listaEncomendaIds: string[];
+  transferenciaIds: string[];
+  /**
+   * Só tem efeito com >1 encomenda — constrói também o documento
+   * "Encomenda Consolidada do Grupo" (ver decisão de arquitectura em
+   * `lib/reporting/adapters/encomenda-consolidada-documento.ts`: é só
+   * apresentação, nenhuma ListaEncomenda multi-farmácia é criada).
+   */
+  incluirConsolidado?: boolean;
+};
+
+export type DocumentosFinalizacaoResultado =
+  | {
+      ok: true;
+      encomendaIndividual: Array<{ listaEncomendaId: string; farmaciaNome: string; report: Report }>;
+      /** Um único documento agrupado por farmácia — só quando há >1 encomenda. */
+      encomendaTodas?: Report;
+      /** "Encomenda única do Grupo" — só quando pedido e há >1 encomenda. */
+      encomendaConsolidada?: Report;
+      transferenciaIndividual: Array<{ transferenciaId: string; rota: string; report: Report }>;
+      transferenciaTodas?: Report;
+    }
+  | { ok: false; error: string };
+
+export async function buildDocumentosFinalizacaoAction(
+  input: DocumentosFinalizacaoInput
+): Promise<DocumentosFinalizacaoResultado> {
+  const session = await requirePermission("reports.write");
+
+  try {
+    const detalhesEncomendas = (
+      await Promise.all(input.listaEncomendaIds.map((id) => loadOrderDetail(id)))
+    ).filter((d): d is NonNullable<typeof d> => !!d);
+    for (const d of detalhesEncomendas) {
+      if (!canAccessFarmaciaSync(session, d.farmaciaId)) {
+        return { ok: false, error: "Sem acesso a uma das farmácias das encomendas." };
+      }
+    }
+
+    const detalhesTransferencias = await loadTransferenciasDetail(input.transferenciaIds);
+    for (const t of detalhesTransferencias) {
+      if (
+        !canAccessFarmaciaSync(session, t.farmaciaOrigemId) ||
+        !canAccessFarmaciaSync(session, t.farmaciaDestinoId)
+      ) {
+        return { ok: false, error: "Sem acesso a uma das farmácias das transferências." };
+      }
+    }
+
+    const encomendaIndividual = detalhesEncomendas.map((d) => ({
+      listaEncomendaId: d.id,
+      farmaciaNome: d.farmaciaNome,
+      report: buildEncomendaDocumentoReport([d]),
+    }));
+    const encomendaTodas =
+      detalhesEncomendas.length > 1 ? buildEncomendaDocumentoReport(detalhesEncomendas) : undefined;
+    const encomendaConsolidada =
+      input.incluirConsolidado && detalhesEncomendas.length > 1
+        ? buildEncomendaConsolidadaDocumentoReport(detalhesEncomendas)
+        : undefined;
+
+    const transferenciaIndividual = detalhesTransferencias.map((t) => ({
+      transferenciaId: t.id,
+      rota: `${t.farmaciaOrigemNome} → ${t.farmaciaDestinoNome}`,
+      report: buildTransferenciaDocumentoReport([t]),
+    }));
+    const transferenciaTodas =
+      detalhesTransferencias.length > 1 ? buildTransferenciaDocumentoReport(detalhesTransferencias) : undefined;
+
+    return {
+      ok: true,
+      encomendaIndividual,
+      encomendaTodas,
+      encomendaConsolidada,
+      transferenciaIndividual,
+      transferenciaTodas,
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }

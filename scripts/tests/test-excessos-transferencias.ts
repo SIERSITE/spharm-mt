@@ -749,7 +749,13 @@ console.log("\nL · impressão");
 
   // ── Legibilidade em papel ────────────────────────────────────────
   check(html.includes("thead { display: table-header-group; }"), "cabeçalho repete-se em cada página");
-  check(html.includes("tfoot { display: table-footer-group; }"), "totais repetem-se no rodapé");
+  // Ponto 6 (2026-09): NUNCA `tfoot { display: table-footer-group }` —
+  // essa regra repetia o TOTAL GERAL (já com o valor final) no fim de
+  // CADA página impressa, confirmado com PDFs reais gerados via
+  // Puppeteer. O total geral vive agora num `<tbody class="totals-
+  // tbody">` comum, que só aparece uma vez, no fim natural da tabela.
+  check(!html.includes("tfoot { display: table-footer-group; }"), "totais NÃO se repetem por página (tfoot removido)");
+  check(html.includes(".totals-tbody td {") || html.includes(".totals-tbody"), "TOTAL GERAL passou a viver num tbody comum, não num tfoot");
   check(html.includes("tr { page-break-inside: avoid; }"), "nenhuma linha é cortada a meio");
   check(html.includes("table-layout: fixed"), "larguras fixas por coluna (sem scroll interno)");
   check(html.includes("html, body { width: 100%; }"), "largura integral da folha");

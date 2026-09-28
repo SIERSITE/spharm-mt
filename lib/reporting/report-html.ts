@@ -348,8 +348,15 @@ function renderTable(report: Report): string {
   // dentro, cada artigo contava duas vezes.
   const totals = computeTotals(cols, linhasDeDetalhe(report.rows));
   const hasTotals = Object.keys(totals).length > 0;
+  // Ponto 6 (quebra de página): NUNCA `<tfoot>` — `display:table-footer-
+  // group` repete o conteúdo no fim de TODAS as páginas do PDF/impressão
+  // de uma tabela multi-página (comportamento standard do motor de
+  // paginação, confirmado com PDFs reais via Puppeteer: "TOTAL GERAL"
+  // aparecia — com o valor final, já somado — logo na 1ª página, antes
+  // de a tabela sequer acabar). Um `<tbody>` final comum aparece só UMA
+  // vez, no fim natural do conteúdo, exactamente onde deve estar.
   const totalsRow = hasTotals
-    ? `<tfoot><tr>${cols
+    ? `<tbody class="totals-tbody"><tr>${cols
         .map((c, i) => {
           const style = alignStyle(defaultAlignFor(c));
           // "TOTAL GERAL", não "Total" — para nunca se confundir, à
@@ -361,7 +368,7 @@ function renderTable(report: Report): string {
           }
           return `<td></td>`;
         })
-        .join("")}</tr></tfoot>`
+        .join("")}</tr></tbody>`
     : "";
 
   const tableDensity = report.meta?.tableDensity;
@@ -540,7 +547,9 @@ const STYLES = `
   tbody tr.subtotal-row td:first-child {
     border-left: 3px solid #475569;
   }
-  tfoot td {
+  /* .totals-tbody, não tfoot — ver o comentário em renderTable
+     (totalsRow) sobre porque um <tfoot> repete por página. */
+  .totals-tbody td {
     padding: 7px 6px;
     border-top: 3px double #1a1a1a;
     border-bottom: 1px solid #1a1a1a;
@@ -658,7 +667,7 @@ const STYLES = `
     white-space: nowrap;
   }
   .page.density-compact tbody tr.subtotal-row td:first-child { border-left: 3px solid #475569; }
-  .page.density-compact tfoot td {
+  .page.density-compact .totals-tbody td {
     background: #e2e8f0 !important;
     color: #1e293b !important;
     border-top: 2px solid #94a3b8;
@@ -710,10 +719,15 @@ const STYLES = `
     html, body { width: 100%; }
     .page { padding: 0; }
     thead { display: table-header-group; }
-    tfoot { display: table-footer-group; }
+    /* SEM "tfoot { display: table-footer-group }" — a tabela já não usa
+       <tfoot> para o total geral (ver .totals-tbody, acima), de
+       propósito: essa regra repetia o total no fim de CADA página. */
     tr { page-break-inside: avoid; }
     .summary-card, .chip { break-inside: avoid; }
     .report-header { break-after: avoid; }
+    /* A última linha (TOTAL GERAL) nunca pode ficar sozinha, separada
+       do resto da tabela, numa página nova. */
+    .totals-tbody { break-before: avoid; page-break-before: avoid; }
   }
 `;
 

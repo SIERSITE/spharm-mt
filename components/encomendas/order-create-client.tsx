@@ -13,10 +13,13 @@ import {
   generateProposalAction,
   gerarPlanoGrupoAction,
   carregarRascunhoNovaEncomendaAction,
+  buildDocumentosFinalizacaoAction,
   type ProposalMode,
   type DecisaoLinhaGrupoInput,
   type RascunhoNovaEncomenda,
+  type DocumentosFinalizacaoResultado,
 } from "@/app/encomendas/nova/actions";
+import { ReportActions } from "@/components/reporting/report-actions";
 import {
   autosaveEncomendaAction,
   finalizeFromDetailAction,
@@ -67,6 +70,7 @@ import {
   calcularResumoGrupo,
   type AcaoLinhaGrupo,
   type DecisaoLinha,
+  type ResumoGrupo,
 } from "@/lib/encomendas/decisao-grupo";
 import type { ListaCodigosResolvida } from "@/lib/produtos/lista-codigos-tipos";
 // Do modulo PURO, nao de `proposal.ts`: aquele tem `server-only` e um
@@ -313,12 +317,6 @@ export function OrderCreateClient({
     listaImportada?: ResumoListaImportada;
   } | null>(null);
 
-  // ─── Bloco D — plano de grupo gerado ────────────────────────────────────
-  const [planoResultado, setPlanoResultado] = useState<{
-    listasEncomenda: { farmaciaId: string; listaEncomendaId: string; nLinhas: number }[];
-    transferencias: { farmaciaOrigemId: string; farmaciaDestinoId: string; transferenciaId: string; nLinhas: number }[];
-  } | null>(null);
-
   // ─── Filtros da tabela ────────────────────────────────────────────────────
   const [tableSearch, setTableSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState<ProposalEstado | null>(null);
@@ -375,6 +373,44 @@ export function OrderCreateClient({
   >([]);
   // Consolidação: operação de criação pendente/recuperada (ver lib/encomendas/operacao-consolidacao.ts).
   const [operacaoConsolidacao, setOperacaoConsolidacao] = useState<OperacaoConsolidacao | null>(null);
+
+  // ─── Resultado pós-finalização (Pontos 2/4/7/8) ────────────────────────
+  //
+  // Assim que QUALQUER caminho de finalização (farmácia, grupo ou
+  // consolidação) tem sucesso, este painel substitui o ecrã — nenhum dos
+  // três navega logo para `/encomendas`; é «Concluir», no painel, que o
+  // faz. Nunca um passo artificial adicional: só aparece quando há
+  // mesmo algo finalizado para mostrar.
+  const [resultadoFinal, setResultadoFinal] = useState<Extract<DocumentosFinalizacaoResultado, { ok: true }> | null>(null);
+  const [carregandoResultado, setCarregandoResultado] = useState(false);
+  // Só usado pelo modal de confirmação do modo "grupo" (Ponto 3).
+  const [modoGeracaoGrupo, setModoGeracaoGrupo] = useState<"separada" | "consolidada">("separada");
+  const [confirmarFinalizarGrupo, setConfirmarFinalizarGrupo] = useState(false);
+
+  /**
+   * Chamada UMA vez, logo a seguir a qualquer finalização bem sucedida —
+   * busca os documentos (Report) que o painel de resultado mostra.
+   * Nunca cria nem altera nada: só lê o que já foi persistido.
+   */
+  function mostrarResultadoFinalizacao(input: {
+    listaEncomendaIds: string[];
+    transferenciaIds: string[];
+    incluirConsolidado?: boolean;
+  }) {
+    setCarregandoResultado(true);
+    startTransition(async () => {
+      const r = await buildDocumentosFinalizacaoAction(input);
+      setCarregandoResultado(false);
+      if (!r.ok) {
+        setFlash({
+          type: "err",
+          msg: `Finalizado, mas não foi possível preparar os documentos para impressão/PDF/email: ${r.error}`,
+        });
+        return;
+      }
+      setResultadoFinal(r);
+    });
+  }
   const rascunhoCarregadoRef = useRef(false); // evita recarregar 2x em StrictMode/re-render
 
   const utilizador = useUtilizador();
@@ -431,23 +467,47 @@ export function OrderCreateClient({
       gerarChave: () => crypto.randomUUID().replace(/-/g, ""),
     };
   }
-  function aplicarResultadoConsolidacao(r: ResultadoExecucao) {
+  /**
+   * `finalize` distingue "Guardar rascunho" (consolidação também passa
+   * por aqui com `finalize=false` — cria RASCUNHOS, sem outbox) de
+   * "Criar encomendas" — só este último mostra o painel de resultado com
+   * Imprimir/PDF/Email (Ponto 4): esse painel não faz sentido para um
+   * lote que ainda nem foi enviado para a fila.
+   */
+  function aplicarResultadoConsolidacao(r: ResultadoExecucao, finalize: boolean) {
     switch (r.tipo) {
       case "CRIADA":
-        setOperacaoConsolidacao(null);
-        setFlash({ type: "ok", msg: `${r.listas.length} encomenda(s) criadas.` });
+      case "RECUPERADA": {
+        const criadaAgora = r.tipo === "CRIADA";
+        setOperacaoConsolidacao(criadaAgora ? null : r.op);
+        if (!finalize) {
+          setFlash(
+            criadaAgora
+              ? { type: "ok", msg: `${r.listas.length} rascunho(s) criado(s).` }
+              : {
+                  type: "info",
+                  msg: `O lote anterior foi recuperado: ${r.listas.length} rascunho(s) já existem no servidor.`,
+                }
+          );
+          return;
+        }
         setLinhas([]);
         setHasProposal(false);
         setProposalMeta(null);
-        setTimeout(() => router.push("/encomendas"), 800);
-        return;
-      case "RECUPERADA":
-        setOperacaoConsolidacao(r.op);
-        setFlash({
-          type: "info",
-          msg: `O lote anterior foi recuperado: ${r.listas.length} encomenda(s) já existem no servidor. Não foi criado nenhum lote novo.`,
+        setFlash(
+          criadaAgora
+            ? null
+            : {
+                type: "info",
+                msg: `O lote anterior foi recuperado: ${r.listas.length} encomenda(s) já existem no servidor. Não foi criado nenhum lote novo.`,
+              }
+        );
+        mostrarResultadoFinalizacao({
+          listaEncomendaIds: r.listas.map((l) => l.listaEncomendaId),
+          transferenciaIds: [],
         });
         return;
+      }
       case "REJEITADA":
         setOperacaoConsolidacao(null);
         setFlash({ type: "err", msg: `Consolidação não criada (nada foi gravado): ${r.erro}` });
@@ -501,14 +561,14 @@ export function OrderCreateClient({
     if (!pendente) return;
     setOperacaoConsolidacao(pendente.estado === "A_SUBMETER" ? { ...pendente, estado: "RESULTADO_DESCONHECIDO" } : pendente);
     void reconciliarPendente(depsConsolidacao()).then((r) => {
-      if (r) aplicarResultadoConsolidacao(r);
+      if (r) aplicarResultadoConsolidacao(r, pendente.snapshot.finalize);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveOperacaoLS]);
   function verificarEstadoConsolidacao() {
     startTransition(async () => {
       const r = await reconciliarPendente(depsConsolidacao());
-      if (r) aplicarResultadoConsolidacao(r);
+      if (r) aplicarResultadoConsolidacao(r, operacaoConsolidacao?.snapshot.finalize ?? false);
     });
   }
   function continuarLoteRecuperado() {
@@ -530,7 +590,10 @@ export function OrderCreateClient({
         : "Ainda não foi possível confirmar se o lote anterior foi criado. Criar um NOVO lote pode duplicar encomendas. Continuar?";
     if (!window.confirm(aviso)) return;
     startTransition(async () => {
-      aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap, { novoLoteExplicito: true }));
+      aplicarResultadoConsolidacao(
+        await executarConsolidacao(depsConsolidacao(), snap, { novoLoteExplicito: true }),
+        snap.finalize
+      );
     });
   }
 
@@ -1110,7 +1173,6 @@ export function OrderCreateClient({
 
   function handleGerarPlano() {
     setFlash(null);
-    setPlanoResultado(null);
 
     const decisoes: DecisaoLinhaGrupoInput[] = linhas.map((l) => ({
       ...linhaParaDecisao(l),
@@ -1138,14 +1200,15 @@ export function OrderCreateClient({
         setFlash({ type: "err", msg: result.error });
         return;
       }
-      setPlanoResultado(result);
-      const partes: string[] = [];
-      if (result.listasEncomenda.length > 0) partes.push(`${result.listasEncomenda.length} encomenda(s)`);
-      if (result.transferencias.length > 0) partes.push(`${result.transferencias.length} transferência(s)`);
-      setFlash({ type: "ok", msg: `Gerado: ${partes.join(" · ")}.` });
+      setConfirmarFinalizarGrupo(false);
       setLinhas([]);
       setHasProposal(false);
       setProposalMeta(null);
+      mostrarResultadoFinalizacao({
+        listaEncomendaIds: result.listasEncomenda.map((l) => l.listaEncomendaId),
+        transferenciaIds: result.transferencias.map((t) => t.transferenciaId),
+        incluirConsolidado: modoGeracaoGrupo === "consolidada",
+      });
     });
   }
 
@@ -1718,7 +1781,7 @@ export function OrderCreateClient({
         return;
       }
       startTransition(async () => {
-        aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap));
+        aplicarResultadoConsolidacao(await executarConsolidacao(depsConsolidacao(), snap), finalize);
       });
     } else {
       // Só "farmacia" chega aqui (o botão não existe em modo "grupo" —
@@ -1750,8 +1813,8 @@ export function OrderCreateClient({
         }
         const result = await finalizeFromDetailAction(id, autosave.versaoAtual);
         if (result.ok) {
-          setFlash({ type: "ok", msg: "Encomenda finalizada." });
-          setTimeout(() => router.push(`/encomendas/${id}`), 800);
+          setFlash(null);
+          mostrarResultadoFinalizacao({ listaEncomendaIds: [id], transferenciaIds: [] });
         } else if (result.conflito) {
           setFlash({
             type: "err",
@@ -1776,6 +1839,26 @@ export function OrderCreateClient({
   // Final, Notas/Motivo, Ações = 11 colunas fixas; + Farmácia (isGroupMode)
   // + Decisão (mode === "grupo").
   const colSpanTotal = 11 + (isGroupMode ? 1 : 0) + (mode === "grupo" ? 1 : 0);
+
+  // ─── Ponto 1 — tabela nunca ultrapassa o ecrã sem dependência de scroll
+  // horizontal escondido ────────────────────────────────────────────────
+  //
+  // Produto fica fixo (sticky) à esquerda — identificação da linha nunca
+  // desaparece ao percorrer as colunas informativas. Final + Decisão
+  // (modo grupo) + Ações ficam fixas à DIREITA — são as acções essenciais
+  // (quantidade, decisão, remover) e têm de estar sempre visíveis, mesmo
+  // que a zona intermédia (Vendas/Stock/Cobertura/...) precise de scroll
+  // num ecrã estreito. As larguras abaixo são as REAIS das colunas fixas
+  // à direita (medidas), usadas para empilhar os `right` uns a seguir aos
+  // outros — Tailwind não resolve `right-[${var}px]` dinâmico, por isso
+  // são aplicadas via `style`, não via classe.
+  const LARGURA_COL_ACOES = 40;
+  const LARGURA_COL_DECISAO = 152;
+  const stickyEsquerdaCls = "sticky left-0 z-20 bg-white";
+  const stickyDireitaCls = "sticky z-20 bg-white";
+  const rightAcoes = 0;
+  const rightDecisao = LARGURA_COL_ACOES;
+  const rightFinal = mode === "grupo" ? LARGURA_COL_ACOES + LARGURA_COL_DECISAO : LARGURA_COL_ACOES;
 
   const filtersCount =
     selFabricantes.length + selFornecedores.length + selCategorias.length +
@@ -1802,14 +1885,18 @@ export function OrderCreateClient({
         key={l.key}
         className={`border-b border-slate-50 ${rowBg(l.estado)} ${isRutura ? "!bg-rose-50/50" : ""} ${isSubLinha ? "bg-slate-50/20" : ""}`}
       >
-        <td className="px-3 py-2">
+        <td className="px-2 py-1.5">
           {l.estado && (
             <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoColors(l.estado)}`}>
               {estadoLabel(l.estado)}
             </span>
           )}
         </td>
-        <td className="px-3 py-2 min-w-[200px]">
+        {/* Célula fixa (sticky) à esquerda: precisa de fundo OPACO (nunca
+            a versão semi-transparente que o resto da linha usa), senão o
+            texto das colunas que passam por baixo, ao fazer scroll
+            horizontal, transparece através dela. */}
+        <td className={`${stickyEsquerdaCls} min-w-[190px] border-r border-slate-100 px-2 py-1.5 bg-white ${rowBg(l.estado)} ${isSubLinha ? "!bg-slate-50" : ""} ${isRutura ? "!bg-rose-50" : ""}`}>
           {isSubLinha ? (
             <div className="flex items-center gap-1.5 pl-3 text-slate-300">
               <span aria-hidden>↳</span>
@@ -1846,27 +1933,18 @@ export function OrderCreateClient({
             </>
           )}
         </td>
-        {isGroupMode && <td className="px-3 py-2 text-[11px] text-slate-600">{l.farmaciaNome ?? "—"}</td>}
-        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.salesQty)}</td>
-        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{fmtNum(l.avgDailySales, 1)}</td>
-        <td className={`px-3 py-2 text-right tabular-nums font-medium ${isRutura ? "text-rose-600" : "text-slate-700"}`}>
+        {isGroupMode && <td className="px-2 py-1.5 text-[11px] text-slate-600">{l.farmaciaNome ?? "—"}</td>}
+        <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{fmtNum(l.salesQty)}</td>
+        <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{fmtNum(l.avgDailySales, 1)}</td>
+        <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${isRutura ? "text-rose-600" : "text-slate-700"}`}>
           {fmtNum(l.currentStock)}
         </td>
-        <td className={`px-3 py-2 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
+        <td className={`px-2 py-1.5 text-right tabular-nums ${cobBaixo ? "font-medium text-amber-600" : "text-slate-500"}`}>
           {l.coberturaAtualDias != null ? `${l.coberturaAtualDias.toFixed(1)}d` : "—"}
         </td>
-        <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
-        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
-        <td className="px-3 py-2">
-          <input type="number" min="0" value={l.finalQty}
-            ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
-            onChange={(e) => handleFinalQtyChange(l, e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => { handleInputVerticalNav(e, rowIndex, finalQtyRefs); handleCampoEnter(e, rowIndex, "finalQty"); }}
-            disabled={busy}
-            className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
-        </td>
-        <td className="px-3 py-2 min-w-[220px]">
+        <td className="px-2 py-1.5 text-right tabular-nums text-slate-500">{fmtNum(l.pendingQty)}</td>
+        <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-slate-800">{fmtNum(l.suggestedQty)}</td>
+        <td className="min-w-[150px] px-2 py-1.5">
           {l.motivo ? (
             <p className={`text-[11px] ${l.estado === "TRANSFERÊNCIA" ? "text-blue-700" : "text-slate-500"}`}>
               {l.motivo}
@@ -1881,8 +1959,17 @@ export function OrderCreateClient({
               className="w-full rounded-lg border border-slate-200 px-2 py-1 text-[12px] placeholder:text-slate-300 focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
           )}
         </td>
+        <td className={`${stickyDireitaCls} border-l border-slate-200 bg-white px-2 py-1.5`} style={{ right: rightFinal }}>
+          <input type="number" min="0" value={l.finalQty}
+            ref={(el) => { finalQtyRefs.current[rowIndex] = el; }}
+            onChange={(e) => handleFinalQtyChange(l, e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => { handleInputVerticalNav(e, rowIndex, finalQtyRefs); handleCampoEnter(e, rowIndex, "finalQty"); }}
+            disabled={busy}
+            className="w-full rounded-lg border border-slate-200 px-2 py-1 text-right text-[13px] focus:border-cyan-400 focus:outline-none disabled:opacity-50" />
+        </td>
         {mode === "grupo" && (
-          <td className="px-3 py-2 min-w-[240px]">
+          <td className={`${stickyDireitaCls} bg-white px-2 py-1.5`} style={{ right: rightDecisao }}>
             <DecisaoLinhaCell
               linha={l} farmacias={farmacias} disabled={busy}
               onChange={(patch) => updateLine(l.key, patch)}
@@ -1892,7 +1979,7 @@ export function OrderCreateClient({
             />
           </td>
         )}
-        <td className="px-3 py-2">
+        <td className={`${stickyDireitaCls} bg-white px-1 py-1.5`} style={{ right: rightAcoes }}>
           <div className="flex items-center justify-end gap-1.5">
             {/* Em modo grupo o histórico já está no cabeçalho do produto
                 (uma vez, agregando todas as farmácias) — o botão por
@@ -1924,8 +2011,33 @@ export function OrderCreateClient({
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  // Ponto 8 — «RESULTADO» substitui o ecrã assim que HÁ algo finalizado
+  // para mostrar, para qualquer um dos três modos. Nunca uma navegação
+  // automática: é o próprio painel («Concluir») que decide sair.
+  if (resultadoFinal) {
+    return (
+      <PainelResultadoFinalizacao
+        resultado={resultadoFinal}
+        onConcluir={() => {
+          setResultadoFinal(null);
+          router.push("/encomendas");
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {carregandoResultado && (
+        <div
+          role="status"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+        >
+          <div className="rounded-xl bg-white px-6 py-4 text-[13px] font-medium text-slate-700 shadow-xl">
+            A preparar os documentos…
+          </div>
+        </div>
+      )}
       {/* Aviso posicionamento */}
       <div
         role="note"
@@ -2274,24 +2386,24 @@ export function OrderCreateClient({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
+              <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-left">
-                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="designacao" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Produto</CabecalhoOrdenavel>
-                    {isGroupMode && <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmaciaNome" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Farmácia</CabecalhoOrdenavel>}
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="salesQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Vendas</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="avgDailySales" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Média/d</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="currentStock" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Stock</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="coberturaAtualDias" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Cobert.</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
-                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
-                    <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400">Final</th>
-                    <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
+                    <th className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Estado</th>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="designacao" className={`${stickyEsquerdaCls} min-w-[190px] border-r border-slate-100 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`}>Produto</CabecalhoOrdenavel>
+                    {isGroupMode && <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="farmaciaNome" className="w-24 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Farmácia</CabecalhoOrdenavel>}
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="salesQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Vendas</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="avgDailySales" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Média/d</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="currentStock" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Stock</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="coberturaAtualDias" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Cobert.</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="pendingQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Pendente</CabecalhoOrdenavel>
+                    <CabecalhoOrdenavel as="th" ordenacao={ordenacao} onOrdenar={alternar} coluna="suggestedQty" align="right" className="w-14 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Sugerida</CabecalhoOrdenavel>
+                    <th className="min-w-[150px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">Notas / Motivo</th>
+                    <th className={`${stickyDireitaCls} w-20 border-l border-slate-200 px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightFinal }}>Final</th>
                     {mode === "grupo" && (
-                      <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-400">Decisão</th>
+                      <th className={`${stickyDireitaCls} w-[152px] px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400`} style={{ right: rightDecisao }}>Decisão</th>
                     )}
-                    <th className="px-3 py-2" />
+                    <th className={`${stickyDireitaCls} w-10 px-1 py-1.5`} style={{ right: rightAcoes }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -2545,48 +2657,47 @@ export function OrderCreateClient({
                     disabled={gerandoPlano}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 disabled:opacity-50" />
                 </div>
-                <button type="button" onClick={handleGerarPlano}
+                {/* Ponto 2/3/8 — nunca finaliza directamente daqui: abre a
+                    etapa de confirmação (forma de gerar + resumo) e só
+                    ela chama `handleGerarPlano`. Nenhum RASCUNHO fica à
+                    espera de um segundo passo noutro ecrã. */}
+                <button type="button" onClick={() => setConfirmarFinalizarGrupo(true)}
                   disabled={
                     gerandoPlano ||
                     !resumoGrupoAtual ||
                     (resumoGrupoAtual.encomendas.length === 0 && resumoGrupoAtual.transferencias.length === 0)
                   }
                   className="rounded-xl border border-cyan-500 bg-cyan-600 px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
-                  {gerandoPlano ? "A gerar…" : "Gerar"}
+                  {gerandoPlano ? "A finalizar…" : "Finalizar encomenda"}
                 </button>
               </div>
             </>
           )}
-
-          {/* O que foi criado — resumo + link para cada ListaEncomenda.
-              Para Transferencia não há página de detalhe dedicada nesta
-              fase: é um registo interno simples, e a confirmação inline
-              (farmácias + nº de linhas) é o mínimo razoável para o
-              utilizador confirmar o que aconteceu sem sobre-construir
-              um ecrã que o Bloco D não pediu. */}
-          {planoResultado && (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[12px] text-emerald-900">
-              <p className="font-semibold">Gerado</p>
-              <ul className="mt-1.5 space-y-1">
-                {planoResultado.listasEncomenda.map((le) => (
-                  <li key={le.listaEncomendaId}>
-                    Encomenda · {nomeFarmacia(le.farmaciaId)} · {le.nLinhas} linha{le.nLinhas === 1 ? "" : "s"}
-                    {" — "}
-                    <a href={`/encomendas/${le.listaEncomendaId}`} className="underline hover:text-emerald-700">
-                      abrir
-                    </a>
-                  </li>
-                ))}
-                {planoResultado.transferencias.map((t) => (
-                  <li key={t.transferenciaId}>
-                    Transferência · {nomeFarmacia(t.farmaciaOrigemId)} → {nomeFarmacia(t.farmaciaDestinoId)} ·{" "}
-                    {t.nLinhas} linha{t.nLinhas === 1 ? "" : "s"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </section>
+      )}
+
+      {confirmarFinalizarGrupo && resumoGrupoAtual && (
+        <ConfirmarFinalizacaoGrupoModal
+          resumo={resumoGrupoAtual}
+          totalUnidadesEncomendar={linhas
+            .filter((l) => l.acao === "ENCOMENDAR" && l.farmaciaEncomendaId && Number(l.finalQty) > 0)
+            .reduce((s, l) => s + (Number(l.finalQty) || 0), 0)}
+          totalUnidadesTransferir={linhas
+            .filter(
+              (l) =>
+                l.acao === "TRANSFERIR" &&
+                l.farmaciaOrigemId &&
+                l.farmaciaDestinoId &&
+                l.farmaciaOrigemId !== l.farmaciaDestinoId &&
+                Number(l.finalQty) > 0
+            )
+            .reduce((s, l) => s + (Number(l.finalQty) || 0), 0)}
+          modoGeracao={modoGeracaoGrupo}
+          onModoGeracaoChange={setModoGeracaoGrupo}
+          busy={gerandoPlano}
+          onCancelar={() => setConfirmarFinalizarGrupo(false)}
+          onConfirmar={handleGerarPlano}
+        />
       )}
     </div>
   );
@@ -2784,28 +2895,33 @@ function DecisaoLinhaCell({
       )}
 
       {linha.acao === "TRANSFERIR" && (
-        <div className="flex items-center gap-1">
+        // Empilhado (não lado-a-lado): dois `<select>` com o nome inteiro da
+        // farmácia lado a lado nunca cabem nos ~130px que a coluna Decisão
+        // tem de ocupar sem empurrar o resto da tabela para fora do ecrã
+        // (Ponto 1 — overflow horizontal). Empilhar corta a largura exigida
+        // a metade sem truncar nomes nem reduzir a fonte.
+        <div className="flex flex-col items-stretch gap-0.5">
           <select
             ref={(el) => registrarRef("origemFarmacia", rowIndex, el)}
             value={linha.farmaciaOrigemId ?? ""}
             disabled={disabled}
             onChange={(e) => onChange({ farmaciaOrigemId: e.target.value, acaoTocada: true })}
             onKeyDown={(e) => onEnterNav(e, rowIndex, "origemFarmacia")}
-            className={`${selectCls} min-w-0`}
+            className={selectCls}
           >
             <option value="">Origem…</option>
             {farmacias.map((f) => (
               <option key={f.id} value={f.id}>{f.nome}</option>
             ))}
           </select>
-          <ArrowLeftRight className="h-3 w-3 shrink-0 text-slate-400" />
+          <ArrowLeftRight className="h-3 w-3 shrink-0 -rotate-90 self-center text-slate-400" />
           <select
             ref={(el) => registrarRef("destinoFarmacia", rowIndex, el)}
             value={linha.farmaciaDestinoId ?? ""}
             disabled={disabled}
             onChange={(e) => onChange({ farmaciaDestinoId: e.target.value, acaoTocada: true })}
             onKeyDown={(e) => onEnterNav(e, rowIndex, "destinoFarmacia")}
-            className={`${selectCls} min-w-0`}
+            className={selectCls}
           >
             <option value="">Destino…</option>
             {farmacias.map((f) => (
@@ -3035,4 +3151,190 @@ type ColunaEncomenda =
 
 function acessorEncomenda(linha: Line, coluna: ColunaEncomenda): ValorOrdenavel {
   return linha[coluna] as ValorOrdenavel;
+}
+
+// ─── Ponto 3/8 — confirmação ao finalizar uma proposta de grupo ────────────
+//
+// A ÚNICA etapa entre "Finalizar encomenda" e o resultado — nunca um
+// rascunho que obrigue a reabrir a encomenda noutro ecrã (Ponto 2). A
+// escolha "Separada por farmácia" / "Encomenda única do Grupo" NÃO muda
+// nada na base de dados (continuam a nascer as mesmas N `ListaEncomenda`,
+// uma por farmácia, com o outbox de sempre — ver
+// `lib/reporting/adapters/encomenda-consolidada-documento.ts`): decide
+// só que documento(s) o painel de resultado mostra a seguir.
+function ConfirmarFinalizacaoGrupoModal({
+  resumo,
+  totalUnidadesEncomendar,
+  totalUnidadesTransferir,
+  modoGeracao,
+  onModoGeracaoChange,
+  busy,
+  onCancelar,
+  onConfirmar,
+}: {
+  resumo: ResumoGrupo;
+  totalUnidadesEncomendar: number;
+  totalUnidadesTransferir: number;
+  modoGeracao: "separada" | "consolidada";
+  onModoGeracaoChange: (v: "separada" | "consolidada") => void;
+  busy: boolean;
+  onCancelar: () => void;
+  onConfirmar: () => void;
+}) {
+  const nEncomendas = resumo.encomendas.length;
+  const nTransferencias = resumo.transferencias.length;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancelar(); }}
+    >
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h3 className="text-[15px] font-semibold text-slate-900">Finalizar encomenda</h3>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          {nEncomendas > 1 && (
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-slate-700">Como pretende gerar a encomenda?</p>
+              <label className="mb-1.5 flex items-start gap-2 text-[13px] text-slate-700">
+                <input type="radio" className="mt-0.5" checked={modoGeracao === "separada"}
+                  onChange={() => onModoGeracaoChange("separada")} disabled={busy} />
+                <span>
+                  <span className="font-medium">Separada por farmácia</span>
+                  <span className="block text-[11px] text-slate-500">Uma encomenda por farmácia — documento próprio para cada uma.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-[13px] text-slate-700">
+                <input type="radio" className="mt-0.5" checked={modoGeracao === "consolidada"}
+                  onChange={() => onModoGeracaoChange("consolidada")} disabled={busy} />
+                <span>
+                  <span className="font-medium">Encomenda única do Grupo</span>
+                  <span className="block text-[11px] text-slate-500">
+                    Um único documento com as quantidades somadas por produto entre farmácias (para negociar
+                    volume) — cada farmácia continua a ser facturada/recebida separadamente.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+          <div className="rounded-xl bg-slate-50 px-3.5 py-3 text-[12px] text-slate-700">
+            <p className="font-medium text-slate-800">Resumo</p>
+            <ul className="mt-1.5 space-y-0.5">
+              <li>{nEncomendas} encomenda{nEncomendas === 1 ? "" : "s"}</li>
+              <li>{nTransferencias} transferência{nTransferencias === 1 ? "" : "s"}</li>
+              <li>{totalUnidadesEncomendar} unidade{totalUnidadesEncomendar === 1 ? "" : "s"} a encomendar</li>
+              <li>{totalUnidadesTransferir} unidade{totalUnidadesTransferir === 1 ? "" : "s"} a transferir</li>
+            </ul>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50 px-5 py-3">
+          <button type="button" onClick={onCancelar} disabled={busy}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            Cancelar
+          </button>
+          <button type="button" onClick={onConfirmar} disabled={busy}
+            className="rounded-lg border border-cyan-500 bg-cyan-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+            {busy ? "A finalizar…" : "Confirmar e finalizar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Ponto 4/7/8 — painel de resultado (Imprimir/PDF/Email) ────────────────
+//
+// Mostrado depois de QUALQUER finalização bem sucedida (farmácia, grupo
+// ou consolidação). Reutiliza directamente `ReportActions` — o mesmo
+// componente de Imprimir/PDF/Email dos restantes relatórios (Ponto 9:
+// mesma linguagem visual, nenhuma infra nova) — para cada documento já
+// construído pelo servidor (`buildDocumentosFinalizacaoAction`).
+function PainelResultadoFinalizacao({
+  resultado,
+  onConcluir,
+}: {
+  resultado: Extract<DocumentosFinalizacaoResultado, { ok: true }>;
+  onConcluir: () => void;
+}) {
+  const temEncomendas = resultado.encomendaIndividual.length > 0;
+  const temTransferencias = resultado.transferenciaIndividual.length > 0;
+  const multiplasEncomendas = resultado.encomendaIndividual.length > 1;
+  const multiplasTransferencias = resultado.transferenciaIndividual.length > 1;
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+        <h2 className="text-[16px] font-semibold text-emerald-900">Encomenda finalizada</h2>
+        <p className="mt-0.5 text-[12px] text-emerald-800">
+          {resultado.encomendaIndividual.length} encomenda{resultado.encomendaIndividual.length === 1 ? "" : "s"}
+          {temTransferencias
+            ? ` · ${resultado.transferenciaIndividual.length} transferência${resultado.transferenciaIndividual.length === 1 ? "" : "s"}`
+            : ""}
+        </p>
+      </div>
+
+      {temEncomendas && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold text-slate-900">Encomendas finalizadas</h3>
+            {resultado.encomendaConsolidada ? (
+              <ReportActions report={resultado.encomendaConsolidada} />
+            ) : multiplasEncomendas && resultado.encomendaTodas ? (
+              <ReportActions report={resultado.encomendaTodas} hide={{ excel: true }} />
+            ) : (
+              <ReportActions report={resultado.encomendaIndividual[0].report} hide={{ excel: true }} />
+            )}
+          </div>
+          {/* Encomenda única do Grupo: só o documento consolidado faz
+              sentido mostrar (é a decisão que o utilizador já tomou ao
+              finalizar) — as acções por farmácia ficam disponíveis mais
+              abaixo mesmo assim, para quem precisar do detalhe de uma só. */}
+          {multiplasEncomendas && (
+            <ul className="mt-3 divide-y divide-slate-100 text-[12px]">
+              {resultado.encomendaIndividual.map((e) => (
+                <li key={e.listaEncomendaId} className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-slate-700">
+                    Encomenda · {e.farmaciaNome}{" "}
+                    <a href={`/encomendas/${e.listaEncomendaId}`} className="text-slate-400 underline hover:text-slate-600">
+                      abrir
+                    </a>
+                  </span>
+                  <ReportActions report={e.report} hide={{ excel: true }} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {temTransferencias && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold text-slate-900">Transferências geradas</h3>
+            {multiplasTransferencias && resultado.transferenciaTodas ? (
+              <ReportActions report={resultado.transferenciaTodas} hide={{ excel: true }} />
+            ) : (
+              <ReportActions report={resultado.transferenciaIndividual[0].report} hide={{ excel: true }} />
+            )}
+          </div>
+          {multiplasTransferencias && (
+            <ul className="mt-3 divide-y divide-slate-100 text-[12px]">
+              {resultado.transferenciaIndividual.map((t) => (
+                <li key={t.transferenciaId} className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-slate-700">{t.rota}</span>
+                  <ReportActions report={t.report} hide={{ excel: true }} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <div className="flex justify-end">
+        <button type="button" onClick={onConcluir}
+          className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+          Concluir
+        </button>
+      </div>
+    </div>
+  );
 }

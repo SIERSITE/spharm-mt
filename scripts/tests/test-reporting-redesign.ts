@@ -272,7 +272,7 @@ for (const [nf, nm] of [[1, 3], [2, 12], [2, 15], [5, 12], [5, 15]] as const) {
   const rel = gerarRelatorio(nf, nm);
   const html = renderReportHtml(rel);
   // Só no <body> — a folha de estilos cita "TOTAL ARTIGO"/"TOTAL GERAL"
-  // em comentários CSS (a explicar as regras .subtotal-row/tfoot),
+  // em comentários CSS (a explicar as regras .subtotal-row/.totals-tbody),
   // sempre presentes independentemente dos dados desta chamada.
   const bodyHtml = html.slice(html.indexOf("<body>"));
   const cols = rel.columns.filter((c) => !c.hidden && !c.excelOnly);
@@ -487,8 +487,8 @@ console.log("\n=== J. Totais compactos — sem quebra de linha, altura próxima 
   ok("regra compacta do TOTAL ARTIGO força nowrap (nunca quebra \"TOTAL\"/\"ARTIGO\")", /white-space:\s*nowrap/.test(subtotalCompacto));
 
   const tfootCompacto = src.slice(
-    src.indexOf(".page.density-compact tfoot td {"),
-    src.indexOf("}", src.indexOf(".page.density-compact tfoot td {")),
+    src.indexOf(".page.density-compact .totals-tbody td {"),
+    src.indexOf("}", src.indexOf(".page.density-compact .totals-tbody td {")),
   );
   ok("regra compacta do TOTAL GERAL força nowrap", /white-space:\s*nowrap/.test(tfootCompacto));
   ok(

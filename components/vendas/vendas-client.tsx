@@ -275,7 +275,14 @@ export function VendasClient({
       agruparPor: "artigo",
       ordenarPor: "totalVendas",
       apenasComVendas: true,
-      apenasComStock: false,
+      // Ligado por defeito (2026-09): produtos sem vendas mas com stock
+      // não devem depender de o utilizador se lembrar de os incluir — o
+      // toggle continua visível (útil para um relatório "só vendas
+      // reais", caso de uso legítimo), mas nasce sempre ON. Ver também
+      // `lib/encomendas/prefill-from-vendas.ts`: a proposta de Encomenda
+      // gerada a partir de Vendas herda este universo, logo estes
+      // produtos deixam de ficar invisíveis também nesse fluxo.
+      apenasComStock: true,
       incluirManutencao: false,
       incluirTotais: true,
       modoVisualizacao: "tabela",
