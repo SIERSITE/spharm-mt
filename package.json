@@ -151,6 +151,7 @@
     "test:agent-endpoint": "node scripts/tests/test-agent-endpoint.mjs",
     "test:macos-installer": "bash installer-macos/tests/test-macos-installer.sh",
     "test:aggregate-lock": "tsx scripts/tests/test-aggregate-lock.ts",
+    "test:painel-resultado-transferencias": "tsx scripts/tests/test-painel-resultado-transferencias.ts",
     "test:reimpressao-documentos-db": "tsx scripts/tests/test-reimpressao-documentos-db.ts",
     "test:e2e-encomendas-finalizacao": "tsx scripts/e2e/encomendas-finalizacao-browser.ts",
     "test:documentos-finalizacao": "tsx scripts/tests/test-documentos-finalizacao.ts",

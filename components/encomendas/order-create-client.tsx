@@ -3310,22 +3310,35 @@ function PainelResultadoFinalizacao({
         <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold text-slate-900">Transferências geradas</h3>
-            {multiplasTransferencias && resultado.transferenciaTodas ? (
+            {multiplasTransferencias && resultado.transferenciaTodas && (
               <ReportActions report={resultado.transferenciaTodas} hide={{ excel: true }} />
-            ) : (
-              <ReportActions report={resultado.transferenciaIndividual[0].report} hide={{ excel: true }} />
             )}
           </div>
-          {multiplasTransferencias && (
-            <ul className="mt-3 divide-y divide-slate-100 text-[12px]">
-              {resultado.transferenciaIndividual.map((t) => (
-                <li key={t.transferenciaId} className="flex items-center justify-between gap-2 py-2">
-                  <span className="text-slate-700">{t.rota}</span>
+          {/* Produto/CNP/quantidade directo no ecrã — sem precisar de gerar o
+              documento primeiro. Reutiliza `t.report.rows`, já construído por
+              `buildTransferenciaDocumentoReport` (o mesmo Report usado pelos
+              botões abaixo) — nenhuma query nem lógica nova. */}
+          <div className="mt-3 space-y-4 divide-y divide-slate-100">
+            {resultado.transferenciaIndividual.map((t) => (
+              <div key={t.transferenciaId} className="pt-4 first:pt-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-medium text-slate-800">{t.rota}</p>
                   <ReportActions report={t.report} hide={{ excel: true }} />
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+                <table className="mt-2 w-full text-[12px]">
+                  <tbody>
+                    {t.report.rows.map((linha, i) => (
+                      <tr key={i} className="border-b border-slate-50 last:border-0">
+                        <td className="py-1 pr-3 text-slate-700">{String(linha.produto ?? "")}</td>
+                        <td className="py-1 pr-3 font-mono text-slate-500">{linha.cnp ? String(linha.cnp) : "—"}</td>
+                        <td className="py-1 text-right tabular-nums text-slate-700">{String(linha.quantidade ?? "")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
