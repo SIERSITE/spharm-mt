@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, FileText, Trash2 } from "lucide-react";
 import { deleteTransferenciaAction } from "@/app/transferencias/actions";
 import type { TransferenciaRegistadaRow } from "@/lib/transferencias/registadas-data";
+import { DocumentosModal } from "@/components/reporting/documentos-modal";
 
 /**
  * components/transferencias/transferencias-registadas-list.tsx
@@ -44,6 +45,26 @@ export function TransferenciasRegistadasList({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+
+  // Reimprimir/PDF/Email de transferências já FINALIZADAS — leitura pura
+  // (ver DocumentosModal); RASCUNHO fica de fora (nunca foi "finalizada").
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [documentosParaIds, setDocumentosParaIds] = useState<string[] | null>(null);
+  const reimprimivel = (t: TransferenciaRegistadaRow) => t.estado === "FINALIZADA";
+  const idsReimprimiveis = rows.filter(reimprimivel).map((t) => t.id);
+  function toggleSelecionada(id: string) {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleTodas() {
+    setSelecionadas((prev) =>
+      idsReimprimiveis.every((id) => prev.has(id)) ? new Set() : new Set(idsReimprimiveis)
+    );
+  }
 
   function handleDelete(t: TransferenciaRegistadaRow) {
     if (
@@ -100,22 +121,59 @@ export function TransferenciasRegistadasList({
           {rows.length === 0 ? (
             <p className="text-[12px] text-slate-500">Nenhuma transferência registada.</p>
           ) : (
+            <>
+              {selecionadas.size > 0 && (
+                <div className="mb-2 flex items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-[12px] text-cyan-900">
+                  <span>
+                    {selecionadas.size} transferência{selecionadas.size === 1 ? "" : "s"} seleccionada
+                    {selecionadas.size === 1 ? "" : "s"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDocumentosParaIds([...selecionadas])}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500 bg-cyan-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-cyan-700"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Imprimir · PDF · Email
+                    </button>
+                    <button type="button" onClick={() => setSelecionadas(new Set())} className="text-[11px] text-cyan-700 hover:text-cyan-900">
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+              )}
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-[12px]">
                 <thead className="text-[10px] uppercase tracking-wider text-slate-400">
                   <tr>
+                    <th className="px-3 py-2">
+                      {idsReimprimiveis.length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={idsReimprimiveis.every((id) => selecionadas.has(id))}
+                          onChange={toggleTodas}
+                          title="Seleccionar todas as transferências finalizadas"
+                        />
+                      )}
+                    </th>
                     <th className="px-3 py-2">Origem</th>
                     <th className="px-3 py-2">Destino</th>
                     <th className="px-3 py-2 text-center">Linhas</th>
                     <th className="px-3 py-2">Estado</th>
                     <th className="px-3 py-2">Criado por</th>
                     <th className="px-3 py-2">Data</th>
-                    {podeEliminar && <th className="px-3 py-2" />}
+                    <th className="px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {rows.map((t) => (
                     <tr key={t.id}>
+                      <td className="px-3 py-2">
+                        {reimprimivel(t) && (
+                          <input type="checkbox" checked={selecionadas.has(t.id)} onChange={() => toggleSelecionada(t.id)} />
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-medium text-slate-800">
                         {t.farmaciaOrigemNome}
                       </td>
@@ -130,26 +188,48 @@ export function TransferenciasRegistadasList({
                       </td>
                       <td className="px-3 py-2 text-slate-600">{t.criadoPorNome}</td>
                       <td className="px-3 py-2 text-slate-500">{fmtDateTime(t.dataCriacao)}</td>
-                      {podeEliminar && (
-                        <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(t)}
-                            disabled={busyId === t.id}
-                            title="Eliminar transferência"
-                            className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      )}
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {reimprimivel(t) && (
+                            <button
+                              type="button"
+                              onClick={() => setDocumentosParaIds([t.id])}
+                              title="Imprimir / PDF / Email"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
+                            >
+                              <FileText className="h-3 w-3" />
+                              Documentos
+                            </button>
+                          )}
+                          {podeEliminar && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(t)}
+                              disabled={busyId === t.id}
+                              title="Eliminar transferência"
+                              className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
+      )}
+
+      {documentosParaIds && (
+        <DocumentosModal
+          titulo={documentosParaIds.length === 1 ? "Documentos da transferência" : "Documentos das transferências seleccionadas"}
+          transferenciaIds={documentosParaIds}
+          onClose={() => setDocumentosParaIds(null)}
+        />
       )}
     </section>
   );

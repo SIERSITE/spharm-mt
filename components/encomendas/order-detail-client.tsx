@@ -8,6 +8,7 @@ import { ArrowLeft, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import type { OrderDetail, OrderTimelineEvent } from "@/lib/encomendas/order-detail";
 import { rotuloOrigem } from "@/lib/encomendas/origem-linha";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
+import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import { ArtigoLink } from "@/components/stock/artigo-link";
 import { AutosaveStatusBadge } from "@/components/encomendas/autosave-status-badge";
 import { ProductPicker } from "@/components/encomendas/product-picker";
@@ -72,6 +73,9 @@ export function OrderDetailClient({ detail }: Props) {
     null
   );
   const [manualOpen, setManualOpen] = useState(false);
+  // Reimprimir/PDF/Email — só depois de finalizada; leitura pura, nunca
+  // repete a exportação nem toca em quantidades/estado (ver DocumentosModal).
+  const [documentosOpen, setDocumentosOpen] = useState(false);
 
   // Estado optimista das linhas — actualizamos localmente e a server
   // action revalida o path (refresh do server component empurra a fonte
@@ -424,11 +428,28 @@ export function OrderDetailClient({ detail }: Props) {
       )}
 
       {!detail.editable && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
-          Esta encomenda já não é editável (estado: {ESTADO_LABEL[detail.estado] ?? detail.estado}).
-          O payload do outbox é congelado na finalização — qualquer mudança implicaria cancelar e
-          recriar.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[12px] text-slate-600">
+          <span>
+            Esta encomenda já não é editável (estado: {ESTADO_LABEL[detail.estado] ?? detail.estado}).
+            O payload do outbox é congelado na finalização — qualquer mudança implicaria cancelar e
+            recriar.
+          </span>
+          <button
+            type="button"
+            onClick={() => setDocumentosOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-500 bg-cyan-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-cyan-700"
+          >
+            Imprimir · PDF · Email
+          </button>
         </div>
+      )}
+
+      {documentosOpen && (
+        <DocumentosModal
+          titulo="Documentos da encomenda"
+          listaEncomendaIds={[detail.id]}
+          onClose={() => setDocumentosOpen(false)}
+        />
       )}
 
       {/* Linhas */}

@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { FileText, Search, X } from "lucide-react";
 import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
+import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import {
   deleteListaEncomendaAction,
   finalizeOrderAction,
@@ -65,6 +66,31 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
   const [busy, startTransition] = useTransition();
   const [navigating, startNavigate] = useTransition();
   const [flash, setFlash] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+
+  // ── Reimprimir/PDF/Email de encomendas já finalizadas ───────────────────
+  //
+  // Só RASCUNHO fica de fora — uma encomenda FINALIZADA ou EXPORTADA pode
+  // ser reaberta para gerar documentos a qualquer momento, sem tocar em
+  // nada (ver `DocumentosModal`). `selecionadas` guarda ids, não linhas
+  // inteiras — nunca precisa de reconciliar com `data.orders` a cada
+  // render.
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [documentosParaIds, setDocumentosParaIds] = useState<string[] | null>(null);
+  const reimprimivel = (o: OrderRow) => o.estado !== "RASCUNHO";
+  const idsReimprimiveis = data.orders.filter(reimprimivel).map((o) => o.id);
+  function toggleSelecionada(id: string) {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleTodas() {
+    setSelecionadas((prev) =>
+      idsReimprimiveis.every((id) => prev.has(id)) ? new Set() : new Set(idsReimprimiveis)
+    );
+  }
 
   // Search local — só faz commit no Enter/blur. Para sincronizar com a
   // URL quando esta muda externamente (back/forward, "Limpar filtros"),
@@ -299,6 +325,32 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
         </div>
       )}
 
+      {selecionadas.size > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-[13px] text-cyan-900">
+          <span>
+            {selecionadas.size} encomenda{selecionadas.size === 1 ? "" : "s"} seleccionada
+            {selecionadas.size === 1 ? "" : "s"}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDocumentosParaIds([...selecionadas])}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500 bg-cyan-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-cyan-700"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Imprimir · PDF · Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelecionadas(new Set())}
+              className="text-[12px] text-cyan-700 hover:text-cyan-900"
+            >
+              Limpar selecção
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabela */}
       {data.orders.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
@@ -333,6 +385,16 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-400">
+                  <th className="px-4 py-3">
+                    {idsReimprimiveis.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={idsReimprimiveis.length > 0 && idsReimprimiveis.every((id) => selecionadas.has(id))}
+                        onChange={toggleTodas}
+                        title="Seleccionar todas as encomendas finalizadas/exportadas desta página"
+                      />
+                    )}
+                  </th>
                   <th className="px-4 py-3">Nome</th>
                   <th className="px-4 py-3">Farmácia</th>
                   <th className="px-4 py-3">Estado</th>
@@ -347,6 +409,11 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
               <tbody>
                 {data.orders.map((o) => (
                   <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-25">
+                    <td className="px-4 py-3">
+                      {reimprimivel(o) && (
+                        <input type="checkbox" checked={selecionadas.has(o.id)} onChange={() => toggleSelecionada(o.id)} />
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-medium">
                       <Link
                         href={`/encomendas/${o.id}`}
@@ -409,6 +476,16 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                           </button>
                         )}
 
+                        {reimprimivel(o) && (
+                          <button
+                            onClick={() => setDocumentosParaIds([o.id])}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
+                            title="Imprimir / PDF / Email"
+                          >
+                            <FileText className="h-3 w-3" />
+                            Documentos
+                          </button>
+                        )}
                         {podeEliminar && (
                           <button
                             disabled={busy}
@@ -471,6 +548,14 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
             </Link>
           </div>
         </div>
+      )}
+
+      {documentosParaIds && (
+        <DocumentosModal
+          titulo={documentosParaIds.length === 1 ? "Documentos da encomenda" : "Documentos das encomendas seleccionadas"}
+          listaEncomendaIds={documentosParaIds}
+          onClose={() => setDocumentosParaIds(null)}
+        />
       )}
     </div>
   );
