@@ -526,6 +526,7 @@ export const FarmaciaScalarFieldEnum = {
   codigoANF: 'codigoANF',
   morada: 'morada',
   contacto: 'contacto',
+  nif: 'nif',
   estado: 'estado',
   dataAdesao: 'dataAdesao',
   dataCriacao: 'dataCriacao',
@@ -881,7 +882,11 @@ export const ListaEncomendaScalarFieldEnum = {
   versao: 'versao',
   contextoJson: 'contextoJson',
   clientIdempotencyKey: 'clientIdempotencyKey',
-  clientRequestHash: 'clientRequestHash'
+  clientRequestHash: 'clientRequestHash',
+  numero: 'numero',
+  motivoAnulacao: 'motivoAnulacao',
+  anuladoPorId: 'anuladoPorId',
+  anuladoEm: 'anuladoEm'
 } as const
 
 export type ListaEncomendaScalarFieldEnum = (typeof ListaEncomendaScalarFieldEnum)[keyof typeof ListaEncomendaScalarFieldEnum]
@@ -908,7 +913,14 @@ export const TransferenciaScalarFieldEnum = {
   estado: 'estado',
   criadoPorId: 'criadoPorId',
   dataCriacao: 'dataCriacao',
-  dataAtualizacao: 'dataAtualizacao'
+  dataFinalizacao: 'dataFinalizacao',
+  dataAtualizacao: 'dataAtualizacao',
+  numero: 'numero',
+  motivoAnulacao: 'motivoAnulacao',
+  anuladoPorId: 'anuladoPorId',
+  anuladoEm: 'anuladoEm',
+  clientIdempotencyKey: 'clientIdempotencyKey',
+  clientRequestHash: 'clientRequestHash'
 } as const
 
 export type TransferenciaScalarFieldEnum = (typeof TransferenciaScalarFieldEnum)[keyof typeof TransferenciaScalarFieldEnum]
@@ -919,7 +931,8 @@ export const LinhaTransferenciaScalarFieldEnum = {
   transferenciaId: 'transferenciaId',
   produtoId: 'produtoId',
   quantidade: 'quantidade',
-  notas: 'notas'
+  notas: 'notas',
+  designacaoSnapshot: 'designacaoSnapshot'
 } as const
 
 export type LinhaTransferenciaScalarFieldEnum = (typeof LinhaTransferenciaScalarFieldEnum)[keyof typeof LinhaTransferenciaScalarFieldEnum]

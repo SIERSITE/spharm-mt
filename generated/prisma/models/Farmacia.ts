@@ -30,6 +30,7 @@ export type FarmaciaMinAggregateOutputType = {
   codigoANF: string | null
   morada: string | null
   contacto: string | null
+  nif: string | null
   estado: $Enums.EntidadeEstado | null
   dataAdesao: Date | null
   dataCriacao: Date | null
@@ -43,6 +44,7 @@ export type FarmaciaMaxAggregateOutputType = {
   codigoANF: string | null
   morada: string | null
   contacto: string | null
+  nif: string | null
   estado: $Enums.EntidadeEstado | null
   dataAdesao: Date | null
   dataCriacao: Date | null
@@ -56,6 +58,7 @@ export type FarmaciaCountAggregateOutputType = {
   codigoANF: number
   morada: number
   contacto: number
+  nif: number
   estado: number
   dataAdesao: number
   dataCriacao: number
@@ -71,6 +74,7 @@ export type FarmaciaMinAggregateInputType = {
   codigoANF?: true
   morada?: true
   contacto?: true
+  nif?: true
   estado?: true
   dataAdesao?: true
   dataCriacao?: true
@@ -84,6 +88,7 @@ export type FarmaciaMaxAggregateInputType = {
   codigoANF?: true
   morada?: true
   contacto?: true
+  nif?: true
   estado?: true
   dataAdesao?: true
   dataCriacao?: true
@@ -97,6 +102,7 @@ export type FarmaciaCountAggregateInputType = {
   codigoANF?: true
   morada?: true
   contacto?: true
+  nif?: true
   estado?: true
   dataAdesao?: true
   dataCriacao?: true
@@ -183,6 +189,7 @@ export type FarmaciaGroupByOutputType = {
   codigoANF: string | null
   morada: string | null
   contacto: string | null
+  nif: string | null
   estado: $Enums.EntidadeEstado
   dataAdesao: Date
   dataCriacao: Date
@@ -217,6 +224,7 @@ export type FarmaciaWhereInput = {
   codigoANF?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   morada?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   contacto?: Prisma.StringNullableFilter<"Farmacia"> | string | null
+  nif?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   estado?: Prisma.EnumEntidadeEstadoFilter<"Farmacia"> | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
@@ -259,6 +267,7 @@ export type FarmaciaOrderByWithRelationInput = {
   codigoANF?: Prisma.SortOrderInput | Prisma.SortOrder
   morada?: Prisma.SortOrderInput | Prisma.SortOrder
   contacto?: Prisma.SortOrderInput | Prisma.SortOrder
+  nif?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -304,6 +313,7 @@ export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
   codigoANF?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   morada?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   contacto?: Prisma.StringNullableFilter<"Farmacia"> | string | null
+  nif?: Prisma.StringNullableFilter<"Farmacia"> | string | null
   estado?: Prisma.EnumEntidadeEstadoFilter<"Farmacia"> | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
@@ -346,6 +356,7 @@ export type FarmaciaOrderByWithAggregationInput = {
   codigoANF?: Prisma.SortOrderInput | Prisma.SortOrder
   morada?: Prisma.SortOrderInput | Prisma.SortOrder
   contacto?: Prisma.SortOrderInput | Prisma.SortOrder
+  nif?: Prisma.SortOrderInput | Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -365,6 +376,7 @@ export type FarmaciaScalarWhereWithAggregatesInput = {
   codigoANF?: Prisma.StringNullableWithAggregatesFilter<"Farmacia"> | string | null
   morada?: Prisma.StringNullableWithAggregatesFilter<"Farmacia"> | string | null
   contacto?: Prisma.StringNullableWithAggregatesFilter<"Farmacia"> | string | null
+  nif?: Prisma.StringNullableWithAggregatesFilter<"Farmacia"> | string | null
   estado?: Prisma.EnumEntidadeEstadoWithAggregatesFilter<"Farmacia"> | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeWithAggregatesFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"Farmacia"> | Date | string
@@ -378,6 +390,7 @@ export type FarmaciaCreateInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -420,6 +433,7 @@ export type FarmaciaUncheckedCreateInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -462,6 +476,7 @@ export type FarmaciaUpdateInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -504,6 +519,7 @@ export type FarmaciaUncheckedUpdateInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -546,6 +562,7 @@ export type FarmaciaCreateManyInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -559,6 +576,7 @@ export type FarmaciaUpdateManyMutationInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -572,6 +590,7 @@ export type FarmaciaUncheckedUpdateManyInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -590,6 +609,7 @@ export type FarmaciaCountOrderByAggregateInput = {
   codigoANF?: Prisma.SortOrder
   morada?: Prisma.SortOrder
   contacto?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -603,6 +623,7 @@ export type FarmaciaMaxOrderByAggregateInput = {
   codigoANF?: Prisma.SortOrder
   morada?: Prisma.SortOrder
   contacto?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -616,6 +637,7 @@ export type FarmaciaMinOrderByAggregateInput = {
   codigoANF?: Prisma.SortOrder
   morada?: Prisma.SortOrder
   contacto?: Prisma.SortOrder
+  nif?: Prisma.SortOrder
   estado?: Prisma.SortOrder
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
@@ -1044,6 +1066,7 @@ export type FarmaciaCreateWithoutIngestProdutoRunsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1085,6 +1108,7 @@ export type FarmaciaUncheckedCreateWithoutIngestProdutoRunsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1142,6 +1166,7 @@ export type FarmaciaUpdateWithoutIngestProdutoRunsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1183,6 +1208,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestProdutoRunsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1224,6 +1250,7 @@ export type FarmaciaCreateWithoutCompraDocumentosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1265,6 +1292,7 @@ export type FarmaciaUncheckedCreateWithoutCompraDocumentosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1322,6 +1350,7 @@ export type FarmaciaUpdateWithoutCompraDocumentosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1363,6 +1392,7 @@ export type FarmaciaUncheckedUpdateWithoutCompraDocumentosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1404,6 +1434,7 @@ export type FarmaciaCreateWithoutFornecedorErpRefsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1445,6 +1476,7 @@ export type FarmaciaUncheckedCreateWithoutFornecedorErpRefsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1502,6 +1534,7 @@ export type FarmaciaUpdateWithoutFornecedorErpRefsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1543,6 +1576,7 @@ export type FarmaciaUncheckedUpdateWithoutFornecedorErpRefsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1584,6 +1618,7 @@ export type FarmaciaCreateWithoutEmailConfigInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1625,6 +1660,7 @@ export type FarmaciaUncheckedCreateWithoutEmailConfigInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1682,6 +1718,7 @@ export type FarmaciaUpdateWithoutEmailConfigInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1723,6 +1760,7 @@ export type FarmaciaUncheckedUpdateWithoutEmailConfigInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1764,6 +1802,7 @@ export type FarmaciaCreateWithoutUtilizadoresInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1805,6 +1844,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1862,6 +1902,7 @@ export type FarmaciaUpdateWithoutUtilizadoresInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1903,6 +1944,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1944,6 +1986,7 @@ export type FarmaciaCreateWithoutUtilizadoresExtraInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -1985,6 +2028,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2042,6 +2086,7 @@ export type FarmaciaUpdateWithoutUtilizadoresExtraInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2083,6 +2128,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2124,6 +2170,7 @@ export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2165,6 +2212,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2222,6 +2270,7 @@ export type FarmaciaUpdateWithoutProdutosFarmaciaInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2263,6 +2312,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2304,6 +2354,7 @@ export type FarmaciaCreateWithoutProdutosInternosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2345,6 +2396,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2402,6 +2454,7 @@ export type FarmaciaUpdateWithoutProdutosInternosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2443,6 +2496,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2484,6 +2538,7 @@ export type FarmaciaCreateWithoutVendasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2525,6 +2580,7 @@ export type FarmaciaUncheckedCreateWithoutVendasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2582,6 +2638,7 @@ export type FarmaciaUpdateWithoutVendasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2623,6 +2680,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2664,6 +2722,7 @@ export type FarmaciaCreateWithoutVendasMensaisInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2705,6 +2764,7 @@ export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2762,6 +2822,7 @@ export type FarmaciaUpdateWithoutVendasMensaisInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2803,6 +2864,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2844,6 +2906,7 @@ export type FarmaciaCreateWithoutVendaManutencaoCelulasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2885,6 +2948,7 @@ export type FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -2942,6 +3006,7 @@ export type FarmaciaUpdateWithoutVendaManutencaoCelulasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2983,6 +3048,7 @@ export type FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3024,6 +3090,7 @@ export type FarmaciaCreateWithoutVendaManutencaoFarmaciasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3065,6 +3132,7 @@ export type FarmaciaUncheckedCreateWithoutVendaManutencaoFarmaciasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3122,6 +3190,7 @@ export type FarmaciaUpdateWithoutVendaManutencaoFarmaciasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3163,6 +3232,7 @@ export type FarmaciaUncheckedUpdateWithoutVendaManutencaoFarmaciasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3204,6 +3274,7 @@ export type FarmaciaCreateWithoutComprasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3245,6 +3316,7 @@ export type FarmaciaUncheckedCreateWithoutComprasInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3302,6 +3374,7 @@ export type FarmaciaUpdateWithoutComprasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3343,6 +3416,7 @@ export type FarmaciaUncheckedUpdateWithoutComprasInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3384,6 +3458,7 @@ export type FarmaciaCreateWithoutDevolucoesInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3425,6 +3500,7 @@ export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3482,6 +3558,7 @@ export type FarmaciaUpdateWithoutDevolucoesInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3523,6 +3600,7 @@ export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3564,6 +3642,7 @@ export type FarmaciaCreateWithoutHistoricoStocksInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3605,6 +3684,7 @@ export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3662,6 +3742,7 @@ export type FarmaciaUpdateWithoutHistoricoStocksInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3703,6 +3784,7 @@ export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3744,6 +3826,7 @@ export type FarmaciaCreateWithoutAjustesStockInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3785,6 +3868,7 @@ export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3842,6 +3926,7 @@ export type FarmaciaUpdateWithoutAjustesStockInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3883,6 +3968,7 @@ export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -3924,6 +4010,7 @@ export type FarmaciaCreateWithoutInventariosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -3965,6 +4052,7 @@ export type FarmaciaUncheckedCreateWithoutInventariosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4022,6 +4110,7 @@ export type FarmaciaUpdateWithoutInventariosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4063,6 +4152,7 @@ export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4104,6 +4194,7 @@ export type FarmaciaCreateWithoutIndicadoresInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4145,6 +4236,7 @@ export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4202,6 +4294,7 @@ export type FarmaciaUpdateWithoutIndicadoresInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4243,6 +4336,7 @@ export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4284,6 +4378,7 @@ export type FarmaciaCreateWithoutListasEncomendaInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4325,6 +4420,7 @@ export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4382,6 +4478,7 @@ export type FarmaciaUpdateWithoutListasEncomendaInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4423,6 +4520,7 @@ export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4464,6 +4562,7 @@ export type FarmaciaCreateWithoutTransferenciasOrigemInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4505,6 +4604,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasOrigemInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4551,6 +4651,7 @@ export type FarmaciaCreateWithoutTransferenciasDestinoInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4592,6 +4693,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasDestinoInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4649,6 +4751,7 @@ export type FarmaciaUpdateWithoutTransferenciasOrigemInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4690,6 +4793,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasOrigemInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4742,6 +4846,7 @@ export type FarmaciaUpdateWithoutTransferenciasDestinoInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4783,6 +4888,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasDestinoInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4824,6 +4930,7 @@ export type FarmaciaCreateWithoutLotesIngestaoInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4865,6 +4972,7 @@ export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -4922,6 +5030,7 @@ export type FarmaciaUpdateWithoutLotesIngestaoInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -4963,6 +5072,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5004,6 +5114,7 @@ export type FarmaciaCreateWithoutIngestVendasLinhasRawInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5045,6 +5156,7 @@ export type FarmaciaUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5102,6 +5214,7 @@ export type FarmaciaUpdateWithoutIngestVendasLinhasRawInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5143,6 +5256,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5184,6 +5298,7 @@ export type FarmaciaCreateWithoutStagingComprasRawLinesInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5225,6 +5340,7 @@ export type FarmaciaUncheckedCreateWithoutStagingComprasRawLinesInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5282,6 +5398,7 @@ export type FarmaciaUpdateWithoutStagingComprasRawLinesInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5323,6 +5440,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingComprasRawLinesInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5364,6 +5482,7 @@ export type FarmaciaCreateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5405,6 +5524,7 @@ export type FarmaciaUncheckedCreateWithoutStagingDevolucoesFornecedorRawLinesInp
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5462,6 +5582,7 @@ export type FarmaciaUpdateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5503,6 +5624,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingDevolucoesFornecedorRawLinesInp
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5544,6 +5666,7 @@ export type FarmaciaCreateWithoutPipelineRunsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5585,6 +5708,7 @@ export type FarmaciaUncheckedCreateWithoutPipelineRunsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5642,6 +5766,7 @@ export type FarmaciaUpdateWithoutPipelineRunsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5683,6 +5808,7 @@ export type FarmaciaUncheckedUpdateWithoutPipelineRunsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5724,6 +5850,7 @@ export type FarmaciaCreateWithoutSyncRequestsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5765,6 +5892,7 @@ export type FarmaciaUncheckedCreateWithoutSyncRequestsInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5822,6 +5950,7 @@ export type FarmaciaUpdateWithoutSyncRequestsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5863,6 +5992,7 @@ export type FarmaciaUncheckedUpdateWithoutSyncRequestsInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -5904,6 +6034,7 @@ export type FarmaciaCreateWithoutMovimentosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -5945,6 +6076,7 @@ export type FarmaciaUncheckedCreateWithoutMovimentosInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -6002,6 +6134,7 @@ export type FarmaciaUpdateWithoutMovimentosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -6043,6 +6176,7 @@ export type FarmaciaUncheckedUpdateWithoutMovimentosInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -6084,6 +6218,7 @@ export type FarmaciaCreateWithoutIngestStocksMovRawInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -6125,6 +6260,7 @@ export type FarmaciaUncheckedCreateWithoutIngestStocksMovRawInput = {
   codigoANF?: string | null
   morada?: string | null
   contacto?: string | null
+  nif?: string | null
   estado?: $Enums.EntidadeEstado
   dataAdesao?: Date | string
   dataCriacao?: Date | string
@@ -6182,6 +6318,7 @@ export type FarmaciaUpdateWithoutIngestStocksMovRawInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -6223,6 +6360,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestStocksMovRawInput = {
   codigoANF?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   morada?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contacto?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  nif?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   estado?: Prisma.EnumEntidadeEstadoFieldUpdateOperationsInput | $Enums.EntidadeEstado
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -6538,6 +6676,7 @@ export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   codigoANF?: boolean
   morada?: boolean
   contacto?: boolean
+  nif?: boolean
   estado?: boolean
   dataAdesao?: boolean
   dataCriacao?: boolean
@@ -6581,6 +6720,7 @@ export type FarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   codigoANF?: boolean
   morada?: boolean
   contacto?: boolean
+  nif?: boolean
   estado?: boolean
   dataAdesao?: boolean
   dataCriacao?: boolean
@@ -6594,6 +6734,7 @@ export type FarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   codigoANF?: boolean
   morada?: boolean
   contacto?: boolean
+  nif?: boolean
   estado?: boolean
   dataAdesao?: boolean
   dataCriacao?: boolean
@@ -6607,6 +6748,7 @@ export type FarmaciaSelectScalar = {
   codigoANF?: boolean
   morada?: boolean
   contacto?: boolean
+  nif?: boolean
   estado?: boolean
   dataAdesao?: boolean
   dataCriacao?: boolean
@@ -6614,7 +6756,7 @@ export type FarmaciaSelectScalar = {
   useMovimentosCanonical?: boolean
 }
 
-export type FarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nome" | "codigoANF" | "morada" | "contacto" | "estado" | "dataAdesao" | "dataCriacao" | "dataAtualizacao" | "useMovimentosCanonical", ExtArgs["result"]["farmacia"]>
+export type FarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nome" | "codigoANF" | "morada" | "contacto" | "nif" | "estado" | "dataAdesao" | "dataCriacao" | "dataAtualizacao" | "useMovimentosCanonical", ExtArgs["result"]["farmacia"]>
 export type FarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizadores?: boolean | Prisma.Farmacia$utilizadoresArgs<ExtArgs>
   utilizadoresExtra?: boolean | Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>
@@ -6689,6 +6831,14 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     codigoANF: string | null
     morada: string | null
     contacto: string | null
+    /**
+     * NIF / Número de Contribuinte da farmácia — opcional (nem todas as
+     * instalações o têm preenchido). Só usado para o cabeçalho dos
+     * documentos profissionais de encomenda/transferência (ver
+     * lib/reporting/adapters/encomenda-documento.ts,
+     * transferencia-documento.ts) — nunca aparece se estiver vazio.
+     */
+    nif: string | null
     estado: $Enums.EntidadeEstado
     dataAdesao: Date
     dataCriacao: Date
@@ -7166,6 +7316,7 @@ export interface FarmaciaFieldRefs {
   readonly codigoANF: Prisma.FieldRef<"Farmacia", 'String'>
   readonly morada: Prisma.FieldRef<"Farmacia", 'String'>
   readonly contacto: Prisma.FieldRef<"Farmacia", 'String'>
+  readonly nif: Prisma.FieldRef<"Farmacia", 'String'>
   readonly estado: Prisma.FieldRef<"Farmacia", 'EntidadeEstado'>
   readonly dataAdesao: Prisma.FieldRef<"Farmacia", 'DateTime'>
   readonly dataCriacao: Prisma.FieldRef<"Farmacia", 'DateTime'>

@@ -129,7 +129,8 @@ export const EstadoListaEncomenda = {
   RASCUNHO: 'RASCUNHO',
   FINALIZADA: 'FINALIZADA',
   EXPORTADA: 'EXPORTADA',
-  ELIMINADA: 'ELIMINADA'
+  ELIMINADA: 'ELIMINADA',
+  ANULADA: 'ANULADA'
 } as const
 
 export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof EstadoListaEncomenda]
@@ -138,7 +139,8 @@ export type EstadoListaEncomenda = (typeof EstadoListaEncomenda)[keyof typeof Es
 export const EstadoTransferencia = {
   RASCUNHO: 'RASCUNHO',
   FINALIZADA: 'FINALIZADA',
-  ELIMINADA: 'ELIMINADA'
+  ELIMINADA: 'ELIMINADA',
+  ANULADA: 'ANULADA'
 } as const
 
 export type EstadoTransferencia = (typeof EstadoTransferencia)[keyof typeof EstadoTransferencia]

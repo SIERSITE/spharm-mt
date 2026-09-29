@@ -43,6 +43,7 @@ export type LinhaTransferenciaMinAggregateOutputType = {
   produtoId: string | null
   quantidade: runtime.Decimal | null
   notas: string | null
+  designacaoSnapshot: string | null
 }
 
 export type LinhaTransferenciaMaxAggregateOutputType = {
@@ -51,6 +52,7 @@ export type LinhaTransferenciaMaxAggregateOutputType = {
   produtoId: string | null
   quantidade: runtime.Decimal | null
   notas: string | null
+  designacaoSnapshot: string | null
 }
 
 export type LinhaTransferenciaCountAggregateOutputType = {
@@ -59,6 +61,7 @@ export type LinhaTransferenciaCountAggregateOutputType = {
   produtoId: number
   quantidade: number
   notas: number
+  designacaoSnapshot: number
   _all: number
 }
 
@@ -77,6 +80,7 @@ export type LinhaTransferenciaMinAggregateInputType = {
   produtoId?: true
   quantidade?: true
   notas?: true
+  designacaoSnapshot?: true
 }
 
 export type LinhaTransferenciaMaxAggregateInputType = {
@@ -85,6 +89,7 @@ export type LinhaTransferenciaMaxAggregateInputType = {
   produtoId?: true
   quantidade?: true
   notas?: true
+  designacaoSnapshot?: true
 }
 
 export type LinhaTransferenciaCountAggregateInputType = {
@@ -93,6 +98,7 @@ export type LinhaTransferenciaCountAggregateInputType = {
   produtoId?: true
   quantidade?: true
   notas?: true
+  designacaoSnapshot?: true
   _all?: true
 }
 
@@ -188,6 +194,7 @@ export type LinhaTransferenciaGroupByOutputType = {
   produtoId: string
   quantidade: runtime.Decimal
   notas: string | null
+  designacaoSnapshot: string | null
   _count: LinhaTransferenciaCountAggregateOutputType | null
   _avg: LinhaTransferenciaAvgAggregateOutputType | null
   _sum: LinhaTransferenciaSumAggregateOutputType | null
@@ -219,6 +226,7 @@ export type LinhaTransferenciaWhereInput = {
   produtoId?: Prisma.StringFilter<"LinhaTransferencia"> | string
   quantidade?: Prisma.DecimalFilter<"LinhaTransferencia"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
+  designacaoSnapshot?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
   transferencia?: Prisma.XOR<Prisma.TransferenciaScalarRelationFilter, Prisma.TransferenciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
 }
@@ -229,6 +237,7 @@ export type LinhaTransferenciaOrderByWithRelationInput = {
   produtoId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   notas?: Prisma.SortOrderInput | Prisma.SortOrder
+  designacaoSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   transferencia?: Prisma.TransferenciaOrderByWithRelationInput
   produto?: Prisma.ProdutoOrderByWithRelationInput
 }
@@ -243,6 +252,7 @@ export type LinhaTransferenciaWhereUniqueInput = Prisma.AtLeast<{
   produtoId?: Prisma.StringFilter<"LinhaTransferencia"> | string
   quantidade?: Prisma.DecimalFilter<"LinhaTransferencia"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
+  designacaoSnapshot?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
   transferencia?: Prisma.XOR<Prisma.TransferenciaScalarRelationFilter, Prisma.TransferenciaWhereInput>
   produto?: Prisma.XOR<Prisma.ProdutoScalarRelationFilter, Prisma.ProdutoWhereInput>
 }, "id" | "transferenciaId_produtoId">
@@ -253,6 +263,7 @@ export type LinhaTransferenciaOrderByWithAggregationInput = {
   produtoId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   notas?: Prisma.SortOrderInput | Prisma.SortOrder
+  designacaoSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.LinhaTransferenciaCountOrderByAggregateInput
   _avg?: Prisma.LinhaTransferenciaAvgOrderByAggregateInput
   _max?: Prisma.LinhaTransferenciaMaxOrderByAggregateInput
@@ -269,12 +280,14 @@ export type LinhaTransferenciaScalarWhereWithAggregatesInput = {
   produtoId?: Prisma.StringWithAggregatesFilter<"LinhaTransferencia"> | string
   quantidade?: Prisma.DecimalWithAggregatesFilter<"LinhaTransferencia"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.StringNullableWithAggregatesFilter<"LinhaTransferencia"> | string | null
+  designacaoSnapshot?: Prisma.StringNullableWithAggregatesFilter<"LinhaTransferencia"> | string | null
 }
 
 export type LinhaTransferenciaCreateInput = {
   id?: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
   transferencia: Prisma.TransferenciaCreateNestedOneWithoutLinhasInput
   produto: Prisma.ProdutoCreateNestedOneWithoutLinhasTransferenciaInput
 }
@@ -285,12 +298,14 @@ export type LinhaTransferenciaUncheckedCreateInput = {
   produtoId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   transferencia?: Prisma.TransferenciaUpdateOneRequiredWithoutLinhasNestedInput
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutLinhasTransferenciaNestedInput
 }
@@ -301,6 +316,7 @@ export type LinhaTransferenciaUncheckedUpdateInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaCreateManyInput = {
@@ -309,12 +325,14 @@ export type LinhaTransferenciaCreateManyInput = {
   produtoId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaUncheckedUpdateManyInput = {
@@ -323,6 +341,7 @@ export type LinhaTransferenciaUncheckedUpdateManyInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaListRelationFilter = {
@@ -346,6 +365,7 @@ export type LinhaTransferenciaCountOrderByAggregateInput = {
   produtoId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  designacaoSnapshot?: Prisma.SortOrder
 }
 
 export type LinhaTransferenciaAvgOrderByAggregateInput = {
@@ -358,6 +378,7 @@ export type LinhaTransferenciaMaxOrderByAggregateInput = {
   produtoId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  designacaoSnapshot?: Prisma.SortOrder
 }
 
 export type LinhaTransferenciaMinOrderByAggregateInput = {
@@ -366,6 +387,7 @@ export type LinhaTransferenciaMinOrderByAggregateInput = {
   produtoId?: Prisma.SortOrder
   quantidade?: Prisma.SortOrder
   notas?: Prisma.SortOrder
+  designacaoSnapshot?: Prisma.SortOrder
 }
 
 export type LinhaTransferenciaSumOrderByAggregateInput = {
@@ -460,6 +482,7 @@ export type LinhaTransferenciaCreateWithoutProdutoInput = {
   id?: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
   transferencia: Prisma.TransferenciaCreateNestedOneWithoutLinhasInput
 }
 
@@ -468,6 +491,7 @@ export type LinhaTransferenciaUncheckedCreateWithoutProdutoInput = {
   transferenciaId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaCreateOrConnectWithoutProdutoInput = {
@@ -505,12 +529,14 @@ export type LinhaTransferenciaScalarWhereInput = {
   produtoId?: Prisma.StringFilter<"LinhaTransferencia"> | string
   quantidade?: Prisma.DecimalFilter<"LinhaTransferencia"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
+  designacaoSnapshot?: Prisma.StringNullableFilter<"LinhaTransferencia"> | string | null
 }
 
 export type LinhaTransferenciaCreateWithoutTransferenciaInput = {
   id?: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
   produto: Prisma.ProdutoCreateNestedOneWithoutLinhasTransferenciaInput
 }
 
@@ -519,6 +545,7 @@ export type LinhaTransferenciaUncheckedCreateWithoutTransferenciaInput = {
   produtoId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaCreateOrConnectWithoutTransferenciaInput = {
@@ -552,12 +579,14 @@ export type LinhaTransferenciaCreateManyProdutoInput = {
   transferenciaId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaUpdateWithoutProdutoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   transferencia?: Prisma.TransferenciaUpdateOneRequiredWithoutLinhasNestedInput
 }
 
@@ -566,6 +595,7 @@ export type LinhaTransferenciaUncheckedUpdateWithoutProdutoInput = {
   transferenciaId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaUncheckedUpdateManyWithoutProdutoInput = {
@@ -573,6 +603,7 @@ export type LinhaTransferenciaUncheckedUpdateManyWithoutProdutoInput = {
   transferenciaId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaCreateManyTransferenciaInput = {
@@ -580,12 +611,14 @@ export type LinhaTransferenciaCreateManyTransferenciaInput = {
   produtoId: string
   quantidade: runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: string | null
+  designacaoSnapshot?: string | null
 }
 
 export type LinhaTransferenciaUpdateWithoutTransferenciaInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   produto?: Prisma.ProdutoUpdateOneRequiredWithoutLinhasTransferenciaNestedInput
 }
 
@@ -594,6 +627,7 @@ export type LinhaTransferenciaUncheckedUpdateWithoutTransferenciaInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaInput = {
@@ -601,6 +635,7 @@ export type LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaInput = {
   produtoId?: Prisma.StringFieldUpdateOperationsInput | string
   quantidade?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   notas?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  designacaoSnapshot?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -611,6 +646,7 @@ export type LinhaTransferenciaSelect<ExtArgs extends runtime.Types.Extensions.In
   produtoId?: boolean
   quantidade?: boolean
   notas?: boolean
+  designacaoSnapshot?: boolean
   transferencia?: boolean | Prisma.TransferenciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["linhaTransferencia"]>
@@ -621,6 +657,7 @@ export type LinhaTransferenciaSelectCreateManyAndReturn<ExtArgs extends runtime.
   produtoId?: boolean
   quantidade?: boolean
   notas?: boolean
+  designacaoSnapshot?: boolean
   transferencia?: boolean | Prisma.TransferenciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["linhaTransferencia"]>
@@ -631,6 +668,7 @@ export type LinhaTransferenciaSelectUpdateManyAndReturn<ExtArgs extends runtime.
   produtoId?: boolean
   quantidade?: boolean
   notas?: boolean
+  designacaoSnapshot?: boolean
   transferencia?: boolean | Prisma.TransferenciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["linhaTransferencia"]>
@@ -641,9 +679,10 @@ export type LinhaTransferenciaSelectScalar = {
   produtoId?: boolean
   quantidade?: boolean
   notas?: boolean
+  designacaoSnapshot?: boolean
 }
 
-export type LinhaTransferenciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "transferenciaId" | "produtoId" | "quantidade" | "notas", ExtArgs["result"]["linhaTransferencia"]>
+export type LinhaTransferenciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "transferenciaId" | "produtoId" | "quantidade" | "notas" | "designacaoSnapshot", ExtArgs["result"]["linhaTransferencia"]>
 export type LinhaTransferenciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   transferencia?: boolean | Prisma.TransferenciaDefaultArgs<ExtArgs>
   produto?: boolean | Prisma.ProdutoDefaultArgs<ExtArgs>
@@ -669,6 +708,15 @@ export type $LinhaTransferenciaPayload<ExtArgs extends runtime.Types.Extensions.
     produtoId: string
     quantidade: runtime.Decimal
     notas: string | null
+    /**
+     * Snapshot de `Produto.designacao` no momento da criação da linha —
+     * para uma reimpressão futura mostrar SEMPRE o mesmo texto, mesmo que
+     * o produto seja renomeado depois (CNP não muda, é a chave estável;
+     * designação pode). NULL para linhas criadas antes desta coluna
+     * existir — nesse caso o documento continua a usar `produto.designacao`
+     * ao vivo, exactamente como fazia antes.
+     */
+    designacaoSnapshot: string | null
   }, ExtArgs["result"]["linhaTransferencia"]>
   composites: {}
 }
@@ -1099,6 +1147,7 @@ export interface LinhaTransferenciaFieldRefs {
   readonly produtoId: Prisma.FieldRef<"LinhaTransferencia", 'String'>
   readonly quantidade: Prisma.FieldRef<"LinhaTransferencia", 'Decimal'>
   readonly notas: Prisma.FieldRef<"LinhaTransferencia", 'String'>
+  readonly designacaoSnapshot: Prisma.FieldRef<"LinhaTransferencia", 'String'>
 }
     
 

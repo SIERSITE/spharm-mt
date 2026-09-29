@@ -116,7 +116,18 @@ enum EstadoListaEncomenda {
   /// `podeEliminarListaEncomenda` em lib/encomendas/eliminacao.ts para a
   /// distinção entre "ainda não exportou" (elimina livremente) e "já
   /// exportou de verdade" (exige confirmação explícita, aviso próprio).
+  ///
+  /// Exclusiva de RASCUNHO desde 2026-09-29 — ver ANULADA abaixo para a
+  /// mesma operação sobre uma encomenda já FINALIZADA/EXPORTADA.
   ELIMINADA
+  /// "Anular" (2026-09-29) — o equivalente de ELIMINADA para uma
+  /// encomenda que já saiu do estado de rascunho. NUNCA apaga a row nem
+  /// as linhas (exactamente como ELIMINADA) — a única diferença real é
+  /// semântica: exige motivo (`motivoAnulacao`), regista quem e quando
+  /// (`anuladoPorId`/`anuladoEm`), e um documento reimpresso neste estado
+  /// tem de mostrar "ANULADO" com destaque (ver lib/reporting/adapters).
+  /// Ver lib/encomendas/anulacao.ts.
+  ANULADA
 }
 
 /// Estado de uma transferência interna entre farmácias do grupo.
@@ -130,7 +141,14 @@ enum EstadoListaEncomenda {
 enum EstadoTransferencia {
   RASCUNHO
   FINALIZADA
+  /// Exclusiva de RASCUNHO desde 2026-09-29 — ver ANULADA para uma
+  /// transferência já FINALIZADA.
   ELIMINADA
+  /// "Anular" (2026-09-29) — mesma semântica de EstadoListaEncomenda.
+  /// ANULADA: nunca apaga a row nem as linhas, exige motivo, regista
+  /// quem/quando, reimpressão mostra "ANULADO". Ver
+  /// lib/transferencias/anulacao.ts.
+  ANULADA
 }
 
 /// Estado do fluxo outbound de exportação de uma lista de encomenda
@@ -1202,6 +1220,12 @@ model Farmacia {
   codigoANF       String?
   morada          String?
   contacto        String?
+  /// NIF / Número de Contribuinte da farmácia — opcional (nem todas as
+  /// instalações o têm preenchido). Só usado para o cabeçalho dos
+  /// documentos profissionais de encomenda/transferência (ver
+  /// lib/reporting/adapters/encomenda-documento.ts,
+  /// transferencia-documento.ts) — nunca aparece se estiver vazio.
+  nif             String?
   estado          EntidadeEstado @default(ATIVO)
   dataAdesao      DateTime       @default(now())
   dataCriacao     DateTime       @default(now())
@@ -1300,7 +1324,9 @@ model Utilizador {
   farmacia                 Farmacia?            @relation(fields: [farmaciaId], references: [id])
   farmacias                UtilizadorFarmacia[]
   listasEncomenda          ListaEncomenda[]
+  listasEncomendaAnuladas  ListaEncomenda[]     @relation("ListaEncomendaAnuladoPor")
   transferencias           Transferencia[]
+  transferenciasAnuladas   Transferencia[]      @relation("TransferenciaAnuladoPor")
   auditoria                AuditLog[]           @relation("AuditLogActor")
   /// Pedidos de "Sincronizar agora" feitos por este utilizador.
   syncRequestsPedidos      SyncRequest[]
@@ -2019,11 +2045,24 @@ model ListaEncomenda {
   /// modo, contexto, linhas). Mesma chave + hash diferente = conflito explícito,
   /// nunca o rascunho antigo devolvido como se o pedido novo tivesse sido aplicado.
   clientRequestHash    String?
+  /// Número de documento legível e sequencial (ex.: "EN-000123") — ver
+  /// lib/documentos/numeracao.ts. Atribuído só na FINALIZAÇÃO (rascunhos
+  /// nunca têm número — só documentos reais, reimprimíveis, o precisam).
+  /// NULL para todas as encomendas finalizadas ANTES desta coluna existir
+  /// — nunca populado retroactivamente (a sequência começa do zero para
+  /// documentos novos, não se inventa um número para o histórico).
+  numero               String?  @unique
+  /// Motivo obrigatório da anulação (ver ANULADA em EstadoListaEncomenda)
+  /// — NULL sempre que estado != ANULADA.
+  motivoAnulacao       String?
+  anuladoPorId         String?
+  anuladoEm            DateTime?
 
-  farmacia  Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
-  criadoPor Utilizador       @relation(fields: [criadoPorId], references: [id])
-  linhas    LinhaEncomenda[]
-  outbox    OrderOutbox?
+  farmacia   Farmacia         @relation(fields: [farmaciaId], references: [id], onDelete: Cascade)
+  criadoPor  Utilizador       @relation(fields: [criadoPorId], references: [id])
+  anuladoPor Utilizador?      @relation("ListaEncomendaAnuladoPor", fields: [anuladoPorId], references: [id])
+  linhas     LinhaEncomenda[]
+  outbox     OrderOutbox?
 
   @@index([farmaciaId])
   @@index([criadoPorId])
@@ -2102,11 +2141,31 @@ model Transferencia {
   estado            EstadoTransferencia @default(RASCUNHO)
   criadoPorId       String
   dataCriacao       DateTime            @default(now())
+  /// Preenchida quando a transferência passa a FINALIZADA — NULL em
+  /// rascunho. Distinta de `dataAtualizacao` (essa muda em qualquer
+  /// escrita; esta é fixa desde a finalização, para o documento
+  /// reimprimido mostrar sempre a MESMA data).
+  dataFinalizacao   DateTime?
   dataAtualizacao   DateTime            @updatedAt
+
+  /// Número de documento legível e sequencial (ex.: "TR-000045") — ver
+  /// lib/documentos/numeracao.ts. Atribuído só na finalização.
+  numero            String?             @unique
+  motivoAnulacao    String?
+  anuladoPorId      String?
+  anuladoEm         DateTime?
+
+  /// Chave de idempotência gerada pelo CLIENTE — mesmo mecanismo de
+  /// ListaEncomenda.clientIdempotencyKey (ver esse comentário e
+  /// lib/transferencias/criar-transferencia.ts). NULL para transferências
+  /// criadas antes desta coluna existir.
+  clientIdempotencyKey String? @unique
+  clientRequestHash     String?
 
   farmaciaOrigem  Farmacia             @relation("TransferenciaOrigem", fields: [farmaciaOrigemId], references: [id])
   farmaciaDestino Farmacia             @relation("TransferenciaDestino", fields: [farmaciaDestinoId], references: [id])
   criadoPor       Utilizador           @relation(fields: [criadoPorId], references: [id])
+  anuladoPor      Utilizador?          @relation("TransferenciaAnuladoPor", fields: [anuladoPorId], references: [id])
   linhas          LinhaTransferencia[]
 
   @@index([farmaciaOrigemId])
@@ -2125,6 +2184,13 @@ model LinhaTransferencia {
   produtoId       String
   quantidade      Decimal @db.Decimal(14, 3)
   notas           String?
+  /// Snapshot de `Produto.designacao` no momento da criação da linha —
+  /// para uma reimpressão futura mostrar SEMPRE o mesmo texto, mesmo que
+  /// o produto seja renomeado depois (CNP não muda, é a chave estável;
+  /// designação pode). NULL para linhas criadas antes desta coluna
+  /// existir — nesse caso o documento continua a usar `produto.designacao`
+  /// ao vivo, exactamente como fazia antes.
+  designacaoSnapshot String?
 
   transferencia Transferencia @relation(fields: [transferenciaId], references: [id], onDelete: Cascade)
   produto       Produto       @relation(fields: [produtoId], references: [id], onDelete: Cascade)

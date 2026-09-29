@@ -54,7 +54,14 @@ export type TransferenciaMinAggregateOutputType = {
   estado: $Enums.EstadoTransferencia | null
   criadoPorId: string | null
   dataCriacao: Date | null
+  dataFinalizacao: Date | null
   dataAtualizacao: Date | null
+  numero: string | null
+  motivoAnulacao: string | null
+  anuladoPorId: string | null
+  anuladoEm: Date | null
+  clientIdempotencyKey: string | null
+  clientRequestHash: string | null
 }
 
 export type TransferenciaMaxAggregateOutputType = {
@@ -64,7 +71,14 @@ export type TransferenciaMaxAggregateOutputType = {
   estado: $Enums.EstadoTransferencia | null
   criadoPorId: string | null
   dataCriacao: Date | null
+  dataFinalizacao: Date | null
   dataAtualizacao: Date | null
+  numero: string | null
+  motivoAnulacao: string | null
+  anuladoPorId: string | null
+  anuladoEm: Date | null
+  clientIdempotencyKey: string | null
+  clientRequestHash: string | null
 }
 
 export type TransferenciaCountAggregateOutputType = {
@@ -74,7 +88,14 @@ export type TransferenciaCountAggregateOutputType = {
   estado: number
   criadoPorId: number
   dataCriacao: number
+  dataFinalizacao: number
   dataAtualizacao: number
+  numero: number
+  motivoAnulacao: number
+  anuladoPorId: number
+  anuladoEm: number
+  clientIdempotencyKey: number
+  clientRequestHash: number
   _all: number
 }
 
@@ -86,7 +107,14 @@ export type TransferenciaMinAggregateInputType = {
   estado?: true
   criadoPorId?: true
   dataCriacao?: true
+  dataFinalizacao?: true
   dataAtualizacao?: true
+  numero?: true
+  motivoAnulacao?: true
+  anuladoPorId?: true
+  anuladoEm?: true
+  clientIdempotencyKey?: true
+  clientRequestHash?: true
 }
 
 export type TransferenciaMaxAggregateInputType = {
@@ -96,7 +124,14 @@ export type TransferenciaMaxAggregateInputType = {
   estado?: true
   criadoPorId?: true
   dataCriacao?: true
+  dataFinalizacao?: true
   dataAtualizacao?: true
+  numero?: true
+  motivoAnulacao?: true
+  anuladoPorId?: true
+  anuladoEm?: true
+  clientIdempotencyKey?: true
+  clientRequestHash?: true
 }
 
 export type TransferenciaCountAggregateInputType = {
@@ -106,7 +141,14 @@ export type TransferenciaCountAggregateInputType = {
   estado?: true
   criadoPorId?: true
   dataCriacao?: true
+  dataFinalizacao?: true
   dataAtualizacao?: true
+  numero?: true
+  motivoAnulacao?: true
+  anuladoPorId?: true
+  anuladoEm?: true
+  clientIdempotencyKey?: true
+  clientRequestHash?: true
   _all?: true
 }
 
@@ -189,7 +231,14 @@ export type TransferenciaGroupByOutputType = {
   estado: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao: Date
+  dataFinalizacao: Date | null
   dataAtualizacao: Date
+  numero: string | null
+  motivoAnulacao: string | null
+  anuladoPorId: string | null
+  anuladoEm: Date | null
+  clientIdempotencyKey: string | null
+  clientRequestHash: string | null
   _count: TransferenciaCountAggregateOutputType | null
   _min: TransferenciaMinAggregateOutputType | null
   _max: TransferenciaMaxAggregateOutputType | null
@@ -220,10 +269,18 @@ export type TransferenciaWhereInput = {
   estado?: Prisma.EnumEstadoTransferenciaFilter<"Transferencia"> | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFilter<"Transferencia"> | string
   dataCriacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  dataFinalizacao?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  numero?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  motivoAnulacao?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoPorId?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoEm?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
+  clientIdempotencyKey?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"Transferencia"> | string | null
   farmaciaOrigem?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   farmaciaDestino?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
+  anuladoPor?: Prisma.XOR<Prisma.UtilizadorNullableScalarRelationFilter, Prisma.UtilizadorWhereInput> | null
   linhas?: Prisma.LinhaTransferenciaListRelationFilter
 }
 
@@ -234,15 +291,25 @@ export type TransferenciaOrderByWithRelationInput = {
   estado?: Prisma.SortOrder
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
+  dataFinalizacao?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  numero?: Prisma.SortOrderInput | Prisma.SortOrder
+  motivoAnulacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  anuladoPorId?: Prisma.SortOrderInput | Prisma.SortOrder
+  anuladoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   farmaciaOrigem?: Prisma.FarmaciaOrderByWithRelationInput
   farmaciaDestino?: Prisma.FarmaciaOrderByWithRelationInput
   criadoPor?: Prisma.UtilizadorOrderByWithRelationInput
+  anuladoPor?: Prisma.UtilizadorOrderByWithRelationInput
   linhas?: Prisma.LinhaTransferenciaOrderByRelationAggregateInput
 }
 
 export type TransferenciaWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  numero?: string
+  clientIdempotencyKey?: string
   AND?: Prisma.TransferenciaWhereInput | Prisma.TransferenciaWhereInput[]
   OR?: Prisma.TransferenciaWhereInput[]
   NOT?: Prisma.TransferenciaWhereInput | Prisma.TransferenciaWhereInput[]
@@ -251,12 +318,18 @@ export type TransferenciaWhereUniqueInput = Prisma.AtLeast<{
   estado?: Prisma.EnumEstadoTransferenciaFilter<"Transferencia"> | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFilter<"Transferencia"> | string
   dataCriacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  dataFinalizacao?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  motivoAnulacao?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoPorId?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoEm?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"Transferencia"> | string | null
   farmaciaOrigem?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   farmaciaDestino?: Prisma.XOR<Prisma.FarmaciaScalarRelationFilter, Prisma.FarmaciaWhereInput>
   criadoPor?: Prisma.XOR<Prisma.UtilizadorScalarRelationFilter, Prisma.UtilizadorWhereInput>
+  anuladoPor?: Prisma.XOR<Prisma.UtilizadorNullableScalarRelationFilter, Prisma.UtilizadorWhereInput> | null
   linhas?: Prisma.LinhaTransferenciaListRelationFilter
-}, "id">
+}, "id" | "numero" | "clientIdempotencyKey">
 
 export type TransferenciaOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -265,7 +338,14 @@ export type TransferenciaOrderByWithAggregationInput = {
   estado?: Prisma.SortOrder
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
+  dataFinalizacao?: Prisma.SortOrderInput | Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  numero?: Prisma.SortOrderInput | Prisma.SortOrder
+  motivoAnulacao?: Prisma.SortOrderInput | Prisma.SortOrder
+  anuladoPorId?: Prisma.SortOrderInput | Prisma.SortOrder
+  anuladoEm?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.TransferenciaCountOrderByAggregateInput
   _max?: Prisma.TransferenciaMaxOrderByAggregateInput
   _min?: Prisma.TransferenciaMinOrderByAggregateInput
@@ -281,17 +361,31 @@ export type TransferenciaScalarWhereWithAggregatesInput = {
   estado?: Prisma.EnumEstadoTransferenciaWithAggregatesFilter<"Transferencia"> | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringWithAggregatesFilter<"Transferencia"> | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"Transferencia"> | Date | string
+  dataFinalizacao?: Prisma.DateTimeNullableWithAggregatesFilter<"Transferencia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"Transferencia"> | Date | string
+  numero?: Prisma.StringNullableWithAggregatesFilter<"Transferencia"> | string | null
+  motivoAnulacao?: Prisma.StringNullableWithAggregatesFilter<"Transferencia"> | string | null
+  anuladoPorId?: Prisma.StringNullableWithAggregatesFilter<"Transferencia"> | string | null
+  anuladoEm?: Prisma.DateTimeNullableWithAggregatesFilter<"Transferencia"> | Date | string | null
+  clientIdempotencyKey?: Prisma.StringNullableWithAggregatesFilter<"Transferencia"> | string | null
+  clientRequestHash?: Prisma.StringNullableWithAggregatesFilter<"Transferencia"> | string | null
 }
 
 export type TransferenciaCreateInput = {
   id?: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmaciaOrigem: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasOrigemInput
   farmaciaDestino: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasDestinoInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasInput
+  anuladoPor?: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasAnuladasInput
   linhas?: Prisma.LinhaTransferenciaCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -302,7 +396,14 @@ export type TransferenciaUncheckedCreateInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -310,10 +411,17 @@ export type TransferenciaUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmaciaOrigem?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasOrigemNestedInput
   farmaciaDestino?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasDestinoNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutTransferenciasNestedInput
+  anuladoPor?: Prisma.UtilizadorUpdateOneWithoutTransferenciasAnuladasNestedInput
   linhas?: Prisma.LinhaTransferenciaUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -324,7 +432,14 @@ export type TransferenciaUncheckedUpdateInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -335,14 +450,27 @@ export type TransferenciaCreateManyInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type TransferenciaUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type TransferenciaUncheckedUpdateManyInput = {
@@ -352,7 +480,14 @@ export type TransferenciaUncheckedUpdateManyInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type TransferenciaListRelationFilter = {
@@ -372,7 +507,14 @@ export type TransferenciaCountOrderByAggregateInput = {
   estado?: Prisma.SortOrder
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
+  dataFinalizacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  numero?: Prisma.SortOrder
+  motivoAnulacao?: Prisma.SortOrder
+  anuladoPorId?: Prisma.SortOrder
+  anuladoEm?: Prisma.SortOrder
+  clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type TransferenciaMaxOrderByAggregateInput = {
@@ -382,7 +524,14 @@ export type TransferenciaMaxOrderByAggregateInput = {
   estado?: Prisma.SortOrder
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
+  dataFinalizacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  numero?: Prisma.SortOrder
+  motivoAnulacao?: Prisma.SortOrder
+  anuladoPorId?: Prisma.SortOrder
+  anuladoEm?: Prisma.SortOrder
+  clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type TransferenciaMinOrderByAggregateInput = {
@@ -392,7 +541,14 @@ export type TransferenciaMinOrderByAggregateInput = {
   estado?: Prisma.SortOrder
   criadoPorId?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
+  dataFinalizacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  numero?: Prisma.SortOrder
+  motivoAnulacao?: Prisma.SortOrder
+  anuladoPorId?: Prisma.SortOrder
+  anuladoEm?: Prisma.SortOrder
+  clientIdempotencyKey?: Prisma.SortOrder
+  clientRequestHash?: Prisma.SortOrder
 }
 
 export type TransferenciaScalarRelationFilter = {
@@ -491,10 +647,24 @@ export type TransferenciaCreateNestedManyWithoutCriadoPorInput = {
   connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
 }
 
+export type TransferenciaCreateNestedManyWithoutAnuladoPorInput = {
+  create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput> | Prisma.TransferenciaCreateWithoutAnuladoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput[]
+  connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput | Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput[]
+  createMany?: Prisma.TransferenciaCreateManyAnuladoPorInputEnvelope
+  connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+}
+
 export type TransferenciaUncheckedCreateNestedManyWithoutCriadoPorInput = {
   create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutCriadoPorInput, Prisma.TransferenciaUncheckedCreateWithoutCriadoPorInput> | Prisma.TransferenciaCreateWithoutCriadoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutCriadoPorInput[]
   connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutCriadoPorInput | Prisma.TransferenciaCreateOrConnectWithoutCriadoPorInput[]
   createMany?: Prisma.TransferenciaCreateManyCriadoPorInputEnvelope
+  connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+}
+
+export type TransferenciaUncheckedCreateNestedManyWithoutAnuladoPorInput = {
+  create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput> | Prisma.TransferenciaCreateWithoutAnuladoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput[]
+  connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput | Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput[]
+  createMany?: Prisma.TransferenciaCreateManyAnuladoPorInputEnvelope
   connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
 }
 
@@ -512,6 +682,20 @@ export type TransferenciaUpdateManyWithoutCriadoPorNestedInput = {
   deleteMany?: Prisma.TransferenciaScalarWhereInput | Prisma.TransferenciaScalarWhereInput[]
 }
 
+export type TransferenciaUpdateManyWithoutAnuladoPorNestedInput = {
+  create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput> | Prisma.TransferenciaCreateWithoutAnuladoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput[]
+  connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput | Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput[]
+  upsert?: Prisma.TransferenciaUpsertWithWhereUniqueWithoutAnuladoPorInput | Prisma.TransferenciaUpsertWithWhereUniqueWithoutAnuladoPorInput[]
+  createMany?: Prisma.TransferenciaCreateManyAnuladoPorInputEnvelope
+  set?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  disconnect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  delete?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  update?: Prisma.TransferenciaUpdateWithWhereUniqueWithoutAnuladoPorInput | Prisma.TransferenciaUpdateWithWhereUniqueWithoutAnuladoPorInput[]
+  updateMany?: Prisma.TransferenciaUpdateManyWithWhereWithoutAnuladoPorInput | Prisma.TransferenciaUpdateManyWithWhereWithoutAnuladoPorInput[]
+  deleteMany?: Prisma.TransferenciaScalarWhereInput | Prisma.TransferenciaScalarWhereInput[]
+}
+
 export type TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput = {
   create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutCriadoPorInput, Prisma.TransferenciaUncheckedCreateWithoutCriadoPorInput> | Prisma.TransferenciaCreateWithoutCriadoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutCriadoPorInput[]
   connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutCriadoPorInput | Prisma.TransferenciaCreateOrConnectWithoutCriadoPorInput[]
@@ -523,6 +707,20 @@ export type TransferenciaUncheckedUpdateManyWithoutCriadoPorNestedInput = {
   connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
   update?: Prisma.TransferenciaUpdateWithWhereUniqueWithoutCriadoPorInput | Prisma.TransferenciaUpdateWithWhereUniqueWithoutCriadoPorInput[]
   updateMany?: Prisma.TransferenciaUpdateManyWithWhereWithoutCriadoPorInput | Prisma.TransferenciaUpdateManyWithWhereWithoutCriadoPorInput[]
+  deleteMany?: Prisma.TransferenciaScalarWhereInput | Prisma.TransferenciaScalarWhereInput[]
+}
+
+export type TransferenciaUncheckedUpdateManyWithoutAnuladoPorNestedInput = {
+  create?: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput> | Prisma.TransferenciaCreateWithoutAnuladoPorInput[] | Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput[]
+  connectOrCreate?: Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput | Prisma.TransferenciaCreateOrConnectWithoutAnuladoPorInput[]
+  upsert?: Prisma.TransferenciaUpsertWithWhereUniqueWithoutAnuladoPorInput | Prisma.TransferenciaUpsertWithWhereUniqueWithoutAnuladoPorInput[]
+  createMany?: Prisma.TransferenciaCreateManyAnuladoPorInputEnvelope
+  set?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  disconnect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  delete?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  connect?: Prisma.TransferenciaWhereUniqueInput | Prisma.TransferenciaWhereUniqueInput[]
+  update?: Prisma.TransferenciaUpdateWithWhereUniqueWithoutAnuladoPorInput | Prisma.TransferenciaUpdateWithWhereUniqueWithoutAnuladoPorInput[]
+  updateMany?: Prisma.TransferenciaUpdateManyWithWhereWithoutAnuladoPorInput | Prisma.TransferenciaUpdateManyWithWhereWithoutAnuladoPorInput[]
   deleteMany?: Prisma.TransferenciaScalarWhereInput | Prisma.TransferenciaScalarWhereInput[]
 }
 
@@ -548,9 +746,16 @@ export type TransferenciaCreateWithoutFarmaciaOrigemInput = {
   id?: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmaciaDestino: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasDestinoInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasInput
+  anuladoPor?: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasAnuladasInput
   linhas?: Prisma.LinhaTransferenciaCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -560,7 +765,14 @@ export type TransferenciaUncheckedCreateWithoutFarmaciaOrigemInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -578,9 +790,16 @@ export type TransferenciaCreateWithoutFarmaciaDestinoInput = {
   id?: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmaciaOrigem: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasOrigemInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasInput
+  anuladoPor?: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasAnuladasInput
   linhas?: Prisma.LinhaTransferenciaCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -590,7 +809,14 @@ export type TransferenciaUncheckedCreateWithoutFarmaciaDestinoInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -630,7 +856,14 @@ export type TransferenciaScalarWhereInput = {
   estado?: Prisma.EnumEstadoTransferenciaFilter<"Transferencia"> | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFilter<"Transferencia"> | string
   dataCriacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  dataFinalizacao?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFilter<"Transferencia"> | Date | string
+  numero?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  motivoAnulacao?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoPorId?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  anuladoEm?: Prisma.DateTimeNullableFilter<"Transferencia"> | Date | string | null
+  clientIdempotencyKey?: Prisma.StringNullableFilter<"Transferencia"> | string | null
+  clientRequestHash?: Prisma.StringNullableFilter<"Transferencia"> | string | null
 }
 
 export type TransferenciaUpsertWithWhereUniqueWithoutFarmaciaDestinoInput = {
@@ -653,9 +886,16 @@ export type TransferenciaCreateWithoutCriadoPorInput = {
   id?: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmaciaOrigem: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasOrigemInput
   farmaciaDestino: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasDestinoInput
+  anuladoPor?: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasAnuladasInput
   linhas?: Prisma.LinhaTransferenciaCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -665,7 +905,14 @@ export type TransferenciaUncheckedCreateWithoutCriadoPorInput = {
   farmaciaDestinoId: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutTransferenciaInput
 }
 
@@ -676,6 +923,50 @@ export type TransferenciaCreateOrConnectWithoutCriadoPorInput = {
 
 export type TransferenciaCreateManyCriadoPorInputEnvelope = {
   data: Prisma.TransferenciaCreateManyCriadoPorInput | Prisma.TransferenciaCreateManyCriadoPorInput[]
+  skipDuplicates?: boolean
+}
+
+export type TransferenciaCreateWithoutAnuladoPorInput = {
+  id?: string
+  estado?: $Enums.EstadoTransferencia
+  dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
+  dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
+  farmaciaOrigem: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasOrigemInput
+  farmaciaDestino: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasDestinoInput
+  criadoPor: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasInput
+  linhas?: Prisma.LinhaTransferenciaCreateNestedManyWithoutTransferenciaInput
+}
+
+export type TransferenciaUncheckedCreateWithoutAnuladoPorInput = {
+  id?: string
+  farmaciaOrigemId: string
+  farmaciaDestinoId: string
+  estado?: $Enums.EstadoTransferencia
+  criadoPorId: string
+  dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
+  dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
+  linhas?: Prisma.LinhaTransferenciaUncheckedCreateNestedManyWithoutTransferenciaInput
+}
+
+export type TransferenciaCreateOrConnectWithoutAnuladoPorInput = {
+  where: Prisma.TransferenciaWhereUniqueInput
+  create: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput>
+}
+
+export type TransferenciaCreateManyAnuladoPorInputEnvelope = {
+  data: Prisma.TransferenciaCreateManyAnuladoPorInput | Prisma.TransferenciaCreateManyAnuladoPorInput[]
   skipDuplicates?: boolean
 }
 
@@ -695,14 +986,37 @@ export type TransferenciaUpdateManyWithWhereWithoutCriadoPorInput = {
   data: Prisma.XOR<Prisma.TransferenciaUpdateManyMutationInput, Prisma.TransferenciaUncheckedUpdateManyWithoutCriadoPorInput>
 }
 
+export type TransferenciaUpsertWithWhereUniqueWithoutAnuladoPorInput = {
+  where: Prisma.TransferenciaWhereUniqueInput
+  update: Prisma.XOR<Prisma.TransferenciaUpdateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedUpdateWithoutAnuladoPorInput>
+  create: Prisma.XOR<Prisma.TransferenciaCreateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedCreateWithoutAnuladoPorInput>
+}
+
+export type TransferenciaUpdateWithWhereUniqueWithoutAnuladoPorInput = {
+  where: Prisma.TransferenciaWhereUniqueInput
+  data: Prisma.XOR<Prisma.TransferenciaUpdateWithoutAnuladoPorInput, Prisma.TransferenciaUncheckedUpdateWithoutAnuladoPorInput>
+}
+
+export type TransferenciaUpdateManyWithWhereWithoutAnuladoPorInput = {
+  where: Prisma.TransferenciaScalarWhereInput
+  data: Prisma.XOR<Prisma.TransferenciaUpdateManyMutationInput, Prisma.TransferenciaUncheckedUpdateManyWithoutAnuladoPorInput>
+}
+
 export type TransferenciaCreateWithoutLinhasInput = {
   id?: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
   farmaciaOrigem: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasOrigemInput
   farmaciaDestino: Prisma.FarmaciaCreateNestedOneWithoutTransferenciasDestinoInput
   criadoPor: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasInput
+  anuladoPor?: Prisma.UtilizadorCreateNestedOneWithoutTransferenciasAnuladasInput
 }
 
 export type TransferenciaUncheckedCreateWithoutLinhasInput = {
@@ -712,7 +1026,14 @@ export type TransferenciaUncheckedCreateWithoutLinhasInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type TransferenciaCreateOrConnectWithoutLinhasInput = {
@@ -735,10 +1056,17 @@ export type TransferenciaUpdateWithoutLinhasInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmaciaOrigem?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasOrigemNestedInput
   farmaciaDestino?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasDestinoNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutTransferenciasNestedInput
+  anuladoPor?: Prisma.UtilizadorUpdateOneWithoutTransferenciasAnuladasNestedInput
 }
 
 export type TransferenciaUncheckedUpdateWithoutLinhasInput = {
@@ -748,7 +1076,14 @@ export type TransferenciaUncheckedUpdateWithoutLinhasInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type TransferenciaCreateManyFarmaciaOrigemInput = {
@@ -757,7 +1092,14 @@ export type TransferenciaCreateManyFarmaciaOrigemInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type TransferenciaCreateManyFarmaciaDestinoInput = {
@@ -766,16 +1108,30 @@ export type TransferenciaCreateManyFarmaciaDestinoInput = {
   estado?: $Enums.EstadoTransferencia
   criadoPorId: string
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type TransferenciaUpdateWithoutFarmaciaOrigemInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmaciaDestino?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasDestinoNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutTransferenciasNestedInput
+  anuladoPor?: Prisma.UtilizadorUpdateOneWithoutTransferenciasAnuladasNestedInput
   linhas?: Prisma.LinhaTransferenciaUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -785,7 +1141,14 @@ export type TransferenciaUncheckedUpdateWithoutFarmaciaOrigemInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -795,16 +1158,30 @@ export type TransferenciaUncheckedUpdateManyWithoutFarmaciaOrigemInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type TransferenciaUpdateWithoutFarmaciaDestinoInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmaciaOrigem?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasOrigemNestedInput
   criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutTransferenciasNestedInput
+  anuladoPor?: Prisma.UtilizadorUpdateOneWithoutTransferenciasAnuladasNestedInput
   linhas?: Prisma.LinhaTransferenciaUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -814,7 +1191,14 @@ export type TransferenciaUncheckedUpdateWithoutFarmaciaDestinoInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -824,7 +1208,14 @@ export type TransferenciaUncheckedUpdateManyWithoutFarmaciaDestinoInput = {
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type TransferenciaCreateManyCriadoPorInput = {
@@ -833,16 +1224,46 @@ export type TransferenciaCreateManyCriadoPorInput = {
   farmaciaDestinoId: string
   estado?: $Enums.EstadoTransferencia
   dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
   dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoPorId?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
+}
+
+export type TransferenciaCreateManyAnuladoPorInput = {
+  id?: string
+  farmaciaOrigemId: string
+  farmaciaDestinoId: string
+  estado?: $Enums.EstadoTransferencia
+  criadoPorId: string
+  dataCriacao?: Date | string
+  dataFinalizacao?: Date | string | null
+  dataAtualizacao?: Date | string
+  numero?: string | null
+  motivoAnulacao?: string | null
+  anuladoEm?: Date | string | null
+  clientIdempotencyKey?: string | null
+  clientRequestHash?: string | null
 }
 
 export type TransferenciaUpdateWithoutCriadoPorInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   farmaciaOrigem?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasOrigemNestedInput
   farmaciaDestino?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasDestinoNestedInput
+  anuladoPor?: Prisma.UtilizadorUpdateOneWithoutTransferenciasAnuladasNestedInput
   linhas?: Prisma.LinhaTransferenciaUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -852,7 +1273,14 @@ export type TransferenciaUncheckedUpdateWithoutCriadoPorInput = {
   farmaciaDestinoId?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   linhas?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaNestedInput
 }
 
@@ -862,7 +1290,64 @@ export type TransferenciaUncheckedUpdateManyWithoutCriadoPorInput = {
   farmaciaDestinoId?: Prisma.StringFieldUpdateOperationsInput | string
   estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoPorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+}
+
+export type TransferenciaUpdateWithoutAnuladoPorInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  farmaciaOrigem?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasOrigemNestedInput
+  farmaciaDestino?: Prisma.FarmaciaUpdateOneRequiredWithoutTransferenciasDestinoNestedInput
+  criadoPor?: Prisma.UtilizadorUpdateOneRequiredWithoutTransferenciasNestedInput
+  linhas?: Prisma.LinhaTransferenciaUpdateManyWithoutTransferenciaNestedInput
+}
+
+export type TransferenciaUncheckedUpdateWithoutAnuladoPorInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  farmaciaOrigemId?: Prisma.StringFieldUpdateOperationsInput | string
+  farmaciaDestinoId?: Prisma.StringFieldUpdateOperationsInput | string
+  estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
+  criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  linhas?: Prisma.LinhaTransferenciaUncheckedUpdateManyWithoutTransferenciaNestedInput
+}
+
+export type TransferenciaUncheckedUpdateManyWithoutAnuladoPorInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  farmaciaOrigemId?: Prisma.StringFieldUpdateOperationsInput | string
+  farmaciaDestinoId?: Prisma.StringFieldUpdateOperationsInput | string
+  estado?: Prisma.EnumEstadoTransferenciaFieldUpdateOperationsInput | $Enums.EstadoTransferencia
+  criadoPorId?: Prisma.StringFieldUpdateOperationsInput | string
+  dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  dataFinalizacao?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  numero?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  motivoAnulacao?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  anuladoEm?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  clientIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  clientRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -903,10 +1388,18 @@ export type TransferenciaSelect<ExtArgs extends runtime.Types.Extensions.Interna
   estado?: boolean
   criadoPorId?: boolean
   dataCriacao?: boolean
+  dataFinalizacao?: boolean
   dataAtualizacao?: boolean
+  numero?: boolean
+  motivoAnulacao?: boolean
+  anuladoPorId?: boolean
+  anuladoEm?: boolean
+  clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
   linhas?: boolean | Prisma.Transferencia$linhasArgs<ExtArgs>
   _count?: boolean | Prisma.TransferenciaCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["transferencia"]>
@@ -918,10 +1411,18 @@ export type TransferenciaSelectCreateManyAndReturn<ExtArgs extends runtime.Types
   estado?: boolean
   criadoPorId?: boolean
   dataCriacao?: boolean
+  dataFinalizacao?: boolean
   dataAtualizacao?: boolean
+  numero?: boolean
+  motivoAnulacao?: boolean
+  anuladoPorId?: boolean
+  anuladoEm?: boolean
+  clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
 }, ExtArgs["result"]["transferencia"]>
 
 export type TransferenciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -931,10 +1432,18 @@ export type TransferenciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
   estado?: boolean
   criadoPorId?: boolean
   dataCriacao?: boolean
+  dataFinalizacao?: boolean
   dataAtualizacao?: boolean
+  numero?: boolean
+  motivoAnulacao?: boolean
+  anuladoPorId?: boolean
+  anuladoEm?: boolean
+  clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
 }, ExtArgs["result"]["transferencia"]>
 
 export type TransferenciaSelectScalar = {
@@ -944,14 +1453,22 @@ export type TransferenciaSelectScalar = {
   estado?: boolean
   criadoPorId?: boolean
   dataCriacao?: boolean
+  dataFinalizacao?: boolean
   dataAtualizacao?: boolean
+  numero?: boolean
+  motivoAnulacao?: boolean
+  anuladoPorId?: boolean
+  anuladoEm?: boolean
+  clientIdempotencyKey?: boolean
+  clientRequestHash?: boolean
 }
 
-export type TransferenciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaOrigemId" | "farmaciaDestinoId" | "estado" | "criadoPorId" | "dataCriacao" | "dataAtualizacao", ExtArgs["result"]["transferencia"]>
+export type TransferenciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "farmaciaOrigemId" | "farmaciaDestinoId" | "estado" | "criadoPorId" | "dataCriacao" | "dataFinalizacao" | "dataAtualizacao" | "numero" | "motivoAnulacao" | "anuladoPorId" | "anuladoEm" | "clientIdempotencyKey" | "clientRequestHash", ExtArgs["result"]["transferencia"]>
 export type TransferenciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
   linhas?: boolean | Prisma.Transferencia$linhasArgs<ExtArgs>
   _count?: boolean | Prisma.TransferenciaCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -959,11 +1476,13 @@ export type TransferenciaIncludeCreateManyAndReturn<ExtArgs extends runtime.Type
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
 }
 export type TransferenciaIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   farmaciaOrigem?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   farmaciaDestino?: boolean | Prisma.FarmaciaDefaultArgs<ExtArgs>
   criadoPor?: boolean | Prisma.UtilizadorDefaultArgs<ExtArgs>
+  anuladoPor?: boolean | Prisma.Transferencia$anuladoPorArgs<ExtArgs>
 }
 
 export type $TransferenciaPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -972,6 +1491,7 @@ export type $TransferenciaPayload<ExtArgs extends runtime.Types.Extensions.Inter
     farmaciaOrigem: Prisma.$FarmaciaPayload<ExtArgs>
     farmaciaDestino: Prisma.$FarmaciaPayload<ExtArgs>
     criadoPor: Prisma.$UtilizadorPayload<ExtArgs>
+    anuladoPor: Prisma.$UtilizadorPayload<ExtArgs> | null
     linhas: Prisma.$LinhaTransferenciaPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -981,7 +1501,30 @@ export type $TransferenciaPayload<ExtArgs extends runtime.Types.Extensions.Inter
     estado: $Enums.EstadoTransferencia
     criadoPorId: string
     dataCriacao: Date
+    /**
+     * Preenchida quando a transferência passa a FINALIZADA — NULL em
+     * rascunho. Distinta de `dataAtualizacao` (essa muda em qualquer
+     * escrita; esta é fixa desde a finalização, para o documento
+     * reimprimido mostrar sempre a MESMA data).
+     */
+    dataFinalizacao: Date | null
     dataAtualizacao: Date
+    /**
+     * Número de documento legível e sequencial (ex.: "TR-000045") — ver
+     * lib/documentos/numeracao.ts. Atribuído só na finalização.
+     */
+    numero: string | null
+    motivoAnulacao: string | null
+    anuladoPorId: string | null
+    anuladoEm: Date | null
+    /**
+     * Chave de idempotência gerada pelo CLIENTE — mesmo mecanismo de
+     * ListaEncomenda.clientIdempotencyKey (ver esse comentário e
+     * lib/transferencias/criar-transferencia.ts). NULL para transferências
+     * criadas antes desta coluna existir.
+     */
+    clientIdempotencyKey: string | null
+    clientRequestHash: string | null
   }, ExtArgs["result"]["transferencia"]>
   composites: {}
 }
@@ -1379,6 +1922,7 @@ export interface Prisma__TransferenciaClient<T, Null = never, ExtArgs extends ru
   farmaciaOrigem<T extends Prisma.FarmaciaDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.FarmaciaDefaultArgs<ExtArgs>>): Prisma.Prisma__FarmaciaClient<runtime.Types.Result.GetResult<Prisma.$FarmaciaPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   farmaciaDestino<T extends Prisma.FarmaciaDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.FarmaciaDefaultArgs<ExtArgs>>): Prisma.Prisma__FarmaciaClient<runtime.Types.Result.GetResult<Prisma.$FarmaciaPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   criadoPor<T extends Prisma.UtilizadorDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UtilizadorDefaultArgs<ExtArgs>>): Prisma.Prisma__UtilizadorClient<runtime.Types.Result.GetResult<Prisma.$UtilizadorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  anuladoPor<T extends Prisma.Transferencia$anuladoPorArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Transferencia$anuladoPorArgs<ExtArgs>>): Prisma.Prisma__UtilizadorClient<runtime.Types.Result.GetResult<Prisma.$UtilizadorPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   linhas<T extends Prisma.Transferencia$linhasArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Transferencia$linhasArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$LinhaTransferenciaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1415,7 +1959,14 @@ export interface TransferenciaFieldRefs {
   readonly estado: Prisma.FieldRef<"Transferencia", 'EstadoTransferencia'>
   readonly criadoPorId: Prisma.FieldRef<"Transferencia", 'String'>
   readonly dataCriacao: Prisma.FieldRef<"Transferencia", 'DateTime'>
+  readonly dataFinalizacao: Prisma.FieldRef<"Transferencia", 'DateTime'>
   readonly dataAtualizacao: Prisma.FieldRef<"Transferencia", 'DateTime'>
+  readonly numero: Prisma.FieldRef<"Transferencia", 'String'>
+  readonly motivoAnulacao: Prisma.FieldRef<"Transferencia", 'String'>
+  readonly anuladoPorId: Prisma.FieldRef<"Transferencia", 'String'>
+  readonly anuladoEm: Prisma.FieldRef<"Transferencia", 'DateTime'>
+  readonly clientIdempotencyKey: Prisma.FieldRef<"Transferencia", 'String'>
+  readonly clientRequestHash: Prisma.FieldRef<"Transferencia", 'String'>
 }
     
 
@@ -1814,6 +2365,25 @@ export type TransferenciaDeleteManyArgs<ExtArgs extends runtime.Types.Extensions
    * Limit how many Transferencias to delete.
    */
   limit?: number
+}
+
+/**
+ * Transferencia.anuladoPor
+ */
+export type Transferencia$anuladoPorArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Utilizador
+   */
+  select?: Prisma.UtilizadorSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Utilizador
+   */
+  omit?: Prisma.UtilizadorOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.UtilizadorInclude<ExtArgs> | null
+  where?: Prisma.UtilizadorWhereInput
 }
 
 /**

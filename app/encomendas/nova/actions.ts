@@ -40,6 +40,11 @@ import {
 } from "@/lib/encomendas/decisao-grupo";
 import { ehOrigemLinha, type OrigemLinha } from "@/lib/encomendas/origem-linha";
 import { resolverTransferenciaInterna } from "@/lib/transferencias/resolver-transferencia-interna";
+import {
+  criarTransferenciaComLinhas,
+  deriveDirectionIdempotencyKey,
+  IdempotencyConflictError as TransferIdempotencyConflictError,
+} from "@/lib/transferencias/criar-transferencia";
 
 // ─── Tipos públicos ──────────────────────────────────────────────────────────
 
@@ -411,6 +416,13 @@ export type CreateInternalTransferInput = {
   motivo: string;
   dciSourceProductName?: string;
   dciSourceCnp?: string;
+  /**
+   * Chave de idempotência gerada pelo CLIENTE (ver
+   * `lib/transferencias/criar-transferencia.ts`) — um clique repetido ou
+   * um retry após resposta perdida com a MESMA chave devolve a
+   * transferência já criada em vez de duplicar.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 export type CreateInternalTransferResult =
@@ -452,6 +464,14 @@ function buildTransferNote(input: CreateInternalTransferInput, nomeOrigemAutorit
  *
  * Não cria nenhum `OrderOutbox`/`OrderExportAudit` — sem exportação ao
  * ERP, tal como `gerarPlanoGrupoAction`.
+ *
+ * Nasce já FINALIZADA (não em RASCUNHO): tal como o ramo TRANSFERIR de
+ * `gerarPlanoGrupoAction`, esta acção só corre depois do utilizador já
+ * ter decidido quantidade e motivo — não há nenhum estado de rascunho
+ * intermédio útil. Antes de 2026-09 ficava silenciosamente em RASCUNHO
+ * para sempre (sem número, sem data de finalização, sem aparecer em
+ * nenhuma manutenção) — uma das causas de "a transferência desaparece
+ * depois de concluída".
  */
 export async function createInternalTransferAction(
   input: CreateInternalTransferInput
@@ -477,33 +497,29 @@ export async function createInternalTransferAction(
     if (!resolucao.ok) return resolucao;
     const { farmaciaOrigem, farmaciaDestino } = resolucao;
 
-    const transferencia = await prisma.$transaction(async (tx) => {
-      return tx.transferencia.create({
-        data: {
-          farmaciaOrigemId: farmaciaOrigem.id,
-          farmaciaDestinoId: farmaciaDestino.id,
-          criadoPorId: session.sub,
-          linhas: {
-            create: [
-              {
-                produtoId: input.produtoId,
-                quantidade: input.quantidade,
-                // Nome AUTORITATIVO (acabado de ler da BD pelo id), nunca
-                // o que o cliente mandou em sourceFarmaciaNome — esse é
-                // só para o diálogo de confirmação no browser.
-                notas: buildTransferNote(input, farmaciaOrigem.nome),
-              },
-            ],
-          },
+    const { transferenciaId } = await criarTransferenciaComLinhas(prisma, {
+      farmaciaOrigemId: farmaciaOrigem.id,
+      farmaciaDestinoId: farmaciaDestino.id,
+      criadoPorId: session.sub,
+      finalize: true,
+      linhas: [
+        {
+          produtoId: input.produtoId,
+          quantidade: input.quantidade,
+          // Nome AUTORITATIVO (acabado de ler da BD pelo id), nunca
+          // o que o cliente mandou em sourceFarmaciaNome — esse é
+          // só para o diálogo de confirmação no browser.
+          notas: buildTransferNote(input, farmaciaOrigem.nome),
         },
-      });
+      ],
+      clientIdempotencyKey: input.clientIdempotencyKey ?? null,
     });
 
     await logAudit({
       actorId: session.sub,
       action: "internal_transfer.created",
       entity: "Transferencia",
-      entityId: transferencia.id,
+      entityId: transferenciaId,
       meta: {
         kind: input.kind,
         farmaciaOrigemId: farmaciaOrigem.id,
@@ -517,8 +533,9 @@ export async function createInternalTransferAction(
 
     revalidatePath("/transferencias");
     revalidatePath("/dashboard");
-    return { ok: true, transferenciaId: transferencia.id };
+    return { ok: true, transferenciaId };
   } catch (err) {
+    if (err instanceof TransferIdempotencyConflictError) return { ok: false, error: err.message };
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }
 }
@@ -559,6 +576,14 @@ export type GerarPlanoGrupoInput = {
   decisoes: DecisaoLinhaGrupoInput[];
   /** Contexto da proposta de grupo serializado — gravado em cada ListaEncomenda gerada. */
   contexto?: string | null;
+  /**
+   * Chave de idempotência do LOTE de transferências (gerada pelo
+   * cliente) — a chave real de cada `Transferencia` deriva dela por
+   * direcção (ver `deriveDirectionIdempotencyKey`), tal como o modo
+   * "consolidação" já faz para `ListaEncomenda`. Omitida = sem protecção
+   * contra duplo-clique/retry neste ramo (comportamento anterior).
+   */
+  transferenciaBatchKey?: string | null;
 };
 
 export type GerarPlanoGrupoResult =
@@ -678,39 +703,36 @@ export async function gerarPlanoGrupoAction(
     for (const [, linhas] of porDirecao) {
       const farmaciaOrigemId = linhas[0].farmaciaOrigemId!;
       const farmaciaDestinoId = linhas[0].farmaciaDestinoId!;
-      // `estado: "FINALIZADA"` directo — antes desta revisão nascia em
+      // `finalize: true` directo — antes desta revisão nascia em
       // RASCUNHO e NADA no código alguma vez a levava a FINALIZADA (uma
       // Transferencia gerada aqui ficava presa para sempre). Como esta
       // Transferencia nasce já com a decisão final do utilizador (Bloco
       // D), não há nenhum estado intermédio útil a preservar.
-      const transferencia = await prisma.$transaction(async (tx) => {
-        return tx.transferencia.create({
-          data: {
-            farmaciaOrigemId,
-            farmaciaDestinoId,
-            criadoPorId: session.sub,
-            estado: "FINALIZADA",
-            linhas: {
-              create: linhas.map((l) => ({
-                produtoId: l.produtoId,
-                quantidade: l.quantidadeTransferir,
-                notas: l.notas ?? null,
-              })),
-            },
-          },
-        });
+      const { transferenciaId } = await criarTransferenciaComLinhas(prisma, {
+        farmaciaOrigemId,
+        farmaciaDestinoId,
+        criadoPorId: session.sub,
+        finalize: true,
+        linhas: linhas.map((l) => ({
+          produtoId: l.produtoId,
+          quantidade: l.quantidadeTransferir,
+          notas: l.notas ?? null,
+        })),
+        clientIdempotencyKey: input.transferenciaBatchKey
+          ? deriveDirectionIdempotencyKey(input.transferenciaBatchKey, farmaciaOrigemId, farmaciaDestinoId)
+          : null,
       });
       resultadoTransferencias.push({
         farmaciaOrigemId,
         farmaciaDestinoId,
-        transferenciaId: transferencia.id,
+        transferenciaId,
         nLinhas: linhas.length,
       });
       await logAudit({
         actorId: session.sub,
         action: "group_plan.transferencia_created",
         entity: "Transferencia",
-        entityId: transferencia.id,
+        entityId: transferenciaId,
         meta: { mode: "grupo", farmaciaOrigemId, farmaciaDestinoId, linhasCount: linhas.length },
       });
     }
