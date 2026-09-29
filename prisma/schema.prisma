@@ -1207,6 +1207,21 @@ model Farmacia {
   dataCriacao     DateTime       @default(now())
   dataAtualizacao DateTime       @updatedAt
 
+  /// Farmácia cuja origem ERP é AUTORITATIVA para os campos de catálogo
+  /// partilhados do tenant (hoje só Produto.fabricanteId — ver
+  /// lib/ingest/catalog-from-erp.ts). Genérico e por-tenant: nada aqui
+  /// depende do nome da farmácia nem do slug do tenant. Default `false`
+  /// preserva o comportamento histórico para todos os tenants que nunca
+  /// configurarem isto — todas as farmácias continuam simétricas, cada
+  /// uma com o seu próprio baseline por-farmácia+CNP.
+  ///
+  /// No máximo UMA farmácia por tenant deve ter isto a `true`. Reforçado
+  /// em código (setFarmaciaAutoridadeCatalogo, lib/farmacia-catalogo.ts),
+  /// nunca por constraint de BD — um índice único parcial exigiria uma
+  /// migração mais arriscada num schema já em produção, e o código já
+  /// garante unicidade dentro de uma transacção.
+  autoridadeCatalogo Boolean @default(false)
+
   utilizadores                        Utilizador[]
   utilizadoresExtra                   UtilizadorFarmacia[]
   produtosFarmacia                    ProdutoFarmacia[]

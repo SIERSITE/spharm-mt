@@ -27,11 +27,33 @@
  * ── Códigos internos ─────────────────────────────────────────────────
  * CNP < 2 000 000 são códigos internos da farmácia. Não são identidade
  * de catálogo e nunca alimentam o catálogo regulamentar central.
+ *
+ * ── Fabricante partilhado entre várias farmácias do MESMO tenant ───────
+ * `dci`/`codigoATC`/`grupoHomogeneo` seguem as três regras acima
+ * (`decidirEscrita`, por confiança). `fabricante` é diferente: quando
+ * várias farmácias do mesmo tenant partilham o MESMO `Produto` (catálogo
+ * comum), cada uma tem o seu próprio ERP, e podem discordar. Duas
+ * situações:
+ *
+ *   - Tenant SEM farmácia autoritativa configurada (`Farmacia.
+ *     autoridadeCatalogo`, ver lib/farmacia-catalogo.ts — é o default
+ *     histórico, para todos os tenants): `decidirFabricanteBaseline`
+ *     decide por farmácia+CNP, simetricamente — nenhuma farmácia manda
+ *     mais do que outra, cada uma só reage a MUDANÇAS no que ELA PRÓPRIA
+ *     observou.
+ *   - Tenant COM farmácia autoritativa: essa farmácia manda sempre
+ *     (excepto `validadoManualmente`) — `decidirFabricanteDaAutoridade`
+ *     substitui a decisão de escrita, comparando sempre contra o
+ *     catálogo ACTUAL, nunca contra a história da própria farmácia. As
+ *     restantes farmácias do tenant nunca alteram `Produto.fabricanteId`
+ *     — o valor delas fica só em `ProdutoFarmacia.fabricanteErpAtual`,
+ *     como informação local.
  */
 
 import type { PrismaClient } from "@/generated/prisma/client";
 import { classifyProductType, CLASSIFICATION_VERSION } from "@/lib/catalog-classifier";
 import { normalizeFabricanteCanonico } from "@/lib/catalog-normalizers";
+import { getFarmaciaAutoridadeCatalogo } from "@/lib/farmacia-catalogo";
 
 /** Confiança atribuída ao ERP da farmácia como fonte de catálogo. */
 export const ERP_CONFIDENCE = 0.9;
@@ -198,6 +220,53 @@ export function decidirFabricanteBaseline(input: {
   };
 }
 
+export type DecisaoFabricanteAutoridade = {
+  /** true = escrever `Produto.fabricanteId` com `novoFabricanteId`. */
+  escrever: boolean;
+  /** true quando o valor resolvido difere do que está gravado — só para diagnóstico/bookkeeping, nunca decide sozinho (validadoManualmente pode bloquear mesmo com mudou=true). */
+  mudou: boolean;
+  motivo: string;
+};
+
+/**
+ * Decisão de escrita quando a origem é a farmácia AUTORITATIVA de
+ * catálogo do tenant (ver Farmacia.autoridadeCatalogo,
+ * lib/farmacia-catalogo.ts) — substitui `decidirFabricanteBaseline`
+ * para ESTA farmácia especificamente. Diferença central: compara-se
+ * sempre contra o `Produto.fabricanteId` ACTUAL do catálogo partilhado,
+ * nunca contra a observação anterior da PRÓPRIA farmácia — para poder
+ * REAFIRMAR o valor correcto mesmo que outra farmácia (ou qualquer
+ * outro processo) o tenha alterado entretanto. `decidirFabricanteBaseline`
+ * continua a correr em paralelo só para manter o bookkeeping por-farmácia
+ * (fabricanteErpBaseline/Atual/*SeenAt) — nunca para decidir a escrita
+ * aqui.
+ *
+ * Compara por ID resolvido (já passado por alias, ver `fabPorNome` em
+ * `applyErpCatalogFields`), nunca por texto normalizado — dois nomes
+ * textualmente diferentes ("GENERIS DIRECTO" vs "GENERIS FARMACEUTICA
+ * S A PORTUGAL") podem resolver ao MESMO Fabricante.id via
+ * FabricanteAlias, e nesse caso NÃO há mudança nenhuma a fazer.
+ *
+ * A ÚNICA protecção que sobrevive é `validadoManualmente` — a mesma
+ * regra de bloqueio de sempre, e a mesma dos outros campos deste
+ * ficheiro.
+ */
+export function decidirFabricanteDaAutoridade(input: {
+  novoFabricanteId: string;
+  fabricanteIdActual: string | null;
+  validadoManualmente: boolean;
+}): DecisaoFabricanteAutoridade {
+  const { novoFabricanteId, fabricanteIdActual, validadoManualmente } = input;
+
+  if (novoFabricanteId === fabricanteIdActual) {
+    return { escrever: false, mudou: false, motivo: "origem autoritativa: valor já coincide com o catálogo partilhado — idempotente" };
+  }
+  if (validadoManualmente) {
+    return { escrever: false, mudou: true, motivo: "origem autoritativa detectou mudança, mas bloqueada por validadoManualmente" };
+  }
+  return { escrever: true, mudou: true, motivo: "origem autoritativa — substitui o fabricante actual do catálogo partilhado" };
+}
+
 /**
  * Precedência do tipo de produto, isolada para poder ser testada.
  *
@@ -347,7 +416,14 @@ export async function applyErpCatalogFields(
     for (const f of l.fieldsReturned) s.add(f);
   }
 
-  // Fabricantes: resolver nomes → ids, criando os que faltarem.
+  // Fabricantes: resolver nomes → ids, com alias — antes desta correcção
+  // isto criava/reaproveitava só por `nomeNormalizado` exacto, ignorando
+  // por completo `FabricanteAlias`; um valor de ERP como "GENERIS
+  // DIRECTO" nunca resolvia ao canónico "GENERIS FARMACEUTICA S A
+  // PORTUGAL" mesmo que esse alias já existisse (registado por revisão
+  // manual, xlsx, ou correcção regulamentar) — criava sempre um
+  // Fabricante novo, literal, com o nome do ERP. Geral, para todos os
+  // tenants — nunca específico de nenhum nome de fabricante.
   const nomesFab = [...new Set(uteis.map((r) => r.fabricante).filter((x): x is string => !!x))];
   const fabPorNome = new Map<string, string>();
   if (nomesFab.length) {
@@ -356,17 +432,32 @@ export async function applyErpCatalogFields(
       select: { id: true, nomeNormalizado: true },
     });
     for (const f of jaExistem) fabPorNome.set(f.nomeNormalizado, f.id);
-    for (const nome of nomesFab) {
-      if (fabPorNome.has(nome)) continue;
-      const criado = await prisma.fabricante.upsert({
-        where: { nomeNormalizado: nome },
-        create: { nomeNormalizado: nome },
-        update: {},
-        select: { id: true },
+
+    const faltamPorNome = nomesFab.filter((n) => !fabPorNome.has(n));
+    if (faltamPorNome.length) {
+      const viaAlias = await prisma.fabricanteAlias.findMany({
+        where: { aliasNome: { in: faltamPorNome } },
+        select: { aliasNome: true, fabricanteId: true },
       });
-      fabPorNome.set(nome, criado.id);
+      for (const a of viaAlias) fabPorNome.set(a.aliasNome, a.fabricanteId);
+
+      for (const nome of faltamPorNome) {
+        if (fabPorNome.has(nome)) continue;
+        const criado = await prisma.fabricante.upsert({
+          where: { nomeNormalizado: nome },
+          create: { nomeNormalizado: nome },
+          update: {},
+          select: { id: true },
+        });
+        fabPorNome.set(nome, criado.id);
+      }
     }
   }
+
+  // Autoridade de catálogo do tenant desta ligação (ver
+  // lib/farmacia-catalogo.ts) — `null` preserva o comportamento
+  // histórico (todas as farmácias simétricas, ver decidirFabricanteBaseline).
+  const autoridade = await getFarmaciaAutoridadeCatalogo(prisma);
 
   // Baseline de fabricante ERP desta farmácia — ver decidirFabricanteBaseline.
   // Só os produtos com fabricante útil no payload precisam disto.
@@ -427,13 +518,18 @@ export async function applyErpCatalogFields(
     // prova regulamentar a proteger este campo — só um log forte o faz.
     aplicar("grupoHomogeneo", r.grupoHomogeneo, produto.grupoHomogeneo, false);
 
-    // Fabricante: baseline por farmácia+CNP (decidirFabricanteBaseline),
-    // NÃO `fonteForte`/RegulatoryRecord — ver o comentário da função para
-    // o porquê. `pfUpdates` grava o resultado em ProdutoFarmacia depois
-    // do loop.
+    // Fabricante: baseline por farmácia+CNP (decidirFabricanteBaseline)
+    // continua a correr SEMPRE, para TODAS as farmácias — é o que
+    // mantém `ProdutoFarmacia.fabricanteErpAtual`/Baseline/*SeenAt
+    // actualizados por farmácia (incluindo as que NÃO são autoridade —
+    // o valor delas fica guardado como informação local, nunca perdido).
+    // NÃO É esta decisão, porém, que manda escrever `Produto.fabricanteId`
+    // quando o tenant tem uma farmácia autoritativa configurada — ver
+    // `decidirFabricanteDaAutoridade` abaixo. `pfUpdates` grava o
+    // bookkeeping em ProdutoFarmacia depois do loop, para AMBOS os casos.
     if (r.fabricante) {
       const baseline = baselinePorProduto.get(produto.id) ?? null;
-      const decisao = decidirFabricanteBaseline({
+      const decisaoBaseline = decidirFabricanteBaseline({
         baseline,
         novoCanonico: r.fabricante,
         fabricanteAtualNormalizado: produto.fabricante?.nomeNormalizado ?? null,
@@ -444,19 +540,45 @@ export async function applyErpCatalogFields(
         fabricanteErpAtual: r.fabricante,
         fabricanteErpLastSeenAt: agora,
       };
-      if (decisao.primeiroCiclo) pfData.fabricanteErpFirstSeenAt = agora;
-      if (decisao.avancaBaseline) pfData.fabricanteErpBaseline = r.fabricante;
-      if (decisao.mudou) pfData.fabricanteErpChangedAt = agora;
+      if (decisaoBaseline.primeiroCiclo) pfData.fabricanteErpFirstSeenAt = agora;
+      if (decisaoBaseline.avancaBaseline) pfData.fabricanteErpBaseline = r.fabricante;
+      if (decisaoBaseline.mudou) pfData.fabricanteErpChangedAt = agora;
       pfUpdates.push({ produtoId: produto.id, data: pfData });
 
-      if (decisao.escrever) {
-        const fabId = fabPorNome.get(r.fabricante);
-        if (fabId) {
-          dados.fabricanteId = fabId;
-          escritos.push("fabricante");
-          if (decisao.primeiroCiclo) res.preenchidos.fabricante++;
-          else res.substituidos.fabricante++;
+      const novoFabricanteId = fabPorNome.get(r.fabricante);
+      let escrever = decisaoBaseline.escrever;
+      let primeiroCicloOuVazio = decisaoBaseline.primeiroCiclo;
+
+      if (autoridade) {
+        if (farmaciaId === autoridade.id) {
+          // Esta farmácia É a autoridade de catálogo do tenant — a sua
+          // própria história de baseline deixa de gatilhar a escrita;
+          // decide sempre contra o estado ACTUAL do catálogo partilhado,
+          // para poder REAFIRMAR o valor correcto mesmo que outra
+          // farmácia o tenha alterado entretanto.
+          const decisaoAutoridade = novoFabricanteId
+            ? decidirFabricanteDaAutoridade({
+                novoFabricanteId,
+                fabricanteIdActual: produto.fabricanteId,
+                validadoManualmente: produto.validadoManualmente,
+              })
+            : { escrever: false, mudou: false, motivo: "sem Fabricante resolvido" };
+          escrever = decisaoAutoridade.escrever;
+          primeiroCicloOuVazio = produto.fabricanteId === null;
+        } else {
+          // Tenant TEM autoridade configurada e esta farmácia NÃO é ela
+          // — o valor fica só como informação local (pfData acima),
+          // nunca altera Produto.fabricanteId, seja qual for o veredicto
+          // do baseline por-farmácia.
+          escrever = false;
         }
+      }
+
+      if (escrever && novoFabricanteId) {
+        dados.fabricanteId = novoFabricanteId;
+        escritos.push("fabricante");
+        if (primeiroCicloOuVazio) res.preenchidos.fabricante++;
+        else res.substituidos.fabricante++;
       } else {
         res.preservados.fabricante++;
       }
