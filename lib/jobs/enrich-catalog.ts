@@ -644,18 +644,12 @@ export async function runEnrichCycle(opts: {
         );
       }
     } catch (e) {
-      // Mesma política das fases 3/5: nunca derruba o ciclo.
-      fabricantesPorCnp = {
-        analisados: 0, jaTinhaFabricante: 0, divergencias: 0, protegidosManualmente: 0,
-        resolvidosPorNomeNormalizado: 0, resolvidosPorAlias: 0, resolvidosPorPlanoCurado: 0,
-        resolvidosPorPrefixo: 0, resolvidosPorEvidenciaPortfolio: 0,
-        fabricantesCriados: 0, aliasesCriados: 0, ambiguidades: 0, ambiguidadesDetalhe: [],
-        semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 },
-        estadosAim: {}, aindaSemFabricanteAtual: 0,
-        aindaSemFabricanteDetalhe: [], fabricantesCriadosDetalhe: [], aliasesCriadosDetalhe: [],
-        erros: 0, durationMs: 0,
-        erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
-      };
+      // Mesma política das fases 3/5: nunca derruba o ciclo. `novoSummary()`
+      // (em vez de duplicar a forma à mão) evita que este fallback fique
+      // desactualizado sempre que `ReconciliacaoFabricantesSummary` ganha
+      // um campo novo — já aconteceu uma vez.
+      const { novoSummary } = await import("../catalog/reconciliar-fabricantes-por-cnp-garantia");
+      fabricantesPorCnp = { ...novoSummary(), erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300) };
     }
   }
 

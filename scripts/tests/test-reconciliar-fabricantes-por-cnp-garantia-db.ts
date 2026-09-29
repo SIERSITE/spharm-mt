@@ -338,6 +338,92 @@ async function main() {
       check(pNovoDb?.fabricanteId === fA.id, "M2: associado ao Fabricante com MAIS produtos na evidência real (2 vs 1) — nunca ao minoritário, nunca cria um novo");
     }
 
+    console.log("\nN · bloqueador 1 (prova real pedida) — 218 produtos Pharmakern com o MESMO alias a criar: EXACTAMENTE 1 FabricanteAlias em Postgres REAL, sem conflito de unicidade, segunda corrida com ZERO escritas");
+    {
+      const canonico = "Pharmakern Antigo Registo Teste Escala Sociedade Unipessoal Lda";
+      const origem = "Pharmakern Antigo Registo Lda";
+      const mapeamentoCurado = new Map([[normalizarTitularAimGarantia(origem)!, normalizarTitularAimGarantia(canonico)!]]);
+      const N = 218;
+
+      const produtosPharmakern: { id: string; cnp: number }[] = [];
+      for (let i = 0; i < N; i++) {
+        const cnp = 6400001 + i;
+        const p = await prisma.produto.create({ data: { cnp, designacao: `Pharmakern Produto ${i}` } });
+        await prisma.regulatoryRecord.create({ data: { cnp, titularAim: origem, estadoAim: "Autorizado", source: "test" } });
+        produtosPharmakern.push({ id: p.id, cnp });
+      }
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", {
+        tipo: "produtos",
+        produtoIds: produtosPharmakern.map((p) => p.id),
+        mapeamentoCurado,
+      });
+      check(r.fabricantesCriados === 1, "N1: 1 único Fabricante criado para os 218 produtos, nunca 218", JSON.stringify({ fabricantesCriados: r.fabricantesCriados }));
+      check(r.aliasesCriados === 1, "N2: relatório mostra 1 alias único, nunca 218 (a contagem inflacionada do bloqueador 1)", JSON.stringify({ aliasesCriados: r.aliasesCriados }));
+      check(r.aliasesCriadosDetalhe.length === 1 && r.aliasesCriadosDetalhe[0]?.produtosResolvidos === N, "N3: a entrada única de aliasesCriadosDetalhe diz que 218 produtos resolveram através dela", JSON.stringify(r.aliasesCriadosDetalhe));
+
+      const nomeCanonicoNorm = normalizarTitularAimGarantia(canonico)!;
+      const fabricanteReal = await prisma.fabricante.findUnique({ where: { nomeNormalizado: nomeCanonicoNorm }, include: { aliases: true } });
+      check(!!fabricanteReal, "N4: o Fabricante canónico existe de facto em Postgres");
+      check(fabricanteReal?.aliases.length === 1, "N5: EXACTAMENTE 1 FabricanteAlias real persistido — nunca 218, e o índice @unique nunca rejeitou uma segunda tentativa porque nunca houve uma segunda tentativa de escrita", JSON.stringify(fabricanteReal?.aliases));
+
+      const todosOsProdutosDb = await prisma.produto.findMany({ where: { id: { in: produtosPharmakern.map((p) => p.id) } }, select: { fabricanteId: true } });
+      check(todosOsProdutosDb.every((p) => p.fabricanteId === fabricanteReal!.id), "N6: os 218 produtos apontam TODOS para o MESMO Fabricante real", `distintos=${new Set(todosOsProdutosDb.map((p) => p.fabricanteId)).size}`);
+
+      const rSegunda = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", {
+        tipo: "produtos",
+        produtoIds: produtosPharmakern.map((p) => p.id),
+        mapeamentoCurado,
+      });
+      // {tipo:"produtos"} sempre relê os IDs pedidos (ao contrário de
+      // {tipo:"todos"}, que filtra fabricanteId:null na própria query) —
+      // por isso `analisados` continua a contar os 218, mas todos caem em
+      // `ja_tem_fabricante` (nível 1 do resolver) antes de qualquer
+      // escrita ser considerada.
+      check(rSegunda.analisados === N, "N7: segunda corrida — os 218 continuam a ser lidos (âmbito produtoIds), mas todos já têm fabricante", JSON.stringify({ analisados: rSegunda.analisados, jaTinhaFabricante: rSegunda.jaTinhaFabricante }));
+      check(rSegunda.jaTinhaFabricante === N, "N7b: os 218 são intercetados no nível 1 do resolver — nenhum reprocessado");
+      check(rSegunda.fabricantesCriados === 0 && rSegunda.aliasesCriados === 0, "N8: segunda corrida — zero fabricantes/aliases novos");
+      const fabricanteDepois = await prisma.fabricante.findUnique({ where: { nomeNormalizado: nomeCanonicoNorm }, include: { aliases: true } });
+      check(fabricanteDepois?.aliases.length === 1, "N9: continua a existir EXACTAMENTE 1 FabricanteAlias depois da segunda corrida — zero duplicados");
+    }
+
+    console.log("\nO · bloqueador 3 (correcção Labialfarma) contra Postgres REAL — empate de evidência NUNCA bloqueia a criação do fabricante legal explícito");
+    {
+      const fA = await prisma.fabricante.create({ data: { nomeNormalizado: "FARMODIETICA TESTE REAL LDA" } });
+      const fB = await prisma.fabricante.create({ data: { nomeNormalizado: "LABORATORIOS BASI TESTE REAL LDA" } });
+      const titularLabialfarma = "Labialfarma Laboratorio De Produtos Farmaceuticos E Nutraceuticos S A Teste Real";
+
+      const pJa1 = await prisma.produto.create({ data: { cnp: 6500001, designacao: "Labialfarma Ja 1", fabricanteId: fA.id } });
+      const pJa2 = await prisma.produto.create({ data: { cnp: 6500002, designacao: "Labialfarma Ja 2", fabricanteId: fB.id } });
+      const pNovo = await prisma.produto.create({ data: { cnp: 6500003, designacao: "Labialfarma Novo", tipoArtigo: "MEDICAMENTO" } });
+      for (const p of [pJa1, pJa2, pNovo]) {
+        await prisma.regulatoryRecord.create({ data: { cnp: p.cnp, titularAim: titularLabialfarma, estadoAim: "Autorizado", source: "test" } });
+      }
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
+      check(r.ambiguidades === 0, "O1: zero ambiguidades — o empate de evidência (fA vs fB) não bloqueia contra Postgres real", JSON.stringify(r.ambiguidadesDetalhe));
+      check(r.fabricantesCriados === 1, "O2: cria o fabricante legal Labialfarma", JSON.stringify({ fabricantesCriados: r.fabricantesCriados }));
+      check(r.avisosEvidenciaEmpatada.length === 1 && r.avisosEvidenciaEmpatada[0]?.cnp === 6500003, "O3: o empate fica registado como aviso com o CNP real, não como bloqueio", JSON.stringify(r.avisosEvidenciaEmpatada));
+
+      const pNovoDb = await prisma.produto.findUnique({ where: { id: pNovo.id }, select: { fabricanteId: true } });
+      const fabricanteCriado = await prisma.fabricante.findUnique({ where: { id: pNovoDb!.fabricanteId! } });
+      check(fabricanteCriado?.nomeNormalizado === normalizarTitularAimGarantia(titularLabialfarma), "O4: o Fabricante criado é a Labialfarma real, nem fA nem fB", fabricanteCriado?.nomeNormalizado);
+    }
+
+    console.log("\nP · bloqueador 6/7 contra Postgres REAL — origem/ERP divergente entre farmácias nunca é escolhida arbitrariamente, mesmo com múltiplas linhas ProdutoFarmacia reais");
+    {
+      const p1 = await prisma.produto.create({ data: { cnp: 1600001, designacao: "Produto CNP Interno Divergente" } });
+      const farmaciaA = await prisma.farmacia.create({ data: { nome: "Farmacia Teste A" } });
+      const farmaciaB = await prisma.farmacia.create({ data: { nome: "Farmacia Teste B" } });
+      await prisma.produtoFarmacia.create({ data: { produtoId: p1.id, farmaciaId: farmaciaA.id, fabricanteErpAtual: "Fabricante Divergente Um Lda" } });
+      await prisma.produtoFarmacia.create({ data: { produtoId: p1.id, farmaciaId: farmaciaB.id, fabricanteErpAtual: "Fabricante Divergente Dois Lda" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [p1.id] });
+      check(r.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS === 1, "P1: motivo explícito de divergência contra Postgres real, nunca escolhe uma das duas farmácias arbitrariamente", JSON.stringify(r.semFonte));
+      const p1Db = await prisma.produto.findUnique({ where: { id: p1.id }, select: { fabricanteId: true } });
+      check(p1Db?.fabricanteId === null, "P2: fabricanteId continua null");
+    }
+
     await prisma.$disconnect();
   } finally {
     await admin.query(`DROP DATABASE IF EXISTS ${dbNome} WITH (FORCE)`);

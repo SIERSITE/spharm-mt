@@ -76,7 +76,7 @@ function principal() {
       fabricantesPorNomeNormalizado: new Map([[pharmakernA.nomeNormalizado, pharmakernA]]),
     });
     const r2 = resolverFabricantePorCnp(produto({ cnp: 5701651 }), { titularAim: titularReal, estadoAim: "Autorizado" }, null, true, mapasSoParcial);
-    eq(r2, { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: normReal!, criarAliasNormalizado: null, estadoAim: "Autorizado" }, "A2: sem correspondência exacta, cria um Fabricante novo com o nome canónico do titular — nunca reaproveita fPharmakernA por semelhança");
+    eq(r2, { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: normReal!, criarAliasNormalizado: null, estadoAim: "Autorizado", avisoEvidenciaEmpatada: null }, "A2: sem correspondência exacta, cria um Fabricante novo com o nome canónico do titular — nunca reaproveita fPharmakernA por semelhança");
 
     // Todos os produtos Pharmakern do relatório usam o MESMO canónico —
     // simulado aqui reaplicando o resultado A2 como se já tivesse sido
@@ -133,7 +133,7 @@ function principal() {
 
     const fabErp: FabricanteParaResolverFabricante = { id: "fOrigem", nomeNormalizado: "GENERICOS PORTUGUESES LDA" };
     const mComOrigem = mapas({ fabricantesPorNomeNormalizado: new Map([[fabErp.nomeNormalizado, fabErp]]) });
-    const comOrigem = resolverFabricantePorCnp(produto({ cnp: 1500000 }), null, "Genéricos Portugueses, Lda.", false, mComOrigem);
+    const comOrigem = resolverFabricantePorCnp(produto({ cnp: 1500000 }), null, { valor: "Genéricos Portugueses, Lda." }, false, mComOrigem);
     eq(comOrigem, { tipo: "resolvido_existente", fabricanteId: "fOrigem", via: "nome_normalizado", criarAliasNormalizado: null, estadoAim: null }, "D3: CNP < 2M MAS com fabricante de origem/ERP — resolve por ele, nunca fica sem fonte à toa");
   }
 
@@ -162,7 +162,7 @@ function principal() {
     const normAntigo = normalizarTitularAimGarantia(tituloAntigo)!;
     const m2 = mapas({ mapeamentoCurado: new Map([[normAntigo, "NOME NOVO CANONICO LDA"]]) });
     const r2 = resolverFabricantePorCnp(produto(), { titularAim: tituloAntigo, estadoAim: "Revogado" }, null, true, m2);
-    eq(r2, { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: "NOME NOVO CANONICO LDA", criarAliasNormalizado: normAntigo, estadoAim: "Revogado" }, "F2: plano curado aponta para um canónico que AINDA não existe — cria pelo nome canónico do plano, nunca pelo nome bruto do titular, e arrasta o nome antigo para criar como alias assim que o canónico existir");
+    eq(r2, { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: "NOME NOVO CANONICO LDA", criarAliasNormalizado: normAntigo, estadoAim: "Revogado", avisoEvidenciaEmpatada: null }, "F2: plano curado aponta para um canónico que AINDA não existe — cria pelo nome canónico do plano, nunca pelo nome bruto do titular, e arrasta o nome antigo para criar como alias assim que o canónico existir");
   }
 
   console.log("\nG · estado histórico (Anulado/Revogado) resolve na mesma — nunca é tratado como 'sem fonte'");
@@ -242,7 +242,7 @@ function principal() {
     check(r.tipo === "resolvido_criar_novo", "I3: candidato curtíssimo ('LDA') nunca conta como prefixo válido — cria novo em vez de associar por coincidência genérica", JSON.stringify(r));
   }
 
-  console.log("\nJ · regra geral 5 (evidência de portefólio) — vencedor inequívoco resolve; empate é ambíguo");
+  console.log("\nJ · regra geral 5 (evidência de portefólio) — vencedor inequívoco resolve; empate NUNCA bloqueia a criação do fabricante legal explícito (correcção Labialfarma, bloqueador 3)");
   {
     const alvo = normalizarTitularAimGarantia("Titular Sem Match Direto Nem Prefixo Lda")!;
     const fA: FabricanteParaResolverFabricante = { id: "fA", nomeNormalizado: "OUTRO NOME QUALQUER A LDA" };
@@ -254,11 +254,34 @@ function principal() {
     const rVencedor = resolverFabricantePorCnp(produto(), { titularAim: "Titular Sem Match Direto Nem Prefixo Lda", estadoAim: "Autorizado" }, null, true, mVencedor);
     eq(rVencedor, { tipo: "resolvido_existente", fabricanteId: "fA", via: "evidencia_portfolio", criarAliasNormalizado: null, estadoAim: "Autorizado" }, "J1: 5 produtos vs 2 — vencedor inequívoco, nunca cria um novo Fabricante quando já há evidência real forte");
 
+    // Empate real (3 vs 3): um sinal INDIRECTO e inconclusivo — ao
+    // contrário de alias_multiplo/prefixo_empatado (sinais DIRECTOS,
+    // onde o nome do titular aponta para os próprios candidatos), aqui
+    // os candidatos ("OUTRO NOME QUALQUER A/B LDA") não têm nenhuma
+    // relação textual com o titular ("Titular Sem Match..."). Bloquear
+    // seria recusar criar o fabricante legal EXPLÍCITO do titular só
+    // por causa de uma inconsistência histórica de OUTROS produtos —
+    // por isso resolve por criação, e os candidatos empatados vão para
+    // `avisoEvidenciaEmpatada` (transparência, nunca bloqueio).
     const mEmpatado = mapas({
       evidenciaPortfolioPorNomeNormalizado: new Map([[alvo, [{ fabricanteId: "fA", nomeNormalizado: fA.nomeNormalizado, contagem: 3 }, { fabricanteId: "fB", nomeNormalizado: fB.nomeNormalizado, contagem: 3 }]]]),
     });
     const rEmpatado = resolverFabricantePorCnp(produto(), { titularAim: "Titular Sem Match Direto Nem Prefixo Lda", estadoAim: "Autorizado" }, null, true, mEmpatado);
-    check(rEmpatado.tipo === "ambiguo" && rEmpatado.motivo === "evidencia_portfolio_empatada", "J2: 3 vs 3 — empate real, ambíguo, nunca escolhe arbitrariamente nem cria um terceiro", JSON.stringify(rEmpatado));
+    eq(
+      rEmpatado,
+      { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: alvo, criarAliasNormalizado: null, estadoAim: "Autorizado", avisoEvidenciaEmpatada: [{ fabricanteId: "fA", nomeNormalizado: fA.nomeNormalizado, contagem: 3 }, { fabricanteId: "fB", nomeNormalizado: fB.nomeNormalizado, contagem: 3 }] },
+      "J2: 3 vs 3 — empate real de evidência NUNCA bloqueia sozinho; cria o fabricante legal do titular e regista o empate como aviso (nunca escolhe arbitrariamente entre fA/fB, nunca finge que não houve empate)",
+    );
+
+    // Se, ALÉM do empate de evidência, houver TAMBÉM um alias múltiplo
+    // ou prefixo empatado (sinal DIRECTO), esse continua a bloquear —
+    // só o empate de EVIDÊNCIA, sozinho, deixou de bloquear.
+    const mEmpatadoComAliasMultiplo = mapas({
+      fabricantesPorAlias: new Map([[alvo, [fA, fB]]]),
+      evidenciaPortfolioPorNomeNormalizado: new Map([[alvo, [{ fabricanteId: "fA", nomeNormalizado: fA.nomeNormalizado, contagem: 3 }, { fabricanteId: "fB", nomeNormalizado: fB.nomeNormalizado, contagem: 3 }]]]),
+    });
+    const rAindaBloqueado = resolverFabricantePorCnp(produto(), { titularAim: "Titular Sem Match Direto Nem Prefixo Lda", estadoAim: "Autorizado" }, null, true, mEmpatadoComAliasMultiplo);
+    check(rAindaBloqueado.tipo === "ambiguo" && rAindaBloqueado.motivo === "alias_multiplo", "J3: alias_multiplo (sinal DIRECTO) continua a bloquear mesmo com o empate de evidência também presente — só o empate de evidência sozinho deixou de bloquear", JSON.stringify(rAindaBloqueado));
   }
 
   console.log("\nK · regras gerais 4/5 nunca disparam sem sinal — produto genuinamente novo continua a criar (regra 6), como antes");

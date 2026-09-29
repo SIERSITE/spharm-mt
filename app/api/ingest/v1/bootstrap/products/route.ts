@@ -295,6 +295,14 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           fabricante: a.fabricante,
         })),
         farmaciaId,
+        // Lacuna estrutural fechada, exclusiva da garantia — ver a doc de
+        // `capturarOrigemAbaixoDoMinCnp` em catalog-from-erp.ts: nunca
+        // escreve Produto.fabricanteId para CNP<2M (esse risco de
+        // colisão entre farmácias mantém-se), só passa a captar
+        // ProdutoFarmacia.fabricanteErpAtual para que a reconciliação de
+        // fabricantes por CNP tenha alguma coisa para tentar em vez de
+        // terminar direto em "sem fonte".
+        { capturarOrigemAbaixoDoMinCnp: ctx.tenant.slug === "garantia" },
       );
       const escritos =
         Object.values(erp.preenchidos).reduce((x, y) => x + y, 0) +

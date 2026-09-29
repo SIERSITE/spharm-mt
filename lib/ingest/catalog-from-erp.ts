@@ -264,6 +264,26 @@ export async function applyErpCatalogFields(
    * grupoHomogeneo) continuam a ignorar isto — só afecta fabricante.
    */
   farmaciaId: string,
+  opts?: {
+    /**
+     * Lacuna estrutural fechada para a reconciliação de fabricantes por
+     * CNP (garantia): quando `true`, `ProdutoFarmacia.fabricanteErpAtual`
+     * passa TAMBÉM a ser gravado para CNP < 2 000 000 — nunca
+     * `Produto.fabricanteId`/dci/codigoATC/grupoHomogeneo/productType,
+     * que continuam de fora do universo catalogável (ver `MIN_CNP`
+     * acima: um código interno pode colidir entre farmácias DIFERENTES
+     * do mesmo tenant, e escrever no `Produto` partilhado por `cnp`
+     * arriscaria contaminar o produto de OUTRA farmácia).
+     * `ProdutoFarmacia` não tem esse risco — é uma linha por
+     * (produtoId, farmaciaId), nunca partilhada entre farmácias — por
+     * isso é seguro captar aqui o que o ERP disser, mesmo para um código
+     * interno, para `reconciliarFabricantesPorCnpGarantia` poder tentar
+     * a cadeia de precedência geral em vez de terminar em "sem fonte"
+     * só por o CNP ser <2M. Omitido/`false`: comportamento inalterado
+     * (era o único antes desta correcção).
+     */
+    capturarOrigemAbaixoDoMinCnp?: boolean;
+  },
 ): Promise<ErpCatalogResult> {
   const res: ErpCatalogResult = {
     candidatos: 0,
@@ -284,7 +304,17 @@ export async function applyErpCatalogFields(
     }))
     .filter((r) => r.dci || r.codigoATC || r.grupoHomogeneo || r.fabricante);
 
-  if (uteis.length === 0) return res;
+  // Ver a doc de `opts.capturarOrigemAbaixoDoMinCnp` — calculado já aqui
+  // (e não só mais abaixo) para que o guard seguinte não saia cedo
+  // quando um lote só tem candidatos abaixo de MIN_CNP.
+  const abaixoDoMinCnp = opts?.capturarOrigemAbaixoDoMinCnp
+    ? rows
+        .filter((r) => Number.isInteger(r.cnp) && r.cnp < MIN_CNP && r.cnp > 0)
+        .map((r) => ({ cnp: r.cnp, fabricante: normalizarFabricante(r.fabricante) }))
+        .filter((r): r is { cnp: number; fabricante: string } => !!r.fabricante)
+    : [];
+
+  if (uteis.length === 0 && abaixoDoMinCnp.length === 0) return res;
   res.candidatos = uteis.length;
 
   const cnps = uteis.map((r) => r.cnp);
@@ -523,6 +553,29 @@ export async function applyErpCatalogFields(
         fieldsReturned: escritos,
       },
     });
+  }
+
+  // Lacuna estrutural fechada (ver a doc de `opts.capturarOrigemAbaixoDoMinCnp`
+  // acima): produtos com CNP < 2 000 000 nunca entram em `uteis` (o
+  // `MIN_CNP` no início da função), por isso nunca chegam ao loop acima
+  // — `ProdutoFarmacia.fabricanteErpAtual` ficava sempre por preencher
+  // para eles, mesmo quando o ERP TINHA um fabricante no payload. Bloco
+  // SEPARADO, deliberadamente mínimo: só resolve `Produto.id` a partir
+  // do `cnp` e empilha em `pfUpdates` — nunca toca `dados`/`Produto.
+  // fabricanteId`/productType, que continuam de fora do universo
+  // catalogável para estes códigos internos.
+  if (abaixoDoMinCnp.length > 0) {
+    const cnpsAbaixo = [...new Set(abaixoDoMinCnp.map((r) => r.cnp))];
+    const produtosAbaixo = await prisma.produto.findMany({
+      where: { cnp: { in: cnpsAbaixo } },
+      select: { id: true, cnp: true },
+    });
+    const produtoIdPorCnpAbaixo = new Map(produtosAbaixo.map((p) => [p.cnp, p.id]));
+    for (const r of abaixoDoMinCnp) {
+      const produtoId = produtoIdPorCnpAbaixo.get(r.cnp);
+      if (!produtoId) continue; // produto ainda não existe no catálogo central
+      pfUpdates.push({ produtoId, data: { fabricanteErpAtual: r.fabricante, fabricanteErpLastSeenAt: agora } });
+    }
   }
 
   // Baseline de fabricante ERP: grava/actualiza por último, depois de

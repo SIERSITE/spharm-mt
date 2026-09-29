@@ -406,11 +406,69 @@ async function testProtecaoEmMassa(): Promise<void> {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 7. capturarOrigemAbaixoDoMinCnp (bloqueador 6/7 da reconciliação de
+//    fabricantes por CNP) — CNP < 2M nunca ganha Produto.fabricanteId
+//    (risco de colisão entre farmácias), mas ProdutoFarmacia.
+//    fabricanteErpAtual passa a ser captado quando o opt está ligado.
+// ─────────────────────────────────────────────────────────────────────────
+
+async function testCapturaAbaixoDoMinCnp(): Promise<void> {
+  console.log("\n=== 7. capturarOrigemAbaixoDoMinCnp — lacuna estrutural fechada, exclusiva de quem a pedir ===");
+
+  {
+    const mundo = new MundoFalso();
+    const FARM = "farm-garantia";
+    const CNP_INTERNO = 1500001;
+    mundo.addProduto({ id: "pInterno", cnp: CNP_INTERNO, fabricanteId: null, fabricanteNome: null });
+    const linhas = [linha(CNP_INTERNO, "Fabricante Interno Lda")];
+
+    const res = await applyErpCatalogFields(mundo.prisma(), linhas, FARM);
+    eq("sem o opt: candidatos continua 0 (CNP<2M nunca entra em `uteis`)", res.candidatos, 0);
+    eq("sem o opt: zero ProdutoFarmacia.upsert — comportamento inalterado (era o único antes desta correcção)", mundo.calls.pfUpsert, 0);
+    eq("sem o opt: zero Produto.update", mundo.calls.produtoUpdate, 0);
+  }
+
+  {
+    const mundo = new MundoFalso();
+    const FARM = "farm-garantia";
+    const CNP_INTERNO = 1500002;
+    mundo.addProduto({ id: "pInterno2", cnp: CNP_INTERNO, fabricanteId: null, fabricanteNome: null });
+    const linhas = [linha(CNP_INTERNO, "Fabricante Interno Lda")];
+
+    const res = await applyErpCatalogFields(mundo.prisma(), linhas, FARM, { capturarOrigemAbaixoDoMinCnp: true });
+    eq("com o opt: zero Produto.update — NUNCA escreve Produto.fabricanteId para CNP<2M, mesmo com o opt ligado", mundo.calls.produtoUpdate, 0);
+    eq("com o opt: 1 ProdutoFarmacia.upsert — a lacuna estrutural fica fechada", mundo.calls.pfUpsert, 1);
+    const pf = mundo.pfFor("pInterno2", FARM);
+    ok("ProdutoFarmacia.fabricanteErpAtual gravado com o nome NORMALIZADO do ERP (mesma normalização do caminho principal)", pf?.fabricanteErpAtual === "FABRICANTE INTERNO LDA", JSON.stringify(pf));
+    ok("Produto.fabricanteId continua null — só ProdutoFarmacia foi tocado", mundo.produtos.find((p) => p.id === "pInterno2")?.fabricanteId === null);
+    void res;
+  }
+
+  {
+    // Lote misto: um candidato normal (>=2M) e um interno (<2M) no MESMO
+    // batch — o guard de "uteis vazio" nunca pode engolir o interno.
+    const mundo = new MundoFalso();
+    const FARM = "farm-garantia";
+    mundo.addProduto({ id: "pNormal", cnp: 5701651, fabricanteId: null, fabricanteNome: null });
+    mundo.addProduto({ id: "pInterno3", cnp: 1500003, fabricanteId: null, fabricanteNome: null });
+    mundo.fabricantes.set("FABRICANTE NORMAL LDA", "fab-normal");
+    const linhas = [linha(5701651, "Fabricante Normal Lda"), linha(1500003, "Fabricante Interno Lda")];
+
+    await applyErpCatalogFields(mundo.prisma(), linhas, FARM, { capturarOrigemAbaixoDoMinCnp: true });
+    eq("lote misto: 1 Produto.update (só o >=2M)", mundo.calls.produtoUpdate, 1);
+    eq("lote misto: 2 ProdutoFarmacia.upsert (o >=2M via baseline + o <2M via a nova captura)", mundo.calls.pfUpsert, 2);
+    ok("o interno <2M nunca ganhou fabricanteId", mundo.produtos.find((p) => p.id === "pInterno3")?.fabricanteId === null);
+    ok("o normal >=2M ganhou fabricanteId normalmente", mundo.produtos.find((p) => p.id === "pNormal")?.fabricanteId !== null);
+  }
+}
+
 async function main() {
   testDecidirFabricanteBaselinePuro();
   await testCiclosSucessivos();
   await testIsoladoPorFarmacia();
   await testProtecaoEmMassa();
+  await testCapturaAbaixoDoMinCnp();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);

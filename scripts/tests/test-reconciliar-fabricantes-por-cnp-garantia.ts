@@ -32,7 +32,7 @@ const eq = <T,>(a: T, b: T, label: string) =>
 
 // ── Fake Prisma mutável ─────────────────────────────────────────────────
 
-type FakeProduto = { id: string; cnp: number; fabricanteId: string | null; camposManuais?: string[] };
+type FakeProduto = { id: string; cnp: number; fabricanteId: string | null; camposManuais?: string[]; designacao?: string; tipoArtigo?: string | null };
 type FakeFabricante = { id: string; nomeNormalizado: string };
 type FakeAlias = { fabricanteId: string; aliasNome: string };
 type FakeRegisto = { cnp: number; titularAim: string | null; estadoAim: string | null };
@@ -162,7 +162,7 @@ function criarPrismaFalso(fixture: {
   /** Índice (0-based) da N-ésima escrita (create/update, contadas globalmente) a fazer falhar — só dentro de `$transaction`. */
   falharNaEscritaDeIndice?: number;
 }) {
-  const produtos: FakeProduto[] = fixture.produtos.map((p) => ({ camposManuais: [], ...p }));
+  const produtos: FakeProduto[] = fixture.produtos.map((p) => ({ camposManuais: [], designacao: `Produto ${p.cnp}`, tipoArtigo: null, ...p }));
   const fabricantes: FakeFabricante[] = fixture.fabricantes ? fixture.fabricantes.map((f) => ({ ...f })) : [];
   const aliases: FakeAlias[] = fixture.aliases ? fixture.aliases.map((a) => ({ ...a })) : [];
   const registos = fixture.registos ?? [];
@@ -312,7 +312,7 @@ async function principal() {
     const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["p1"] });
     eq(r.resolvidosPorNomeNormalizado, 1, "G1: resolvido pela origem/ERP mesmo sem RegulatoryRecord");
     eq(produtos[0]?.fabricanteId, "fErp", "G2: fabricanteId gravado a partir da origem");
-    eq(r.semFonte, { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 }, "G3: zero sem-fonte");
+    eq(r.semFonte, { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0, FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS: 0 }, "G3: zero sem-fonte");
   }
 
   console.log("\nH · sem RegulatoryRecord e sem origem — SEM_REGISTO_CATALOGO explícito, nunca inventa");
@@ -566,30 +566,63 @@ async function principal() {
     eq(produtos.find((p) => p.id === "pNovo")?.fabricanteId, "fVencedor", "U2: associado ao Fabricante com MAIS produtos na mesma evidência (2 vs 1), nunca ao minoritário");
   }
 
-  console.log("\nV · detalhe por-item (regra 2/7/8/9 do relatório) — cnp em ambiguidadesDetalhe, aindaSemFabricanteDetalhe, fabricantesCriadosDetalhe, aliasesCriadosDetalhe");
+  console.log("\nV · detalhe por-item (regra 2/7/8/9 do relatório) — cnp em ambiguidadesDetalhe/aindaSemFabricanteDetalhe (ambiguidade REAL — alias_multiplo, sinal directo, continua a bloquear)");
   {
     const fA: FakeFabricante = { id: "fA", nomeNormalizado: "CANDIDATO A LDA" };
     const fB: FakeFabricante = { id: "fB", nomeNormalizado: "CANDIDATO B LDA" };
-    const titularAmbiguo = "Titular Empatado Sem Prefixo Nem Exacto Lda";
+    const titularAmbiguo = "Titular Com Alias Reclamado Por Dois Lda";
+    const nomeAmbiguoNorm = normalizarTitularAimGarantia(titularAmbiguo)!;
     const { prisma } = criarPrismaFalso({
+      produtos: [{ id: "pAmbiguo", cnp: 9200003, fabricanteId: null, designacao: "Produto Ambíguo X", tipoArtigo: "MEDICAMENTO" }],
+      fabricantes: [fA, fB],
+      aliases: [{ fabricanteId: "fA", aliasNome: nomeAmbiguoNorm }, { fabricanteId: "fB", aliasNome: nomeAmbiguoNorm }],
+      registos: [{ cnp: 9200003, titularAim: titularAmbiguo, estadoAim: "Autorizado" }],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pAmbiguo"] });
+    eq(r.ambiguidades, 1, "V1: 1 ambiguidade (alias reclamado por 2 fabricantes — sinal DIRECTO, continua a bloquear)");
+    eq(r.ambiguidadesDetalhe[0]?.cnp, 9200003, "V2: ambiguidadesDetalhe leva o CNP do produto concreto (nunca só o agregado)");
+    eq(r.aindaSemFabricanteDetalhe.length, 1, "V3: 1 entrada em aindaSemFabricanteDetalhe (Autorizado, ainda sem fabricante)");
+    eq(
+      r.aindaSemFabricanteDetalhe[0],
+      { cnp: 9200003, designacao: "Produto Ambíguo X", tipoArtigo: "MEDICAMENTO", origem: "ambiguo", motivo: "alias_multiplo", nomeNormalizado: nomeAmbiguoNorm, titularAimBruto: titularAmbiguo, origemErp: "ausente" },
+      "V4 (bloqueador 5): entrada enriquecida — designação, tipo de artigo, titular bruto e origem/ERP, nunca só cnp+motivo",
+    );
+  }
+
+  console.log("\nW · empate de evidência (sinal INDIRECTO) NUNCA bloqueia sozinho — cria o fabricante legal e regista o aviso (bloqueador 3, correcção Labialfarma)");
+  {
+    const fA: FakeFabricante = { id: "fA", nomeNormalizado: "OUTRO FABRICANTE A LDA" };
+    const fB: FakeFabricante = { id: "fB", nomeNormalizado: "OUTRO FABRICANTE B LDA" };
+    const titularEmpatado = "Titular Legal Explicito Sem Relacao Com Os Dois Lda";
+    const { prisma, produtos, fabricantes } = criarPrismaFalso({
       produtos: [
-        { id: "pJa1", cnp: 9200001, fabricanteId: "fA" },
-        { id: "pJa2", cnp: 9200002, fabricanteId: "fB" },
-        { id: "pAmbiguo", cnp: 9200003, fabricanteId: null },
+        { id: "pJa1", cnp: 9300001, fabricanteId: "fA" },
+        { id: "pJa2", cnp: 9300002, fabricanteId: "fB" },
+        { id: "pNovo", cnp: 9300003, fabricanteId: null },
       ],
       fabricantes: [fA, fB],
       registos: [
-        { cnp: 9200001, titularAim: titularAmbiguo, estadoAim: "Autorizado" },
-        { cnp: 9200002, titularAim: titularAmbiguo, estadoAim: "Autorizado" },
-        { cnp: 9200003, titularAim: titularAmbiguo, estadoAim: "Autorizado" },
+        { cnp: 9300001, titularAim: titularEmpatado, estadoAim: "Autorizado" },
+        { cnp: 9300002, titularAim: titularEmpatado, estadoAim: "Autorizado" },
+        { cnp: 9300003, titularAim: titularEmpatado, estadoAim: "Autorizado" },
       ],
     });
-    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pAmbiguo"] });
-    eq(r.ambiguidades, 1, "V1: 1 ambiguidade (empate 1 vs 1 na evidência)");
-    eq(r.ambiguidadesDetalhe[0]?.cnp, 9200003, "V2: ambiguidadesDetalhe leva o CNP do produto concreto (nunca só o agregado)");
-    eq(r.aindaSemFabricanteDetalhe.length, 1, "V3: 1 entrada em aindaSemFabricanteDetalhe (Autorizado, ainda sem fabricante)");
-    eq(r.aindaSemFabricanteDetalhe[0], { cnp: 9200003, origem: "ambiguo", motivo: "evidencia_portfolio_empatada", nomeNormalizado: normalizarTitularAimGarantia(titularAmbiguo) }, "V4: entrada carrega cnp + origem + motivo + nomeNormalizado — nunca inventa um nome");
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pNovo"] });
+    eq(r.ambiguidades, 0, "W1: zero ambiguidades — o empate de evidência não bloqueia");
+    eq(r.fabricantesCriados, 1, "W2: cria o fabricante legal explícito do titular");
+    eq(r.avisosEvidenciaEmpatada.length, 1, "W3: o empate fica registado como aviso, não como bloqueio");
+    const norm = normalizarTitularAimGarantia(titularEmpatado)!;
+    eq(r.avisosEvidenciaEmpatada[0]?.cnp, 9300003, "W4: aviso carrega o CNP concreto");
+    eq(
+      new Set(r.avisosEvidenciaEmpatada[0]?.candidatos.map((c) => c.fabricanteId)),
+      new Set(["fA", "fB"]),
+      "W5: aviso lista os DOIS candidatos empatados que foram ignorados (nunca escolhe nenhum)",
+    );
+    const novoFabricante = fabricantes.find((f) => f.nomeNormalizado === norm);
+    eq(produtos.find((p) => p.id === "pNovo")?.fabricanteId, novoFabricante?.id, "W6: produto associado ao fabricante NOVO (nem fA nem fB)");
   }
+
+  console.log("\nX · fabricantesCriadosDetalhe / aliasesCriadosDetalhe — formas estruturadas (bloqueadores 1/4: CNPs beneficiados, titular original, produtosResolvidos)");
   {
     const { prisma, produtos, fabricantes, aliases } = criarPrismaFalso({
       produtos: [{ id: "pCriaEAlias", cnp: 9200004, fabricanteId: null }],
@@ -602,10 +635,141 @@ async function principal() {
       produtoIds: ["pCriaEAlias"],
       mapeamentoCurado: new Map([[nomeAntigo, canonicoPlano]]),
     });
-    eq(r.fabricantesCriadosDetalhe, [canonicoPlano], "V5: fabricantesCriadosDetalhe tem o nome REAL do canónico criado (plano curado, canónico ainda não existia)");
-    eq(r.aliasesCriadosDetalhe, [{ aliasNormalizado: nomeAntigo, fabricanteNomeNormalizado: canonicoPlano }], "V6: aliasesCriadosDetalhe aponta o alias para o NOME do fabricante canónico (não só o id) — para o relatório agrupar por fabricante");
-    eq(produtos[0]?.fabricanteId, fabricantes[0]?.id, "V7: produto associado ao fabricante recém-criado");
-    eq(aliases.length, 1, "V8: 1 alias real persistido");
+    eq(r.fabricantesCriadosDetalhe, [{ nomeNormalizado: canonicoPlano, cnps: [9200004], titularAimOriginal: "Nome Antigo Do Plano Curado Lda" }], "X1: fabricantesCriadosDetalhe estruturado — nome, CNPs beneficiados e titular bruto original (nunca só o nome)");
+    eq(r.aliasesCriadosDetalhe, [{ aliasNormalizado: nomeAntigo, fabricanteNomeNormalizado: canonicoPlano, jaExistia: false, produtosResolvidos: 1 }], "X2: aliasesCriadosDetalhe estruturado — alias, fabricante alvo, se já existia, e produtos resolvidos");
+    eq(produtos[0]?.fabricanteId, fabricantes[0]?.id, "X3: produto associado ao fabricante recém-criado");
+    eq(aliases.length, 1, "X4: 1 alias real persistido");
+  }
+
+  console.log("\nY · bloqueador 1 (regressão) — N produtos com o MESMO alias a criar geram UM ÚNICO FabricanteAlias no relatório, nunca N — em dry-run E em apply, com ordens diferentes");
+  {
+    const canonico = normalizarTitularAimGarantia("Pharmakern Portugal Produtos Farmaceuticos Sociedade Unipessoal Lda")!;
+    const antigo = normalizarTitularAimGarantia("Pharmakern Antigo Lda")!;
+    const nProdutos = 6;
+    const fixture = () => ({
+      produtos: Array.from({ length: nProdutos }, (_, i) => ({ id: `p${i}`, cnp: 9400000 + i, fabricanteId: null })),
+      registos: Array.from({ length: nProdutos }, (_, i) => ({ cnp: 9400000 + i, titularAim: "Pharmakern Antigo Lda", estadoAim: "Autorizado" })),
+    });
+
+    // Dry-run: era aqui que o bug vivia — `jaExiste` estava sempre `[]`.
+    const { prisma: prismaDry } = criarPrismaFalso(fixture());
+    const rDry = await reconciliarFabricantesPorCnpGarantia(prismaDry, "garantia", {
+      tipo: "produtos",
+      produtoIds: Array.from({ length: nProdutos }, (_, i) => `p${i}`),
+      mapeamentoCurado: new Map([[antigo, canonico]]),
+      dryRun: true,
+    });
+    eq(rDry.aliasesCriados, 1, "Y1 (dry-run): 1 alias único no relatório, nunca 6 (um por produto)");
+    eq(rDry.aliasesCriadosDetalhe.length, 1, "Y2 (dry-run): 1 entrada em aliasesCriadosDetalhe");
+    eq(rDry.aliasesCriadosDetalhe[0]?.produtosResolvidos, nProdutos, "Y3 (dry-run): a entrada única diz quantos produtos (6) resolveram através dela");
+    eq(rDry.fabricantesCriados, 1, "Y4 (dry-run): 1 fabricante único, nunca 6");
+
+    // Apply real — a mesma prova, agora com escrita real e uma SEGUNDA
+    // ordem (inversa) para confirmar que a ordem dos produtos nunca muda
+    // o resultado.
+    const { prisma: prismaApply, aliases: aliasesApply } = criarPrismaFalso(fixture());
+    const rApply = await reconciliarFabricantesPorCnpGarantia(prismaApply, "garantia", {
+      tipo: "produtos",
+      produtoIds: Array.from({ length: nProdutos }, (_, i) => `p${i}`),
+      mapeamentoCurado: new Map([[antigo, canonico]]),
+    });
+    eq(rApply.aliasesCriados, 1, "Y5 (apply): 1 alias único no relatório");
+    eq(aliasesApply.length, 1, "Y6 (apply): exactamente 1 FabricanteAlias REAL persistido — zero duplicados");
+    eq(rApply.aliasesCriadosDetalhe[0]?.produtosResolvidos, nProdutos, "Y7 (apply): produtosResolvidos correcto mesmo com escrita real");
+
+    const fixtureInvertida = fixture();
+    fixtureInvertida.produtos.reverse();
+    fixtureInvertida.registos.reverse();
+    const { prisma: prismaInvertida, aliases: aliasesInvertida } = criarPrismaFalso(fixtureInvertida);
+    const rInvertida = await reconciliarFabricantesPorCnpGarantia(prismaInvertida, "garantia", {
+      tipo: "produtos",
+      produtoIds: Array.from({ length: nProdutos }, (_, i) => `p${i}`).reverse(),
+      mapeamentoCurado: new Map([[antigo, canonico]]),
+    });
+    eq(aliasesInvertida.length, 1, "Y8: ordem invertida produz o MESMO resultado — exactamente 1 alias real");
+    eq(rInvertida.aliasesCriadosDetalhe[0]?.produtosResolvidos, nProdutos, "Y9: ordem invertida — mesma contagem de produtos resolvidos");
+  }
+
+  console.log("\nY2 · bloqueador 1 (regressão, modo TRANSACIONAL — o caminho real da CLI/relatório 192ce21) — 18 produtos com o MESMO alias: 1 único FabricanteAlias, dry-run E apply, sem conflito na transacção");
+  {
+    const canonico = normalizarTitularAimGarantia("Pharmakern Portugal Produtos Farmaceuticos Sociedade Unipessoal Lda")!;
+    const antigo = normalizarTitularAimGarantia("Pharmakern Antigo Lda")!;
+    const n = 18;
+    const fixture = () => ({
+      produtos: Array.from({ length: n }, (_, i) => ({ id: `p${i}`, cnp: 9600000 + i, fabricanteId: null })),
+      registos: Array.from({ length: n }, (_, i) => ({ cnp: 9600000 + i, titularAim: "Pharmakern Antigo Lda", estadoAim: "Autorizado" })),
+    });
+
+    const { prismaTransacional: prismaDry } = criarPrismaFalso(fixture());
+    const rDry = await reconciliarFabricantesPorCnpGarantiaTransacional(prismaDry, "garantia", {
+      tipo: "produtos", produtoIds: Array.from({ length: n }, (_, i) => `p${i}`),
+      mapeamentoCurado: new Map([[antigo, canonico]]), dryRun: true,
+    });
+    eq(rDry.aliasesCriados, 1, "Y2.1 (dry-run transacional): 1 alias único, nunca 18");
+    eq(rDry.aliasesCriadosDetalhe[0]?.produtosResolvidos, n, "Y2.2 (dry-run transacional): produtosResolvidos = 18");
+
+    const { prismaTransacional: prismaApply, aliases, fabricantes, produtos, chamadasTransaction } = criarPrismaFalso(fixture());
+    const rApply = await reconciliarFabricantesPorCnpGarantiaTransacional(prismaApply, "garantia", {
+      tipo: "produtos", produtoIds: Array.from({ length: n }, (_, i) => `p${i}`),
+      mapeamentoCurado: new Map([[antigo, canonico]]),
+    });
+    eq(rApply.aliasesCriados, 1, "Y2.3 (apply transacional): 1 alias único no relatório");
+    eq(aliases.length, 1, "Y2.4 (apply transacional): exactamente 1 FabricanteAlias REAL, sem conflito de unicidade dentro da transacção");
+    eq(fabricantes.length, 1, "Y2.5 (apply transacional): exactamente 1 Fabricante real (o canónico) — nunca 18");
+    eq(produtos.filter((p) => p.fabricanteId === fabricantes[0]?.id).length, n, "Y2.6 (apply transacional): os 18 produtos apontam todos para o MESMO Fabricante");
+    eq(chamadasTransaction(), 1, "Y2.7 (apply transacional): tudo numa ÚNICA $transaction");
+
+    const { prismaTransacional: prismaSegunda } = criarPrismaFalso({ produtos, fabricantes, aliases });
+    const rSegunda = await reconciliarFabricantesPorCnpGarantiaTransacional(prismaSegunda, "garantia", { tipo: "todos" });
+    eq(rSegunda.analisados, 0, "Y2.8: segunda corrida — zero produtos por analisar (todos já resolvidos), idempotência real");
+  }
+
+  console.log("\nZ · bloqueador 2 (relatório) — planoCuradoUsoDetalhe só lista mapeamentos que EFECTIVAMENTE resolveram algum produto");
+  {
+    const canonicoUsado = normalizarTitularAimGarantia("Fabricante Canonico Usado Lda")!;
+    const origemUsada = normalizarTitularAimGarantia("Fabricante Origem Usada Lda")!;
+    const origemNuncaUsada = normalizarTitularAimGarantia("Fabricante Origem Nunca Usada Lda")!;
+    const { prisma } = criarPrismaFalso({
+      produtos: [{ id: "p1", cnp: 9500001, fabricanteId: null }],
+      registos: [{ cnp: 9500001, titularAim: "Fabricante Origem Usada Lda", estadoAim: "Autorizado" }],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", {
+      tipo: "produtos",
+      produtoIds: ["p1"],
+      mapeamentoCurado: new Map([
+        [origemUsada, canonicoUsado],
+        [origemNuncaUsada, canonicoUsado],
+      ]),
+    });
+    eq(r.planoCuradoUsoDetalhe.length, 1, "Z1: só 1 mapeamento aparece como usado — o outro não bateu com nenhum produto deste lote");
+    eq(r.planoCuradoUsoDetalhe[0], { nomeOrigemNormalizado: origemUsada, nomeCanonicoNormalizado: canonicoUsado, produtosResolvidos: 1 }, "Z2: entrada mostra origem, canónico e quantos produtos resolveu");
+  }
+
+  console.log("\nAA · bloqueador 6/7 — origem/ERP divergente entre farmácias nunca é escolhida arbitrariamente");
+  {
+    const { prisma, produtos } = criarPrismaFalso({
+      produtos: [{ id: "p1", cnp: 1500000, fabricanteId: null }],
+      produtosFarmacia: [
+        { produtoId: "p1", fabricanteErpAtual: "Fabricante Um Lda" },
+        { produtoId: "p1", fabricanteErpAtual: "Fabricante Dois Completamente Diferente Lda" },
+      ],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["p1"] });
+    eq(r.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS, 1, "AA1: divergência entre farmácias — motivo explícito, nunca escolhe uma arbitrariamente");
+    eq(produtos[0]?.fabricanteId, null, "AA2: fabricanteId continua null");
+  }
+  {
+    const { prisma, produtos, fabricantes } = criarPrismaFalso({
+      produtos: [{ id: "p1", cnp: 1500001, fabricanteId: null }],
+      fabricantes: [{ id: "fConcordam", nomeNormalizado: "FABRICANTE CONCORDANTE LDA" }],
+      produtosFarmacia: [
+        { produtoId: "p1", fabricanteErpAtual: "Fabricante Concordante Lda" },
+        { produtoId: "p1", fabricanteErpAtual: "Fabricante Concordante Lda." },
+      ],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["p1"] });
+    eq(r.resolvidosPorNomeNormalizado, 1, "AA3: DUAS farmácias mas CONCORDAM depois de normalizar — resolve normalmente, nunca bloqueia por discordância inexistente");
+    eq(produtos[0]?.fabricanteId, fabricantes[0]?.id, "AA4: fabricanteId gravado");
   }
 
   console.log(`\n${ok} ok, ${ko} falhas`);

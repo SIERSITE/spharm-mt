@@ -101,7 +101,28 @@ export type MotivoSemFonte =
   | "FORA_UNIVERSO_INFARMED"
   | "SEM_REGISTO_CATALOGO"
   | "FABRICANTE_NAO_INFORMADO_PELA_ORIGEM"
-  | "TITULAR_INVALIDO";
+  | "TITULAR_INVALIDO"
+  /**
+   * A origem/ERP TEM um fabricante para este CNP, mas duas ou mais
+   * `ProdutoFarmacia` (farmácias diferentes a stockar o MESMO CNP)
+   * discordam entre si depois de normalizar — nunca se escolhe uma
+   * arbitrariamente (podiam ser produtos fisicamente diferentes a
+   * partilhar um código interno <2M). Ver
+   * reconciliar-fabricantes-por-cnp-garantia.ts::agregarOrigemErp.
+   */
+  | "FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS";
+
+/**
+ * O que a origem/ERP diz sobre o fabricante de um produto, já resolvido
+ * para UM valor por `reconciliar-fabricantes-por-cnp-garantia.ts` a
+ * partir de (potencialmente várias) `ProdutoFarmacia.fabricanteErpAtual`:
+ *   - `null`                 → nenhuma farmácia informou um fabricante.
+ *   - `{ divergente: true }` → mais de uma farmácia informou, e discordam
+ *     entre si (depois de normalizar) — nunca se escolhe uma.
+ *   - `{ valor }`            → todas as farmácias que informaram concordam
+ *     (ou só uma o fez) — seguro para usar na cadeia de precedência geral.
+ */
+export type FabricanteOrigemErp = { valor: string } | { divergente: true } | null;
 
 export type MotivoAmbiguidade = "alias_multiplo" | "prefixo_empatado" | "evidencia_portfolio_empatada";
 
@@ -131,6 +152,20 @@ export type ResultadoResolucaoFabricante =
        */
       criarAliasNormalizado: string | null;
       estadoAim: string | null;
+      /**
+       * Regra 5e não bloqueia a criação quando o EMPATE de evidência de
+       * portefólio é a ÚNICA coisa que a regra 5a-5d encontrou — um empate
+       * é um sinal indirecto e INCONCLUSIVO (reflecte associações antigas
+       * inconsistentes de OUTROS produtos, não a identidade do titular
+       * ACTUAL), nunca uma razão para bloquear a criação do fabricante
+       * legal explícito do titular. Transparência, nunca bloqueio: quando
+       * isto acontece, os candidatos empatados vão aqui — o relatório
+       * mostra-os, mas a criação prossegue. Guarda `contagem` (não só o
+       * candidato) — o relatório mostra o tamanho real do empate (ex.:
+       * "2 vs 2"), nunca só os nomes. `null` quando não houve nenhum
+       * empate a ignorar.
+       */
+      avisoEvidenciaEmpatada: readonly EvidenciaPortfolioFabricante[] | null;
     }
   | { tipo: "ambiguo"; motivo: MotivoAmbiguidade; nomeNormalizado: string; candidatos: readonly CandidatoAmbiguo[] }
   | { tipo: "sem_fonte"; motivo: MotivoSemFonte };
@@ -196,7 +231,7 @@ function resolverPorNomeNormalizado(
     // se perder essa correspondência. Uma decisão do plano curado é, por
     // definição, uma fonte que já resolveu a ambiguidade — nunca cai no
     // "ambiguidadePendente" das regras seguintes.
-    return { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: canonicoPlano, criarAliasNormalizado: nomeNorm, estadoAim };
+    return { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: canonicoPlano, criarAliasNormalizado: nomeNorm, estadoAim, avisoEvidenciaEmpatada: null };
   }
 
   // 5d — nomes historicamente truncados: um Fabricante existente cujo
@@ -224,7 +259,18 @@ function resolverPorNomeNormalizado(
   }
 
   // 5e — evidência de portefólio: só um sinal de APOIO, nunca a única
-  // fonte quando há um empate real no topo.
+  // fonte quando há um empate real no topo. Um empate aqui é DIFERENTE de
+  // um empate em 5b/5d: alias_multiplo/prefixo_empatado são sinais
+  // DIRECTOS — o próprio NOME do titular aponta para um pequeno conjunto
+  // de candidatos concretos, e criar um Fabricante novo seria
+  // inequivocamente errado (um terceiro, a mais). A evidência de
+  // portefólio é um sinal INDIRECTO — reflecte como OUTROS produtos, com
+  // o MESMO titular bruto, ficaram historicamente associados; um empate
+  // aí prova uma inconsistência PASSADA nesses outros produtos, não diz
+  // nada sobre a identidade legal do titular ACTUAL. Por isso um empate
+  // de evidência NUNCA bloqueia sozinho a criação do fabricante legal
+  // explícito (5f) — só é registado para transparência no relatório.
+  let avisoEvidenciaEmpatada: readonly EvidenciaPortfolioFabricante[] | null = null;
   const evidencia = mapas.evidenciaPortfolioPorNomeNormalizado?.get(nomeNorm);
   if (evidencia && evidencia.length > 0) {
     const ordenada = [...evidencia].sort((a, b) => b.contagem - a.contagem);
@@ -233,22 +279,39 @@ function resolverPorNomeNormalizado(
     if (!segundo || topo.contagem > segundo.contagem) {
       return { tipo: "resolvido_existente", fabricanteId: topo.fabricanteId, via: "evidencia_portfolio", criarAliasNormalizado: null, estadoAim };
     }
-    if (!ambiguidadePendente) {
-      const empatados = ordenada.filter((c) => c.contagem === topo.contagem);
-      ambiguidadePendente = { tipo: "ambiguo", motivo: "evidencia_portfolio_empatada", nomeNormalizado: nomeNorm, candidatos: empatados };
-    }
+    avisoEvidenciaEmpatada = ordenada.filter((c) => c.contagem === topo.contagem);
   }
 
   if (ambiguidadePendente) return ambiguidadePendente;
 
-  // 5f — nenhum candidato concreto em nenhuma regra: cria-se de novo.
-  return { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: nomeNorm, criarAliasNormalizado: null, estadoAim };
+  // 5f — nenhum candidato concreto e DIRECTO em nenhuma regra: cria-se de
+  // novo, mesmo que 5e tenha visto um empate inconclusivo (acima).
+  return { tipo: "resolvido_criar_novo", nomeCanonicoNormalizado: nomeNorm, criarAliasNormalizado: null, estadoAim, avisoEvidenciaEmpatada };
+}
+
+/**
+ * Traduz o que a origem/ERP diz (já agregado entre farmácias — ver
+ * `FabricanteOrigemErp`) para um resultado, ou `null` se não há nada de
+ * útil a tentar por aqui — nunca escolhe entre farmácias que discordam.
+ */
+function resolverViaOrigemErp(
+  origem: FabricanteOrigemErp,
+  mapas: MapasResolverFabricante,
+  estadoAim: string | null,
+): ResultadoResolucaoFabricante | null {
+  if (!origem) return null;
+  if ("divergente" in origem) {
+    return { tipo: "sem_fonte", motivo: "FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS" };
+  }
+  const norm = normalizarTitularAimGarantia(origem.valor);
+  if (!norm) return null;
+  return resolverPorNomeNormalizado(norm, mapas, estadoAim);
 }
 
 export function resolverFabricantePorCnp(
   produto: ProdutoParaResolverFabricante,
   registo: RegistoRegulatorioParaResolver | null,
-  fabricanteOrigemErp: string | null,
+  fabricanteOrigemErp: FabricanteOrigemErp,
   cnpCatalogavel: boolean,
   mapas: MapasResolverFabricante,
 ): ResultadoResolucaoFabricante {
@@ -271,8 +334,8 @@ export function resolverFabricantePorCnp(
 
   // 3/4 — sem universo INFARMED ou sem registo: só a origem/ERP, nunca inventa.
   if (!cnpCatalogavel || !registo) {
-    const normErp = normalizarTitularAimGarantia(fabricanteOrigemErp);
-    if (normErp) return resolverPorNomeNormalizado(normErp, mapas, registo?.estadoAim ?? null);
+    const viaErp = resolverViaOrigemErp(fabricanteOrigemErp, mapas, registo?.estadoAim ?? null);
+    if (viaErp) return viaErp;
     return { tipo: "sem_fonte", motivo: cnpCatalogavel ? "SEM_REGISTO_CATALOGO" : "FORA_UNIVERSO_INFARMED" };
   }
 
@@ -283,8 +346,8 @@ export function resolverFabricantePorCnp(
   }
 
   // titularAim ausente/vazio/inválido — última tentativa: a origem/ERP.
-  const normErp = normalizarTitularAimGarantia(fabricanteOrigemErp);
-  if (normErp) return resolverPorNomeNormalizado(normErp, mapas, registo.estadoAim);
+  const viaErp = resolverViaOrigemErp(fabricanteOrigemErp, mapas, registo.estadoAim);
+  if (viaErp) return viaErp;
 
   return {
     tipo: "sem_fonte",

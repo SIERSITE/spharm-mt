@@ -56,7 +56,11 @@
  *   · o modo IMEDIATO nunca faz `$transaction` — cada produto é uma
  *     unidade atómica independente; o modo TRANSACIONAL nunca aplica
  *     nada FORA de uma única `$transaction` — não há um modo
- *     intermédio "algumas escritas soltas, outras em lote".
+ *     intermédio "algumas escritas soltas, outras em lote";
+ *   · nunca escolhe ARBITRARIAMENTE entre farmácias que discordam sobre
+ *     o fabricante de origem/ERP do MESMO produto — ver
+ *     `agregarOrigemErp` e `MotivoSemFonte.FABRICANTE_DIVERGENTE_
+ *     ENTRE_FARMACIAS`.
  */
 import type { PrismaClient } from "../../generated/prisma/client";
 import {
@@ -68,6 +72,7 @@ import {
   type MotivoAmbiguidade,
   type CandidatoAmbiguo,
   type ResultadoResolucaoFabricante,
+  type FabricanteOrigemErp,
 } from "./resolver-fabricante-por-cnp";
 import { ehCnpCatalogavel } from "./cnp-catalogavel";
 import { normalizarTitularAimGarantia } from "./fabricante-normalizacao-garantia";
@@ -87,6 +92,36 @@ export type EscopoReconciliacaoFabricantes =
    * ingest/enrich, não uma vez só sobre a base inteira).
    */
   | { tipo: "todos" };
+
+/** Uma entrada por CNP num Fabricante recém-criado — regra 4 (relatório): "CNPs beneficiados, titular AIM original". */
+export type FabricanteCriadoDetalhe = {
+  nomeNormalizado: string;
+  cnps: number[];
+  /** Titular bruto (não normalizado) do PRIMEIRO produto que originou esta criação — nunca inventado, `null` se não havia titularAim (veio da origem/ERP). */
+  titularAimOriginal: string | null;
+};
+
+/** Um FabricanteAlias único (por par fabricante+alias), com quantos produtos deste lote resolveram através dele — nunca um por produto (bloqueador 1). */
+export type AliasCriadoDetalhe = {
+  aliasNormalizado: string;
+  fabricanteNomeNormalizado: string;
+  /** Já existia antes desta corrida (encontrado na base) ou foi criado agora. */
+  jaExistia: boolean;
+  produtosResolvidos: number;
+};
+
+/** Um mapeamento do plano curado que resolveu pelo menos um produto NESTA corrida — regra 2 (relatório): "mapeamentos efetivamente encontrados". */
+export type PlanoCuradoUsoDetalhe = {
+  nomeOrigemNormalizado: string;
+  nomeCanonicoNormalizado: string;
+  produtosResolvidos: number;
+};
+
+/** Caracterização por `tipoArtigo` e disponibilidade de origem/ERP — bloqueadores 6/7: "caracteriza por tipo e fonte". */
+export type CaracterizacaoSemFonte = {
+  porTipoArtigo: Record<string, number>;
+  origemErp: { disponivel: number; divergente: number; ausente: number };
+};
 
 export type ReconciliacaoFabricantesSummary = {
   analisados: number;
@@ -111,7 +146,17 @@ export type ReconciliacaoFabricantesSummary = {
    * titularAim é responsabilidade do relatório (CLI), não deste serviço.
    */
   ambiguidadesDetalhe: Array<{ cnp: number; motivo: MotivoAmbiguidade; nomeNormalizado: string; candidatos: readonly CandidatoAmbiguo[] }>;
+  /**
+   * Um empate de EVIDÊNCIA DE PORTEFÓLIO nunca bloqueia sozinho a
+   * criação de um Fabricante novo (ver resolver-fabricante-por-cnp.ts —
+   * é um sinal indirecto e inconclusivo, ao contrário de alias_multiplo/
+   * prefixo_empatado) — mas fica registado aqui, por transparência, com
+   * o CNP concreto e os candidatos empatados que foram IGNORADOS.
+   */
+  avisosEvidenciaEmpatada: Array<{ cnp: number; nomeNormalizado: string; candidatos: readonly EvidenciaPortfolioFabricante[] }>;
   semFonte: Record<MotivoSemFonte, number>;
+  /** Caracterização por `tipoArtigo` e disponibilidade de origem/ERP, uma entrada por motivo de `semFonte` — bloqueadores 6/7. */
+  caracterizacaoPorMotivo: Record<MotivoSemFonte, CaracterizacaoSemFonte>;
   /** Contagem por `estadoAim` bruto, só dos produtos efectivamente resolvidos (existente ou criado) — Autorizado/Ativo/Anulado/Revogado/... */
   estadosAim: Record<string, number>;
   /**
@@ -128,20 +173,28 @@ export type ReconciliacaoFabricantesSummary = {
    * Detalhe PRODUTO A PRODUTO de `aindaSemFabricanteAtual` — nunca
    * inventa um motivo: `origem: "ambiguo"` repete o `nomeNormalizado`/
    * `motivo` já reportado em `ambiguidadesDetalhe` para este CNP;
-   * `origem: "sem_fonte"` repete o motivo de `semFonte` (sem nome
-   * interpretável — o resolver não devolve um para este caminho).
-   * Único sítio com o CNP INDIVIDUAL de cada um destes casos — a CLI usa
-   * isto para o "motivo individual" pedido por produto (nunca só o
-   * agregado).
+   * `origem: "sem_fonte"` repete o motivo de `semFonte`. Enriquecido
+   * (bloqueador 5) com todos os dados já disponíveis nesta corrida —
+   * designação, tipo de artigo, titular bruto e disponibilidade da
+   * origem/ERP — nunca um texto genérico: o motivo é sempre um dos
+   * valores explícitos de `MotivoSemFonte`/`MotivoAmbiguidade`.
    */
-  aindaSemFabricanteDetalhe: Array<
-    | { cnp: number; origem: "ambiguo"; motivo: MotivoAmbiguidade; nomeNormalizado: string }
-    | { cnp: number; origem: "sem_fonte"; motivo: MotivoSemFonte; nomeNormalizado: null }
-  >;
-  /** Nome normalizado de cada Fabricante NOVO criado por este lote — uma entrada por criação real (nunca duplica: uma segunda resolução para o MESMO nome reutiliza, ver `aplicarResolucao`). */
-  fabricantesCriadosDetalhe: string[];
-  /** Cada FabricanteAlias novo, com o nome do Fabricante canónico a que fica associado — para o relatório poder agrupar por fabricante (nunca só a contagem total). */
-  aliasesCriadosDetalhe: Array<{ aliasNormalizado: string; fabricanteNomeNormalizado: string }>;
+  aindaSemFabricanteDetalhe: Array<{
+    cnp: number;
+    designacao: string;
+    tipoArtigo: string | null;
+    origem: "ambiguo" | "sem_fonte";
+    motivo: MotivoAmbiguidade | MotivoSemFonte;
+    nomeNormalizado: string | null;
+    titularAimBruto: string | null;
+    origemErp: "disponivel" | "divergente" | "ausente";
+  }>;
+  /** Um Fabricante NOVO por entrada, com os CNPs beneficiados e o titular original — bloqueador 4 (nunca só o nome). */
+  fabricantesCriadosDetalhe: FabricanteCriadoDetalhe[];
+  /** Um FabricanteAlias ÚNICO por entrada (nunca um por produto — bloqueador 1), com quantos produtos resolveram através dele. */
+  aliasesCriadosDetalhe: AliasCriadoDetalhe[];
+  /** Um mapeamento do plano curado por entrada, só os que EFECTIVAMENTE resolveram algum produto nesta corrida — bloqueador 2. */
+  planoCuradoUsoDetalhe: PlanoCuradoUsoDetalhe[];
   erros: number;
   durationMs: number;
 };
@@ -193,25 +246,49 @@ export function calcularTimeoutTransacaoMs(nPendentes: number): number {
   return Math.min(TX_TIMEOUT_MS_MAX, Math.max(TX_TIMEOUT_MS_MIN, nPendentes * 50));
 }
 
-type ProdutoLeve = { id: string; cnp: number; fabricanteId: string | null; camposManuais: string[] };
+type ProdutoLeve = {
+  id: string;
+  cnp: number;
+  fabricanteId: string | null;
+  camposManuais: string[];
+  designacao: string;
+  tipoArtigo: string | null;
+};
 
 type PendenteEscrita = {
   produtoId: string;
+  cnp: number;
+  /** Titular bruto (não normalizado) do RegulatoryRecord deste CNP, se existir — só para o detalhe do Fabricante criado (regra 4), nunca para decidir nada. */
+  titularAimBruto: string | null;
   resultado: Extract<ResultadoResolucaoFabricante, { tipo: "resolvido_existente" | "resolvido_criar_novo" }>;
 };
 
-function novoSummary(): ReconciliacaoFabricantesSummary {
+function novaCaracterizacao(): CaracterizacaoSemFonte {
+  return { porTipoArtigo: {}, origemErp: { disponivel: 0, divergente: 0, ausente: 0 } };
+}
+
+/** Exportado para quem precisa de um summary vazio válido (ex.: o fallback de erro de `lib/jobs/enrich-catalog.ts`) sem duplicar à mão a forma inteira do tipo — evita que a forma do fallback fique desactualizada sempre que `ReconciliacaoFabricantesSummary` ganha um campo novo. */
+export function novoSummary(): ReconciliacaoFabricantesSummary {
   return {
     analisados: 0, jaTinhaFabricante: 0, divergencias: 0, protegidosManualmente: 0,
     resolvidosPorNomeNormalizado: 0, resolvidosPorAlias: 0, resolvidosPorPlanoCurado: 0,
     resolvidosPorPrefixo: 0, resolvidosPorEvidenciaPortfolio: 0,
     fabricantesCriados: 0, aliasesCriados: 0, ambiguidades: 0, ambiguidadesDetalhe: [],
-    semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0 },
+    avisosEvidenciaEmpatada: [],
+    semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0, FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS: 0 },
+    caracterizacaoPorMotivo: {
+      FORA_UNIVERSO_INFARMED: novaCaracterizacao(),
+      SEM_REGISTO_CATALOGO: novaCaracterizacao(),
+      FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: novaCaracterizacao(),
+      TITULAR_INVALIDO: novaCaracterizacao(),
+      FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS: novaCaracterizacao(),
+    },
     estadosAim: {},
     aindaSemFabricanteAtual: 0,
     aindaSemFabricanteDetalhe: [],
     fabricantesCriadosDetalhe: [],
     aliasesCriadosDetalhe: [],
+    planoCuradoUsoDetalhe: [],
     erros: 0, durationMs: 0,
   };
 }
@@ -224,7 +301,7 @@ async function seleccionarProdutos(
     if (opts.produtoIds.length === 0) return [];
     return prisma.produto.findMany({
       where: { id: { in: [...opts.produtoIds] } },
-      select: { id: true, cnp: true, fabricanteId: true, camposManuais: true },
+      select: { id: true, cnp: true, fabricanteId: true, camposManuais: true, designacao: true, tipoArtigo: true },
     });
   }
 
@@ -235,7 +312,7 @@ async function seleccionarProdutos(
   // — regra 1 do resolver já os descartaria sempre da mesma forma).
   const todos = await prisma.produto.findMany({
     where: { fabricanteId: null },
-    select: { id: true, cnp: true, fabricanteId: true, camposManuais: true },
+    select: { id: true, cnp: true, fabricanteId: true, camposManuais: true, designacao: true, tipoArtigo: true },
   });
 
   if (opts.tipo === "todos") return todos;
@@ -336,6 +413,58 @@ async function carregarEvidenciaPortfolio(
 }
 
 /**
+ * Agrega `ProdutoFarmacia.fabricanteErpAtual` por produto — várias
+ * farmácias do MESMO tenant garantia podem stockar o MESMO `Produto`
+ * (mesmo `cnp`), e nunca se escolhe arbitrariamente entre elas quando
+ * discordam (bloqueador 6/7): só quando TODAS as que informaram um
+ * valor concordam (depois de normalizar) é que esse valor é devolvido
+ * como `{ valor }` — usa-se sempre o texto BRUTO da primeira, nunca o
+ * normalizado (a normalização acontece dentro do resolver). Discordância
+ * real vira `{ divergente: true }`; ausência total vira `null`.
+ */
+function agregarOrigemErp(
+  pfRaw: readonly { produtoId: string; fabricanteErpAtual: string | null }[],
+): Map<string, FabricanteOrigemErp> {
+  const brutosPorProduto = new Map<string, string[]>();
+  for (const pf of pfRaw) {
+    if (!pf.fabricanteErpAtual) continue;
+    const lista = brutosPorProduto.get(pf.produtoId) ?? [];
+    lista.push(pf.fabricanteErpAtual);
+    brutosPorProduto.set(pf.produtoId, lista);
+  }
+
+  const resultado = new Map<string, FabricanteOrigemErp>();
+  for (const [produtoId, brutos] of brutosPorProduto) {
+    const normalizados = new Set(brutos.map((b) => normalizarTitularAimGarantia(b)).filter((n): n is string => !!n));
+    if (normalizados.size === 0) continue;
+    if (normalizados.size > 1) {
+      resultado.set(produtoId, { divergente: true });
+    } else {
+      resultado.set(produtoId, { valor: brutos[0]! });
+    }
+  }
+  return resultado;
+}
+
+/** `"disponivel" | "divergente" | "ausente"` a partir do valor já agregado — só para caracterização/relatório (bloqueadores 6/7), nunca para decidir. */
+function origemErpParaCaracterizacao(origem: FabricanteOrigemErp | undefined): "disponivel" | "divergente" | "ausente" {
+  if (!origem) return "ausente";
+  return "divergente" in origem ? "divergente" : "disponivel";
+}
+
+function registarCaracterizacao(
+  caracterizacaoPorMotivo: Record<MotivoSemFonte, CaracterizacaoSemFonte>,
+  motivo: MotivoSemFonte,
+  tipoArtigo: string | null,
+  origemErp: "disponivel" | "divergente" | "ausente",
+): void {
+  const c = caracterizacaoPorMotivo[motivo];
+  const chaveTipo = tipoArtigo ?? "(desconhecido)";
+  c.porTipoArtigo[chaveTipo] = (c.porTipoArtigo[chaveTipo] ?? 0) + 1;
+  c.origemErp[origemErp]++;
+}
+
+/**
  * Aplica um `ResultadoResolucaoFabricante` sobre a base real — ou, com
  * `dryRun=true`, só simula em memória o que seria escrito (nunca toca
  * em `prisma`). Em dry-run, os mapas em memória são actualizados na
@@ -356,19 +485,37 @@ async function carregarEvidenciaPortfolio(
  *     INTEIRO, exactamente a garantia que o backfill pede (mais seguro
  *     do que aplicar parte de um lote sobre um estado que já mudou
  *     desde a classificação).
+ *
+ * ── Deduplicação global de aliases (bloqueador 1) ───────────────────────
+ * `aliasesJaVistos` é PARTILHADO por TODAS as chamadas desta função
+ * dentro de UMA corrida (chave `${fabricanteId}::${alias}`) — sem isto,
+ * em dry-run, CADA produto que precisasse do MESMO alias (ex.: 218
+ * produtos Pharmakern com o MESMO titularAim) incrementava
+ * `aliasesCriados` e empurrava uma entrada nova para `aliasesCriadosDetalhe`
+ * — 218 "aliases" em vez de 1. A ORDEM dos produtos nunca muda o
+ * resultado: o primeiro que chega decide "criar" (ou confirma que já
+ * existe, em modo real), todos os seguintes só incrementam
+ * `produtosResolvidos` na MESMA entrada.
  */
+type ContextoAplicacao = {
+  fabricantesPorId: Map<string, FabricanteParaResolverFabricante>;
+  fabricantesPorNomeNormalizado: Map<string, FabricanteParaResolverFabricante>;
+  aliasesJaVistos: Map<string, AliasCriadoDetalhe>;
+  fabricantesCriadosPorId: Map<string, FabricanteCriadoDetalhe>;
+};
+
 const PREFIXO_PENDENTE = "pendente:";
 
 async function aplicarResolucao(
   prisma: PrismaParaReconciliacaoFabricantes,
-  produtoId: string,
-  resultado: Extract<ResultadoResolucaoFabricante, { tipo: "resolvido_existente" | "resolvido_criar_novo" }>,
-  fabricantesPorId: Map<string, FabricanteParaResolverFabricante>,
-  fabricantesPorNomeNormalizado: Map<string, FabricanteParaResolverFabricante>,
+  item: PendenteEscrita,
+  ctx: ContextoAplicacao,
   summary: ReconciliacaoFabricantesSummary,
   dryRun: boolean,
   abortarEmConflito: boolean,
 ): Promise<void> {
+  const { produtoId, cnp, titularAimBruto, resultado } = item;
+  const { fabricantesPorId, fabricantesPorNomeNormalizado, aliasesJaVistos, fabricantesCriadosPorId } = ctx;
   let fabricanteId: string;
 
   if (resultado.tipo === "resolvido_existente") {
@@ -402,7 +549,7 @@ async function aplicarResolucao(
       fabricantesPorNomeNormalizado.set(sintetico.nomeNormalizado, sintetico);
       fabricanteId = sintetico.id;
       summary.fabricantesCriados++;
-      summary.fabricantesCriadosDetalhe.push(sintetico.nomeNormalizado);
+      fabricantesCriadosPorId.set(fabricanteId, { nomeNormalizado: sintetico.nomeNormalizado, cnps: [], titularAimOriginal: titularAimBruto });
     } else {
       const novo = await prisma.fabricante.create({
         data: { nomeNormalizado: resultado.nomeCanonicoNormalizado },
@@ -412,28 +559,50 @@ async function aplicarResolucao(
       fabricantesPorNomeNormalizado.set(novo.nomeNormalizado, novo);
       fabricanteId = novo.id;
       summary.fabricantesCriados++;
-      summary.fabricantesCriadosDetalhe.push(novo.nomeNormalizado);
+      fabricantesCriadosPorId.set(fabricanteId, { nomeNormalizado: novo.nomeNormalizado, cnps: [], titularAimOriginal: titularAimBruto });
     }
   }
 
-  // Comum aos dois tipos: um nome "antigo" (plano curado) a registar como
-  // alias do canónico agora resolvido — quer o canónico já existisse
-  // (resolvido_existente/via:plano_curado), quer tenha acabado de ser
-  // criado por ESTE MESMO produto (resolvido_criar_novo, quando é o
-  // primeiro do lote a precisar deste canónico).
+  // Regra 4 (relatório) — todo CNP cujo fabricante final é um dos
+  // criados NESTA corrida entra na lista de "CNPs beneficiados",
+  // incluindo o próprio produto que originou a criação.
+  const detalheCriado = fabricantesCriadosPorId.get(fabricanteId);
+  if (detalheCriado) detalheCriado.cnps.push(cnp);
+
+  // Comum aos dois tipos: um nome "antigo" (plano curado ou prefixo) a
+  // registar como alias do canónico agora resolvido — quer o canónico já
+  // existisse (resolvido_existente/via:plano_curado|prefixo_truncado),
+  // quer tenha acabado de ser criado por ESTE MESMO produto
+  // (resolvido_criar_novo, quando é o primeiro do lote a precisar deste
+  // canónico). Deduplicado GLOBALMENTE por (fabricanteId, alias) — ver a
+  // doc da função acima (bloqueador 1).
   if (resultado.criarAliasNormalizado) {
-    const jaExiste = dryRun
-      ? []
-      : await prisma.fabricanteAlias.findMany({
-          where: { fabricanteId, aliasNome: resultado.criarAliasNormalizado },
-          select: { fabricanteId: true },
-          take: 1,
-        });
-    if (jaExiste.length === 0) {
-      if (!dryRun) await prisma.fabricanteAlias.create({ data: { fabricanteId, aliasNome: resultado.criarAliasNormalizado } });
-      summary.aliasesCriados++;
+    const chave = `${fabricanteId}::${resultado.criarAliasNormalizado}`;
+    const jaVisto = aliasesJaVistos.get(chave);
+    if (jaVisto) {
+      jaVisto.produtosResolvidos++;
+    } else {
+      const jaExisteNaBase = dryRun
+        ? false
+        : (
+            await prisma.fabricanteAlias.findMany({
+              where: { fabricanteId, aliasNome: resultado.criarAliasNormalizado },
+              select: { fabricanteId: true },
+              take: 1,
+            })
+          ).length > 0;
+      if (!jaExisteNaBase && !dryRun) {
+        await prisma.fabricanteAlias.create({ data: { fabricanteId, aliasNome: resultado.criarAliasNormalizado } });
+      }
+      if (!jaExisteNaBase) summary.aliasesCriados++;
       const nomeFabricante = fabricantesPorId.get(fabricanteId)?.nomeNormalizado ?? fabricanteId;
-      summary.aliasesCriadosDetalhe.push({ aliasNormalizado: resultado.criarAliasNormalizado, fabricanteNomeNormalizado: nomeFabricante });
+      const entrada: AliasCriadoDetalhe = {
+        aliasNormalizado: resultado.criarAliasNormalizado,
+        fabricanteNomeNormalizado: nomeFabricante,
+        jaExistia: jaExisteNaBase,
+        produtosResolvidos: 1,
+      };
+      aliasesJaVistos.set(chave, entrada);
     }
   }
 
@@ -478,6 +647,33 @@ function contarPorVia(
 }
 
 /**
+ * Bloqueador 2 (relatório) — regista o uso de UM mapeamento do plano
+ * curado, se for o caso. Um resultado usa o plano curado exactamente
+ * quando: (a) `resolvido_existente` com `via: "plano_curado"`; ou (b)
+ * `resolvido_criar_novo` com `criarAliasNormalizado` preenchido — o
+ * resolver só preenche esse campo em `resolvido_criar_novo` a partir do
+ * próprio plano curado (nunca a partir da regra 5f, que o deixa `null`).
+ */
+function registarUsoPlanoCurado(
+  resultado: Extract<ResultadoResolucaoFabricante, { tipo: "resolvido_existente" | "resolvido_criar_novo" }>,
+  mapeamentoCurado: MapeamentoCuradoFabricantes | undefined,
+  usoPorOrigem: Map<string, PlanoCuradoUsoDetalhe>,
+): void {
+  const usaPlanoCurado =
+    (resultado.tipo === "resolvido_existente" && resultado.via === "plano_curado") ||
+    (resultado.tipo === "resolvido_criar_novo" && resultado.criarAliasNormalizado !== null);
+  if (!usaPlanoCurado || !resultado.criarAliasNormalizado) return;
+
+  const nomeOrigem = resultado.criarAliasNormalizado;
+  const nomeCanonico = mapeamentoCurado?.get(nomeOrigem);
+  if (!nomeCanonico) return; // defensivo — nunca deveria acontecer dado o `usaPlanoCurado` acima.
+
+  const existente = usoPorOrigem.get(nomeOrigem);
+  if (existente) existente.produtosResolvidos++;
+  else usoPorOrigem.set(nomeOrigem, { nomeOrigemNormalizado: nomeOrigem, nomeCanonicoNormalizado: nomeCanonico, produtosResolvidos: 1 });
+}
+
+/**
  * Classifica TODOS os produtos do escopo — leituras apenas, zero
  * escritas, partilhado pelos dois modos exportados. Devolve o summary
  * já com as contagens que NÃO dependem de escrita (já-tinha-fabricante,
@@ -501,6 +697,7 @@ async function classificar(
 
   const summary = novoSummary();
   const pendentes: PendenteEscrita[] = [];
+  const usoPlanoCuradoPorOrigem = new Map<string, PlanoCuradoUsoDetalhe>();
 
   const produtos = await seleccionarProdutos(prisma, opts);
   if (produtos.length === 0) {
@@ -545,19 +742,20 @@ async function classificar(
     }
   }
 
+  // Bloqueador 6/7 — agregado por PRODUTO (nunca por linha), rejeitando
+  // discordância entre farmácias em vez de escolher a primeira que
+  // aparecer na query. Ver `agregarOrigemErp`.
   const pfRaw = await prisma.produtoFarmacia.findMany({
     where: { produtoId: { in: produtos.map((p) => p.id) }, fabricanteErpAtual: { not: null } },
     select: { produtoId: true, fabricanteErpAtual: true },
   });
-  const fabricanteOrigemPorProdutoId = new Map<string, string | null>();
-  for (const pf of pfRaw) {
-    if (!fabricanteOrigemPorProdutoId.has(pf.produtoId)) fabricanteOrigemPorProdutoId.set(pf.produtoId, pf.fabricanteErpAtual);
-  }
+  const fabricanteOrigemPorProdutoId = agregarOrigemErp(pfRaw);
 
   for (const p of produtos) {
     summary.analisados++;
     try {
       const registo = registosPorCnp.get(p.cnp) ?? null;
+      const origemErp = fabricanteOrigemPorProdutoId.get(p.id) ?? null;
       const resultado = resolverFabricantePorCnp(
         {
           id: p.id,
@@ -567,10 +765,11 @@ async function classificar(
           camposManuais: p.camposManuais,
         },
         registo,
-        fabricanteOrigemPorProdutoId.get(p.id) ?? null,
+        origemErp,
         ehCnpCatalogavel(p.cnp),
         { ...mapasComGeral, fabricantesPorNomeNormalizado: fabricantesPorNomeNormalizadoClassificacao },
       );
+      const origemErpCaracterizacao = origemErpParaCaracterizacao(origemErp);
 
       switch (resultado.tipo) {
         case "ja_tem_fabricante":
@@ -585,33 +784,49 @@ async function classificar(
           summary.ambiguidadesDetalhe.push({ cnp: p.cnp, motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado, candidatos: resultado.candidatos });
           if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) {
             summary.aindaSemFabricanteAtual++;
-            summary.aindaSemFabricanteDetalhe.push({ cnp: p.cnp, origem: "ambiguo", motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado });
+            summary.aindaSemFabricanteDetalhe.push({
+              cnp: p.cnp, designacao: p.designacao, tipoArtigo: p.tipoArtigo,
+              origem: "ambiguo", motivo: resultado.motivo, nomeNormalizado: resultado.nomeNormalizado,
+              titularAimBruto: registo.titularAim, origemErp: origemErpCaracterizacao,
+            });
           }
           break;
         case "sem_fonte":
           summary.semFonte[resultado.motivo]++;
+          registarCaracterizacao(summary.caracterizacaoPorMotivo, resultado.motivo, p.tipoArtigo, origemErpCaracterizacao);
           if (registo?.estadoAim && ESTADOS_AIM_ATUAIS.has(registo.estadoAim)) {
             summary.aindaSemFabricanteAtual++;
-            summary.aindaSemFabricanteDetalhe.push({ cnp: p.cnp, origem: "sem_fonte", motivo: resultado.motivo, nomeNormalizado: null });
+            summary.aindaSemFabricanteDetalhe.push({
+              cnp: p.cnp, designacao: p.designacao, tipoArtigo: p.tipoArtigo,
+              origem: "sem_fonte", motivo: resultado.motivo, nomeNormalizado: null,
+              titularAimBruto: registo?.titularAim ?? null, origemErp: origemErpCaracterizacao,
+            });
           }
           break;
         case "resolvido_existente":
-          pendentes.push({ produtoId: p.id, resultado });
+          registarUsoPlanoCurado(resultado, opts.mapeamentoCurado, usoPlanoCuradoPorOrigem);
+          pendentes.push({ produtoId: p.id, cnp: p.cnp, titularAimBruto: registo?.titularAim ?? null, resultado });
           break;
         case "resolvido_criar_novo":
+          if (resultado.avisoEvidenciaEmpatada) {
+            summary.avisosEvidenciaEmpatada.push({ cnp: p.cnp, nomeNormalizado: resultado.nomeCanonicoNormalizado, candidatos: resultado.avisoEvidenciaEmpatada });
+          }
+          registarUsoPlanoCurado(resultado, opts.mapeamentoCurado, usoPlanoCuradoPorOrigem);
           if (!fabricantesPorNomeNormalizadoClassificacao.has(resultado.nomeCanonicoNormalizado)) {
             fabricantesPorNomeNormalizadoClassificacao.set(resultado.nomeCanonicoNormalizado, {
               id: `${PREFIXO_PENDENTE}${resultado.nomeCanonicoNormalizado}`,
               nomeNormalizado: resultado.nomeCanonicoNormalizado,
             });
           }
-          pendentes.push({ produtoId: p.id, resultado });
+          pendentes.push({ produtoId: p.id, cnp: p.cnp, titularAimBruto: registo?.titularAim ?? null, resultado });
           break;
       }
     } catch {
       summary.erros++;
     }
   }
+
+  summary.planoCuradoUsoDetalhe = [...usoPlanoCuradoPorOrigem.values()].sort((a, b) => b.produtosResolvidos - a.produtosResolvidos);
 
   return { summary, pendentes, fabricantesPorId, fabricantesPorNomeNormalizado };
 }
@@ -637,13 +852,16 @@ export async function reconciliarFabricantesPorCnpGarantia(
   const { summary, pendentes, fabricantesPorId, fabricantesPorNomeNormalizado } = await classificar(prisma, tenantSlug, opts);
 
   const dryRun = opts.dryRun === true;
+  const ctx: ContextoAplicacao = { fabricantesPorId, fabricantesPorNomeNormalizado, aliasesJaVistos: new Map(), fabricantesCriadosPorId: new Map() };
   for (const item of pendentes) {
     try {
-      await aplicarResolucao(prisma, item.produtoId, item.resultado, fabricantesPorId, fabricantesPorNomeNormalizado, summary, dryRun, false);
+      await aplicarResolucao(prisma, item, ctx, summary, dryRun, false);
     } catch {
       summary.erros++;
     }
   }
+  summary.fabricantesCriadosDetalhe = [...ctx.fabricantesCriadosPorId.values()];
+  summary.aliasesCriadosDetalhe = [...ctx.aliasesJaVistos.values()];
 
   summary.durationMs = Date.now() - t0;
   return summary;
@@ -674,11 +892,15 @@ export async function reconciliarFabricantesPorCnpGarantiaTransacional(
   const { summary, pendentes, fabricantesPorId, fabricantesPorNomeNormalizado } = await classificar(prisma, tenantSlug, opts);
 
   const dryRun = opts.dryRun === true;
+  const ctx: ContextoAplicacao = { fabricantesPorId, fabricantesPorNomeNormalizado, aliasesJaVistos: new Map(), fabricantesCriadosPorId: new Map() };
+
   if (dryRun) {
     for (const item of pendentes) {
       // dry-run nunca toca `prisma` (ver aplicarResolucao) — seguro chamar fora de qualquer transacção.
-      await aplicarResolucao(prisma, item.produtoId, item.resultado, fabricantesPorId, fabricantesPorNomeNormalizado, summary, true, false);
+      await aplicarResolucao(prisma, item, ctx, summary, true, false);
     }
+    summary.fabricantesCriadosDetalhe = [...ctx.fabricantesCriadosPorId.values()];
+    summary.aliasesCriadosDetalhe = [...ctx.aliasesJaVistos.values()];
     summary.durationMs = Date.now() - t0;
     return summary;
   }
@@ -688,19 +910,12 @@ export async function reconciliarFabricantesPorCnpGarantiaTransacional(
     const maxWait = opts.maxWaitMs ?? TX_MAX_WAIT_MS_DEFAULT;
     await prisma.$transaction(async (tx) => {
       for (const item of pendentes) {
-        await aplicarResolucao(
-          tx as PrismaParaReconciliacaoFabricantes,
-          item.produtoId,
-          item.resultado,
-          fabricantesPorId,
-          fabricantesPorNomeNormalizado,
-          summary,
-          false,
-          true, // abortarEmConflito — qualquer falha reverte o lote INTEIRO.
-        );
+        await aplicarResolucao(tx as PrismaParaReconciliacaoFabricantes, item, ctx, summary, false, true); // abortarEmConflito — qualquer falha reverte o lote INTEIRO.
       }
     }, { timeout, maxWait });
   }
+  summary.fabricantesCriadosDetalhe = [...ctx.fabricantesCriadosPorId.values()];
+  summary.aliasesCriadosDetalhe = [...ctx.aliasesJaVistos.values()];
 
   summary.durationMs = Date.now() - t0;
   return summary;

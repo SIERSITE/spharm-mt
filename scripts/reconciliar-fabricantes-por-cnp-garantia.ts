@@ -164,37 +164,102 @@ function agruparAmbiguidades(summary: ReconciliacaoFabricantesSummary) {
   return [...porNome.values()].sort((a, b) => b.produtosAfectados - a.produtosAfectados);
 }
 
-/** Regra 8/9 (relatório) — os "ainda sem fabricante Autorizado/Ativo" agrupados por Fabricante canónico proposto para os aliases (regra 7: "240 aliases agrupados por fabricante"). */
+/**
+ * Bloqueador 1/7 (relatório) — os aliases ÚNICOS (já deduplicados pelo
+ * serviço — ver `aplicarResolucao`/`aliasesJaVistos`) agrupados por
+ * Fabricante canónico, cada um com quantos produtos resolveu. Nunca
+ * repete o mesmo alias por produto: `summary.aliasesCriadosDetalhe` já
+ * tem uma entrada por par (fabricante, alias), nunca uma por produto.
+ */
 function agruparAliasesPorFabricante(summary: ReconciliacaoFabricantesSummary) {
-  const porFabricante = new Map<string, string[]>();
+  const porFabricante = new Map<string, { aliasNormalizado: string; jaExistia: boolean; produtosResolvidos: number }[]>();
   for (const a of summary.aliasesCriadosDetalhe) {
     const lista = porFabricante.get(a.fabricanteNomeNormalizado) ?? [];
-    lista.push(a.aliasNormalizado);
+    lista.push({ aliasNormalizado: a.aliasNormalizado, jaExistia: a.jaExistia, produtosResolvidos: a.produtosResolvidos });
     porFabricante.set(a.fabricanteNomeNormalizado, lista);
   }
   return [...porFabricante.entries()]
-    .map(([fabricanteNomeNormalizado, aliases]) => ({ fabricanteNomeNormalizado, aliases: aliases.sort(), total: aliases.length }))
-    .sort((a, b) => b.total - a.total);
+    .map(([fabricanteNomeNormalizado, aliases]) => ({
+      fabricanteNomeNormalizado,
+      totalAliasesUnicos: aliases.length,
+      totalProdutosResolvidos: aliases.reduce((n, a) => n + a.produtosResolvidos, 0),
+      aliases: [...aliases].sort((a, b) => a.aliasNormalizado.localeCompare(b.aliasNormalizado)),
+    }))
+    .sort((a, b) => b.totalAliasesUnicos - a.totalAliasesUnicos);
 }
 
-function calcularDerivados(summary: ReconciliacaoFabricantesSummary) {
+/**
+ * Bloqueador 2 (relatório) — quais dos mapeamentos CARREGADOS nunca
+ * bateram com nenhum produto deste lote. Nunca mantém a ilusão de "179
+ * mapeamentos carregados" sem dizer quantos (e quais) fizeram alguma
+ * coisa.
+ */
+function calcularMapeamentosNaoUtilizados(
+  mapeamentoCurado: ReadonlyMap<string, string>,
+  usados: ReconciliacaoFabricantesSummary["planoCuradoUsoDetalhe"],
+): { nomeOrigemNormalizado: string; nomeCanonicoNormalizado: string }[] {
+  const origensUsadas = new Set(usados.map((u) => u.nomeOrigemNormalizado));
+  const naoUtilizados: { nomeOrigemNormalizado: string; nomeCanonicoNormalizado: string }[] = [];
+  for (const [origem, canonico] of mapeamentoCurado) {
+    if (!origensUsadas.has(origem)) naoUtilizados.push({ nomeOrigemNormalizado: origem, nomeCanonicoNormalizado: canonico });
+  }
+  return naoUtilizados;
+}
+
+/**
+ * Bloqueador 4 (relatório, diagnóstico puro — NUNCA usado para decidir
+ * nada) — para cada Fabricante novo, os fabricantes JÁ existentes com
+ * mais palavras normalizadas em comum (Jaccard sobre o conjunto de
+ * palavras), para um humano avaliar rapidamente "isto não é já um
+ * duplicado disfarçado?". Um score 0 (nenhuma palavra partilhada) nunca
+ * aparece — nesse caso a lista fica vazia, o que já É a resposta
+ * ("nenhum fabricante existente suficientemente parecido").
+ */
+function fabricantesMaisSemelhantes(
+  nomeNovo: string,
+  fabricantesExistentes: readonly { id: string; nomeNormalizado: string }[],
+  limite = 3,
+): { nomeNormalizado: string; scoreJaccard: number }[] {
+  const palavrasNovo = new Set(nomeNovo.split(" ").filter((p) => p.length >= 3));
+  if (palavrasNovo.size === 0) return [];
+  const pontuados = fabricantesExistentes
+    .filter((f) => f.nomeNormalizado !== nomeNovo)
+    .map((f) => {
+      const palavrasF = new Set(f.nomeNormalizado.split(" ").filter((p) => p.length >= 3));
+      const intersecao = [...palavrasNovo].filter((p) => palavrasF.has(p)).length;
+      const uniao = new Set([...palavrasNovo, ...palavrasF]).size;
+      return { nomeNormalizado: f.nomeNormalizado, scoreJaccard: uniao > 0 ? intersecao / uniao : 0 };
+    })
+    .filter((p) => p.scoreJaccard > 0)
+    .sort((a, b) => b.scoreJaccard - a.scoreJaccard);
+  return pontuados.slice(0, limite);
+}
+
+function calcularDerivados(summary: ReconciliacaoFabricantesSummary, mapeamentoCurado: ReadonlyMap<string, string>) {
   const resolvidosAutomaticamente =
     summary.resolvidosPorNomeNormalizado + summary.resolvidosPorAlias + summary.resolvidosPorPlanoCurado +
     summary.resolvidosPorPrefixo + summary.resolvidosPorEvidenciaPortfolio;
   const semFonteTotal =
     summary.semFonte.FORA_UNIVERSO_INFARMED + summary.semFonte.SEM_REGISTO_CATALOGO +
-    summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO;
+    summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO +
+    summary.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS;
   const resolvidosHistoricos = Object.entries(summary.estadosAim)
     .filter(([estado]) => !ESTADOS_AIM_ATUAIS.has(estado))
     .reduce((soma, [, n]) => soma + n, 0);
   const totalAindaSemFabricante = semFonteTotal + summary.ambiguidades;
   const ambiguidadesAgrupadas = agruparAmbiguidades(summary);
   const aliasesAgrupados = agruparAliasesPorFabricante(summary);
-  return { resolvidosAutomaticamente, semFonteTotal, resolvidosHistoricos, totalAindaSemFabricante, ambiguidadesAgrupadas, aliasesAgrupados };
+  const planoCuradoNaoUtilizados = calcularMapeamentosNaoUtilizados(mapeamentoCurado, summary.planoCuradoUsoDetalhe);
+  return { resolvidosAutomaticamente, semFonteTotal, resolvidosHistoricos, totalAindaSemFabricante, ambiguidadesAgrupadas, aliasesAgrupados, planoCuradoNaoUtilizados };
 }
 
-function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolean): void {
-  const d = calcularDerivados(summary);
+function imprimirResumo(
+  summary: ReconciliacaoFabricantesSummary,
+  dryRun: boolean,
+  mapeamentoCurado: ReadonlyMap<string, string>,
+  semelhantesPorFabricanteCriado: ReadonlyMap<string, { nomeNormalizado: string; scoreJaccard: number }[]>,
+): void {
+  const d = calcularDerivados(summary, mapeamentoCurado);
   console.log(`\nModo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
   console.log(`Total sem fabricante (analisados):             ${summary.analisados}`);
   console.log(`Já tinham fabricante (não tocados):             ${summary.jaTinhaFabricante}  (divergências: ${summary.divergencias})`);
@@ -205,18 +270,45 @@ function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolea
   console.log(`Resolvidos — truncagem (prefixo):               ${summary.resolvidosPorPrefixo}`);
   console.log(`Resolvidos — evidência de portefólio:           ${summary.resolvidosPorEvidenciaPortfolio}`);
   console.log(`Resolvidos automaticamente (total):             ${d.resolvidosAutomaticamente}`);
-  console.log(`Novos fabricantes a criar:                      ${summary.fabricantesCriados}`);
-  for (const nome of summary.fabricantesCriadosDetalhe) console.log(`  · "${nome}"`);
-  console.log(`Aliases/mapeamentos criados:                    ${summary.aliasesCriados}`);
-  for (const g of d.aliasesAgrupados) {
-    console.log(`  · "${g.fabricanteNomeNormalizado}" — ${g.total} alias(es): ${g.aliases.map((a) => `"${a}"`).join(", ")}`);
+
+  console.log(`\nNovos fabricantes a criar:                      ${summary.fabricantesCriados}`);
+  for (const f of summary.fabricantesCriadosDetalhe) {
+    const semelhantes = semelhantesPorFabricanteCriado.get(f.nomeNormalizado) ?? [];
+    console.log(`  · "${f.nomeNormalizado}" — ${f.cnps.length} CNP beneficiado(s) [${f.cnps.join(", ")}], titular original: ${f.titularAimOriginal ? `"${f.titularAimOriginal}"` : "(origem/ERP, sem RegulatoryRecord)"}`);
+    console.log(
+      semelhantes.length > 0
+        ? `      fabricantes existentes mais semelhantes: ${semelhantes.map((s) => `"${s.nomeNormalizado}" (${(s.scoreJaccard * 100).toFixed(0)}%)`).join(", ")} — revistos, nenhum é o mesmo (nome normalizado distinto, sem alias, sem prefixo, evidência insuficiente ou ausente)`
+        : `      nenhum fabricante existente com palavras em comum — entidade genuinamente nova neste catálogo`,
+    );
   }
-  console.log(`Históricos resolvidos (Anulado/Revogado/etc.):  ${d.resolvidosHistoricos}`);
+
+  console.log(`\nAliases/mapeamentos ÚNICOS criados:              ${summary.aliasesCriados}`);
+  for (const g of d.aliasesAgrupados) {
+    console.log(`  · "${g.fabricanteNomeNormalizado}" — ${g.totalAliasesUnicos} alias(es) único(s), ${g.totalProdutosResolvidos} produto(s) resolvido(s):`);
+    for (const a of g.aliases) console.log(`      "${a.aliasNormalizado}" — ${a.produtosResolvidos} produto(s)${a.jaExistia ? " (já existia)" : ""}`);
+  }
+
+  console.log(`\nPlano curado: ${mapeamentoCurado.size} mapeamento(s) carregado(s), ${summary.planoCuradoUsoDetalhe.length} efectivamente usado(s), ${d.planoCuradoNaoUtilizados.length} sem nenhum produto correspondente neste lote.`);
+  for (const u of summary.planoCuradoUsoDetalhe) console.log(`  · usado: "${u.nomeOrigemNormalizado}" → "${u.nomeCanonicoNormalizado}" — ${u.produtosResolvidos} produto(s)`);
+
+  if (summary.avisosEvidenciaEmpatada.length > 0) {
+    console.log(`\nAvisos — evidência de portefólio empatada (NUNCA bloqueou; fabricante legal criado na mesma, ver bloqueador 3): ${summary.avisosEvidenciaEmpatada.length}`);
+    for (const av of summary.avisosEvidenciaEmpatada) {
+      console.log(`  · CNP ${av.cnp} — "${av.nomeNormalizado}" — candidatos ignorados: ${av.candidatos.map((c) => `${c.nomeNormalizado} (${c.contagem})`).join(" vs ")}`);
+    }
+  }
+
+  console.log(`\nHistóricos resolvidos (Anulado/Revogado/etc.):  ${d.resolvidosHistoricos}`);
   console.log(`CNP abaixo de 2.000.000:                        ${summary.semFonte.FORA_UNIVERSO_INFARMED}`);
+  imprimirCaracterizacao(summary.caracterizacaoPorMotivo.FORA_UNIVERSO_INFARMED);
   console.log(`Sem registo no catálogo:                        ${summary.semFonte.SEM_REGISTO_CATALOGO}`);
+  imprimirCaracterizacao(summary.caracterizacaoPorMotivo.SEM_REGISTO_CATALOGO);
   console.log(`Sem fabricante na origem/ERP:                   ${summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM}`);
+  imprimirCaracterizacao(summary.caracterizacaoPorMotivo.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM);
   console.log(`Titular inválido:                               ${summary.semFonte.TITULAR_INVALIDO}`);
-  console.log(`Ambiguidades finais (produtos):                 ${summary.ambiguidades}  (${d.ambiguidadesAgrupadas.length} titularAim distinto(s))`);
+  console.log(`Fabricante divergente entre farmácias:           ${summary.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS}`);
+
+  console.log(`\nAmbiguidades finais (produtos):                 ${summary.ambiguidades}  (${d.ambiguidadesAgrupadas.length} titularAim distinto(s))`);
   for (const amb of d.ambiguidadesAgrupadas.slice(0, 20)) {
     console.log(`  · "${amb.nomeNormalizado}" [${amb.motivo}] — ${amb.produtosAfectados} produto(s) [CNP ${amb.cnps.join(", ")}], candidatos: ${amb.candidatos.map((c) => `${c.nomeNormalizado} (${c.fabricanteId})`).join(" vs ")}`);
   }
@@ -224,7 +316,7 @@ function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolea
   console.log(`Estados AIM dos resolvidos:                     ${JSON.stringify(summary.estadosAim)}`);
   console.log(`Ainda sem fabricante e Autorizado/Ativo (#10):  ${summary.aindaSemFabricanteAtual}`);
   for (const d2 of summary.aindaSemFabricanteDetalhe.slice(0, 50)) {
-    console.log(`  · CNP ${d2.cnp} — ${d2.origem}:${d2.motivo}${d2.nomeNormalizado ? ` ("${d2.nomeNormalizado}")` : ""}`);
+    console.log(`  · CNP ${d2.cnp} "${d2.designacao}" [${d2.tipoArtigo ?? "?"}] — ${d2.origem}:${d2.motivo}${d2.nomeNormalizado ? ` ("${d2.nomeNormalizado}")` : ""} — titular bruto: ${d2.titularAimBruto ? `"${d2.titularAimBruto}"` : "(nenhum)"} — origem/ERP: ${d2.origemErp}`);
   }
   if (summary.aindaSemFabricanteDetalhe.length > 50) console.log(`  · … e mais ${summary.aindaSemFabricanteDetalhe.length - 50} CNP(s) — ver o relatório completo em disco.`);
   console.log(`Erros (isolados por produto):                   ${summary.erros}`);
@@ -236,6 +328,12 @@ function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolea
   console.log(`    · sem fonte (motivo explícito): ${d.semFonteTotal}`);
   console.log(`    · bloqueados por ambiguidade: ${summary.ambiguidades}`);
   console.log(`  protegidos manualmente: ${summary.protegidosManualmente}`);
+}
+
+function imprimirCaracterizacao(c: ReconciliacaoFabricantesSummary["caracterizacaoPorMotivo"][keyof ReconciliacaoFabricantesSummary["caracterizacaoPorMotivo"]]): void {
+  const tipos = Object.entries(c.porTipoArtigo).sort((a, b) => b[1] - a[1]);
+  if (tipos.length > 0) console.log(`    por tipo de artigo: ${tipos.map(([t, n]) => `${t}=${n}`).join(", ")}`);
+  console.log(`    origem/ERP: disponível=${c.origemErp.disponivel}, divergente entre farmácias=${c.origemErp.divergente}, ausente=${c.origemErp.ausente}`);
 }
 
 const USO = `Reconciliação de fabricantes por CNP (garantia) — CLI de backfill.
@@ -318,9 +416,19 @@ async function main(): Promise<void> {
       return;
     }
 
-    imprimirResumo(summary, dryRun);
+    // Bloqueador 4 — diagnóstico de semelhança, SÓ para o relatório
+    // (nunca decide nada): consulta fresca ao roster ACTUAL de
+    // Fabricante (já inclui os que este `--apply` acabou de criar, mas
+    // isso não é problema — um fabricante nunca é "semelhante a si
+    // próprio", ver `fabricantesMaisSemelhantes`).
+    const fabricantesActuais = await prisma.fabricante.findMany({ select: { id: true, nomeNormalizado: true } });
+    const semelhantesPorFabricanteCriado = new Map(
+      summary.fabricantesCriadosDetalhe.map((f) => [f.nomeNormalizado, fabricantesMaisSemelhantes(f.nomeNormalizado, fabricantesActuais)]),
+    );
 
-    const d = calcularDerivados(summary);
+    imprimirResumo(summary, dryRun, mapeamentoCurado, semelhantesPorFabricanteCriado);
+
+    const d = calcularDerivados(summary, mapeamentoCurado);
 
     const relatorioParaDisco = {
       geradoEm: new Date().toISOString(),
@@ -328,7 +436,6 @@ async function main(): Promise<void> {
       base: alvo.base,
       modo: dryRun ? "DRY-RUN" : "APPLY",
       planoCuradoPath: args.planoCuradoPath ?? null,
-      planoCuradoMapeamentos: mapeamentoCurado.size,
       totalSemFabricanteAnalisados: summary.analisados,
       jaTinhaFabricante: summary.jaTinhaFabricante,
       divergencias: summary.divergencias,
@@ -341,14 +448,41 @@ async function main(): Promise<void> {
       resolvidosAutomaticamenteTotal: d.resolvidosAutomaticamente,
       resolvidosHistoricos: d.resolvidosHistoricos,
       fabricantesCriados: summary.fabricantesCriados,
-      fabricantesCriadosNomes: summary.fabricantesCriadosDetalhe,
+      // Bloqueador 4 — nome, CNPs beneficiados, titular original, e os
+      // fabricantes existentes mais semelhantes (diagnóstico, nunca usado
+      // para decidir) com o motivo textual de não serem duplicados.
+      fabricantesCriadosDetalhe: summary.fabricantesCriadosDetalhe.map((f) => {
+        const semelhantes = semelhantesPorFabricanteCriado.get(f.nomeNormalizado) ?? [];
+        return {
+          ...f,
+          fabricantesExistentesMaisSemelhantes: semelhantes,
+          motivoNaoDuplicado:
+            semelhantes.length === 0
+              ? "Nenhum Fabricante existente partilha palavras com este nome — entidade nova neste catálogo."
+              : `Revisto contra os mais semelhantes (${semelhantes.map((s) => s.nomeNormalizado).join(", ")}): nenhuma correspondência exacta, alias, prefixo (≥12 caracteres) ou evidência de portefólio inequívoca — por isso o motor criou uma entidade nova em vez de reutilizar uma existente.`,
+        };
+      }),
       aliasesCriados: summary.aliasesCriados,
+      aliasesCriadosDetalhe: summary.aliasesCriadosDetalhe,
       aliasesCriadosPorFabricante: d.aliasesAgrupados,
       fabricantesExistentesPreservados: summary.jaTinhaFabricante,
+      // Bloqueador 2 — carregados vs. efectivamente usados vs. sem
+      // nenhum produto correspondente, nunca só "N carregados".
+      planoCuradoCarregados: mapeamentoCurado.size,
+      planoCuradoUsados: summary.planoCuradoUsoDetalhe,
+      planoCuradoNaoUtilizados: d.planoCuradoNaoUtilizados,
+      // Bloqueador 3 — empates de evidência que NÃO bloquearam a criação
+      // (nunca escolhidos arbitrariamente, sempre com o CNP e os
+      // candidatos ignorados).
+      avisosEvidenciaEmpatada: summary.avisosEvidenciaEmpatada,
       cnpAbaixoDe2Milhoes: summary.semFonte.FORA_UNIVERSO_INFARMED,
+      caracterizacaoCnpAbaixoDe2Milhoes: summary.caracterizacaoPorMotivo.FORA_UNIVERSO_INFARMED,
       semRegistoNoCatalogo: summary.semFonte.SEM_REGISTO_CATALOGO,
+      caracterizacaoSemRegistoNoCatalogo: summary.caracterizacaoPorMotivo.SEM_REGISTO_CATALOGO,
       semFabricanteNaOrigem: summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM,
+      caracterizacaoSemFabricanteNaOrigem: summary.caracterizacaoPorMotivo.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM,
       titularInvalido: summary.semFonte.TITULAR_INVALIDO,
+      fabricanteDivergenteEntreFarmacias: summary.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS,
       semFontePorMotivo: summary.semFonte,
       semFonteTotal: d.semFonteTotal,
       ambiguidades: summary.ambiguidades,
@@ -356,6 +490,9 @@ async function main(): Promise<void> {
       estadosAim: summary.estadosAim,
       naoResolvidosTotal: d.totalAindaSemFabricante,
       aindaSemFabricanteAutorizadoOuAtivo: summary.aindaSemFabricanteAtual,
+      // Bloqueador 5 — um por CNP, nunca só o agregado: designação, tipo
+      // de artigo, motivo exacto, titular bruto (incl. null) e
+      // disponibilidade da origem/ERP.
       aindaSemFabricanteAutorizadoOuAtivoDetalhe: summary.aindaSemFabricanteDetalhe,
       erros: summary.erros,
       durationMs: summary.durationMs,
