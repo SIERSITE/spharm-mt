@@ -53,7 +53,7 @@ const TITULAR_REAL = "Pharmakern Portugal, Produtos Farmacêuticos, Sociedade Un
 async function main() {
   const { PrismaClient } = await import("../../generated/prisma/client");
   const { normalizarTitularAimGarantia } = await import("../../lib/catalog/fabricante-normalizacao-garantia");
-  const { reconciliarFabricantesPorCnpGarantia } = await import("../../lib/catalog/reconciliar-fabricantes-por-cnp-garantia");
+  const { reconciliarFabricantesPorCnpGarantia, reconciliarFabricantesPorCnpGarantiaTransacional } = await import("../../lib/catalog/reconciliar-fabricantes-por-cnp-garantia");
 
   const sufixo = Date.now().toString(36);
   const dbNome = `spharm_fabcnp_${sufixo}`;
@@ -85,7 +85,9 @@ async function main() {
     console.log("\nB · dry-run — zero escritas reais em Postgres");
     {
       const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "todos", dryRun: true });
-      check(r.resolvidosPorNomeNormalizado === 1, "B1: p1 resolvido por nome normalizado (relatório)", JSON.stringify(r));
+      // resolvidosPorNomeNormalizado conta AMBOS p1 (nome exacto já existente) e
+      // p3 (resolvido_criar_novo — sem plano curado, cai na mesma categoria).
+      check(r.resolvidosPorNomeNormalizado === 2, "B1: p1 + p3 resolvidos por nome normalizado (relatório)", JSON.stringify(r));
       check(r.fabricantesCriados === 1, "B2: relatório mostra 1 fabricante que SERIA criado (p3)");
       check(r.semFonte.SEM_REGISTO_CATALOGO === 1, "B3: p2 sem fonte (SEM_REGISTO_CATALOGO)");
 
@@ -136,9 +138,204 @@ async function main() {
       const antes = await prisma.fabricante.findMany();
       const r2 = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "todos" });
       check(r2.fabricantesCriados === 0, "E1: zero fabricantes criados na segunda corrida");
-      check(r2.jaTinhaFabricante === 2, "E2: p1 e p3 intercetados no nível 1 (já têm fabricante)");
+      // { tipo: "todos" } só lê produtos com fabricanteId NULL — p1 e p3
+      // (já resolvidos) nem entram na selecção; só p2 é reanalisado.
+      check(r2.analisados === 1 && r2.jaTinhaFabricante === 0, "E2: p1/p3 nem são reanalisados (já fora do WHERE fabricanteId:null); só p2 (ainda sem fabricante)", JSON.stringify(r2));
       const depois = await prisma.fabricante.findMany();
       check(depois.length === antes.length, "E3: nenhum Fabricante novo criado — mesma contagem antes/depois");
+    }
+
+    // ── A partir daqui: modo TRANSACIONAL (CLI de backfill), sempre com
+    // produtos NOVOS (p1/p2/p3 já ficaram resolvidos acima) ────────────
+
+    console.log("\nF · modo transacional — trava de tenant contra Postgres REAL, nunca abre transacção");
+    {
+      const antes = await prisma.fabricante.count();
+      let mensagem = "";
+      try {
+        await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "silveira", { tipo: "todos" });
+      } catch (err) {
+        mensagem = err instanceof Error ? err.message : String(err);
+      }
+      check(mensagem.includes("garantia"), "F1: recusado com mensagem mencionando garantia", mensagem);
+      const depois = await prisma.fabricante.count();
+      check(depois === antes, "F2: zero Fabricante criado — nem chegou a abrir transacção");
+    }
+
+    console.log("\nG · modo transacional — dry-run contra Postgres REAL: zero escritas");
+    {
+      const pDry = await prisma.produto.create({ data: { cnp: 6100001, designacao: "Produto Dry-Run Transacional" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6100001, titularAim: "Fabricante Dry Run Transacional Lda", estadoAim: "Autorizado", source: "test" } });
+
+      const antesFab = await prisma.fabricante.count();
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pDry.id], dryRun: true });
+      check(r.fabricantesCriados === 1, "G1: relatório do dry-run mostra 1 fabricante que SERIA criado");
+      const depoisFab = await prisma.fabricante.count();
+      check(depoisFab === antesFab, "G2: zero Fabricante real criado");
+      const pDryDb = await prisma.produto.findUnique({ where: { id: pDry.id }, select: { fabricanteId: true } });
+      check(pDryDb?.fabricanteId === null, "G3: Produto.fabricanteId continua NULL");
+
+      // Resolve pDry PARA VALER (fora do dry-run) — sem isto, ficaria por
+      // resolver e o bloco J (idempotência de { tipo: "todos" }) veria um
+      // produto novo genuinamente resolúvel, o que não é o que J quer medir.
+      await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pDry.id] });
+    }
+
+    console.log("\nH · modo transacional — apply real: cria fabricante novo + alias (plano curado) numa ÚNICA transacção");
+    {
+      const canonico = "Fabricante Canonico Via Plano Lda";
+      const origem = "Fabricante Nome Antigo Via Plano Lda";
+      const mapeamentoCurado = new Map([[normalizarTitularAimGarantia(origem)!, normalizarTitularAimGarantia(canonico)!]]);
+
+      const pCanonico = await prisma.produto.create({ data: { cnp: 6200001, designacao: "Produto Canonico Plano" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6200001, titularAim: canonico, estadoAim: "Autorizado", source: "test" } });
+      const pAlias = await prisma.produto.create({ data: { cnp: 6200002, designacao: "Produto Alias Plano" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6200002, titularAim: origem, estadoAim: "Ativo", source: "test" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", {
+        tipo: "produtos",
+        produtoIds: [pCanonico.id, pAlias.id],
+        mapeamentoCurado,
+      });
+      check(r.fabricantesCriados === 1, "H1: 1 fabricante novo criado (o canónico, a partir de pCanonico)");
+      check(r.aliasesCriados === 1, "H2: 1 alias criado (o nome antigo, a partir de pAlias)", JSON.stringify(r));
+
+      const [pCanonicoDb, pAliasDb] = await Promise.all([
+        prisma.produto.findUnique({ where: { id: pCanonico.id }, select: { fabricanteId: true } }),
+        prisma.produto.findUnique({ where: { id: pAlias.id }, select: { fabricanteId: true } }),
+      ]);
+      check(pCanonicoDb?.fabricanteId !== null && pCanonicoDb?.fabricanteId === pAliasDb?.fabricanteId, "H3: os dois produtos apontam para o MESMO Fabricante (o canónico criado por pCanonico, reutilizado por pAlias via o alias)");
+
+      const fabricanteCriado = await prisma.fabricante.findUnique({ where: { id: pCanonicoDb!.fabricanteId! }, include: { aliases: true } });
+      check(fabricanteCriado?.nomeNormalizado === normalizarTitularAimGarantia(canonico), "H4: o Fabricante criado tem o nome canónico (nunca o nome antigo)");
+      check(fabricanteCriado?.aliases.some((a) => a.aliasNome === normalizarTitularAimGarantia(origem)) ?? false, "H5: o FabricanteAlias persistido é o nome ANTIGO normalizado", JSON.stringify(fabricanteCriado?.aliases));
+    }
+
+    console.log("\nI · modo transacional — FALHA A MEIO (timeout forçado) força ROLLBACK INTEGRAL em Postgres REAL");
+    {
+      // 8 produtos, cada um com um titular DISTINTO (força 8 fabricante.create
+      // + 8 produto.update reais — 16 round-trips sequenciais dentro da MESMA
+      // transacção). Um timeoutMs absurdamente curto garante que a transacção
+      // é abortada a meio — depois de pelo menos uma escrita real já ter
+      // acontecido — e o Postgres reverte TUDO, nunca um subconjunto.
+      const produtosRollback: { id: string; cnp: number }[] = [];
+      for (let i = 0; i < 8; i++) {
+        const cnp = 6300001 + i;
+        const titular = `Fabricante Rollback Forcado Numero ${i} Lda`;
+        const p = await prisma.produto.create({ data: { cnp, designacao: `Produto Rollback ${i}` } });
+        await prisma.regulatoryRecord.create({ data: { cnp, titularAim: titular, estadoAim: "Autorizado", source: "test" } });
+        produtosRollback.push({ id: p.id, cnp });
+      }
+
+      const fabricantesAntes = await prisma.fabricante.count();
+      let mensagem = "";
+      let falhou = false;
+      try {
+        await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", {
+          tipo: "produtos",
+          produtoIds: produtosRollback.map((p) => p.id),
+          timeoutMs: 5,
+          maxWaitMs: 5000,
+        });
+      } catch (err) {
+        falhou = true;
+        mensagem = err instanceof Error ? err.message : String(err);
+      }
+      check(falhou, "I1: a corrida com timeout absurdamente curto FALHOU (não devolveu sucesso silencioso)", mensagem);
+
+      const fabricantesDepois = await prisma.fabricante.count();
+      check(fabricantesDepois === fabricantesAntes, "I2: zero Fabricante novo persistido — mesma contagem antes/depois do rollback", `antes=${fabricantesAntes} depois=${fabricantesDepois}`);
+
+      const produtosDb = await prisma.produto.findMany({ where: { id: { in: produtosRollback.map((p) => p.id) } }, select: { id: true, fabricanteId: true } });
+      check(produtosDb.every((p) => p.fabricanteId === null), "I3: os 8 produtos continuam TODOS com fabricanteId NULL — nenhum ficou parcialmente resolvido", JSON.stringify(produtosDb));
+
+      // Terceira confirmação, independente: reconciliar de novo (sem timeout
+      // apertado) resolve os 8 do zero — prova que o estado da base é
+      // exactamente o de antes da tentativa, não um estado corrompido.
+      const rDepois = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: produtosRollback.map((p) => p.id) });
+      check(rDepois.fabricantesCriados === 8, "I4: uma corrida normal a seguir resolve os 8 do zero — a base não ficou num estado intermédio", JSON.stringify(rDepois));
+    }
+
+    console.log("\nJ · modo transacional — segunda corrida consecutiva é idempotente (zero escritas)");
+    {
+      const antes = await prisma.fabricante.count();
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "todos" });
+      check(r.fabricantesCriados === 0, "J1: zero fabricantes criados — tudo já resolvido pelas corridas anteriores");
+      const depois = await prisma.fabricante.count();
+      check(depois === antes, "J2: mesma contagem de Fabricante antes/depois");
+    }
+
+    console.log("\nK · resolução canónica GERAL contra Postgres REAL — regra 4 (prefixo), cenário sintético isolado");
+    {
+      // Cenário sintético (não o texto exacto do Pharmakern real — ver
+      // bloco M para esse, que usa o texto exacto do crawl INFOMED e
+      // resolve pela regra 5, não pela 4: o texto real tem um hífen que
+      // sobrevive à normalização e quebra o prefixo armazenado
+      // historicamente sem ele — achado genuíno desta bateria de
+      // testes, documentado no relatório final da tarefa).
+      const alvo = "Empresa Exemplo Prefixo Postgres Sociedade Unipessoal Lda";
+      const curto = await prisma.fabricante.create({ data: { nomeNormalizado: "EMPRESA EXEMPLO PREFIXO" } });
+      const longo = await prisma.fabricante.create({ data: { nomeNormalizado: "EMPRESA EXEMPLO PREFIXO POSTGRES" } });
+      const pPrefixo = await prisma.produto.create({ data: { cnp: 5701801, designacao: "Produto Prefixo Postgres" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 5701801, titularAim: alvo, estadoAim: "Autorizado", source: "test" } });
+
+      const rPrefixo = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pPrefixo.id] });
+      check(rPrefixo.resolvidosPorPrefixo === 1, "K1: resolvido pela regra geral de prefixo contra Postgres REAL (fabricantesTodos + query real)", JSON.stringify(rPrefixo));
+      const pPrefixoDb = await prisma.produto.findUnique({ where: { id: pPrefixo.id }, select: { fabricanteId: true } });
+      check(pPrefixoDb?.fabricanteId === longo.id && pPrefixoDb.fabricanteId !== curto.id, "K2: associado ao prefixo MAIS LONGO (nunca ao curto, nunca um terceiro)");
+      const totalFabricantesK = await prisma.fabricante.count({ where: { nomeNormalizado: { contains: "EMPRESA EXEMPLO PREFIXO" } } });
+      check(totalFabricantesK === 2, "K3: continuam a existir só os 2 Fabricante que já existiam — nenhum a mais");
+    }
+
+    console.log("\nL · caso REAL Pharmakern com o TEXTO EXACTO do crawl INFOMED — resolve por evidência de portefólio, não por prefixo");
+    {
+      // Texto EXACTO devolvido pelo INFOMED real (scripts/data/infomed-
+      // listagem-details.json, medId 603905) para CNP 5701651/5768510 —
+      // note o HÍFEN depois de "Portugal", que `normalizarTitularAimGarantia`
+      // preserva (é um carácter válido em denominações sociais). Esse
+      // hífen sobrevive à normalização e QUEBRA o prefixo por caracteres
+      // contra "PHARMAKERN PORTUGAL PRODUTOS FARMACEUTICOS SOCIE" (o
+      // nome truncado real, sem hífen) — a regra 4 NÃO dispara aqui. A
+      // regra 5 (evidência de portefólio) resolve na mesma, porque em
+      // produção já existem outros produtos Pharmakern reais associados
+      // ao MESMO Fabricante truncado — simulado abaixo com 2 produtos
+      // JÁ resolvidos para esse Fabricante, antes do CNP novo entrar.
+      const titularInfomedReal = "Pharmakern Portugal - Produtos Farmacêuticos, Sociedade Unipessoal, Lda.";
+      const truncadoReal = await prisma.fabricante.create({ data: { nomeNormalizado: "PHARMAKERN PORTUGAL PRODUTOS FARMACEUTICOS SOCIE" } });
+      const pJaResolvido1 = await prisma.produto.create({ data: { cnp: 5768510, designacao: "Tadalafil Pharmakern 20 Mg 12 Comp.", fabricanteId: truncadoReal.id } });
+      const pJaResolvido2 = await prisma.produto.create({ data: { cnp: 5768511, designacao: "Tadalafil Pharmakern 20 Mg 30 Comp.", fabricanteId: truncadoReal.id } });
+      for (const p of [pJaResolvido1, pJaResolvido2]) {
+        await prisma.regulatoryRecord.create({ data: { cnp: p.cnp, titularAim: titularInfomedReal, estadoAim: "Autorizado", source: "test" } });
+      }
+      const pNovoReal = await prisma.produto.create({ data: { cnp: 5701802, designacao: "Tadalafil Pharmakern 20 Mg 4 Comp." } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 5701802, titularAim: titularInfomedReal, estadoAim: "Autorizado", source: "test" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovoReal.id] });
+      check(r.resolvidosPorPrefixo === 0, "L1: a regra de prefixo NÃO dispara com o texto exacto real (o hífen quebra a igualdade de caracteres)", JSON.stringify(r));
+      check(r.resolvidosPorEvidenciaPortfolio === 1, "L2: mas a regra de evidência de portefólio resolve na mesma, com dados reais agregados em Postgres", JSON.stringify(r));
+      const pNovoRealDb = await prisma.produto.findUnique({ where: { id: pNovoReal.id }, select: { fabricanteId: true } });
+      check(pNovoRealDb?.fabricanteId === truncadoReal.id, "L3: associado ao MESMO Fabricante truncado real — nunca um terceiro Pharmakern");
+    }
+
+    console.log("\nM · resolução canónica GERAL contra Postgres REAL — regra 5 (evidência de portefólio) isolada, sem nenhum prefixo válido");
+    {
+      const titularSemPrefixo = "Entidade Legal Sem Nenhum Prefixo Existente Sociedade Unipessoal Lda";
+      const fA = await prisma.fabricante.create({ data: { nomeNormalizado: "CANDIDATO A NAO RELACIONADO LDA" } });
+      const fB = await prisma.fabricante.create({ data: { nomeNormalizado: "CANDIDATO B NAO RELACIONADO LDA" } });
+
+      // 2 produtos JÁ resolvidos para fA, 1 para fB — todos com o MESMO titularAim.
+      const pJa1 = await prisma.produto.create({ data: { cnp: 5701701, designacao: "Produto Ja Resolvido 1", fabricanteId: fA.id } });
+      const pJa2 = await prisma.produto.create({ data: { cnp: 5701702, designacao: "Produto Ja Resolvido 2", fabricanteId: fA.id } });
+      const pJa3 = await prisma.produto.create({ data: { cnp: 5701703, designacao: "Produto Ja Resolvido 3", fabricanteId: fB.id } });
+      const pNovo = await prisma.produto.create({ data: { cnp: 5701704, designacao: "Produto A Resolver Agora" } });
+      for (const p of [pJa1, pJa2, pJa3, pNovo]) {
+        await prisma.regulatoryRecord.create({ data: { cnp: p.cnp, titularAim: titularSemPrefixo, estadoAim: "Autorizado", source: "test" } });
+      }
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
+      check(r.resolvidosPorEvidenciaPortfolio === 1, "M1: resolvido por evidência de portefólio, contra a query REAL (RegulatoryRecord + Produto agregados em Postgres)", JSON.stringify(r));
+      const pNovoDb = await prisma.produto.findUnique({ where: { id: pNovo.id }, select: { fabricanteId: true } });
+      check(pNovoDb?.fabricanteId === fA.id, "M2: associado ao Fabricante com MAIS produtos na evidência real (2 vs 1) — nunca ao minoritário, nunca cria um novo");
     }
 
     await prisma.$disconnect();

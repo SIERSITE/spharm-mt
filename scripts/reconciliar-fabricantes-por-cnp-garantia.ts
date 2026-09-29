@@ -5,34 +5,50 @@
  * garantia.ts` — cobre, numa única corrida, TODOS os produtos do tenant
  * garantia sem `Produto.fabricanteId` (regra 8 da reconciliação de
  * fabricantes por CNP: "resolver numa única implementação todos os
- * produtos sem fabricante do tenant garantia"). Chama o MESMO serviço
- * usado online pelo ingest e pelo enrich-catalog diário — nenhuma lógica
- * de negócio própria, só orquestração de CLI (leitura de args, resolução
- * do alvo real, escrita do relatório).
+ * produtos sem fabricante do tenant garantia, transação"). Chama
+ * `reconciliarFabricantesPorCnpGarantiaTransacional` — o MESMO motor de
+ * classificação usado online pelo ingest/enrich-catalog, mas com um modo
+ * de escrita diferente (ver esse ficheiro): esta CLI constrói o plano
+ * completo primeiro (zero escritas) e só depois aplica TUDO numa única
+ * `prisma.$transaction` — nenhuma lógica de negócio própria aqui, só
+ * orquestração de CLI (leitura de args, resolução do alvo real, escrita
+ * do relatório).
  *
  * ── Segurança: travado ao tenant garantia, nas mesmas camadas de
  * `scripts/importar-grupos-laboratoriais-garantia.ts` ────────────────────
  *   1. `--tenant=garantia` obrigatório, verificado ANTES de resolverAlvo;
  *   2. `confirmarAlvoGarantia`, DEPOIS da resolução via control plane;
- *   3. o próprio serviço (`reconciliarFabricantesPorCnpGarantia`) recusa
- *      qualquer `tenantSlug !== "garantia"` antes de qualquer query —
- *      terceira camada, independente desta CLI;
+ *   3. o próprio serviço (`reconciliarFabricantesPorCnpGarantiaTransacional`)
+ *      recusa qualquer `tenantSlug !== "garantia"` antes de qualquer
+ *      query — terceira camada, independente desta CLI;
  *   4. para ESCREVER, exige as DUAS flags em simultâneo: `--apply` e
  *      `--confirmar-tenant=garantia` — falta uma, fica em dry-run.
  *
  * ── Dry-run é o default, sempre ───────────────────────────────────────
  * Sem `--apply` (ou sem `--confirmar-tenant=garantia` a acompanhá-lo):
  * zero escritas — o próprio serviço é chamado com `dryRun: true`, que
- * nunca emite `produto.update`/`fabricante.create`/`fabricanteAlias.
- * create` (ver o ficheiro do serviço); a sessão Postgres é também aberta
- * read-only (`default_transaction_read_only=on`), defesa em profundidade
- * caso algum caminho novo viesse a escrever sem passar por `dryRun`.
+ * NUNCA abre uma transacção e nunca emite `produto.update`/`fabricante.
+ * create`/`fabricanteAlias.create` (ver o ficheiro do serviço); a sessão
+ * Postgres é também aberta read-only (`default_transaction_read_only=
+ * on`), defesa em profundidade caso algum caminho novo viesse a escrever
+ * sem passar por `dryRun`.
+ *
+ * ── Transacção única, tudo-ou-nada ──────────────────────────────────────
+ * Com `--apply`, todas as escritas do lote — cada Fabricante novo, cada
+ * FabricanteAlias novo, e cada `Produto.fabricanteId` — acontecem dentro
+ * de uma ÚNICA `prisma.$transaction`, com timeout dimensionado ao
+ * tamanho do plano (`calcularTimeoutTransacaoMs`). Se qualquer escrita
+ * falhar a meio, a transacção inteira reverte — zero fabricantes, zero
+ * aliases, zero `Produto.fabricanteId` alterados — e esta CLI reporta o
+ * erro sem escrever nenhum relatório de sucesso (ver o `catch` em
+ * `main()`). Nunca fica um subconjunto do lote aplicado.
  *
  * ── Idempotência ────────────────────────────────────────────────────────
  * Uma segunda corrida com `--apply` sobre o mesmo estado da base encontra
  * todos os produtos já resolvidos com `fabricanteId` preenchido — o nível
  * 1 do resolver (`ja_tem_fabricante`) intercepta-os antes de qualquer
- * escrita ser considerada — logo, zero escritas na segunda corrida.
+ * escrita ser considerada — logo, zero escritas (e nenhuma transacção
+ * chega a abrir-se) na segunda corrida.
  *
  * Uso:
  *   npx tsx scripts/reconciliar-fabricantes-por-cnp-garantia.ts \
@@ -53,15 +69,34 @@
  *   --permitir-externo           Necessário se o tenant não for a VPS de produção.
  */
 import "dotenv/config";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { buildTenantConnectionString, getTenantBySlug } from "../lib/control-plane";
 import { AlvoRecusado, descreverAlvo, resolverAlvo, type AlvoDb } from "../lib/catalog/target-db";
-import { reconciliarFabricantesPorCnpGarantia, TENANT_TRAVADO, type ReconciliacaoFabricantesSummary } from "../lib/catalog/reconciliar-fabricantes-por-cnp-garantia";
+import {
+  reconciliarFabricantesPorCnpGarantiaTransacional,
+  TENANT_TRAVADO,
+  ESTADOS_AIM_ATUAIS,
+  type ReconciliacaoFabricantesSummary,
+} from "../lib/catalog/reconciliar-fabricantes-por-cnp-garantia";
 import { carregarMapeamentoCuradoDoPlano } from "../lib/catalog/plano-normalizacao-fabricantes-garantia";
-import { escreverAtomico } from "./importar-grupos-laboratoriais-garantia";
 
 export const BASE_ESPERADA = "spharmmt_t_garantia";
+
+/** Cópia local — cada CLI desta iniciativa tem a sua (ver o mesmo padrão em scripts/importar-grupos-laboratoriais-garantia.ts, scripts/simular-grupos-laboratoriais-garantia.ts): evita que a imagem `migrator` (deploy/docker/Dockerfile) tivesse de copiar um script inteiro só por esta função. */
+export function escreverAtomico(caminhoFinal: string, conteudo: string): void {
+  mkdirSync(dirname(caminhoFinal), { recursive: true });
+  const tmp = `${caminhoFinal}.tmp-${process.pid}`;
+  writeFileSync(tmp, conteudo, "utf8");
+  try {
+    renameSync(tmp, caminhoFinal);
+  } catch (err) {
+    rmSync(tmp, { force: true });
+    throw err;
+  }
+}
 
 export type Args = {
   relatorioPath: string;
@@ -103,37 +138,105 @@ export function confirmarAlvoGarantia(alvo: Pick<AlvoDb, "tenant" | "base">): vo
   }
 }
 
-function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolean): void {
-  console.log(`\nModo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
-  console.log(`Produtos analisados (sem fabricante):        ${summary.analisados}`);
-  console.log(`Já tinham fabricante (não tocados):          ${summary.jaTinhaFabricante}  (divergências: ${summary.divergencias})`);
-  console.log(`Protegidos manualmente:                      ${summary.protegidosManualmente}`);
-  console.log(`Resolvidos — nome normalizado:                ${summary.resolvidosPorNomeNormalizado}`);
-  console.log(`Resolvidos — alias:                           ${summary.resolvidosPorAlias}`);
-  console.log(`Resolvidos — plano curado:                    ${summary.resolvidosPorPlanoCurado}`);
-  console.log(`Fabricantes criados:                          ${summary.fabricantesCriados}`);
-  console.log(`Aliases criados:                              ${summary.aliasesCriados}`);
-  console.log(`Ambiguidades (nunca escolhidas):               ${summary.ambiguidades}`);
-  console.log(`Sem fonte — FORA_UNIVERSO_INFARMED:            ${summary.semFonte.FORA_UNIVERSO_INFARMED}`);
-  console.log(`Sem fonte — SEM_REGISTO_CATALOGO:              ${summary.semFonte.SEM_REGISTO_CATALOGO}`);
-  console.log(`Sem fonte — FABRICANTE_NAO_INFORMADO_ORIGEM:   ${summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM}`);
-  console.log(`Sem fonte — TITULAR_INVALIDO:                  ${summary.semFonte.TITULAR_INVALIDO}`);
-  console.log(`Estados AIM dos resolvidos:                    ${JSON.stringify(summary.estadosAim)}`);
-  console.log(`Ainda sem fabricante e Autorizado/Ativo (#10): ${summary.aindaSemFabricanteAtual}`);
-  console.log(`Erros (isolados por produto):                  ${summary.erros}`);
-  console.log(`Duração:                                       ${summary.durationMs}ms`);
+/**
+ * Agrega `summary.ambiguidadesDetalhe` (uma entrada por PRODUTO
+ * ambíguo) por `nomeNormalizado` — regra 7: "ambiguidades finais,
+ * agrupadas por titularAim e candidatos". Vários produtos com o MESMO
+ * titularAim geram a MESMA ambiguidade; o relatório mostra-a UMA vez,
+ * com quantos produtos a partilham.
+ */
+function agruparAmbiguidades(summary: ReconciliacaoFabricantesSummary) {
+  const porNome = new Map<string, { nomeNormalizado: string; motivo: string; candidatos: { fabricanteId: string; nomeNormalizado: string }[]; produtosAfectados: number }>();
+  for (const a of summary.ambiguidadesDetalhe) {
+    const existente = porNome.get(a.nomeNormalizado);
+    if (existente) {
+      existente.produtosAfectados++;
+    } else {
+      porNome.set(a.nomeNormalizado, { nomeNormalizado: a.nomeNormalizado, motivo: a.motivo, candidatos: [...a.candidatos], produtosAfectados: 1 });
+    }
+  }
+  return [...porNome.values()].sort((a, b) => b.produtosAfectados - a.produtosAfectados);
+}
 
-  const resolvidosAutomaticamente = summary.resolvidosPorNomeNormalizado + summary.resolvidosPorAlias + summary.resolvidosPorPlanoCurado;
-  const semFonteTotal = summary.semFonte.FORA_UNIVERSO_INFARMED + summary.semFonte.SEM_REGISTO_CATALOGO + summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO;
+function calcularDerivados(summary: ReconciliacaoFabricantesSummary) {
+  const resolvidosAutomaticamente =
+    summary.resolvidosPorNomeNormalizado + summary.resolvidosPorAlias + summary.resolvidosPorPlanoCurado +
+    summary.resolvidosPorPrefixo + summary.resolvidosPorEvidenciaPortfolio;
+  const semFonteTotal =
+    summary.semFonte.FORA_UNIVERSO_INFARMED + summary.semFonte.SEM_REGISTO_CATALOGO +
+    summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO;
+  const resolvidosHistoricos = Object.entries(summary.estadosAim)
+    .filter(([estado]) => !ESTADOS_AIM_ATUAIS.has(estado))
+    .reduce((soma, [, n]) => soma + n, 0);
+  const totalAindaSemFabricante = semFonteTotal + summary.ambiguidades;
+  const ambiguidadesAgrupadas = agruparAmbiguidades(summary);
+  return { resolvidosAutomaticamente, semFonteTotal, resolvidosHistoricos, totalAindaSemFabricante, ambiguidadesAgrupadas };
+}
+
+function imprimirResumo(summary: ReconciliacaoFabricantesSummary, dryRun: boolean): void {
+  const d = calcularDerivados(summary);
+  console.log(`\nModo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
+  console.log(`Total sem fabricante (analisados):             ${summary.analisados}`);
+  console.log(`Já tinham fabricante (não tocados):             ${summary.jaTinhaFabricante}  (divergências: ${summary.divergencias})`);
+  console.log(`Protegidos manualmente:                        ${summary.protegidosManualmente}`);
+  console.log(`Resolvidos — correspondência exacta:            ${summary.resolvidosPorNomeNormalizado}`);
+  console.log(`Resolvidos — alias:                             ${summary.resolvidosPorAlias}`);
+  console.log(`Resolvidos — plano curado:                      ${summary.resolvidosPorPlanoCurado}`);
+  console.log(`Resolvidos — truncagem (prefixo):               ${summary.resolvidosPorPrefixo}`);
+  console.log(`Resolvidos — evidência de portefólio:           ${summary.resolvidosPorEvidenciaPortfolio}`);
+  console.log(`Resolvidos automaticamente (total):             ${d.resolvidosAutomaticamente}`);
+  console.log(`Novos fabricantes a criar:                      ${summary.fabricantesCriados}`);
+  console.log(`Aliases/mapeamentos criados:                    ${summary.aliasesCriados}`);
+  console.log(`Históricos resolvidos (Anulado/Revogado/etc.):  ${d.resolvidosHistoricos}`);
+  console.log(`CNP abaixo de 2.000.000:                        ${summary.semFonte.FORA_UNIVERSO_INFARMED}`);
+  console.log(`Sem registo no catálogo:                        ${summary.semFonte.SEM_REGISTO_CATALOGO}`);
+  console.log(`Sem fabricante na origem/ERP:                   ${summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM}`);
+  console.log(`Titular inválido:                               ${summary.semFonte.TITULAR_INVALIDO}`);
+  console.log(`Ambiguidades finais (produtos):                 ${summary.ambiguidades}  (${d.ambiguidadesAgrupadas.length} titularAim distinto(s))`);
+  for (const amb of d.ambiguidadesAgrupadas.slice(0, 20)) {
+    console.log(`  · "${amb.nomeNormalizado}" [${amb.motivo}] — ${amb.produtosAfectados} produto(s), candidatos: ${amb.candidatos.map((c) => `${c.nomeNormalizado} (${c.fabricanteId})`).join(" vs ")}`);
+  }
+  if (d.ambiguidadesAgrupadas.length > 20) console.log(`  · … e mais ${d.ambiguidadesAgrupadas.length - 20} titularAim distinto(s) — ver o relatório completo em disco.`);
+  console.log(`Estados AIM dos resolvidos:                     ${JSON.stringify(summary.estadosAim)}`);
+  console.log(`Ainda sem fabricante e Autorizado/Ativo (#10):  ${summary.aindaSemFabricanteAtual}`);
+  console.log(`Erros (isolados por produto):                   ${summary.erros}`);
+  console.log(`Duração:                                        ${summary.durationMs}ms`);
+
   console.log(`\nResumo — dos ${summary.analisados} produtos sem fabricante analisados:`);
-  console.log(`  resolvidos automaticamente: ${resolvidosAutomaticamente}`);
-  console.log(`  sem fonte (motivo explícito): ${semFonteTotal}`);
-  console.log(`  bloqueados por ambiguidade: ${summary.ambiguidades}`);
+  console.log(`  resolvidos automaticamente: ${d.resolvidosAutomaticamente}`);
+  console.log(`  continuam sem fabricante (total): ${d.totalAindaSemFabricante}`);
+  console.log(`    · sem fonte (motivo explícito): ${d.semFonteTotal}`);
+  console.log(`    · bloqueados por ambiguidade: ${summary.ambiguidades}`);
   console.log(`  protegidos manualmente: ${summary.protegidosManualmente}`);
 }
 
+const USO = `Reconciliação de fabricantes por CNP (garantia) — CLI de backfill.
+
+Uso:
+  npx tsx scripts/reconciliar-fabricantes-por-cnp-garantia.ts \\
+    --tenant=garantia --relatorio=<path> [--plano-curado=<path>]
+
+  npx tsx scripts/reconciliar-fabricantes-por-cnp-garantia.ts \\
+    --tenant=garantia --relatorio=<path> \\
+    --apply --confirmar-tenant=garantia
+
+Opções:
+  --tenant=<slug>              Obrigatório — só "garantia" é aceite.
+  --relatorio=<path>           Obrigatório.
+  --plano-curado=<path>        Opcional.
+  --apply                      Escreve — só com --confirmar-tenant= a acompanhar.
+  --confirmar-tenant=garantia  Segunda confirmação explícita, exigida junto com --apply.
+  --permitir-externo           Necessário se o tenant não for a VPS de produção.
+  --help, -h                   Mostra esta ajuda e sai (sem tocar em nenhuma base).
+`;
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log(USO);
+    return;
+  }
 
   const slugPedido = argv.find((a) => a.startsWith("--tenant="))?.slice("--tenant=".length);
   if (slugPedido !== TENANT_TRAVADO) {
@@ -173,12 +276,23 @@ async function main(): Promise<void> {
     console.log(`  Modo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
     console.log(`  plano curado: ${args.planoCuradoPath ?? "(nenhum)"} — ${mapeamentoCurado.size} mapeamento(s) carregado(s)`);
 
-    const summary = await reconciliarFabricantesPorCnpGarantia(prisma, TENANT_TRAVADO, { tipo: "todos", mapeamentoCurado, dryRun });
+    let summary: ReconciliacaoFabricantesSummary;
+    try {
+      summary = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, TENANT_TRAVADO, { tipo: "todos", mapeamentoCurado, dryRun });
+    } catch (err) {
+      // O plano é construído por inteiro ANTES de qualquer escrita, e em
+      // --apply as escritas do lote são uma ÚNICA prisma.$transaction —
+      // se isto lançar, a transacção reverteu por inteiro (Fabricante,
+      // FabricanteAlias e Produto.fabricanteId incluídos). Reporta o erro
+      // e sai sem fingir que algo foi persistido.
+      console.error(`\n[fatal] a transacção falhou e foi revertida por inteiro — zero alterações persistidas:\n  ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exitCode = 1;
+      return;
+    }
 
     imprimirResumo(summary, dryRun);
 
-    const resolvidosAutomaticamente = summary.resolvidosPorNomeNormalizado + summary.resolvidosPorAlias + summary.resolvidosPorPlanoCurado;
-    const semFonteTotal = summary.semFonte.FORA_UNIVERSO_INFARMED + summary.semFonte.SEM_REGISTO_CATALOGO + summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO;
+    const d = calcularDerivados(summary);
 
     const relatorioParaDisco = {
       geradoEm: new Date().toISOString(),
@@ -191,18 +305,26 @@ async function main(): Promise<void> {
       jaTinhaFabricante: summary.jaTinhaFabricante,
       divergencias: summary.divergencias,
       protegidosManualmente: summary.protegidosManualmente,
-      resolvidosPorNomeNormalizado: summary.resolvidosPorNomeNormalizado,
+      resolvidosPorCorrespondenciaExata: summary.resolvidosPorNomeNormalizado,
       resolvidosPorAlias: summary.resolvidosPorAlias,
       resolvidosPorPlanoCurado: summary.resolvidosPorPlanoCurado,
-      resolvidosAutomaticamenteTotal: resolvidosAutomaticamente,
+      resolvidosPorTruncagem: summary.resolvidosPorPrefixo,
+      resolvidosPorEvidenciaPortfolio: summary.resolvidosPorEvidenciaPortfolio,
+      resolvidosAutomaticamenteTotal: d.resolvidosAutomaticamente,
+      resolvidosHistoricos: d.resolvidosHistoricos,
       fabricantesCriados: summary.fabricantesCriados,
       aliasesCriados: summary.aliasesCriados,
       fabricantesExistentesPreservados: summary.jaTinhaFabricante,
-      ambiguidades: summary.ambiguidades,
+      cnpAbaixoDe2Milhoes: summary.semFonte.FORA_UNIVERSO_INFARMED,
+      semRegistoNoCatalogo: summary.semFonte.SEM_REGISTO_CATALOGO,
+      semFabricanteNaOrigem: summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM,
+      titularInvalido: summary.semFonte.TITULAR_INVALIDO,
       semFontePorMotivo: summary.semFonte,
-      semFonteTotal,
+      semFonteTotal: d.semFonteTotal,
+      ambiguidades: summary.ambiguidades,
+      ambiguidadesAgrupadasPorTitularAim: d.ambiguidadesAgrupadas,
       estadosAim: summary.estadosAim,
-      naoResolvidosTotal: semFonteTotal + summary.ambiguidades,
+      naoResolvidosTotal: d.totalAindaSemFabricante,
       aindaSemFabricanteAutorizadoOuAtivo: summary.aindaSemFabricanteAtual,
       erros: summary.erros,
       durationMs: summary.durationMs,

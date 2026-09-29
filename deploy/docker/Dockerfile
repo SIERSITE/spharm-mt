@@ -314,6 +314,11 @@ COPY scripts/import-regulatory-record.ts ./scripts/import-regulatory-record.ts
 COPY scripts/importar-grupos-laboratoriais-garantia.ts ./scripts/importar-grupos-laboratoriais-garantia.ts
 COPY scripts/classificar-grupos-laboratoriais-garantia.ts ./scripts/classificar-grupos-laboratoriais-garantia.ts
 COPY scripts/data/grupos-laboratoriais-iniciais-garantia.json scripts/data/regras-cnp-grupos-laboratoriais-garantia.json ./scripts/data/
+# Reconciliação de Produto.fabricanteId a partir de RegulatoryRecord.
+# titularAim (garantia) — CLI de backfill, único ficheiro de raiz (a
+# lógica de negócio inteira vive em lib/catalog/, já coberta pelo COPY
+# de `lib` acima; esta CLI é só orquestração de argumentos/alvo/relatório).
+COPY scripts/reconciliar-fabricantes-por-cnp-garantia.ts ./scripts/reconciliar-fabricantes-por-cnp-garantia.ts
 COPY --from=builder /app/generated ./generated
 
 # Auditoria: cada comando de tools-scripts.txt tem de ter o seu ficheiro

@@ -56,6 +56,7 @@
     "catalog:importar-catalogo-nacional": "tsx scripts/import-catalogo-nacional-completo.ts",
     "catalog:importar-grupos-laboratoriais": "tsx scripts/importar-grupos-laboratoriais-garantia.ts",
     "catalog:classificar-grupos-laboratoriais": "tsx scripts/classificar-grupos-laboratoriais-garantia.ts",
+    "catalog:reconciliar-fabricantes-por-cnp": "tsx scripts/reconciliar-fabricantes-por-cnp-garantia.ts",
     "test:correccoes-2026-09": "tsx scripts/tests/test-correccoes-2026-09.ts",
     "test:excessos-transferencias": "tsx scripts/tests/test-excessos-transferencias.ts",
     "test:margens": "tsx scripts/tests/test-margens.ts",

@@ -139,6 +139,15 @@ catalog:importar-catalogo-nacional
 catalog:importar-grupos-laboratoriais
 catalog:classificar-grupos-laboratoriais
 
+# Reconciliação de Produto.fabricanteId a partir de RegulatoryRecord.
+# titularAim (garantia, exclusivo) — CLI de backfill. Mesma disciplina
+# das três acima: --tenant=garantia explícito + confirmarAlvoGarantia,
+# dry-run por omissão, --apply exige também --confirmar-tenant=garantia.
+# Corre DEPOIS de catalog:importar-catalogo-nacional (RegulatoryRecord
+# populado) e ANTES de catalog:classificar-grupos-laboratoriais (que lê
+# Produto.fabricanteId já resolvido).
+catalog:reconciliar-fabricantes-por-cnp
+
 # As divergencias entre o catalogo global e cada tenant: listar (read-only)
 # e marcar como resolvida com aprovador e motivo. Sao operacionais porque
 # a tabela enche-se sozinha a cada project-global e a cada importacao.
