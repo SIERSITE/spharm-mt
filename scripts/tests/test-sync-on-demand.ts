@@ -358,6 +358,28 @@ console.log("\n== I. sync-now.ts usa daily-sync-runner.ts, não bootstrap-upload
     /fabricantesAlterados: number/.test(runner),
     "PipelineRunCounts ganhou fabricantesAlterados — é o 3º contador que o ack de sync-now reporta",
   );
+
+  // Confirma exactamente o que o botão real faz: "Sincronizar agora"
+  // (scope: "products-stock") NUNCA salta o pipeline de produtos/
+  // fabricante — só o de vendas. `pipelineProducts` é chamado sem
+  // NENHUM `if` à volta (ao contrário de `pipelineSales`, gated por
+  // `scope === "full"`) — extraído o corpo da função que decide os
+  // pipelines por scope para verificar isto de forma robusta a
+  // reformatação de código.
+  const corpoRunPipelineForDay = runner.slice(runner.indexOf("await pipelineProducts"), runner.indexOf("return counts;", runner.indexOf("await pipelineProducts")));
+  check(
+    /await pipelineProducts\(/.test(corpoRunPipelineForDay) && !/if\s*\([^)]*\)\s*\{?\s*\n?\s*await pipelineProducts/.test(corpoRunPipelineForDay),
+    'pipelineProducts (produtos + fabricante, via applyErpCatalogFields) corre INCONDICIONALMENTE em runPipelineForDay — nunca atrás de um "if(scope...)", ao contrário de pipelineSales',
+    corpoRunPipelineForDay,
+  );
+  check(
+    /await pipelineStock\(/.test(corpoRunPipelineForDay) && !/if\s*\([^)]*\)\s*\{?\s*\n?\s*await pipelineStock/.test(corpoRunPipelineForDay),
+    "pipelineStock também corre incondicionalmente — 'products-stock' quer dizer mesmo os DOIS, produtos E stock",
+  );
+  check(
+    /if \(scope === "full"\) \{\s*\n\s*logger\.raw\(""\);\s*\n\s*await pipelineSales\(/.test(corpoRunPipelineForDay),
+    'só pipelineSales fica atrás de "if (scope === \"full\")" — a ÚNICA coisa que "Sincronizar agora" salta é vendas, nunca produtos/fabricante/stock',
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════

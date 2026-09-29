@@ -34,6 +34,7 @@ export type FarmaciaMinAggregateOutputType = {
   dataAdesao: Date | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  autoridadeCatalogo: boolean | null
   useMovimentosCanonical: boolean | null
 }
 
@@ -47,6 +48,7 @@ export type FarmaciaMaxAggregateOutputType = {
   dataAdesao: Date | null
   dataCriacao: Date | null
   dataAtualizacao: Date | null
+  autoridadeCatalogo: boolean | null
   useMovimentosCanonical: boolean | null
 }
 
@@ -60,6 +62,7 @@ export type FarmaciaCountAggregateOutputType = {
   dataAdesao: number
   dataCriacao: number
   dataAtualizacao: number
+  autoridadeCatalogo: number
   useMovimentosCanonical: number
   _all: number
 }
@@ -75,6 +78,7 @@ export type FarmaciaMinAggregateInputType = {
   dataAdesao?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  autoridadeCatalogo?: true
   useMovimentosCanonical?: true
 }
 
@@ -88,6 +92,7 @@ export type FarmaciaMaxAggregateInputType = {
   dataAdesao?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  autoridadeCatalogo?: true
   useMovimentosCanonical?: true
 }
 
@@ -101,6 +106,7 @@ export type FarmaciaCountAggregateInputType = {
   dataAdesao?: true
   dataCriacao?: true
   dataAtualizacao?: true
+  autoridadeCatalogo?: true
   useMovimentosCanonical?: true
   _all?: true
 }
@@ -187,6 +193,7 @@ export type FarmaciaGroupByOutputType = {
   dataAdesao: Date
   dataCriacao: Date
   dataAtualizacao: Date
+  autoridadeCatalogo: boolean
   useMovimentosCanonical: boolean
   _count: FarmaciaCountAggregateOutputType | null
   _min: FarmaciaMinAggregateOutputType | null
@@ -221,6 +228,7 @@ export type FarmaciaWhereInput = {
   dataAdesao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
+  autoridadeCatalogo?: Prisma.BoolFilter<"Farmacia"> | boolean
   useMovimentosCanonical?: Prisma.BoolFilter<"Farmacia"> | boolean
   utilizadores?: Prisma.UtilizadorListRelationFilter
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaListRelationFilter
@@ -263,6 +271,7 @@ export type FarmaciaOrderByWithRelationInput = {
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  autoridadeCatalogo?: Prisma.SortOrder
   useMovimentosCanonical?: Prisma.SortOrder
   utilizadores?: Prisma.UtilizadorOrderByRelationAggregateInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaOrderByRelationAggregateInput
@@ -308,6 +317,7 @@ export type FarmaciaWhereUniqueInput = Prisma.AtLeast<{
   dataAdesao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
   dataAtualizacao?: Prisma.DateTimeFilter<"Farmacia"> | Date | string
+  autoridadeCatalogo?: Prisma.BoolFilter<"Farmacia"> | boolean
   useMovimentosCanonical?: Prisma.BoolFilter<"Farmacia"> | boolean
   utilizadores?: Prisma.UtilizadorListRelationFilter
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaListRelationFilter
@@ -350,6 +360,7 @@ export type FarmaciaOrderByWithAggregationInput = {
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  autoridadeCatalogo?: Prisma.SortOrder
   useMovimentosCanonical?: Prisma.SortOrder
   _count?: Prisma.FarmaciaCountOrderByAggregateInput
   _max?: Prisma.FarmaciaMaxOrderByAggregateInput
@@ -369,6 +380,7 @@ export type FarmaciaScalarWhereWithAggregatesInput = {
   dataAdesao?: Prisma.DateTimeWithAggregatesFilter<"Farmacia"> | Date | string
   dataCriacao?: Prisma.DateTimeWithAggregatesFilter<"Farmacia"> | Date | string
   dataAtualizacao?: Prisma.DateTimeWithAggregatesFilter<"Farmacia"> | Date | string
+  autoridadeCatalogo?: Prisma.BoolWithAggregatesFilter<"Farmacia"> | boolean
   useMovimentosCanonical?: Prisma.BoolWithAggregatesFilter<"Farmacia"> | boolean
 }
 
@@ -382,6 +394,7 @@ export type FarmaciaCreateInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -424,6 +437,7 @@ export type FarmaciaUncheckedCreateInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -466,6 +480,7 @@ export type FarmaciaUpdateInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -508,6 +523,7 @@ export type FarmaciaUncheckedUpdateInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -550,6 +566,7 @@ export type FarmaciaCreateManyInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
 }
 
@@ -563,6 +580,7 @@ export type FarmaciaUpdateManyMutationInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
@@ -576,6 +594,7 @@ export type FarmaciaUncheckedUpdateManyInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
 }
 
@@ -594,6 +613,7 @@ export type FarmaciaCountOrderByAggregateInput = {
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  autoridadeCatalogo?: Prisma.SortOrder
   useMovimentosCanonical?: Prisma.SortOrder
 }
 
@@ -607,6 +627,7 @@ export type FarmaciaMaxOrderByAggregateInput = {
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  autoridadeCatalogo?: Prisma.SortOrder
   useMovimentosCanonical?: Prisma.SortOrder
 }
 
@@ -620,6 +641,7 @@ export type FarmaciaMinOrderByAggregateInput = {
   dataAdesao?: Prisma.SortOrder
   dataCriacao?: Prisma.SortOrder
   dataAtualizacao?: Prisma.SortOrder
+  autoridadeCatalogo?: Prisma.SortOrder
   useMovimentosCanonical?: Prisma.SortOrder
 }
 
@@ -1048,6 +1070,7 @@ export type FarmaciaCreateWithoutIngestProdutoRunsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1089,6 +1112,7 @@ export type FarmaciaUncheckedCreateWithoutIngestProdutoRunsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1146,6 +1170,7 @@ export type FarmaciaUpdateWithoutIngestProdutoRunsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -1187,6 +1212,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestProdutoRunsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1228,6 +1254,7 @@ export type FarmaciaCreateWithoutCompraDocumentosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1269,6 +1296,7 @@ export type FarmaciaUncheckedCreateWithoutCompraDocumentosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1326,6 +1354,7 @@ export type FarmaciaUpdateWithoutCompraDocumentosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -1367,6 +1396,7 @@ export type FarmaciaUncheckedUpdateWithoutCompraDocumentosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1408,6 +1438,7 @@ export type FarmaciaCreateWithoutFornecedorErpRefsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1449,6 +1480,7 @@ export type FarmaciaUncheckedCreateWithoutFornecedorErpRefsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1506,6 +1538,7 @@ export type FarmaciaUpdateWithoutFornecedorErpRefsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -1547,6 +1580,7 @@ export type FarmaciaUncheckedUpdateWithoutFornecedorErpRefsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1588,6 +1622,7 @@ export type FarmaciaCreateWithoutEmailConfigInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1629,6 +1664,7 @@ export type FarmaciaUncheckedCreateWithoutEmailConfigInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1686,6 +1722,7 @@ export type FarmaciaUpdateWithoutEmailConfigInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -1727,6 +1764,7 @@ export type FarmaciaUncheckedUpdateWithoutEmailConfigInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1768,6 +1806,7 @@ export type FarmaciaCreateWithoutUtilizadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1809,6 +1848,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -1866,6 +1906,7 @@ export type FarmaciaUpdateWithoutUtilizadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -1907,6 +1948,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -1948,6 +1990,7 @@ export type FarmaciaCreateWithoutUtilizadoresExtraInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -1989,6 +2032,7 @@ export type FarmaciaUncheckedCreateWithoutUtilizadoresExtraInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2046,6 +2090,7 @@ export type FarmaciaUpdateWithoutUtilizadoresExtraInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2087,6 +2132,7 @@ export type FarmaciaUncheckedUpdateWithoutUtilizadoresExtraInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   produtosFarmacia?: Prisma.ProdutoFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2128,6 +2174,7 @@ export type FarmaciaCreateWithoutProdutosFarmaciaInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -2169,6 +2216,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosFarmaciaInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2226,6 +2274,7 @@ export type FarmaciaUpdateWithoutProdutosFarmaciaInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2267,6 +2316,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosFarmaciaInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2308,6 +2358,7 @@ export type FarmaciaCreateWithoutProdutosInternosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -2349,6 +2400,7 @@ export type FarmaciaUncheckedCreateWithoutProdutosInternosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2406,6 +2458,7 @@ export type FarmaciaUpdateWithoutProdutosInternosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2447,6 +2500,7 @@ export type FarmaciaUncheckedUpdateWithoutProdutosInternosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2488,6 +2542,7 @@ export type FarmaciaCreateWithoutVendasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -2529,6 +2584,7 @@ export type FarmaciaUncheckedCreateWithoutVendasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2586,6 +2642,7 @@ export type FarmaciaUpdateWithoutVendasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2627,6 +2684,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2668,6 +2726,7 @@ export type FarmaciaCreateWithoutVendasMensaisInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -2709,6 +2768,7 @@ export type FarmaciaUncheckedCreateWithoutVendasMensaisInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2766,6 +2826,7 @@ export type FarmaciaUpdateWithoutVendasMensaisInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2807,6 +2868,7 @@ export type FarmaciaUncheckedUpdateWithoutVendasMensaisInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -2848,6 +2910,7 @@ export type FarmaciaCreateWithoutVendaManutencaoCelulasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -2889,6 +2952,7 @@ export type FarmaciaUncheckedCreateWithoutVendaManutencaoCelulasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -2946,6 +3010,7 @@ export type FarmaciaUpdateWithoutVendaManutencaoCelulasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -2987,6 +3052,7 @@ export type FarmaciaUncheckedUpdateWithoutVendaManutencaoCelulasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3028,6 +3094,7 @@ export type FarmaciaCreateWithoutVendaManutencaoFarmaciasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3069,6 +3136,7 @@ export type FarmaciaUncheckedCreateWithoutVendaManutencaoFarmaciasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -3126,6 +3194,7 @@ export type FarmaciaUpdateWithoutVendaManutencaoFarmaciasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -3167,6 +3236,7 @@ export type FarmaciaUncheckedUpdateWithoutVendaManutencaoFarmaciasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3208,6 +3278,7 @@ export type FarmaciaCreateWithoutComprasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3249,6 +3320,7 @@ export type FarmaciaUncheckedCreateWithoutComprasInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -3306,6 +3378,7 @@ export type FarmaciaUpdateWithoutComprasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -3347,6 +3420,7 @@ export type FarmaciaUncheckedUpdateWithoutComprasInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3388,6 +3462,7 @@ export type FarmaciaCreateWithoutDevolucoesInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3429,6 +3504,7 @@ export type FarmaciaUncheckedCreateWithoutDevolucoesInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -3486,6 +3562,7 @@ export type FarmaciaUpdateWithoutDevolucoesInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -3527,6 +3604,7 @@ export type FarmaciaUncheckedUpdateWithoutDevolucoesInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3568,6 +3646,7 @@ export type FarmaciaCreateWithoutHistoricoStocksInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3609,6 +3688,7 @@ export type FarmaciaUncheckedCreateWithoutHistoricoStocksInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -3666,6 +3746,7 @@ export type FarmaciaUpdateWithoutHistoricoStocksInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -3707,6 +3788,7 @@ export type FarmaciaUncheckedUpdateWithoutHistoricoStocksInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3748,6 +3830,7 @@ export type FarmaciaCreateWithoutAjustesStockInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3789,6 +3872,7 @@ export type FarmaciaUncheckedCreateWithoutAjustesStockInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -3846,6 +3930,7 @@ export type FarmaciaUpdateWithoutAjustesStockInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -3887,6 +3972,7 @@ export type FarmaciaUncheckedUpdateWithoutAjustesStockInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -3928,6 +4014,7 @@ export type FarmaciaCreateWithoutInventariosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -3969,6 +4056,7 @@ export type FarmaciaUncheckedCreateWithoutInventariosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4026,6 +4114,7 @@ export type FarmaciaUpdateWithoutInventariosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4067,6 +4156,7 @@ export type FarmaciaUncheckedUpdateWithoutInventariosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -4108,6 +4198,7 @@ export type FarmaciaCreateWithoutIndicadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -4149,6 +4240,7 @@ export type FarmaciaUncheckedCreateWithoutIndicadoresInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4206,6 +4298,7 @@ export type FarmaciaUpdateWithoutIndicadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4247,6 +4340,7 @@ export type FarmaciaUncheckedUpdateWithoutIndicadoresInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -4288,6 +4382,7 @@ export type FarmaciaCreateWithoutListasEncomendaInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -4329,6 +4424,7 @@ export type FarmaciaUncheckedCreateWithoutListasEncomendaInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4386,6 +4482,7 @@ export type FarmaciaUpdateWithoutListasEncomendaInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4427,6 +4524,7 @@ export type FarmaciaUncheckedUpdateWithoutListasEncomendaInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -4468,6 +4566,7 @@ export type FarmaciaCreateWithoutTransferenciasOrigemInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -4509,6 +4608,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasOrigemInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4555,6 +4655,7 @@ export type FarmaciaCreateWithoutTransferenciasDestinoInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -4596,6 +4697,7 @@ export type FarmaciaUncheckedCreateWithoutTransferenciasDestinoInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4653,6 +4755,7 @@ export type FarmaciaUpdateWithoutTransferenciasOrigemInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4694,6 +4797,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasOrigemInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -4746,6 +4850,7 @@ export type FarmaciaUpdateWithoutTransferenciasDestinoInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4787,6 +4892,7 @@ export type FarmaciaUncheckedUpdateWithoutTransferenciasDestinoInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -4828,6 +4934,7 @@ export type FarmaciaCreateWithoutLotesIngestaoInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -4869,6 +4976,7 @@ export type FarmaciaUncheckedCreateWithoutLotesIngestaoInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -4926,6 +5034,7 @@ export type FarmaciaUpdateWithoutLotesIngestaoInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -4967,6 +5076,7 @@ export type FarmaciaUncheckedUpdateWithoutLotesIngestaoInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5008,6 +5118,7 @@ export type FarmaciaCreateWithoutIngestVendasLinhasRawInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5049,6 +5160,7 @@ export type FarmaciaUncheckedCreateWithoutIngestVendasLinhasRawInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -5106,6 +5218,7 @@ export type FarmaciaUpdateWithoutIngestVendasLinhasRawInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -5147,6 +5260,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestVendasLinhasRawInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5188,6 +5302,7 @@ export type FarmaciaCreateWithoutStagingComprasRawLinesInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5229,6 +5344,7 @@ export type FarmaciaUncheckedCreateWithoutStagingComprasRawLinesInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -5286,6 +5402,7 @@ export type FarmaciaUpdateWithoutStagingComprasRawLinesInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -5327,6 +5444,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingComprasRawLinesInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5368,6 +5486,7 @@ export type FarmaciaCreateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5409,6 +5528,7 @@ export type FarmaciaUncheckedCreateWithoutStagingDevolucoesFornecedorRawLinesInp
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -5466,6 +5586,7 @@ export type FarmaciaUpdateWithoutStagingDevolucoesFornecedorRawLinesInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -5507,6 +5628,7 @@ export type FarmaciaUncheckedUpdateWithoutStagingDevolucoesFornecedorRawLinesInp
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5548,6 +5670,7 @@ export type FarmaciaCreateWithoutPipelineRunsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5589,6 +5712,7 @@ export type FarmaciaUncheckedCreateWithoutPipelineRunsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -5646,6 +5770,7 @@ export type FarmaciaUpdateWithoutPipelineRunsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -5687,6 +5812,7 @@ export type FarmaciaUncheckedUpdateWithoutPipelineRunsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5728,6 +5854,7 @@ export type FarmaciaCreateWithoutSyncRequestsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5769,6 +5896,7 @@ export type FarmaciaUncheckedCreateWithoutSyncRequestsInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -5826,6 +5954,7 @@ export type FarmaciaUpdateWithoutSyncRequestsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -5867,6 +5996,7 @@ export type FarmaciaUncheckedUpdateWithoutSyncRequestsInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -5908,6 +6038,7 @@ export type FarmaciaCreateWithoutMovimentosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -5949,6 +6080,7 @@ export type FarmaciaUncheckedCreateWithoutMovimentosInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -6006,6 +6138,7 @@ export type FarmaciaUpdateWithoutMovimentosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -6047,6 +6180,7 @@ export type FarmaciaUncheckedUpdateWithoutMovimentosInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -6088,6 +6222,7 @@ export type FarmaciaCreateWithoutIngestStocksMovRawInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaCreateNestedManyWithoutFarmaciaInput
@@ -6129,6 +6264,7 @@ export type FarmaciaUncheckedCreateWithoutIngestStocksMovRawInput = {
   dataAdesao?: Date | string
   dataCriacao?: Date | string
   dataAtualizacao?: Date | string
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: Prisma.UtilizadorUncheckedCreateNestedManyWithoutFarmaciaInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedCreateNestedManyWithoutFarmaciaInput
@@ -6186,6 +6322,7 @@ export type FarmaciaUpdateWithoutIngestStocksMovRawInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUpdateManyWithoutFarmaciaNestedInput
@@ -6227,6 +6364,7 @@ export type FarmaciaUncheckedUpdateWithoutIngestStocksMovRawInput = {
   dataAdesao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataCriacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   dataAtualizacao?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  autoridadeCatalogo?: Prisma.BoolFieldUpdateOperationsInput | boolean
   useMovimentosCanonical?: Prisma.BoolFieldUpdateOperationsInput | boolean
   utilizadores?: Prisma.UtilizadorUncheckedUpdateManyWithoutFarmaciaNestedInput
   utilizadoresExtra?: Prisma.UtilizadorFarmaciaUncheckedUpdateManyWithoutFarmaciaNestedInput
@@ -6542,6 +6680,7 @@ export type FarmaciaSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   dataAdesao?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
   utilizadores?: boolean | Prisma.Farmacia$utilizadoresArgs<ExtArgs>
   utilizadoresExtra?: boolean | Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>
@@ -6585,6 +6724,7 @@ export type FarmaciaSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   dataAdesao?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
 }, ExtArgs["result"]["farmacia"]>
 
@@ -6598,6 +6738,7 @@ export type FarmaciaSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   dataAdesao?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
 }, ExtArgs["result"]["farmacia"]>
 
@@ -6611,10 +6752,11 @@ export type FarmaciaSelectScalar = {
   dataAdesao?: boolean
   dataCriacao?: boolean
   dataAtualizacao?: boolean
+  autoridadeCatalogo?: boolean
   useMovimentosCanonical?: boolean
 }
 
-export type FarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nome" | "codigoANF" | "morada" | "contacto" | "estado" | "dataAdesao" | "dataCriacao" | "dataAtualizacao" | "useMovimentosCanonical", ExtArgs["result"]["farmacia"]>
+export type FarmaciaOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "nome" | "codigoANF" | "morada" | "contacto" | "estado" | "dataAdesao" | "dataCriacao" | "dataAtualizacao" | "autoridadeCatalogo" | "useMovimentosCanonical", ExtArgs["result"]["farmacia"]>
 export type FarmaciaInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   utilizadores?: boolean | Prisma.Farmacia$utilizadoresArgs<ExtArgs>
   utilizadoresExtra?: boolean | Prisma.Farmacia$utilizadoresExtraArgs<ExtArgs>
@@ -6693,6 +6835,22 @@ export type $FarmaciaPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     dataAdesao: Date
     dataCriacao: Date
     dataAtualizacao: Date
+    /**
+     * Farmácia cuja origem ERP é AUTORITATIVA para os campos de catálogo
+     * partilhados do tenant (hoje só Produto.fabricanteId — ver
+     * lib/ingest/catalog-from-erp.ts). Genérico e por-tenant: nada aqui
+     * depende do nome da farmácia nem do slug do tenant. Default `false`
+     * preserva o comportamento histórico para todos os tenants que nunca
+     * configurarem isto — todas as farmácias continuam simétricas, cada
+     * uma com o seu próprio baseline por-farmácia+CNP.
+     * 
+     * No máximo UMA farmácia por tenant deve ter isto a `true`. Reforçado
+     * em código (setFarmaciaAutoridadeCatalogo, lib/farmacia-catalogo.ts),
+     * nunca por constraint de BD — um índice único parcial exigiria uma
+     * migração mais arriscada num schema já em produção, e o código já
+     * garante unicidade dentro de uma transacção.
+     */
+    autoridadeCatalogo: boolean
     /**
      * OBSOLETA desde 2026-08-18 — já NÃO escolhe fonte nenhuma.
      * 
@@ -7170,6 +7328,7 @@ export interface FarmaciaFieldRefs {
   readonly dataAdesao: Prisma.FieldRef<"Farmacia", 'DateTime'>
   readonly dataCriacao: Prisma.FieldRef<"Farmacia", 'DateTime'>
   readonly dataAtualizacao: Prisma.FieldRef<"Farmacia", 'DateTime'>
+  readonly autoridadeCatalogo: Prisma.FieldRef<"Farmacia", 'Boolean'>
   readonly useMovimentosCanonical: Prisma.FieldRef<"Farmacia", 'Boolean'>
 }
     

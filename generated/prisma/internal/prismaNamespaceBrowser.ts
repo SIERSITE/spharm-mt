@@ -530,6 +530,7 @@ export const FarmaciaScalarFieldEnum = {
   dataAdesao: 'dataAdesao',
   dataCriacao: 'dataCriacao',
   dataAtualizacao: 'dataAtualizacao',
+  autoridadeCatalogo: 'autoridadeCatalogo',
   useMovimentosCanonical: 'useMovimentosCanonical'
 } as const
 

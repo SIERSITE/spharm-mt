@@ -69,8 +69,19 @@ class MundoFalso {
   produtos: ProdutoRow[] = [];
   pf: PfRow[] = [];
   fabricantes = new Map<string, string>(); // nomeNormalizado -> id
+  aliases = new Map<string, string>(); // aliasNome -> fabricanteId
+  /** `null` = sem autoridade de catálogo configurada (comportamento histórico, todos os tenants por defeito). */
+  autoridadeFarmaciaId: string | null = null;
   calls = { produtoUpdate: 0, logCreate: 0, pfUpsert: 0, fabricanteUpsert: 0 };
   private fabSeq = 0;
+
+  definirAutoridade(farmaciaId: string | null): void {
+    this.autoridadeFarmaciaId = farmaciaId;
+  }
+
+  registarAlias(aliasNome: string, fabricanteId: string): void {
+    this.aliases.set(aliasNome, fabricanteId);
+  }
 
   addProduto(p: Partial<ProdutoRow> & { id: string; cnp: number }): ProdutoRow {
     const row: ProdutoRow = {
@@ -167,10 +178,14 @@ class MundoFalso {
         },
       },
       fabricante: {
-        findMany: async (args: { where: { nomeNormalizado: { in: string[] } } }) =>
-          args.where.nomeNormalizado.in
-            .filter((n) => this.fabricantes.has(n))
-            .map((n) => ({ id: this.fabricantes.get(n)!, nomeNormalizado: n })),
+        findMany: async (args: { where: { nomeNormalizado: { in: string[] } } | { autoridadeCatalogo: true } }) => {
+          if ("nomeNormalizado" in args.where) {
+            return args.where.nomeNormalizado.in
+              .filter((n) => this.fabricantes.has(n))
+              .map((n) => ({ id: this.fabricantes.get(n)!, nomeNormalizado: n }));
+          }
+          return [];
+        },
         upsert: async (args: { where: { nomeNormalizado: string } }) => {
           this.calls.fabricanteUpsert++;
           let id = this.fabricantes.get(args.where.nomeNormalizado);
@@ -179,6 +194,18 @@ class MundoFalso {
             this.fabricantes.set(args.where.nomeNormalizado, id);
           }
           return { id };
+        },
+      },
+      fabricanteAlias: {
+        findMany: async (args: { where: { aliasNome: { in: string[] } } }) =>
+          args.where.aliasNome.in
+            .filter((n) => this.aliases.has(n))
+            .map((n) => ({ aliasNome: n, fabricanteId: this.aliases.get(n)! })),
+      },
+      farmacia: {
+        findMany: async (args: { where: { autoridadeCatalogo: true } }) => {
+          void args;
+          return this.autoridadeFarmaciaId ? [{ id: this.autoridadeFarmaciaId, nome: "Farmácia Autoritativa Teste" }] : [];
         },
       },
     };
@@ -406,11 +433,112 @@ async function testProtecaoEmMassa(): Promise<void> {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 9. Farmácia autoritativa de catálogo — caso real Silveirense/Segurado
+//    (CNP 5589312, "GENERIS DIRECTO" → canónico "Generis Farmacêutica,
+//    S.A. Portugal"). Cobre os 12 cenários pedidos.
+// ─────────────────────────────────────────────────────────────────────────
+
+async function testFarmaciaAutoridadeCatalogo(): Promise<void> {
+  console.log("\n=== 9. Farmácia autoritativa de catálogo (caso real Silveirense/Segurado) ===");
+
+  const FARM_SILVEIRENSE = "farm-silveirense";
+  const FARM_SEGURADO = "farm-segurado";
+  const CNP = 5589312;
+  const GENERIS_CANONICO = "GENERIS FARMACEUTICA S A PORTUGAL";
+
+  const mundo = new MundoFalso();
+  mundo.definirAutoridade(FARM_SILVEIRENSE);
+  // O canónico já existe (criado por outra via — revisão manual, xlsx,
+  // etc.) com "GENERIS DIRECTO" registado como alias seu — é isto que o
+  // enunciado descreve como "o valor recebido pode ser normalizado".
+  mundo.fabricantes.set(GENERIS_CANONICO, "fab-generis-canonico");
+  mundo.registarAlias("GENERIS DIRECTO", "fab-generis-canonico");
+
+  // 1. Produto começa com fabricante DIFERENTE (nunca null — cenário mais rigoroso).
+  mundo.addProduto({ id: "p-5589312", cnp: CNP, fabricanteId: "fab-antigo-errado", fabricanteNome: "OUTRO FABRICANTE ANTIGO LDA" });
+  mundo.fabricantes.set("OUTRO FABRICANTE ANTIGO LDA", "fab-antigo-errado");
+
+  // 2. Silveirense (autoridade) envia "Generis Directo".
+  const linhas = [linha(CNP, "Generis Directo")];
+  const res1 = await applyErpCatalogFields(mundo.prisma(), linhas, FARM_SILVEIRENSE);
+
+  // 3. O resolver reutiliza o canónico Generis já existente via alias — nunca cria "GENERIS DIRECTO" como Fabricante literal.
+  ok("3. resolve via alias para o canónico Generis existente, nunca cria um Fabricante literal 'GENERIS DIRECTO'", !mundo.fabricantes.has("GENERIS DIRECTO"));
+  eq("3b. zero fabricante.upsert (o canónico e o alias já existiam)", mundo.calls.fabricanteUpsert, 0);
+
+  // 4. Produto.fabricanteId é actualizado para o canónico.
+  const p1 = mundo.produtos.find((p) => p.id === "p-5589312")!;
+  eq("4. Produto.fabricanteId actualizado para o Fabricante canónico Generis", p1.fabricanteId, "fab-generis-canonico");
+
+  // 5. A ficha comum às duas farmácias mostra Generis — é o MESMO Produto,
+  //    partilhado; não há "ficha da Segurado" separada para fabricante.
+  eq("5. a ficha (Produto, comum às duas farmácias) mostra o nome canónico Generis", p1.fabricanteNome, GENERIS_CANONICO);
+
+  // 6. O contador indica UMA alteração.
+  eq("6. contador fabricantesAlterados = 1 (preenchidos+substituidos)", res1.preenchidos.fabricante + res1.substituidos.fabricante, 1);
+
+  // 7. Repetir o MESMO payload é idempotente — zero alterações.
+  const chamadasUpdateAntesRepeticao = mundo.calls.produtoUpdate;
+  const res2 = await applyErpCatalogFields(mundo.prisma(), linhas, FARM_SILVEIRENSE);
+  eq("7. repetição — fabricantesAlterados = 0", res2.preenchidos.fabricante + res2.substituidos.fabricante, 0);
+  eq("7b. repetição — zero produto.update adicional", mundo.calls.produtoUpdate, chamadasUpdateAntesRepeticao);
+  eq("7c. repetição — Produto.fabricanteId continua Generis", mundo.produtos.find((p) => p.id === "p-5589312")!.fabricanteId, "fab-generis-canonico");
+
+  // 8. Segurado envia um fabricante DIFERENTE.
+  const linhasSegurado = [linha(CNP, "Outro Fabricante Segurado Lda")];
+  const res3 = await applyErpCatalogFields(mundo.prisma(), linhasSegurado, FARM_SEGURADO);
+
+  // 9. O valor local da Segurado fica registado (ProdutoFarmacia), mas NÃO altera o fabricante global.
+  const pfSegurado = mundo.pfFor("p-5589312", FARM_SEGURADO);
+  eq("9. ProdutoFarmacia (Segurado) guarda o valor ERP local dela", pfSegurado?.fabricanteErpAtual, "OUTRO FABRICANTE SEGURADO LDA");
+  eq("9b. Produto.fabricanteId permanece Generis — Segurado nunca substitui a autoridade", mundo.produtos.find((p) => p.id === "p-5589312")!.fabricanteId, "fab-generis-canonico");
+  eq("9c. contador fabricantesAlterados = 0 (Segurado é só informação local)", res3.preenchidos.fabricante + res3.substituidos.fabricante, 0);
+  eq("9d. contado como preservado, não como substituição", res3.preservados.fabricante, 1);
+
+  // 10. Nova sincronização da Silveirense continua a prevalecer — mesmo
+  //     que ALGO tenha alterado Produto.fabricanteId entretanto (ex.:
+  //     uma acção administrativa directa), a autoridade REAFIRMA o
+  //     valor correcto na próxima corrida, porque compara sempre contra
+  //     o catálogo ACTUAL, nunca só contra a sua própria história.
+  const pAlterado = mundo.produtos.find((p) => p.id === "p-5589312")!;
+  pAlterado.fabricanteId = "fab-antigo-errado";
+  pAlterado.fabricanteNome = "OUTRO FABRICANTE ANTIGO LDA";
+  const res4 = await applyErpCatalogFields(mundo.prisma(), linhas, FARM_SILVEIRENSE);
+  eq("10. Silveirense reafirma Generis mesmo depois de uma alteração externa", mundo.produtos.find((p) => p.id === "p-5589312")!.fabricanteId, "fab-generis-canonico");
+  eq("10b. contador regista a reafirmação como alteração real", res4.preenchidos.fabricante + res4.substituidos.fabricante, 1);
+
+  // 12. Campos manuais continuam protegidos — mesmo a autoridade não pode passar por cima de validadoManualmente.
+  const pManual = mundo.addProduto({ id: "p-manual", cnp: 5589313, fabricanteId: "fab-antigo-errado", fabricanteNome: "OUTRO FABRICANTE ANTIGO LDA", validadoManualmente: true });
+  const res5 = await applyErpCatalogFields(mundo.prisma(), [linha(5589313, "Generis Directo")], FARM_SILVEIRENSE);
+  eq("12. validadoManualmente bloqueia mesmo a autoridade de catálogo", mundo.produtos.find((p) => p.id === "p-manual")!.fabricanteId, "fab-antigo-errado");
+  eq("12b. contador não regista alteração nenhuma", res5.preenchidos.fabricante + res5.substituidos.fabricante, 0);
+  void pManual;
+
+  // 11. Tenants/farmácias SEM autoridade configurada permanecem inalterados
+  //     — mundo SEPARADO, nunca chama definirAutoridade (comportamento
+  //     histórico simétrico, o mesmo já coberto pelos blocos 1-8 acima).
+  {
+    const mundoSemAutoridade = new MundoFalso();
+    mundoSemAutoridade.addProduto({ id: "p-outro-tenant-a", cnp: 6000099, fabricanteId: null });
+    mundoSemAutoridade.addProduto({ id: "p-outro-tenant-b", cnp: 6000098, fabricanteId: null });
+    const rA = await applyErpCatalogFields(mundoSemAutoridade.prisma(), [linha(6000099, "Fabricante Qualquer Lda")], "farm-qualquer-a");
+    eq("11. sem autoridade configurada — farmácia A escreve normalmente (comportamento histórico)", rA.preenchidos.fabricante, 1);
+    // CNP DIFERENTE, para provar simetria (nenhuma farmácia privilegiada)
+    // sem tropeçar na protecção histórica "1º ciclo nunca substitui um
+    // valor já preenchido por outra farmácia" — essa protecção já
+    // existia antes desta correcção e continua correcta.
+    const rB = await applyErpCatalogFields(mundoSemAutoridade.prisma(), [linha(6000098, "Fabricante Diferente Lda")], "farm-qualquer-b");
+    eq("11b. sem autoridade configurada — farmácia B TAMBÉM escreve normalmente (nenhuma farmácia privilegiada)", rB.preenchidos.fabricante, 1);
+  }
+}
+
 async function main() {
   testDecidirFabricanteBaselinePuro();
   await testCiclosSucessivos();
   await testIsoladoPorFarmacia();
   await testProtecaoEmMassa();
+  await testFarmaciaAutoridadeCatalogo();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);
