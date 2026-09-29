@@ -165,7 +165,7 @@ async function main() {
     console.log("\nG · modo transacional — dry-run contra Postgres REAL: zero escritas");
     {
       const pDry = await prisma.produto.create({ data: { cnp: 6100001, designacao: "Produto Dry-Run Transacional" } });
-      await prisma.regulatoryRecord.create({ data: { cnp: 6100001, titularAim: "Fabricante Dry Run Transacional Lda", estadoAim: "Autorizado", source: "test" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6100001, titularAim: "Zenta Dry Run Transacional Lda", estadoAim: "Autorizado", source: "test" } });
 
       const antesFab = await prisma.fabricante.count();
       const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pDry.id], dryRun: true });
@@ -183,8 +183,14 @@ async function main() {
 
     console.log("\nH · modo transacional — apply real: cria fabricante novo + alias (plano curado) numa ÚNICA transacção");
     {
-      const canonico = "Fabricante Canonico Via Plano Lda";
-      const origem = "Fabricante Nome Antigo Via Plano Lda";
+      // Marca "Zorion..." em vez de "Fabricante..." de propósito: o
+      // ficheiro tem VÁRIOS blocos síncronos na MESMA base contínua e
+      // "Fabricante" como primeiro token colidiria com outra fixture
+      // deste ficheiro (ex.: bloco G) na regra 4-bis (correspondência
+      // textual, porta do primeiro token) — descoberto por um FALHA real
+      // deste próprio teste ao introduzir essa regra.
+      const canonico = "Zorion Canonico Via Plano Lda";
+      const origem = "Zorion Nome Antigo Via Plano Lda";
       const mapeamentoCurado = new Map([[normalizarTitularAimGarantia(origem)!, normalizarTitularAimGarantia(canonico)!]]);
 
       const pCanonico = await prisma.produto.create({ data: { cnp: 6200001, designacao: "Produto Canonico Plano" } });
@@ -287,19 +293,26 @@ async function main() {
       check(totalFabricantesK === 2, "K3: continuam a existir só os 2 Fabricante que já existiam — nenhum a mais");
     }
 
-    console.log("\nL · caso REAL Pharmakern com o TEXTO EXACTO do crawl INFOMED — resolve por evidência de portefólio, não por prefixo");
+    console.log("\nL · caso REAL Pharmakern com o TEXTO EXACTO do crawl INFOMED — a regra 4-bis (correspondência textual) resolve directamente, sem precisar de evidência de portefólio");
     {
       // Texto EXACTO devolvido pelo INFOMED real (scripts/data/infomed-
       // listagem-details.json, medId 603905) para CNP 5701651/5768510 —
       // note o HÍFEN depois de "Portugal", que `normalizarTitularAimGarantia`
       // preserva (é um carácter válido em denominações sociais). Esse
-      // hífen sobrevive à normalização e QUEBRA o prefixo por caracteres
-      // contra "PHARMAKERN PORTUGAL PRODUTOS FARMACEUTICOS SOCIE" (o
-      // nome truncado real, sem hífen) — a regra 4 NÃO dispara aqui. A
-      // regra 5 (evidência de portefólio) resolve na mesma, porque em
-      // produção já existem outros produtos Pharmakern reais associados
-      // ao MESMO Fabricante truncado — simulado abaixo com 2 produtos
-      // JÁ resolvidos para esse Fabricante, antes do CNP novo entrar.
+      // hífen sobrevive à normalização e QUEBRA o prefixo por CARACTERES
+      // contra "PHARMAKERN PORTUGAL PRODUTOS FARMACEUTICOS SOCIE" (o nome
+      // truncado real, sem hífen) — a regra 4 NÃO dispara aqui.
+      //
+      // Antes da regra 4-bis (correspondência textual aproximada por
+      // TOKENS, ver bloqueador real "Ferring/Labialfarma") existir, era a
+      // regra 5 (evidência de portefólio) que resolvia este caso — e só
+      // porque OUTROS produtos Pharmakern já resolvidos existiam. A regra
+      // 4-bis trata o hífen como um SEPARADOR de token (não como parte da
+      // palavra), por isso agora resolve DIRECTAMENTE pelo nome do
+      // Fabricante, mesmo sem nenhuma evidência de portefólio — mais
+      // forte e mais geral. Os 2 produtos "já resolvidos" abaixo ficam
+      // como prova de que a evidência CONTINUARIA a resolver isto na
+      // mesma (ver a asserção L2b), não como o único caminho.
       const titularInfomedReal = "Pharmakern Portugal - Produtos Farmacêuticos, Sociedade Unipessoal, Lda.";
       const truncadoReal = await prisma.fabricante.create({ data: { nomeNormalizado: "PHARMAKERN PORTUGAL PRODUTOS FARMACEUTICOS SOCIE" } });
       const pJaResolvido1 = await prisma.produto.create({ data: { cnp: 5768510, designacao: "Tadalafil Pharmakern 20 Mg 12 Comp.", fabricanteId: truncadoReal.id } });
@@ -312,7 +325,7 @@ async function main() {
 
       const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovoReal.id] });
       check(r.resolvidosPorPrefixo === 0, "L1: a regra de prefixo NÃO dispara com o texto exacto real (o hífen quebra a igualdade de caracteres)", JSON.stringify(r));
-      check(r.resolvidosPorEvidenciaPortfolio === 1, "L2: mas a regra de evidência de portefólio resolve na mesma, com dados reais agregados em Postgres", JSON.stringify(r));
+      check(r.resolvidosPorCorrespondenciaTextual === 1, "L2: a regra 4-bis (correspondência textual, hífen tratado como separador de token) resolve directamente pelo nome do Fabricante — já não precisa da evidência de portefólio para este caso real", JSON.stringify(r));
       const pNovoRealDb = await prisma.produto.findUnique({ where: { id: pNovoReal.id }, select: { fabricanteId: true } });
       check(pNovoRealDb?.fabricanteId === truncadoReal.id, "L3: associado ao MESMO Fabricante truncado real — nunca um terceiro Pharmakern");
     }
@@ -387,27 +400,34 @@ async function main() {
       check(fabricanteDepois?.aliases.length === 1, "N9: continua a existir EXACTAMENTE 1 FabricanteAlias depois da segunda corrida — zero duplicados");
     }
 
-    console.log("\nO · bloqueador 3 (correcção Labialfarma) contra Postgres REAL — empate de evidência NUNCA bloqueia a criação do fabricante legal explícito");
+    console.log("\nO · bloqueador 3 (padrão Labialfarma, sintético e deliberadamente SEM relação textual com a Labialfarma real de R abaixo) contra Postgres REAL — empate de evidência NUNCA bloqueia a criação do fabricante legal explícito");
     {
-      const fA = await prisma.fabricante.create({ data: { nomeNormalizado: "FARMODIETICA TESTE REAL LDA" } });
-      const fB = await prisma.fabricante.create({ data: { nomeNormalizado: "LABORATORIOS BASI TESTE REAL LDA" } });
-      const titularLabialfarma = "Labialfarma Laboratorio De Produtos Farmaceuticos E Nutraceuticos S A Teste Real";
+      // Marca "Vintera" (sintética, sem nenhuma relação com "Labialfarma")
+      // de propósito — este ficheiro tem VÁRIOS blocos na MESMA base
+      // contínua, e reutilizar a palavra "Labialfarma" aqui colidiria com
+      // o bloco R (REGRESSÃO Labialfarma real) via a regra 4-bis (o
+      // Fabricante aqui criado passaria a ser candidato forte para o
+      // titular real de R) — descoberto por uma FALHA real deste próprio
+      // teste ao introduzir essa regra.
+      const fA = await prisma.fabricante.create({ data: { nomeNormalizado: "CANDIDATO EVIDENCIA A TESTE REAL LDA" } });
+      const fB = await prisma.fabricante.create({ data: { nomeNormalizado: "CANDIDATO EVIDENCIA B TESTE REAL LDA" } });
+      const titularSintetico = "Vintera Laboratorio De Produtos Farmaceuticos E Nutraceuticos S A Teste Real";
 
-      const pJa1 = await prisma.produto.create({ data: { cnp: 6500001, designacao: "Labialfarma Ja 1", fabricanteId: fA.id } });
-      const pJa2 = await prisma.produto.create({ data: { cnp: 6500002, designacao: "Labialfarma Ja 2", fabricanteId: fB.id } });
-      const pNovo = await prisma.produto.create({ data: { cnp: 6500003, designacao: "Labialfarma Novo", tipoArtigo: "MEDICAMENTO" } });
+      const pJa1 = await prisma.produto.create({ data: { cnp: 6500001, designacao: "Vintera Ja 1", fabricanteId: fA.id } });
+      const pJa2 = await prisma.produto.create({ data: { cnp: 6500002, designacao: "Vintera Ja 2", fabricanteId: fB.id } });
+      const pNovo = await prisma.produto.create({ data: { cnp: 6500003, designacao: "Vintera Novo", tipoArtigo: "MEDICAMENTO" } });
       for (const p of [pJa1, pJa2, pNovo]) {
-        await prisma.regulatoryRecord.create({ data: { cnp: p.cnp, titularAim: titularLabialfarma, estadoAim: "Autorizado", source: "test" } });
+        await prisma.regulatoryRecord.create({ data: { cnp: p.cnp, titularAim: titularSintetico, estadoAim: "Autorizado", source: "test" } });
       }
 
       const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
       check(r.ambiguidades === 0, "O1: zero ambiguidades — o empate de evidência (fA vs fB) não bloqueia contra Postgres real", JSON.stringify(r.ambiguidadesDetalhe));
-      check(r.fabricantesCriados === 1, "O2: cria o fabricante legal Labialfarma", JSON.stringify({ fabricantesCriados: r.fabricantesCriados }));
+      check(r.fabricantesCriados === 1, "O2: cria o fabricante legal do titular", JSON.stringify({ fabricantesCriados: r.fabricantesCriados }));
       check(r.avisosEvidenciaEmpatada.length === 1 && r.avisosEvidenciaEmpatada[0]?.cnp === 6500003, "O3: o empate fica registado como aviso com o CNP real, não como bloqueio", JSON.stringify(r.avisosEvidenciaEmpatada));
 
       const pNovoDb = await prisma.produto.findUnique({ where: { id: pNovo.id }, select: { fabricanteId: true } });
       const fabricanteCriado = await prisma.fabricante.findUnique({ where: { id: pNovoDb!.fabricanteId! } });
-      check(fabricanteCriado?.nomeNormalizado === normalizarTitularAimGarantia(titularLabialfarma), "O4: o Fabricante criado é a Labialfarma real, nem fA nem fB", fabricanteCriado?.nomeNormalizado);
+      check(fabricanteCriado?.nomeNormalizado === normalizarTitularAimGarantia(titularSintetico), "O4: o Fabricante criado é o titular do padrão, nem fA nem fB", fabricanteCriado?.nomeNormalizado);
     }
 
     console.log("\nP · bloqueador 6/7 contra Postgres REAL — origem/ERP divergente entre farmácias nunca é escolhida arbitrariamente, mesmo com múltiplas linhas ProdutoFarmacia reais");
@@ -422,6 +442,107 @@ async function main() {
       check(r.semFonte.FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS === 1, "P1: motivo explícito de divergência contra Postgres real, nunca escolhe uma das duas farmácias arbitrariamente", JSON.stringify(r.semFonte));
       const p1Db = await prisma.produto.findUnique({ where: { id: p1.id }, select: { fabricanteId: true } });
       check(p1Db?.fabricanteId === null, "P2: fabricanteId continua null");
+    }
+
+    console.log("\nQ · regra 4-bis (correspondência textual) contra Postgres REAL — REGRESSÃO Ferring (6 linhas reais): nenhuma linha nova quando existe canonical compatível");
+    {
+      const nomes = {
+        pharmA: normalizarTitularAimGarantia("FERRING PHARMACEUTICALS A S")!,
+        // Nota real: "FERRING PORTUG - P F SOC UN" (0 produtos, id
+        // cmu6b9xfs09as01qmz3ud4ez1) e "FERRING PORTUG. - P.F. SOC. UN"
+        // (5 produtos) coexistem na Garantia como DUAS linhas Fabricante
+        // DISTINTAS — só possível porque, historicamente, cada uma foi
+        // gravada por um caminho de normalização diferente (ver
+        // lib/catalog-normalizers.ts vs. fabricante-normalizacao-
+        // garantia.ts). Aplicando `normalizarTitularAimGarantia` às DUAS
+        // aqui (a única normalização que este teste tem disponível), os
+        // pontos viram espaço e as duas colapsam na MESMA string — por
+        // isso o teste omite deliberadamente a variante de 0 produtos
+        // (sem valor informativo para a decisão) em vez de replicar uma
+        // colisão @unique que não reflectiria a causa real.
+        portug2: normalizarTitularAimGarantia("FERRING PORTUG. - P.F. SOC. UN")!,
+        portugCompleto: normalizarTitularAimGarantia("FERRING PORTUGUESA - PRODUTOS FARMACEUTICOS SOCIE")!,
+        // "FERRING S A U" (0 produtos) colapsaria na MESMA string que
+        // "FERRING S.A.U." pela mesma razão — omitido pelo mesmo motivo.
+        sau2: normalizarTitularAimGarantia("FERRING S.A.U.")!,
+      };
+      const fPharmA = await prisma.fabricante.create({ data: { nomeNormalizado: nomes.pharmA } });
+      const fPortug2 = await prisma.fabricante.create({ data: { nomeNormalizado: nomes.portug2 } });
+      const fPortugCompleto = await prisma.fabricante.create({ data: { nomeNormalizado: nomes.portugCompleto } });
+      const fSAU2 = await prisma.fabricante.create({ data: { nomeNormalizado: nomes.sau2 } });
+
+      // Evidência real: fPortug2 com 5 produtos, fSAU2 com 6, fPortugCompleto com 1.
+      const criarProdutosPara = async (fabricanteId: string, cnpInicial: number, n: number) => {
+        for (let i = 0; i < n; i++) await prisma.produto.create({ data: { cnp: cnpInicial + i, designacao: `Ferring existente ${cnpInicial + i}`, fabricanteId } });
+      };
+      await criarProdutosPara(fPharmA.id, 6600001, 1);
+      await criarProdutosPara(fPortug2.id, 6600010, 5);
+      await criarProdutosPara(fPortugCompleto.id, 6600020, 1);
+      await criarProdutosPara(fSAU2.id, 6600030, 6);
+
+      const fabricantesAntes = await prisma.fabricante.count();
+      const pNovo = await prisma.produto.create({ data: { cnp: 6600099, designacao: "Ferring produto novo real" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6600099, titularAim: "Ferring Portuguesa-Prod Farm, Soc.Unipessoal L.da", estadoAim: "Ativo", source: "test" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
+      check(r.resolvidosPorCorrespondenciaTextual === 1, "Q1: resolvido pela regra 4-bis contra Postgres real, agregando _count.produtos real", JSON.stringify({ resolvidosPorCorrespondenciaTextual: r.resolvidosPorCorrespondenciaTextual }));
+      const fabricantesDepois = await prisma.fabricante.count();
+      check(fabricantesDepois === fabricantesAntes, "Q2: ZERO Fabricante novo — nenhuma sétima linha Ferring criada", `antes=${fabricantesAntes} depois=${fabricantesDepois}`);
+      const pNovoDb = await prisma.produto.findUnique({ where: { id: pNovo.id }, select: { fabricanteId: true } });
+      check(pNovoDb?.fabricanteId === fPortug2.id, "Q3: associado à variante portuguesa com MAIS evidência REAL (5 produtos) — nunca à dinamarquesa nem à espanhola, nunca escolhido pelo primeiro resultado", pNovoDb?.fabricanteId ?? "null");
+
+      const rSegunda = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
+      check(rSegunda.jaTinhaFabricante === 1 && rSegunda.fabricantesCriados === 0, "Q4: segunda execução — zero escritas, intercetado no nível 1 do resolver (idempotência real)", JSON.stringify(rSegunda));
+      const fabricantesFinal = await prisma.fabricante.count();
+      check(fabricantesFinal === fabricantesAntes, "Q5: contagem de Fabricante continua igual depois da segunda execução");
+    }
+
+    console.log("\nR · regra 4-bis contra Postgres REAL — REGRESSÃO Labialfarma (2 linhas reais): nenhuma duplicação sem decisão explícita");
+    {
+      // "LABIALFARMA-PROD FARM NUT LDA" (0 produtos, id
+      // cmu6em2iv8s2201qmhtwwkmk3) e "LABIALFARMA-PROD FARM. NUT LDA" (1
+      // produto) colapsariam na MESMA string ao aplicar
+      // `normalizarTitularAimGarantia` (o ponto depois de "FARM" vira
+      // espaço) — mesma nota da Ferring (Q, acima): coexistem na
+      // Garantia por terem sido gravadas por caminhos de normalização
+      // diferentes; aqui mantém-se só a variante com 1 produto real.
+      const nomes = { l2: normalizarTitularAimGarantia("LABIALFARMA-PROD FARM. NUT LDA")! };
+      const fLabial2 = await prisma.fabricante.create({ data: { nomeNormalizado: nomes.l2 } });
+      await prisma.produto.create({ data: { cnp: 6600200, designacao: "Labialfarma existente", fabricanteId: fLabial2.id } });
+
+      const fabricantesAntes = await prisma.fabricante.count();
+      const pNovo = await prisma.produto.create({ data: { cnp: 6600299, designacao: "Labialfarma produto novo real" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6600299, titularAim: "LABIALFARMA - LABORATORIO DE PRODUTOS FARMACEUTICOS E NUTRACEUTICOS SA", estadoAim: "Ativo", source: "test" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pNovo.id] });
+      check(r.ambiguidades === 1 && r.ambiguidadesDetalhe[0]?.motivo === "candidatos_textuais_fracos", "R1: bloqueado para revisão contra Postgres real — sinal real (Lda) mas insuficiente contra o titular (SA)", JSON.stringify(r.ambiguidadesDetalhe));
+      const fabricantesDepois = await prisma.fabricante.count();
+      check(fabricantesDepois === fabricantesAntes, "R2: ZERO Fabricante novo — nenhuma terceira linha Labialfarma criada silenciosamente");
+      const pNovoDb = await prisma.produto.findUnique({ where: { id: pNovo.id }, select: { fabricanteId: true } });
+      check(pNovoDb?.fabricanteId === null, "R3: fabricanteId continua null — decisão explícita fica pendente, nunca escolhida sozinha");
+    }
+
+    console.log("\nS · regra 4-bis contra Postgres REAL — Expomedica/Inserpor: só criados se REALMENTE ausentes, e a segunda execução não duplica");
+    {
+      const titularExpomedica = "EXPOMEDICA - SOCIEDADE EXPORTADORA E IMPORTADORA DE MATERIAL MEDICO LDA";
+      const titularInserpor = "INSERPOR - COMERCIO DE PRODUTOS FARMACEUTICOS LDA";
+      await prisma.fabricante.create({ data: { nomeNormalizado: "BAYER PORTUGAL LDA" } });
+      await prisma.fabricante.create({ data: { nomeNormalizado: "SANDOZ FARMACEUTICA LDA" } });
+
+      const pExpo = await prisma.produto.create({ data: { cnp: 6600301, designacao: "Expomedica real" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6600301, titularAim: titularExpomedica, estadoAim: "Ativo", source: "test" } });
+      const pInserpor = await prisma.produto.create({ data: { cnp: 6600302, designacao: "Inserpor real" } });
+      await prisma.regulatoryRecord.create({ data: { cnp: 6600302, titularAim: titularInserpor, estadoAim: "Ativo", source: "test" } });
+
+      const r = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pExpo.id, pInserpor.id] });
+      check(r.fabricantesCriados === 2, "S1: sem nenhuma linha equivalente real na base, cria as DUAS — a busca textual nunca impede uma criação genuinamente nova", JSON.stringify({ fabricantesCriados: r.fabricantesCriados }));
+      check(r.ambiguidades === 0, "S2: zero ambiguidades — nenhum candidato textual plausível para nenhum dos dois");
+
+      const rSegunda = await reconciliarFabricantesPorCnpGarantiaTransacional(prisma, "garantia", { tipo: "produtos", produtoIds: [pExpo.id, pInserpor.id] });
+      check(rSegunda.fabricantesCriados === 0, "S3: segunda execução — zero fabricantes novos, nenhuma duplicação de Expomedica/Inserpor");
+      const totalExpomedica = await prisma.fabricante.count({ where: { nomeNormalizado: normalizarTitularAimGarantia(titularExpomedica)! } });
+      const totalInserpor = await prisma.fabricante.count({ where: { nomeNormalizado: normalizarTitularAimGarantia(titularInserpor)! } });
+      check(totalExpomedica === 1 && totalInserpor === 1, "S4: exactamente 1 linha para cada, nunca duplicada");
     }
 
     await prisma.$disconnect();

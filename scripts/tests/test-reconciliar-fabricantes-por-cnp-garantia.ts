@@ -103,7 +103,12 @@ function construirDelegates(
       },
     },
     fabricante: {
-      findMany: async () => fabricantes,
+      // `_count.produtos` — mesma forma que o Prisma real devolve com
+      // `select: { _count: { select: { produtos: true } } }` (ver
+      // carregarMapas). Contado a partir do array `produtos` ACTUAL
+      // (mutável), nunca cacheado — reflecte escritas já aplicadas
+      // dentro da MESMA corrida/transacção.
+      findMany: async () => fabricantes.map((f) => ({ ...f, _count: { produtos: produtos.filter((p) => p.fabricanteId === f.id).length } })),
       create: async (args: { data: { nomeNormalizado: string } }) => {
         talvezFalhar();
         const novo = { id: `fNovo${seq.n++}`, nomeNormalizado: args.data.nomeNormalizado };
@@ -770,6 +775,78 @@ async function principal() {
     const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["p1"] });
     eq(r.resolvidosPorNomeNormalizado, 1, "AA3: DUAS farmácias mas CONCORDAM depois de normalizar — resolve normalmente, nunca bloqueia por discordância inexistente");
     eq(produtos[0]?.fabricanteId, fabricantes[0]?.id, "AA4: fabricanteId gravado");
+  }
+
+  console.log("\nAB · regra 4-bis (correspondência textual) através do serviço completo — REGRESSÃO com os nomes REAIS da consulta à Garantia (Ferring 6 linhas)");
+  {
+    const fPharmA: FakeFabricante = { id: "cmtjw6ebr1zcd01thd2bftg2j", nomeNormalizado: normalizarTitularAimGarantia("FERRING PHARMACEUTICALS A S")! };
+    const fPortug1: FakeFabricante = { id: "cmu6b9xfs09as01qmz3ud4ez1", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUG - P F SOC UN")! };
+    const fPortug2: FakeFabricante = { id: "cmtjw2ece1nbx01th7axdvqio", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUG. - P.F. SOC. UN")! };
+    const fPortugCompleto: FakeFabricante = { id: "cmtl91qmldco201ny86owz0t2", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUGUESA - PRODUTOS FARMACEUTICOS SOCIE")! };
+    const fSAU1: FakeFabricante = { id: "cmu6bg6l10toj01qmpei3t6yd", nomeNormalizado: normalizarTitularAimGarantia("FERRING S A U")! };
+    const fSAU2: FakeFabricante = { id: "cmtjw5tl61x5701thc40am3fx", nomeNormalizado: normalizarTitularAimGarantia("FERRING S.A.U.")! };
+    // produtosAssociados real: fPortug2 tem 5 (o vencedor esperado).
+    const produtosExistentes = [
+      { id: "eA", cnp: 9700001, fabricanteId: fPharmA.id },
+      { id: "eB1", cnp: 9700002, fabricanteId: fPortug2.id }, { id: "eB2", cnp: 9700003, fabricanteId: fPortug2.id },
+      { id: "eB3", cnp: 9700004, fabricanteId: fPortug2.id }, { id: "eB4", cnp: 9700005, fabricanteId: fPortug2.id },
+      { id: "eB5", cnp: 9700006, fabricanteId: fPortug2.id },
+      { id: "eC", cnp: 9700007, fabricanteId: fPortugCompleto.id },
+      { id: "eD1", cnp: 9700008, fabricanteId: fSAU2.id }, { id: "eD2", cnp: 9700009, fabricanteId: fSAU2.id },
+      { id: "eD3", cnp: 9700010, fabricanteId: fSAU2.id }, { id: "eD4", cnp: 9700011, fabricanteId: fSAU2.id },
+      { id: "eD5", cnp: 9700012, fabricanteId: fSAU2.id }, { id: "eD6", cnp: 9700013, fabricanteId: fSAU2.id },
+      { id: "pNovo", cnp: 9700099, fabricanteId: null },
+    ];
+    const { prisma, produtos, fabricantes } = criarPrismaFalso({
+      produtos: produtosExistentes,
+      fabricantes: [fPharmA, fPortug1, fPortug2, fPortugCompleto, fSAU1, fSAU2],
+      registos: [{ cnp: 9700099, titularAim: "Ferring Portuguesa-Prod Farm, Soc.Unipessoal L.da", estadoAim: "Ativo" }],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pNovo"] });
+    eq(r.resolvidosPorCorrespondenciaTextual, 1, "AB1: resolvido pela regra 4-bis (correspondência textual) através do serviço completo");
+    eq(r.fabricantesCriados, 0, "AB2: ZERO fabricantes novos — não cria uma sétima linha Ferring");
+    eq(produtos.find((p) => p.id === "pNovo")?.fabricanteId, fPortug2.id, "AB3: associado à variante portuguesa com MAIS evidência real (5 produtos) — nunca à dinamarquesa nem à espanhola");
+    eq(fabricantes.length, 6, "AB4: continuam a existir só os 6 Fabricante que já existiam — nenhum a mais");
+    eq(r.aliasesCriados, 1, "AB5: 1 alias criado — o titular actual, apontando para a variante escolhida");
+  }
+
+  console.log("\nAC · regra 4-bis através do serviço completo — REGRESSÃO Labialfarma (2 linhas reais): bloqueia, nunca cria uma terceira nem associa sozinho");
+  {
+    const fLabial1: FakeFabricante = { id: "cmu6em2iv8s2201qmhtwwkmk3", nomeNormalizado: normalizarTitularAimGarantia("LABIALFARMA-PROD FARM NUT LDA")! };
+    const fLabial2: FakeFabricante = { id: "cmtlez13anc7s01ny14g5nn6c", nomeNormalizado: normalizarTitularAimGarantia("LABIALFARMA-PROD FARM. NUT LDA")! };
+    const { prisma, produtos, fabricantes } = criarPrismaFalso({
+      produtos: [
+        { id: "eLabial", cnp: 9700200, fabricanteId: fLabial2.id },
+        { id: "pNovo", cnp: 9700299, fabricanteId: null },
+      ],
+      fabricantes: [fLabial1, fLabial2],
+      registos: [{ cnp: 9700299, titularAim: "LABIALFARMA - LABORATORIO DE PRODUTOS FARMACEUTICOS E NUTRACEUTICOS SA", estadoAim: "Ativo" }],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pNovo"] });
+    eq(r.ambiguidades, 1, "AC1: bloqueado para revisão — sinal real mas insuficiente (Lda vs SA)");
+    eq(r.ambiguidadesDetalhe[0]?.motivo, "candidatos_textuais_fracos", "AC2: motivo explícito, nunca genérico");
+    eq(r.fabricantesCriados, 0, "AC3: ZERO fabricantes novos — nunca cria uma terceira linha Labialfarma silenciosamente");
+    eq(produtos.find((p) => p.id === "pNovo")?.fabricanteId, null, "AC4: fabricanteId continua null — decisão fica para revisão humana");
+    eq(fabricantes.length, 2, "AC5: continuam a existir só as 2 linhas Labialfarma que já existiam");
+  }
+
+  console.log("\nAD · regra 4-bis através do serviço completo — Expomedica/Inserpor (sem nenhuma linha equivalente real): continuam a criar normalmente");
+  {
+    const titularExpomedica = "EXPOMEDICA - SOCIEDADE EXPORTADORA E IMPORTADORA DE MATERIAL MEDICO LDA";
+    const naoRelacionados: FakeFabricante[] = [
+      { id: "fBayer", nomeNormalizado: "BAYER PORTUGAL LDA" },
+      { id: "fSandoz", nomeNormalizado: "SANDOZ FARMACEUTICA LDA" },
+    ];
+    const { prisma, produtos, fabricantes } = criarPrismaFalso({
+      produtos: [{ id: "pExpo", cnp: 9700399, fabricanteId: null }],
+      fabricantes: naoRelacionados,
+      registos: [{ cnp: 9700399, titularAim: titularExpomedica, estadoAim: "Ativo" }],
+    });
+    const r = await reconciliarFabricantesPorCnpGarantia(prisma, "garantia", { tipo: "produtos", produtoIds: ["pExpo"] });
+    eq(r.fabricantesCriados, 1, "AD1: sem nenhuma linha equivalente real, cria normalmente — a busca textual não impede criações genuínas");
+    eq(r.ambiguidades, 0, "AD2: zero ambiguidades");
+    const criado = produtos.find((p) => p.id === "pExpo")?.fabricanteId;
+    eq(fabricantes.some((f) => f.id === criado && f.nomeNormalizado === normalizarTitularAimGarantia(titularExpomedica)), true, "AD3: o Fabricante criado tem o nome legal do titular, nunca associado a Bayer/Sandoz por coincidência");
   }
 
   console.log(`\n${ok} ok, ${ko} falhas`);

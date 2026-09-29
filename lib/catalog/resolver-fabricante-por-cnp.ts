@@ -35,6 +35,18 @@
  *                                                                           candidato no
  *                                                                           comprimento máximo);
  *          empate no comprimento máximo                                  → AMBÍGUO.
+ *      5d-bis. correspondência textual aproximada (abreviaturas comuns    → candidato forte único
+ *          — PORTUG/PORTUGUESA, PROD/PRODUTOS, FARM/FARMACEUTICOS,          → usa-o e regista o
+ *          SOC UN/SOCIEDADE UNIPESSOAL —, iniciais tipo "P.F.", tokens      titular actual como
+ *          concatenados/hífen; ver similaridade-nomes-fabricante.ts).       alias;
+ *          Nunca a única forma de detectar "isto já existe": é o que     candidatos fortes
+ *          faltava para nunca propor criar um Fabricante quando já        MÚLTIPLOS e distintos
+ *          existem variantes fortes do MESMO nome na base.                 entre si → AMBÍGUO;
+ *                                                                          só sinal FRACO (0.4-0.6,
+ *                                                                          ex.: mudança de forma
+ *                                                                          jurídica Lda→SA) → AMBÍGUO,
+ *                                                                          nunca decidido sozinho;
+ *                                                                          nada >=0.4 → segue em frente.
  *      5e. evidência de portefólio: outros produtos já associados a um   → usa o Fabricante com
  *          Fabricante têm o MESMO titularAim (nome normalizado igual)      mais produtos nessa
  *          — sinal indirecto, só usado quando nenhuma das regras acima     evidência, só se for
@@ -62,6 +74,7 @@
  * desta cadeia geral (ver scripts/tests/test-resolver-fabricante-por-cnp.ts).
  */
 import { normalizarTitularAimGarantia } from "./fabricante-normalizacao-garantia";
+import { calcularSimilaridadeNomes } from "./similaridade-nomes-fabricante";
 
 export type ProdutoParaResolverFabricante = {
   id: string;
@@ -74,7 +87,19 @@ export type ProdutoParaResolverFabricante = {
 
 export type RegistoRegulatorioParaResolver = { titularAim: string | null; estadoAim: string | null };
 
-export type FabricanteParaResolverFabricante = { id: string; nomeNormalizado: string };
+export type FabricanteParaResolverFabricante = {
+  id: string;
+  nomeNormalizado: string;
+  /**
+   * Quantos `Produto` já apontam para este Fabricante — só usado pela
+   * regra 4-bis (correspondência textual aproximada) para desempatar
+   * ENTRE candidatos que já se sabe representarem a MESMA entidade (ver
+   * essa regra); nunca decide sozinho, nunca compara candidatos de
+   * entidades DIFERENTES. Ausente/0 é seguro — só reduz a qualidade do
+   * desempate, nunca causa uma escolha errada.
+   */
+  produtosAssociados?: number;
+};
 
 /** Evidência de portefólio (regra 5e) — quantos produtos JÁ associados a este Fabricante têm o MESMO titularAim normalizado. */
 export type EvidenciaPortfolioFabricante = { fabricanteId: string; nomeNormalizado: string; contagem: number };
@@ -124,9 +149,29 @@ export type MotivoSemFonte =
  */
 export type FabricanteOrigemErp = { valor: string } | { divergente: true } | null;
 
-export type MotivoAmbiguidade = "alias_multiplo" | "prefixo_empatado" | "evidencia_portfolio_empatada";
+export type MotivoAmbiguidade =
+  | "alias_multiplo"
+  | "prefixo_empatado"
+  | "evidencia_portfolio_empatada"
+  /** Regra 4-bis — duas ou mais correspondências textuais FORTES (>=0.6), mas que não são, entre si, a mesma entidade (clusters distintos) — ex.: duas marcas concorrentes que abreviam de forma parecida. */
+  | "candidatos_textuais_multiplos"
+  /** Regra 4-bis — sinal textual real mas INSUFICIENTE (0.4-0.6) para associar sozinho sem revisão — ex.: Labialfarma Lda vs SA, onde só a forma jurídica difere e isso pode ser uma transformação real ou uma entidade nova. */
+  | "candidatos_textuais_fracos";
 
-export type CandidatoAmbiguo = { fabricanteId: string; nomeNormalizado: string };
+export type CandidatoAmbiguo = {
+  fabricanteId: string;
+  nomeNormalizado: string;
+  /**
+   * Só preenchidos pela regra 4-bis (correspondência textual
+   * aproximada) — diagnóstico para o relatório poder listar "ID, nome,
+   * produtos e motivo" de cada candidato REALMENTE avaliado, nunca uma
+   * alegação vazia. `undefined` nas outras regras (alias_multiplo/
+   * prefixo_empatado/evidencia_portfolio_empatada), que já tinham o seu
+   * próprio significado sem isto.
+   */
+  produtosAssociados?: number;
+  score?: number;
+};
 
 export type ResultadoResolucaoFabricante =
   | { tipo: "protegido_manual" }
@@ -135,7 +180,7 @@ export type ResultadoResolucaoFabricante =
   | {
       tipo: "resolvido_existente";
       fabricanteId: string;
-      via: "nome_normalizado" | "alias" | "plano_curado" | "prefixo_truncado" | "evidencia_portfolio";
+      via: "nome_normalizado" | "alias" | "plano_curado" | "prefixo_truncado" | "correspondencia_textual" | "evidencia_portfolio";
       /** Nome a persistir como NOVO FabricanteAlias, se ainda não existir (idempotência). */
       criarAliasNormalizado: string | null;
       estadoAim: string | null;
@@ -178,8 +223,139 @@ export type ResultadoResolucaoFabricante =
  */
 const LIMIAR_PREFIXO_MIN = 12;
 
+/**
+ * Regra 4-bis (correspondência textual aproximada — bloqueador real:
+ * "o motor ainda podia criar um Fabricante quando já existem variantes
+ * fortes desse mesmo nome na base"). Duas bandas, GERAIS, nunca
+ * dependentes de nenhuma entidade concreta (Ferring/Labialfarma são só
+ * os casos reais que expuseram a falta disto):
+ *   - `LIMIAR_TEXTUAL_FORTE` (0.6): candidato "comprovado" — abreviaturas,
+ *     iniciais e truncagem por token cobrem a maioria das variantes
+ *     históricas reais (ver similaridade-nomes-fabricante.ts).
+ *   - `LIMIAR_TEXTUAL_RELEVANTE` (0.4): abaixo disto, um candidato é
+ *     ruído (nem sequer entra no relatório); entre este limiar e o
+ *     forte, o sinal é real mas INSUFICIENTE para associar sem revisão
+ *     (ex.: uma mudança de forma jurídica Lda→SA — pode ser a mesma
+ *     entidade transformada, ou pode não ser; nunca se decide sozinho).
+ */
+const LIMIAR_TEXTUAL_FORTE = 0.6;
+const LIMIAR_TEXTUAL_RELEVANTE = 0.4;
+
 function paraCandidatos(fs: readonly FabricanteParaResolverFabricante[]): CandidatoAmbiguo[] {
   return fs.map((f) => ({ fabricanteId: f.id, nomeNormalizado: f.nomeNormalizado }));
+}
+
+type CandidatoTextualAvaliado = { fabricante: FabricanteParaResolverFabricante; score: number };
+
+/**
+ * Agrupa candidatos FORTES entre si por semelhança MÚTUA >= forte —
+ * union-find simples. Candidatos que representam a MESMA entidade (só
+ * variam na grafia) caem no MESMO grupo; candidatos que só coincidem
+ * por partilharem a marca mas são entidades DIFERENTES (países/formas
+ * legais distintas) ficam em grupos separados.
+ */
+function agruparPorEntidade(candidatos: readonly CandidatoTextualAvaliado[]): CandidatoTextualAvaliado[][] {
+  const pai = candidatos.map((_, i) => i);
+  const encontrar = (i: number): number => (pai[i] === i ? i : (pai[i] = encontrar(pai[i]!)));
+  const unir = (a: number, b: number) => {
+    const ra = encontrar(a);
+    const rb = encontrar(b);
+    if (ra !== rb) pai[ra] = rb;
+  };
+  for (let i = 0; i < candidatos.length; i++) {
+    for (let j = i + 1; j < candidatos.length; j++) {
+      if (calcularSimilaridadeNomes(candidatos[i]!.fabricante.nomeNormalizado, candidatos[j]!.fabricante.nomeNormalizado) >= LIMIAR_TEXTUAL_FORTE) {
+        unir(i, j);
+      }
+    }
+  }
+  const grupos = new Map<number, CandidatoTextualAvaliado[]>();
+  for (let i = 0; i < candidatos.length; i++) {
+    const raiz = encontrar(i);
+    const grupo = grupos.get(raiz) ?? [];
+    grupo.push(candidatos[i]!);
+    grupos.set(raiz, grupo);
+  }
+  return [...grupos.values()];
+}
+
+/**
+ * Vencedor de um grupo de candidatos que já se sabe representarem a
+ * MESMA entidade — o com mais `produtosAssociados` (mais evidência de
+ * uso real); empate de evidência desempata pelo nome mais longo (a
+ * forma mais completa, menos truncada).
+ */
+function vencedorDoGrupo(grupo: readonly CandidatoTextualAvaliado[]): CandidatoTextualAvaliado {
+  return [...grupo].sort((a, b) => {
+    const diffProdutos = (b.fabricante.produtosAssociados ?? 0) - (a.fabricante.produtosAssociados ?? 0);
+    if (diffProdutos !== 0) return diffProdutos;
+    return b.fabricante.nomeNormalizado.length - a.fabricante.nomeNormalizado.length;
+  })[0]!;
+}
+
+/**
+ * Regra 4-bis completa: procura, entre TODOS os Fabricante conhecidos,
+ * candidatos textuais para `nomeNorm` — nunca escolhe pelo primeiro
+ * resultado nem por semelhança superficial (ver a porta de entrada do
+ * primeiro token em `calcularSimilaridadeNomes`). Três desfechos,
+ * exactamente os pedidos:
+ *   - candidato forte único e comprovado (1 grupo forte)  → resolve.
+ *   - vários candidatos plausíveis (>=2 grupos, OU só fracos) → ambíguo.
+ *   - nenhum candidato plausível (nada >= relevante)         → `null`
+ *     (a cadeia continua para a regra 5e/5f, sem interferência).
+ */
+function buscarCandidatoTextual(
+  nomeNorm: string,
+  mapas: MapasResolverFabricante,
+  estadoAim: string | null,
+): Extract<ResultadoResolucaoFabricante, { tipo: "resolvido_existente" | "ambiguo" }> | null {
+  const fabricantesTodos = mapas.fabricantesTodos ?? [];
+  const avaliados: CandidatoTextualAvaliado[] = fabricantesTodos
+    .map((fabricante) => ({ fabricante, score: calcularSimilaridadeNomes(nomeNorm, fabricante.nomeNormalizado) }))
+    .filter((a) => a.score >= LIMIAR_TEXTUAL_RELEVANTE);
+
+  if (avaliados.length === 0) return null;
+
+  const fortes = avaliados.filter((a) => a.score >= LIMIAR_TEXTUAL_FORTE);
+  if (fortes.length === 0) {
+    // Só sinal fraco (0.4-0.6): real, mas insuficiente para associar
+    // sozinho — bloqueia para revisão em vez de decidir silenciosamente.
+    return {
+      tipo: "ambiguo",
+      motivo: "candidatos_textuais_fracos",
+      nomeNormalizado: nomeNorm,
+      candidatos: avaliados
+        .sort((a, b) => b.score - a.score)
+        .map((a) => ({ fabricanteId: a.fabricante.id, nomeNormalizado: a.fabricante.nomeNormalizado, produtosAssociados: a.fabricante.produtosAssociados ?? 0, score: a.score })),
+    };
+  }
+
+  const grupos = agruparPorEntidade(fortes);
+  if (grupos.length > 1) {
+    // Vários candidatos FORTES, mas que não são, entre si, a mesma
+    // entidade — genuinamente ambíguo, nunca escolhido arbitrariamente.
+    return {
+      tipo: "ambiguo",
+      motivo: "candidatos_textuais_multiplos",
+      nomeNormalizado: nomeNorm,
+      candidatos: fortes
+        .sort((a, b) => b.score - a.score)
+        .map((a) => ({ fabricanteId: a.fabricante.id, nomeNormalizado: a.fabricante.nomeNormalizado, produtosAssociados: a.fabricante.produtosAssociados ?? 0, score: a.score })),
+    };
+  }
+
+  // Um único grupo forte — candidato comprovado. Se o grupo tiver mais
+  // de um membro (variantes da MESMA entidade já na base), o vencedor
+  // por evidência é o alvo; os outros membros do grupo NUNCA são
+  // tocados/fundidos aqui (fora do âmbito deste resolver).
+  const vencedor = vencedorDoGrupo(grupos[0]!);
+  return {
+    tipo: "resolvido_existente",
+    fabricanteId: vencedor.fabricante.id,
+    via: "correspondencia_textual",
+    criarAliasNormalizado: nomeNorm,
+    estadoAim,
+  };
 }
 
 function resolverPorNomeNormalizado(
@@ -255,6 +431,20 @@ function resolverPorNomeNormalizado(
     }
     if (!ambiguidadePendente) {
       ambiguidadePendente = { tipo: "ambiguo", motivo: "prefixo_empatado", nomeNormalizado: nomeNorm, candidatos: paraCandidatos(maisLongos) };
+    }
+  }
+
+  // 5d-bis — correspondência textual aproximada (abreviaturas, iniciais,
+  // truncagem por token) — só quando nada acima já resolveu ou bloqueou.
+  // Ver `buscarCandidatoTextual`: nunca escolhe pelo primeiro resultado,
+  // nunca funde entidades de países/formas legais distintas (a porta do
+  // primeiro token + a exigência de concordância no resto do nome trata
+  // disso), e um candidato único forte regista o alias do titular actual.
+  if (!ambiguidadePendente) {
+    const viaTextual = buscarCandidatoTextual(nomeNorm, mapas, estadoAim);
+    if (viaTextual) {
+      if (viaTextual.tipo === "resolvido_existente") return viaTextual;
+      ambiguidadePendente = viaTextual;
     }
   }
 

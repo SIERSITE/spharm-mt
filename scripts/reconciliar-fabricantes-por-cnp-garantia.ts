@@ -87,6 +87,7 @@ import {
   type ReconciliacaoFabricantesSummary,
 } from "../lib/catalog/reconciliar-fabricantes-por-cnp-garantia";
 import { carregarMapeamentoCuradoDoPlano } from "../lib/catalog/plano-normalizacao-fabricantes-garantia";
+import { calcularSimilaridadeNomes } from "../lib/catalog/similaridade-nomes-fabricante";
 
 export const BASE_ESPERADA = "spharmmt_t_garantia";
 
@@ -207,38 +208,38 @@ function calcularMapeamentosNaoUtilizados(
 }
 
 /**
- * Bloqueador 4 (relatório, diagnóstico puro — NUNCA usado para decidir
- * nada) — para cada Fabricante novo, os fabricantes JÁ existentes com
- * mais palavras normalizadas em comum (Jaccard sobre o conjunto de
- * palavras), para um humano avaliar rapidamente "isto não é já um
- * duplicado disfarçado?". Um score 0 (nenhuma palavra partilhada) nunca
- * aparece — nesse caso a lista fica vazia, o que já É a resposta
- * ("nenhum fabricante existente suficientemente parecido").
+ * Bloqueador real ("o motor ainda podia criar um Fabricante quando já
+ * existem variantes fortes desse mesmo nome na base") — diagnóstico
+ * puro para o relatório, NUNCA usado para decidir nada aqui: a decisão
+ * já foi tomada pelo resolver (`buscarCandidatoTextual`, regra 4-bis),
+ * usando esta MESMA função de similaridade. Este diagnóstico corre-a de
+ * novo, agora contra o roster FINAL de Fabricante (já com os criados
+ * nesta corrida), como PROVA verificável de que a busca correu de
+ * verdade — nunca a alegação vazia "revistos, nenhum é o mesmo" sem
+ * mostrar o que foi analisado. Por construção, qualquer Fabricante em
+ * `fabricantesCriadosDetalhe` só existe porque, no momento da
+ * resolução, NENHUM candidato pontuou >= `LIMIAR_TEXTUAL_RELEVANTE`
+ * (0.4) — se este diagnóstico alguma vez encontrar um acima disso
+ * contra o roster PRÉ-existente, é um sinal de regressão real, nunca
+ * um resultado normal.
  */
 function fabricantesMaisSemelhantes(
   nomeNovo: string,
   fabricantesExistentes: readonly { id: string; nomeNormalizado: string }[],
-  limite = 3,
-): { nomeNormalizado: string; scoreJaccard: number }[] {
-  const palavrasNovo = new Set(nomeNovo.split(" ").filter((p) => p.length >= 3));
-  if (palavrasNovo.size === 0) return [];
-  const pontuados = fabricantesExistentes
+  limite = 5,
+): { nomeNormalizado: string; score: number }[] {
+  return fabricantesExistentes
     .filter((f) => f.nomeNormalizado !== nomeNovo)
-    .map((f) => {
-      const palavrasF = new Set(f.nomeNormalizado.split(" ").filter((p) => p.length >= 3));
-      const intersecao = [...palavrasNovo].filter((p) => palavrasF.has(p)).length;
-      const uniao = new Set([...palavrasNovo, ...palavrasF]).size;
-      return { nomeNormalizado: f.nomeNormalizado, scoreJaccard: uniao > 0 ? intersecao / uniao : 0 };
-    })
-    .filter((p) => p.scoreJaccard > 0)
-    .sort((a, b) => b.scoreJaccard - a.scoreJaccard);
-  return pontuados.slice(0, limite);
+    .map((f) => ({ nomeNormalizado: f.nomeNormalizado, score: calcularSimilaridadeNomes(nomeNovo, f.nomeNormalizado) }))
+    .filter((p) => p.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limite);
 }
 
 function calcularDerivados(summary: ReconciliacaoFabricantesSummary, mapeamentoCurado: ReadonlyMap<string, string>) {
   const resolvidosAutomaticamente =
     summary.resolvidosPorNomeNormalizado + summary.resolvidosPorAlias + summary.resolvidosPorPlanoCurado +
-    summary.resolvidosPorPrefixo + summary.resolvidosPorEvidenciaPortfolio;
+    summary.resolvidosPorPrefixo + summary.resolvidosPorCorrespondenciaTextual + summary.resolvidosPorEvidenciaPortfolio;
   const semFonteTotal =
     summary.semFonte.FORA_UNIVERSO_INFARMED + summary.semFonte.SEM_REGISTO_CATALOGO +
     summary.semFonte.FABRICANTE_NAO_INFORMADO_PELA_ORIGEM + summary.semFonte.TITULAR_INVALIDO +
@@ -257,7 +258,7 @@ function imprimirResumo(
   summary: ReconciliacaoFabricantesSummary,
   dryRun: boolean,
   mapeamentoCurado: ReadonlyMap<string, string>,
-  semelhantesPorFabricanteCriado: ReadonlyMap<string, { nomeNormalizado: string; scoreJaccard: number }[]>,
+  semelhantesPorFabricanteCriado: ReadonlyMap<string, { nomeNormalizado: string; score: number }[]>,
 ): void {
   const d = calcularDerivados(summary, mapeamentoCurado);
   console.log(`\nModo: ${dryRun ? "DRY-RUN" : "APPLY"}`);
@@ -268,18 +269,22 @@ function imprimirResumo(
   console.log(`Resolvidos — alias:                             ${summary.resolvidosPorAlias}`);
   console.log(`Resolvidos — plano curado:                      ${summary.resolvidosPorPlanoCurado}`);
   console.log(`Resolvidos — truncagem (prefixo):               ${summary.resolvidosPorPrefixo}`);
+  console.log(`Resolvidos — correspondência textual aproximada: ${summary.resolvidosPorCorrespondenciaTextual}`);
   console.log(`Resolvidos — evidência de portefólio:           ${summary.resolvidosPorEvidenciaPortfolio}`);
   console.log(`Resolvidos automaticamente (total):             ${d.resolvidosAutomaticamente}`);
 
   console.log(`\nNovos fabricantes a criar:                      ${summary.fabricantesCriados}`);
   for (const f of summary.fabricantesCriadosDetalhe) {
     const semelhantes = semelhantesPorFabricanteCriado.get(f.nomeNormalizado) ?? [];
+    const algumForte = semelhantes.some((s) => s.score >= 0.4);
     console.log(`  · "${f.nomeNormalizado}" — ${f.cnps.length} CNP beneficiado(s) [${f.cnps.join(", ")}], titular original: ${f.titularAimOriginal ? `"${f.titularAimOriginal}"` : "(origem/ERP, sem RegulatoryRecord)"}`);
-    console.log(
-      semelhantes.length > 0
-        ? `      fabricantes existentes mais semelhantes: ${semelhantes.map((s) => `"${s.nomeNormalizado}" (${(s.scoreJaccard * 100).toFixed(0)}%)`).join(", ")} — revistos, nenhum é o mesmo (nome normalizado distinto, sem alias, sem prefixo, evidência insuficiente ou ausente)`
-        : `      nenhum fabricante existente com palavras em comum — entidade genuinamente nova neste catálogo`,
-    );
+    if (algumForte) {
+      console.log(`      [ALERTA — possível regressão] candidato(s) com pontuação >=0.4 encontrado(s) DEPOIS da criação: ${semelhantes.filter((s) => s.score >= 0.4).map((s) => `"${s.nomeNormalizado}" (${(s.score * 100).toFixed(0)}%)`).join(", ")} — isto NUNCA deveria acontecer (a busca textual já corre antes de decidir criar); reportar.`);
+    } else if (semelhantes.length > 0) {
+      console.log(`      candidatos textuais mais próximos (todos < 40%, a busca real já correu antes de criar): ${semelhantes.map((s) => `"${s.nomeNormalizado}" (${(s.score * 100).toFixed(0)}%)`).join(", ")}`);
+    } else {
+      console.log(`      nenhum fabricante existente com qualquer semelhança textual — entidade genuinamente nova neste catálogo`);
+    }
   }
 
   console.log(`\nAliases/mapeamentos ÚNICOS criados:              ${summary.aliasesCriados}`);
@@ -444,6 +449,7 @@ async function main(): Promise<void> {
       resolvidosPorAlias: summary.resolvidosPorAlias,
       resolvidosPorPlanoCurado: summary.resolvidosPorPlanoCurado,
       resolvidosPorTruncagem: summary.resolvidosPorPrefixo,
+      resolvidosPorCorrespondenciaTextual: summary.resolvidosPorCorrespondenciaTextual,
       resolvidosPorEvidenciaPortfolio: summary.resolvidosPorEvidenciaPortfolio,
       resolvidosAutomaticamenteTotal: d.resolvidosAutomaticamente,
       resolvidosHistoricos: d.resolvidosHistoricos,
@@ -453,13 +459,14 @@ async function main(): Promise<void> {
       // para decidir) com o motivo textual de não serem duplicados.
       fabricantesCriadosDetalhe: summary.fabricantesCriadosDetalhe.map((f) => {
         const semelhantes = semelhantesPorFabricanteCriado.get(f.nomeNormalizado) ?? [];
+        const algumForte = semelhantes.some((s) => s.score >= 0.4);
         return {
           ...f,
-          fabricantesExistentesMaisSemelhantes: semelhantes,
-          motivoNaoDuplicado:
-            semelhantes.length === 0
-              ? "Nenhum Fabricante existente partilha palavras com este nome — entidade nova neste catálogo."
-              : `Revisto contra os mais semelhantes (${semelhantes.map((s) => s.nomeNormalizado).join(", ")}): nenhuma correspondência exacta, alias, prefixo (≥12 caracteres) ou evidência de portefólio inequívoca — por isso o motor criou uma entidade nova em vez de reutilizar uma existente.`,
+          candidatosTextuaisMaisProximos: semelhantes,
+          alertaPossivelRegressao: algumForte,
+          motivoNaoDuplicado: algumForte
+            ? "ALERTA: candidato(s) com pontuação >=0.4 encontrado(s) depois da criação — isto nunca deveria acontecer, a busca textual (lib/catalog/resolver-fabricante-por-cnp.ts, regra 4-bis) já corre ANTES de decidir criar. Ver candidatosTextuaisMaisProximos."
+            : `Busca textual aproximada (abreviaturas, iniciais, tokens — limiar 0.4) já correu antes desta criação, contra os ${semelhantes.length > 0 ? semelhantes.length + " candidatos com alguma semelhança residual (todos <40%): " + semelhantes.map((s) => s.nomeNormalizado).join(", ") : "fabricantes existentes, sem nenhum resultado"}. Nenhuma correspondência exacta, alias, prefixo, textual aproximada ou evidência de portefólio inequívoca — por isso o motor criou uma entidade nova em vez de reutilizar uma existente.`,
         };
       }),
       aliasesCriados: summary.aliasesCriados,

@@ -133,6 +133,8 @@ export type ReconciliacaoFabricantesSummary = {
   resolvidosPorPlanoCurado: number;
   /** Regra 4 (geral) — resolvido por um Fabricante existente ser PREFIXO do nome completo (nomes historicamente truncados). */
   resolvidosPorPrefixo: number;
+  /** Regra 4-bis (geral) — resolvido por correspondência textual aproximada (abreviaturas, iniciais, tokens) contra um candidato forte único e comprovado — nunca escolhido pelo primeiro resultado. */
+  resolvidosPorCorrespondenciaTextual: number;
   /** Regra 5 (geral) — resolvido por evidência de portefólio (outros produtos já associados com o MESMO titularAim). */
   resolvidosPorEvidenciaPortfolio: number;
   fabricantesCriados: number;
@@ -272,7 +274,7 @@ export function novoSummary(): ReconciliacaoFabricantesSummary {
   return {
     analisados: 0, jaTinhaFabricante: 0, divergencias: 0, protegidosManualmente: 0,
     resolvidosPorNomeNormalizado: 0, resolvidosPorAlias: 0, resolvidosPorPlanoCurado: 0,
-    resolvidosPorPrefixo: 0, resolvidosPorEvidenciaPortfolio: 0,
+    resolvidosPorPrefixo: 0, resolvidosPorCorrespondenciaTextual: 0, resolvidosPorEvidenciaPortfolio: 0,
     fabricantesCriados: 0, aliasesCriados: 0, ambiguidades: 0, ambiguidadesDetalhe: [],
     avisosEvidenciaEmpatada: [],
     semFonte: { FORA_UNIVERSO_INFARMED: 0, SEM_REGISTO_CATALOGO: 0, FABRICANTE_NAO_INFORMADO_PELA_ORIGEM: 0, TITULAR_INVALIDO: 0, FABRICANTE_DIVERGENTE_ENTRE_FARMACIAS: 0 },
@@ -334,9 +336,16 @@ async function carregarMapas(
   fabricantesTodos: FabricanteParaResolverFabricante[];
 }> {
   const [fabricantesRaw, aliasesRaw] = await Promise.all([
-    prisma.fabricante.findMany({ select: { id: true, nomeNormalizado: true } }),
+    // `_count.produtos` só serve a regra 4-bis (correspondência textual)
+    // para desempatar ENTRE candidatos que já se sabe representarem a
+    // MESMA entidade — nunca para decidir se são a mesma. Ver
+    // `FabricanteParaResolverFabricante.produtosAssociados`.
+    prisma.fabricante.findMany({ select: { id: true, nomeNormalizado: true, _count: { select: { produtos: true } } } }),
     prisma.fabricanteAlias.findMany({ select: { fabricanteId: true, aliasNome: true } }),
-  ]);
+  ]).then(([fabs, aliases]) => [
+    fabs.map((f) => ({ id: f.id, nomeNormalizado: f.nomeNormalizado, produtosAssociados: f._count.produtos })),
+    aliases,
+  ] as const);
   const fabricantesPorId = new Map<string, FabricanteParaResolverFabricante>(fabricantesRaw.map((f) => [f.id, f]));
   const fabricantesPorNomeNormalizado = new Map<string, FabricanteParaResolverFabricante>(
     fabricantesRaw.map((f) => [f.nomeNormalizado, f]),
@@ -642,6 +651,7 @@ function contarPorVia(
     case "alias": summary.resolvidosPorAlias++; break;
     case "plano_curado": summary.resolvidosPorPlanoCurado++; break;
     case "prefixo_truncado": summary.resolvidosPorPrefixo++; break;
+    case "correspondencia_textual": summary.resolvidosPorCorrespondenciaTextual++; break;
     case "evidencia_portfolio": summary.resolvidosPorEvidenciaPortfolio++; break;
   }
 }

@@ -18,6 +18,7 @@ import {
   type ProdutoParaResolverFabricante,
 } from "../../lib/catalog/resolver-fabricante-por-cnp";
 import { normalizarTitularAimGarantia } from "../../lib/catalog/fabricante-normalizacao-garantia";
+import { calcularSimilaridadeNomes } from "../../lib/catalog/similaridade-nomes-fabricante";
 
 let ok = 0;
 let ko = 0;
@@ -289,6 +290,90 @@ function principal() {
     const m = mapas({ fabricantesTodos: [{ id: "fOutro", nomeNormalizado: "COMPLETAMENTE DIFERENTE LDA" }] });
     const r = resolverFabricantePorCnp(produto(), { titularAim: "Novo Titular Nunca Visto Lda", estadoAim: "Autorizado" }, null, true, m);
     check(r.tipo === "resolvido_criar_novo", "K1: sem prefixo válido, sem evidência — continua a criar normalmente, comportamento inalterado");
+  }
+
+  console.log("\nL · regra 4-bis (correspondência textual aproximada) — casos SINTÉTICOS, a regra é geral, não específica de nenhuma entidade");
+  {
+    // L1: candidato forte ÚNICO e comprovado — associa e cria alias.
+    const fAbreviado: FabricanteParaResolverFabricante = { id: "fAbrev", nomeNormalizado: "XPTO PORTUG PROD FARM SOC UN", produtosAssociados: 4 };
+    const mForte = mapas({ fabricantesTodos: [fAbreviado] });
+    const rForte = resolverFabricantePorCnp(produto(), { titularAim: "Xpto Portuguesa-Prod Farm, Soc.Unipessoal Lda", estadoAim: "Autorizado" }, null, true, mForte);
+    check(rForte.tipo === "resolvido_existente" && rForte.via === "correspondencia_textual" && rForte.fabricanteId === "fAbrev", "L1: candidato forte único (abreviaturas/iniciais genéricas) — associa, nunca cria um duplicado", JSON.stringify(rForte));
+    check(rForte.tipo === "resolvido_existente" && rForte.criarAliasNormalizado === normalizarTitularAimGarantia("Xpto Portuguesa-Prod Farm, Soc.Unipessoal Lda"), "L1b: regista o titular actual como alias do candidato encontrado");
+
+    // L2: nenhum candidato plausível — cria normalmente (comportamento inalterado).
+    const mNenhum = mapas({ fabricantesTodos: [{ id: "fSemRelacao", nomeNormalizado: "COMPLETAMENTE SEM RELACAO LDA" }] });
+    const rNenhum = resolverFabricantePorCnp(produto(), { titularAim: "Xpto Portuguesa-Prod Farm, Soc.Unipessoal Lda", estadoAim: "Autorizado" }, null, true, mNenhum);
+    check(rNenhum.tipo === "resolvido_criar_novo", "L2: sem nenhum candidato textual plausível — cria normalmente");
+
+    // L3: MÚLTIPLOS candidatos fortes, mas de ENTIDADES distintas entre si.
+    // Titular "MARCA ALFA BETA GAMA LDA" partilha o suficiente com CADA
+    // candidato para os dois passarem o limiar forte (>=0.6), mas os dois
+    // candidatos NÃO são, entre si, a mesma entidade (score mútuo 0.5,
+    // abaixo do limiar) — ambíguo, nunca escolhe o de mais produtos.
+    const fGrupoX: FabricanteParaResolverFabricante = { id: "fGrupoX", nomeNormalizado: "MARCA ALFA BETA LDA", produtosAssociados: 2 };
+    const fGrupoY: FabricanteParaResolverFabricante = { id: "fGrupoY", nomeNormalizado: "MARCA GAMA LDA DELTA", produtosAssociados: 9 };
+    check(calcularSimilaridadeNomes(fGrupoX.nomeNormalizado, fGrupoY.nomeNormalizado) < 0.6, "L3 (premissa): os dois candidatos NÃO clusterizam entre si (score < 0.6)", String(calcularSimilaridadeNomes(fGrupoX.nomeNormalizado, fGrupoY.nomeNormalizado)));
+    const mMultiplo = mapas({ fabricantesTodos: [fGrupoX, fGrupoY] });
+    const rMultiplo = resolverFabricantePorCnp(produto(), { titularAim: "Marca Alfa Beta Gama Lda", estadoAim: "Autorizado" }, null, true, mMultiplo);
+    check(rMultiplo.tipo === "ambiguo" && rMultiplo.motivo === "candidatos_textuais_multiplos", "L3: dois candidatos FORTES mas de clusters distintos entre si — ambíguo, NUNCA escolhe o de mais produtos (fGrupoY, 9) arbitrariamente", JSON.stringify(rMultiplo));
+
+    // L4: candidato único FRACO (0.4-0.6) — bloqueia para revisão, nunca associa sozinho.
+    const fFraco: FabricanteParaResolverFabricante = { id: "fFraco", nomeNormalizado: "QUALQUER-PROD FARM NUT LDA", produtosAssociados: 3 };
+    const scoreFraco = calcularSimilaridadeNomes(normalizarTitularAimGarantia("Qualquer - Laboratorio De Produtos Farmaceuticos E Nutraceuticos SA")!, fFraco.nomeNormalizado);
+    check(scoreFraco >= 0.4 && scoreFraco < 0.6, "L4 (premissa): o candidato cai mesmo na banda fraca (0.4-0.6)", String(scoreFraco));
+    const mFraco = mapas({ fabricantesTodos: [fFraco] });
+    const rFraco = resolverFabricantePorCnp(produto(), { titularAim: "Qualquer - Laboratorio De Produtos Farmaceuticos E Nutraceuticos SA", estadoAim: "Autorizado" }, null, true, mFraco);
+    check(rFraco.tipo === "ambiguo" && rFraco.motivo === "candidatos_textuais_fracos", "L4: candidato único mas FRACO — bloqueia para revisão, nunca associa sozinho (mesmo padrão real do Labialfarma Lda→SA)", JSON.stringify(rFraco));
+
+    // L5: candidato forte, mas MARCA diferente — nunca é sequer considerado (porta do primeiro token).
+    const fMarcaDiferente: FabricanteParaResolverFabricante = { id: "fMarcaDif", nomeNormalizado: "OUTRAMARCA PORTUG PROD FARM SOC UN", produtosAssociados: 50 };
+    const mMarcaDif = mapas({ fabricantesTodos: [fMarcaDiferente] });
+    const rMarcaDif = resolverFabricantePorCnp(produto(), { titularAim: "Xpto Portuguesa-Prod Farm, Soc.Unipessoal Lda", estadoAim: "Autorizado" }, null, true, mMarcaDif);
+    check(rMarcaDif.tipo === "resolvido_criar_novo", "L5: marca diferente (mesmo com 50 produtos) nunca é candidato — cria normalmente, nunca funde entidades de marcas distintas");
+
+    // L6: dois candidatos FORTES que são, entre si, a MESMA entidade (variantes de grafia) — cluster único, vence o de mais evidência.
+    const fVariante1: FabricanteParaResolverFabricante = { id: "fVar1", nomeNormalizado: "XPTO PORTUG P F SOC UN", produtosAssociados: 0 };
+    const fVariante2: FabricanteParaResolverFabricante = { id: "fVar2", nomeNormalizado: "XPTO PORTUGUESA PRODUTOS FARMACEUTICOS SOCIE", produtosAssociados: 7 };
+    const mCluster = mapas({ fabricantesTodos: [fVariante1, fVariante2] });
+    const rCluster = resolverFabricantePorCnp(produto(), { titularAim: "Xpto Portuguesa-Prod Farm, Soc.Unipessoal Lda", estadoAim: "Autorizado" }, null, true, mCluster);
+    check(rCluster.tipo === "resolvido_existente" && rCluster.fabricanteId === "fVar2", "L6: dois candidatos fortes que são a MESMA entidade (cluster único) — associa ao de MAIS evidência (7 produtos), nunca cria um terceiro fabricante", JSON.stringify(rCluster));
+  }
+
+  console.log("\nM · REGRESSÃO — nomes REAIS exactos da consulta à Garantia que expôs o bloqueador (Ferring 6 linhas, Labialfarma 2 linhas)");
+  {
+    const titularFerring = "Ferring Portuguesa-Prod Farm, Soc.Unipessoal L.da";
+    const fPharmA: FabricanteParaResolverFabricante = { id: "cmtjw6ebr1zcd01thd2bftg2j", nomeNormalizado: normalizarTitularAimGarantia("FERRING PHARMACEUTICALS A S")!, produtosAssociados: 1 };
+    const fPortug1: FabricanteParaResolverFabricante = { id: "cmu6b9xfs09as01qmz3ud4ez1", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUG - P F SOC UN")!, produtosAssociados: 0 };
+    const fPortug2: FabricanteParaResolverFabricante = { id: "cmtjw2ece1nbx01th7axdvqio", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUG. - P.F. SOC. UN")!, produtosAssociados: 5 };
+    const fPortugCompleto: FabricanteParaResolverFabricante = { id: "cmtl91qmldco201ny86owz0t2", nomeNormalizado: normalizarTitularAimGarantia("FERRING PORTUGUESA - PRODUTOS FARMACEUTICOS SOCIE")!, produtosAssociados: 1 };
+    const fSAU1: FabricanteParaResolverFabricante = { id: "cmu6bg6l10toj01qmpei3t6yd", nomeNormalizado: normalizarTitularAimGarantia("FERRING S A U")!, produtosAssociados: 0 };
+    const fSAU2: FabricanteParaResolverFabricante = { id: "cmtjw5tl61x5701thc40am3fx", nomeNormalizado: normalizarTitularAimGarantia("FERRING S.A.U.")!, produtosAssociados: 6 };
+
+    const mFerring = mapas({ fabricantesTodos: [fPharmA, fPortug1, fPortug2, fPortugCompleto, fSAU1, fSAU2] });
+    const rFerring = resolverFabricantePorCnp(produto(), { titularAim: titularFerring, estadoAim: "Ativo" }, null, true, mFerring);
+    check(
+      rFerring.tipo === "resolvido_existente" && rFerring.via === "correspondencia_textual" && rFerring.fabricanteId === "cmtjw2ece1nbx01th7axdvqio",
+      "M1: das 6 linhas Ferring reais, associa à variante portuguesa com MAIS evidência (5 produtos, 'FERRING PORTUG. - P.F. SOC. UN') — nunca à dinamarquesa (A/S), nunca à espanhola (S.A.U.), nunca cria um Fabricante novo",
+      JSON.stringify(rFerring),
+    );
+    check(rFerring.tipo === "resolvido_existente" && rFerring.criarAliasNormalizado === normalizarTitularAimGarantia(titularFerring), "M2: regista o titular real actual como alias da variante portuguesa escolhida");
+
+    const titularLabialfarma = "LABIALFARMA - LABORATORIO DE PRODUTOS FARMACEUTICOS E NUTRACEUTICOS SA";
+    const fLabial1: FabricanteParaResolverFabricante = { id: "cmu6em2iv8s2201qmhtwwkmk3", nomeNormalizado: normalizarTitularAimGarantia("LABIALFARMA-PROD FARM NUT LDA")!, produtosAssociados: 0 };
+    const fLabial2: FabricanteParaResolverFabricante = { id: "cmtlez13anc7s01ny14g5nn6c", nomeNormalizado: normalizarTitularAimGarantia("LABIALFARMA-PROD FARM. NUT LDA")!, produtosAssociados: 1 };
+    const mLabialfarma = mapas({ fabricantesTodos: [fLabial1, fLabial2] });
+    const rLabialfarma = resolverFabricantePorCnp(produto(), { titularAim: titularLabialfarma, estadoAim: "Ativo" }, null, true, mLabialfarma);
+    check(
+      rLabialfarma.tipo === "ambiguo" && rLabialfarma.motivo === "candidatos_textuais_fracos",
+      "M3: as 2 linhas Labialfarma reais (Lda) pontuam FRACO contra o titular real (SA) — a forma jurídica difere e não há prova suficiente de transformação; BLOQUEIA para revisão em vez de decidir sozinho, nunca cria uma TERCEIRA linha Labialfarma",
+      JSON.stringify(rLabialfarma),
+    );
+    check(
+      rLabialfarma.tipo === "ambiguo" && rLabialfarma.candidatos.length === 2 && rLabialfarma.candidatos.every((c) => typeof c.score === "number" && typeof c.produtosAssociados === "number"),
+      "M4: o relatório recebe AMBOS os candidatos reais, cada um com id, nome, produtos e score — nunca uma alegação vazia",
+      JSON.stringify(rLabialfarma),
+    );
   }
 
   console.log(`\n${ok} ok, ${ko} falhas`);
