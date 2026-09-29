@@ -196,6 +196,25 @@ export type ReportMeta = {
   /** Nome da empresa/farmácia no cabeçalho */
   organization?: string;
   /**
+   * Morada da farmácia no cabeçalho — só para os documentos profissionais
+   * (Nota de Encomenda ao fornecedor, Guia de Transferência). Nunca
+   * aparece se vazia — ver `Farmacia.morada`/`Farmacia.nif`/
+   * `Farmacia.contacto` em `prisma/schema.prisma`. Omitido para todos os
+   * outros relatórios, que continuam a mostrar só `organization`.
+   */
+  organizationAddress?: string;
+  /** NIF da farmácia no cabeçalho — ver `organizationAddress`. */
+  organizationNif?: string;
+  /** Contacto (telefone/email) da farmácia no cabeçalho — ver `organizationAddress`. */
+  organizationContact?: string;
+  /**
+   * Destaque "ANULADO" — para um documento (Nota de Encomenda/Guia de
+   * Transferência) reimpresso depois de o estado ter passado a ANULADA.
+   * Renderiza uma marca bem visível (HTML/PDF/print); Excel continua
+   * plano, sem marca — é só apresentação.
+   */
+  cancelledStamp?: { motivo?: string | null; por?: string | null; em?: Date | null };
+  /**
    * Linguagem visual do relatório em HTML/PDF/print — nunca no Excel
    * (que é sempre uma folha plana, sem cabeçalho/cartões nenhuns).
    *

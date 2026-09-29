@@ -151,24 +151,29 @@ export function DocumentosModal({
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="text-[13px] font-semibold text-slate-900">Encomendas</h4>
-                  {fase.dados.encomendaConsolidada ? (
+                  {/* "Encomenda única do Grupo" é só apresentação interna
+                      (nunca vai ao fornecedor) — os documentos
+                      profissionais por fornecedor aparecem sempre na
+                      lista abaixo, um botão por fornecedor. */}
+                  {fase.dados.encomendaConsolidada && (
                     <ReportActions report={fase.dados.encomendaConsolidada} hide={{ excel: true }} />
-                  ) : multiplasEncomendas && fase.dados.encomendaTodas ? (
-                    <ReportActions report={fase.dados.encomendaTodas} hide={{ excel: true }} />
-                  ) : (
-                    <ReportActions report={fase.dados.encomendaIndividual[0].report} hide={{ excel: true }} />
                   )}
                 </div>
-                {multiplasEncomendas && (
-                  <ul className="mt-2 divide-y divide-slate-100 text-[12px]">
-                    {fase.dados.encomendaIndividual.map((e) => (
-                      <li key={e.listaEncomendaId} className="flex items-center justify-between gap-2 py-1.5">
-                        <span className="text-slate-700">{e.farmaciaNome}</span>
-                        <ReportActions report={e.report} hide={{ excel: true }} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="mt-2 divide-y divide-slate-100 text-[12px]">
+                  {fase.dados.encomendaIndividual.map((e) => (
+                    <li key={e.listaEncomendaId} className="py-1.5">
+                      {multiplasEncomendas && <span className="text-slate-700">{e.farmaciaNome}</span>}
+                      <div className="mt-1 space-y-1">
+                        {e.reports.map((r, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-slate-500">{r.title.replace(/^Nota de Encomenda — /, "")}</span>
+                            <ReportActions report={r} hide={{ excel: true }} />
+                          </div>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

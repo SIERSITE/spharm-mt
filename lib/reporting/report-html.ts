@@ -43,7 +43,7 @@
 
 import type { Report, ReportAlign, ReportCell, ReportColumn, ReportRow } from "./report-types";
 import { agruparPorGroupKey, ehLinhaSubtotal, linhasDeDetalhe } from "./report-types";
-import { formatCell, formatDateTime } from "./report-formatters";
+import { formatCell, formatDate, formatDateTime } from "./report-formatters";
 
 function escapeHtml(s: string): string {
   return s
@@ -78,15 +78,32 @@ function isCompact(report: Report): boolean {
   return report.meta?.density === "compact";
 }
 
+/**
+ * Morada/NIF/contacto da farmácia, para a carta-cabeçalho dos documentos
+ * profissionais (Nota de Encomenda, Guia de Transferência) — ver
+ * `ReportMeta.organizationAddress` em report-types.ts. Nunca mostra uma
+ * linha vazia: cada campo só entra se vier preenchido.
+ */
+function renderOrgDetails(report: Report): string {
+  const partes: string[] = [];
+  if (report.meta?.organizationAddress) partes.push(escapeHtml(report.meta.organizationAddress));
+  if (report.meta?.organizationNif) partes.push(`NIF ${escapeHtml(report.meta.organizationNif)}`);
+  if (report.meta?.organizationContact) partes.push(escapeHtml(report.meta.organizationContact));
+  if (partes.length === 0) return "";
+  return `<div class="org-details">${partes.join(" · ")}</div>`;
+}
+
 function renderHeader(report: Report): string {
   const org = report.meta?.organization ?? "";
   const generated = formatDateTime(report.generatedAt);
+  const orgDetails = renderOrgDetails(report);
 
   if (!isCompact(report)) {
     return `
     <header class="report-header">
       <div class="head-main">
         ${org ? `<div class="org">${escapeHtml(org)}</div>` : ""}
+        ${orgDetails}
         <h1>${escapeHtml(report.title)}</h1>
         ${report.subtitle ? `<div class="subtitle">${escapeHtml(report.subtitle)}</div>` : ""}
       </div>
@@ -109,6 +126,7 @@ function renderHeader(report: Report): string {
         <div class="brand-text">
           <div class="brand-name">SPharm.MT</div>
           ${org ? `<div class="brand-org">${escapeHtml(org)}</div>` : ""}
+          ${orgDetails}
         </div>
       </div>
       <div class="head-title">
@@ -120,6 +138,29 @@ function renderHeader(report: Report): string {
         <div>Moeda: EUR</div>
       </div>
     </header>
+  `;
+}
+
+/**
+ * Marca "ANULADO" — ver `ReportMeta.cancelledStamp`. Só desenha algo
+ * quando o adapter define o campo; um relatório que nunca o usa fica
+ * com o HTML idêntico ao de antes disto existir. Nunca aparece no
+ * Excel (report-excel.ts não lê `cancelledStamp`).
+ */
+function renderCancelledStamp(report: Report): string {
+  const stamp = report.meta?.cancelledStamp;
+  if (!stamp) return "";
+
+  const detalhes: string[] = [];
+  if (stamp.motivo) detalhes.push(`Motivo: ${escapeHtml(stamp.motivo)}`);
+  if (stamp.por) detalhes.push(`Por: ${escapeHtml(stamp.por)}`);
+  if (stamp.em) detalhes.push(`Em: ${escapeHtml(formatDate(stamp.em))}`);
+
+  return `
+    <div class="cancelled-stamp">
+      <div class="cancelled-stamp-mark">ANULADO</div>
+      ${detalhes.length > 0 ? `<div class="cancelled-stamp-details">${detalhes.join(" · ")}</div>` : ""}
+    </div>
   `;
 }
 
@@ -451,6 +492,7 @@ const STYLES = `
     font-size: 10px; color: #444; letter-spacing: 0.5px;
     text-transform: uppercase; margin-bottom: 3px; font-weight: 700;
   }
+  .report-header .org-details { font-size: 9px; color: #666; margin-bottom: 5px; }
   .report-header h1 { font-size: 17px; margin: 0 0 3px 0; font-weight: 700; color: #111; letter-spacing: -0.2px; }
   .report-header .subtitle { font-size: 11px; color: #555; }
   .report-header .head-meta {
@@ -458,6 +500,32 @@ const STYLES = `
     white-space: nowrap; padding-left: 16px;
   }
   .report-header .head-meta strong { color: #222; font-weight: 700; }
+
+  /* ── Marca "ANULADO" (ver ReportMeta.cancelledStamp) — HTML/PDF/print
+     apenas, nunca no Excel. Vive fora de .report-header porque tem de
+     aparecer independentemente de density comfortable/compact. ── */
+  .cancelled-stamp {
+    border: 3px solid #b91c1c;
+    border-radius: 6px;
+    padding: 6px 16px;
+    margin: 0 0 12px 0;
+    display: inline-block;
+    background: #fef2f2;
+  }
+  .cancelled-stamp-mark {
+    display: inline-block;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: #b91c1c;
+    transform: rotate(-4deg);
+  }
+  .cancelled-stamp-details {
+    margin-top: 3px;
+    font-size: 9px;
+    font-weight: 600;
+    color: #7f1d1d;
+  }
 
   /* ── Section titles (comfortable) ── */
   .section-title {
@@ -603,6 +671,7 @@ const STYLES = `
   }
   .page.density-compact .brand-name { font-size: 9.5px; font-weight: 700; color: #18323a; letter-spacing: 0.2px; }
   .page.density-compact .brand-org { font-size: 8px; color: #7f99a1; margin-top: 1px; }
+  .page.density-compact .org-details { font-size: 7.5px; color: #7f99a1; margin-top: 1px; }
   .page.density-compact .head-title { flex: 1.4; min-width: 0; text-align: center; }
   .page.density-compact .head-title h1 {
     margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; letter-spacing: -0.2px;
@@ -751,6 +820,7 @@ export function renderReportHtml(report: Report): string {
 <body>
 <div class="${pageClass}">
   ${renderHeader(report)}
+  ${renderCancelledStamp(report)}
   ${renderFilters(report)}
   ${renderSummary(report)}
   ${renderTable(report)}

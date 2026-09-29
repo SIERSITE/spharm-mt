@@ -3258,7 +3258,6 @@ function PainelResultadoFinalizacao({
 }) {
   const temEncomendas = resultado.encomendaIndividual.length > 0;
   const temTransferencias = resultado.transferenciaIndividual.length > 0;
-  const multiplasEncomendas = resultado.encomendaIndividual.length > 1;
   const multiplasTransferencias = resultado.transferenciaIndividual.length > 1;
   return (
     <div className="space-y-6">
@@ -3276,33 +3275,37 @@ function PainelResultadoFinalizacao({
         <section className="rounded-xl border border-slate-200 bg-white px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold text-slate-900">Encomendas finalizadas</h3>
-            {resultado.encomendaConsolidada ? (
-              <ReportActions report={resultado.encomendaConsolidada} />
-            ) : multiplasEncomendas && resultado.encomendaTodas ? (
-              <ReportActions report={resultado.encomendaTodas} hide={{ excel: true }} />
-            ) : (
-              <ReportActions report={resultado.encomendaIndividual[0].report} hide={{ excel: true }} />
-            )}
+            {/* "Encomenda única do Grupo" é só apresentação interna
+                (nunca vai ao fornecedor) — continua um único Report.
+                Os documentos profissionais por fornecedor aparecem
+                sempre na lista abaixo, um botão por fornecedor — uma
+                encomenda com um só fornecedor mostra exactamente um. */}
+            {resultado.encomendaConsolidada && <ReportActions report={resultado.encomendaConsolidada} />}
           </div>
-          {/* Encomenda única do Grupo: só o documento consolidado faz
-              sentido mostrar (é a decisão que o utilizador já tomou ao
-              finalizar) — as acções por farmácia ficam disponíveis mais
-              abaixo mesmo assim, para quem precisar do detalhe de uma só. */}
-          {multiplasEncomendas && (
-            <ul className="mt-3 divide-y divide-slate-100 text-[12px]">
-              {resultado.encomendaIndividual.map((e) => (
-                <li key={e.listaEncomendaId} className="flex items-center justify-between gap-2 py-2">
+          <ul className="mt-3 divide-y divide-slate-100 text-[12px]">
+            {resultado.encomendaIndividual.map((e) => (
+              <li key={e.listaEncomendaId} className="py-2">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-700">
                     Encomenda · {e.farmaciaNome}{" "}
                     <a href={`/encomendas/${e.listaEncomendaId}`} className="text-slate-400 underline hover:text-slate-600">
                       abrir
                     </a>
                   </span>
-                  <ReportActions report={e.report} hide={{ excel: true }} />
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+                {/* Um bloco Imprimir/PDF/Email por FORNECEDOR — nunca um
+                    documento misto quando a encomenda tem mais de um. */}
+                <div className="mt-1.5 space-y-1.5">
+                  {e.reports.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+                      <span className="text-slate-500">{r.title.replace(/^Nota de Encomenda — /, "")}</span>
+                      <ReportActions report={r} hide={{ excel: true }} />
+                    </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

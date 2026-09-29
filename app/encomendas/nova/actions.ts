@@ -770,10 +770,13 @@ export type DocumentosFinalizacaoInput = {
 export type DocumentosFinalizacaoResultado =
   | {
       ok: true;
-      encomendaIndividual: Array<{ listaEncomendaId: string; farmaciaNome: string; report: Report }>;
-      /** Um único documento agrupado por farmácia — só quando há >1 encomenda. */
-      encomendaTodas?: Report;
-      /** "Encomenda única do Grupo" — só quando pedido e há >1 encomenda. */
+      /**
+       * `reports` tem sempre ≥1 entrada — uma por fornecedor da encomenda
+       * (ver `buildEncomendaDocumentoReport`). O caso comum (um único
+       * fornecedor) tem sempre exactamente 1.
+       */
+      encomendaIndividual: Array<{ listaEncomendaId: string; farmaciaNome: string; reports: Report[] }>;
+      /** "Encomenda única do Grupo" — só quando pedido e há >1 encomenda. Uso interno (nunca vai ao fornecedor), por isso continua um único Report. */
       encomendaConsolidada?: Report;
       transferenciaIndividual: Array<{ transferenciaId: string; rota: string; report: Report }>;
       transferenciaTodas?: Report;
@@ -808,10 +811,8 @@ export async function buildDocumentosFinalizacaoAction(
     const encomendaIndividual = detalhesEncomendas.map((d) => ({
       listaEncomendaId: d.id,
       farmaciaNome: d.farmaciaNome,
-      report: buildEncomendaDocumentoReport([d]),
+      reports: buildEncomendaDocumentoReport([d]),
     }));
-    const encomendaTodas =
-      detalhesEncomendas.length > 1 ? buildEncomendaDocumentoReport(detalhesEncomendas) : undefined;
     const encomendaConsolidada =
       input.incluirConsolidado && detalhesEncomendas.length > 1
         ? buildEncomendaConsolidadaDocumentoReport(detalhesEncomendas)
@@ -828,7 +829,6 @@ export async function buildDocumentosFinalizacaoAction(
     return {
       ok: true,
       encomendaIndividual,
-      encomendaTodas,
       encomendaConsolidada,
       transferenciaIndividual,
       transferenciaTodas,

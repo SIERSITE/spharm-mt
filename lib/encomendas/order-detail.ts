@@ -9,7 +9,19 @@ export type OrderDetailLine = {
   cnp: number;
   designacao: string;
   fabricante: string | null;
+  /** Fornecedor HABITUAL (ProdutoFarmacia.fornecedorOrigem) — só informativo, uso interno. */
   fornecedor: string | null;
+  /**
+   * Fornecedor DECIDIDO para esta linha nesta encomenda
+   * (`LinhaEncomenda.fornecedorSugeridoId` → `Fornecedor.nome`) — é este
+   * que determina para quem vai o documento externo (ver
+   * `lib/reporting/adapters/encomenda-documento.ts`: uma encomenda com
+   * linhas de fornecedores diferentes gera um documento por fornecedor).
+   * Distinto de `fornecedor` acima (esse é só o histórico "onde compramos
+   * isto normalmente", nunca a decisão desta encomenda).
+   */
+  fornecedorSugeridoId: string | null;
+  fornecedorSugeridoNome: string | null;
   currentStock: number | null;
   quantidadeSugerida: number | null;
   quantidadeAjustada: number | null;
@@ -43,9 +55,18 @@ export type OrderDetail = {
   estadoExport: OrderExportState;
   farmaciaId: string;
   farmaciaNome: string;
+  /** Morada/NIF/contacto da farmácia — cabeçalho do documento profissional (ver encomenda-documento.ts). Omissos quando não configurados. */
+  farmaciaMorada: string | null;
+  farmaciaNif: string | null;
+  farmaciaContacto: string | null;
   criadoPorNome: string;
   dataCriacao: Date;
   dataAtualizacao: Date;
+  /** Número de documento (ex.: "EN-000012") — só atribuído na finalização, ver lib/documentos/numeracao.ts. */
+  numero: string | null;
+  motivoAnulacao: string | null;
+  anuladoPorNome: string | null;
+  anuladoEm: Date | null;
   /** Bloqueio optimista do autosave — ver lib/encomendas/autosave.ts. */
   versao: number;
   linhas: OrderDetailLine[];
@@ -80,8 +101,9 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
   const lista = await prisma.listaEncomenda.findUnique({
     where: { id },
     include: {
-      farmacia: { select: { id: true, nome: true } },
+      farmacia: { select: { id: true, nome: true, morada: true, nif: true, contacto: true } },
       criadoPor: { select: { nome: true } },
+      anuladoPor: { select: { nome: true } },
       linhas: {
         orderBy: { id: "asc" },
         include: {
@@ -93,6 +115,7 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
               fabricante: { select: { nomeNormalizado: true } },
             },
           },
+          fornecedorSugerido: { select: { id: true, nome: true, nomeNormalizado: true } },
         },
       },
       outbox: {
@@ -156,9 +179,16 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
     estadoExport: lista.estadoExport,
     farmaciaId: lista.farmaciaId,
     farmaciaNome: lista.farmacia.nome,
+    farmaciaMorada: lista.farmacia.morada,
+    farmaciaNif: lista.farmacia.nif,
+    farmaciaContacto: lista.farmacia.contacto,
     criadoPorNome: lista.criadoPor.nome,
     dataCriacao: lista.dataCriacao,
     dataAtualizacao: lista.dataAtualizacao,
+    numero: lista.numero,
+    motivoAnulacao: lista.motivoAnulacao,
+    anuladoPorNome: lista.anuladoPor?.nome ?? null,
+    anuladoEm: lista.anuladoEm,
     versao: lista.versao,
     linhas: lista.linhas.map((l) => ({
       id: l.id,
@@ -168,6 +198,8 @@ export async function loadOrderDetail(id: string): Promise<OrderDetail | null> {
       designacao: l.produto.designacao,
       fabricante: l.produto.fabricante?.nomeNormalizado ?? null,
       fornecedor: stockByProduto.get(l.produtoId)?.fornecedor ?? null,
+      fornecedorSugeridoId: l.fornecedorSugeridoId,
+      fornecedorSugeridoNome: l.fornecedorSugerido?.nome ?? l.fornecedorSugerido?.nomeNormalizado ?? null,
       currentStock: stockByProduto.get(l.produtoId)?.stock ?? null,
       quantidadeSugerida: toF(l.quantidadeSugerida),
       quantidadeAjustada: toF(l.quantidadeAjustada),

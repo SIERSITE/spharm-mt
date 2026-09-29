@@ -1,121 +1,121 @@
 /**
  * lib/reporting/adapters/encomenda-documento.ts
  *
- * Documento formal de UMA (ou várias) `ListaEncomenda` já finalizada(s) —
- * "Nota de Encomenda", para Imprimir/PDF/Email logo depois de finalizar
- * (ver componentes/encomendas/order-create-client.tsx). Reutiliza 100% da
- * infra genérica de `Report` (`report-html.ts`/`report-pdf-server.ts`/
- * `report-email.ts`) — a mesma linguagem visual dos restantes relatórios.
+ * Documento PROFISSIONAL de encomenda — "Nota de Encomenda" a enviar ao
+ * FORNECEDOR (ver componentes/encomendas/order-create-client.tsx).
+ * Reutiliza 100% da infra genérica de `Report`
+ * (`report-html.ts`/`report-pdf-server.ts`/`report-email.ts`).
  *
- * Uma única `OrderDetail`: documento simples, sem agrupamento. Várias
- * (a acção "Imprimir todas"/"PDF todas" de um lote gerado em modo grupo
- * ou consolidação): um documento por lista, cada uma um GRUPO visual
- * (mesmo mecanismo `GROUP_KEY`/`spanGroup` que o Relatório de Vendas usa
- * para "um artigo, várias farmácias" — aqui invertido: "uma farmácia,
- * várias linhas") com uma linha TOTAL por farmácia e o TOTAL GERAL do
- * linha final ("TOTAL GERAL") a somar o lote inteiro.
+ * Desde 2026-09-29: devolve SEMPRE um array — um `Report` por PAR
+ * (encomenda × fornecedor). Uma encomenda com linhas de fornecedores
+ * diferentes nunca produz um único documento misto: cada fornecedor
+ * recebe o seu próprio documento, com o SEU nome no cabeçalho, nunca
+ * repetido por linha. Uma encomenda de fornecedor único continua a
+ * produzir exactamente 1 documento (array de tamanho 1) — nenhuma
+ * mudança visível para o caso comum.
+ *
+ * Nunca mistura farmácias no mesmo documento — um documento profissional
+ * é sempre emitido POR uma farmácia PARA um fornecedor; ver o cabeçalho
+ * (`meta.organization*`), que vem sempre de uma única `OrderDetail`.
+ *
+ * Redacção obrigatória (nunca aparece neste documento): fabricante,
+ * quantidade sugerida, fornecedor por linha (está no cabeçalho, nunca
+ * repetido), stock, cobertura, rotação, ou qualquer critério interno de
+ * cálculo. A quantidade mostrada é SEMPRE `quantidadeAjustada` (a
+ * confirmada pelo utilizador) — nunca `quantidadeSugerida`.
  *
  * Nunca inventa dados: tudo o que aparece vem de `OrderDetail`
- * (`lib/encomendas/order-detail.ts`) — nenhum campo novo é calculado
- * aqui além de somas simples (linhas/unidades).
+ * (`lib/encomendas/order-detail.ts`).
  */
-import type { OrderDetail } from "@/lib/encomendas/order-detail";
+import type { OrderDetail, OrderDetailLine } from "@/lib/encomendas/order-detail";
 import type { Report, ReportColumn, ReportRow, ReportSummaryItem } from "../report-types";
-import { ROW_KIND_KEY, GROUP_KEY } from "../report-types";
 import { normalizarLargura } from "../column-widths";
 
-const BASE_WIDTHS = {
-  farmacia: 16, cnp: 10, produto: 32, fabricante: 16, fornecedor: 16,
-  sugerida: 10, quantidade: 10, notas: 20,
-};
+const SEM_FORNECEDOR_ID = "__sem_fornecedor__";
+const SEM_FORNECEDOR_NOME = "Fornecedor não definido";
 
-function columns(multi: boolean): ReportColumn[] {
+const BASE_WIDTHS = { cnp: 12, produto: 46, quantidade: 14 };
+
+function columns(): ReportColumn[] {
   const w = normalizarLargura(BASE_WIDTHS);
-  const cols: ReportColumn[] = [];
-  if (multi) {
-    cols.push({ key: "farmacia", label: "Farmácia", format: "text", width: w.farmacia, spanGroup: true });
-  }
-  cols.push(
-    { key: "cnp", label: "CNP", format: "text", width: multi ? w.cnp : w.cnp * 1.2 },
-    { key: "produto", label: "Produto", format: "text", width: multi ? w.produto : w.produto * 1.2 },
-    { key: "fabricante", label: "Fabricante", format: "text", width: w.fabricante },
-    { key: "fornecedor", label: "Fornecedor", format: "text", width: w.fornecedor },
-    { key: "sugerida", label: "Qtd. sugerida", format: "integer", align: "right", width: w.sugerida },
+  return [
+    { key: "cnp", label: "CNP / Código", format: "text", width: w.cnp },
+    { key: "produto", label: "Designação", format: "text", width: w.produto },
     { key: "quantidade", label: "Quantidade", format: "integer", align: "right", width: w.quantidade, showTotal: true },
-    { key: "notas", label: "Notas", format: "text", width: w.notas },
-  );
-  return cols;
+  ];
 }
 
-function buildSummary(details: readonly OrderDetail[]): ReportSummaryItem[] {
-  const totalLinhas = details.reduce((s, d) => s + d.linhas.length, 0);
-  const totalUnidades = details.reduce(
-    (s, d) => s + d.linhas.reduce((s2, l) => s2 + (l.quantidadeAjustada ?? 0), 0),
-    0
-  );
-  const items: ReportSummaryItem[] = [
-    { label: "Encomendas", value: details.length, format: "integer" },
-    { label: "Linhas", value: totalLinhas, format: "integer" },
+function buildSummary(linhas: readonly OrderDetailLine[]): ReportSummaryItem[] {
+  const totalUnidades = linhas.reduce((s, l) => s + (l.quantidadeAjustada ?? 0), 0);
+  return [
+    { label: "Referências", value: linhas.length, format: "integer" },
     { label: "Unidades", value: totalUnidades, format: "integer" },
   ];
-  return items;
+}
+
+function buildDocumentoParaFornecedor(
+  detail: OrderDetail,
+  fornecedorNome: string,
+  linhas: readonly OrderDetailLine[]
+): Report {
+  const rows: ReportRow[] = linhas.map((l) => ({
+    cnp: String(l.cnp),
+    produto: l.designacao,
+    quantidade: l.quantidadeAjustada ?? 0,
+  }));
+
+  const estaAnulada = detail.estado === "ANULADA";
+
+  return {
+    title: `Nota de Encomenda — ${fornecedorNome}`,
+    subtitle: `Encomenda ${detail.numero ?? `(rascunho ${detail.id})`} · ${detail.farmaciaNome}`,
+    generatedAt: new Date(),
+    filtersApplied: [
+      { label: "Fornecedor", value: fornecedorNome },
+      { label: "Nº documento", value: detail.numero ?? "—" },
+      { label: "Data", value: detail.dataCriacao.toLocaleDateString("pt-PT") },
+      { label: "Estado", value: detail.estado },
+    ],
+    summary: buildSummary(linhas),
+    columns: columns(),
+    rows,
+    meta: {
+      slug: `nota-encomenda-${fornecedorNome}`,
+      orientation: "portrait",
+      organization: detail.farmaciaNome,
+      organizationAddress: detail.farmaciaMorada ?? undefined,
+      organizationNif: detail.farmaciaNif ?? undefined,
+      organizationContact: detail.farmaciaContacto ?? undefined,
+      density: "compact",
+      footer: `Documento gerado a partir da encomenda ${detail.numero ?? detail.id} — para uso do fornecedor ${fornecedorNome}`,
+      ...(estaAnulada
+        ? { cancelledStamp: { motivo: detail.motivoAnulacao, por: detail.anuladoPorNome, em: detail.anuladoEm } }
+        : {}),
+    },
+  };
 }
 
 /**
- * `details.length === 1` → documento simples (uma farmácia, sem grupo).
- * `details.length > 1`   → um documento por farmácia, com TOTAL por
- * farmácia e TOTAL GERAL — para a acção "Imprimir/PDF/Email todas".
+ * Um `Report` por PAR (encomenda × fornecedor) — ver o comentário do
+ * ficheiro. Percorre `details` na ordem dada; dentro de cada `OrderDetail`
+ * as linhas são agrupadas por `fornecedorSugeridoId` (nunca por
+ * `fornecedor`/`fornecedorOrigem`, que é só o histórico informativo).
+ * Uma linha sem fornecedor decidido cai no grupo "Fornecedor não
+ * definido" — nunca é omitida silenciosamente.
  */
-export function buildEncomendaDocumentoReport(details: readonly OrderDetail[]): Report {
-  const multi = details.length > 1;
-  const rows: ReportRow[] = [];
+export function buildEncomendaDocumentoReport(details: readonly OrderDetail[]): Report[] {
+  const reports: Report[] = [];
   for (const d of details) {
+    const porFornecedor = new Map<string, { nome: string; linhas: OrderDetailLine[] }>();
     for (const l of d.linhas) {
-      rows.push({
-        [GROUP_KEY]: d.id,
-        farmacia: d.farmaciaNome,
-        cnp: String(l.cnp),
-        produto: l.designacao,
-        fabricante: l.fabricante ?? "—",
-        fornecedor: l.fornecedor ?? "—",
-        sugerida: l.quantidadeSugerida ?? 0,
-        quantidade: l.quantidadeAjustada ?? 0,
-        notas: l.notas ?? "",
-      });
+      const chave = l.fornecedorSugeridoId ?? SEM_FORNECEDOR_ID;
+      const nome = l.fornecedorSugeridoNome ?? SEM_FORNECEDOR_NOME;
+      if (!porFornecedor.has(chave)) porFornecedor.set(chave, { nome, linhas: [] });
+      porFornecedor.get(chave)!.linhas.push(l);
     }
-    if (multi && d.linhas.length > 1) {
-      const totalUnid = d.linhas.reduce((s, l) => s + (l.quantidadeAjustada ?? 0), 0);
-      rows.push({
-        [GROUP_KEY]: d.id,
-        [ROW_KIND_KEY]: "subtotal",
-        farmacia: d.farmaciaNome,
-        cnp: "",
-        produto: `TOTAL ${d.farmaciaNome}`,
-        fabricante: "",
-        fornecedor: "",
-        sugerida: "",
-        quantidade: totalUnid,
-        notas: "",
-      });
+    for (const { nome, linhas } of porFornecedor.values()) {
+      reports.push(buildDocumentoParaFornecedor(d, nome, linhas));
     }
   }
-
-  const primeira = details[0];
-  return {
-    title: multi ? "Notas de Encomenda" : `Nota de Encomenda — ${primeira?.farmaciaNome ?? ""}`,
-    subtitle: multi
-      ? `${details.length} encomenda(s) finalizada(s)`
-      : `${primeira?.nome ?? ""} · criada por ${primeira?.criadoPorNome ?? "—"}`,
-    generatedAt: new Date(),
-    summary: buildSummary(details),
-    columns: columns(multi),
-    rows,
-    meta: {
-      slug: multi ? "notas-encomenda" : `nota-encomenda-${primeira?.farmaciaNome ?? ""}`,
-      orientation: "portrait",
-      organization: "SPharm.MT",
-      density: "compact",
-      footer: "SPharm.MT · Documento gerado a partir da encomenda finalizada — uso interno",
-    },
-  };
+  return reports;
 }

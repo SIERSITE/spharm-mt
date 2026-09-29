@@ -28,11 +28,25 @@ export type TransferenciaDetail = {
   id: string;
   farmaciaOrigemId: string;
   farmaciaOrigemNome: string;
+  /** Morada da farmácia de origem — para o cabeçalho do documento (ver Farmacia.morada). Nunca vazia: `null` quando não preenchida. */
+  farmaciaOrigemMorada: string | null;
+  /** NIF da farmácia de origem — para o cabeçalho do documento (ver Farmacia.nif). */
+  farmaciaOrigemNif: string | null;
+  /** Contacto (telefone/email) da farmácia de origem — para o cabeçalho do documento (ver Farmacia.contacto). */
+  farmaciaOrigemContacto: string | null;
   farmaciaDestinoId: string;
   farmaciaDestinoNome: string;
   estado: EstadoTransferencia;
   criadoPorNome: string;
   dataCriacao: Date;
+  /** Número de documento legível ("TR-000045") — NULL em rascunho, ver lib/documentos/numeracao.ts. */
+  numero: string | null;
+  /** Preenchida na finalização — NULL em rascunho. Ver comentário do campo homónimo no schema. */
+  dataFinalizacao: Date | null;
+  motivoAnulacao: string | null;
+  /** Nome de quem anulou a transferência — via relação `anuladoPor`. NULL se nunca foi anulada. */
+  anuladoPorNome: string | null;
+  anuladoEm: Date | null;
   linhas: TransferenciaDetailLinha[];
 };
 
@@ -48,12 +62,17 @@ export async function loadTransferenciasDetail(ids: readonly string[]): Promise<
   const rows = await prisma.transferencia.findMany({
     where: { id: { in: [...ids] } },
     include: {
-      farmaciaOrigem: { select: { id: true, nome: true } },
+      farmaciaOrigem: { select: { id: true, nome: true, morada: true, nif: true, contacto: true } },
       farmaciaDestino: { select: { id: true, nome: true } },
       criadoPor: { select: { nome: true } },
+      anuladoPor: { select: { nome: true } },
       linhas: {
         orderBy: { id: "asc" },
-        include: {
+        select: {
+          produtoId: true,
+          quantidade: true,
+          notas: true,
+          designacaoSnapshot: true,
           produto: {
             select: { cnp: true, designacao: true, fabricante: { select: { nomeNormalizado: true } } },
           },
@@ -70,15 +89,29 @@ export async function loadTransferenciasDetail(ids: readonly string[]): Promise<
       id: t.id,
       farmaciaOrigemId: t.farmaciaOrigem.id,
       farmaciaOrigemNome: t.farmaciaOrigem.nome,
+      farmaciaOrigemMorada: t.farmaciaOrigem.morada,
+      farmaciaOrigemNif: t.farmaciaOrigem.nif,
+      farmaciaOrigemContacto: t.farmaciaOrigem.contacto,
       farmaciaDestinoId: t.farmaciaDestino.id,
       farmaciaDestinoNome: t.farmaciaDestino.nome,
       estado: t.estado,
       criadoPorNome: t.criadoPor.nome,
       dataCriacao: t.dataCriacao,
+      numero: t.numero,
+      dataFinalizacao: t.dataFinalizacao,
+      motivoAnulacao: t.motivoAnulacao,
+      anuladoPorNome: t.anuladoPor?.nome ?? null,
+      anuladoEm: t.anuladoEm,
       linhas: t.linhas.map((l) => ({
         produtoId: l.produtoId,
         cnp: l.produto.cnp,
-        designacao: l.produto.designacao,
+        // Snapshot capturado na criação (ver criar-transferencia.ts) tem
+        // sempre prioridade — é o que garante que uma reimpressão futura
+        // mostra o MESMO texto mesmo que o produto tenha sido renomeado
+        // entretanto. `null` só para linhas criadas antes desta coluna
+        // existir, onde cai para a designação ao vivo (comportamento
+        // anterior, inalterado para essas).
+        designacao: l.designacaoSnapshot ?? l.produto.designacao,
         fabricante: l.produto.fabricante?.nomeNormalizado ?? null,
         quantidade: toF(l.quantidade),
         notas: l.notas,
