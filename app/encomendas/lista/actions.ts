@@ -5,9 +5,11 @@ import { getPrisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { resolveCurrentTenantSlug } from "@/lib/tenant-context";
 import { LEGACY_TENANT } from "@/lib/auth";
-import { finalizeAndQueueOrder } from "@/lib/ingest/orders";
+import { canAccessFarmaciaSync } from "@/lib/permissions-core";
+import { createEncomendaWithOutbox, finalizeAndQueueOrder } from "@/lib/ingest/orders";
 import { logAudit } from "@/lib/audit";
 import { podeEliminarListaEncomenda } from "@/lib/encomendas/eliminacao";
+import { podeAnularListaEncomenda } from "@/lib/encomendas/anulacao";
 
 type ActionResult =
   | { ok: true; outboxId?: string }
@@ -246,6 +248,9 @@ export async function deleteListaEncomendaAction(
     if (lista.estado === "ELIMINADA") {
       return { ok: false, error: "Esta encomenda já foi eliminada." };
     }
+    if (lista.estado !== "RASCUNHO") {
+      return { ok: false, error: "Só um rascunho pode ser eliminado — uma encomenda finalizada anula-se." };
+    }
 
     const decisao = podeEliminarListaEncomenda(lista.outbox);
     if (!decisao.podeEliminarDirectamente && !confirmarExportadaMesmoAssim) {
@@ -268,6 +273,137 @@ export async function deleteListaEncomendaAction(
     revalidatePath("/encomendas");
     revalidatePath(`/encomendas/${listaEncomendaId}`);
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+// ─── Anular (2026-09-29) ─────────────────────────────────────────────────────
+
+export type AnularListaEncomendaResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Anula uma `ListaEncomenda` já FINALIZADA/EXPORTADA — transita `estado`
+ * para `ANULADA`, grava motivo/autor/data. Nunca apaga a row nem as
+ * `LinhaEncomenda` (ver `podeAnularListaEncomenda` em
+ * `lib/encomendas/anulacao.ts` e o comentário no enum
+ * `EstadoListaEncomenda`). Não desfaz uma exportação já efectiva ao
+ * SPharm — mesma ressalva de `deleteListaEncomendaAction`.
+ */
+export async function anularListaEncomendaAction(
+  listaEncomendaId: string,
+  motivo: string
+): Promise<AnularListaEncomendaResult> {
+  const session = await requirePermission("settings.global");
+  const prisma = await getPrisma();
+
+  try {
+    const lista = await prisma.listaEncomenda.findUnique({
+      where: { id: listaEncomendaId },
+      select: { id: true, estado: true, farmaciaId: true },
+    });
+    if (!lista) return { ok: false, error: "Encomenda não encontrada." };
+    if (!canAccessFarmaciaSync(session, lista.farmaciaId)) {
+      return { ok: false, error: "Sem acesso à farmácia desta encomenda." };
+    }
+
+    const decisao = podeAnularListaEncomenda(lista.estado, motivo);
+    if (!decisao.podeAnular) return { ok: false, error: decisao.motivo };
+
+    await prisma.listaEncomenda.update({
+      where: { id: listaEncomendaId },
+      data: {
+        estado: "ANULADA",
+        motivoAnulacao: motivo.trim(),
+        anuladoPorId: session.sub,
+        anuladoEm: new Date(),
+      },
+    });
+
+    await logAudit({
+      actorId: session.sub,
+      action: "order.anulada",
+      entity: "ListaEncomenda",
+      entityId: listaEncomendaId,
+      meta: { motivo: motivo.trim() },
+    });
+
+    revalidatePath("/encomendas");
+    revalidatePath(`/encomendas/${listaEncomendaId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
+  }
+}
+
+// ─── Duplicar por id (2026-09-29) ───────────────────────────────────────────
+
+export type DuplicarListaEncomendaResult =
+  | { ok: true; listaEncomendaId: string }
+  | { ok: false; error: string };
+
+/**
+ * Duplica QUALQUER `ListaEncomenda` existente (RASCUNHO, FINALIZADA,
+ * EXPORTADA ou ANULADA) para um novo RASCUNHO com as mesmas linhas —
+ * nunca altera o documento original. Distinta de
+ * `duplicarRascunhoComoNovoAction` (essa serve só o conflito de versão
+ * do autosave e recebe as linhas do cliente, não um id de documento).
+ */
+export async function duplicarListaEncomendaAction(listaEncomendaId: string): Promise<DuplicarListaEncomendaResult> {
+  const session = await requirePermission("reports.write");
+  const prisma = await getPrisma();
+  const tenantSlug = (await resolveCurrentTenantSlug()) ?? LEGACY_TENANT;
+
+  try {
+    const original = await prisma.listaEncomenda.findUnique({
+      where: { id: listaEncomendaId },
+      select: {
+        nome: true,
+        farmaciaId: true,
+        contextoJson: true,
+        linhas: {
+          select: {
+            produtoId: true,
+            quantidadeSugerida: true,
+            quantidadeAjustada: true,
+            fornecedorSugeridoId: true,
+            notas: true,
+            origem: true,
+          },
+        },
+      },
+    });
+    if (!original) return { ok: false, error: "Encomenda não encontrada." };
+    if (!canAccessFarmaciaSync(session, original.farmaciaId)) {
+      return { ok: false, error: "Sem acesso à farmácia desta encomenda." };
+    }
+
+    const resultado = await createEncomendaWithOutbox(prisma, tenantSlug, {
+      farmaciaId: original.farmaciaId,
+      criadoPorId: session.sub,
+      nome: `${original.nome} · cópia`.slice(0, 180),
+      finalize: false,
+      contexto: original.contextoJson,
+      linhas: original.linhas.map((l) => ({
+        produtoId: l.produtoId,
+        quantidadeSugerida: l.quantidadeSugerida !== null ? Number(l.quantidadeSugerida) : null,
+        quantidadeAjustada: l.quantidadeAjustada !== null ? Number(l.quantidadeAjustada) : null,
+        fornecedorSugeridoId: l.fornecedorSugeridoId,
+        notas: l.notas,
+        origem: l.origem,
+      })),
+    });
+
+    await logAudit({
+      actorId: session.sub,
+      action: "order.duplicated",
+      entity: "ListaEncomenda",
+      entityId: resultado.listaEncomendaId,
+      meta: { origemListaEncomendaId: listaEncomendaId },
+    });
+
+    revalidatePath("/encomendas");
+    return { ok: true, listaEncomendaId: resultado.listaEncomendaId };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Erro desconhecido" };
   }

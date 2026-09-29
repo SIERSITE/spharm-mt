@@ -72,12 +72,13 @@ export default async function EncomendasPage({ searchParams }: Props) {
   const filters = parseFilters(sp);
   const prisma = await getPrisma();
   const data = await loadOrderListData(prisma, filters);
-  // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction` —
-  // calculada aqui para o botão "Eliminar" nunca aparecer a quem a
-  // server action recusaria (a mesma inconsistência que existia com
-  // ACK/NACK, visíveis a qualquer GESTOR_FARMACIA mas recusados pela
-  // acção, que exigia settings.global).
+  // Mesma gate de `cancelOutboxAction`/`deleteListaEncomendaAction`/
+  // `anularListaEncomendaAction` — calculada aqui para os botões
+  // "Eliminar"/"Anular" nunca aparecerem a quem a server action recusaria
+  // (a mesma inconsistência que existia com ACK/NACK, visíveis a qualquer
+  // GESTOR_FARMACIA mas recusados pela acção, que exigia settings.global).
   const podeEliminar = can(session, "settings.global");
+  const podeAnular = podeEliminar;
 
   return (
     <MainShell>
@@ -87,7 +88,7 @@ export default async function EncomendasPage({ searchParams }: Props) {
           Lista de encomendas criadas. Finalize rascunhos e acompanhe o estado de exportação.
         </p>
         <div className="mt-6">
-          <OrderListClient data={data} filters={filters} podeEliminar={podeEliminar} />
+          <OrderListClient data={data} filters={filters} podeEliminar={podeEliminar} podeAnular={podeAnular} />
         </div>
       </div>
     </MainShell>

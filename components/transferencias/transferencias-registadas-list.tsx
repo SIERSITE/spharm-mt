@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, FileText, Trash2 } from "lucide-react";
 import { deleteTransferenciaAction } from "@/app/transferencias/actions";
@@ -90,20 +91,32 @@ export function TransferenciasRegistadasList({
 
   return (
     <section className="rounded-[20px] border border-white/70 bg-white/84 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between text-left"
-      >
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">Transferências registadas</h2>
-          <p className="mt-0.5 text-[12px] text-slate-500">
-            {rows.length} transferência{rows.length === 1 ? "" : "s"} criada
-            {rows.length === 1 ? "" : "s"} — decisão de grupo ou &ldquo;Criar transferência&rdquo;.
-          </p>
-        </div>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex flex-1 items-center justify-between text-left"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Transferências registadas</h2>
+            <p className="mt-0.5 text-[12px] text-slate-500">
+              {rows.length} transferência{rows.length === 1 ? "" : "s"} criada
+              {rows.length === 1 ? "" : "s"} — decisão de grupo ou &ldquo;Criar transferência&rdquo;.
+            </p>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        {/* Esta lista é só um resumo recolhido (sem filtros, sem pesquisa,
+            sem paginação) — a manutenção a sério (procurar, anular,
+            duplicar, reimprimir a qualquer momento) vive em
+            /transferencias/manutencao. */}
+        <Link
+          href="/transferencias/manutencao"
+          className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Manutenção de transferências
+        </Link>
+      </div>
 
       {open && (
         <div className="mt-3 border-t border-slate-100 pt-3">

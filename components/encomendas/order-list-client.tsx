@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Search, X } from "lucide-react";
+import { Ban, Copy, FileText, Search, X } from "lucide-react";
 import type { OrderListData, OrderListFilters, OrderRow } from "@/lib/encomendas/orders-data";
 import { OrderExportBadge } from "@/components/integracao/order-export-badge";
 import { DocumentosModal } from "@/components/reporting/documentos-modal";
 import {
+  anularListaEncomendaAction,
   deleteListaEncomendaAction,
+  duplicarListaEncomendaAction,
   finalizeOrderAction,
 } from "@/app/encomendas/lista/actions";
 
@@ -17,6 +19,8 @@ type Props = {
   filters: OrderListFilters;
   /** Mesma gate de `deleteListaEncomendaAction` — controla o botão "Eliminar". */
   podeEliminar: boolean;
+  /** Mesma gate de `anularListaEncomendaAction` — controla o botão "Anular". */
+  podeAnular: boolean;
 };
 
 function fmtDate(d: Date | string | null): string {
@@ -41,6 +45,7 @@ const ESTADO_LABEL: Record<string, string> = {
   RASCUNHO: "Rascunho",
   FINALIZADA: "Finalizada",
   EXPORTADA: "Exportada",
+  ANULADA: "Anulada",
 };
 
 const ESTADO_OPTIONS = [
@@ -48,6 +53,7 @@ const ESTADO_OPTIONS = [
   { value: "RASCUNHO", label: "Rascunho" },
   { value: "FINALIZADA", label: "Finalizada" },
   { value: "EXPORTADA", label: "Exportada" },
+  { value: "ANULADA", label: "Anulada" },
 ];
 
 const EXPORT_OPTIONS = [
@@ -59,7 +65,7 @@ const EXPORT_OPTIONS = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-export function OrderListClient({ data, filters, podeEliminar }: Props) {
+export function OrderListClient({ data, filters, podeEliminar, podeAnular }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -188,6 +194,50 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
         return;
       }
       setFlash({ type: "err", msg: r.error });
+    });
+  }
+
+  // ── "Anular" — pequeno formulário inline a pedir o motivo ──────────────
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
+  const [motivoAnulacao, setMotivoAnulacao] = useState("");
+
+  function abrirAnular(id: string) {
+    setFlash(null);
+    setAnulandoId(id);
+    setMotivoAnulacao("");
+  }
+
+  function confirmarAnular() {
+    if (!anulandoId) return;
+    const motivo = motivoAnulacao.trim();
+    if (!motivo) {
+      setFlash({ type: "err", msg: "É obrigatório indicar um motivo para anular." });
+      return;
+    }
+    const id = anulandoId;
+    startTransition(async () => {
+      const r = await anularListaEncomendaAction(id, motivo);
+      if (r.ok) {
+        setFlash({ type: "ok", msg: "Encomenda anulada." });
+        setAnulandoId(null);
+        setMotivoAnulacao("");
+        router.refresh();
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
+    });
+  }
+
+  function handleDuplicar(order: OrderRow) {
+    setFlash(null);
+    startTransition(async () => {
+      const r = await duplicarListaEncomendaAction(order.id);
+      if (r.ok) {
+        setFlash({ type: "ok", msg: "Encomenda duplicada — novo rascunho criado." });
+        router.refresh();
+      } else {
+        setFlash({ type: "err", msg: r.error });
+      }
     });
   }
 
@@ -407,8 +457,11 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {data.orders.map((o) => (
-                  <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-25">
+                {data.orders.map((o) => {
+                  const isAnulando = anulandoId === o.id;
+                  return (
+                  <Fragment key={o.id}>
+                  <tr className="border-b border-slate-50 hover:bg-slate-25">
                     <td className="px-4 py-3">
                       {reimprimivel(o) && (
                         <input type="checkbox" checked={selecionadas.has(o.id)} onChange={() => toggleSelecionada(o.id)} />
@@ -430,7 +483,9 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                             ? "border-slate-200 bg-slate-50 text-slate-600"
                             : o.estado === "FINALIZADA"
                               ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : o.estado === "ANULADA"
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-emerald-200 bg-emerald-50 text-emerald-700"
                         }`}
                       >
                         {ESTADO_LABEL[o.estado] ?? o.estado}
@@ -486,7 +541,20 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                             Documentos
                           </button>
                         )}
-                        {podeEliminar && (
+                        {o.estado !== "RASCUNHO" && (
+                          <button
+                            disabled={busy}
+                            onClick={() => handleDuplicar(o)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 disabled:opacity-50"
+                            title="Duplicar para um novo rascunho"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Duplicar
+                          </button>
+                        )}
+                        {/* "Eliminar" exclusiva de RASCUNHO desde 2026-09-29
+                            — uma encomenda já finalizada/exportada anula-se. */}
+                        {o.estado === "RASCUNHO" && podeEliminar && (
                           <button
                             disabled={busy}
                             onClick={() => handleDelete(o)}
@@ -496,10 +564,57 @@ export function OrderListClient({ data, filters, podeEliminar }: Props) {
                             Eliminar
                           </button>
                         )}
+                        {(o.estado === "FINALIZADA" || o.estado === "EXPORTADA") && podeAnular && (
+                          <button
+                            disabled={busy}
+                            onClick={() => abrirAnular(o.id)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                            title="Anular esta encomenda"
+                          >
+                            <Ban className="h-3 w-3" />
+                            Anular
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  {isAnulando && (
+                    <tr className="border-b border-slate-50 bg-rose-50/40">
+                      <td colSpan={10} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="text-[12px] font-medium text-rose-800">Motivo da anulação:</label>
+                          <input
+                            type="text"
+                            value={motivoAnulacao}
+                            onChange={(e) => setMotivoAnulacao(e.target.value)}
+                            placeholder="Obrigatório — descreva o motivo"
+                            className="min-w-[280px] flex-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[12px] focus:border-rose-400 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={confirmarAnular}
+                            className="rounded-lg border border-rose-500 bg-rose-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                          >
+                            Confirmar anulação
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnulandoId(null);
+                              setMotivoAnulacao("");
+                            }}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
