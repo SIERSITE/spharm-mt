@@ -9,11 +9,17 @@
  * Listar farmácias do tenant (para saber o id a usar):
  *   npx tsx scripts/admin/set-farmacia-autoridade-catalogo.ts --tenant grupo-silveira --listar
  *
+ * Consultar só a autoridade actual (sem listar tudo):
+ *   npx tsx scripts/admin/set-farmacia-autoridade-catalogo.ts --tenant grupo-silveira --consultar
+ *
  * Definir a autoridade:
  *   npx tsx scripts/admin/set-farmacia-autoridade-catalogo.ts --tenant grupo-silveira --farmacia <id>
  *
  * Remover a autoridade (volta ao comportamento histórico simétrico):
  *   npx tsx scripts/admin/set-farmacia-autoridade-catalogo.ts --tenant grupo-silveira --remover
+ *
+ * Identificação SEMPRE por id (Farmacia.id), nunca por nome — corre
+ * --listar primeiro para o confirmar antes de usar --farmacia.
  */
 import "dotenv/config";
 import { parseArgs } from "node:util";
@@ -28,6 +34,7 @@ async function main() {
       tenant: { type: "string" },
       farmacia: { type: "string" },
       listar: { type: "boolean" },
+      consultar: { type: "boolean" },
       remover: { type: "boolean" },
     },
     strict: true,
@@ -36,8 +43,8 @@ async function main() {
     console.error("✗ --tenant <slug> obrigatório.");
     process.exit(1);
   }
-  if (!values.listar && !values.remover && !values.farmacia) {
-    console.error("✗ indica --listar, --farmacia <id>, ou --remover.");
+  if (!values.listar && !values.consultar && !values.remover && !values.farmacia) {
+    console.error("✗ indica --listar, --consultar, --farmacia <id>, ou --remover.");
     process.exit(1);
   }
 
@@ -62,9 +69,23 @@ async function main() {
       return;
     }
 
+    if (values.consultar) {
+      const actual = await getFarmaciaAutoridadeCatalogo(prisma);
+      console.log(
+        actual
+          ? `─ tenant=${values.tenant}: autoridade actual = "${actual.nome}" (${actual.id})`
+          : `─ tenant=${values.tenant}: sem autoridade configurada — comportamento histórico simétrico.`,
+      );
+      return;
+    }
+
     if (values.remover) {
       await setFarmaciaAutoridadeCatalogo(prisma, null);
-      console.log(`✓ tenant=${values.tenant}: autoridade de catálogo removida — todas as farmácias voltam a ser simétricas.`);
+      // Confirmação final — setFarmaciaAutoridadeCatalogo já validou (e
+      // reverteu por completo se falhasse) dentro da transacção; isto é
+      // só a prova visível ao operador, lida de novo após o commit.
+      const total = await prisma.farmacia.count({ where: { autoridadeCatalogo: true } });
+      console.log(`✓ tenant=${values.tenant}: autoridade de catálogo removida — todas as farmácias voltam a ser simétricas (confirmado: ${total} farmácias autoritativas).`);
       return;
     }
 
@@ -79,8 +100,11 @@ async function main() {
     }
 
     await setFarmaciaAutoridadeCatalogo(prisma, alvo.id);
+    // Confirmação final, lida de novo depois do commit — a validação que
+    // decide "falhar ou não" já correu DENTRO da transacção acima.
     const confirmacao = await getFarmaciaAutoridadeCatalogo(prisma);
-    console.log(`✓ tenant=${values.tenant}: farmácia autoritativa de catálogo = "${confirmacao?.nome}" (${confirmacao?.id}).`);
+    const total = await prisma.farmacia.count({ where: { autoridadeCatalogo: true } });
+    console.log(`✓ tenant=${values.tenant}: farmácia autoritativa de catálogo = "${confirmacao?.nome}" (${confirmacao?.id}) — confirmado: exactamente ${total} farmácia autoritativa.`);
   } finally {
     await prisma.$disconnect().catch(() => {});
   }

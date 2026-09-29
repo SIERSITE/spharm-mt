@@ -1,0 +1,13 @@
+-- Impede, ao nível da base, que exista mais do que uma farmácia com
+-- `autoridadeCatalogo = true` na mesma base (cada tenant tem a sua base
+-- física própria — nunca precisa de coluna de tenant). Índice único
+-- parcial sobre uma expressão constante: como todas as rows que
+-- satisfazem o filtro têm o MESMO valor indexado, o índice único só
+-- deixa existir uma. Mesmo padrão já usado em
+-- "EmailConfig_global_singleton" (migration 20260414100000).
+--
+-- `setFarmaciaAutoridadeCatalogo` (lib/farmacia-catalogo.ts) já garante
+-- isto em código (desliga a anterior antes de ligar a nova, na mesma
+-- transacção) — este índice é a rede de segurança ao nível da base,
+-- para nunca depender só da disciplina do código chamador.
+CREATE UNIQUE INDEX "Farmacia_autoridadeCatalogo_unica" ON "Farmacia"((1)) WHERE "autoridadeCatalogo" = true;

@@ -133,6 +133,111 @@ async function main() {
       void produtoSimetrico;
     }
 
+    console.log("\nF · índice único parcial na base — nunca duas farmácias autoritativas, mesmo por escrita directa");
+    {
+      const outraFarmA = await prisma.farmacia.create({ data: { nome: "Índice A" } });
+      const outraFarmB = await prisma.farmacia.create({ data: { nome: "Índice B" } });
+      await setFarmaciaAutoridadeCatalogo(prisma, outraFarmA.id);
+      let rejeitado = false;
+      try {
+        // Contorna deliberadamente o código de aplicação (que já impede
+        // isto) para provar que a PRÓPRIA base rejeita — nunca depende
+        // só da disciplina do código chamador.
+        await prisma.$executeRawUnsafe(`UPDATE "Farmacia" SET "autoridadeCatalogo" = true WHERE id = '${outraFarmB.id}'`);
+      } catch {
+        rejeitado = true;
+      }
+      check(rejeitado, "F1: um UPDATE directo que criaria uma 2ª farmácia autoritativa é rejeitado pelo índice único parcial real");
+      const aindaSoUma = await prisma.farmacia.count({ where: { autoridadeCatalogo: true } });
+      check(aindaSoUma === 1, "F2: continua a existir exactamente 1 farmácia autoritativa real na base", String(aindaSoUma));
+    }
+
+    console.log("\nG · setFarmaciaAutoridadeCatalogo — rollback COMPLETO se a validação final falhar");
+    {
+      const autoridadeAntes = await getFarmaciaAutoridadeCatalogo(prisma);
+      let lancou = false;
+      try {
+        // Um id que não existe nesta base faz o passo 2 (tx.farmacia.update)
+        // falhar a meio da transacção — prova que o passo 1 (desligar a
+        // autoridade anterior) É REVERTIDO também, não fica a meio.
+        await setFarmaciaAutoridadeCatalogo(prisma, "id-que-nao-existe-nesta-base");
+      } catch {
+        lancou = true;
+      }
+      check(lancou, "G1: farmaciaId inexistente faz a operação real falhar (nunca finge sucesso)");
+      const autoridadeDepois = await getFarmaciaAutoridadeCatalogo(prisma);
+      check(
+        autoridadeDepois?.id === autoridadeAntes?.id,
+        "G2: rollback COMPLETO real — a autoridade ANTERIOR continua exactamente a mesma, o passo 1 (desligar) não ficou a meio",
+        `antes=${autoridadeAntes?.id} depois=${autoridadeDepois?.id}`,
+      );
+    }
+
+    console.log("\nH · alias associado inconsistentemente (dado real em Postgres) — nunca resolvido arbitrariamente");
+    {
+      // Baseline capturado AGORA, não reaproveitado de `fabricantesDb` (bloco
+      // C) — blocos C(Segurado)/E já criaram fabricantes adicionais entretanto.
+      const totalFabricantesAntes = await prisma.fabricante.count();
+      const fabAmbiguoX = await prisma.fabricante.create({ data: { nomeNormalizado: "FABRICANTE AMBIGUO X" } });
+      const fabAmbiguoY = await prisma.fabricante.create({ data: { nomeNormalizado: "FABRICANTE AMBIGUO Y" } });
+      // `@@unique([fabricanteId, aliasNome])` permite isto por construção
+      // — é exactamente o dado inconsistente que o código tem de detectar.
+      await prisma.fabricanteAlias.create({ data: { fabricanteId: fabAmbiguoX.id, aliasNome: "NOME REALMENTE AMBIGUO" } });
+      await prisma.fabricanteAlias.create({ data: { fabricanteId: fabAmbiguoY.id, aliasNome: "NOME REALMENTE AMBIGUO" } });
+      const produtoAmbiguo = await prisma.produto.create({
+        data: { cnp: 5589500, designacao: "Produto Com Alias Ambiguo", fabricanteId: antigo.id },
+      });
+      const rAmbiguo = await applyErpCatalogFields(
+        prisma,
+        [{ cnp: 5589500, dci: null, codigoATC: null, grupoHomogeneo: null, fabricante: "Nome Realmente Ambiguo" }],
+        silveirense.id,
+      );
+      const produtoAmbiguoDb = await prisma.produto.findUnique({ where: { id: produtoAmbiguo.id }, select: { fabricanteId: true } });
+      check(produtoAmbiguoDb?.fabricanteId === antigo.id, "H1: Produto.fabricanteId real NUNCA tocado quando o alias é ambíguo", produtoAmbiguoDb?.fabricanteId ?? "null");
+      check(rAmbiguo.ambiguidadesFabricante.some((a) => a.nome === "NOME REALMENTE AMBIGUO"), "H2: diagnóstico real regista o nome ambíguo");
+      const fabricantesDbDepois = await prisma.fabricante.count();
+      check(
+        fabricantesDbDepois === totalFabricantesAntes + 2,
+        "H3: só os 2 fabricantes de teste (X e Y) foram criados — nenhum 'Fabricante' novo literal para o nome ambíguo",
+        `antes=${totalFabricantesAntes} depois=${fabricantesDbDepois}`,
+      );
+    }
+
+    console.log("\nI · ferramenta administrativa de alias — idempotência e recusa de conflito, contra Postgres real");
+    {
+      const fabAlvo = await prisma.fabricante.create({ data: { nomeNormalizado: "FABRICANTE ALVO ALIAS TOOL" } });
+      const fabOutro = await prisma.fabricante.create({ data: { nomeNormalizado: "FABRICANTE OUTRO ALIAS TOOL" } });
+      const aliasNovo = "ALIAS NOVO PARA REGISTAR";
+
+      // Mesma lógica de scripts/admin/registar-alias-fabricante-silveira.ts:
+      // 1ª chamada cria; repetir é idempotente; associar a um fabricante
+      // DIFERENTE sob o mesmo alias é recusado.
+      const criarSeNecessario = async (fabricanteId: string) => {
+        const existentes = await prisma.fabricanteAlias.findMany({ where: { aliasNome: aliasNovo }, select: { fabricanteId: true } });
+        const jaCorreto = existentes.some((e) => e.fabricanteId === fabricanteId);
+        const conflito = existentes.find((e) => e.fabricanteId !== fabricanteId);
+        if (conflito) return { ok: false as const, motivo: "conflito" };
+        if (jaCorreto) return { ok: true as const, criado: false };
+        await prisma.fabricanteAlias.create({ data: { fabricanteId, aliasNome: aliasNovo } });
+        return { ok: true as const, criado: true };
+      };
+
+      const i1 = await criarSeNecessario(fabAlvo.id);
+      check(i1.ok && i1.criado, "I1: 1ª chamada real cria o alias");
+      const totalAntes = await prisma.fabricanteAlias.count({ where: { aliasNome: aliasNovo } });
+      check(totalAntes === 1, "I2: exactamente 1 row real criada");
+
+      const i2 = await criarSeNecessario(fabAlvo.id);
+      check(i2.ok && !i2.criado, "I3: repetir com o MESMO fabricante é idempotente (não cria 2ª row)");
+      const totalDepoisRepeticao = await prisma.fabricanteAlias.count({ where: { aliasNome: aliasNovo } });
+      check(totalDepoisRepeticao === 1, "I4: continua a existir só 1 row real depois de repetir");
+
+      const i3 = await criarSeNecessario(fabOutro.id);
+      check(!i3.ok, "I5: associar o MESMO alias a um fabricante DIFERENTE é recusado (nunca cria a 2ª associação)");
+      const totalDepoisConflito = await prisma.fabricanteAlias.count({ where: { aliasNome: aliasNovo } });
+      check(totalDepoisConflito === 1, "I6: continua a existir só 1 row real — o conflito não foi aplicado");
+    }
+
     await prisma.$disconnect();
   } finally {
     await admin.query(`DROP DATABASE IF EXISTS ${dbNome} WITH (FORCE)`);

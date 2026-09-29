@@ -266,8 +266,8 @@ console.log("\n== H. Wiring ponta-a-ponta ==");
     ),
     "SyncRequest → Utilizador (FK, quem pediu)",
   );
-  check(schema.includes("syncRequests                        SyncRequest[]"), "Farmacia.syncRequests[] presente");
-  check(schema.includes("syncRequestsPedidos SyncRequest[]"), "Utilizador.syncRequestsPedidos[] presente");
+  check(/syncRequests\s+SyncRequest\[\]/.test(schema), "Farmacia.syncRequests[] presente");
+  check(/syncRequestsPedidos\s+SyncRequest\[\]/.test(schema), "Utilizador.syncRequestsPedidos[] presente");
 
   const migration = src("prisma/migrations/20260915110000_sync_request_outbox/migration.sql");
   check(

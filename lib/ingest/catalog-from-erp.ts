@@ -84,6 +84,17 @@ export type ErpCatalogResult = {
   substituidos: Record<Campo, number>;
   /** Campos não tocados por já terem fonte igual ou mais forte. */
   preservados: Record<Campo, number>;
+  /**
+   * Nomes de fabricante do ERP que NÃO foram resolvidos por serem
+   * ambíguos — o mesmo nome de alias está associado a mais do que um
+   * `Fabricante` distinto em `FabricanteAlias` (dado inconsistente:
+   * `@@unique([fabricanteId, aliasNome])` no schema permite isto por
+   * construção, não é um bug de escrita). Nunca se escolhe um dos dois
+   * arbitrariamente — o nome fica por resolver, `Produto.fabricanteId`
+   * não é tocado para essa linha, e o diagnóstico fica aqui para revisão
+   * administrativa (ver scripts/admin/registar-alias-fabricante.ts).
+   */
+  ambiguidadesFabricante: Array<{ nome: string; fabricanteIds: string[] }>;
 };
 
 function zeros(): Record<Campo, number> {
@@ -339,6 +350,7 @@ export async function applyErpCatalogFields(
     preenchidos: zeros(),
     substituidos: zeros(),
     preservados: zeros(),
+    ambiguidadesFabricante: [],
   };
 
   // Normalizar e descartar o que não tem nada de útil a dizer.
@@ -439,10 +451,32 @@ export async function applyErpCatalogFields(
         where: { aliasNome: { in: faltamPorNome } },
         select: { aliasNome: true, fabricanteId: true },
       });
-      for (const a of viaAlias) fabPorNome.set(a.aliasNome, a.fabricanteId);
+      // Um mesmo `aliasNome` pode legitimamente apontar a Fabricante
+      // diferentes na base — `@@unique([fabricanteId, aliasNome])` no
+      // schema não impede isto, só impede o MESMO par duplicado. Quando
+      // isso acontece é sempre um dado inconsistente (nunca uma escolha
+      // válida entre dois): nunca se resolve arbitrariamente pelo
+      // primeiro/último resultado — o nome fica por resolver e o
+      // diagnóstico vai para `ambiguidadesFabricante`.
+      const idsPorAlias = new Map<string, Set<string>>();
+      for (const a of viaAlias) {
+        if (!idsPorAlias.has(a.aliasNome)) idsPorAlias.set(a.aliasNome, new Set());
+        idsPorAlias.get(a.aliasNome)!.add(a.fabricanteId);
+      }
+      for (const [aliasNome, ids] of idsPorAlias) {
+        if (ids.size > 1) {
+          res.ambiguidadesFabricante.push({ nome: aliasNome, fabricanteIds: [...ids] });
+          console.warn(
+            `[catalog-from-erp] alias "${aliasNome}" associado inconsistentemente a ${ids.size} fabricantes distintos (${[...ids].join(", ")}) — não resolvido, Produto.fabricanteId não tocado para este nome.`
+          );
+          continue;
+        }
+        fabPorNome.set(aliasNome, [...ids][0]!);
+      }
 
       for (const nome of faltamPorNome) {
         if (fabPorNome.has(nome)) continue;
+        if (idsPorAlias.has(nome) && idsPorAlias.get(nome)!.size > 1) continue; // ambíguo — nunca cria um Fabricante novo por cima disto
         const criado = await prisma.fabricante.upsert({
           where: { nomeNormalizado: nome },
           create: { nomeNormalizado: nome },

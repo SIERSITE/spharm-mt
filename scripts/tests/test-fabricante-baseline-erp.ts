@@ -69,7 +69,8 @@ class MundoFalso {
   produtos: ProdutoRow[] = [];
   pf: PfRow[] = [];
   fabricantes = new Map<string, string>(); // nomeNormalizado -> id
-  aliases = new Map<string, string>(); // aliasNome -> fabricanteId
+  /** aliasNome -> fabricanteId[] — array para poder representar o caso real de dado inconsistente (mesmo alias, fabricantes distintos). */
+  aliases = new Map<string, string[]>();
   /** `null` = sem autoridade de catálogo configurada (comportamento histórico, todos os tenants por defeito). */
   autoridadeFarmaciaId: string | null = null;
   calls = { produtoUpdate: 0, logCreate: 0, pfUpsert: 0, fabricanteUpsert: 0 };
@@ -80,7 +81,8 @@ class MundoFalso {
   }
 
   registarAlias(aliasNome: string, fabricanteId: string): void {
-    this.aliases.set(aliasNome, fabricanteId);
+    const existentes = this.aliases.get(aliasNome) ?? [];
+    this.aliases.set(aliasNome, [...existentes, fabricanteId]);
   }
 
   addProduto(p: Partial<ProdutoRow> & { id: string; cnp: number }): ProdutoRow {
@@ -198,9 +200,7 @@ class MundoFalso {
       },
       fabricanteAlias: {
         findMany: async (args: { where: { aliasNome: { in: string[] } } }) =>
-          args.where.aliasNome.in
-            .filter((n) => this.aliases.has(n))
-            .map((n) => ({ aliasNome: n, fabricanteId: this.aliases.get(n)! })),
+          args.where.aliasNome.in.flatMap((n) => (this.aliases.get(n) ?? []).map((fabricanteId) => ({ aliasNome: n, fabricanteId }))),
       },
       farmacia: {
         findMany: async (args: { where: { autoridadeCatalogo: true } }) => {
@@ -533,12 +533,51 @@ async function testFarmaciaAutoridadeCatalogo(): Promise<void> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 10. Alias associado inconsistentemente a fabricantes distintos —
+//     nunca escolhido arbitrariamente, Produto.fabricanteId intocado,
+//     diagnóstico explícito em ambiguidadesFabricante.
+// ─────────────────────────────────────────────────────────────────────────
+
+async function testAliasAmbiguo(): Promise<void> {
+  console.log("\n=== 10. Alias associado inconsistentemente — nunca resolvido arbitrariamente ===");
+
+  const FARM_SILVEIRENSE = "farm-silveirense-2";
+  const CNP = 5589400;
+
+  const mundo = new MundoFalso();
+  mundo.definirAutoridade(FARM_SILVEIRENSE);
+  mundo.fabricantes.set("FABRICANTE X", "fab-x");
+  mundo.fabricantes.set("FABRICANTE Y", "fab-y");
+  // Dado inconsistente real: o MESMO alias aponta para dois fabricantes
+  // distintos (@@unique([fabricanteId, aliasNome]) no schema permite
+  // isto — não é impossível, é só errado).
+  mundo.registarAlias("NOME AMBIGUO", "fab-x");
+  mundo.registarAlias("NOME AMBIGUO", "fab-y");
+
+  mundo.addProduto({ id: "p-ambiguo", cnp: CNP, fabricanteId: "fab-antigo", fabricanteNome: "FABRICANTE ANTIGO" });
+  mundo.fabricantes.set("FABRICANTE ANTIGO", "fab-antigo");
+
+  const res = await applyErpCatalogFields(mundo.prisma(), [linha(CNP, "Nome Ambiguo")], FARM_SILVEIRENSE);
+
+  eq("10a. Produto.fabricanteId NUNCA é tocado quando o alias é ambíguo", mundo.produtos.find((p) => p.id === "p-ambiguo")!.fabricanteId, "fab-antigo");
+  eq("10b. contador fabricantesAlterados = 0 — nada foi realmente alterado", res.preenchidos.fabricante + res.substituidos.fabricante, 0);
+  eq("10c. NÃO cria um Fabricante novo literal 'NOME AMBIGUO' por cima da ambiguidade", mundo.calls.fabricanteUpsert, 0);
+  ok("10d. diagnóstico explícito: ambiguidadesFabricante regista o nome ambíguo", res.ambiguidadesFabricante.some((a) => a.nome === "NOME AMBIGUO"));
+  const diag = res.ambiguidadesFabricante.find((a) => a.nome === "NOME AMBIGUO");
+  ok(
+    "10e. diagnóstico lista os DOIS fabricantes concorrentes, nunca só um (nunca escolhe arbitrariamente)",
+    !!diag && diag.fabricanteIds.length === 2 && diag.fabricanteIds.includes("fab-x") && diag.fabricanteIds.includes("fab-y"),
+  );
+}
+
 async function main() {
   testDecidirFabricanteBaselinePuro();
   await testCiclosSucessivos();
   await testIsoladoPorFarmacia();
   await testProtecaoEmMassa();
   await testFarmaciaAutoridadeCatalogo();
+  await testAliasAmbiguo();
 
   console.log(`\n${pass} ok, ${fail} falhas`);
   process.exit(fail === 0 ? 0 : 1);

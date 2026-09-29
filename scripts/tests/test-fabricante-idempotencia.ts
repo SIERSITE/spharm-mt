@@ -148,6 +148,15 @@ function prismaFalso(produto: ProdutoFalso, baseline: string | null) {
         return { id };
       },
     },
+    // Sem alias registados e sem autoridade de catálogo configurada neste
+    // mundo falso — comportamento histórico simétrico, tal como este
+    // teste sempre assumiu (predata a funcionalidade de autoridade).
+    fabricanteAlias: {
+      findMany: async () => [] as Array<{ aliasNome: string; fabricanteId: string }>,
+    },
+    farmacia: {
+      findMany: async () => [] as Array<{ id: string; nome: string }>,
+    },
   };
   return { prisma: prisma as unknown as PrismaClient, calls, pf };
 }

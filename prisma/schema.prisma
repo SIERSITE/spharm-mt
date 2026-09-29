@@ -1216,10 +1216,14 @@ model Farmacia {
   /// uma com o seu próprio baseline por-farmácia+CNP.
   ///
   /// No máximo UMA farmácia por tenant deve ter isto a `true`. Reforçado
-  /// em código (setFarmaciaAutoridadeCatalogo, lib/farmacia-catalogo.ts),
-  /// nunca por constraint de BD — um índice único parcial exigiria uma
-  /// migração mais arriscada num schema já em produção, e o código já
-  /// garante unicidade dentro de uma transacção.
+  /// em código (setFarmaciaAutoridadeCatalogo, lib/farmacia-catalogo.ts:
+  /// desliga a anterior antes de ligar a nova, numa única transacção) E
+  /// por um índice único parcial na base — "Farmacia_autoridadeCatalogo_unica"
+  /// (migration 20260929130000), mesmo padrão de
+  /// "EmailConfig_global_singleton" — nunca depende só da disciplina do
+  /// código chamador. O Prisma não representa índices parciais no DSL do
+  /// schema (tal como o índice do EmailConfig, também raw SQL only) — por
+  /// isso não há `@@index`/`@@unique` correspondente aqui.
   autoridadeCatalogo Boolean @default(false)
 
   utilizadores                        Utilizador[]

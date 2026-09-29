@@ -46,11 +46,20 @@ export async function getFarmaciaAutoridadeCatalogo(
   return candidatas[0]!;
 }
 
+/** Lançado quando a validação pós-escrita (dentro da transacção) falha — faz rollback COMPLETO, nunca deixa um estado a meio. */
+export class AutoridadeCatalogoInvalidaError extends Error {}
+
 /**
  * Define QUAL farmácia é a autoridade de catálogo do tenant — nunca mais
- * do que uma. Dentro de uma única transacção: desliga a flag em todas as
- * outras, liga na farmácia pedida. `farmaciaId: null` remove a
- * autoridade por completo (volta ao comportamento histórico simétrico).
+ * do que uma. Dentro de uma ÚNICA transacção, em 3 passos, exactamente
+ * como pedido: (1) desliga a flag em todas as outras; (2) liga na
+ * farmácia pedida; (3) valida o resultado (conta quantas ficaram
+ * `true` e confirma que é a farmácia certa) ANTES de committar — uma
+ * falha na validação lança dentro da transacção, o que a Prisma reverte
+ * por completo (nenhuma alteração fica a meio; validar DEPOIS de
+ * committar seria tarde de mais para reverter). `farmaciaId: null`
+ * remove a autoridade por completo (volta ao comportamento histórico
+ * simétrico) — a validação nesse caso confirma zero autoridades.
  *
  * Ferramenta administrativa — nunca chamada pelo caminho de ingestão em
  * si (esse só LÊ via `getFarmaciaAutoridadeCatalogo`). Ver
@@ -61,9 +70,27 @@ export async function setFarmaciaAutoridadeCatalogo(
   farmaciaId: string | null,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // 1. remover a autoridade anterior
     await tx.farmacia.updateMany({ where: { autoridadeCatalogo: true }, data: { autoridadeCatalogo: false } });
+    // 2. definir a nova
     if (farmaciaId) {
       await tx.farmacia.update({ where: { id: farmaciaId }, data: { autoridadeCatalogo: true } });
+    }
+    // 3. validar o resultado — dentro da MESMA transacção, para que uma
+    // falha aqui reverta os passos 1/2 também (rollback completo).
+    const autoridades = await tx.farmacia.findMany({ where: { autoridadeCatalogo: true }, select: { id: true } });
+    if (farmaciaId === null) {
+      if (autoridades.length !== 0) {
+        throw new AutoridadeCatalogoInvalidaError(
+          `Esperava ficar sem nenhuma farmácia autoritativa, mas ${autoridades.length} continuam marcadas — a operar é revertida por completo.`,
+        );
+      }
+      return;
+    }
+    if (autoridades.length !== 1 || autoridades[0]!.id !== farmaciaId) {
+      throw new AutoridadeCatalogoInvalidaError(
+        `Esperava exactamente 1 farmácia autoritativa (${farmaciaId}), mas encontrei ${autoridades.length} (${autoridades.map((a) => a.id).join(", ")}) — a operação é revertida por completo.`,
+      );
     }
   });
 }

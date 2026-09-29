@@ -189,6 +189,8 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
     preenchidos: Record<string, number>;
     substituidos: Record<string, number>;
     preservados: Record<string, number>;
+    /** Ver ErpCatalogResult.ambiguidadesFabricante — diagnóstico explícito, nunca escolhido arbitrariamente. */
+    ambiguidadesFabricante: Array<{ nome: string; fabricanteIds: string[] }>;
   } | null = null;
   let reconciliacaoGlobal: ResumoReconciliacao | null = null;
   // Grupo laboratorial pesquisável — exclusivo do tenant garantia (as
@@ -299,6 +301,12 @@ export const POST = withIntegrationAuth(async (ctx, req) => {
           `[bootstrap/products] catálogo ERP: ${erp.candidatos} candidatos, ` +
             `${escritos} campos escritos, ` +
             `${Object.values(erp.preservados).reduce((x, y) => x + y, 0)} preservados por fonte mais forte`,
+        );
+      }
+      if (erp.ambiguidadesFabricante.length > 0) {
+        console.error(
+          `[bootstrap/products] ${erp.ambiguidadesFabricante.length} nome(s) de fabricante do ERP ficaram por resolver por ambiguidade — ver catalogoErp.ambiguidadesFabricante na resposta: ` +
+            erp.ambiguidadesFabricante.map((a) => `"${a.nome}" → [${a.fabricanteIds.join(", ")}]`).join("; "),
         );
       }
     } catch (err) {
